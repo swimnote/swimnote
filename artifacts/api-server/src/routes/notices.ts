@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { noticesTable, usersTable, studentsTable, parentStudentsTable, parentAccountsTable } from "@workspace/db/schema";
+import { sql } from "drizzle-orm";
+import { noticesTable, usersTable, studentsTable, parentAccountsTable, parentStudentsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 
@@ -15,8 +16,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
-    const notices = await db.select().from(noticesTable)
-      .where(eq(noticesTable.swimming_pool_id, poolId));
+    const notices = await db.select().from(noticesTable).where(eq(noticesTable.swimming_pool_id, poolId));
     res.json(notices.sort((a, b) => {
       if (a.is_pinned && !b.is_pinned) return -1;
       if (!a.is_pinned && b.is_pinned) return 1;
@@ -26,8 +26,9 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 });
 
 router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  const { title, content, is_pinned, notice_type, student_id } = req.body;
+  const { title, content, is_pinned, notice_type, student_id, image_urls } = req.body;
   if (!title || !content) { res.status(400).json({ error: "제목과 내용을 입력해주세요." }); return; }
+  const imgs: string[] = Array.isArray(image_urls) ? image_urls.slice(0, 5) : [];
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
@@ -51,8 +52,30 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       notice_type: notice_type === "individual" ? "individual" : "general",
       student_id: notice_type === "individual" ? (student_id || null) : null,
       student_name: studentName,
+      image_urls: imgs,
     }).returning();
     res.status(201).json(notice);
+  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+router.get("/:id/read-stats", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const [notice] = await db.select().from(noticesTable).where(eq(noticesTable.id, req.params.id)).limit(1);
+    if (!notice) { res.status(404).json({ error: "공지를 찾을 수 없습니다." }); return; }
+
+    const readCount = await db.execute(sql`SELECT COUNT(*) as cnt FROM notice_reads WHERE notice_id = ${req.params.id}`);
+    const read = Number((readCount.rows[0] as any).cnt);
+
+    let totalParents = 0;
+    if (notice.notice_type === "individual" && notice.student_id) {
+      const links = await db.execute(sql`SELECT COUNT(*) as cnt FROM parent_students WHERE student_id = ${notice.student_id} AND status = 'approved'`);
+      totalParents = Number((links.rows[0] as any).cnt);
+    } else {
+      const allParents = await db.execute(sql`SELECT COUNT(*) as cnt FROM parent_accounts WHERE swimming_pool_id = ${notice.swimming_pool_id}`);
+      totalParents = Number((allParents.rows[0] as any).cnt);
+    }
+
+    res.json({ read_count: read, unread_count: Math.max(0, totalParents - read), total: totalParents });
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 

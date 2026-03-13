@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import { parentAccountsTable, parentStudentsTable, studentsTable, attendanceTable, noticesTable, classGroupsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
@@ -30,12 +31,13 @@ router.get("/students", requireAuth, requireParent, async (req: AuthRequest, res
     const students = await Promise.all(links.map(async (link) => {
       const [s] = await db.select().from(studentsTable).where(eq(studentsTable.id, link.student_id)).limit(1);
       if (!s) return null;
-      let class_group_name: string | null = null;
+      let class_group: { name: string; schedule_days: string; schedule_time: string } | null = null;
       if (s.class_group_id) {
-        const [grp] = await db.select({ name: classGroupsTable.name, schedule_days: classGroupsTable.schedule_days, schedule_time: classGroupsTable.schedule_time }).from(classGroupsTable).where(eq(classGroupsTable.id, s.class_group_id)).limit(1);
-        if (grp) class_group_name = `${grp.name} (${grp.schedule_days} ${grp.schedule_time})`;
+        const [grp] = await db.select({ name: classGroupsTable.name, schedule_days: classGroupsTable.schedule_days, schedule_time: classGroupsTable.schedule_time })
+          .from(classGroupsTable).where(eq(classGroupsTable.id, s.class_group_id)).limit(1);
+        if (grp) class_group = grp;
       }
-      return { ...s, class_group_name };
+      return { ...s, class_group };
     }));
     res.json(students.filter(Boolean));
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
@@ -108,11 +110,31 @@ router.get("/notices", requireAuth, requireParent, async (req: AuthRequest, res)
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
     const notices = await db.select().from(noticesTable).where(eq(noticesTable.swimming_pool_id, pa.swimming_pool_id));
-    res.json(notices.sort((a, b) => {
+
+    const readRows = await db.execute(sql`SELECT notice_id FROM notice_reads WHERE parent_id = ${pa.id}`);
+    const readSet = new Set((readRows.rows as any[]).map((r: any) => r.notice_id));
+
+    const result = notices.map(n => ({ ...n, is_read: readSet.has(n.id) }));
+    result.sort((a, b) => {
       if (a.is_pinned && !b.is_pinned) return -1;
       if (!a.is_pinned && b.is_pinned) return 1;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    }));
+    });
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+router.post("/notices/:id/read", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
+    const readId = `nr_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO notice_reads (id, notice_id, parent_id)
+      VALUES (${readId}, ${req.params.id}, ${pa.id})
+      ON CONFLICT (notice_id, parent_id) DO NOTHING
+    `);
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 

@@ -8,6 +8,8 @@ import classGroupsRouter from "./class-groups.js";
 import attendanceRouter from "./attendance.js";
 import noticesRouter from "./notices.js";
 import parentRouter from "./parent.js";
+import uploadsRouter from "./uploads.js";
+import photosRouter from "./photos.js";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,7 @@ router.use("/class-groups", classGroupsRouter);
 router.use("/attendance", attendanceRouter);
 router.use("/notices", noticesRouter);
 router.use("/parent", parentRouter);
+router.use("/uploads", uploadsRouter);
+router.use("/", photosRouter);
 
 export default router;

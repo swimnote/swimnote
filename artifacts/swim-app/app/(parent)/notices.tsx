@@ -1,13 +1,27 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View, RefreshControl,
+  ActivityIndicator, Platform, Pressable, ScrollView,
+  StyleSheet, Text, View, RefreshControl, Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
-interface Notice { id: string; title: string; content: string; author_name: string; is_pinned: boolean; created_at: string; }
+interface Notice {
+  id: string;
+  title: string;
+  content: string;
+  author_name: string;
+  is_pinned: boolean;
+  is_read: boolean;
+  created_at: string;
+  notice_type?: string;
+  student_name?: string | null;
+  image_urls?: string[];
+}
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
 
 export default function ParentNoticesScreen() {
   const { token } = useAuth();
@@ -20,7 +34,7 @@ export default function ParentNoticesScreen() {
 
   async function fetchNotices() {
     try {
-      const res = await apiRequest(token, "/notices");
+      const res = await apiRequest(token, "/parent/notices");
       const data = await res.json();
       setNotices(Array.isArray(data) ? data : []);
     } finally { setLoading(false); setRefreshing(false); }
@@ -28,15 +42,32 @@ export default function ParentNoticesScreen() {
 
   useEffect(() => { fetchNotices(); }, []);
 
+  async function handleOpen(n: Notice) {
+    const isOpening = expanded !== n.id;
+    setExpanded(isOpening ? n.id : null);
+    if (isOpening && !n.is_read) {
+      await apiRequest(token, `/parent/notices/${n.id}/read`, { method: "POST" });
+      setNotices(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+    }
+  }
+
   const pinned = notices.filter(n => n.is_pinned);
   const regular = notices.filter(n => !n.is_pinned);
+  const unreadCount = notices.filter(n => !n.is_read).length;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
         <Text style={[styles.title, { color: C.text }]}>공지사항</Text>
-        <View style={[styles.countBadge, { backgroundColor: C.tintLight }]}>
-          <Text style={[styles.countText, { color: C.tint }]}>{notices.length}개</Text>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {unreadCount > 0 && (
+            <View style={[styles.unreadBadge, { backgroundColor: C.error }]}>
+              <Text style={styles.unreadCount}>미읽음 {unreadCount}</Text>
+            </View>
+          )}
+          <View style={[styles.countBadge, { backgroundColor: C.tintLight }]}>
+            <Text style={[styles.countText, { color: C.tint }]}>{notices.length}개</Text>
+          </View>
         </View>
       </View>
 
@@ -54,7 +85,7 @@ export default function ParentNoticesScreen() {
                 <Feather name="pin" size={13} color={C.tint} />
                 <Text style={[styles.sectionLabel, { color: C.tint }]}>고정 공지</Text>
               </View>
-              {pinned.map((n) => <NoticeItem key={n.id} n={n} expanded={expanded} setExpanded={setExpanded} C={C} />)}
+              {pinned.map(n => <NoticeItem key={n.id} n={n} expanded={expanded} onOpen={handleOpen} C={C} />)}
               {regular.length > 0 && (
                 <View style={styles.sectionRow}>
                   <Text style={[styles.sectionLabel, { color: C.textSecondary }]}>일반 공지</Text>
@@ -62,7 +93,7 @@ export default function ParentNoticesScreen() {
               )}
             </>
           )}
-          {regular.map((n) => <NoticeItem key={n.id} n={n} expanded={expanded} setExpanded={setExpanded} C={C} />)}
+          {regular.map(n => <NoticeItem key={n.id} n={n} expanded={expanded} onOpen={handleOpen} C={C} />)}
           {notices.length === 0 && (
             <View style={styles.empty}>
               <Feather name="bell-off" size={48} color={C.textMuted} />
@@ -76,21 +107,70 @@ export default function ParentNoticesScreen() {
   );
 }
 
-function NoticeItem({ n, expanded, setExpanded, C }: { n: Notice; expanded: string | null; setExpanded: (id: string | null) => void; C: typeof Colors.light }) {
+function NoticeItem({ n, expanded, onOpen, C }: {
+  n: Notice;
+  expanded: string | null;
+  onOpen: (n: Notice) => void;
+  C: typeof Colors.light;
+}) {
   const isOpen = expanded === n.id;
+  const images: string[] = Array.isArray(n.image_urls) ? n.image_urls : [];
+
   return (
     <Pressable
-      style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow, borderLeftWidth: n.is_pinned ? 3 : 0, borderLeftColor: C.tint }]}
-      onPress={() => setExpanded(isOpen ? null : n.id)}
+      style={[
+        styles.card,
+        { backgroundColor: C.card, shadowColor: C.shadow, borderLeftWidth: n.is_pinned ? 3 : 0, borderLeftColor: C.tint },
+        !n.is_read && { borderWidth: 1.5, borderColor: C.tint + "60" },
+      ]}
+      onPress={() => onOpen(n)}
     >
       <View style={styles.cardRow}>
         {n.is_pinned ? <Feather name="pin" size={12} color={C.tint} /> : null}
-        <Text style={[styles.noticeTitle, { color: C.text }]} numberOfLines={isOpen ? undefined : 2}>{n.title}</Text>
-        <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={16} color={C.textMuted} />
+        <View style={styles.titleBlock}>
+          {!n.is_read && (
+            <View style={[styles.unreadDot, { backgroundColor: C.tint }]} />
+          )}
+          <Text style={[styles.noticeTitle, { color: C.text }]} numberOfLines={isOpen ? undefined : 2}>{n.title}</Text>
+        </View>
+        <View style={{ alignItems: "flex-end", gap: 4 }}>
+          <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={16} color={C.textMuted} />
+          {n.is_read ? (
+            <View style={[styles.readTag, { backgroundColor: C.success + "22" }]}>
+              <Text style={[styles.readTagText, { color: C.success }]}>읽음</Text>
+            </View>
+          ) : (
+            <View style={[styles.readTag, { backgroundColor: C.error + "22" }]}>
+              <Text style={[styles.readTagText, { color: C.error }]}>미읽음</Text>
+            </View>
+          )}
+        </View>
       </View>
+
       {isOpen && (
-        <Text style={[styles.noticeContent, { color: C.textSecondary }]}>{n.content}</Text>
+        <View style={styles.expandedArea}>
+          {n.student_name && (
+            <View style={[styles.individualTag, { backgroundColor: C.tintLight }]}>
+              <Feather name="user" size={12} color={C.tint} />
+              <Text style={[styles.individualText, { color: C.tint }]}>{n.student_name} 학생 개별 공지</Text>
+            </View>
+          )}
+          <Text style={[styles.noticeContent, { color: C.textSecondary }]}>{n.content}</Text>
+          {images.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }} contentContainerStyle={{ gap: 8 }}>
+              {images.map((key, i) => (
+                <Image
+                  key={i}
+                  source={{ uri: `${API_BASE}/api/uploads/${encodeURIComponent(key)}` }}
+                  style={styles.thumbImage}
+                  resizeMode="cover"
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
       )}
+
       <View style={styles.meta}>
         <Text style={[styles.metaText, { color: C.textMuted }]}>{n.author_name}</Text>
         <Text style={[styles.metaText, { color: C.textMuted }]}>{new Date(n.created_at).toLocaleDateString("ko-KR")}</Text>
@@ -104,12 +184,22 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontFamily: "Inter_700Bold" },
   countBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   countText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  unreadBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  unreadCount: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
   sectionRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   card: { borderRadius: 14, padding: 14, gap: 10, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
   cardRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  titleBlock: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  unreadDot: { width: 7, height: 7, borderRadius: 4, marginTop: 5, flexShrink: 0 },
   noticeTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", flex: 1 },
+  readTag: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  readTagText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  expandedArea: { gap: 8 },
+  individualTag: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  individualText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   noticeContent: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
+  thumbImage: { width: 140, height: 140, borderRadius: 10 },
   meta: { flexDirection: "row", justifyContent: "space-between" },
   metaText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },

@@ -17,6 +17,7 @@ export const attendanceTable = pgTable("attendance", {
   updated_at: timestamp("updated_at"),
   modified_by: text("modified_by"),
   modified_by_name: text("modified_by_name"),
+  modification_reason: text("modification_reason"),
 });
 
 export const insertAttendanceSchema = createInsertSchema(attendanceTable).omit({
