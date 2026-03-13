@@ -71,6 +71,7 @@ function RootNav() {
     if (kind === "admin") {
       const role = adminUser?.role;
       if (role === "super_admin") { router.replace("/(super)/pools"); return; }
+      if (role === "teacher") { router.replace("/(teacher)/classes"); return; }
       if (role === "pool_admin") {
         if (!adminUser?.swimming_pool_id) { router.replace("/pool-apply"); return; }
         if (pool) {
@@ -96,6 +97,7 @@ function RootNav() {
       <Stack.Screen name="subscription-expired" />
       <Stack.Screen name="(admin)" />
       <Stack.Screen name="(super)" />
+      <Stack.Screen name="(teacher)" />
       <Stack.Screen name="(parent)" />
     </Stack>
   );

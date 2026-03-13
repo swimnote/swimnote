@@ -10,7 +10,7 @@ export interface AdminUser {
   email: string;
   name: string;
   phone?: string | null;
-  role: "super_admin" | "pool_admin";
+  role: "super_admin" | "pool_admin" | "teacher";
   swimming_pool_id?: string | null;
 }
 
