@@ -34,6 +34,12 @@ export interface PoolInfo {
   subscription_status: "trial" | "active" | "expired" | "suspended" | "cancelled";
   subscription_start_at?: string | null;
   subscription_end_at?: string | null;
+  /** 브랜딩 — 앱 내부 테마 색상 */
+  theme_color?: string | null;
+  /** 브랜딩 — 로고 이미지 URL */
+  logo_url?: string | null;
+  /** 브랜딩 — 로고 이모지 (로고 없을 때 대체) */
+  logo_emoji?: string | null;
 }
 
 interface AuthContextType {

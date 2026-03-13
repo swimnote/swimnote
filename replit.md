@@ -94,3 +94,65 @@ Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHea
 ### `scripts` (`@workspace/scripts`)
 
 Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+
+## 앱 브랜딩 구조 (SwimClass 플랫폼)
+
+### 이름 정책
+- **앱스토어 / 구글플레이 이름**: `SwimClass` (고정, `app.json name` 변경 완료)
+- **앱 내부 표시**: 수영장 이름 + "Powered by SwimClass"
+  - 예: 토이키즈스윔클럽 화정점 / Powered by SwimClass
+
+### 브랜딩 컨텍스트 (`context/BrandContext.tsx`)
+- `useBrand()` hook으로 전역 브랜드 상태 접근
+- 로그인 시 `BrandSync` 컴포넌트가 pool의 `theme_color`, `logo_url`, `logo_emoji` 자동 동기화
+- 로그아웃 시 기본값 초기화
+- AsyncStorage 캐시로 앱 재시작 시 즉시 복원
+
+### PoolHeader 컴포넌트 (`components/PoolHeader.tsx`)
+- 로그인 후 앱 내 상단 헤더
+- 로고 표시 우선순위: 이미지 URL > 이모지 > 이니셜(수영장명 첫 글자)
+- `right` prop으로 로그아웃 버튼 등 커스텀 가능
+
+### 동적 테마 색상
+- 관리자/학부모 탭바 activeTintColor가 `themeColor`로 동적 변경됨
+- 대시보드 통계 카드, 메뉴 아이콘 색상도 테마 반영
+- `swimming_pools.theme_color` 컬럼(기본 `#1A5CFF`)에 저장
+
+### DB 컬럼 (swimming_pools)
+- `theme_color text DEFAULT '#1A5CFF'` — 브랜드 주색상
+- `logo_url text` — 로고 이미지 URL
+- `logo_emoji text` — 로고 이모지 (로고 없을 때 대체)
+
+### 브랜딩 설정 API
+- `GET /pools/branding` — 현재 수영장 브랜딩 조회
+- `PUT /pools/branding` — theme_color, logo_url, logo_emoji 수정
+
+### 관리자 브랜딩 화면 (`(admin)/branding.tsx`)
+- 12색 팔레트 + HEX 직접 입력
+- 20개 수영장 테마 이모지 선택
+- 로고 URL 입력
+- 실시간 헤더 미리보기
+- 앱 아이콘 커스터마이징 안내 (엔터프라이즈 플랜)
+
+## 결제 시스템 (payment/)
+
+### 프로바이더 패턴 (`artifacts/api-server/src/payment/`)
+| 파일 | 설명 |
+|------|------|
+| `types.ts` | `PaymentProvider` 인터페이스 정의 |
+| `mock.ts` | 개발 환경 모의 결제 (항상 성공) |
+| `toss.ts` | 토스페이먼츠 빌링키 자동결제 스텁 |
+| `portone.ts` | 포트원(아임포트) v2 빌링키 스텁 |
+| `index.ts` | `PAYMENT_PROVIDER` 환경변수로 프로바이더 선택 |
+
+### 환경변수로 PG 전환
+```
+PAYMENT_PROVIDER=mock       # 개발 기본값
+PAYMENT_PROVIDER=toss       # 토스페이먼츠 (TOSS_SECRET_KEY 필요)
+PAYMENT_PROVIDER=portone    # 포트원 (PORTONE_API_SECRET + PORTONE_CHANNEL_KEY 필요)
+```
+
+### 구독 규칙
+- 월 선불, 지점 단위 독립 결제
+- 업그레이드 시 일할 계산 후 즉시 차액 결제
+- 다음 결제일은 기존 주기 유지

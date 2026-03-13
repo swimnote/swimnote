@@ -11,6 +11,11 @@ import parentRouter from "./parent.js";
 import uploadsRouter from "./uploads.js";
 import photosRouter from "./photos.js";
 import diaryRouter from "./diary.js";
+import notificationsRouter from "./notifications.js";
+import teachersRouter from "./teachers.js";
+import branchesRouter from "./branches.js";
+import membersRouter from "./members.js";
+import billingRouter from "./billing.js";
 
 const router: IRouter = Router();
 
@@ -26,5 +31,10 @@ router.use("/parent", parentRouter);
 router.use("/uploads", uploadsRouter);
 router.use("/", photosRouter);
 router.use("/", diaryRouter);
+router.use("/", notificationsRouter);
+router.use("/", teachersRouter);
+router.use("/members", membersRouter);
+router.use("/branches", branchesRouter);
+router.use("/billing", billingRouter);
 
 export default router;

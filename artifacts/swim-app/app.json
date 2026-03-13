@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "수영장 관리 플랫폼",
+    "name": "SwimClass",
     "slug": "swim-app",
     "version": "1.0.0",
     "orientation": "portrait",

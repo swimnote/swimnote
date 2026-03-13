@@ -7,22 +7,33 @@ import { hashPassword } from "../lib/auth.js";
 
 const router = Router();
 
+/** 회원 수 기준 구독 단계 계산 */
+function getSubscriptionTier(approved: boolean, count: number): { tier: string; label: string; isFree: boolean } {
+  if (!approved) return { tier: "unapproved", label: "미승인", isFree: false };
+  if (count <= 50) return { tier: "free", label: "무료 이용", isFree: true };
+  if (count <= 100) return { tier: "paid_100", label: "유료 100명", isFree: false };
+  if (count <= 300) return { tier: "paid_300", label: "유료 300명", isFree: false };
+  if (count <= 500) return { tier: "paid_500", label: "유료 500명", isFree: false };
+  if (count <= 1000) return { tier: "paid_1000", label: "유료 1000명", isFree: false };
+  return { tier: "paid_enterprise", label: "유료 엔터프라이즈", isFree: false };
+}
+
 router.get("/pools", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   try {
-    const { approval_status } = req.query;
-    const pools = await db.select().from(swimmingPoolsTable).orderBy(swimmingPoolsTable.created_at);
+    const pools = await db.select().from(swimmingPoolsTable).orderBy(swimmingPoolsTable.name);
 
     const poolsWithCount = await Promise.all(pools.map(async (pool) => {
-      const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(membersTable).where(eq(membersTable.swimming_pool_id, pool.id));
-      return { ...pool, member_count: Number(countResult?.count || 0) };
+      const countResult = await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM students
+        WHERE swimming_pool_id = ${pool.id} AND status = 'active'
+      `);
+      const count = Number((countResult.rows[0] as any)?.cnt || 0);
+      const approved = pool.approval_status === "approved";
+      const tier = getSubscriptionTier(approved, count);
+      return { ...pool, member_count: count, subscription_tier: tier };
     }));
 
-    if (approval_status && approval_status !== "all") {
-      const filtered = poolsWithCount.filter(p => p.approval_status === approval_status);
-      res.json(filtered);
-    } else {
-      res.json(poolsWithCount);
-    }
+    res.json(poolsWithCount);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "서버 오류가 발생했습니다." });
@@ -94,6 +105,96 @@ router.patch("/pools/:id/subscription", requireAuth, requireRole("super_admin"),
     res.status(500).json({ error: "서버 오류가 발생했습니다." });
   }
 });
+
+// ── 학생 탈퇴 처리 ────────────────────────────────────────────────────
+router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id: studentId } = req.params;
+
+      // 권한: pool_admin은 자신의 수영장 학생만 처리 가능
+      const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, studentId)).limit(1);
+      if (!student) { res.status(404).json({ error: "학생을 찾을 수 없습니다." }); return; }
+
+      if (req.user!.role === "pool_admin") {
+        const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id }).from(usersTable)
+          .where(eq(usersTable.id, req.user!.userId)).limit(1);
+        if (me?.swimming_pool_id !== student.swimming_pool_id) {
+          res.status(403).json({ error: "권한이 없습니다." }); return;
+        }
+      }
+
+      if ((student as any).status === "withdrawn") {
+        res.status(400).json({ error: "이미 탈퇴 처리된 학생입니다." }); return;
+      }
+
+      // 1. 개인 사진첩 삭제 (Object Storage + DB)
+      const photos = await db.execute(sql`
+        SELECT id, storage_key FROM student_photos WHERE student_id = ${studentId}
+      `);
+      if (photos.rows.length > 0) {
+        try {
+          const { Client } = await import("@replit/object-storage");
+          const client = new Client();
+          await Promise.allSettled(
+            (photos.rows as any[]).map(p => client.delete(p.storage_key).catch(() => {}))
+          );
+        } catch { /* Object Storage 오류는 무시하고 DB 정리 진행 */ }
+        await db.execute(sql`DELETE FROM student_photos WHERE student_id = ${studentId}`);
+      }
+
+      // 2. 마지막 반 이름 저장 후 탈퇴 처리 (출결 기록 유지)
+      let lastClassName: string | null = null;
+      if (student.class_group_id) {
+        const cgResult = await db.execute(sql`
+          SELECT name FROM class_groups WHERE id = ${student.class_group_id} LIMIT 1
+        `);
+        lastClassName = (cgResult.rows[0] as any)?.name ?? null;
+      }
+      await db.execute(sql`
+        UPDATE students
+        SET status = 'withdrawn', class_group_id = NULL, updated_at = now(),
+            last_class_group_name = ${lastClassName}, withdrawn_at = now()
+        WHERE id = ${studentId}
+      `);
+
+      // 3. 부모-학생 연결 해제
+      await db.execute(sql`
+        DELETE FROM parent_students WHERE student_id = ${studentId}
+      `);
+
+      // 4. 해당 반의 모든 학생이 탈퇴했으면 수영일지 삭제
+      const classGroupId = student.class_group_id;
+      if (classGroupId) {
+        const remainingResult = await db.execute(sql`
+          SELECT COUNT(*) AS cnt FROM students
+          WHERE class_group_id = ${classGroupId} AND status = 'active'
+        `);
+        const remainCount = Number((remainingResult.rows[0] as any)?.cnt || 0);
+        if (remainCount === 0) {
+          // 수영일지 이미지도 Object Storage에서 삭제
+          const diaries = await db.execute(sql`
+            SELECT id, image_urls FROM swim_diary WHERE class_group_id = ${classGroupId}
+          `);
+          try {
+            const { Client } = await import("@replit/object-storage");
+            const client = new Client();
+            for (const d of diaries.rows as any[]) {
+              const urls: string[] = Array.isArray(d.image_urls) ? d.image_urls : [];
+              await Promise.allSettled(urls.map((key: string) => client.delete(key).catch(() => {})));
+            }
+          } catch { /* 무시 */ }
+          await db.execute(sql`DELETE FROM swim_diary WHERE class_group_id = ${classGroupId}`);
+        }
+      }
+
+      res.json({ success: true, message: `${student.name} 학생이 탈퇴 처리되었습니다.` });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
 
 router.get("/users", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   try {
@@ -342,6 +443,164 @@ router.patch("/student-requests/:id", requireAuth, requireRole("super_admin", "p
     }
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
+
+// ── 플랫폼 전체 통계 (super_admin) ───────────────────────────────────
+router.get("/platform-stats", requireAuth, requireRole("super_admin"), async (_req, res) => {
+  try {
+    const result = await db.execute(sql`
+      SELECT
+        COUNT(*)::int                                                      AS total_pools,
+        COUNT(*) FILTER (WHERE approval_status = 'approved')::int         AS approved_pools,
+        COUNT(*) FILTER (WHERE approval_status = 'pending')::int          AS pending_pools,
+        COUNT(*) FILTER (WHERE approval_status = 'rejected')::int         AS rejected_pools
+      FROM swimming_pools
+    `);
+    const row = result.rows[0] as any;
+
+    // 학생 수 기반 유료/무료 분류 (승인된 수영장만)
+    const pools = await db.select({ id: swimmingPoolsTable.id, approval_status: swimmingPoolsTable.approval_status })
+      .from(swimmingPoolsTable);
+    let paidCount = 0;
+    let freeCount = 0;
+    await Promise.all(pools.map(async (p) => {
+      if (p.approval_status !== "approved") return;
+      const cnt = await db.execute(sql`
+        SELECT COUNT(*) AS c FROM students WHERE swimming_pool_id = ${p.id} AND status = 'active'
+      `);
+      const n = Number((cnt.rows[0] as any)?.c ?? 0);
+      if (n > 50) paidCount++;
+      else freeCount++;
+    }));
+
+    res.json({
+      total_pools:    row.total_pools,
+      approved_pools: row.approved_pools,
+      pending_pools:  row.pending_pools,
+      rejected_pools: row.rejected_pools,
+      paid_pools:     paidCount,
+      free_pools:     freeCount,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
+// ── 저장 용량 정책 조회 ───────────────────────────────────────────────
+router.get("/storage-policy", requireAuth, requireRole("super_admin", "pool_admin"), async (_req, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT * FROM storage_policy ORDER BY quota_gb ASC
+    `);
+    res.json(rows.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
+// ── 저장 용량 정책 수정 (super_admin 전용) ───────────────────────────
+router.put("/storage-policy/:tier", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  const { quota_gb, per_member_mb, extra_price_per_gb, description } = req.body;
+  try {
+    const result = await db.execute(sql`
+      UPDATE storage_policy
+      SET quota_gb = ${quota_gb}, per_member_mb = ${per_member_mb},
+          extra_price_per_gb = ${extra_price_per_gb}, description = ${description || null},
+          updated_at = now()
+      WHERE tier = ${req.params.tier}
+      RETURNING *
+    `);
+    if (!result.rows.length) { res.status(404).json({ error: "해당 정책을 찾을 수 없습니다." }); return; }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
+// ── 구독 상태 조회 (pool_admin용) ─────────────────────────────────────
+router.get("/subscription-status", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      let poolId: string | null = null;
+      if (req.user!.role === "pool_admin") {
+        const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+          .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+        poolId = me?.swimming_pool_id ?? null;
+      } else {
+        const pid = req.query.pool_id as string | undefined;
+        poolId = pid ?? null;
+      }
+      if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+      const [pool] = await db.select({ approval_status: swimmingPoolsTable.approval_status })
+        .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, poolId)).limit(1);
+      const approved = pool?.approval_status === "approved";
+
+      const countResult = await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM students
+        WHERE swimming_pool_id = ${poolId} AND status = 'active'
+      `);
+      const count = Number((countResult.rows[0] as any)?.cnt ?? 0);
+
+      const tier = getSubscriptionTier(approved, count);
+      const planLabels: Record<string, string> = {
+        free: "무료 이용",
+        paid_100: "100명 플랜",
+        paid_300: "300명 플랜",
+        paid_500: "500명 플랜",
+        paid_1000: "1,000명 플랜",
+        paid_enterprise: "엔터프라이즈 플랜",
+        unapproved: "미승인",
+      };
+
+      res.json({
+        member_count: count,
+        tier: tier.tier,
+        plan_label: planLabels[tier.tier] ?? tier.label,
+        is_free: tier.isFree,
+        is_paid: !tier.isFree && approved,
+        status_label: !approved ? "미승인" : tier.isFree ? "무료 이용" : "유료 이용",
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
+
+// ── 탈퇴 회원 목록 조회 ──────────────────────────────────────────────
+router.get("/withdrawn-members", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      let poolId: string | null = null;
+      if (req.user!.role === "pool_admin") {
+        const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+          .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+        poolId = me?.swimming_pool_id ?? null;
+      } else {
+        poolId = req.query.pool_id as string ?? null;
+      }
+      if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+      const students = await db.execute(sql`
+        SELECT
+          s.id, s.name, s.phone, s.last_class_group_name, s.withdrawn_at,
+          COUNT(a.id)::int AS attendance_count
+        FROM students s
+        LEFT JOIN attendance a ON a.student_id = s.id
+        WHERE s.swimming_pool_id = ${poolId} AND s.status = 'withdrawn'
+        GROUP BY s.id, s.name, s.phone, s.last_class_group_name, s.withdrawn_at
+        ORDER BY s.withdrawn_at DESC NULLS LAST
+      `);
+      res.json(students.rows);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
 
 router.get("/pending-connections", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {

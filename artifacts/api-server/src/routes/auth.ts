@@ -1,29 +1,36 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, parentAccountsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken } from "../lib/auth.js";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
 
+// ── 관리자/선생님 로그인 ──────────────────────────────────────────────
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
-    res.status(400).json({ error: "이메일과 비밀번호를 입력해주세요." });
-    return;
+    res.status(400).json({ error: "이메일과 비밀번호를 입력해주세요." }); return;
   }
   try {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-    if (!user) {
-      res.status(401).json({ error: "이메일 또는 비밀번호가 올바르지 않습니다." });
-      return;
-    }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
+    if (!user) { res.status(401).json({ error: "이메일 또는 비밀번호가 올바르지 않습니다." }); return; }
+
     const valid = await comparePassword(password, user.password_hash);
-    if (!valid) {
-      res.status(401).json({ error: "이메일 또는 비밀번호가 올바르지 않습니다." });
+    if (!valid) { res.status(401).json({ error: "이메일 또는 비밀번호가 올바르지 않습니다." }); return; }
+
+    // 선생님 계정 활성화 확인
+    if (user.role === "teacher" && !(user as any).is_activated) {
+      res.status(403).json({
+        error: "계정이 아직 활성화되지 않았습니다.",
+        needs_activation: true,
+        teacher_id: user.id,
+        hint: "관리자로부터 받은 인증코드로 계정을 활성화해주세요.",
+      });
       return;
     }
+
     const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
     const { password_hash: _, ...safeUser } = user;
     res.json({ token, user: safeUser });
@@ -33,23 +40,25 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// ── 관리자 계정 가입 ──────────────────────────────────────────────────
 router.post("/register", async (req, res) => {
   const { email, password, name, phone, role } = req.body;
   if (!email || !password || !name) {
-    res.status(400).json({ error: "필수 정보를 입력해주세요." });
-    return;
+    res.status(400).json({ error: "필수 정보를 입력해주세요." }); return;
+  }
+  if (password.length < 6) {
+    res.status(400).json({ error: "비밀번호는 6자 이상이어야 합니다." }); return;
   }
   try {
-    const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-    if (existing) {
-      res.status(400).json({ error: "이미 사용 중인 이메일입니다." });
-      return;
-    }
+    const [existing] = await db.select().from(usersTable)
+      .where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
+    if (existing) { res.status(400).json({ error: "이미 사용 중인 이메일입니다." }); return; }
+
     const password_hash = await hashPassword(password);
     const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const [user] = await db.insert(usersTable).values({
       id,
-      email,
+      email: email.trim().toLowerCase(),
       password_hash,
       name,
       phone: phone || null,
@@ -64,6 +73,54 @@ router.post("/register", async (req, res) => {
   }
 });
 
+// ── 선생님 계정 OTP 활성화 ────────────────────────────────────────────
+router.post("/activate-teacher", async (req, res) => {
+  const { teacher_id, otp } = req.body;
+  if (!teacher_id || !otp) {
+    res.status(400).json({ error: "teacher_id와 인증코드를 입력해주세요." }); return;
+  }
+  try {
+    const [teacher] = await db.select().from(usersTable)
+      .where(and(eq(usersTable.id, teacher_id), eq(usersTable.role, "teacher"))).limit(1);
+    if (!teacher) { res.status(404).json({ error: "선생님 계정을 찾을 수 없습니다." }); return; }
+    if ((teacher as any).is_activated) {
+      res.status(400).json({ error: "이미 활성화된 계정입니다." }); return;
+    }
+
+    // OTP 확인
+    const verif = await db.execute(sql`
+      SELECT * FROM phone_verifications
+      WHERE ref_id = ${teacher_id}
+        AND code = ${otp.trim()}
+        AND purpose = 'teacher_activation'
+        AND is_used = false
+        AND expires_at > now()
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+    if (!verif.rows.length) {
+      res.status(400).json({ error: "인증코드가 올바르지 않거나 만료되었습니다." }); return;
+    }
+
+    // 활성화 처리
+    await db.execute(sql`
+      UPDATE users SET is_activated = true, phone_verified = true, updated_at = now()
+      WHERE id = ${teacher_id}
+    `);
+    await db.execute(sql`
+      UPDATE phone_verifications SET is_used = true WHERE id = ${(verif.rows[0] as any).id}
+    `);
+
+    const token = signToken({ userId: teacher.id, role: teacher.role, poolId: teacher.swimming_pool_id });
+    const { password_hash: _, ...safeUser } = teacher;
+    res.json({ token, user: { ...safeUser, is_activated: true }, message: "계정이 활성화되었습니다." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
+// ── 학부모 로그인 ─────────────────────────────────────────────────────
 router.post("/parent-login", async (req, res) => {
   const { phone, pin } = req.body;
   if (!phone || !pin) {
@@ -93,20 +150,17 @@ router.post("/parent-login", async (req, res) => {
   }
 });
 
+// ── 내 정보 조회 ──────────────────────────────────────────────────────
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   try {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
-    if (!user) {
-      res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
-      return;
-    }
+    if (!user) { res.status(404).json({ error: "사용자를 찾을 수 없습니다." }); return; }
     const { password_hash: _, ...safeUser } = user;
     res.json(safeUser);
-  } catch (err) {
-    res.status(500).json({ error: "서버 오류가 발생했습니다." });
-  }
+  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ── 승인된 수영장 목록 (학부모 가입용) ───────────────────────────────
 router.get("/pools", async (req, res) => {
   try {
     const search = (req.query.search as string || "").trim();
@@ -123,6 +177,7 @@ router.get("/pools", async (req, res) => {
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ── 학부모 가입 ───────────────────────────────────────────────────────
 router.post("/parent-register", async (req, res) => {
   const { name, phone, pin, swimming_pool_id, child_names, memo } = req.body;
   if (!name || !phone || !pin || !swimming_pool_id) {
