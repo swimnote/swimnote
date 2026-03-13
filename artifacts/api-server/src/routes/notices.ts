@@ -16,7 +16,9 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
-    const notices = await db.select().from(noticesTable).where(eq(noticesTable.swimming_pool_id, poolId));
+    const notices = await db.select().from(noticesTable).where(
+      and(eq(noticesTable.swimming_pool_id, poolId), eq(noticesTable.notice_type, "general"))
+    );
     res.json(notices.sort((a, b) => {
       if (a.is_pinned && !b.is_pinned) return -1;
       if (!a.is_pinned && b.is_pinned) return 1;

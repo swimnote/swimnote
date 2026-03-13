@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
@@ -110,6 +111,13 @@ export default function MembersScreen() {
                     <Text style={[styles.classBadgeText, { color: C.tint }]}>{item.class_name}</Text>
                   </View>
                 ) : null}
+                <Pressable
+                  style={[styles.diaryBtn, { backgroundColor: "#059669" + "1A" }]}
+                  onPress={() => router.push({ pathname: "/(admin)/diary-write", params: { studentId: item.id, studentName: item.name } } as any)}
+                >
+                  <Feather name="book-open" size={12} color="#059669" />
+                  <Text style={[styles.diaryBtnText, { color: "#059669" }]}>수영 일지 작성</Text>
+                </Pressable>
               </View>
               <Pressable onPress={() => handleDelete(item.id, item.name)} style={styles.deleteBtn}>
                 <Feather name="trash-2" size={18} color={C.error} />
@@ -180,6 +188,8 @@ const styles = StyleSheet.create({
   classBadge: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginTop: 2 },
   classBadgeText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   deleteBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  diaryBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 4 },
+  diaryBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },

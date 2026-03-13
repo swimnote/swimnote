@@ -109,7 +109,9 @@ router.get("/notices", requireAuth, requireParent, async (req: AuthRequest, res)
   try {
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
-    const notices = await db.select().from(noticesTable).where(eq(noticesTable.swimming_pool_id, pa.swimming_pool_id));
+    const notices = await db.select().from(noticesTable).where(
+      and(eq(noticesTable.swimming_pool_id, pa.swimming_pool_id), eq(noticesTable.notice_type, "general"))
+    );
 
     const readRows = await db.execute(sql`SELECT notice_id FROM notice_reads WHERE parent_id = ${pa.id}`);
     const readSet = new Set((readRows.rows as any[]).map((r: any) => r.notice_id));

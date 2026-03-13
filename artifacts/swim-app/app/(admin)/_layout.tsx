@@ -38,6 +38,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="attendance" options={{ title: "출결", tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }} />
       <Tabs.Screen name="parents" options={{ title: "학부모", tabBarIcon: ({ color }) => <Feather name="user-check" size={22} color={color} /> }} />
       <Tabs.Screen name="notices" options={{ title: "공지", tabBarIcon: ({ color }) => <Feather name="bell" size={22} color={color} /> }} />
+      <Tabs.Screen name="diary-write" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -302,12 +302,6 @@ function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C }: {
 
       {isOpen && (
         <View style={{ gap: 10 }}>
-          {n.student_name && (
-            <View style={[styles.individualTag, { backgroundColor: C.tintLight }]}>
-              <Feather name="user" size={12} color={C.tint} />
-              <Text style={[styles.individualText, { color: C.tint }]}>{n.student_name} 학생 개별 공지</Text>
-            </View>
-          )}
           <Text style={[styles.noticeContent, { color: C.textSecondary }]}>{n.content}</Text>
           {images.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
@@ -362,8 +356,6 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
   noticeTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", flex: 1 },
   noticeContent: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
-  individualTag: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  individualText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   thumbImage: { width: 130, height: 130, borderRadius: 10 },
   statsRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   statItem: { flexDirection: "row", alignItems: "center", gap: 5 },

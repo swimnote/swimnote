@@ -28,6 +28,7 @@ export default function ParentLayout() {
       <Tabs.Screen name="attendance-history" options={{ href: null }} />
       <Tabs.Screen name="notice-detail" options={{ href: null }} />
       <Tabs.Screen name="photos" options={{ href: null }} />
+      <Tabs.Screen name="swim-diary" options={{ href: null }} />
     </Tabs>
   );
 }

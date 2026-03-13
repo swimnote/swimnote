@@ -14,11 +14,10 @@ interface ClassGroup {
   schedule_days: string; schedule_time: string;
   instructor?: string | null; level?: string | null;
 }
-
 interface Student {
   id: string; name: string;
-  birth_date?: string | null; phone?: string | null;
-  class_group?: ClassGroup | null; memo?: string | null;
+  birth_date?: string | null;
+  class_group?: ClassGroup | null;
 }
 
 const C = Colors.light;
@@ -32,57 +31,10 @@ function parseChips(days: string, time: string): string[] {
   return parts.slice(0, 7).map(d => `${d} ${time}`);
 }
 
-function ScheduleDisplay({ cg }: { cg?: ClassGroup | null }) {
-  if (!cg || !cg.schedule_days) {
-    return (
-      <View style={[styles.scheduleBox, { backgroundColor: C.card }]}>
-        <Feather name="clock" size={16} color={C.textMuted} />
-        <Text style={[styles.noSchedule, { color: C.textMuted }]}>배정된 수업이 없습니다</Text>
-      </View>
-    );
-  }
-  const chips = parseChips(cg.schedule_days, cg.schedule_time || "");
-  return (
-    <View style={[styles.scheduleBox, { backgroundColor: C.card }]}>
-      <View style={styles.scheduleTop}>
-        <Text style={[styles.cgName, { color: C.text }]}>{cg.name}</Text>
-        {cg.level ? <View style={[styles.lvBadge, { backgroundColor: C.tintLight }]}><Text style={[styles.lvText, { color: C.tint }]}>{cg.level}</Text></View> : null}
-      </View>
-      {cg.instructor ? <Text style={[styles.instructor, { color: C.textSecondary }]}>강사: {cg.instructor}</Text> : null}
-      <View style={styles.chipsRow}>
-        {chips.map((chip, i) => (
-          <View key={i} style={[styles.chip, { backgroundColor: C.tint + "18" }]}>
-            <Text style={[styles.chipText, { color: C.tint }]}>{chip}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function MenuCard({ icon, label, sub, color, onPress }: { icon: any; label: string; sub: string; color: string; onPress: () => void }) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.menuCard, { backgroundColor: C.card, opacity: pressed ? 0.88 : 1 }]}
-      onPress={onPress}
-    >
-      <View style={[styles.menuIcon, { backgroundColor: color + "20" }]}>
-        <Feather name={icon} size={22} color={color} />
-      </View>
-      <View style={styles.menuText}>
-        <Text style={[styles.menuLabel, { color: C.text }]}>{label}</Text>
-        <Text style={[styles.menuSub, { color: C.textMuted }]}>{sub}</Text>
-      </View>
-      <Feather name="chevron-right" size={18} color={C.textMuted} />
-    </Pressable>
-  );
-}
-
 export default function ParentStudentDetailScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
-
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -96,45 +48,85 @@ export default function ParentStudentDetailScreen() {
 
   useEffect(() => { fetchStudent(); }, [id]);
 
+  const cg = student?.class_group;
+  const chips = cg?.schedule_days ? parseChips(cg.schedule_days, cg.schedule_time || "") : [];
+
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="chevron-left" size={24} color={C.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: C.text }]}>{name || "학생 상세"}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 20, paddingTop: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 4 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStudent(); }} />}
         >
-          <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: C.textSecondary }]}>현재 수업 시간표</Text>
-            <ScheduleDisplay cg={student?.class_group} />
+          {/* 학생 이름 */}
+          <Text style={[styles.studentName, { color: C.text }]}>{name}</Text>
+
+          {/* 수업시간 칩 - 정보 전용 */}
+          {chips.length > 0 ? (
+            <View style={styles.chipsRow}>
+              {chips.map((chip, i) => (
+                <View key={i} style={[styles.chip, { backgroundColor: C.tint + "18" }]}>
+                  <Text style={[styles.chipText, { color: C.tint }]}>{chip}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.noSchedule, { color: C.textMuted }]}>수업 배정 없음</Text>
+          )}
+
+          {/* 큰 카드 2개 - 사진첩 / 수영일지 */}
+          <View style={styles.bigCardsRow}>
+            <Pressable
+              style={({ pressed }) => [styles.bigCard, { backgroundColor: "#7C3AED", opacity: pressed ? 0.9 : 1 }]}
+              onPress={() => router.push({ pathname: "/(parent)/photos", params: { id, name } })}
+            >
+              <Text style={styles.bigCardEmoji}>📷</Text>
+              <Text style={styles.bigCardLabel}>수영 사진첩</Text>
+              <Text style={styles.bigCardSub}>수업 사진 보기</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [styles.bigCard, { backgroundColor: C.tint, opacity: pressed ? 0.9 : 1 }]}
+              onPress={() => router.push({ pathname: "/(parent)/swim-diary", params: { id, name } })}
+            >
+              <Text style={styles.bigCardEmoji}>📒</Text>
+              <Text style={styles.bigCardLabel}>수영 일지</Text>
+              <Text style={styles.bigCardSub}>성장 기록 보기</Text>
+            </Pressable>
           </View>
 
-          <View style={styles.section}>
-            <Text style={[styles.sectionLabel, { color: C.textSecondary }]}>메뉴</Text>
-            <MenuCard
-              icon="calendar" label="출결 기록" sub="월별 출결 현황 확인"
-              color={C.tint}
-              onPress={() => router.push({ pathname: "/(parent)/attendance-history", params: { id, name } })}
-            />
-            <MenuCard
-              icon="bell" label="공지사항" sub="수영장 공지 및 개별 안내"
-              color={C.success}
-              onPress={() => router.push({ pathname: "/(parent)/notices", params: { studentId: id, studentName: name } })}
-            />
-            <MenuCard
-              icon="image" label="사진첩" sub="수업 사진 보기 및 다운로드"
-              color="#7C3AED"
-              onPress={() => router.push({ pathname: "/(parent)/photos", params: { id, name } })}
-            />
-          </View>
+          {/* 출결기록 - 중간 카드 */}
+          <Pressable
+            style={({ pressed }) => [styles.midCard, { backgroundColor: C.card, opacity: pressed ? 0.9 : 1 }]}
+            onPress={() => router.push({ pathname: "/(parent)/attendance-history", params: { id, name } })}
+          >
+            <View style={[styles.midIcon, { backgroundColor: C.success + "20" }]}>
+              <Feather name="calendar" size={22} color={C.success} />
+            </View>
+            <View style={styles.midText}>
+              <Text style={[styles.midLabel, { color: C.text }]}>출결기록 보기</Text>
+              <Text style={[styles.midSub, { color: C.textMuted }]}>월별 출결 현황 확인</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={C.textMuted} />
+          </Pressable>
+
+          {/* 공지사항 - 작은 카드 */}
+          <Pressable
+            style={({ pressed }) => [styles.smallCard, { backgroundColor: C.card, borderColor: C.border, opacity: pressed ? 0.9 : 1 }]}
+            onPress={() => router.push({ pathname: "/(parent)/notices" })}
+          >
+            <Feather name="bell" size={16} color={C.textSecondary} />
+            <Text style={[styles.smallLabel, { color: C.textSecondary }]}>공지사항</Text>
+            <Feather name="chevron-right" size={14} color={C.textMuted} />
+          </Pressable>
         </ScrollView>
       )}
     </View>
@@ -143,24 +135,34 @@ export default function ParentStudentDetailScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 4 },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  section: { gap: 10 },
-  sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.6 },
-  scheduleBox: { borderRadius: 16, padding: 16, gap: 10 },
-  scheduleTop: { flexDirection: "row", alignItems: "center", gap: 8 },
-  cgName: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  lvBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  lvText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  instructor: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  studentName: { fontSize: 28, fontFamily: "Inter_700Bold", marginBottom: 10 },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 24 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10 },
   chipText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  noSchedule: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  menuCard: { flexDirection: "row", alignItems: "center", gap: 14, borderRadius: 16, padding: 16, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2, shadowColor: "#00000015" },
-  menuIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  menuText: { flex: 1, gap: 3 },
-  menuLabel: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  menuSub: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  noSchedule: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 24 },
+
+  bigCardsRow: { flexDirection: "row", gap: 12, marginBottom: 14 },
+  bigCard: { flex: 1, borderRadius: 20, padding: 20, gap: 6, minHeight: 140, justifyContent: "flex-end" },
+  bigCardEmoji: { fontSize: 32, marginBottom: 4 },
+  bigCardLabel: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#fff" },
+  bigCardSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)" },
+
+  midCard: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 16, padding: 16, marginBottom: 10,
+    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2, shadowColor: "#00000012",
+  },
+  midIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  midText: { flex: 1, gap: 3 },
+  midLabel: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  midSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+
+  smallCard: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11,
+    borderWidth: 1, marginBottom: 10,
+  },
+  smallLabel: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
 });
