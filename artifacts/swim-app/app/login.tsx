@@ -11,39 +11,61 @@ import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
+const DEMO_ACCOUNTS = [
+  { id: "1", pw: "1", label: "플랫폼 운영자", icon: "shield" as const, color: "#7C3AED" },
+  { id: "2", pw: "2", label: "토이키즈 관리자", icon: "settings" as const, color: "#1A5CFF" },
+  { id: "3", pw: "3", label: "토이키즈 선생님", icon: "user" as const, color: "#0891B2" },
+  { id: "4", pw: "4", label: "서태웅 학부모", icon: "heart" as const, color: "#059669" },
+];
+
 export default function LoginScreen() {
-  const { adminLogin } = useAuth();
+  const { unifiedLogin } = useAuth();
   const insets = useSafeAreaInsets();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleLogin() {
-    if (!email || !password) { setError("이메일과 비밀번호를 입력해주세요."); return; }
+  async function handleLogin(id?: string, pw?: string) {
+    const finalId = id ?? identifier.trim();
+    const finalPw = pw ?? password;
+    if (!finalId || !finalPw) { setError("아이디와 비밀번호를 입력해주세요."); return; }
     setLoading(true); setError("");
     try {
-      await adminLogin(email.trim(), password);
+      await unifiedLogin(finalId, finalPw);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "로그인에 실패했습니다.");
+      const e = err as Error & { needs_activation?: boolean; teacher_id?: string };
+      if (e.needs_activation && e.teacher_id) {
+        router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } });
+        return;
+      }
+      setError(e.message || "로그인에 실패했습니다.");
     } finally { setLoading(false); }
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.root, { backgroundColor: C.background }]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 48), paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
-
+    <KeyboardAvoidingView
+      style={[styles.root, { backgroundColor: C.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 48), paddingBottom: insets.bottom + 40 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.logoArea}>
           <View style={[styles.logoBox, { backgroundColor: C.tint }]}>
             <Feather name="droplet" size={32} color="#fff" />
           </View>
-          <Text style={[styles.appName, { color: C.text }]}>수영장 관리 플랫폼</Text>
-          <Text style={[styles.appSub, { color: C.textSecondary }]}>B2B 수영장 통합 관리 솔루션</Text>
+          <Text style={[styles.appName, { color: C.text }]}>SwimClass</Text>
+          <Text style={[styles.appSub, { color: C.textSecondary }]}>수영장 통합 관리 플랫폼</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
-          <Text style={[styles.cardTitle, { color: C.text }]}>관리자 로그인</Text>
+          <Text style={[styles.cardTitle, { color: C.text }]}>로그인</Text>
 
           {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
@@ -53,11 +75,18 @@ export default function LoginScreen() {
           )}
 
           <View style={styles.field}>
-            <Text style={[styles.label, { color: C.textSecondary }]}>이메일</Text>
+            <Text style={[styles.label, { color: C.textSecondary }]}>아이디</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="mail" size={16} color={C.textMuted} />
-              <TextInput style={[styles.input, { color: C.text }]} value={email} onChangeText={setEmail}
-                placeholder="이메일" placeholderTextColor={C.textMuted} keyboardType="email-address" autoCapitalize="none" />
+              <Feather name="user" size={16} color={C.textMuted} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={identifier}
+                onChangeText={setIdentifier}
+                placeholder="아이디 입력"
+                placeholderTextColor={C.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
             </View>
           </View>
 
@@ -65,33 +94,60 @@ export default function LoginScreen() {
             <Text style={[styles.label, { color: C.textSecondary }]}>비밀번호</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
               <Feather name="lock" size={16} color={C.textMuted} />
-              <TextInput style={[styles.input, { color: C.text }]} value={password} onChangeText={setPassword}
-                placeholder="비밀번호" placeholderTextColor={C.textMuted} secureTextEntry={!showPw} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="비밀번호 입력"
+                placeholderTextColor={C.textMuted}
+                secureTextEntry={!showPw}
+              />
               <Pressable onPress={() => setShowPw(v => !v)}>
                 <Feather name={showPw ? "eye-off" : "eye"} size={16} color={C.textMuted} />
               </Pressable>
             </View>
           </View>
 
-          <Pressable style={({ pressed }) => [styles.btn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
-            onPress={handleLogin} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.btnText}>로그인</Text>}
+          <Pressable
+            style={({ pressed }) => [styles.btn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+            onPress={() => handleLogin()}
+            disabled={loading}
+          >
+            {loading
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={styles.btnText}>로그인</Text>
+            }
           </Pressable>
         </View>
 
-        <View style={[styles.dividerRow]}>
-          <View style={[styles.divider, { backgroundColor: C.border }]} />
-          <Text style={[styles.dividerText, { color: C.textMuted }]}>또는</Text>
-          <View style={[styles.divider, { backgroundColor: C.border }]} />
+        <View style={[styles.demoSection]}>
+          <Text style={[styles.demoTitle, { color: C.textSecondary }]}>테스트 계정으로 빠른 로그인</Text>
+          <View style={styles.demoGrid}>
+            {DEMO_ACCOUNTS.map(acc => (
+              <Pressable
+                key={acc.id}
+                style={({ pressed }) => [
+                  styles.demoBtn,
+                  { backgroundColor: C.card, borderColor: acc.color, opacity: pressed ? 0.8 : 1 },
+                ]}
+                onPress={() => {
+                  setIdentifier(acc.id);
+                  setPassword(acc.pw);
+                  handleLogin(acc.id, acc.pw);
+                }}
+                disabled={loading}
+              >
+                <View style={[styles.demoIcon, { backgroundColor: acc.color + "1A" }]}>
+                  <Feather name={acc.icon} size={15} color={acc.color} />
+                </View>
+                <View style={styles.demoTextCol}>
+                  <Text style={[styles.demoLabel, { color: C.text }]}>{acc.label}</Text>
+                  <Text style={[styles.demoId, { color: C.textMuted }]}>ID: {acc.id} / PW: {acc.pw}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
         </View>
-
-        <Pressable
-          style={({ pressed }) => [styles.parentBtn, { backgroundColor: C.card, borderColor: C.success, opacity: pressed ? 0.85 : 1 }]}
-          onPress={() => router.push("/parent-login")}
-        >
-          <Feather name="smartphone" size={18} color={C.success} />
-          <Text style={[styles.parentBtnText, { color: C.success }]}>학부모 로그인 (전화번호 + PIN)</Text>
-        </Pressable>
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: C.textSecondary }]}>수영장 사업자이신가요?</Text>
@@ -109,7 +165,7 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 24, gap: 20 },
   logoArea: { alignItems: "center", gap: 10 },
   logoBox: { width: 68, height: 68, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  appName: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  appName: { fontSize: 24, fontFamily: "Inter_700Bold" },
   appSub: { fontSize: 13, fontFamily: "Inter_400Regular" },
   card: { borderRadius: 18, padding: 22, gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3 },
   cardTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
@@ -121,11 +177,14 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
   btn: { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   btnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  dividerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  divider: { flex: 1, height: 1 },
-  dividerText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  parentBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, height: 52, borderRadius: 14, borderWidth: 1.5 },
-  parentBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  demoSection: { gap: 12 },
+  demoTitle: { fontSize: 12, fontFamily: "Inter_500Medium", textAlign: "center" },
+  demoGrid: { gap: 8 },
+  demoBtn: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 14, borderWidth: 1.5 },
+  demoIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  demoTextCol: { flex: 1, gap: 2 },
+  demoLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  demoId: { fontSize: 11, fontFamily: "Inter_400Regular" },
   footer: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
   footerText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   footerLink: { fontSize: 14, fontFamily: "Inter_600SemiBold" },

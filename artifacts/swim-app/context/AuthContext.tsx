@@ -49,6 +49,7 @@ interface AuthContextType {
   token: string | null;
   pool: PoolInfo | null;
   isLoading: boolean;
+  unifiedLogin: (identifier: string, password: string) => Promise<void>;
   adminLogin: (email: string, password: string) => Promise<void>;
   parentLogin: (phone: string, pin: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -100,6 +101,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function refreshPool() { if (token && kind === "admin") await fetchPool(token); }
 
+  async function unifiedLogin(identifier: string, password: string) {
+    const res = await fetch(`${API_BASE}/auth/unified-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.needs_activation) {
+        throw Object.assign(new Error(data.error || "계정 활성화가 필요합니다."), {
+          needs_activation: true,
+          teacher_id: data.teacher_id,
+        });
+      }
+      throw new Error(data.error || "로그인에 실패했습니다.");
+    }
+    await AsyncStorage.setItem("auth_token", data.token);
+    setToken(data.token);
+    if (data.kind === "admin") {
+      await AsyncStorage.multiSet([
+        ["auth_kind", "admin"],
+        ["auth_admin", JSON.stringify(data.user)],
+      ]);
+      setAdminUser(data.user);
+      setKind("admin");
+      if (data.user.swimming_pool_id) await fetchPool(data.token);
+    } else if (data.kind === "parent") {
+      await AsyncStorage.multiSet([
+        ["auth_kind", "parent"],
+        ["auth_parent", JSON.stringify(data.parent)],
+      ]);
+      setParentAccount(data.parent);
+      setKind("parent");
+    }
+  }
+
   async function adminLogin(email: string, password: string) {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -141,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ kind, adminUser, parentAccount, token, pool, isLoading, adminLogin, parentLogin, logout, refreshPool }}>
+    <AuthContext.Provider value={{ kind, adminUser, parentAccount, token, pool, isLoading, unifiedLogin, adminLogin, parentLogin, logout, refreshPool }}>
       {children}
     </AuthContext.Provider>
   );

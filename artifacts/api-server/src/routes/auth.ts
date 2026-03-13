@@ -222,4 +222,80 @@ router.post("/parent-register", async (req, res) => {
   }
 });
 
+// ── 통합 로그인 (MVP 테스트용) ─────────────────────────────────────────
+// identifier: admin/teacher → email, parent → phone
+// password:   admin/teacher → password, parent → pin
+router.post("/unified-login", async (req, res) => {
+  const { identifier, password } = req.body;
+  if (!identifier || !password) {
+    res.status(400).json({ error: "아이디와 비밀번호를 입력해주세요." }); return;
+  }
+  try {
+    // 1) users 테이블 (super_admin / pool_admin / teacher) 먼저 조회
+    const [user] = await db.select().from(usersTable)
+      .where(eq(usersTable.email, identifier.trim().toLowerCase())).limit(1);
+
+    if (user) {
+      const valid = await comparePassword(password, user.password_hash);
+      if (!valid) { res.status(401).json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }); return; }
+
+      // teacher 계정 활성화 확인 (is_activated 컬럼 직접 조회)
+      if (user.role === "teacher") {
+        const rawRows = await db.execute(
+          sql`SELECT is_activated FROM users WHERE id = ${user.id} LIMIT 1`
+        );
+        const isActivated = (rawRows.rows[0] as any)?.is_activated ?? true;
+        if (!isActivated) {
+          res.status(403).json({
+            error: "계정이 아직 활성화되지 않았습니다.",
+            needs_activation: true,
+            teacher_id: user.id,
+          });
+          return;
+        }
+      }
+
+      const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
+      const { password_hash: _, ...safeUser } = user;
+      res.json({ token, kind: "admin", user: safeUser });
+      return;
+    }
+
+    // 2) parent_accounts 테이블 (phone = identifier, pin = password)
+    const [parent] = await db.select().from(parentAccountsTable)
+      .where(eq(parentAccountsTable.phone, identifier.trim())).limit(1);
+
+    if (parent) {
+      const valid = await comparePassword(password, parent.pin_hash);
+      if (!valid) { res.status(401).json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }); return; }
+
+      let poolName: string | null = null;
+      try {
+        const [pool] = await db.select({ name: swimmingPoolsTable.name })
+          .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, parent.swimming_pool_id)).limit(1);
+        poolName = pool?.name ?? null;
+      } catch {}
+
+      const token = signToken({ userId: parent.id, role: "parent_account", poolId: parent.swimming_pool_id });
+      res.json({
+        token,
+        kind: "parent",
+        parent: {
+          id: parent.id,
+          name: parent.name,
+          phone: parent.phone,
+          swimming_pool_id: parent.swimming_pool_id,
+          pool_name: poolName,
+        },
+      });
+      return;
+    }
+
+    res.status(401).json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
 export default router;
