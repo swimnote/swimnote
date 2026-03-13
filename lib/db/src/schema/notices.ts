@@ -10,6 +10,9 @@ export const noticesTable = pgTable("notices", {
   author_id: text("author_id").notNull(),
   author_name: text("author_name").notNull(),
   is_pinned: boolean("is_pinned").notNull().default(false),
+  notice_type: text("notice_type").notNull().default("general"),
+  student_id: text("student_id"),
+  student_name: text("student_name"),
   created_at: timestamp("created_at").notNull().defaultNow(),
 });
 

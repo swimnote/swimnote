@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -20,6 +20,19 @@ export const parentStudentsTable = pgTable("parent_students", {
   status: text("status").notNull().default("pending"),
   approved_by: text("approved_by"),
   approved_at: timestamp("approved_at"),
+  rejection_reason: text("rejection_reason"),
+  created_at: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const studentRegistrationRequestsTable = pgTable("student_registration_requests", {
+  id: text("id").primaryKey(),
+  swimming_pool_id: text("swimming_pool_id").notNull(),
+  parent_id: text("parent_id").notNull(),
+  child_names: jsonb("child_names").notNull().default([]),
+  memo: text("memo"),
+  status: text("status").notNull().default("pending"),
+  reviewed_by: text("reviewed_by"),
+  reviewed_at: timestamp("reviewed_at"),
   rejection_reason: text("rejection_reason"),
   created_at: timestamp("created_at").notNull().defaultNow(),
 });

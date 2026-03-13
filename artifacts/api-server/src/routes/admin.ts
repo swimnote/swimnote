@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable } from "@workspace/db/schema";
+import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable, studentRegistrationRequestsTable, classGroupsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword } from "../lib/auth.js";
@@ -241,6 +241,106 @@ router.delete("/parents/:id/students/:link_id", requireAuth, requireRole("super_
     await db.delete(parentStudentsTable).where(eq(parentStudentsTable.id, req.params.link_id));
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+router.get("/student-requests", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    let poolId: string | null = null;
+    if (req.user!.role === "pool_admin") {
+      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      poolId = u?.swimming_pool_id || null;
+    } else {
+      poolId = req.query.pool_id as string || null;
+    }
+    if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
+
+    const { status } = req.query;
+    const requests = await db.select().from(studentRegistrationRequestsTable)
+      .where(eq(studentRegistrationRequestsTable.swimming_pool_id, poolId));
+
+    const filtered = status && status !== "all" ? requests.filter(r => r.status === status) : requests;
+    const enriched = await Promise.all(filtered.map(async (r) => {
+      const [pa] = await db.select({ id: parentAccountsTable.id, name: parentAccountsTable.name, phone: parentAccountsTable.phone })
+        .from(parentAccountsTable).where(eq(parentAccountsTable.id, r.parent_id)).limit(1);
+      return { ...r, parent: pa || null };
+    }));
+    res.json(enriched.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+router.get("/student-requests/:id/pool-students", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const [srr] = await db.select().from(studentRegistrationRequestsTable)
+      .where(eq(studentRegistrationRequestsTable.id, req.params.id)).limit(1);
+    if (!srr) { res.status(404).json({ error: "요청을 찾을 수 없습니다." }); return; }
+
+    const [pa] = await db.select({ phone: parentAccountsTable.phone })
+      .from(parentAccountsTable).where(eq(parentAccountsTable.id, srr.parent_id)).limit(1);
+    const parentPhone = pa?.phone || null;
+
+    const poolStudents = await db.select({
+      id: studentsTable.id, name: studentsTable.name,
+      birth_date: studentsTable.birth_date, phone: studentsTable.phone,
+      class_group_id: studentsTable.class_group_id,
+    }).from(studentsTable).where(eq(studentsTable.swimming_pool_id, srr.swimming_pool_id));
+
+    const alreadyLinked = await db.select({ student_id: parentStudentsTable.student_id })
+      .from(parentStudentsTable).where(eq(parentStudentsTable.parent_id, srr.parent_id));
+    const linkedIds = new Set(alreadyLinked.map(l => l.student_id));
+
+    const normalizePhone = (p: string | null) => (p || "").replace(/\D/g, "");
+    const parentPhoneNorm = normalizePhone(parentPhone);
+
+    const result = poolStudents.map(s => ({
+      ...s,
+      already_linked: linkedIds.has(s.id),
+      phone_match: parentPhoneNorm.length > 0 && normalizePhone(s.phone) === parentPhoneNorm,
+    })).sort((a, b) => {
+      if (a.phone_match && !b.phone_match) return -1;
+      if (!a.phone_match && b.phone_match) return 1;
+      return a.name.localeCompare(b.name, "ko");
+    });
+    res.json({ parent_phone: parentPhone, students: result });
+  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+router.patch("/student-requests/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  const { action, student_ids, reason } = req.body;
+  if (!["link", "reject"].includes(action)) {
+    res.status(400).json({ error: "action은 link 또는 reject여야 합니다." }); return;
+  }
+  try {
+    const [srr] = await db.select().from(studentRegistrationRequestsTable)
+      .where(eq(studentRegistrationRequestsTable.id, req.params.id)).limit(1);
+    if (!srr) { res.status(404).json({ error: "요청을 찾을 수 없습니다." }); return; }
+    if (srr.status !== "pending") { res.status(400).json({ error: "이미 처리된 요청입니다." }); return; }
+
+    if (action === "link") {
+      if (!Array.isArray(student_ids) || student_ids.length === 0) {
+        res.status(400).json({ error: "연결할 학생을 1명 이상 선택해주세요." }); return;
+      }
+      for (const studentId of student_ids) {
+        const existing = await db.select().from(parentStudentsTable)
+          .where(and(eq(parentStudentsTable.parent_id, srr.parent_id), eq(parentStudentsTable.student_id, studentId))).limit(1);
+        if (existing.length > 0) continue;
+        const linkId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await db.insert(parentStudentsTable).values({
+          id: linkId, parent_id: srr.parent_id, student_id: studentId,
+          swimming_pool_id: srr.swimming_pool_id, status: "approved",
+          approved_by: req.user!.userId, approved_at: new Date(),
+        });
+      }
+      await db.update(studentRegistrationRequestsTable)
+        .set({ status: "approved", reviewed_by: req.user!.userId, reviewed_at: new Date() })
+        .where(eq(studentRegistrationRequestsTable.id, req.params.id));
+      res.json({ linked: true, student_ids });
+    } else {
+      await db.update(studentRegistrationRequestsTable)
+        .set({ status: "rejected", reviewed_by: req.user!.userId, reviewed_at: new Date(), rejection_reason: reason || "관리자 거부" })
+        .where(eq(studentRegistrationRequestsTable.id, req.params.id));
+      res.json({ linked: false });
+    }
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
 router.get("/pending-connections", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {

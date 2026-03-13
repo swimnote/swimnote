@@ -12,6 +12,11 @@ export const attendanceTable = pgTable("attendance", {
   date: text("date").notNull(),
   status: attendanceStatusEnum("status").notNull().default("absent"),
   created_at: timestamp("created_at").notNull().defaultNow(),
+  created_by: text("created_by"),
+  created_by_name: text("created_by_name"),
+  updated_at: timestamp("updated_at"),
+  modified_by: text("modified_by"),
+  modified_by_name: text("modified_by_name"),
 });
 
 export const insertAttendanceSchema = createInsertSchema(attendanceTable).omit({
