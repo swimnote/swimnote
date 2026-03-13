@@ -1,22 +1,35 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: 수영장 관리 플랫폼 API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: pools
+    description: Swimming pools
+  - name: members
+    description: Pool members
+  - name: classes
+    description: Swimming classes
+  - name: attendance
+    description: Attendance management
+  - name: notices
+    description: Notices
+  - name: admin
+    description: Super admin operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,7 +37,539 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: 로그인
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: 회원가입
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: 가입 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: 내 정보 조회
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /pools/apply:
+    post:
+      operationId: applyPool
+      tags: [pools]
+      summary: 수영장 가입 신청
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplyPoolRequest"
+      responses:
+        "201":
+          description: 신청 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pool"
+
+  /pools/my:
+    get:
+      operationId: getMyPool
+      tags: [pools]
+      summary: 내 수영장 조회
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pool"
+
+  /admin/pools:
+    get:
+      operationId: adminGetPools
+      tags: [admin]
+      summary: 전체 수영장 목록 (슈퍼관리자)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: approval_status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected, all]
+        - name: subscription_status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pool"
+
+  /admin/pools/{id}/approve:
+    patch:
+      operationId: adminApprovePool
+      tags: [admin]
+      summary: 수영장 승인
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pool"
+
+  /admin/pools/{id}/reject:
+    patch:
+      operationId: adminRejectPool
+      tags: [admin]
+      summary: 수영장 반려
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectRequest"
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pool"
+
+  /admin/pools/{id}/subscription:
+    patch:
+      operationId: adminUpdateSubscription
+      tags: [admin]
+      summary: 구독 상태 변경 (슈퍼관리자)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSubscriptionRequest"
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pool"
+
+  /admin/users:
+    get:
+      operationId: adminGetUsers
+      tags: [admin]
+      summary: 전체 사용자 목록
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: adminCreateUser
+      tags: [admin]
+      summary: 관리자 계정 생성
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAdminRequest"
+      responses:
+        "201":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /members:
+    get:
+      operationId: getMembers
+      tags: [members]
+      summary: 회원 목록
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+    post:
+      operationId: createMember
+      tags: [members]
+      summary: 회원 등록
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMemberRequest"
+      responses:
+        "201":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+
+  /members/{id}:
+    get:
+      operationId: getMember
+      tags: [members]
+      summary: 회원 상세
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+    delete:
+      operationId: deleteMember
+      tags: [members]
+      summary: 회원 삭제
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /classes:
+    get:
+      operationId: getClasses
+      tags: [classes]
+      summary: 반 목록
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Class"
+    post:
+      operationId: createClass
+      tags: [classes]
+      summary: 반 등록
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClassRequest"
+      responses:
+        "201":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Class"
+
+  /classes/{id}:
+    delete:
+      operationId: deleteClass
+      tags: [classes]
+      summary: 반 삭제
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /classes/{id}/members:
+    get:
+      operationId: getClassMembers
+      tags: [classes]
+      summary: 반 회원 목록
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+    post:
+      operationId: addClassMember
+      tags: [classes]
+      summary: 반에 회원 추가
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddClassMemberRequest"
+      responses:
+        "201":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /attendance:
+    get:
+      operationId: getAttendance
+      tags: [attendance]
+      summary: 출결 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: class_id
+          in: query
+          schema:
+            type: string
+        - name: date
+          in: query
+          schema:
+            type: string
+        - name: member_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Attendance"
+    post:
+      operationId: checkAttendance
+      tags: [attendance]
+      summary: 출결 체크
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckAttendanceRequest"
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attendance"
+
+  /notices:
+    get:
+      operationId: getNotices
+      tags: [notices]
+      summary: 공지사항 목록
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notice"
+    post:
+      operationId: createNotice
+      tags: [notices]
+      summary: 공지사항 작성
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNoticeRequest"
+      responses:
+        "201":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notice"
+
+  /notices/{id}:
+    delete:
+      operationId: deleteNotice
+      tags: [notices]
+      summary: 공지사항 삭제
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +579,393 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [pool_admin, parent]
+      required:
+        - email
+        - password
+        - name
+        - role
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - token
+        - user
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, pool_admin, parent]
+        swimming_pool_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+      required:
+        - id
+        - email
+        - name
+        - role
+        - created_at
+
+    Pool:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        owner_name:
+          type: string
+        owner_email:
+          type: string
+        approval_status:
+          type: string
+          enum: [pending, approved, rejected]
+        rejection_reason:
+          type: string
+          nullable: true
+        subscription_status:
+          type: string
+          enum: [trial, active, expired, suspended, cancelled]
+        subscription_start_at:
+          type: string
+          nullable: true
+        subscription_end_at:
+          type: string
+          nullable: true
+        member_count:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+      required:
+        - id
+        - name
+        - address
+        - phone
+        - owner_name
+        - owner_email
+        - approval_status
+        - subscription_status
+        - created_at
+
+    ApplyPoolRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        owner_name:
+          type: string
+      required:
+        - name
+        - address
+        - phone
+        - owner_name
+
+    RejectRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+      required:
+        - reason
+
+    UpdateSubscriptionRequest:
+      type: object
+      properties:
+        subscription_status:
+          type: string
+          enum: [trial, active, expired, suspended, cancelled]
+        subscription_start_at:
+          type: string
+          nullable: true
+        subscription_end_at:
+          type: string
+          nullable: true
+        note:
+          type: string
+      required:
+        - subscription_status
+
+    CreateAdminRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        swimming_pool_id:
+          type: string
+        role:
+          type: string
+          enum: [pool_admin, parent]
+      required:
+        - email
+        - password
+        - name
+        - swimming_pool_id
+        - role
+
+    Member:
+      type: object
+      properties:
+        id:
+          type: string
+        swimming_pool_id:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        birth_date:
+          type: string
+          nullable: true
+        parent_user_id:
+          type: string
+          nullable: true
+        memo:
+          type: string
+          nullable: true
+        class_id:
+          type: string
+          nullable: true
+        class_name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+      required:
+        - id
+        - swimming_pool_id
+        - name
+        - phone
+        - created_at
+
+    CreateMemberRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        birth_date:
+          type: string
+        parent_user_id:
+          type: string
+        memo:
+          type: string
+      required:
+        - name
+        - phone
+
+    Class:
+      type: object
+      properties:
+        id:
+          type: string
+        swimming_pool_id:
+          type: string
+        name:
+          type: string
+        instructor:
+          type: string
+        schedule:
+          type: string
+        capacity:
+          type: integer
+          nullable: true
+        member_count:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+      required:
+        - id
+        - swimming_pool_id
+        - name
+        - instructor
+        - schedule
+        - created_at
+
+    CreateClassRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        instructor:
+          type: string
+        schedule:
+          type: string
+        capacity:
+          type: integer
+      required:
+        - name
+        - instructor
+        - schedule
+
+    AddClassMemberRequest:
+      type: object
+      properties:
+        member_id:
+          type: string
+      required:
+        - member_id
+
+    Attendance:
+      type: object
+      properties:
+        id:
+          type: string
+        class_id:
+          type: string
+        member_id:
+          type: string
+        member_name:
+          type: string
+        date:
+          type: string
+        status:
+          type: string
+          enum: [present, absent, late]
+        created_at:
+          type: string
+      required:
+        - id
+        - class_id
+        - member_id
+        - member_name
+        - date
+        - status
+        - created_at
+
+    CheckAttendanceRequest:
+      type: object
+      properties:
+        class_id:
+          type: string
+        member_id:
+          type: string
+        date:
+          type: string
+        status:
+          type: string
+          enum: [present, absent, late]
+      required:
+        - class_id
+        - member_id
+        - date
+        - status
+
+    Notice:
+      type: object
+      properties:
+        id:
+          type: string
+        swimming_pool_id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        author_name:
+          type: string
+        is_pinned:
+          type: boolean
+        created_at:
+          type: string
+      required:
+        - id
+        - swimming_pool_id
+        - title
+        - content
+        - author_name
+        - is_pinned
+        - created_at
+
+    CreateNoticeRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        is_pinned:
+          type: boolean
+      required:
+        - title
+        - content

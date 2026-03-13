@@ -1,0 +1,137 @@
+import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import {
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ScrollView, StyleSheet, Text, TextInput, View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Colors from "@/constants/colors";
+import { useAuth } from "@/context/AuthContext";
+
+const C = Colors.light;
+
+export default function ParentLoginScreen() {
+  const { parentLogin } = useAuth();
+  const insets = useSafeAreaInsets();
+  const [phone, setPhone] = useState("");
+  const [pin, setPin] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleLogin() {
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.length < 10) { setError("올바른 전화번호를 입력해주세요."); return; }
+    if (pin.length < 4) { setError("PIN은 4자리 이상이어야 합니다."); return; }
+    setLoading(true); setError("");
+    try {
+      await parentLogin(phone.trim(), pin);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "로그인에 실패했습니다.");
+    } finally { setLoading(false); }
+  }
+
+  return (
+    <KeyboardAvoidingView style={[styles.root, { backgroundColor: C.background }]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 24), paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
+
+        <Pressable onPress={() => router.back()} style={styles.back}>
+          <Feather name="arrow-left" size={22} color={C.text} />
+        </Pressable>
+
+        <View style={styles.header}>
+          <View style={[styles.iconBox, { backgroundColor: "#D1FAE5" }]}>
+            <Feather name="smartphone" size={30} color={C.success} />
+          </View>
+          <Text style={[styles.title, { color: C.text }]}>학부모 로그인</Text>
+          <Text style={[styles.sub, { color: C.textSecondary }]}>
+            수영장 관리자가 등록한{"\n"}전화번호와 PIN으로 로그인하세요
+          </Text>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: C.card }]}>
+          {!!error && (
+            <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+              <Feather name="alert-circle" size={14} color={C.error} />
+              <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
+            </View>
+          )}
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>전화번호</Text>
+            <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="phone" size={16} color={C.textMuted} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="010-0000-0000"
+                placeholderTextColor={C.textMuted}
+                keyboardType="phone-pad"
+              />
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>PIN 번호</Text>
+            <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="lock" size={16} color={C.textMuted} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={pin}
+                onChangeText={setPin}
+                placeholder="관리자가 알려준 PIN"
+                placeholderTextColor={C.textMuted}
+                secureTextEntry
+                keyboardType="number-pad"
+                maxLength={8}
+              />
+            </View>
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [styles.btn, { backgroundColor: C.success, opacity: pressed ? 0.85 : 1 }]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? <ActivityIndicator color="#fff" size="small" /> : (
+              <View style={styles.btnContent}>
+                <Feather name="log-in" size={18} color="#fff" />
+                <Text style={styles.btnText}>로그인</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+
+        <View style={[styles.infoBox, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
+          <Feather name="info" size={14} color={C.tint} />
+          <Text style={[styles.infoText, { color: C.tint }]}>
+            계정이 없으신가요? 수영장 관리자에게 전화번호 등록을 요청하세요.
+          </Text>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  container: { flexGrow: 1, paddingHorizontal: 24, gap: 24 },
+  back: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  header: { alignItems: "center", gap: 12 },
+  iconBox: { width: 72, height: 72, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  sub: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  card: { borderRadius: 18, padding: 22, gap: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3 },
+  errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10 },
+  errText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  field: { gap: 6 },
+  label: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  inputRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 50 },
+  input: { flex: 1, fontSize: 16, fontFamily: "Inter_400Regular" },
+  btn: { height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  btnContent: { flexDirection: "row", alignItems: "center", gap: 8 },
+  btnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 14, borderRadius: 12, borderWidth: 1 },
+  infoText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+});

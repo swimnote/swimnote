@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "수영장 관리 플랫폼"
+version = "1.0.0"
+id = "artifacts/swim-app"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+localPort = 22317
+name = "expo"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/swim-app run dev"
+
+[services.env]
+PORT = "22317"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/swim-app", "run", "build"]
+run = ["pnpm", "--filter", "@workspace/swim-app", "run", "serve"]

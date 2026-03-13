@@ -1,0 +1,159 @@
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || "/api";
+
+export type SessionKind = "admin" | "parent";
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  phone?: string | null;
+  role: "super_admin" | "pool_admin";
+  swimming_pool_id?: string | null;
+}
+
+export interface ParentAccount {
+  id: string;
+  name: string;
+  phone: string;
+  swimming_pool_id: string;
+  pool_name?: string | null;
+}
+
+export interface PoolInfo {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  owner_name: string;
+  owner_email: string;
+  approval_status: "pending" | "approved" | "rejected";
+  rejection_reason?: string | null;
+  subscription_status: "trial" | "active" | "expired" | "suspended" | "cancelled";
+  subscription_start_at?: string | null;
+  subscription_end_at?: string | null;
+}
+
+interface AuthContextType {
+  kind: SessionKind | null;
+  adminUser: AdminUser | null;
+  parentAccount: ParentAccount | null;
+  token: string | null;
+  pool: PoolInfo | null;
+  isLoading: boolean;
+  adminLogin: (email: string, password: string) => Promise<void>;
+  parentLogin: (phone: string, pin: string) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshPool: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [kind, setKind] = useState<SessionKind | null>(null);
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
+  const [parentAccount, setParentAccount] = useState<ParentAccount | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [pool, setPool] = useState<PoolInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => { loadStored(); }, []);
+
+  async function loadStored() {
+    try {
+      const [storedToken, storedKind, storedAdmin, storedParent] = await Promise.all([
+        AsyncStorage.getItem("auth_token"),
+        AsyncStorage.getItem("auth_kind"),
+        AsyncStorage.getItem("auth_admin"),
+        AsyncStorage.getItem("auth_parent"),
+      ]);
+      if (!storedToken || !storedKind) return;
+      setToken(storedToken);
+      if (storedKind === "admin" && storedAdmin) {
+        const user: AdminUser = JSON.parse(storedAdmin);
+        setAdminUser(user);
+        setKind("admin");
+        if (user.swimming_pool_id) await fetchPool(storedToken);
+      } else if (storedKind === "parent" && storedParent) {
+        const pa: ParentAccount = JSON.parse(storedParent);
+        setParentAccount(pa);
+        setKind("parent");
+      }
+    } catch (err) { console.error(err); }
+    finally { setIsLoading(false); }
+  }
+
+  async function fetchPool(authToken: string) {
+    try {
+      const res = await fetch(`${API_BASE}/pools/my`, { headers: { Authorization: `Bearer ${authToken}` } });
+      if (res.ok) setPool(await res.json());
+    } catch (err) { console.error(err); }
+  }
+
+  async function refreshPool() { if (token && kind === "admin") await fetchPool(token); }
+
+  async function adminLogin(email: string, password: string) {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "로그인에 실패했습니다.");
+    await AsyncStorage.multiSet([
+      ["auth_token", data.token],
+      ["auth_kind", "admin"],
+      ["auth_admin", JSON.stringify(data.user)],
+    ]);
+    setToken(data.token);
+    setAdminUser(data.user);
+    setKind("admin");
+    if (data.user.swimming_pool_id) await fetchPool(data.token);
+  }
+
+  async function parentLogin(phone: string, pin: string) {
+    const res = await fetch(`${API_BASE}/auth/parent-login`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, pin }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "로그인에 실패했습니다.");
+    await AsyncStorage.multiSet([
+      ["auth_token", data.token],
+      ["auth_kind", "parent"],
+      ["auth_parent", JSON.stringify(data.parent)],
+    ]);
+    setToken(data.token);
+    setParentAccount(data.parent);
+    setKind("parent");
+  }
+
+  async function logout() {
+    await AsyncStorage.multiRemove(["auth_token", "auth_kind", "auth_admin", "auth_parent"]);
+    setToken(null); setKind(null); setAdminUser(null); setParentAccount(null); setPool(null);
+  }
+
+  return (
+    <AuthContext.Provider value={{ kind, adminUser, parentAccount, token, pool, isLoading, adminLogin, parentLogin, logout, refreshPool }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
+}
+
+export function apiRequest(token: string | null, path: string, options: RequestInit = {}) {
+  return fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+}
