@@ -8,7 +8,7 @@ import {
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 
 interface ClassGroup { id: string; name: string; }
@@ -35,8 +35,8 @@ export default function TeacherAttendanceScreen() {
 
   useEffect(() => {
     (async () => {
-      const [cr, sr] = await Promise.all([apiRequest(token, "/classes"), apiRequest(token, "/students")]);
-      const [cls, sts] = await Promise.all([cr.json(), sr.json()]);
+      const [cr, sr] = await Promise.all([apiRequest(token, "/class-groups"), apiRequest(token, "/students")]);
+      const [cls, sts] = await Promise.all([safeJson(cr), safeJson(sr)]);
       const list = Array.isArray(cls) ? cls : [];
       setClasses(list); setStudents(Array.isArray(sts) ? sts : []);
       if (list.length) { setSelected(list[0].id); }
@@ -48,7 +48,7 @@ export default function TeacherAttendanceScreen() {
     if (!selected) return;
     (async () => {
       const r = await apiRequest(token, `/attendance?class_id=${selected}&date=${date}`);
-      const data = await r.json();
+      const data = await safeJson(r);
       if (Array.isArray(data)) {
         const map: Record<string, Status> = {};
         data.forEach((a: any) => { map[a.student_id ?? a.member_id] = a.status; });

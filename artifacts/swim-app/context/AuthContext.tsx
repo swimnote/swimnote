@@ -1,7 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "/api";
+const _DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (_DOMAIN ? `https://${_DOMAIN}/api` : "/api");
+
+export async function safeJson(res: Response): Promise<any> {
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch { return { error: `Unexpected response (HTTP ${res.status})` }; }
+}
 
 export type SessionKind = "admin" | "parent";
 
@@ -95,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function fetchPool(authToken: string) {
     try {
       const res = await fetch(`${API_BASE}/pools/my`, { headers: { Authorization: `Bearer ${authToken}` } });
-      if (res.ok) setPool(await res.json());
+      if (res.ok) setPool(await safeJson(res));
     } catch (err) { console.error(err); }
   }
 
@@ -107,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier, password }),
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) {
       if (data.needs_activation) {
         throw Object.assign(new Error(data.error || "계정 활성화가 필요합니다."), {
@@ -142,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "로그인에 실패했습니다.");
     await AsyncStorage.multiSet([
       ["auth_token", data.token],
@@ -160,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone, pin }),
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "로그인에 실패했습니다.");
     await AsyncStorage.multiSet([
       ["auth_token", data.token],

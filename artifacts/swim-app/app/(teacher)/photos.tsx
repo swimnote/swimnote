@@ -9,14 +9,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 
 interface ClassGroup { id: string; name: string; }
 interface Student { id: string; name: string; class_group_id?: string | null; }
 interface Photo { id: string; file_url: string; caption?: string | null; taken_at?: string | null; }
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "/api";
+const _DOM = process.env.EXPO_PUBLIC_DOMAIN;
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || (_DOM ? `https://${_DOM}/api` : "/api");
 
 export default function TeacherPhotosScreen() {
   const { token } = useAuth();
@@ -31,8 +32,8 @@ export default function TeacherPhotosScreen() {
 
   useEffect(() => {
     (async () => {
-      const [cr, sr] = await Promise.all([apiRequest(token, "/classes"), apiRequest(token, "/students")]);
-      const [cls, sts] = await Promise.all([cr.json(), sr.json()]);
+      const [cr, sr] = await Promise.all([apiRequest(token, "/class-groups"), apiRequest(token, "/students")]);
+      const [cls, sts] = await Promise.all([safeJson(cr), safeJson(sr)]);
       const list = Array.isArray(cls) ? cls : [];
       setClasses(list); setStudents(Array.isArray(sts) ? sts : []);
       setLoading(false);
@@ -41,7 +42,7 @@ export default function TeacherPhotosScreen() {
 
   async function fetchPhotos(studentId: string) {
     const r = await apiRequest(token, `/photos?student_id=${studentId}`);
-    const data = await r.json();
+    const data = await safeJson(r);
     setPhotos(Array.isArray(data) ? data : []);
   }
 

@@ -7,7 +7,7 @@ import {
   Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 
 interface ClassGroup { id: string; name: string; }
@@ -28,8 +28,8 @@ export default function TeacherDiaryScreen() {
 
   useEffect(() => {
     (async () => {
-      const [cr, sr] = await Promise.all([apiRequest(token, "/classes"), apiRequest(token, "/students")]);
-      const [cls, sts] = await Promise.all([cr.json(), sr.json()]);
+      const [cr, sr] = await Promise.all([apiRequest(token, "/class-groups"), apiRequest(token, "/students")]);
+      const [cls, sts] = await Promise.all([safeJson(cr), safeJson(sr)]);
       const list = Array.isArray(cls) ? cls : [];
       setClasses(list); setStudents(Array.isArray(sts) ? sts : []);
       if (list.length) { setSelected(list[0].id); fetchDiaries(list[0].id); }
@@ -39,7 +39,7 @@ export default function TeacherDiaryScreen() {
 
   async function fetchDiaries(classId: string) {
     const r = await apiRequest(token, `/diary?class_id=${classId}`);
-    const data = await r.json();
+    const data = await safeJson(r);
     setDiaries(Array.isArray(data) ? data : []);
   }
 
@@ -51,7 +51,7 @@ export default function TeacherDiaryScreen() {
         method: "POST",
         body: JSON.stringify({ student_id: modal.id, date: form.date, content: form.content }),
       });
-      const data = await r.json();
+      const data = await safeJson(r);
       if (!r.ok) throw new Error(data.error);
       if (selected) fetchDiaries(selected);
       setModal(null); setForm({ date: new Date().toISOString().split("T")[0], content: "" });

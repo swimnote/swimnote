@@ -16,9 +16,18 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    const groups = await db.select().from(classGroupsTable).where(eq(classGroupsTable.swimming_pool_id, poolId));
+    // 선생님 역할이면 자신이 담당하는 반만 반환
+    let groups;
+    if (req.user!.role === "teacher") {
+      const rawRows = await db.execute(
+        sql`SELECT * FROM class_groups WHERE swimming_pool_id = ${poolId} AND teacher_user_id = ${req.user!.userId}`
+      );
+      groups = rawRows.rows as any[];
+    } else {
+      groups = await db.select().from(classGroupsTable).where(eq(classGroupsTable.swimming_pool_id, poolId));
+    }
 
-    const enriched = await Promise.all(groups.map(async (g) => {
+    const enriched = await Promise.all(groups.map(async (g: any) => {
       const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(studentsTable)
         .where(and(eq(studentsTable.swimming_pool_id, poolId), eq(studentsTable.class_group_id, g.id)));
       return { ...g, student_count: Number(count) };

@@ -8,7 +8,7 @@ import {
   StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { PoolHeader } from "@/components/PoolHeader";
 
@@ -27,10 +27,10 @@ export default function TeacherClassesScreen() {
     (async () => {
       try {
         const [cr, sr] = await Promise.all([
-          apiRequest(token, "/classes"),
+          apiRequest(token, "/class-groups"),
           apiRequest(token, "/students"),
         ]);
-        const [cls, sts] = await Promise.all([cr.json(), sr.json()]);
+        const [cls, sts] = await Promise.all([safeJson(cr), safeJson(sr)]);
         const list = Array.isArray(cls) ? cls : [];
         setClasses(list);
         setStudents(Array.isArray(sts) ? sts : []);
