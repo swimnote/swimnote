@@ -28,7 +28,8 @@ async function getPoolSlug(poolId: string): Promise<string> {
 async function attachGroupNames(rows: any[]): Promise<any[]> {
   const ids = [...new Set(rows.map((r: any) => r.class_group_id).filter(Boolean))];
   if (!ids.length) return rows;
-  const gs = await db.execute(sql`SELECT id, name, schedule_days, schedule_time FROM class_groups WHERE id = ANY(${ids}::text[])`);
+  const idList = sql.join(ids.map(id => sql`${id}`), sql`, `);
+  const gs = await db.execute(sql`SELECT id, name, schedule_days, schedule_time FROM class_groups WHERE id IN (${idList})`);
   const map: Record<string, any> = {};
   for (const g of gs.rows as any[]) map[g.id] = g;
   return rows.map((r: any) => ({ ...r, class_group: map[r.class_group_id] || null }));
