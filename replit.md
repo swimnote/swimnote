@@ -1,9 +1,112 @@
-# SwimClass — 수영장 관리 플랫폼
+# SwimNote — 전국 수영장 온라인 통합 관리 플랫폼
 
 ## 앱 개요
 멀티테넌트 수영장 관리 B2B SaaS. 역할: super_admin / pool_admin / teacher / parent_account.
-한국어 UI. 데모 계정: 1/1(super_admin), 2/2(pool_admin), 3/3(teacher), 4/4(parent).
-데모 풀: 토이키즈(pool_toykids_001), 반: 초급반(cg_toykids_a), 학생: 서태웅(stu_taewung_001).
+한국어 UI. 데모 계정: 1/1(super_admin), 2/2(pool_admin-토이키즈), 3/3(teacher-토이키즈), 4/4(parent-서태웅).
+데모 풀: 토이키즈(pool_toykids_001), 아쿠아스타(pool_aquastar_002).
+
+## 플랫폼 승인 플로우 (수영장 가입 신청 ↔ 관리자 계정 활성화)
+
+### 1단계: 수영장 관리자 가입
+- `artifacts/swim-app/app/register.tsx`: 관리자 개인 계정 생성 (이메일/비밀번호)
+- 역할: pool_admin, 상태: 아직 수영장 미배정
+
+### 2단계: 수영장 등록 신청
+- `artifacts/swim-app/app/pool-apply.tsx`: 수영장 신청 폼
+- **필수 입력 필드:**
+  - **수영장 정보**: 이름, 주소, 전화, 대표자명, 사업자등록번호, 사업자등록증 이미지
+  - **관리자 정보**: 이름, 이메일(로그인 ID), 연락처
+- API: `POST /api/pools/apply` (FormData + 이미지)
+- DB: `swimming_pools` 테이블에 신규 pool 생성 (approval_status = 'pending')
+- 신청 후 라우팅: `/pending` (승인 대기 화면)
+
+### 3단계: 플랫폼 운영자 승인
+- `artifacts/swim-app/app/(super)/pools.tsx`: super_admin만 접근 가능
+- 신청 목록 조회: `GET /api/admin/pools`
+- **상태 필터**: pending(미승인), approved(승인), rejected(반려)
+- **운영자 버튼**:
+  - **승인**: `PATCH /api/admin/pools/:id/approve` → approval_status = 'approved'
+  - **반려**: `PATCH /api/admin/pools/:id/reject` → approval_status = 'rejected'
+  - 반려 사유 저장 가능
+
+### 4단계: 관리자 계정 활성화 및 로그인 제한
+- **승인 시**: DB의 users 레코드는 이미 존재 (2단계에서 신청자가 pool 생성 후 계정에 pool_id 연결됨)
+- **로그인 제한 로직** (`artifacts/api-server/src/routes/auth.ts`):
+  - `POST /login` 시 pool_admin은 pool의 approval_status 체크
+  - **pending** → 403 응답: "수영장이 아직 승인되지 않았습니다. 플랫폼 운영자의 승인을 기다려주세요."
+  - **rejected** → 403 응답: "수영장 신청이 반려되었습니다. 플랫폼 운영자에게 문의하세요."
+  - **approved** → 정상 로그인 가능, 토큰 발급
+- 승인 후 해당 관리자는 자신의 poolId로 로그인 가능
+
+## 데이터베이스 변경사항
+
+### swimming_pools 테이블 추가 컬럼
+```sql
+ALTER TABLE swimming_pools ADD COLUMN admin_name text;
+ALTER TABLE swimming_pools ADD COLUMN admin_email text;
+ALTER TABLE swimming_pools ADD COLUMN admin_phone text;
+```
+- `admin_email`: 승인되는 pool의 관리자 로그인 이메일 (owner_email과 동일하게 저장)
+- `admin_name`: 관리자 이름
+- `admin_phone`: 관리자 연락처
+
+## API 엔드포인트 정리
+
+| 메서드 | 경로 | 역할 | 기능 |
+|--------|------|------|------|
+| POST | `/api/pools/apply` | pool_admin(신청자) | 수영장 신청 (FormData + 이미지) |
+| GET | `/api/admin/pools` | super_admin | 신청 목록 조회 (상태 구분) |
+| PATCH | `/api/admin/pools/:id/approve` | super_admin | 승인 처리 |
+| PATCH | `/api/admin/pools/:id/reject` | super_admin | 반려 처리 |
+| POST | `/api/auth/login` | - | 로그인 (pool 상태 검증) |
+
+## 응답 형식 (JSON 통일)
+
+```json
+{
+  "success": true,
+  "data": { /* ... */ }
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "사용자 친화적 에러 메시지",
+  "error": "기술적 에러 키"
+}
+```
+
+## 테스트 시나리오
+
+### 시나리오 1: 정상 신청 → 승인 → 로그인
+1. 새 관리자가 `register.tsx`에서 계정 생성 (이메일, 비밀번호)
+2. `pool-apply.tsx`에서 수영장 신청
+3. super_admin이 `pools.tsx`에서 조회 후 승인
+4. 관리자가 `login`으로 로그인 가능
+
+### 시나리오 2: 신청 → 반려
+1. 관리자가 신청
+2. super_admin이 "반려" 버튼 클릭
+3. 관리자가 로그인 시도 → 403 "신청이 반려되었습니다"
+
+### 시나리오 3: 승인 대기
+1. 관리자가 신청
+2. 아직 승인 전: 로그인 시도 → 403 "승인을 기다려주세요"
+
+## 파일 수정 목록
+- `artifacts/swim-app/app/pool-apply.tsx`: 관리자 정보 필드 추가
+- `artifacts/api-server/src/routes/pools.ts`: /apply 엔드포인트 수정 (admin_* 처리)
+- `artifacts/api-server/src/routes/admin.ts`: /pools/:id/approve 로직 개선
+- `artifacts/api-server/src/routes/auth.ts`: 로그인 시 pool approval_status 검증
+
+## 향후 작업 (이번 턴 제외)
+- 승인/반려 시 관리자에게 이메일 알림 (별도 이메일 서비스 통합)
+- rejected 상태 UI 개선 (재신청 기능 등)
+- suspended 상태 추가 (일시 정지 기능)
+- 구독 상태 자동화 (승인 후 trial → active 등)
+
+---
 
 ## 사진 앨범 구조 (photo album)
 `student_photos` 테이블에 `album_type` (group|private) + `class_id` 컬럼 추가.
@@ -48,136 +151,38 @@ artifacts-monorepo/
 ├── artifacts/              # Deployable applications
 │   └── api-server/         # Express API server
 ├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── packages/               # Shared packages
+└── package.json
 ```
 
-## TypeScript & Composite Projects
+## Database
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+PostgreSQL with Drizzle ORM. DB accessible via DATABASE_URL env var.
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+Key tables:
+- `swimming_pools` (pool_id, name, approval_status, subscription_status, admin_name, admin_email, admin_phone, ...)
+- `users` (id, email, password_hash, role, swimming_pool_id, ...)
+- `students` (id, swimming_pool_id, name, ...)
+- `class_groups` (id, swimming_pool_id, name, ...)
+- `classes` (id, class_group_id, swimming_pool_id, ...)
+- `members` (id, swimming_pool_id, student_id, ...)
+- `parent_accounts` (id, swimming_pool_id, name, ...)
+- `parent_students` (id, parent_account_id, student_id, ...)
+- `notices` (id, swimming_pool_id, title, ...)
+- `student_photos` (id, swimming_pool_id, class_id, student_id, album_type, ...)
+- `student_diaries` (id, swimming_pool_id, student_id, ...)
+- `attendance` (id, swimming_pool_id, student_id, ...)
+- `notice_reads` (id, notice_id, user_id, ...)
 
-## Root Scripts
+All tables include `swimming_pool_id` for multi-tenant isolation.
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+## Security / Isolation
 
-## Packages
+- **Multi-tenant at DB level**: Every query filtered by `swimming_pool_id`
+- **Auth middleware**: Decodes JWT, checks role & pool access
+- **API validation**: Single-item endpoints (GET/PUT/DELETE) check pool ownership before returning data
+- **Login restriction**: pool_admin cannot login if pool.approval_status != 'approved'
 
-### `artifacts/api-server` (`@workspace/api-server`)
+## Branching & Git
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
-
-## 앱 브랜딩 구조 (SwimClass 플랫폼)
-
-### 이름 정책
-- **앱스토어 / 구글플레이 이름**: `SwimClass` (고정, `app.json name` 변경 완료)
-- **앱 내부 표시**: 수영장 이름 + "Powered by SwimClass"
-  - 예: 토이키즈스윔클럽 화정점 / Powered by SwimClass
-
-### 브랜딩 컨텍스트 (`context/BrandContext.tsx`)
-- `useBrand()` hook으로 전역 브랜드 상태 접근
-- 로그인 시 `BrandSync` 컴포넌트가 pool의 `theme_color`, `logo_url`, `logo_emoji` 자동 동기화
-- 로그아웃 시 기본값 초기화
-- AsyncStorage 캐시로 앱 재시작 시 즉시 복원
-
-### PoolHeader 컴포넌트 (`components/PoolHeader.tsx`)
-- 로그인 후 앱 내 상단 헤더
-- 로고 표시 우선순위: 이미지 URL > 이모지 > 이니셜(수영장명 첫 글자)
-- `right` prop으로 로그아웃 버튼 등 커스텀 가능
-
-### 동적 테마 색상
-- 관리자/학부모 탭바 activeTintColor가 `themeColor`로 동적 변경됨
-- 대시보드 통계 카드, 메뉴 아이콘 색상도 테마 반영
-- `swimming_pools.theme_color` 컬럼(기본 `#1A5CFF`)에 저장
-
-### DB 컬럼 (swimming_pools)
-- `theme_color text DEFAULT '#1A5CFF'` — 브랜드 주색상
-- `logo_url text` — 로고 이미지 URL
-- `logo_emoji text` — 로고 이모지 (로고 없을 때 대체)
-
-### 브랜딩 설정 API
-- `GET /pools/branding` — 현재 수영장 브랜딩 조회
-- `PUT /pools/branding` — theme_color, logo_url, logo_emoji 수정
-
-### 관리자 브랜딩 화면 (`(admin)/branding.tsx`)
-- 12색 팔레트 + HEX 직접 입력
-- 20개 수영장 테마 이모지 선택
-- 로고 URL 입력
-- 실시간 헤더 미리보기
-- 앱 아이콘 커스터마이징 안내 (엔터프라이즈 플랜)
-
-## 결제 시스템 (payment/)
-
-### 프로바이더 패턴 (`artifacts/api-server/src/payment/`)
-| 파일 | 설명 |
-|------|------|
-| `types.ts` | `PaymentProvider` 인터페이스 정의 |
-| `mock.ts` | 개발 환경 모의 결제 (항상 성공) |
-| `toss.ts` | 토스페이먼츠 빌링키 자동결제 스텁 |
-| `portone.ts` | 포트원(아임포트) v2 빌링키 스텁 |
-| `index.ts` | `PAYMENT_PROVIDER` 환경변수로 프로바이더 선택 |
-
-### 환경변수로 PG 전환
-```
-PAYMENT_PROVIDER=mock       # 개발 기본값
-PAYMENT_PROVIDER=toss       # 토스페이먼츠 (TOSS_SECRET_KEY 필요)
-PAYMENT_PROVIDER=portone    # 포트원 (PORTONE_API_SECRET + PORTONE_CHANNEL_KEY 필요)
-```
-
-### 구독 규칙
-- 월 선불, 지점 단위 독립 결제
-- 업그레이드 시 일할 계산 후 즉시 차액 결제
-- 다음 결제일은 기존 주기 유지
+Main branch only. Commits auto-saved.

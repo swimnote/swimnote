@@ -19,15 +19,14 @@ function getClient() {
 // ── 수영장 등록 신청 (multipart: 사업자등록증 이미지 포함) ────────────
 router.post("/apply", requireAuth, upload.single("business_reg_image"),
   async (req: AuthRequest, res) => {
-    const { name, name_en, business_reg_number, address, phone, owner_name } = req.body;
-    if (!name || !address || !phone || !owner_name || !business_reg_number) {
-      res.status(400).json({ error: "모든 필수 항목을 입력해주세요." }); return;
+    const { name, name_en, business_reg_number, address, phone, owner_name, admin_name, admin_email, admin_phone } = req.body;
+    if (!name || !address || !phone || !owner_name || !business_reg_number || !admin_name || !admin_email) {
+      return res.status(400).json({ success: false, message: "모든 필수 항목을 입력해주세요.", error: "필수 항목 누락" });
     }
     try {
       const user = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
-      if (!user[0]) { res.status(404).json({ error: "사용자를 찾을 수 없습니다." }); return; }
+      if (!user[0]) return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다.", error: "사용자 없음" });
 
-      // 사업자등록증 이미지 업로드
       let businessRegImageKey: string | null = null;
       if (req.file) {
         const client = getClient();
@@ -45,18 +44,18 @@ router.post("/apply", requireAuth, upload.single("business_reg_image"),
 
       const rows = await db.execute(sql`
         INSERT INTO swimming_pools
-          (id, name, name_en, business_reg_number, business_reg_image_key, address, phone, owner_name, owner_email, approval_status, subscription_status)
+          (id, name, name_en, business_reg_number, business_reg_image_key, address, phone, owner_name, owner_email, admin_name, admin_email, admin_phone, approval_status, subscription_status)
         VALUES
           (${id}, ${name}, ${resolvedNameEn}, ${business_reg_number}, ${businessRegImageKey},
-           ${address}, ${phone}, ${owner_name}, ${user[0].email}, 'pending', 'trial')
+           ${address}, ${phone}, ${owner_name}, ${admin_email}, ${admin_name}, ${admin_email}, ${admin_phone}, 'pending', 'trial')
         RETURNING *
       `);
 
       await db.update(usersTable).set({ swimming_pool_id: id }).where(eq(usersTable.id, req.user!.userId));
-      res.status(201).json(rows.rows[0]);
+      res.status(201).json({ success: true, data: rows.rows[0], admin_name, admin_email, admin_phone });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+      return res.status(500).json({ success: false, message: "서버 오류가 발생했습니다.", error: String(err) });
     }
   }
 );

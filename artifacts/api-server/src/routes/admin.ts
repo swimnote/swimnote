@@ -47,10 +47,23 @@ router.patch("/pools/:id/approve", requireAuth, requireRole("super_admin"), asyn
       .set({ approval_status: "approved", subscription_status: "trial", updated_at: new Date() })
       .where(eq(swimmingPoolsTable.id, id))
       .returning();
-    if (!pool) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
-    res.json(pool);
+    if (!pool) return res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다.", error: "pool not found" });
+
+    // 관리자 계정 활성화: 이미 로그인했던 사용자의 수영장이 승인됨
+    // (pool-apply.tsx에서 사용자가 먼저 가입 후 신청하므로 users 테이블에 이미 존재함)
+    const adminEmail = (pool as any).admin_email || pool.owner_email;
+    const [existingAdmin] = await db.select().from(usersTable)
+      .where(eq(usersTable.email, adminEmail)).limit(1);
+    
+    if (existingAdmin && existingAdmin.swimming_pool_id === id) {
+      // 이미 pool에 연결된 관리자 - 별도 처리 불필요
+      console.log(`[INFO] 관리자 계정 활성화: ${adminEmail} (pool: ${id})`);
+    }
+
+    res.json({ success: true, data: pool });
   } catch (err) {
-    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    console.error(err);
+    return res.status(500).json({ success: false, message: "서버 오류가 발생했습니다.", error: String(err) });
   }
 });
 

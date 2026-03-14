@@ -22,6 +22,27 @@ router.post("/login", async (req, res) => {
     const valid = await comparePassword(password, user.password_hash);
     if (!valid) return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
 
+    // pool_admin 역할은 수영장 승인 상태 확인
+    if (user.role === "pool_admin" && user.swimming_pool_id) {
+      const [pool] = await db.select({ approval_status: swimmingPoolsTable.approval_status })
+        .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, user.swimming_pool_id)).limit(1);
+      
+      if (!pool) return err(res, 403, "소속된 수영장을 찾을 수 없습니다.");
+      
+      if (pool.approval_status === "pending") {
+        return res.status(403).json({
+          success: false, message: "수영장이 아직 승인되지 않았습니다. 플랫폼 운영자의 승인을 기다려주세요.",
+          error: "pool_approval_pending", pool_status: "pending",
+        });
+      }
+      if (pool.approval_status === "rejected") {
+        return res.status(403).json({
+          success: false, message: "수영장 신청이 반려되었습니다. 플랫폼 운영자에게 문의하세요.",
+          error: "pool_approval_rejected", pool_status: "rejected",
+        });
+      }
+    }
+
     if (user.role === "teacher" && !(user as any).is_activated) {
       res.status(403).json({
         success: false,

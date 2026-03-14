@@ -33,6 +33,9 @@ export default function PoolApplyScreen() {
     address: "",
     phone: "",
     owner_name: "",
+    admin_name: "",
+    admin_email: "",
+    admin_phone: "",
   });
   const [regImage, setRegImage] = useState<{ uri: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,7 +57,8 @@ export default function PoolApplyScreen() {
   }
 
   async function handleApply() {
-    if (!form.name || !form.address || !form.phone || !form.owner_name || !form.business_reg_number) {
+    if (!form.name || !form.address || !form.phone || !form.owner_name || !form.business_reg_number ||
+        !form.admin_name || !form.admin_email) {
       setError("필수 항목을 모두 입력해주세요."); return;
     }
     const digits = form.business_reg_number.replace(/[^0-9]/g, "");
@@ -63,6 +67,9 @@ export default function PoolApplyScreen() {
     }
     if (form.name_en && !/^[a-z0-9_]+$/.test(form.name_en)) {
       setError("영문표시명은 소문자, 숫자, 언더스코어(_)만 사용할 수 있습니다."); return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.admin_email)) {
+      setError("관리자 이메일 형식이 올바르지 않습니다."); return;
     }
     setLoading(true);
     setError("");
@@ -74,6 +81,9 @@ export default function PoolApplyScreen() {
       fd.append("address", form.address);
       fd.append("phone", form.phone);
       fd.append("owner_name", form.owner_name);
+      fd.append("admin_name", form.admin_name);
+      fd.append("admin_email", form.admin_email);
+      fd.append("admin_phone", form.admin_phone);
       if (regImage) {
         const filename = regImage.uri.split("/").pop() || "business_reg.jpg";
         const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
@@ -88,7 +98,7 @@ export default function PoolApplyScreen() {
         body: fd,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "신청에 실패했습니다.");
+      if (!res.ok) throw new Error(data.error || data.message || "신청에 실패했습니다.");
       await refreshPool();
       router.replace("/pending");
     } catch (err: unknown) {
@@ -121,6 +131,8 @@ export default function PoolApplyScreen() {
               <Text style={[styles.errorText, { color: C.error }]}>{error}</Text>
             </View>
           ) : null}
+
+          <Text style={[styles.sectionTitle, { color: C.text }]}>수영장 정보</Text>
 
           {/* 수영장 한글명 */}
           <Field label="수영장 이름 *" icon="droplet">
@@ -196,10 +208,30 @@ export default function PoolApplyScreen() {
               placeholder="사업자 대표자명" placeholderTextColor={C.textMuted} />
           </Field>
 
+          <Text style={[styles.sectionTitle, { color: C.text, marginTop: 8 }]}>관리자 정보</Text>
+
+          {/* 관리자 이름 */}
+          <Field label="관리자 이름 *" icon="user">
+            <TextInput style={[styles.input, { color: C.text }]} value={form.admin_name} onChangeText={setF("admin_name")}
+              placeholder="수영장 관리자명" placeholderTextColor={C.textMuted} />
+          </Field>
+
+          {/* 관리자 이메일 (로그인 아이디) */}
+          <Field label="관리자 이메일 (로그인 아이디) *" icon="mail">
+            <TextInput style={[styles.input, { color: C.text }]} value={form.admin_email} onChangeText={setF("admin_email")}
+              placeholder="admin@example.com" placeholderTextColor={C.textMuted} keyboardType="email-address" autoCapitalize="none" />
+          </Field>
+
+          {/* 관리자 연락처 */}
+          <Field label="관리자 연락처" icon="phone">
+            <TextInput style={[styles.input, { color: C.text }]} value={form.admin_phone} onChangeText={setF("admin_phone")}
+              placeholder="010-0000-0000" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
+          </Field>
+
           <View style={[styles.notice, { backgroundColor: C.tintLight, borderRadius: 10, padding: 12 }]}>
             <Feather name="info" size={14} color={C.tint} />
             <Text style={[styles.noticeText, { color: C.tint }]}>
-              신청 내용은 플랫폼 운영자가 직접 검토 후 승인합니다.{"\n"}영업일 기준 1~2일 내 처리됩니다.
+              신청 내용은 플랫폼 운영자가 직접 검토 후 승인합니다.{"\n"}승인되면 관리자 이메일로 계정이 활성화됩니다.
             </Text>
           </View>
 
@@ -246,6 +278,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: 20, padding: 24, gap: 14, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 20, elevation: 4 },
   errorBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },
   errorText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  sectionTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginTop: 12 },
   fieldWrap: { gap: 4 },
   label: { fontSize: 13, fontFamily: "Inter_500Medium" },
   hint: { fontSize: 11, fontFamily: "Inter_400Regular" },
