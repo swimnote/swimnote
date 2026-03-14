@@ -42,9 +42,12 @@ router.get("/pools/public-search", async (req, res) => {
 // ─── 공개: 학부모 수영장 가입 요청 ───────────────────────────────────
 router.post("/auth/pool-join-request", async (req, res) => {
   try {
-    const { swimming_pool_id, parent_name, phone } = req.body;
+    const { swimming_pool_id, parent_name, phone, child_name, child_birth_year, children_requested } = req.body;
     if (!swimming_pool_id || !parent_name?.trim() || !phone?.trim()) {
       res.status(400).json({ success: false, message: "수영장, 이름, 전화번호는 필수입니다." }); return;
+    }
+    if (!child_name?.trim() && (!children_requested || children_requested.length === 0)) {
+      res.status(400).json({ success: false, message: "자녀 정보는 필수입니다." }); return;
     }
 
     // 수영장 존재 확인
@@ -67,9 +70,15 @@ router.post("/auth/pool-join-request", async (req, res) => {
     }
 
     const id = genId("ppr");
+    const childrenData = children_requested?.length > 0 
+      ? children_requested 
+      : [{ childName: child_name.trim(), childBirthYear: child_birth_year }];
+    
     await db.execute(sql`
-      INSERT INTO parent_pool_requests (id, swimming_pool_id, parent_name, phone, request_status, requested_at)
-      VALUES (${id}, ${swimming_pool_id}, ${parent_name.trim()}, ${phone.trim()}, 'pending', NOW())
+      INSERT INTO parent_pool_requests (id, swimming_pool_id, parent_name, phone, child_name, child_birth_year, children_requested, request_status, requested_at)
+      VALUES (${id}, ${swimming_pool_id}, ${parent_name.trim()}, ${phone.trim()}, 
+              ${child_name?.trim() || null}, ${child_birth_year || null},
+              ${JSON.stringify(childrenData)}, 'pending', NOW())
     `);
 
     res.status(201).json({ success: true, data: { id, message: "가입 요청이 접수되었습니다. 수영장 관리자 승인 후 이용 가능합니다." } });

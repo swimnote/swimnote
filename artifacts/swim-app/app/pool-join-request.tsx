@@ -21,6 +21,8 @@ interface PoolResult { id: string; name: string; address: string | null; }
 
 type Step = "search" | "form" | "done";
 
+interface Child { childName: string; childBirthYear: number | null; }
+
 export default function PoolJoinRequestScreen() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>("search");
@@ -34,6 +36,7 @@ export default function PoolJoinRequestScreen() {
   // 폼 단계
   const [parentName, setParentName] = useState("");
   const [phone, setPhone] = useState("");
+  const [children, setChildren] = useState<Child[]>([{ childName: "", childBirthYear: null }]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -59,6 +62,8 @@ export default function PoolJoinRequestScreen() {
 
   async function handleSubmit() {
     if (!parentName.trim() || !phone.trim()) { setError("이름과 전화번호를 입력해주세요."); return; }
+    const validChildren = children.filter(c => c.childName.trim());
+    if (validChildren.length === 0) { setError("최소 1명의 자녀 정보를 입력해주세요."); return; }
     if (!selectedPool) return;
     setSubmitting(true); setError("");
     try {
@@ -69,6 +74,7 @@ export default function PoolJoinRequestScreen() {
           swimming_pool_id: selectedPool.id,
           parent_name: parentName.trim(),
           phone: phone.trim(),
+          children_requested: validChildren,
         }),
       });
       const data = await res.json();
@@ -204,7 +210,7 @@ export default function PoolJoinRequestScreen() {
 
           <View style={{ gap: 14 }}>
             <View style={{ gap: 6 }}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>이름 *</Text>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>학부모 이름 *</Text>
               <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
                 <Feather name="user" size={16} color={C.textMuted} />
                 <TextInput
@@ -225,6 +231,45 @@ export default function PoolJoinRequestScreen() {
                   keyboardType="phone-pad"
                 />
               </View>
+            </View>
+            
+            {/* 자녀 정보 */}
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>자녀 정보 *</Text>
+                <Pressable
+                  onPress={() => setChildren([...children, { childName: "", childBirthYear: null }])}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Text style={[styles.fieldLabel, { color: C.tint }]}>+ 추가</Text>
+                </Pressable>
+              </View>
+              {children.map((child, idx) => (
+                <View key={idx} style={{ gap: 6, paddingBottom: 12, borderBottomWidth: idx < children.length - 1 ? 1 : 0, borderBottomColor: C.border }}>
+                  <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
+                    <Feather name="user" size={14} color={C.textMuted} />
+                    <TextInput
+                      style={[styles.textInput, { color: C.text }]}
+                      value={child.childName} onChangeText={v => { const c = [...children]; c[idx].childName = v; setChildren(c); }}
+                      placeholder="자녀 이름" placeholderTextColor={C.textMuted}
+                    />
+                    {children.length > 1 && (
+                      <Pressable onPress={() => setChildren(children.filter((_, i) => i !== idx))}>
+                        <Feather name="x" size={16} color={C.error} />
+                      </Pressable>
+                    )}
+                  </View>
+                  <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
+                    <Feather name="calendar" size={14} color={C.textMuted} />
+                    <TextInput
+                      style={[styles.textInput, { color: C.text }]}
+                      value={child.childBirthYear?.toString() || ""} onChangeText={v => { const c = [...children]; c[idx].childBirthYear = v ? parseInt(v) : null; setChildren(c); }}
+                      placeholder="출생년도 (예: 2015)" placeholderTextColor={C.textMuted}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                </View>
+              ))}
             </View>
           </View>
 

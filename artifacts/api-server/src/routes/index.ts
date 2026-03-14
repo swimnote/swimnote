@@ -18,6 +18,7 @@ import membersRouter from "./members.js";
 import billingRouter from "./billing.js";
 import parentRequestsRouter from "./parent-requests.js";
 import teacherInvitesRouter from "./teacher-invites.js";
+import classSchedulesRouter from "./class-schedules.js";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use("/branches", branchesRouter);
 router.use("/billing", billingRouter);
 router.use("/", parentRequestsRouter);
 router.use("/", teacherInvitesRouter);
+router.use("/", classSchedulesRouter);
 
 export default router;

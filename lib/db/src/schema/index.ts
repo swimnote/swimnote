@@ -5,6 +5,7 @@ export * from "./classes";
 export * from "./students";
 export * from "./class-groups";
 export * from "./parent-accounts";
+export * from "./parent-pool-requests";
 export * from "./attendance";
 export * from "./notices";
 export * from "./subscriptions";

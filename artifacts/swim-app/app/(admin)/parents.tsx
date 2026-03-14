@@ -25,6 +25,8 @@ interface JoinRequest {
   request_status: "pending" | "approved" | "rejected";
   requested_at: string; processed_at?: string | null;
   rejection_reason?: string | null; parent_account_id?: string | null;
+  child_name?: string | null; child_birth_year?: number | null;
+  children_requested?: Array<{ childName: string; childBirthYear: number | null }> | null;
 }
 
 type Tab = "join_requests" | "pending" | "accounts";
