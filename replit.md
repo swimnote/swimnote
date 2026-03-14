@@ -191,7 +191,7 @@ PostgreSQL with Drizzle ORM. DB accessible via DATABASE_URL env var.
 Key tables:
 - `swimming_pools` (pool_id, name, approval_status, subscription_status, admin_name, admin_email, admin_phone, ...)
 - `users` (id, email, password_hash, role, swimming_pool_id, ...)
-- `students` (id, swimming_pool_id, name, ...)
+- `students` (id, swimming_pool_id, name, birth_year, parent_name, parent_phone, parent_user_id, registration_path, weekly_count, assigned_class_ids[jsonb], schedule_labels, invite_code, status=[active|pending_parent_link|withdrawn|inactive], ...)
 - `class_groups` (id, swimming_pool_id, name, ...)
 - `classes` (id, class_group_id, swimming_pool_id, ...)
 - `members` (id, swimming_pool_id, student_id, ...)

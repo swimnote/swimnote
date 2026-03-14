@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { studentsTable, classGroupsTable, parentStudentsTable, parentAccountsTable, usersTable, attendanceTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import {
+  studentsTable, classGroupsTable, parentStudentsTable,
+  parentAccountsTable, usersTable, attendanceTable,
+} from "@workspace/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
@@ -15,63 +18,176 @@ async function getPoolId(userId: string): Promise<string | null> {
   return user?.swimming_pool_id || null;
 }
 
+function generateInviteCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
+/** 반 배정 정보 enrichment */
+async function enrichWithClasses(student: any) {
+  const assignedIds: string[] = Array.isArray(student.assigned_class_ids)
+    ? student.assigned_class_ids
+    : (typeof student.assigned_class_ids === "string"
+      ? JSON.parse(student.assigned_class_ids || "[]")
+      : []);
+
+  if (assignedIds.length === 0) return { ...student, assignedClasses: [] };
+
+  const classes = await Promise.all(assignedIds.map(async (id: string) => {
+    const [cg] = await db.select({
+      id: classGroupsTable.id, name: classGroupsTable.name,
+      schedule_days: classGroupsTable.schedule_days, schedule_time: classGroupsTable.schedule_time,
+      instructor: classGroupsTable.instructor,
+    }).from(classGroupsTable).where(eq(classGroupsTable.id, id)).limit(1);
+    return cg || null;
+  }));
+
+  const validClasses = classes.filter(Boolean);
+
+  // schedule_labels 자동 생성: 월4·목7 형식
+  const labels = validClasses.map((c: any) => {
+    if (!c) return "";
+    const days = c.schedule_days.split(",").map((d: string) => d.trim());
+    const hour = c.schedule_time.split(":")[0];
+    return days.map((d: string) => `${d}${hour}`).join("·");
+  }).filter(Boolean).join("·");
+
+  return { ...student, assignedClasses: validClasses, schedule_labels: labels };
+}
+
+// ── GET / ──────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
-    if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
-    const students = await db.select().from(studentsTable).where(eq(studentsTable.swimming_pool_id, poolId));
+    if (!poolId && req.user!.role !== "super_admin") return err(res, 403, "소속된 수영장이 없습니다.");
+
+    const students = await db.select().from(studentsTable)
+      .where(and(
+        eq(studentsTable.swimming_pool_id, poolId!),
+        sql`status != 'withdrawn'`
+      ));
+
     const enriched = await Promise.all(students.map(async (s) => {
       let class_group_name: string | null = null;
       if (s.class_group_id) {
         const [grp] = await db.select({ name: classGroupsTable.name }).from(classGroupsTable).where(eq(classGroupsTable.id, s.class_group_id)).limit(1);
         class_group_name = grp?.name || null;
       }
-      return { ...s, class_group_name };
+      const withClasses = await enrichWithClasses({ ...s, class_group_name });
+      return withClasses;
     }));
-    res.json(enriched);
+
+    res.json(enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── POST / — 학생 등록 ────────────────────────────────────────────
 router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  const { name, phone, birth_date, class_group_id, memo, notes } = req.body;
-  if (!name) return err(res, 400, "이름을 입력해주세요.");
+  const {
+    name, phone, birth_date, birth_year, parent_name, parent_phone,
+    parent_user_id, class_group_id, memo, weekly_count = 1,
+    registration_path = "admin_created", force_create = false,
+  } = req.body;
+
+  if (!name?.trim()) return err(res, 400, "학생 이름을 입력해주세요.");
+
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
-    // class_group_id가 제공된 경우 해당 반이 동일 풀에 속하는지 검증
-    if (class_group_id) {
-      const [cg] = await db.select({ swimming_pool_id: classGroupsTable.swimming_pool_id })
-        .from(classGroupsTable).where(eq(classGroupsTable.id, class_group_id)).limit(1);
-      if (!cg || cg.swimming_pool_id !== poolId) return err(res, 403, "해당 반은 이 수영장에 속하지 않습니다.");
+    // ── 중복 체크 ──────────────────────────────────────────────────
+    if (!force_create && (birth_year || parent_phone)) {
+      const dupRows = await db.execute(sql`
+        SELECT id, name, birth_year, parent_phone, status
+        FROM students
+        WHERE swimming_pool_id = ${poolId}
+          AND status != 'withdrawn'
+          AND name = ${name.trim()}
+          AND (
+            ${birth_year ? sql`birth_year = ${birth_year}` : sql`FALSE`}
+            OR ${parent_phone ? sql`parent_phone = ${parent_phone}` : sql`FALSE`}
+          )
+        LIMIT 5
+      `);
+
+      if (dupRows.rows.length > 0) {
+        const exact = (dupRows.rows as any[]).find(r =>
+          r.name === name.trim() &&
+          (!birth_year || r.birth_year === birth_year) &&
+          (!parent_phone || r.parent_phone === parent_phone)
+        );
+        if (exact) {
+          return res.status(409).json({
+            success: false,
+            duplicate: true,
+            existing: exact,
+            message: "동일한 학생이 이미 등록되어 있습니다.",
+          });
+        }
+        return res.status(200).json({
+          success: false,
+          possible_duplicate: true,
+          candidates: dupRows.rows,
+          message: "유사한 학생 정보가 있습니다. 계속 등록하시겠습니까?",
+        });
+      }
     }
+
+    // ── 초대코드 생성 ──────────────────────────────────────────────
+    const invite_code = registration_path === "admin_created" ? generateInviteCode() : null;
+
+    // ── 상태 결정 ──────────────────────────────────────────────────
+    const status = parent_user_id
+      ? "active"
+      : (registration_path === "admin_created" && (parent_phone || parent_name))
+        ? "pending_parent_link"
+        : "active";
 
     const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const [student] = await db.insert(studentsTable).values({
-      id, swimming_pool_id: poolId, name,
-      phone: phone || null, birth_date: birth_date || null,
-      class_group_id: class_group_id || null, memo: memo || null, notes: notes || null,
+      id,
+      swimming_pool_id: poolId,
+      name: name.trim(),
+      phone: phone || null,
+      birth_date: birth_date || null,
+      birth_year: birth_year || null,
+      parent_name: parent_name || null,
+      parent_phone: parent_phone || null,
+      parent_user_id: parent_user_id || null,
+      class_group_id: class_group_id || null,
+      memo: memo || null,
+      status,
+      registration_path,
+      weekly_count: Number(weekly_count) || 1,
+      invite_code,
+      assigned_class_ids: [],
+      schedule_labels: null,
     }).returning();
-    res.status(201).json({ success: true, ...student, class_group_name: null });
+
+    const enriched = await enrichWithClasses({ ...student, class_group_name: null });
+    res.status(201).json({ success: true, ...enriched });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── GET /:id ───────────────────────────────────────────────────────
 router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!student) return err(res, 404, "학생을 찾을 수 없습니다.");
 
-    // pool_admin, teacher는 자신의 풀 데이터만 조회 가능
     if (req.user!.role !== "super_admin" && poolId && student.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
     }
 
+    // 단일 class_group
     let class_group: any = null;
     if (student.class_group_id) {
       const [grp] = await db.select().from(classGroupsTable).where(eq(classGroupsTable.id, student.class_group_id)).limit(1);
       class_group = grp || null;
     }
+
+    // 학부모 연결
     const parentLinks = await db.select({ parent_id: parentStudentsTable.parent_id, status: parentStudentsTable.status })
       .from(parentStudentsTable).where(eq(parentStudentsTable.student_id, student.id));
     const parents = await Promise.all(parentLinks.map(async (link) => {
@@ -79,12 +195,15 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
         .from(parentAccountsTable).where(eq(parentAccountsTable.id, link.parent_id)).limit(1);
       return pa ? { ...pa, link_status: link.status } : null;
     }));
-    res.json({ ...student, class_group, parents: parents.filter(Boolean) });
+
+    const enriched = await enrichWithClasses({ ...student, class_group, parents: parents.filter(Boolean) });
+    res.json(enriched);
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── PATCH /:id — 기본 정보 수정 ─────────────────────────────────────
 router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  const { name, phone, birth_date, class_group_id, memo, notes } = req.body;
+  const { name, phone, birth_date, birth_year, parent_name, parent_phone, class_group_id, memo, weekly_count, status } = req.body;
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [existing] = await db.select({ swimming_pool_id: studentsTable.swimming_pool_id })
@@ -99,16 +218,76 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
         ...(name !== undefined && { name }),
         ...(phone !== undefined && { phone }),
         ...(birth_date !== undefined && { birth_date }),
+        ...(birth_year !== undefined && { birth_year }),
+        ...(parent_name !== undefined && { parent_name }),
+        ...(parent_phone !== undefined && { parent_phone }),
         ...(class_group_id !== undefined && { class_group_id: class_group_id || null }),
         ...(memo !== undefined && { memo }),
-        ...(notes !== undefined && { notes }),
+        ...(weekly_count !== undefined && { weekly_count: Number(weekly_count) }),
+        ...(status !== undefined && { status }),
         updated_at: new Date(),
       })
-      .where(eq(studentsTable.id, req.params.id)).returning();
-    res.json({ success: true, ...student });
+      .where(eq(studentsTable.id, req.params.id))
+      .returning();
+
+    const enriched = await enrichWithClasses(student);
+    res.json({ success: true, ...enriched });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── PATCH /:id/assign — 반 배정 (관리자 전용) ──────────────────────
+router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  const { assigned_class_ids, weekly_count } = req.body;
+  if (!Array.isArray(assigned_class_ids)) return err(res, 400, "assigned_class_ids는 배열이어야 합니다.");
+
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    const [existing] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
+    if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
+      return err(res, 403, "접근 권한이 없습니다.");
+    }
+
+    const wc = weekly_count !== undefined ? Number(weekly_count) : (existing.weekly_count || 1);
+
+    // 배정된 class의 schedule_labels 계산
+    const classes = await Promise.all(assigned_class_ids.map(async (id: string) => {
+      const [cg] = await db.select({
+        id: classGroupsTable.id, name: classGroupsTable.name,
+        schedule_days: classGroupsTable.schedule_days, schedule_time: classGroupsTable.schedule_time,
+      }).from(classGroupsTable).where(eq(classGroupsTable.id, id)).limit(1);
+      return cg || null;
+    }));
+
+    const validClasses = classes.filter(Boolean) as any[];
+    const labels = validClasses.map((c: any) => {
+      const days = c.schedule_days.split(",").map((d: string) => d.trim());
+      const hour = c.schedule_time.split(":")[0];
+      return days.map((d: string) => `${d}${hour}`).join("·");
+    }).join("·");
+
+    // students에 first class_group_id도 업데이트 (하위 호환)
+    const firstClassId = assigned_class_ids[0] || null;
+
+    const [student] = await db.update(studentsTable)
+      .set({
+        assigned_class_ids: assigned_class_ids as any,
+        weekly_count: wc,
+        schedule_labels: labels || null,
+        class_group_id: firstClassId,
+        status: "active",
+        updated_at: new Date(),
+      })
+      .where(eq(studentsTable.id, req.params.id))
+      .returning();
+
+    // class_groups의 student_count는 GET 때 집계이므로 별도 업데이트 불필요
+    const enriched = await enrichWithClasses({ ...student, assignedClasses: validClasses });
+    res.json({ success: true, ...enriched });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── DELETE /:id ────────────────────────────────────────────────────
 router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -125,11 +304,11 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── Attendance routes (unchanged) ─────────────────────────────────
 router.get("/:id/attendance", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { month } = req.query;
-    let records = await db.select().from(attendanceTable)
-      .where(eq(attendanceTable.student_id, req.params.id));
+    let records = await db.select().from(attendanceTable).where(eq(attendanceTable.student_id, req.params.id));
     if (month) records = records.filter(r => r.date.startsWith(month as string));
     res.json(records.sort((a, b) => a.date.localeCompare(b.date)));
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
@@ -158,8 +337,7 @@ router.post("/:id/attendance", requireAuth, requireRole("super_admin", "pool_adm
       }
       const [updated] = await db.update(attendanceTable)
         .set({ status, updated_at: new Date(), modified_by: req.user!.userId, modified_by_name: actorName })
-        .where(eq(attendanceTable.id, existing[0].id))
-        .returning();
+        .where(eq(attendanceTable.id, existing[0].id)).returning();
       res.json({ success: true, ...updated, was_modified: true });
     } else {
       const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -179,8 +357,7 @@ router.patch("/:id/attendance/:attendanceId", requireAuth, requireRole("super_ad
     const [actor] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     const [updated] = await db.update(attendanceTable)
       .set({ status, updated_at: new Date(), modified_by: req.user!.userId, modified_by_name: actor?.name || req.user!.userId })
-      .where(eq(attendanceTable.id, req.params.attendanceId))
-      .returning();
+      .where(eq(attendanceTable.id, req.params.attendanceId)).returning();
     if (!updated) return err(res, 404, "출결 기록을 찾을 수 없습니다.");
     res.json({ success: true, ...updated });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }

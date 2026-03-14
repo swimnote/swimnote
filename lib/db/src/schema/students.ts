@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -8,10 +8,22 @@ export const studentsTable = pgTable("students", {
   name: text("name").notNull(),
   phone: text("phone"),
   birth_date: text("birth_date"),
+  birth_year: text("birth_year"),
   class_group_id: text("class_group_id"),
+  assigned_class_ids: jsonb("assigned_class_ids").$type<string[]>().default([]),
   memo: text("memo"),
   notes: text("notes"),
   class_schedule: jsonb("class_schedule").default([]),
+  status: text("status").notNull().default("active"),
+  registration_path: text("registration_path").notNull().default("admin_created"),
+  parent_name: text("parent_name"),
+  parent_phone: text("parent_phone"),
+  parent_user_id: text("parent_user_id"),
+  weekly_count: integer("weekly_count").default(1),
+  schedule_labels: text("schedule_labels"),
+  invite_code: text("invite_code"),
+  withdrawn_at: timestamp("withdrawn_at"),
+  last_class_group_name: text("last_class_group_name"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

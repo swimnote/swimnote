@@ -1,118 +1,510 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
-  Platform, Pressable, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
+  Modal, Platform, Pressable, RefreshControl, ScrollView,
+  Share, StyleSheet, Text, TextInput, View,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useBrand } from "@/context/BrandContext";
 import { ScreenLayout }  from "@/components/common/ScreenLayout";
 import { PageHeader }    from "@/components/common/PageHeader";
 import { FilterChips, FilterChipItem } from "@/components/common/FilterChips";
 import { EmptyState }    from "@/components/common/EmptyState";
-import { STATUS_COLORS } from "@/components/common/constants";
+import {
+  StudentMember, StudentFilterKey, WeeklyCount,
+  WEEKLY_BADGE, getStudentAssignmentStatus, getStudentConnectionStatus,
+  applyStudentFilter, searchStudents, buildInviteMessage,
+  isValidPhone, isValidBirthYear, normalizePhone,
+} from "@/utils/studentUtils";
 
 const C = Colors.light;
 
-interface Member {
-  id: string; name: string; phone: string; birth_date?: string | null;
-  memo?: string | null; class_id?: string | null; class_name?: string | null; created_at: string;
-}
-
-type StatusFilter = "all" | "pending" | "free" | "paid";
-
-const FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
-  { key: "all",     label: "전체",    icon: "list",         activeColor: C.tint,                        activeBg: C.tintLight },
-  { key: "pending", label: "미승인",  icon: "clock",        activeColor: STATUS_COLORS.pending.color,   activeBg: STATUS_COLORS.pending.bg },
-  { key: "free",    label: "무료 이용", icon: "gift",       activeColor: STATUS_COLORS.free.color,      activeBg: STATUS_COLORS.free.bg },
-  { key: "paid",    label: "유료 이용", icon: "credit-card", activeColor: STATUS_COLORS.paid.color,     activeBg: STATUS_COLORS.paid.bg },
+const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
+  { key: "all",          label: "전체",      icon: "list" },
+  { key: "unassigned",   label: "미배정",    icon: "alert-circle",  activeColor: "#DC2626", activeBg: "#FEE2E2" },
+  { key: "mismatch",     label: "배정불일치", icon: "alert-triangle", activeColor: "#D97706", activeBg: "#FEF3C7" },
+  { key: "pending_link", label: "연결대기",  icon: "clock",          activeColor: "#EA580C", activeBg: "#FFF7ED" },
+  { key: "weekly_1",     label: "주1회",     icon: "sun",            activeColor: WEEKLY_BADGE[1].color, activeBg: WEEKLY_BADGE[1].bg },
+  { key: "weekly_2",     label: "주2회",     icon: "wind",           activeColor: WEEKLY_BADGE[2].color, activeBg: WEEKLY_BADGE[2].bg },
+  { key: "weekly_3",     label: "주3회",     icon: "zap",            activeColor: WEEKLY_BADGE[3].color, activeBg: WEEKLY_BADGE[3].bg },
+  { key: "linked",       label: "연결완료",  icon: "check-circle",   activeColor: "#059669", activeBg: "#D1FAE5" },
 ];
 
-export default function MembersScreen() {
-  const { token } = useAuth();
-  const insets = useSafeAreaInsets();
+// ── 초대문구 보기 모달 ───────────────────────────────────────────
+function InviteModal({ student, poolName, onClose }: { student: StudentMember; poolName: string; onClose: () => void }) {
+  const appUrl = `https://swimnote.kr`;
+  const msg = buildInviteMessage({
+    poolName,
+    studentName: student.name,
+    inviteCode: student.invite_code || "------",
+    appUrl,
+  });
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onClose}>
+      <View style={inv.overlay}>
+        <View style={inv.sheet}>
+          <View style={inv.header}>
+            <Text style={inv.title}>📱 학부모 초대 문자</Text>
+            <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
+          </View>
+          <View style={inv.codeRow}>
+            <Text style={inv.codeLabel}>초대코드</Text>
+            <Text style={inv.code}>{student.invite_code || "없음"}</Text>
+          </View>
+          <View style={inv.msgBox}>
+            <Text style={inv.msgText}>{msg}</Text>
+          </View>
+          <View style={inv.btnRow}>
+            <Pressable style={[inv.btn, { backgroundColor: C.tintLight }]} onPress={async () => {
+              await Clipboard.setStringAsync(msg);
+              Alert.alert("복사 완료", "초대 문자가 클립보드에 복사되었습니다.");
+            }}>
+              <Feather name="copy" size={14} color={C.tint} />
+              <Text style={[inv.btnText, { color: C.tint }]}>복사하기</Text>
+            </Pressable>
+            <Pressable style={[inv.btn, { backgroundColor: "#D1FAE5" }]} onPress={async () => {
+              await Share.share({ message: msg });
+            }}>
+              <Feather name="share-2" size={14} color="#059669" />
+              <Text style={[inv.btnText, { color: "#059669" }]}>공유하기</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+const inv = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 20 },
+  sheet: { backgroundColor: C.card, borderRadius: 20, padding: 20, gap: 14 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  title: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
+  codeRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
+  codeLabel: { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  code: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.tint, letterSpacing: 3 },
+  msgBox: { backgroundColor: C.background, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
+  msgText: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.text, lineHeight: 20 },
+  btnRow: { flexDirection: "row", gap: 10 },
+  btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 12 },
+  btnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+});
 
-  const [members,      setMembers]      = useState<Member[]>([]);
-  const [loading,      setLoading]      = useState(true);
-  const [showModal,    setShowModal]    = useState(false);
-  const [form,         setForm]         = useState({ name: "", phone: "", birth_date: "", memo: "" });
-  const [saving,       setSaving]       = useState(false);
-  const [error,        setError]        = useState("");
-  const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+// ── 중복 경고 모달 ───────────────────────────────────────────────
+function DuplicateModal({
+  candidates, onLinkExisting, onForceCreate, onCancel,
+}: {
+  candidates: any[];
+  onLinkExisting: (id: string) => void;
+  onForceCreate: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
+      <View style={dup.overlay}>
+        <View style={dup.sheet}>
+          <View style={[dup.icon]}>
+            <Feather name="alert-triangle" size={28} color="#D97706" />
+          </View>
+          <Text style={dup.title}>유사한 회원이 있습니다</Text>
+          <Text style={dup.sub}>아래 회원과 동일한 학생일 수 있습니다.</Text>
+          <View style={dup.list}>
+            {candidates.slice(0, 3).map((c: any) => (
+              <Pressable key={c.id} style={dup.row} onPress={() => onLinkExisting(c.id)}>
+                <View style={[dup.avatar, { backgroundColor: C.tintLight }]}>
+                  <Text style={[dup.avatarText, { color: C.tint }]}>{c.name[0]}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={dup.name}>{c.name}</Text>
+                  <Text style={dup.info}>{c.birth_year ? `${c.birth_year}년생` : ""}{c.parent_phone ? ` · ${c.parent_phone}` : ""}</Text>
+                </View>
+                <Text style={[dup.linkBtn, { color: C.tint }]}>연결 →</Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={dup.btnRow}>
+            <Pressable style={[dup.btn, { backgroundColor: "#FEF3C7" }]} onPress={onForceCreate}>
+              <Text style={[dup.btnText, { color: "#92400E" }]}>새 회원으로 등록</Text>
+            </Pressable>
+            <Pressable style={[dup.btn, { backgroundColor: C.background, borderWidth: 1, borderColor: C.border }]} onPress={onCancel}>
+              <Text style={[dup.btnText, { color: C.textSecondary }]}>취소</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+const dup = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
+  sheet: { backgroundColor: C.card, borderRadius: 20, padding: 24, gap: 14, alignItems: "center" },
+  icon: { width: 60, height: 60, borderRadius: 20, backgroundColor: "#FEF3C7", alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
+  sub: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center" },
+  list: { width: "100%", gap: 8 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, backgroundColor: C.background, borderWidth: 1, borderColor: C.border },
+  avatar: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  name: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  info: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  linkBtn: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  btnRow: { flexDirection: "row", gap: 10, width: "100%" },
+  btn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center" },
+  btnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+});
 
-  async function fetchMembers() {
-    try {
-      const res = await apiRequest(token, "/members");
-      const data = await res.json();
-      setMembers(Array.isArray(data) ? data : []);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+// ── 학생 등록 모달 ───────────────────────────────────────────────
+function RegisterModal({
+  token, poolName, onSuccess, onClose,
+}: {
+  token: string | null;
+  poolName: string;
+  onSuccess: (student: StudentMember) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [birthYear, setBirthYear] = useState("");
+  const [parentName, setParentName] = useState("");
+  const [parentPhone, setParentPhone] = useState("");
+  const [weekly, setWeekly] = useState<WeeklyCount>(1);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [dupCandidates, setDupCandidates] = useState<any[] | null>(null);
+  const [showInvite, setShowInvite] = useState<StudentMember | null>(null);
+  const pendingBody = useRef<any>(null);
+
+  function validate(): string | null {
+    if (!name.trim()) return "학생 이름을 입력해주세요.";
+    if (birthYear && !isValidBirthYear(birthYear)) return "출생년도가 올바르지 않습니다. (예: 2015)";
+    if (parentPhone && !isValidPhone(parentPhone)) return "보호자 전화번호 형식이 올바르지 않습니다.";
+    return null;
   }
 
-  useEffect(() => { fetchMembers(); }, []);
-
-  async function handleCreate() {
-    if (!form.name || !form.phone) { setError("이름과 전화번호를 입력해주세요."); return; }
+  async function submit(forceCreate = false) {
+    const e = validate();
+    if (e) { setError(e); return; }
     setSaving(true); setError("");
+    const body = {
+      name: name.trim(),
+      birth_year: birthYear || undefined,
+      parent_name: parentName || undefined,
+      parent_phone: parentPhone ? normalizePhone(parentPhone) : undefined,
+      weekly_count: weekly,
+      registration_path: "admin_created",
+      force_create: forceCreate,
+    };
+    pendingBody.current = body;
     try {
-      const res = await apiRequest(token, "/members", { method: "POST", body: JSON.stringify(form) });
+      const res = await apiRequest(token, "/students", { method: "POST", body: JSON.stringify(body) });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setMembers(prev => [data, ...prev]);
-      setShowModal(false);
-      setForm({ name: "", phone: "", birth_date: "", memo: "" });
-    } catch (err: unknown) { setError(err instanceof Error ? err.message : "오류가 발생했습니다."); }
+      if (res.status === 409 && data.duplicate) {
+        setDupCandidates([data.existing]);
+        setSaving(false); return;
+      }
+      if (res.status === 200 && data.possible_duplicate) {
+        setDupCandidates(data.candidates);
+        setSaving(false); return;
+      }
+      if (!res.ok) { setError(data.message || "오류가 발생했습니다."); return; }
+      setShowInvite(data);
+      onSuccess(data);
+    } catch { setError("네트워크 오류가 발생했습니다."); }
     finally { setSaving(false); }
   }
 
+  if (showInvite) {
+    return <InviteModal student={showInvite} poolName={poolName} onClose={() => { setShowInvite(null); onClose(); }} />;
+  }
+  if (dupCandidates) {
+    return (
+      <DuplicateModal
+        candidates={dupCandidates}
+        onLinkExisting={(id) => { setDupCandidates(null); Alert.alert("알림", "기존 회원 연결 기능은 곧 제공됩니다."); }}
+        onForceCreate={() => { setDupCandidates(null); submit(true); }}
+        onCancel={() => setDupCandidates(null)}
+      />
+    );
+  }
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView style={reg.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={[reg.sheet, { paddingBottom: 32 }]}>
+          <View style={reg.handle} />
+          <View style={reg.header}>
+            <Text style={reg.title}>어린이 직접 등록</Text>
+            <Pressable onPress={onClose}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
+          </View>
+          {error ? (
+            <View style={reg.errorRow}>
+              <Feather name="alert-circle" size={14} color={C.error} />
+              <Text style={reg.errorText}>{error}</Text>
+            </View>
+          ) : null}
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+            {/* 학생 이름 */}
+            <View style={reg.field}>
+              <Text style={reg.label}>학생 이름 *</Text>
+              <TextInput style={reg.input} value={name} onChangeText={setName} placeholder="홍길동" placeholderTextColor={C.textMuted} />
+            </View>
+            {/* 출생년도 */}
+            <View style={reg.field}>
+              <Text style={reg.label}>출생년도 (중복 체크에 사용)</Text>
+              <TextInput style={reg.input} value={birthYear} onChangeText={setBirthYear} placeholder="예: 2015" placeholderTextColor={C.textMuted} keyboardType="number-pad" maxLength={4} />
+            </View>
+            {/* 보호자 이름 */}
+            <View style={reg.field}>
+              <Text style={reg.label}>보호자 이름</Text>
+              <TextInput style={reg.input} value={parentName} onChangeText={setParentName} placeholder="김보호 (선택)" placeholderTextColor={C.textMuted} />
+            </View>
+            {/* 보호자 전화 */}
+            <View style={reg.field}>
+              <Text style={reg.label}>보호자 전화번호 (초대 문자 발송용)</Text>
+              <TextInput style={reg.input} value={parentPhone} onChangeText={setParentPhone} placeholder="010-1234-5678" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
+            </View>
+            {/* 주 수업 횟수 */}
+            <View style={reg.field}>
+              <Text style={reg.label}>주 수업 횟수</Text>
+              <View style={reg.weekRow}>
+                {([1, 2, 3] as WeeklyCount[]).map(w => {
+                  const badge = WEEKLY_BADGE[w];
+                  return (
+                    <Pressable
+                      key={w}
+                      style={[reg.weekBtn, { backgroundColor: weekly === w ? badge.bg : C.background, borderColor: weekly === w ? badge.color : C.border }]}
+                      onPress={() => setWeekly(w)}
+                    >
+                      <Text style={[reg.weekBtnText, { color: weekly === w ? badge.color : C.textSecondary }]}>{badge.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </ScrollView>
+          <View style={reg.notice}>
+            <Feather name="info" size={13} color={C.textMuted} />
+            <Text style={reg.noticeText}>등록 후 초대코드가 생성됩니다. 보호자에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
+          </View>
+          <Pressable style={[reg.saveBtn, { backgroundColor: C.tint }]} onPress={() => submit(false)} disabled={saving}>
+            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={reg.saveBtnText}>등록하기</Text>}
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+const reg = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 14 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  title: { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
+  errorRow: { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#FEE2E2", padding: 10, borderRadius: 10 },
+  errorText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.error },
+  field: { gap: 6, marginBottom: 12 },
+  label: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text, borderColor: C.border, backgroundColor: C.background },
+  weekRow: { flexDirection: "row", gap: 10 },
+  weekBtn: { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
+  weekBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  notice: { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
+  noticeText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, lineHeight: 18 },
+  saveBtn: { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+});
+
+// ── 회원 카드 ────────────────────────────────────────────────────
+function StudentCard({ student, themeColor, onPressInvite, onPressDelete }: {
+  student: StudentMember;
+  themeColor: string;
+  onPressInvite: () => void;
+  onPressDelete: () => void;
+}) {
+  const assignStatus = getStudentAssignmentStatus(student);
+  const connStatus   = getStudentConnectionStatus(student);
+  const wc = (student.weekly_count || 1) as WeeklyCount;
+  const badge = WEEKLY_BADGE[wc] || WEEKLY_BADGE[1];
+
+  return (
+    <Pressable
+      style={[sc.card, { backgroundColor: C.card }]}
+      onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: student.id } } as any)}
+    >
+      {/* 상단: 아바타 + 이름 + 배지들 */}
+      <View style={sc.top}>
+        <View style={[sc.avatar, { backgroundColor: themeColor + "20" }]}>
+          <Text style={[sc.avatarText, { color: themeColor }]}>{student.name[0]}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={sc.nameRow}>
+            <Text style={sc.name}>{student.name}</Text>
+            {/* 주N회 배지 */}
+            <View style={[sc.badge, { backgroundColor: badge.bg }]}>
+              <Text style={[sc.badgeText, { color: badge.color }]}>{badge.label}</Text>
+            </View>
+          </View>
+          {/* 수업 라벨 */}
+          {student.schedule_labels ? (
+            <Text style={sc.label}>{student.schedule_labels}</Text>
+          ) : (
+            <Text style={[sc.label, { color: C.textMuted }]}>수업 미배정</Text>
+          )}
+          {/* 보호자 정보 */}
+          {(student.parent_name || student.parent_phone) ? (
+            <Text style={sc.parentInfo}>
+              보호자: {student.parent_name || ""}{student.parent_phone ? ` · ${student.parent_phone}` : ""}
+            </Text>
+          ) : null}
+        </View>
+        {/* 우측 상태 배지 */}
+        <View style={sc.badges}>
+          {assignStatus === "unassigned" && (
+            <View style={[sc.statusBadge, { backgroundColor: "#FEE2E2" }]}>
+              <Text style={[sc.statusText, { color: "#DC2626" }]}>미배정</Text>
+            </View>
+          )}
+          {assignStatus === "mismatch" && (
+            <View style={[sc.statusBadge, { backgroundColor: "#FEF3C7" }]}>
+              <Text style={[sc.statusText, { color: "#D97706" }]}>불일치</Text>
+            </View>
+          )}
+          {connStatus === "linked" && (
+            <View style={[sc.statusBadge, { backgroundColor: "#D1FAE5" }]}>
+              <Feather name="check-circle" size={10} color="#059669" />
+              <Text style={[sc.statusText, { color: "#059669" }]}>연결</Text>
+            </View>
+          )}
+          {connStatus === "pending" && (
+            <View style={[sc.statusBadge, { backgroundColor: "#FFF7ED" }]}>
+              <Feather name="clock" size={10} color="#EA580C" />
+              <Text style={[sc.statusText, { color: "#EA580C" }]}>대기</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* 하단 버튼 */}
+      <View style={sc.bottom}>
+        <Pressable
+          style={[sc.actionBtn, { backgroundColor: themeColor + "15" }]}
+          onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: student.id } } as any)}
+        >
+          <Feather name="layers" size={13} color={themeColor} />
+          <Text style={[sc.actionText, { color: themeColor }]}>반 배정</Text>
+        </Pressable>
+        {student.invite_code && connStatus !== "linked" && (
+          <Pressable style={[sc.actionBtn, { backgroundColor: "#EDE9FE" }]} onPress={onPressInvite}>
+            <Feather name="send" size={13} color="#7C3AED" />
+            <Text style={[sc.actionText, { color: "#7C3AED" }]}>초대 문자</Text>
+          </Pressable>
+        )}
+        <Pressable style={[sc.actionBtn, { backgroundColor: "#FEE2E2", marginLeft: "auto" }]} onPress={onPressDelete}>
+          <Feather name="trash-2" size={13} color={C.error} />
+        </Pressable>
+      </View>
+    </Pressable>
+  );
+}
+const sc = StyleSheet.create({
+  card: { borderRadius: 16, padding: 14, gap: 12, marginHorizontal: 16 },
+  top: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  avatar: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  name: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
+  badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+  badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  label: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151", marginTop: 2 },
+  parentInfo: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  badges: { gap: 4, alignItems: "flex-end" },
+  statusBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+  statusText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  bottom: { flexDirection: "row", gap: 8 },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 10 },
+  actionText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+});
+
+// ── 메인 화면 ────────────────────────────────────────────────────
+export default function MembersScreen() {
+  const { token, pool } = useAuth();
+  const { themeColor }  = useBrand();
+  const insets          = useSafeAreaInsets();
+
+  const [students,       setStudents]       = useState<StudentMember[]>([]);
+  const [loading,        setLoading]        = useState(true);
+  const [refreshing,     setRefreshing]     = useState(false);
+  const [filter,         setFilter]         = useState<StudentFilterKey>("all");
+  const [search,         setSearch]         = useState("");
+  const [showRegister,   setShowRegister]   = useState(false);
+  const [inviteTarget,   setInviteTarget]   = useState<StudentMember | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await apiRequest(token, "/students");
+      if (res.ok) {
+        const data = await res.json();
+        setStudents(Array.isArray(data) ? data : []);
+      }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); setRefreshing(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
   async function handleDelete(id: string, name: string) {
-    Alert.alert("회원 삭제", `${name} 회원을 삭제하시겠습니까?`, [
+    Alert.alert("회원 삭제", `"${name}" 회원을 삭제하시겠습니까?`, [
       { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: async () => {
-        await apiRequest(token, `/members/${id}`, { method: "DELETE" });
-        setMembers(prev => prev.filter(m => m.id !== id));
-      }},
+      {
+        text: "삭제", style: "destructive", onPress: async () => {
+          const res = await apiRequest(token, `/students/${id}`, { method: "DELETE" });
+          if (res.ok) setStudents(prev => prev.filter(s => s.id !== id));
+          else Alert.alert("오류", "삭제에 실패했습니다.");
+        },
+      },
     ]);
   }
 
-  // 필터링
-  const filtered = members.filter(m =>
-    (m.name.includes(search) || m.phone.includes(search)) &&
-    (statusFilter === "all" ||
-     (statusFilter === "pending" && !m.class_id) ||
-     (statusFilter === "free"    && m.class_id && m.class_name === "무료") ||
-     (statusFilter === "paid"    && m.class_id && m.class_name !== "무료"))
-  );
+  // 필터 + 검색 적용
+  const filtered = searchStudents(applyStudentFilter(students, filter), search);
 
-  // 필터칩 카운트 주입
-  const chipsWithCount: FilterChipItem<StatusFilter>[] = FILTER_CHIPS.map(chip => ({
+  // 칩 카운트 계산
+  const chipsWithCount: FilterChipItem<StudentFilterKey>[] = FILTER_CHIPS.map(chip => ({
     ...chip,
-    count: members.filter(m =>
-      chip.key === "all"     ? true :
-      chip.key === "pending" ? !m.class_id :
-      chip.key === "free"    ? (!!m.class_id && m.class_name === "무료") :
-      chip.key === "paid"    ? (!!m.class_id && m.class_name !== "무료") : false
-    ).length,
+    count: applyStudentFilter(students, chip.key).length,
+    activeColor: chip.activeColor || themeColor,
+    activeBg: chip.activeBg || (themeColor + "18"),
   }));
 
-  // 고정 상단 헤더
+  const poolName = (pool as any)?.name || "수영장";
+
   const header = (
     <>
-      <PageHeader
-        title="회원 관리"
-        action={{ icon: "user-plus", label: "회원 등록", onPress: () => setShowModal(true) }}
-      />
-      {/* 검색바 */}
-      <View style={[s.searchRow, { borderColor: C.border, backgroundColor: C.card }]}>
+      <PageHeader title="회원 관리" />
+      {/* 상단 버튼 2개 */}
+      <View style={ms.actionRow}>
+        <Pressable style={[ms.actionBtn, { backgroundColor: themeColor }]} onPress={() => setShowRegister(true)}>
+          <Feather name="user-plus" size={14} color="#fff" />
+          <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
+        </Pressable>
+        <Pressable
+          style={[ms.actionBtn, { backgroundColor: "#6B7280" }]}
+          onPress={() => router.push("/(admin)/approvals" as any)}
+        >
+          <Feather name="check-circle" size={14} color="#fff" />
+          <Text style={ms.actionBtnText}>학부모 요청 승인</Text>
+        </Pressable>
+      </View>
+      {/* 검색 */}
+      <View style={[ms.searchRow, { borderColor: C.border, backgroundColor: C.card }]}>
         <Feather name="search" size={16} color={C.textMuted} />
         <TextInput
-          style={[s.searchInput, { color: C.text }]}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="이름 또는 전화번호 검색"
+          style={[ms.searchInput, { color: C.text }]}
+          value={search} onChangeText={setSearch}
+          placeholder="이름·보호자·전화번호 검색"
           placeholderTextColor={C.textMuted}
         />
         {search.length > 0 && (
@@ -121,19 +513,14 @@ export default function MembersScreen() {
           </Pressable>
         )}
       </View>
-      {/* 상태 필터칩 (고정 크기 — 절대 변하지 않음) */}
-      <FilterChips<StatusFilter>
-        chips={chipsWithCount}
-        active={statusFilter}
-        onChange={setStatusFilter}
-      />
+      <FilterChips<StudentFilterKey> chips={chipsWithCount} active={filter} onChange={setFilter} />
     </>
   );
 
   if (loading) {
     return (
       <ScreenLayout header={header}>
-        <ActivityIndicator color={C.tint} style={{ marginTop: 80 }} size="large" />
+        <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} size="large" />
       </ScreenLayout>
     );
   }
@@ -144,123 +531,55 @@ export default function MembersScreen() {
         <FlatList
           data={filtered}
           keyExtractor={item => item.id}
-          contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 100 }]}
+          contentContainerStyle={[ms.list, { paddingBottom: insets.bottom + 120 }]}
           showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           ListEmptyComponent={
             <EmptyState
               icon="users"
               title="해당하는 회원이 없습니다"
-              subtitle={search ? `"${search}" 검색 결과가 없습니다` : "필터를 변경해보세요"}
+              subtitle={search ? `"${search}" 검색 결과가 없습니다` : filter !== "all" ? "필터를 변경해보세요" : "어린이 직접 등록 버튼으로 첫 회원을 추가해보세요"}
             />
           }
-          renderItem={({ item: m }) => (
-            <View style={[s.card, { backgroundColor: C.card }]}>
-              <View style={[s.avatar, { backgroundColor: C.tintLight }]}>
-                <Text style={[s.avatarText, { color: C.tint }]}>{m.name[0]}</Text>
-              </View>
-              <View style={s.info}>
-                <Text style={[s.name, { color: C.text }]}>{m.name}</Text>
-                <Text style={[s.phone, { color: C.textSecondary }]}>{m.phone}</Text>
-                {m.class_name ? (
-                  <View style={[s.classBadge, { backgroundColor: C.tintLight }]}>
-                    <Text style={[s.classBadgeText, { color: C.tint }]}>{m.class_name}</Text>
-                  </View>
-                ) : (
-                  <View style={[s.classBadge, { backgroundColor: STATUS_COLORS.pending.bg }]}>
-                    <Text style={[s.classBadgeText, { color: STATUS_COLORS.pending.color }]}>미승인</Text>
-                  </View>
-                )}
-                <Pressable
-                  style={[s.diaryBtn, { backgroundColor: "#059669" + "1A" }]}
-                  onPress={() => router.push({ pathname: "/(admin)/diary-write", params: { studentId: m.id, studentName: m.name } } as any)}
-                >
-                  <Feather name="book-open" size={12} color="#059669" />
-                  <Text style={[s.diaryBtnText, { color: "#059669" }]}>수영 일지 작성</Text>
-                </Pressable>
-              </View>
-              <Pressable onPress={() => handleDelete(m.id, m.name)} style={s.deleteBtn}>
-                <Feather name="trash-2" size={18} color={C.error} />
-              </Pressable>
-            </View>
+          renderItem={({ item }) => (
+            <StudentCard
+              student={item}
+              themeColor={themeColor}
+              onPressInvite={() => setInviteTarget(item)}
+              onPressDelete={() => handleDelete(item.id, item.name)}
+            />
           )}
         />
       </ScreenLayout>
 
-      {/* 회원 등록 모달 */}
-      <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
-        <KeyboardAvoidingView style={s.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={[s.sheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
-            <View style={s.handle} />
-            <View style={s.sheetHeader}>
-              <Text style={[s.sheetTitle, { color: C.text }]}>회원 등록</Text>
-              <Pressable onPress={() => setShowModal(false)}>
-                <Feather name="x" size={22} color={C.textSecondary} />
-              </Pressable>
-            </View>
-            {error ? <Text style={[s.errText, { color: C.error }]}>{error}</Text> : null}
-            {(["name", "phone", "birth_date", "memo"] as const).map(key => (
-              <View key={key} style={s.field}>
-                <Text style={[s.label, { color: C.textSecondary }]}>
-                  {key === "name" ? "이름 *" : key === "phone" ? "전화번호 *" : key === "birth_date" ? "생년월일" : "메모"}
-                </Text>
-                <TextInput
-                  style={[s.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
-                  value={form[key]}
-                  onChangeText={v => setForm(f => ({ ...f, [key]: v }))}
-                  placeholder={key === "name" ? "회원 이름" : key === "phone" ? "010-0000-0000" : key === "birth_date" ? "2000-01-01" : "특이사항 등"}
-                  placeholderTextColor={C.textMuted}
-                />
-              </View>
-            ))}
-            <Pressable
-              style={({ pressed }) => [s.saveBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
-              onPress={handleCreate}
-              disabled={saving}
-            >
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.saveBtnText}>등록하기</Text>}
-            </Pressable>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      {showRegister && (
+        <RegisterModal
+          token={token}
+          poolName={poolName}
+          onSuccess={(s) => {
+            setStudents(prev => [s, ...prev]);
+            setShowRegister(false);
+          }}
+          onClose={() => setShowRegister(false)}
+        />
+      )}
+      {inviteTarget && (
+        <InviteModal
+          student={inviteTarget}
+          poolName={poolName}
+          onClose={() => setInviteTarget(null)}
+        />
+      )}
     </>
   );
 }
 
-const s = StyleSheet.create({
-  searchRow: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    borderWidth: 1.5, borderRadius: 12,
-    paddingHorizontal: 12, height: 44,
-    marginHorizontal: 16, marginBottom: 4,
-  },
+const ms = StyleSheet.create({
+  actionRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12 },
+  actionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 16, marginBottom: 4 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
-
-  list: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
-
-  card: {
-    flexDirection: "row", alignItems: "center",
-    borderRadius: 14, padding: 14, gap: 12,
-  },
-  avatar: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  info: { flex: 1, gap: 3 },
-  name:  { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  phone: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  classBadge: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginTop: 2 },
-  classBadgeText: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  deleteBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  diaryBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 4 },
-  diaryBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-
-  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 8 },
-  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  sheetTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  errText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  field: { gap: 6 },
-  label: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular" },
-  saveBtn: { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 4 },
-  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  list: { paddingTop: 10 },
 });

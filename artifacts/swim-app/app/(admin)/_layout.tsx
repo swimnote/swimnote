@@ -52,6 +52,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="withdrawn-members" options={{ href: null }} />
       <Tabs.Screen name="billing"           options={{ href: null }} />
       <Tabs.Screen name="branding"          options={{ href: null }} />
+      <Tabs.Screen name="member-detail"     options={{ href: null }} />
     </Tabs>
   );
 }
