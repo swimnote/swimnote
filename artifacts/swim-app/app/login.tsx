@@ -49,16 +49,17 @@ export default function LoginScreen() {
       style={[styles.root, { backgroundColor: C.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View style={[styles.backHeader, { paddingTop: insets.top || (Platform.OS === "web" ? 56 : 12) }]}>
-        <Pressable onPress={() => router.back()} style={styles.back}>
-          <Feather name="arrow-left" size={22} color={C.text} />
-        </Pressable>
-      </View>
+      <Pressable
+        onPress={() => router.replace("/")}
+        style={[styles.backBtn, { top: insets.top + (Platform.OS === "web" ? 60 : 12) }]}
+      >
+        <Feather name="arrow-left" size={22} color={C.text} />
+      </Pressable>
 
       <ScrollView
         contentContainerStyle={[
           styles.container,
-          { paddingTop: 8, paddingBottom: insets.bottom + 40 },
+          { paddingTop: insets.top + (Platform.OS === "web" ? 120 : 80), paddingBottom: insets.bottom + 40 },
         ]}
         keyboardShouldPersistTaps="handled"
       >
@@ -175,8 +176,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, paddingHorizontal: 24, gap: 20 },
-  backHeader: { paddingHorizontal: 12, paddingBottom: 4 },
-  back: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  backBtn: { position: "absolute", left: 16, zIndex: 10, width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   logoArea: { alignItems: "center", gap: 10 },
   logoBox: { width: 68, height: 68, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   appName: { fontSize: 24, fontFamily: "Inter_700Bold" },
