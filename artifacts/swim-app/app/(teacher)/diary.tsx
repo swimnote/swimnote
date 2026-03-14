@@ -27,9 +27,6 @@ interface DiaryEntry {
 const EMPTY_FORM = {
   title: "",
   lesson_content: "",
-  practice_goals: "",
-  good_points: "",
-  next_focus: "",
 };
 
 export default function TeacherDiaryScreen() {
@@ -70,9 +67,6 @@ export default function TeacherDiaryScreen() {
         body: JSON.stringify({
           title: form.title,
           lesson_content: form.lesson_content || null,
-          practice_goals: form.practice_goals || null,
-          good_points: form.good_points || null,
-          next_focus: form.next_focus || null,
           class_group_ids: [selected],
         }),
       });
@@ -169,26 +163,6 @@ export default function TeacherDiaryScreen() {
                   onChangeText={v => setForm(p => ({ ...p, lesson_content: v }))}
                   placeholder="오늘 진행한 수업 내용을 입력해주세요."
                   multiline numberOfLines={5}
-                />
-              </View>
-              <View>
-                <Text style={s.label}>잘한 점</Text>
-                <TextInput
-                  style={[s.input, { height: 80, textAlignVertical: "top" }]}
-                  value={form.good_points}
-                  onChangeText={v => setForm(p => ({ ...p, good_points: v }))}
-                  placeholder="오늘 아이들이 잘한 점을 기록해주세요."
-                  multiline numberOfLines={3}
-                />
-              </View>
-              <View>
-                <Text style={s.label}>다음 시간 집중 포인트</Text>
-                <TextInput
-                  style={[s.input, { height: 80, textAlignVertical: "top" }]}
-                  value={form.next_focus}
-                  onChangeText={v => setForm(p => ({ ...p, next_focus: v }))}
-                  placeholder="다음 수업에서 집중할 부분을 적어주세요."
-                  multiline numberOfLines={3}
                 />
               </View>
             </ScrollView>
