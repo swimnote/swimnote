@@ -3,12 +3,14 @@ import {
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
+import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { AuthProvider, apiRequest, useAuth } from "@/context/AuthContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 
 SplashScreen.preventAutoHideAsync();
@@ -54,6 +56,45 @@ function BrandSync() {
       });
     }
   }, [kind, adminUser?.role, pool?.id, pool?.theme_color, parentAccount?.swimming_pool_id]);
+
+  return null;
+}
+
+/** 로그인 후 Expo 푸시 토큰을 서버에 등록 */
+function PushTokenSync() {
+  const { token, kind, parentAccount } = useAuth();
+  const registered = useRef(false);
+
+  useEffect(() => {
+    if (!token || registered.current) return;
+    if (Platform.OS === "web") return;
+
+    async function registerToken() {
+      try {
+        const { status: existing } = await Notifications.getPermissionsAsync();
+        let finalStatus = existing;
+        if (existing !== "granted") {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        if (finalStatus !== "granted") return;
+
+        const tokenData = await Notifications.getExpoPushTokenAsync();
+        if (!tokenData?.data) return;
+
+        await apiRequest(token, "/push-token", {
+          method: "POST",
+          body: JSON.stringify({
+            token: tokenData.data,
+            parent_account_id: kind === "parent" && parentAccount ? parentAccount.id : null,
+          }),
+        });
+        registered.current = true;
+      } catch (_) {}
+    }
+
+    registerToken();
+  }, [token]);
 
   return null;
 }
@@ -125,6 +166,7 @@ export default function RootLayout() {
             <BrandProvider>
               <AuthProvider>
                 <BrandSync />
+                <PushTokenSync />
                 <RootNav />
               </AuthProvider>
             </BrandProvider>

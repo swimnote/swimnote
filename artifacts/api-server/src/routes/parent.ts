@@ -158,7 +158,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
     const { month } = req.query;
     let query = sql`
       SELECT id, class_group_id, title, lesson_content, next_focus,
-             author_name, created_at, image_urls
+             author_name, created_at, image_urls, media_items
       FROM swim_diary
       WHERE class_group_id = ${student.class_group_id}
       ORDER BY created_at DESC
@@ -193,7 +193,7 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
 
     const rows = await db.execute(sql`
       SELECT id, class_group_id, title, lesson_content, next_focus,
-             author_name, created_at, image_urls
+             author_name, created_at, image_urls, media_items
       FROM swim_diary
       WHERE class_group_id = ANY(${classGroups}::text[])
       ORDER BY created_at DESC

@@ -21,6 +21,7 @@ import teacherInvitesRouter from "./teacher-invites.js";
 import classSchedulesRouter from "./class-schedules.js";
 import videosRouter from "./videos.js";
 import todayScheduleRouter from "./today-schedule.js";
+import pushTokenRouter from "./push-token.js";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use("/", parentRequestsRouter);
 router.use("/", teacherInvitesRouter);
 router.use("/", classSchedulesRouter);
 router.use("/", todayScheduleRouter);
+router.use("/", pushTokenRouter);
 
 export default router;

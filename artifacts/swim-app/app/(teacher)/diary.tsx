@@ -2,15 +2,16 @@
  * (teacher)/diary.tsx — 수영일지 탭
  *
  * 구조: WeeklySchedule → 반 선택 → 일지 작성/보기
- * B안: 기본 = 새 일지 작성, 상단 우측 "지난 일지" 버튼
+ * 수업내용 + 사진/영상 업로드 + 저장 시 학부모 알림 자동발송
  */
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import * as ImagePicker from "expo-image-picker";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
+  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView,
   Modal, Platform, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, View,
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -21,16 +22,22 @@ import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teac
 
 const C = Colors.light;
 
+interface MediaItem {
+  key?: string;
+  type: "image" | "video";
+  localUri?: string;
+  uploading?: boolean;
+}
+
 interface DiaryEntry {
   id: string;
   class_group_id: string;
   title: string;
   lesson_content?: string | null;
-  practice_goals?: string | null;
   next_focus?: string | null;
   author_name?: string | null;
   created_at?: string | null;
-  image_urls?: string[] | null;
+  media_items?: MediaItem[] | null;
 }
 
 type SubView = "write" | "history";
@@ -40,27 +47,33 @@ function todayDateStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
+function mediaUrl(key: string) {
+  return `${API_BASE}/api/uploads/${encodeURIComponent(key)}`;
+}
+
 export default function TeacherDiaryScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
   const params = useLocalSearchParams<{ classGroupId?: string; className?: string }>();
 
-  const [groups,      setGroups]      = useState<TeacherClassGroup[]>([]);
-  const [diarySet,    setDiarySet]    = useState<Set<string>>(new Set());
-  const [attMap,      setAttMap]      = useState<Record<string, number>>({});
-  const [loading,     setLoading]     = useState(true);
-  const [refreshing,  setRefreshing]  = useState(false);
+  const [groups,     setGroups]     = useState<TeacherClassGroup[]>([]);
+  const [diarySet,   setDiarySet]   = useState<Set<string>>(new Set());
+  const [attMap,     setAttMap]     = useState<Record<string, number>>({});
+  const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(null);
   const [subView,       setSubView]       = useState<SubView>("write");
 
   // 일지 작성 폼
-  const [form, setForm] = useState({ title: "", lesson_content: "", next_focus: "" });
-  const [saving, setSaving] = useState(false);
+  const [lessonContent, setLessonContent] = useState("");
+  const [mediaItems,    setMediaItems]    = useState<MediaItem[]>([]);
+  const [saving,        setSaving]        = useState(false);
 
   // 과거 일지 목록
-  const [diaries,       setDiaries]       = useState<DiaryEntry[]>([]);
-  const [diaryLoading,  setDiaryLoading]  = useState(false);
+  const [diaries,      setDiaries]      = useState<DiaryEntry[]>([]);
+  const [diaryLoading, setDiaryLoading] = useState(false);
 
   const load = useCallback(async () => {
     const today = todayDateStr();
@@ -95,8 +108,8 @@ export default function TeacherDiaryScreen() {
   async function openGroup(group: TeacherClassGroup) {
     setSelectedGroup(group);
     setSubView("write");
-    setForm({ title: "", lesson_content: "", next_focus: "" });
-    // 직전 일지 미리 불러와 제목 템플릿
+    setLessonContent("");
+    setMediaItems([]);
     loadDiaries(group.id);
   }
 
@@ -112,27 +125,104 @@ export default function TeacherDiaryScreen() {
     finally { setDiaryLoading(false); }
   }
 
+  // ── 미디어 선택 ──
+  async function pickMedia(mediaType: "images" | "videos") {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("권한 필요", "사진/영상에 접근하려면 갤러리 권한이 필요합니다.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: mediaType === "images"
+        ? ImagePicker.MediaTypeOptions.Images
+        : ImagePicker.MediaTypeOptions.Videos,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+      videoMaxDuration: 60,
+    });
+    if (result.canceled) return;
+
+    for (const asset of result.assets) {
+      const item: MediaItem = {
+        type: asset.type === "video" ? "video" : "image",
+        localUri: asset.uri,
+        uploading: true,
+      };
+      setMediaItems(prev => [...prev, item]);
+
+      // 업로드
+      try {
+        const formData = new FormData();
+        const filename = asset.fileName || (asset.type === "video" ? "video.mp4" : "photo.jpg");
+        const mimeType = asset.mimeType || (asset.type === "video" ? "video/mp4" : "image/jpeg");
+        formData.append("file", { uri: asset.uri, name: filename, type: mimeType } as any);
+
+        const r = await fetch(`${API_BASE}/api/diary/upload`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (!r.ok) throw new Error("업로드 실패");
+        const { key, type } = await r.json();
+        setMediaItems(prev => prev.map(m =>
+          m.localUri === asset.uri ? { ...m, key, type, uploading: false } : m
+        ));
+      } catch (e) {
+        Alert.alert("업로드 오류", "파일 업로드 중 오류가 발생했습니다.");
+        setMediaItems(prev => prev.filter(m => m.localUri !== asset.uri));
+      }
+    }
+  }
+
+  function removeLocalMedia(uri: string) {
+    setMediaItems(prev => prev.filter(m => m.localUri !== uri));
+  }
+
   async function handleSave() {
-    if (!form.title.trim()) { Alert.alert("입력 필요", "제목을 입력해주세요."); return; }
     if (!selectedGroup) return;
+
+    const uploading = mediaItems.some(m => m.uploading);
+    if (uploading) {
+      Alert.alert("잠깐만요", "사진/영상 업로드 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     setSaving(true);
     try {
+      const readyItems = mediaItems.filter(m => m.key).map(m => ({ key: m.key!, type: m.type }));
       const r = await apiRequest(token, "/diary", {
         method: "POST",
         body: JSON.stringify({
-          title: form.title,
-          lesson_content: form.lesson_content || null,
-          next_focus: form.next_focus || null,
+          lesson_content: lessonContent || null,
+          media_items: readyItems,
           class_group_ids: [selectedGroup.id],
         }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || "저장 실패");
       setDiarySet(prev => new Set([...prev, selectedGroup.id]));
-      Alert.alert("저장 완료", "수영일지가 작성되었습니다.");
+      Alert.alert("저장 완료", "수영일지가 작성되었습니다.\n학부모에게 알림이 발송되었습니다.");
       setSelectedGroup(null);
     } catch (e: any) { Alert.alert("오류", e.message); }
     finally { setSaving(false); }
+  }
+
+  // ── 과거 일지 미디어 삭제 ──
+  async function deleteHistoryMedia(diaryId: string, key: string) {
+    try {
+      const r = await apiRequest(token, `/diary/${diaryId}/media`, {
+        method: "DELETE",
+        body: JSON.stringify({ key }),
+      });
+      if (!r.ok) throw new Error("삭제 실패");
+      // 로컬 상태 업데이트
+      setDiaries(prev => prev.map(d => {
+        if (d.id !== diaryId) return d;
+        return { ...d, media_items: (d.media_items || []).filter(m => m.key !== key) };
+      }));
+    } catch (e) {
+      Alert.alert("오류", "미디어 삭제 중 오류가 발생했습니다.");
+    }
   }
 
   // statusMap
@@ -150,14 +240,14 @@ export default function TeacherDiaryScreen() {
     );
   }
 
-  // ── 일지 작성/보기 서브뷰 ──────────────────────────────────
+  // ── 일지 작성/보기 서브뷰 ──────────────────────────────────────────────
   if (selectedGroup) {
     const group = selectedGroup;
-    const prevDiary = diaries[0]; // 가장 최근 일지
 
     return (
       <SafeAreaView style={s.safe} edges={["top"]}>
         <PoolHeader />
+
         {/* 헤더 */}
         <View style={s.subHeader}>
           <Pressable style={s.backBtn} onPress={() => setSelectedGroup(null)}>
@@ -167,7 +257,6 @@ export default function TeacherDiaryScreen() {
             <Text style={s.subTitle}>{group.name} 수영일지</Text>
             <Text style={s.subSub}>{todayDateStr()} · {group.schedule_time}</Text>
           </View>
-          {/* 지난 일지 토글 */}
           <Pressable
             style={[s.historyBtn, { backgroundColor: subView === "history" ? themeColor : C.background, borderColor: themeColor }]}
             onPress={() => setSubView(prev => prev === "history" ? "write" : "history")}
@@ -181,55 +270,66 @@ export default function TeacherDiaryScreen() {
           // ── 새 일지 작성 ──
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
             <ScrollView contentContainerStyle={s.writeForm} showsVerticalScrollIndicator={false}>
-              {/* 직전 일지 요약 (있는 경우) */}
-              {prevDiary && (
-                <View style={[s.prevDiarySummary, { borderColor: themeColor + "30", backgroundColor: themeColor + "08" }]}>
-                  <View style={s.prevDiaryHeader}>
-                    <Feather name="clock" size={12} color={themeColor} />
-                    <Text style={[s.prevDiaryTitle, { color: themeColor }]}>직전 일지: {prevDiary.title}</Text>
-                    <Pressable onPress={() => setSubView("history")}>
-                      <Text style={[s.prevDiaryMore, { color: themeColor }]}>전체 보기 →</Text>
-                    </Pressable>
-                  </View>
-                  {prevDiary.next_focus && (
-                    <Text style={s.prevDiaryNext}>다음 수업 메모: {prevDiary.next_focus}</Text>
-                  )}
-                </View>
-              )}
 
-              <View style={s.formField}>
-                <Text style={s.formLabel}>제목 *</Text>
-                <TextInput
-                  style={s.formInput}
-                  value={form.title}
-                  onChangeText={v => setForm(p => ({ ...p, title: v }))}
-                  placeholder="예: 자유형 발차기 집중 훈련"
-                  placeholderTextColor={C.textMuted}
-                />
-              </View>
-
+              {/* 오늘 수업 내용 */}
               <View style={s.formField}>
                 <Text style={s.formLabel}>오늘 수업 내용</Text>
                 <TextInput
-                  style={[s.formInput, { height: 100, textAlignVertical: "top" }]}
-                  value={form.lesson_content}
-                  onChangeText={v => setForm(p => ({ ...p, lesson_content: v }))}
+                  style={[s.formInput, { height: 140, textAlignVertical: "top" }]}
+                  value={lessonContent}
+                  onChangeText={setLessonContent}
                   placeholder="오늘 진행한 수업 내용을 입력하세요."
                   placeholderTextColor={C.textMuted}
-                  multiline numberOfLines={4}
+                  multiline
+                  numberOfLines={6}
                 />
               </View>
 
+              {/* 사진/영상 업로드 */}
               <View style={s.formField}>
-                <Text style={s.formLabel}>다음 수업 메모</Text>
-                <TextInput
-                  style={[s.formInput, { height: 70, textAlignVertical: "top" }]}
-                  value={form.next_focus}
-                  onChangeText={v => setForm(p => ({ ...p, next_focus: v }))}
-                  placeholder="다음 수업에서 집중할 내용을 적어두세요."
-                  placeholderTextColor={C.textMuted}
-                  multiline numberOfLines={3}
-                />
+                <Text style={s.formLabel}>사진 · 영상</Text>
+
+                {/* 미디어 목록 */}
+                {mediaItems.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.mediaRow}>
+                    {mediaItems.map((item, idx) => (
+                      <View key={idx} style={s.mediaThumbnail}>
+                        {item.type === "image" && item.localUri ? (
+                          <Image source={{ uri: item.localUri }} style={s.mediaImg} resizeMode="cover" />
+                        ) : (
+                          <View style={[s.mediaImg, s.videoPlaceholder]}>
+                            <Feather name="film" size={28} color="#fff" />
+                          </View>
+                        )}
+                        {item.uploading && (
+                          <View style={s.mediaOverlay}>
+                            <ActivityIndicator color="#fff" size="small" />
+                          </View>
+                        )}
+                        {!item.uploading && (
+                          <Pressable
+                            style={s.mediaDeleteBtn}
+                            onPress={() => removeLocalMedia(item.localUri!)}
+                          >
+                            <Feather name="x" size={12} color="#fff" />
+                          </Pressable>
+                        )}
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+
+                {/* 추가 버튼 */}
+                <View style={s.mediaButtons}>
+                  <Pressable style={[s.mediaAddBtn, { borderColor: themeColor }]} onPress={() => pickMedia("images")}>
+                    <Feather name="image" size={16} color={themeColor} />
+                    <Text style={[s.mediaAddText, { color: themeColor }]}>사진 추가</Text>
+                  </Pressable>
+                  <Pressable style={[s.mediaAddBtn, { borderColor: themeColor }]} onPress={() => pickMedia("videos")}>
+                    <Feather name="video" size={16} color={themeColor} />
+                    <Text style={[s.mediaAddText, { color: themeColor }]}>영상 추가</Text>
+                  </Pressable>
+                </View>
               </View>
 
               <View style={{ height: 120 }} />
@@ -245,7 +345,8 @@ export default function TeacherDiaryScreen() {
                 onPress={handleSave}
                 disabled={saving}
               >
-                {saving ? <ActivityIndicator color="#fff" size="small" />
+                {saving
+                  ? <ActivityIndicator color="#fff" size="small" />
                   : <><Feather name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
               </Pressable>
             </View>
@@ -267,23 +368,45 @@ export default function TeacherDiaryScreen() {
                     <Text style={s.emptyText}>작성된 일지가 없습니다</Text>
                   </View>
                 }
-                renderItem={({ item }) => (
-                  <View style={[s.diaryCard, { backgroundColor: C.card }]}>
-                    <View style={s.diaryCardHeader}>
-                      <Text style={s.diaryCardTitle}>{item.title}</Text>
-                      <Text style={s.diaryCardDate}>{item.created_at?.slice(0, 10)}</Text>
-                    </View>
-                    {item.lesson_content && (
-                      <Text style={s.diaryCardContent} numberOfLines={2}>{item.lesson_content}</Text>
-                    )}
-                    {item.next_focus && (
-                      <View style={s.diaryCardNext}>
-                        <Feather name="arrow-right" size={11} color={themeColor} />
-                        <Text style={[s.diaryCardNextText, { color: themeColor }]}>{item.next_focus}</Text>
+                renderItem={({ item }) => {
+                  const medias: MediaItem[] = Array.isArray(item.media_items) ? item.media_items : [];
+                  return (
+                    <View style={[s.diaryCard, { backgroundColor: C.card }]}>
+                      <View style={s.diaryCardHeader}>
+                        <Text style={s.diaryCardTitle}>{item.title || "수업 일지"}</Text>
+                        <Text style={s.diaryCardDate}>{item.created_at?.slice(0, 10)}</Text>
                       </View>
-                    )}
-                  </View>
-                )}
+                      {item.lesson_content && (
+                        <Text style={s.diaryCardContent} numberOfLines={3}>{item.lesson_content}</Text>
+                      )}
+
+                      {/* 미디어 썸네일 */}
+                      {medias.length > 0 && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.mediaRow}>
+                          {medias.map((m, i) => (
+                            <View key={i} style={s.mediaThumbnail}>
+                              {m.type === "image" && m.key ? (
+                                <Image source={{ uri: mediaUrl(m.key) }} style={s.mediaImg} resizeMode="cover" />
+                              ) : (
+                                <View style={[s.mediaImg, s.videoPlaceholder]}>
+                                  <Feather name="film" size={24} color="#fff" />
+                                </View>
+                              )}
+                              <Pressable
+                                style={s.mediaDeleteBtn}
+                                onPress={() => {
+                                  if (m.key) deleteHistoryMedia(item.id, m.key);
+                                }}
+                              >
+                                <Feather name="x" size={12} color="#fff" />
+                              </Pressable>
+                            </View>
+                          ))}
+                        </ScrollView>
+                      )}
+                    </View>
+                  );
+                }}
               />
             )}
           </>
@@ -292,7 +415,7 @@ export default function TeacherDiaryScreen() {
     );
   }
 
-  // ── 메인 시간표 뷰 ──────────────────────────────────────────
+  // ── 메인 시간표 뷰 ─────────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <PoolHeader />
@@ -330,16 +453,21 @@ const s = StyleSheet.create({
   historyBtn:   { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   historyBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
-  prevDiarySummary: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
-  prevDiaryHeader:  { flexDirection: "row", alignItems: "center", gap: 6 },
-  prevDiaryTitle:   { flex: 1, fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  prevDiaryMore:    { fontSize: 11, fontFamily: "Inter_500Medium" },
-  prevDiaryNext:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280" },
-
-  writeForm:    { padding: 16, gap: 14, paddingBottom: 80 },
-  formField:    { gap: 6 },
+  writeForm:    { padding: 16, gap: 16, paddingBottom: 80 },
+  formField:    { gap: 8 },
   formLabel:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
   formInput:    { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827", backgroundColor: "#fff" },
+
+  mediaRow:     { gap: 10, paddingVertical: 4 },
+  mediaThumbnail: { width: 90, height: 90, borderRadius: 10, overflow: "hidden", position: "relative" },
+  mediaImg:     { width: 90, height: 90 },
+  videoPlaceholder: { backgroundColor: "#374151", alignItems: "center", justifyContent: "center" },
+  mediaOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center" },
+  mediaDeleteBtn: { position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.65)", alignItems: "center", justifyContent: "center" },
+
+  mediaButtons: { flexDirection: "row", gap: 10 },
+  mediaAddBtn:  { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderRadius: 12, paddingVertical: 10, backgroundColor: "#fff" },
+  mediaAddText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
   footer:       { flexDirection: "row", gap: 10, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
   cancelBtn:    { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
@@ -348,13 +476,11 @@ const s = StyleSheet.create({
   saveBtnText:  { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
 
   diaryList:    { padding: 12, gap: 10, paddingBottom: 120 },
-  diaryCard:    { borderRadius: 14, padding: 14, gap: 6 },
+  diaryCard:    { borderRadius: 14, padding: 14, gap: 8 },
   diaryCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   diaryCardTitle:  { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#111827" },
   diaryCardDate:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   diaryCardContent:{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#4B5563" },
-  diaryCardNext:   { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 },
-  diaryCardNextText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium" },
 
   emptyBox:     { alignItems: "center", paddingTop: 60, gap: 10 },
   emptyText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },

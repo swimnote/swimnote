@@ -38,9 +38,16 @@ router.get(/^\/(.+)$/, async (req: Request, res: Response) => {
     const { ok, value } = await client.downloadAsBytes(key);
     if (!ok || !value) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
     const ext = key.split(".").pop()?.toLowerCase() || "jpg";
-    const mime: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp" };
-    res.setHeader("Content-Type", mime[ext] || "application/octet-stream");
+    const mime: Record<string, string> = {
+      jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+      gif: "image/gif", webp: "image/webp", heic: "image/heic", heif: "image/heif",
+      mp4: "video/mp4", mov: "video/quicktime", avi: "video/x-msvideo",
+      mkv: "video/x-matroska", webm: "video/webm", m4v: "video/x-m4v",
+    };
+    const mimeType = mime[ext] || "application/octet-stream";
+    res.setHeader("Content-Type", mimeType);
     res.setHeader("Cache-Control", "public, max-age=86400");
+    if (mimeType.startsWith("video/")) res.setHeader("Accept-Ranges", "bytes");
     res.send(Buffer.from(value));
   } catch (err) { res.status(500).json({ error: "파일 조회 중 오류가 발생했습니다." }); }
 });
