@@ -36,6 +36,7 @@ export default function AdminLayout() {
       }}
     >
       <Tabs.Screen name="dashboard" options={{ title: "대시보드", tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} /> }} />
+      <Tabs.Screen name="approvals" options={{ title: "승인", tabBarIcon: ({ color }) => <Feather name="check-circle" size={22} color={color} /> }} />
       <Tabs.Screen name="members" options={{ title: "회원", tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} /> }} />
       <Tabs.Screen name="classes" options={{ title: "반관리", tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }} />
       <Tabs.Screen name="attendance" options={{ title: "출결", tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }} />
