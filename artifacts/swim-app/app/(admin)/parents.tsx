@@ -7,6 +7,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useSelectionMode } from "@/hooks/useSelectionMode";
+import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 
 const C = Colors.light;
 
@@ -36,8 +38,11 @@ export default function ParentsScreen() {
   const [formStudentId, setFormStudentId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const sel = useSelectionMode();
 
-  const fetch = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
       const [pRes, sRes] = await Promise.all([
         apiRequest(token, "/admin/parents"),
@@ -49,7 +54,7 @@ export default function ParentsScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { load(); }, [load]);
 
   async function handleDecision(linkId: string, parentId: string, action: "approve" | "reject") {
     const label = action === "approve" ? "승인" : "거부";
@@ -61,7 +66,7 @@ export default function ParentsScreen() {
           const res = await apiRequest(token, `/admin/parents/${parentId}/students/${linkId}`, {
             method: "PATCH", body: JSON.stringify({ action }),
           });
-          if (res.ok) { await fetch(); }
+          if (res.ok) { await load(); }
           else { const d = await res.json(); Alert.alert("오류", d.error || "처리 중 오류가 발생했습니다."); }
         },
       },
@@ -78,7 +83,7 @@ export default function ParentsScreen() {
     setSubmitting(false);
     if (!res.ok) { setFormError(data.error || "오류가 발생했습니다."); return; }
     setShowAddParent(false); setFormName(""); setFormPhone(""); setFormPin("");
-    await fetch();
+    await load();
   }
 
   async function handleAddLink() {
@@ -91,7 +96,7 @@ export default function ParentsScreen() {
     setSubmitting(false);
     if (!res.ok) { setFormError(data.error || "오류가 발생했습니다."); return; }
     setShowAddLink(null); setFormStudentId("");
-    await fetch();
+    await load();
   }
 
   async function handleDeleteLink(parentId: string, linkId: string) {
@@ -101,11 +106,66 @@ export default function ParentsScreen() {
         text: "삭제", style: "destructive",
         onPress: async () => {
           await apiRequest(token, `/admin/parents/${parentId}/students/${linkId}`, { method: "DELETE" });
-          await fetch();
+          await load();
         },
       },
     ]);
   }
+
+  async function doDeleteParents(ids: string[]) {
+    if (ids.length === 0) return;
+    const isSingle = ids.length === 1;
+    if (isSingle) setDeletingId(ids[0]);
+    else setBulkDeleting(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map(id => apiRequest(token, `/admin/parents/${id}`, { method: "DELETE" })
+          .then(r => ({ id, ok: r.ok }))
+        )
+      );
+      const succeeded = results
+        .filter((r): r is PromiseFulfilledResult<{ id: string; ok: boolean }> => r.status === "fulfilled" && r.value.ok)
+        .map(r => r.value.id);
+      const failed = ids.length - succeeded.length;
+      setParents(prev => prev.filter(p => !succeeded.includes(p.id)));
+      if (!isSingle) sel.exitSelectionMode();
+      if (failed > 0) Alert.alert("일부 실패", `${failed}개 삭제에 실패했습니다.`);
+    } catch (e) {
+      console.error(e);
+      Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingId(null);
+      setBulkDeleting(false);
+    }
+  }
+
+  function handleDeleteParent(id: string, name: string) {
+    console.log(`[admin][deleteParent] click parentId=${id}`);
+    Alert.alert(
+      "학부모 계정 삭제",
+      `"${name}" 계정을 삭제합니다.\n계정과 학생 연결이 모두 해제됩니다.\n자녀의 수업 이력·출결 기록은 보존됩니다.\n\n진행하시겠습니까?`,
+      [
+        { text: "취소", style: "cancel" },
+        { text: "삭제", style: "destructive", onPress: () => doDeleteParents([id]) },
+      ]
+    );
+  }
+
+  function handleBulkDelete() {
+    const ids = Array.from(sel.selectedIds);
+    if (ids.length === 0) return;
+    console.log(`[admin][deleteParent] bulk selectedCount=${ids.length}`, ids);
+    Alert.alert(
+      "선택 학부모 삭제",
+      `선택한 ${ids.length}개 학부모 계정을 삭제합니다.\n각 계정의 학생 연결이 모두 해제됩니다.\n자녀의 수업 이력은 보존됩니다.\n\n진행하시겠습니까?`,
+      [
+        { text: "취소", style: "cancel" },
+        { text: `${ids.length}개 삭제`, style: "destructive", onPress: () => doDeleteParents(ids) },
+      ]
+    );
+  }
+
+  const allParentIds = parents.map(p => p.id);
 
   const statusBadge = (status: string) => {
     const map: Record<string, { color: string; bg: string; label: string }> = {
@@ -123,20 +183,35 @@ export default function ParentsScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
+      {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
         <Text style={[styles.title, { color: C.text }]}>학부모 관리</Text>
-        <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => { setFormError(""); setShowAddParent(true); }}>
-          <Feather name="plus" size={16} color="#fff" />
-          <Text style={styles.addBtnText}>직접 추가</Text>
-        </Pressable>
+        <View style={styles.headerRight}>
+          {/* 선택 모드 토글 */}
+          <Pressable
+            style={[styles.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
+            onPress={sel.toggleSelectionMode}
+          >
+            <Feather name="check-square" size={16} color={sel.selectionMode ? C.tint : C.textSecondary} />
+            <Text style={[styles.selBtnText, sel.selectionMode && { color: C.tint }]}>
+              {sel.selectionMode ? "취소" : "선택"}
+            </Text>
+          </Pressable>
+          {!sel.selectionMode && (
+            <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => { setFormError(""); setShowAddParent(true); }}>
+              <Feather name="plus" size={16} color="#fff" />
+              <Text style={styles.addBtnText}>직접 추가</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: insets.bottom + 100 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetch(); }} />}
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: sel.selectionMode ? insets.bottom + 90 : insets.bottom + 100 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           showsVerticalScrollIndicator={false}
         >
           {parents.length === 0 ? (
@@ -145,56 +220,103 @@ export default function ParentsScreen() {
               <Text style={[styles.emptyTitle, { color: C.text }]}>등록된 학부모가 없습니다</Text>
               <Text style={[styles.emptySub, { color: C.textSecondary }]}>승인 메뉴에서 가입 요청을 승인하거나 직접 추가하세요</Text>
             </View>
-          ) : parents.map(pa => (
-            <View key={pa.id} style={[styles.accountCard, { backgroundColor: C.card }]}>
-              <View style={styles.accountHeader}>
-                <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
-                  <Text style={[styles.avatarText, { color: C.tint }]}>{pa.name[0]}</Text>
-                </View>
-                <View style={styles.accountInfo}>
-                  <Text style={[styles.accountName, { color: C.text }]}>{pa.name}</Text>
-                  <Text style={[styles.accountPhone, { color: C.textSecondary }]}>{pa.phone}</Text>
-                </View>
-                <Pressable
-                  style={[styles.linkBtn, { borderColor: C.tint }]}
-                  onPress={() => { setFormStudentId(""); setFormError(""); setShowAddLink(pa); }}
-                >
-                  <Feather name="link" size={13} color={C.tint} />
-                  <Text style={[styles.linkBtnText, { color: C.tint }]}>학생 연결</Text>
-                </Pressable>
-              </View>
-              {pa.students.length > 0 && (
-                <View style={[styles.studentsSection, { borderTopColor: C.border }]}>
-                  {pa.students.map((s: StudentLink) => (
-                    <View key={s.link_id} style={styles.studentRow}>
-                      <View style={styles.studentLeft}>
-                        {statusBadge(s.status)}
-                        <Text style={[styles.studentName, { color: C.text }]}>{s.name}</Text>
+          ) : parents.map(pa => {
+            const isSelected = sel.isSelected(pa.id);
+            const isThisDeleting = deletingId === pa.id;
+            return (
+              <Pressable
+                key={pa.id}
+                style={[styles.accountCard, { backgroundColor: C.card }, isSelected && { borderWidth: 2, borderColor: C.tint }]}
+                onPress={sel.selectionMode ? () => sel.toggleItem(pa.id) : undefined}
+              >
+                <View style={styles.accountHeader}>
+                  {/* 선택 모드 체크박스 */}
+                  {sel.selectionMode && (
+                    <Pressable onPress={() => sel.toggleItem(pa.id)} style={styles.checkWrap}>
+                      <View style={[styles.checkbox, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
+                        {isSelected && <Feather name="check" size={12} color="#fff" />}
                       </View>
-                      <View style={styles.studentRight}>
-                        {s.status === "pending" && (
-                          <>
-                            <Pressable onPress={() => handleDecision(s.link_id, pa.id, "approve")} style={[styles.miniBtn, { backgroundColor: C.success }]}>
-                              <Feather name="check" size={12} color="#fff" />
-                            </Pressable>
-                            <Pressable onPress={() => handleDecision(s.link_id, pa.id, "reject")} style={[styles.miniBtn, { backgroundColor: C.error }]}>
-                              <Feather name="x" size={12} color="#fff" />
-                            </Pressable>
-                          </>
-                        )}
-                        <Pressable onPress={() => handleDeleteLink(pa.id, s.link_id)}>
-                          <Feather name="trash-2" size={14} color={C.textMuted} />
-                        </Pressable>
-                      </View>
+                    </Pressable>
+                  )}
+                  <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
+                    <Text style={[styles.avatarText, { color: C.tint }]}>{pa.name[0]}</Text>
+                  </View>
+                  <View style={styles.accountInfo}>
+                    <Text style={[styles.accountName, { color: C.text }]}>{pa.name}</Text>
+                    <Text style={[styles.accountPhone, { color: C.textSecondary }]}>{pa.phone}</Text>
+                  </View>
+                  {/* 선택모드: 카드 우측엔 아무것도 안 보임 / 일반모드: 연결+삭제 */}
+                  {!sel.selectionMode && (
+                    <View style={styles.cardActions}>
+                      <Pressable
+                        style={[styles.linkBtn, { borderColor: C.tint }]}
+                        onPress={() => { setFormStudentId(""); setFormError(""); setShowAddLink(pa); }}
+                      >
+                        <Feather name="link" size={13} color={C.tint} />
+                        <Text style={[styles.linkBtnText, { color: C.tint }]}>학생 연결</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.deleteParentBtn, isThisDeleting && { opacity: 0.5 }]}
+                        onPress={!isThisDeleting ? () => handleDeleteParent(pa.id, pa.name) : undefined}
+                        disabled={isThisDeleting}
+                      >
+                        {isThisDeleting
+                          ? <ActivityIndicator size={14} color={C.error} />
+                          : <Feather name="trash-2" size={15} color={C.error} />
+                        }
+                      </Pressable>
                     </View>
-                  ))}
+                  )}
                 </View>
-              )}
-            </View>
-          ))}
+                {pa.students.length > 0 && (
+                  <View style={[styles.studentsSection, { borderTopColor: C.border }]}>
+                    {pa.students.map((s: StudentLink) => (
+                      <View key={s.link_id} style={styles.studentRow}>
+                        <View style={styles.studentLeft}>
+                          {statusBadge(s.status)}
+                          <Text style={[styles.studentName, { color: C.text }]}>{s.name}</Text>
+                        </View>
+                        <View style={styles.studentRight}>
+                          {!sel.selectionMode && s.status === "pending" && (
+                            <>
+                              <Pressable onPress={() => handleDecision(s.link_id, pa.id, "approve")} style={[styles.miniBtn, { backgroundColor: C.success }]}>
+                                <Feather name="check" size={12} color="#fff" />
+                              </Pressable>
+                              <Pressable onPress={() => handleDecision(s.link_id, pa.id, "reject")} style={[styles.miniBtn, { backgroundColor: C.error }]}>
+                                <Feather name="x" size={12} color="#fff" />
+                              </Pressable>
+                            </>
+                          )}
+                          {!sel.selectionMode && (
+                            <Pressable onPress={() => handleDeleteLink(pa.id, s.link_id)}>
+                              <Feather name="trash-2" size={14} color={C.textMuted} />
+                            </Pressable>
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
         </ScrollView>
       )}
 
+      {/* 선택 모드 액션바 */}
+      <SelectionActionBar
+        visible={sel.selectionMode}
+        selectedCount={sel.selectedCount}
+        totalCount={parents.length}
+        isAllSelected={sel.isAllSelected(allParentIds)}
+        deleting={bulkDeleting}
+        onSelectAll={() => sel.selectAll(allParentIds)}
+        onClearSelection={sel.clearSelection}
+        onDeleteSelected={handleBulkDelete}
+        onExit={sel.exitSelectionMode}
+      />
+
+      {/* 학부모 직접 추가 모달 */}
       <Modal visible={showAddParent} animationType="slide" transparent presentationStyle="overFullScreen">
         <View style={styles.overlay}>
           <View style={[styles.sheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
@@ -231,6 +353,7 @@ export default function ParentsScreen() {
         </View>
       </Modal>
 
+      {/* 학생 연결 요청 모달 */}
       <Modal visible={!!showAddLink} animationType="slide" transparent presentationStyle="overFullScreen">
         <View style={styles.overlay}>
           <View style={[styles.sheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
@@ -275,17 +398,24 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 12 },
   title: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  selBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
+  selBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
   addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  checkWrap: { justifyContent: "center", marginRight: 4 },
+  checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: C.border, backgroundColor: C.background, alignItems: "center", justifyContent: "center" },
   avatar: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  accountCard: { borderRadius: 14, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  accountCard: { borderRadius: 14, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2, borderWidth: 1.5, borderColor: "transparent" },
   accountHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
   accountInfo: { flex: 1 },
   accountName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   accountPhone: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  cardActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   linkBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   linkBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  deleteParentBtn: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#FEE2E2" },
   studentsSection: { borderTopWidth: 1, paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
   studentRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   studentLeft: { flexDirection: "row", alignItems: "center", gap: 8 },

@@ -1,0 +1,480 @@
+Please implement a complete and reliable deletion system for the Admin panel.
+
+This is NOT just a UI task.
+Do NOT only show delete icons or selection checkboxes.
+The feature is considered complete ONLY IF:
+- individual delete works
+- bulk delete works
+- delete confirmation modal works
+- data is actually updated in storage/db/state
+- UI is refreshed immediately
+- changes persist after refresh
+- related screens (admin / teacher / parent) reflect the changes correctly
+
+==================================================
+[PROJECT GOAL]
+==================================================
+
+Build a reusable, stable, production-like Admin deletion system across these tabs:
+
+1. Admin > Members
+2. Admin > Class Management
+3. Admin > Parent Management
+4. Admin > Notices
+
+Each screen must support:
+- row checkbox selection
+- header select-all checkbox
+- selected count display
+- bulk delete action
+- individual delete action
+- confirmation modal/dialog
+- loading / disabled states
+- success / error feedback
+- immediate list refresh
+- persistence after page/app refresh
+
+This must be implemented as a shared/common pattern, NOT as temporary per-screen patchwork.
+
+==================================================
+[IMPORTANT CONTEXT]
+==================================================
+
+Current problems:
+- Delete icons exist but are not clickable
+- Selection exists but bulk delete is missing
+- Some tabs do not show delete at all
+- Some features only change UI but do not actually delete/update data
+- Completion was reported before real click testing was done
+
+This must be fixed properly.
+
+==================================================
+[REQUIRED ARCHITECTURE]
+==================================================
+
+Please refactor into a reusable common deletion system.
+
+Recommended reusable structure:
+- SelectableListLayout
+- BulkActionBar
+- ConfirmDeleteModal
+- useSelectionManager()
+- useDeleteHandler()
+- useBulkDeleteHandler()
+
+At minimum, implement shared logic for:
+- selectedIds state
+- select all / deselect all
+- per-row selection
+- delete target tracking
+- bulk delete flow
+- confirm modal flow
+- async delete request handling
+- optimistic update or refetch logic
+- toast / alert feedback
+- error handling
+- disabled/loading state control
+
+Do NOT duplicate fragile logic separately in each tab if avoidable.
+
+==================================================
+[COMMON UX REQUIREMENTS]
+==================================================
+
+For every admin list page:
+
+1. Row checkbox
+- Every row must have a selectable checkbox
+
+2. Header select-all checkbox
+- A checkbox at top right or header area must select all visible rows
+- It must also support deselect all
+
+3. Bulk action bar
+- When one or more items are selected, show a bulk action bar
+- Must display:
+  - selected count
+  - select all / deselect all option
+  - bulk delete button
+
+4. Individual delete button
+- Each row must have a visible delete button or trash icon
+- It must be clickable
+- It must trigger real delete logic, not placeholder UI
+
+5. Confirmation modal
+- Before delete, always show confirmation
+- Example text:
+  Title: Delete Confirmation
+  Message: Are you sure you want to delete the selected item(s)?
+  Subtext: This action cannot be undone.
+  Buttons:
+  - Cancel
+  - Delete
+
+6. Loading / disabled state
+- Prevent repeated clicks while deleting
+- Disable delete buttons while request is in progress
+- Show loading state if needed
+
+7. Success / failure feedback
+- On success: show toast/snackbar/alert
+- On failure: show specific error message
+
+8. List refresh
+- After delete, update UI immediately
+- Refresh/re-fetch/persist state so deleted item does not return after reload
+
+==================================================
+[TAB 1: ADMIN > MEMBERS]
+==================================================
+
+Current issue:
+- Members cannot be deleted
+- Bulk delete is missing
+
+Required implementation:
+- individual delete must work
+- row selection must work
+- select all must work
+- bulk delete must work
+- refresh after delete must work
+- persistence after refresh must work
+
+DATA POLICY for Members:
+Do NOT blindly hard delete unless absolutely safe.
+Member records are likely connected to:
+- child/student profile
+- class assignment
+- attendance
+- lesson feedback
+- photos/albums
+- parent connections
+- historical records
+
+Recommended policy:
+Option A: Soft Delete
+- member.status = "deleted"
+- hidden from normal active lists
+- historical records preserved
+
+Option B: Archive
+- move to archived/deleted members collection/section
+- preserve relational integrity
+
+Hard delete is NOT recommended unless all related data is safely handled.
+
+Please make sure:
+- deleting a member does not break related parent/teacher/admin views
+- deleted members do not still appear in active lists
+- storage and query logic both respect deleted state
+
+==================================================
+[TAB 2: ADMIN > CLASS MANAGEMENT]
+==================================================
+
+Current issue:
+- selection UI exists
+- only cancel exists after selection
+- bulk delete does not exist
+- current delete icon is not clickable
+
+Required implementation:
+- existing delete icon must become clickable
+- row selection must work
+- select all must work
+- bulk delete must be added
+- refresh after delete must work
+- persistence after refresh must work
+
+DATA POLICY for Classes:
+When deleting a class:
+- do NOT delete the students/members inside that class
+- assigned members must become unassigned
+- teacher assignment must be cleared or updated according to policy
+- schedule/attendance references must not break
+
+Required class delete behavior:
+- class.status = "deleted" OR archive it
+- remove/clear class membership mapping
+- move class members to unassigned state
+- clear invalid schedule links if needed
+- hide deleted class from active screens
+
+Important warning text example:
+“If this class is deleted, assigned members will be changed to unassigned.”
+
+Recommended:
+Soft delete / archive for classes rather than hard delete.
+
+==================================================
+[TAB 3: ADMIN > PARENT MANAGEMENT]
+==================================================
+
+Current issue:
+- delete button does not exist
+- bulk delete does not exist
+
+Required implementation:
+- add individual delete button
+- add row checkboxes
+- add select all
+- add bulk delete
+- refresh after delete must work
+- persistence after refresh must work
+
+DATA POLICY for Parents:
+Based on previous policy direction:
+- parent data should likely remain for future lesson/history reference
+- do NOT hard delete by default
+
+Recommended policy:
+Option A: inactive / withdrawn
+- parent.status = "inactive" or "withdrawn"
+- login blocked
+- historical reference preserved
+
+Option B: archived parent
+- hidden from active list
+- can still be referenced by admin history if needed
+
+Please ensure:
+- parent removal does not destroy child/member history
+- auth/login middleware respects inactive status
+- removed parents do not continue to access active parent features unless policy allows historical read-only access
+
+==================================================
+[TAB 4: ADMIN > NOTICES]
+==================================================
+
+Current issue:
+- selection exists
+- bulk delete does not exist
+
+Required implementation:
+- checkbox selection must work
+- select all must work
+- bulk delete must be added
+- individual delete should also be implemented or verified
+- refresh after delete must work
+- persistence after refresh must work
+
+DATA POLICY for Notices:
+- hard delete may be acceptable
+- archive is also acceptable if notice history must be preserved
+
+At minimum:
+- deleted notices must disappear from admin list
+- deleted notices must also disappear from user-facing notice screens
+
+==================================================
+[ENTITY-SPECIFIC DELETE POLICY SUMMARY]
+==================================================
+
+Please implement deletion policy carefully by entity:
+
+1. Members
+Recommended: soft delete or archive
+Reason: connected to history, class, parent, attendance, feedback
+
+2. Classes
+Recommended: soft delete or archive
+Reason: deleting class must not delete members
+Members must be set to unassigned
+
+3. Parents
+Recommended: inactive / withdrawn / archive
+Reason: account should be disabled without losing historical data
+
+4. Notices
+Can be hard delete if safe
+Archive optional if history is needed
+
+Do NOT use one identical hard delete rule for everything.
+
+==================================================
+[STATE / DATA / HANDLER REQUIREMENTS]
+==================================================
+
+Please ensure all layers are implemented:
+
+UI Layer
+- checkboxes
+- delete buttons
+- action bar
+- confirmation modal
+
+State Layer
+- selectedIds
+- isAllSelected
+- isDeleting
+- pendingDeleteTarget
+- bulkDeleteMode
+
+Data Layer
+- deleteOne()
+- deleteMany()
+- softDelete()
+- archive()
+- deactivateParent()
+- unassignMembersFromClass()
+
+Permission Layer
+- only Admin can perform delete operations
+- Teacher / Parent must not see or access admin delete controls
+
+Sync Layer
+- update related admin/teacher/parent screens
+- clear stale cache
+- refetch if needed
+- persist after refresh
+
+Technical requirement:
+Single delete and bulk delete should share the same actual deletion policy logic where possible.
+
+==================================================
+[EDGE CASES / EXCEPTIONS]
+==================================================
+
+Handle these properly:
+
+- 0 selected items => bulk delete disabled
+- repeated click while deleting => blocked
+- already deleted item => safe guard
+- network failure => error feedback
+- partial failure in bulk delete => partial success/failure message
+- empty list after delete => proper empty state
+- select all then unselect some => state remains correct
+- search/filter state should not break delete flow
+- paginated lists should refresh correctly
+- mobile layout should not break action bar
+
+==================================================
+[RELATION / SYNC VALIDATION]
+==================================================
+
+After delete, related screens must reflect changes:
+
+When Member is deleted:
+- removed from Admin active member list
+- removed or hidden from Teacher relevant views
+- parent/member relation handled safely by policy
+- not shown as active after refresh
+
+When Class is deleted:
+- removed from Admin class list
+- members become unassigned
+- teacher view updates
+- schedules do not point to invalid class
+
+When Parent is deleted/deactivated:
+- removed from Admin active parent list
+- login access blocked if inactive/withdrawn
+- child/member history remains safe
+
+When Notice is deleted:
+- removed from Admin notice list
+- removed from user-facing notice screens
+
+==================================================
+[MANDATORY QA CHECKLIST]
+==================================================
+
+Before reporting completion, please perform REAL click testing and verify each item.
+
+Members tab:
+- individual delete works
+- confirmation modal opens
+- bulk select works
+- select all works
+- bulk delete works
+- refresh persistence works
+- related views update correctly
+
+Class Management tab:
+- individual delete works
+- current delete icon is clickable
+- row selection works
+- select all works
+- bulk delete works
+- deleting class changes members to unassigned
+- refresh persistence works
+- teacher/schedule relation still valid
+
+Parent Management tab:
+- delete button is visible
+- individual delete works
+- row selection works
+- select all works
+- bulk delete works
+- inactive/withdrawn policy applied correctly
+- refresh persistence works
+- login restriction works if applicable
+
+Notices tab:
+- row selection works
+- select all works
+- bulk delete works
+- individual delete works or is verified
+- notice disappears from user-facing screen too
+- refresh persistence works
+
+==================================================
+[COMPLETION REPORT FORMAT]
+==================================================
+
+Do NOT simply say “done” or “implemented”.
+
+Please report in this exact format:
+
+1. Files changed
+2. Shared/common components/hooks/handlers added
+3. Per-tab implementation summary
+   - Members
+   - Class Management
+   - Parent Management
+   - Notices
+4. Final delete policy used for each entity
+   - Members: soft delete / archive / hard delete
+   - Classes: soft delete / archive / hard delete
+   - Parents: inactive / withdrawn / archive / hard delete
+   - Notices: hard delete / archive
+5. Real click test results
+   - Members individual delete: success/fail
+   - Members bulk delete: success/fail
+   - Classes individual delete: success/fail
+   - Classes bulk delete: success/fail
+   - Class delete -> members unassigned: success/fail
+   - Parents individual delete: success/fail
+   - Parents bulk delete: success/fail
+   - Parent login restriction: success/fail
+   - Notices bulk delete: success/fail
+6. Refresh persistence result
+7. Related screen sync result
+8. Remaining issues, if any, with exact cause
+
+==================================================
+[STRICTLY NOT ACCEPTABLE]
+==================================================
+
+The task is NOT complete if any of the following is true:
+
+- delete icon is visible but not clickable
+- checkbox exists but bulk delete does not work
+- UI removes item but real data is unchanged
+- data changes but UI does not refresh
+- deleted item returns after refresh
+- only Admin screen changes but Teacher/Parent screens do not sync
+- hard delete used everywhere without entity policy consideration
+- completion reported without real testing
+
+==================================================
+[FINAL INSTRUCTION]
+==================================================
+
+Treat this as a real app-quality admin deletion system task, not a cosmetic patch.
+Please implement carefully, verify carefully, and report with exact test results.
+
+Buttons/icons/UI alone do NOT count as completion.
+Actual delete behavior + bulk delete + persistence + sync validation are all required.
