@@ -25,6 +25,24 @@ async function getPoolSlug(poolId: string): Promise<string> {
   return pool?.name_en || sanitizePoolName(pool?.name || "pool");
 }
 
+// ── 사진 파일 스트리밍 (인증 필요) ───────────────────────────────────
+router.get("/photos/:photoId/file", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { photoId } = req.params;
+    const rows = await db.execute(sql`SELECT storage_key FROM student_photos WHERE id = ${photoId}`);
+    const photo = rows.rows[0] as any;
+    if (!photo) { res.status(404).json({ error: "사진을 찾을 수 없습니다." }); return; }
+    const client = getClient();
+    const { ok, value: bytes, error } = await client.downloadAsBytes(photo.storage_key);
+    if (!ok || !bytes) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
+    const ext = (photo.storage_key.split(".").pop() || "jpg").toLowerCase();
+    const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.send(Buffer.from(bytes));
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
 // ── 학생 사진 목록 ────────────────────────────────────────────────────
 router.get("/students/:studentId/photos", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -42,7 +60,11 @@ router.get("/students/:studentId/photos", requireAuth, async (req: AuthRequest, 
       SELECT sp.*, (SELECT COUNT(*) FROM photo_comments WHERE photo_id = sp.id) AS comment_count
       FROM student_photos sp WHERE sp.student_id = ${studentId} ORDER BY sp.created_at DESC
     `);
-    res.json(rows.rows);
+    const photos = (rows.rows as any[]).map(p => ({
+      ...p,
+      file_url: `/photos/${p.id}/file`,
+    }));
+    res.json(photos);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 

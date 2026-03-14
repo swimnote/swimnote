@@ -41,7 +41,7 @@ export default function TeacherPhotosScreen() {
   }, []);
 
   async function fetchPhotos(studentId: string) {
-    const r = await apiRequest(token, `/photos?student_id=${studentId}`);
+    const r = await apiRequest(token, `/students/${studentId}/photos`);
     const data = await safeJson(r);
     setPhotos(Array.isArray(data) ? data : []);
   }
@@ -59,22 +59,25 @@ export default function TeacherPhotosScreen() {
 
     setUploading(true);
     try {
+      const form = new FormData();
       for (const asset of result.assets) {
-        const form = new FormData();
-        form.append("student_id", studentId);
-        form.append("photo", {
+        form.append("photos", {
           uri: asset.uri, name: asset.fileName || "photo.jpg",
           type: asset.mimeType || "image/jpeg",
         } as any);
-        await fetch(`${API_BASE}/photos`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: form,
-        });
+      }
+      const res = await fetch(`${API_BASE}/students/${studentId}/photos`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error || "업로드 실패");
       }
       fetchPhotos(studentId);
       Alert.alert("완료", `${result.assets.length}장 업로드 완료`);
-    } catch { Alert.alert("오류", "업로드 실패"); }
+    } catch (e: any) { Alert.alert("오류", e.message || "업로드 실패"); }
     finally { setUploading(false); }
   }
 
@@ -126,7 +129,9 @@ export default function TeacherPhotosScreen() {
             columnWrapperStyle={{ gap: 2 }}
             ListEmptyComponent={<Text style={s.empty}>업로드된 사진이 없습니다.</Text>}
             renderItem={({ item }) => (
-              <Image source={{ uri: item.file_url }} style={s.photo} resizeMode="cover" />
+              <Image
+                source={{ uri: item.file_url?.startsWith("http") ? item.file_url : `${API_BASE}${item.file_url}`, headers: { Authorization: `Bearer ${token}` } }}
+                style={s.photo} resizeMode="cover" />
             )}
           />
         </View>
