@@ -211,30 +211,34 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
 
 router.get("/users", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   try {
-    const users = await db.select({
-      id: usersTable.id,
-      email: usersTable.email,
-      name: usersTable.name,
-      phone: usersTable.phone,
-      role: usersTable.role,
-      swimming_pool_id: usersTable.swimming_pool_id,
-      created_at: usersTable.created_at,
-    }).from(usersTable).orderBy(usersTable.created_at);
-    res.json(users);
+    const platformRoles = ["super_admin", "platform_operator", "billing_admin"];
+    const users = await db.execute(sql`
+      SELECT id, email, name, phone, role, created_at
+      FROM users
+      WHERE role = ANY(${sql.raw(`'{${platformRoles.join(",")}}')::text[]`)})
+      ORDER BY created_at DESC
+    `);
+    res.json(users.rows);
   } catch (err) {
-    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    console.error(err);
+    return res.status(500).json({ success: false, message: "서버 오류가 발생했습니다.", error: String(err) });
   }
 });
 
 router.post("/users", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
-  const { email, password, name, phone, swimming_pool_id, role } = req.body;
-  if (!email || !password || !name || !swimming_pool_id) {
-    res.status(400).json({ error: "필수 정보를 입력해주세요." });
-    return;
+  const { email, password, name, phone, role } = req.body;
+  if (!email || !password || !name) {
+    return res.status(400).json({ success: false, message: "필수 정보를 입력해주세요.", error: "missing_required_fields" });
   }
+  
+  const platformRoles = ["super_admin", "platform_operator", "billing_admin"];
+  if (!platformRoles.includes(role)) {
+    return res.status(400).json({ success: false, message: "플랫폼 관리자 역할만 생성 가능합니다.", error: "invalid_role" });
+  }
+
   try {
     const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-    if (existing) { res.status(400).json({ error: "이미 사용 중인 이메일입니다." }); return; }
+    if (existing) return res.status(400).json({ success: false, message: "이미 사용 중인 이메일입니다.", error: "email_exists" });
 
     const password_hash = await hashPassword(password);
     const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -244,14 +248,14 @@ router.post("/users", requireAuth, requireRole("super_admin"), async (req: AuthR
       password_hash,
       name,
       phone: phone || null,
-      role: role || "pool_admin",
-      swimming_pool_id,
+      role,
+      swimming_pool_id: null,
     }).returning();
     const { password_hash: _, ...safeUser } = user;
     res.status(201).json(safeUser);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    return res.status(500).json({ success: false, message: "서버 오류가 발생했습니다.", error: String(err) });
   }
 });
 
