@@ -20,6 +20,7 @@ import parentRequestsRouter from "./parent-requests.js";
 import teacherInvitesRouter from "./teacher-invites.js";
 import classSchedulesRouter from "./class-schedules.js";
 import videosRouter from "./videos.js";
+import todayScheduleRouter from "./today-schedule.js";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use("/billing", billingRouter);
 router.use("/", parentRequestsRouter);
 router.use("/", teacherInvitesRouter);
 router.use("/", classSchedulesRouter);
+router.use("/", todayScheduleRouter);
 
 export default router;

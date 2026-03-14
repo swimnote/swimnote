@@ -9,3 +9,4 @@ export * from "./parent-pool-requests";
 export * from "./attendance";
 export * from "./notices";
 export * from "./subscriptions";
+export * from "./teacher-schedule-notes";
