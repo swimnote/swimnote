@@ -245,6 +245,24 @@ router.put("/diary/:id", requireAuth, requireRole("pool_admin", "teacher", "supe
   }
 );
 
+// ── 일지 사진만 삭제 (일지 내용 유지) ───────────────────────────────
+router.delete("/diary/:id/photos", requireAuth, requireRole("pool_admin", "teacher", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const rows = await db.execute(sql`SELECT image_urls FROM swim_diary WHERE id = ${req.params.id}`);
+      const entry = rows.rows[0] as any;
+      if (!entry) { res.status(404).json({ error: "일지를 찾을 수 없습니다." }); return; }
+      const keys: string[] = Array.isArray(entry.image_urls) ? entry.image_urls : [];
+      if (keys.length) {
+        const client = getClient();
+        for (const key of keys) await client.delete(key).catch(() => {});
+      }
+      await db.execute(sql`UPDATE swim_diary SET image_urls = '[]'::jsonb WHERE id = ${req.params.id}`);
+      res.json({ success: true, deleted: keys.length });
+    } catch (err) { res.status(500).json({ error: "삭제 중 오류" }); }
+  }
+);
+
 // ── 일지 삭제 ─────────────────────────────────────────────────────────
 router.delete("/diary/:id", requireAuth, requireRole("pool_admin", "teacher", "super_admin"),
   async (req: AuthRequest, res: Response) => {
