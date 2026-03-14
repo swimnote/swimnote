@@ -15,7 +15,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 
 let _client: Client | null = null;
 function getClient() {
-  if (!_client) _client = new Client();
+  if (!_client) _client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
   return _client;
 }
 
@@ -39,7 +39,9 @@ router.get("/photos/:photoId/file", requireAuth, async (req: AuthRequest, res: R
     const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
     res.setHeader("Content-Type", mime);
     res.setHeader("Cache-Control", "private, max-age=3600");
-    res.send(Buffer.from(bytes));
+    // downloadAsBytes returns [Buffer] array from GCS SDK
+    const buf = Array.isArray(bytes) ? bytes[0] : bytes;
+    res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any));
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
@@ -92,7 +94,7 @@ router.post("/photos/batch", requireAuth, requireRole("pool_admin", "teacher", "
         const ext = (file.originalname.split(".").pop() || "jpg");
         const filename = genFilename(poolSlug, ext);
         const key = `photos/batch/${filename}`;
-        const { ok, error } = await client.uploadFromBuffer(file.buffer, key, { contentType: file.mimetype });
+        const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
         if (!ok) throw new Error(error?.message || "업로드 실패");
         uploaded.push({ key, size: file.size });
       }
@@ -151,7 +153,7 @@ router.post("/students/:studentId/photos", requireAuth, requireRole("pool_admin"
         const ext = file.originalname.split(".").pop() || "jpg";
         const filename = genFilename(poolSlug, ext);
         const key = `photos/${studentId}/${filename}`;
-        const { ok, error } = await client.uploadFromBuffer(file.buffer, key, { contentType: file.mimetype });
+        const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
         if (!ok) throw new Error(error?.message || "업로드 실패");
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const rows = await db.execute(sql`

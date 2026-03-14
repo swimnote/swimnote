@@ -1,0 +1,106 @@
+Build the photo album feature with two album types for the swimming platform.
+
+[Goal]
+Teachers can upload photos in two different ways:
+1. Group album
+2. Private individual album
+
+[Group album rules]
+- A teacher selects a class and uploads photos to that class group album.
+- All parents who belong to students in that class can view the group album.
+- Only users linked to students in that class can see those photos.
+- Other classes must not see them.
+
+[Private individual album rules]
+- A teacher selects a specific student and uploads photos only for that student.
+- Only the parent account linked to that specific student can view those photos.
+- No other parent in the same class can see them.
+
+[Upload flow]
+- Teacher enters the photo upload screen.
+- Teacher must choose upload target type first:
+  - Group album
+  - Private individual album
+- If group album is selected:
+  - show class list assigned to that teacher
+  - teacher chooses one class
+  - uploads multiple photos
+- If private individual album is selected:
+  - show class list assigned to that teacher
+  - teacher chooses one class first
+  - then show student list in that class
+  - teacher chooses one student
+  - uploads multiple photos
+
+[Permissions]
+- super_admin: can view all pools, classes, students, and photos
+- pool_admin: can view all photos inside their own pool only
+- teacher: can upload and manage photos only for their assigned classes/students
+- parent: can only view
+  - group album photos for classes their child belongs to
+  - private photos for their own child only
+
+[Data model]
+Create or update photo-related tables with clear access structure.
+
+Suggested fields:
+photos
+- id
+- pool_id
+- class_id (nullable for private if needed, but preferred to store)
+- student_id (nullable for group album, required for private album)
+- album_type ("group" | "private")
+- uploaded_by_teacher_id
+- file_url
+- file_name
+- created_at
+
+Rules:
+- album_type = "group" => class_id required, student_id nullable
+- album_type = "private" => class_id required, student_id required
+
+[Teacher UI]
+Add a teacher photo upload page:
+- upload target type selector
+- class selector
+- student selector only when private album is selected
+- multiple image upload
+- upload progress/loading state
+- success/failure messages
+
+[Parent UI]
+Add a parent photo page with two sections:
+1. Group album
+2. Private photos
+
+Behavior:
+- Group album shows photos uploaded to the child’s class
+- Private photos shows only photos uploaded specifically for that child
+- If parent has multiple children, separate photos by child
+
+[Validation]
+- Teacher cannot upload to classes not assigned to them
+- Parent cannot access other class or student photos by URL manipulation
+- API must always return valid JSON
+- Handle empty state safely without JSON parse errors
+
+[Demo data]
+Use existing demo structure:
+- pool: 토이키즈
+- teacher user id 3
+- parent user id 4
+- student: 서태웅
+- class: 초급반
+
+Assign:
+- teacher id 3 -> 초급반
+- 서태웅 -> 초급반
+- parent id 4 -> 서태웅
+
+Then create:
+- sample group album photos for 초급반
+- sample private photos for 서태웅
+
+[Important]
+Keep this structure scalable for a nationwide multi-pool platform.
+All photo access must be isolated by pool, class, student, and role.

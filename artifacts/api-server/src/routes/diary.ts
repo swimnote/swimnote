@@ -15,7 +15,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 
 let _client: Client | null = null;
 function getClient() {
-  if (!_client) _client = new Client();
+  if (!_client) _client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
   return _client;
 }
 
@@ -144,7 +144,7 @@ router.post("/diary", requireAuth, requireRole("pool_admin", "teacher", "super_a
           const ext = file.originalname.split(".").pop() || "jpg";
           const filename = genFilename(poolSlug, ext);
           const key = `diary/group/${filename}`;
-          const { ok, error } = await client.uploadFromBuffer(file.buffer, key, { contentType: file.mimetype });
+          const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
           if (!ok) throw new Error(error?.message || "업로드 실패");
           imageKeys.push(key);
         }
@@ -221,7 +221,7 @@ router.put("/diary/:id", requireAuth, requireRole("pool_admin", "teacher", "supe
           const ext = file.originalname.split(".").pop() || "jpg";
           const filename = genFilename(poolSlug, ext);
           const key = `diary/group/${filename}`;
-          const { ok, error } = await client.uploadFromBuffer(file.buffer, key, { contentType: file.mimetype });
+          const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
           if (!ok) throw new Error(error?.message || "업로드 실패");
           newKeys.push(key);
         }
