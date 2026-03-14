@@ -92,6 +92,8 @@ function RootNav() {
       <Stack.Screen name="parent-login" />
       <Stack.Screen name="register" />
       <Stack.Screen name="pool-apply" />
+      <Stack.Screen name="pool-join-request" />
+      <Stack.Screen name="teacher-invite-join" />
       <Stack.Screen name="pending" />
       <Stack.Screen name="rejected" />
       <Stack.Screen name="subscription-expired" />

@@ -155,6 +155,12 @@ export default function LoginScreen() {
             <Text style={[styles.footerLink, { color: C.tint }]}> 가입 신청하기</Text>
           </Pressable>
         </View>
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: C.textSecondary }]}>선생님으로 초대받으셨나요?</Text>
+          <Pressable onPress={() => router.push("/teacher-invite-join")}>
+            <Text style={[styles.footerLink, { color: C.tint }]}> 초대 코드로 가입</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

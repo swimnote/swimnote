@@ -20,18 +20,34 @@ interface ParentRow {
   students: StudentLink[];
 }
 interface StudentOption { id: string; name: string; class_group_name?: string | null; }
+interface JoinRequest {
+  id: string; swimming_pool_id: string; parent_name: string; phone: string;
+  request_status: "pending" | "approved" | "rejected";
+  requested_at: string; processed_at?: string | null;
+  rejection_reason?: string | null; parent_account_id?: string | null;
+}
 
-type Tab = "accounts" | "pending";
+type Tab = "join_requests" | "pending" | "accounts";
+type JoinFilter = "pending" | "approved" | "rejected";
+
+const JOIN_STATUS_CONFIG = {
+  pending:  { label: "대기",   color: C.warning,  bg: "#FEF3C7", icon: "clock" as const },
+  approved: { label: "승인",   color: C.success,  bg: "#D1FAE5", icon: "check-circle" as const },
+  rejected: { label: "거절됨", color: C.error,    bg: "#FEE2E2", icon: "x-circle" as const },
+};
 
 export default function ParentsScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<Tab>("pending");
+  const [tab, setTab] = useState<Tab>("join_requests");
+  const [joinFilter, setJoinFilter] = useState<JoinFilter>("pending");
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [parents, setParents] = useState<ParentRow[]>([]);
   const [pendingLinks, setPendingLinks] = useState<any[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const [showAddParent, setShowAddParent] = useState(false);
   const [showAddLink, setShowAddLink] = useState<ParentRow | null>(null);
@@ -44,11 +60,13 @@ export default function ParentsScreen() {
 
   const fetch = useCallback(async () => {
     try {
-      const [pRes, pndRes, sRes] = await Promise.all([
+      const [jrRes, pRes, pndRes, sRes] = await Promise.all([
+        apiRequest(token, "/admin/parent-requests"),
         apiRequest(token, "/admin/parents"),
         apiRequest(token, "/admin/pending-connections"),
         apiRequest(token, "/students"),
       ]);
+      if (jrRes.ok) { const d = await jrRes.json(); setJoinRequests(d.data ?? []); }
       if (pRes.ok) setParents(await pRes.json());
       if (pndRes.ok) setPendingLinks(await pndRes.json());
       if (sRes.ok) setStudents(await sRes.json());
@@ -58,6 +76,33 @@ export default function ParentsScreen() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
+  // ── 가입 요청 승인/거절 ──────────────────────────────────────────────
+  async function handleJoinDecision(reqId: string, action: "approve" | "reject") {
+    const label = action === "approve" ? "승인" : "거절";
+    Alert.alert(`가입 요청 ${label}`, `이 가입 요청을 ${label}하시겠습니까?`, [
+      { text: "취소", style: "cancel" },
+      {
+        text: label, style: action === "reject" ? "destructive" : "default",
+        onPress: async () => {
+          setProcessingId(reqId);
+          try {
+            const res = await apiRequest(token, `/admin/parent-requests/${reqId}`, {
+              method: "PATCH",
+              body: JSON.stringify({ action }),
+            });
+            const d = await res.json();
+            if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
+            if (action === "approve" && d.default_pin) {
+              Alert.alert("승인 완료", `학부모 계정이 생성되었습니다.\n초기 PIN: ${d.default_pin}\n(학부모에게 전달해 주세요)`);
+            }
+            await fetch();
+          } finally { setProcessingId(null); }
+        },
+      },
+    ]);
+  }
+
+  // ── 학생 연결 승인/거절 ──────────────────────────────────────────────
   async function handleDecision(linkId: string, parentId: string, action: "approve" | "reject") {
     const label = action === "approve" ? "승인" : "거부";
     Alert.alert(`연결 ${label}`, `이 연결 요청을 ${label}하시겠습니까?`, [
@@ -130,6 +175,8 @@ export default function ParentsScreen() {
   };
 
   const pendingCount = pendingLinks.length;
+  const joinPendingCount = joinRequests.filter(r => r.request_status === "pending").length;
+  const filteredJoinRequests = joinRequests.filter(r => r.request_status === joinFilter);
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
@@ -137,14 +184,16 @@ export default function ParentsScreen() {
         <Text style={[styles.title, { color: C.text }]}>학부모 관리</Text>
         <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => { setFormError(""); setShowAddParent(true); }}>
           <Feather name="plus" size={16} color="#fff" />
-          <Text style={styles.addBtnText}>학부모 추가</Text>
+          <Text style={styles.addBtnText}>직접 추가</Text>
         </Pressable>
       </View>
 
+      {/* 메인 탭 */}
       <View style={[styles.tabRow, { borderBottomColor: C.border }]}>
         {([
-          { key: "pending", label: "승인 대기", count: pendingCount },
-          { key: "accounts", label: "전체 계정" },
+          { key: "join_requests", label: "가입 요청", count: joinPendingCount },
+          { key: "pending", label: "연결 요청", count: pendingCount },
+          { key: "accounts", label: "계정 목록" },
         ] as const).map(t => (
           <Pressable key={t.key} style={[styles.tabItem, tab === t.key && { borderBottomColor: C.tint }]} onPress={() => setTab(t.key)}>
             <Text style={[styles.tabLabel, { color: tab === t.key ? C.tint : C.textSecondary }]}>{t.label}</Text>
@@ -159,10 +208,102 @@ export default function ParentsScreen() {
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 100 }}
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: insets.bottom + 100 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetch(); }} />}
           showsVerticalScrollIndicator={false}
         >
+          {/* ── 가입 요청 탭 ─────────────────────────────────────── */}
+          {tab === "join_requests" && (
+            <>
+              {/* 상태 필터 */}
+              <View style={styles.filterRow}>
+                {(["pending", "approved", "rejected"] as JoinFilter[]).map(f => {
+                  const cfg = JOIN_STATUS_CONFIG[f];
+                  const isActive = joinFilter === f;
+                  return (
+                    <Pressable
+                      key={f}
+                      style={[styles.filterChip, { backgroundColor: isActive ? cfg.bg : C.card, borderColor: isActive ? cfg.color : C.border }]}
+                      onPress={() => setJoinFilter(f)}
+                    >
+                      <Feather name={cfg.icon} size={12} color={isActive ? cfg.color : C.textMuted} />
+                      <Text style={[styles.filterChipText, { color: isActive ? cfg.color : C.textSecondary }]}>{cfg.label}</Text>
+                      <Text style={[styles.filterCount, { color: isActive ? cfg.color : C.textMuted }]}>
+                        {joinRequests.filter(r => r.request_status === f).length}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {filteredJoinRequests.length === 0 ? (
+                <View style={styles.empty}>
+                  <Feather name="users" size={40} color={C.textMuted} />
+                  <Text style={[styles.emptyTitle, { color: C.text }]}>
+                    {joinFilter === "pending" ? "대기 중인 가입 요청이 없습니다" :
+                     joinFilter === "approved" ? "승인된 요청이 없습니다" : "거절된 요청이 없습니다"}
+                  </Text>
+                </View>
+              ) : filteredJoinRequests.map(req => {
+                const cfg = JOIN_STATUS_CONFIG[req.request_status];
+                return (
+                  <View key={req.id} style={[styles.joinCard, { backgroundColor: C.card, borderLeftColor: cfg.color }]}>
+                    <View style={styles.joinCardTop}>
+                      <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
+                        <Text style={[styles.avatarText, { color: C.tint }]}>{req.parent_name[0]}</Text>
+                      </View>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={[styles.accountName, { color: C.text }]}>{req.parent_name}</Text>
+                        <Text style={[styles.accountPhone, { color: C.textSecondary }]}>{req.phone}</Text>
+                        <Text style={[styles.joinDate, { color: C.textMuted }]}>
+                          {new Date(req.requested_at).toLocaleDateString("ko-KR")} 요청
+                        </Text>
+                      </View>
+                      <View style={[styles.badge, { backgroundColor: cfg.bg }]}>
+                        <Feather name={cfg.icon} size={11} color={cfg.color} />
+                        <Text style={[styles.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
+                      </View>
+                    </View>
+                    {req.rejection_reason && (
+                      <Text style={[styles.rejectReason, { color: C.textMuted }]}>거절 사유: {req.rejection_reason}</Text>
+                    )}
+                    {req.request_status === "pending" && (
+                      <View style={styles.actionRow}>
+                        <Pressable
+                          style={({ pressed }) => [styles.rejectBtn, { borderColor: C.error, opacity: pressed ? 0.8 : 1 }]}
+                          onPress={() => handleJoinDecision(req.id, "reject")}
+                          disabled={processingId === req.id}
+                        >
+                          {processingId === req.id ? <ActivityIndicator size="small" color={C.error} /> : (
+                            <><Feather name="x" size={14} color={C.error} />
+                            <Text style={[styles.rejectBtnText, { color: C.error }]}>거절</Text></>
+                          )}
+                        </Pressable>
+                        <Pressable
+                          style={({ pressed }) => [styles.approveBtn, { backgroundColor: C.success, opacity: pressed ? 0.8 : 1 }]}
+                          onPress={() => handleJoinDecision(req.id, "approve")}
+                          disabled={processingId === req.id}
+                        >
+                          {processingId === req.id ? <ActivityIndicator size="small" color="#fff" /> : (
+                            <><Feather name="check" size={14} color="#fff" />
+                            <Text style={styles.approveBtnText}>승인</Text></>
+                          )}
+                        </Pressable>
+                      </View>
+                    )}
+                    {req.request_status === "approved" && req.parent_account_id && (
+                      <View style={[styles.approvedNote, { backgroundColor: "#D1FAE5" }]}>
+                        <Feather name="check-circle" size={13} color={C.success} />
+                        <Text style={[styles.approvedNoteText, { color: C.success }]}>계정 생성 완료</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </>
+          )}
+
+          {/* ── 학생 연결 요청 탭 ─────────────────────────────────── */}
           {tab === "pending" && (
             pendingLinks.length === 0 ? (
               <View style={styles.empty}>
@@ -175,7 +316,7 @@ export default function ParentsScreen() {
                 <View style={styles.pendingMeta}>
                   <View style={[styles.badge, { backgroundColor: "#FEF3C7" }]}>
                     <Feather name="clock" size={11} color={C.warning} />
-                    <Text style={[styles.badgeText, { color: C.warning }]}>승인 대기</Text>
+                    <Text style={[styles.badgeText, { color: C.warning }]}>학생 연결 대기</Text>
                   </View>
                   <Text style={[styles.metaDate, { color: C.textMuted }]}>
                     {new Date(item.created_at).toLocaleDateString("ko-KR")}
@@ -222,12 +363,13 @@ export default function ParentsScreen() {
             ))
           )}
 
+          {/* ── 계정 목록 탭 ─────────────────────────────────────── */}
           {tab === "accounts" && (
             parents.length === 0 ? (
               <View style={styles.empty}>
                 <Feather name="users" size={48} color={C.textMuted} />
                 <Text style={[styles.emptyTitle, { color: C.text }]}>등록된 학부모가 없습니다</Text>
-                <Text style={[styles.emptySub, { color: C.textSecondary }]}>상단 버튼으로 학부모를 추가하세요</Text>
+                <Text style={[styles.emptySub, { color: C.textSecondary }]}>가입 요청을 승인하거나 직접 추가하세요</Text>
               </View>
             ) : parents.map(pa => (
               <View key={pa.id} style={[styles.accountCard, { backgroundColor: C.card }]}>
@@ -247,7 +389,6 @@ export default function ParentsScreen() {
                     <Text style={[styles.linkBtnText, { color: C.tint }]}>학생 연결</Text>
                   </Pressable>
                 </View>
-
                 {pa.students.length > 0 && (
                   <View style={[styles.studentsSection, { borderTopColor: C.border }]}>
                     {pa.students.map((s: StudentLink) => (
@@ -281,17 +422,15 @@ export default function ParentsScreen() {
         </ScrollView>
       )}
 
-      {/* 학부모 추가 모달 */}
+      {/* 학부모 직접 추가 모달 */}
       <Modal visible={showAddParent} animationType="slide" transparent presentationStyle="overFullScreen">
         <View style={styles.overlay}>
           <View style={[styles.sheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.sheetHandle} />
-            <Text style={[styles.sheetTitle, { color: C.text }]}>학부모 계정 추가</Text>
-
+            <Text style={[styles.sheetTitle, { color: C.text }]}>학부모 계정 직접 추가</Text>
             {!!formError && <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
               <Text style={[styles.errText, { color: C.error }]}>{formError}</Text>
             </View>}
-
             <View style={styles.field}>
               <Text style={[styles.label, { color: C.textSecondary }]}>이름</Text>
               <TextInput style={[styles.input, { borderColor: C.border, color: C.text }]}
@@ -308,7 +447,6 @@ export default function ParentsScreen() {
                 value={formPin} onChangeText={setFormPin} placeholder="****" keyboardType="number-pad"
                 secureTextEntry maxLength={8} placeholderTextColor={C.textMuted} />
             </View>
-
             <View style={styles.modalActions}>
               <Pressable style={[styles.cancelBtn, { borderColor: C.border }]} onPress={() => setShowAddParent(false)}>
                 <Text style={[styles.cancelText, { color: C.textSecondary }]}>취소</Text>
@@ -329,19 +467,14 @@ export default function ParentsScreen() {
             <Text style={[styles.sheetTitle, { color: C.text }]}>학생 연결 요청</Text>
             <View style={[styles.infoBox, { backgroundColor: "#FEF3C7", borderColor: C.warning }]}>
               <Feather name="info" size={13} color={C.warning} />
-              <Text style={[styles.infoText, { color: "#92400E" }]}>
-                연결 요청은 관리자 승인 후 학부모에게 노출됩니다.
-              </Text>
+              <Text style={[styles.infoText, { color: "#92400E" }]}>연결 요청은 관리자 승인 후 학부모에게 노출됩니다.</Text>
             </View>
             {!!formError && <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
               <Text style={[styles.errText, { color: C.error }]}>{formError}</Text>
             </View>}
-
             <Text style={[styles.label, { color: C.textSecondary }]}>학생 선택</Text>
-            <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator={false}>
-              {students
-                .filter(s => !showAddLink?.students.some(ls => ls.id === s.id && ls.status !== "rejected"))
-                .map(s => (
+            <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+              {students.filter(s => !showAddLink?.students.some(ls => ls.id === s.id && ls.status !== "rejected")).map(s => (
                 <Pressable key={s.id}
                   style={[styles.studentOption, { borderColor: formStudentId === s.id ? C.tint : C.border, backgroundColor: formStudentId === s.id ? C.tintLight : "transparent" }]}
                   onPress={() => setFormStudentId(s.id)}
@@ -352,7 +485,6 @@ export default function ParentsScreen() {
                 </Pressable>
               ))}
             </ScrollView>
-
             <View style={styles.modalActions}>
               <Pressable style={[styles.cancelBtn, { borderColor: C.border }]} onPress={() => setShowAddLink(null)}>
                 <Text style={[styles.cancelText, { color: C.textSecondary }]}>취소</Text>
@@ -375,10 +507,20 @@ const styles = StyleSheet.create({
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
   addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
   tabRow: { flexDirection: "row", borderBottomWidth: 1, marginHorizontal: 16 },
-  tabItem: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
-  tabLabel: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  tabItem: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 11, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  tabLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
   countBadge: { minWidth: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
   countText: { color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold" },
+  filterRow: { flexDirection: "row", gap: 8, paddingBottom: 4 },
+  filterChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
+  filterChipText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  filterCount: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  joinCard: { borderRadius: 14, padding: 14, gap: 10, borderLeftWidth: 4, backgroundColor: C.card, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  joinCardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  joinDate: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  rejectReason: { fontSize: 12, fontFamily: "Inter_400Regular", paddingTop: 2 },
+  approvedNote: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  approvedNoteText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   pendingCard: { borderRadius: 14, padding: 16, gap: 12, borderLeftWidth: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   pendingMeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   metaDate: { fontSize: 12, fontFamily: "Inter_400Regular" },

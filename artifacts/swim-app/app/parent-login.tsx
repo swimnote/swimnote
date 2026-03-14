@@ -103,12 +103,19 @@ export default function ParentLoginScreen() {
           </Pressable>
         </View>
 
-        <View style={[styles.infoBox, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-          <Feather name="info" size={14} color={C.tint} />
-          <Text style={[styles.infoText, { color: C.tint }]}>
-            계정이 없으신가요? 수영장 관리자에게 전화번호 등록을 요청하세요.
-          </Text>
-        </View>
+        <Pressable
+          style={({ pressed }) => [styles.joinRequestBtn, { backgroundColor: C.card, borderColor: C.border, opacity: pressed ? 0.8 : 1 }]}
+          onPress={() => router.push("/pool-join-request")}
+        >
+          <View style={[styles.joinIconBox, { backgroundColor: C.tintLight }]}>
+            <Feather name="user-plus" size={18} color={C.tint} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.joinBtnTitle, { color: C.text }]}>수영장 가입 요청</Text>
+            <Text style={[styles.joinBtnSub, { color: C.textSecondary }]}>수영장을 검색하고 가입 요청을 보내세요</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={C.textMuted} />
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -134,4 +141,8 @@ const styles = StyleSheet.create({
   btnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
   infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 14, borderRadius: 12, borderWidth: 1 },
   infoText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  joinRequestBtn: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderRadius: 16, borderWidth: 1.5 },
+  joinIconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  joinBtnTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  joinBtnSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 });
