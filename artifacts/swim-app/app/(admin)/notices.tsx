@@ -91,7 +91,6 @@ export default function NoticesScreen() {
   async function uploadImages(): Promise<string[]> {
     if (pickedImages.length === 0) return [];
     setUploading(true);
-    const keys: string[] = [];
     try {
       const formData = new FormData();
       for (const img of pickedImages) {
@@ -106,22 +105,27 @@ export default function NoticesScreen() {
         body: formData,
       });
       const data = await res.json();
-      if (res.ok && Array.isArray(data.urls)) keys.push(...data.urls);
+      if (!res.ok) throw new Error(data.error || "이미지 업로드에 실패했습니다.");
+      if (!Array.isArray(data.urls) || data.urls.length === 0) throw new Error("이미지 업로드 결과를 받지 못했습니다.");
+      return data.urls as string[];
     } finally { setUploading(false); }
-    return keys;
   }
 
   async function handleCreate() {
     if (!form.title || !form.content) { setError("제목과 내용을 입력해주세요."); return; }
     setSaving(true); setError("");
     try {
-      const image_urls = await uploadImages();
+      // 이미지 첨부가 있으면 먼저 업로드 — 실패 시 예외 발생으로 발송 차단
+      let image_urls: string[] = [];
+      if (pickedImages.length > 0) {
+        image_urls = await uploadImages();
+      }
       const res = await apiRequest(token, "/notices", {
         method: "POST",
         body: JSON.stringify({ ...form, image_urls }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || "공지 저장에 실패했습니다.");
       setNotices(prev => [data, ...prev]);
       setShowModal(false);
       setForm({ title: "", content: "", is_pinned: false });

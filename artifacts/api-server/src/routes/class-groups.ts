@@ -201,10 +201,40 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
       return err(res, 403, "접근 권한이 없습니다.");
     }
 
-    await db.update(studentsTable).set({ class_group_id: null }).where(eq(studentsTable.class_group_id, req.params.id));
-    await db.delete(classGroupsTable).where(eq(classGroupsTable.id, req.params.id));
+    const cgId = req.params.id;
+
+    // 1) students: class_group_id null + assigned_class_ids에서 해당 id 제거
+    await db.execute(sql`
+      UPDATE students
+      SET
+        class_group_id = CASE WHEN class_group_id = ${cgId} THEN NULL ELSE class_group_id END,
+        assigned_class_ids = COALESCE(
+          (SELECT jsonb_agg(elem)
+           FROM jsonb_array_elements(COALESCE(assigned_class_ids, '[]'::jsonb)) AS elem
+           WHERE elem::text != ${JSON.stringify(cgId)}),
+          '[]'::jsonb
+        ),
+        schedule_labels = NULL,
+        updated_at = NOW()
+      WHERE swimming_pool_id = ${poolId}
+        AND (
+          class_group_id = ${cgId}
+          OR assigned_class_ids @> to_jsonb(${cgId}::text)
+        )
+    `);
+
+    // 2) attendance: class_group_id null 처리 (출결 기록 보존)
+    await db.execute(sql`UPDATE attendance SET class_group_id = NULL WHERE class_group_id = ${cgId}`);
+
+    // 3) teacher_schedule_notes 삭제
+    await db.execute(sql`DELETE FROM teacher_schedule_notes WHERE class_group_id = ${cgId}`);
+
+    // 4) 반 삭제
+    await db.delete(classGroupsTable).where(eq(classGroupsTable.id, cgId));
+
+    console.log(`[class-groups] DELETE ${cgId}: cascade cleaned`);
     res.json({ success: true });
-  } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
 export default router;

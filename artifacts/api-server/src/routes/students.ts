@@ -327,8 +327,16 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
       return err(res, 403, "접근 권한이 없습니다.");
     }
 
-    await db.delete(parentStudentsTable).where(eq(parentStudentsTable.student_id, req.params.id));
-    await db.delete(studentsTable).where(eq(studentsTable.id, req.params.id));
+    const sid = req.params.id;
+
+    // 연관 데이터 순서대로 삭제
+    await db.delete(parentStudentsTable).where(eq(parentStudentsTable.student_id, sid));
+    await db.delete(attendanceTable).where(eq(attendanceTable.student_id, sid));
+    // swim_diary student_id null 처리 (기록 보존)
+    await db.execute(sql`UPDATE swim_diary SET student_id = NULL WHERE student_id = ${sid}`);
+    await db.delete(studentsTable).where(eq(studentsTable.id, sid));
+
+    console.log(`[students] DELETE ${sid}: parent_students, attendance, swim_diary cleaned`);
     res.json({ success: true, message: "학생이 삭제되었습니다." });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
