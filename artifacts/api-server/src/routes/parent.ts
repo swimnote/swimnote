@@ -140,4 +140,67 @@ router.post("/notices/:id/read", requireAuth, requireParent, async (req: AuthReq
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ── 학부모: 자녀 수영일지 조회 ────────────────────────────────────────
+router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(
+        eq(parentStudentsTable.parent_id, req.user!.userId),
+        eq(parentStudentsTable.student_id, req.params.id),
+        eq(parentStudentsTable.status, "approved")
+      )).limit(1);
+    if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+
+    const [student] = await db.select({ class_group_id: studentsTable.class_group_id })
+      .from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    if (!student) { res.status(404).json({ error: "학생을 찾을 수 없습니다." }); return; }
+
+    const { month } = req.query;
+    let query = sql`
+      SELECT id, class_group_id, title, lesson_content, next_focus,
+             author_name, created_at, image_urls
+      FROM swim_diary
+      WHERE class_group_id = ${student.class_group_id}
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+
+    const rows = await db.execute(query);
+    let diaries = rows.rows as any[];
+    if (month) {
+      diaries = diaries.filter(d => d.created_at?.toString().startsWith(month as string));
+    }
+    res.json(diaries);
+  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// ── 학부모: 자녀 수영일지 전체 조회 (모든 자녀 반 기준) ────────────────
+router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const links = await db.select().from(parentStudentsTable).where(
+      and(eq(parentStudentsTable.parent_id, req.user!.userId), eq(parentStudentsTable.status, "approved"))
+    );
+    if (!links.length) { res.json([]); return; }
+
+    const studentIds = links.map(l => l.student_id);
+    const classGroups: string[] = [];
+    for (const sid of studentIds) {
+      const [s] = await db.select({ class_group_id: studentsTable.class_group_id })
+        .from(studentsTable).where(eq(studentsTable.id, sid)).limit(1);
+      if (s?.class_group_id) classGroups.push(s.class_group_id);
+    }
+    if (!classGroups.length) { res.json([]); return; }
+
+    const rows = await db.execute(sql`
+      SELECT id, class_group_id, title, lesson_content, next_focus,
+             author_name, created_at, image_urls
+      FROM swim_diary
+      WHERE class_group_id = ANY(${classGroups}::text[])
+      ORDER BY created_at DESC
+      LIMIT 50
+    `);
+    res.json(rows.rows);
+  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
 export default router;

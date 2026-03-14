@@ -19,6 +19,7 @@ import billingRouter from "./billing.js";
 import parentRequestsRouter from "./parent-requests.js";
 import teacherInvitesRouter from "./teacher-invites.js";
 import classSchedulesRouter from "./class-schedules.js";
+import videosRouter from "./videos.js";
 
 const router: IRouter = Router();
 
@@ -36,6 +37,7 @@ router.use("/", photosRouter);
 router.use("/", diaryRouter);
 router.use("/", notificationsRouter);
 router.use("/", teachersRouter);
+router.use("/", videosRouter);
 router.use("/members", membersRouter);
 router.use("/branches", branchesRouter);
 router.use("/billing", billingRouter);
