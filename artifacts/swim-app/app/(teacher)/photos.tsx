@@ -177,38 +177,44 @@ export default function TeacherPhotosScreen() {
     finally { setUploading(false); }
   }
 
+  // ── 삭제 확인 (web: window.confirm, native: Alert) ───────────────
+  function confirmAndDelete(message: string, onConfirm: () => Promise<void>) {
+    if (Platform.OS === "web") {
+      if ((window as any).confirm(message)) onConfirm();
+    } else {
+      Alert.alert("삭제 확인", message, [
+        { text: "취소", style: "cancel" },
+        { text: "삭제", style: "destructive", onPress: onConfirm },
+      ]);
+    }
+  }
+
   // ── 단일 삭제 (라이트박스) ─────────────────────────────────────────
-  async function deleteSingle(photoId: string) {
-    Alert.alert("삭제 확인", "이 사진을 삭제하시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: async () => {
-        setLbDeleting(true);
-        try {
-          const r = await apiRequest(token, `/photos/${photoId}`, { method: "DELETE" });
-          if (!r.ok) throw new Error("삭제 실패");
-          setLightbox(null);
-          setPhotos(prev => prev.filter(p => p.id !== photoId));
-        } catch { Alert.alert("오류", "삭제 중 오류가 발생했습니다."); }
-        finally { setLbDeleting(false); }
-      }},
-    ]);
+  function deleteSingle(photoId: string) {
+    confirmAndDelete("이 사진을 삭제하시겠습니까?", async () => {
+      setLbDeleting(true);
+      try {
+        const r = await apiRequest(token, `/photos/${photoId}`, { method: "DELETE" });
+        if (!r.ok) throw new Error("삭제 실패");
+        setLightbox(null);
+        setPhotos(prev => prev.filter(p => p.id !== photoId));
+      } catch { Alert.alert("오류", "삭제 중 오류가 발생했습니다."); }
+      finally { setLbDeleting(false); }
+    });
   }
 
   // ── 일괄 삭제 ──────────────────────────────────────────────────────
-  async function bulkDelete() {
+  function bulkDelete() {
     const ids = [...selected];
-    Alert.alert("삭제 확인", `선택한 ${ids.length}장을 삭제하시겠습니까?`, [
-      { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: async () => {
-        setBulkWorking(true);
-        try {
-          await Promise.all(ids.map(id => apiRequest(token, `/photos/${id}`, { method: "DELETE" })));
-          setPhotos(prev => prev.filter(p => !ids.includes(p.id)));
-          exitSelect();
-        } catch { Alert.alert("오류", "일부 사진 삭제 중 오류가 발생했습니다."); }
-        finally { setBulkWorking(false); }
-      }},
-    ]);
+    confirmAndDelete(`선택한 ${ids.length}장을 삭제하시겠습니까?`, async () => {
+      setBulkWorking(true);
+      try {
+        await Promise.all(ids.map(id => apiRequest(token, `/photos/${id}`, { method: "DELETE" })));
+        setPhotos(prev => prev.filter(p => !ids.includes(p.id)));
+        exitSelect();
+      } catch { Alert.alert("오류", "일부 사진 삭제 중 오류가 발생했습니다."); }
+      finally { setBulkWorking(false); }
+    });
   }
 
   // ── 일괄 다운로드 ──────────────────────────────────────────────────
