@@ -2,12 +2,19 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
-  Pressable, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
+  Platform, Pressable, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { ScreenLayout }  from "@/components/common/ScreenLayout";
+import { PageHeader }    from "@/components/common/PageHeader";
+import { FilterChips, FilterChipItem } from "@/components/common/FilterChips";
+import { EmptyState }    from "@/components/common/EmptyState";
+import { STATUS_COLORS } from "@/components/common/constants";
+
+const C = Colors.light;
 
 interface Member {
   id: string; name: string; phone: string; birth_date?: string | null;
@@ -16,24 +23,24 @@ interface Member {
 
 type StatusFilter = "all" | "pending" | "free" | "paid";
 
-const STATUS_FILTERS: Array<{ key: StatusFilter; label: string }> = [
-  { key: "all", label: "전체" },
-  { key: "pending", label: "미승인" },
-  { key: "free", label: "무료 이용" },
-  { key: "paid", label: "유료 이용" },
+const FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
+  { key: "all",     label: "전체",    icon: "list",         activeColor: C.tint,                        activeBg: C.tintLight },
+  { key: "pending", label: "미승인",  icon: "clock",        activeColor: STATUS_COLORS.pending.color,   activeBg: STATUS_COLORS.pending.bg },
+  { key: "free",    label: "무료 이용", icon: "gift",       activeColor: STATUS_COLORS.free.color,      activeBg: STATUS_COLORS.free.bg },
+  { key: "paid",    label: "유료 이용", icon: "credit-card", activeColor: STATUS_COLORS.paid.color,     activeBg: STATUS_COLORS.paid.bg },
 ];
 
 export default function MembersScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const C = Colors.light;
-  const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", birth_date: "", memo: "" });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
+
+  const [members,      setMembers]      = useState<Member[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [showModal,    setShowModal]    = useState(false);
+  const [form,         setForm]         = useState({ name: "", phone: "", birth_date: "", memo: "" });
+  const [saving,       setSaving]       = useState(false);
+  const [error,        setError]        = useState("");
+  const [search,       setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   async function fetchMembers() {
@@ -71,220 +78,186 @@ export default function MembersScreen() {
     ]);
   }
 
-  const filtered = members.filter(m => 
+  // 필터링
+  const filtered = members.filter(m =>
     (m.name.includes(search) || m.phone.includes(search)) &&
-    (statusFilter === "all" || 
+    (statusFilter === "all" ||
      (statusFilter === "pending" && !m.class_id) ||
-     (statusFilter === "free" && m.class_id && m.class_name === "무료") ||
-     (statusFilter === "paid" && m.class_id && m.class_name !== "무료"))
+     (statusFilter === "free"    && m.class_id && m.class_name === "무료") ||
+     (statusFilter === "paid"    && m.class_id && m.class_name !== "무료"))
   );
 
-  // 헤더 컴포넌트 (고정)
-  const renderHeader = () => (
-    <View>
-      {/* 제목 */}
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Text style={[styles.title, { color: C.text }]}>회원 관리</Text>
-        <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowModal(true)}>
-          <Feather name="user-plus" size={16} color="#fff" />
-          <Text style={styles.addBtnText}>회원 등록</Text>
-        </Pressable>
-      </View>
+  // 필터칩 카운트 주입
+  const chipsWithCount: FilterChipItem<StatusFilter>[] = FILTER_CHIPS.map(chip => ({
+    ...chip,
+    count: members.filter(m =>
+      chip.key === "all"     ? true :
+      chip.key === "pending" ? !m.class_id :
+      chip.key === "free"    ? (!!m.class_id && m.class_name === "무료") :
+      chip.key === "paid"    ? (!!m.class_id && m.class_name !== "무료") : false
+    ).length,
+  }));
 
-      {/* 검색 */}
-      <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.card }]}>
+  // 고정 상단 헤더
+  const header = (
+    <>
+      <PageHeader
+        title="회원 관리"
+        action={{ icon: "user-plus", label: "회원 등록", onPress: () => setShowModal(true) }}
+      />
+      {/* 검색바 */}
+      <View style={[s.searchRow, { borderColor: C.border, backgroundColor: C.card }]}>
         <Feather name="search" size={16} color={C.textMuted} />
         <TextInput
-          style={[styles.searchInput, { color: C.text }]}
+          style={[s.searchInput, { color: C.text }]}
           value={search}
           onChangeText={setSearch}
           placeholder="이름 또는 전화번호 검색"
           placeholderTextColor={C.textMuted}
         />
+        {search.length > 0 && (
+          <Pressable onPress={() => setSearch("")}>
+            <Feather name="x-circle" size={16} color={C.textMuted} />
+          </Pressable>
+        )}
       </View>
-
-      {/* 상태 필터 (절대 고정 높이 - 크기 변동 불가) */}
-      <View style={styles.filterSpacer}>
-        <View style={styles.filterRow}>
-          {STATUS_FILTERS.map(({ key, label }) => {
-            const isActive = statusFilter === key;
-            return (
-              <View
-                key={key}
-                style={[
-                  styles.filterCard,
-                  {
-                    backgroundColor: isActive ? C.tint : C.card,
-                    borderColor: isActive ? C.tint : C.border,
-                  },
-                ]}
-              >
-                <Pressable
-                  style={styles.filterPressable}
-                  onPress={() => setStatusFilter(key)}
-                >
-                  <Text
-                    style={[
-                      styles.filterCardText,
-                      { color: isActive ? "#fff" : C.text },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {label}
-                  </Text>
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-    </View>
+      {/* 상태 필터칩 (고정 크기 — 절대 변하지 않음) */}
+      <FilterChips<StatusFilter>
+        chips={chipsWithCount}
+        active={statusFilter}
+        onChange={setStatusFilter}
+      />
+    </>
   );
 
-  // 빈 상태 렌더
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Feather name="users" size={48} color={C.textMuted} />
-      <Text style={[styles.emptyText, { color: C.textMuted }]}>해당하는 회원이 없습니다</Text>
-    </View>
-  );
-
-  // 로딩 중
   if (loading) {
     return (
-      <View style={[styles.root, { backgroundColor: C.background }]}>
-        {renderHeader()}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={C.tint} size="large" />
-        </View>
-      </View>
+      <ScreenLayout header={header}>
+        <ActivityIndicator color={C.tint} style={{ marginTop: 80 }} size="large" />
+      </ScreenLayout>
     );
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: C.background }]}>
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={renderEmpty}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10 }}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={true}
-        renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
-            <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
-              <Text style={[styles.avatarText, { color: C.tint }]}>{item.name[0]}</Text>
-            </View>
-            <View style={styles.cardInfo}>
-              <Text style={[styles.memberName, { color: C.text }]}>{item.name}</Text>
-              <Text style={[styles.memberPhone, { color: C.textSecondary }]}>{item.phone}</Text>
-              {item.class_name ? (
-                <View style={[styles.classBadge, { backgroundColor: C.tintLight }]}>
-                  <Text style={[styles.classBadgeText, { color: C.tint }]}>{item.class_name}</Text>
-                </View>
-              ) : null}
-              <Pressable
-                style={[styles.diaryBtn, { backgroundColor: "#059669" + "1A" }]}
-                onPress={() => router.push({ pathname: "/(admin)/diary-write", params: { studentId: item.id, studentName: item.name } } as any)}
-              >
-                <Feather name="book-open" size={12} color="#059669" />
-                <Text style={[styles.diaryBtnText, { color: "#059669" }]}>수영 일지 작성</Text>
+    <>
+      <ScreenLayout header={header}>
+        <FlatList
+          data={filtered}
+          keyExtractor={item => item.id}
+          contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 100 }]}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <EmptyState
+              icon="users"
+              title="해당하는 회원이 없습니다"
+              subtitle={search ? `"${search}" 검색 결과가 없습니다` : "필터를 변경해보세요"}
+            />
+          }
+          renderItem={({ item: m }) => (
+            <View style={[s.card, { backgroundColor: C.card }]}>
+              <View style={[s.avatar, { backgroundColor: C.tintLight }]}>
+                <Text style={[s.avatarText, { color: C.tint }]}>{m.name[0]}</Text>
+              </View>
+              <View style={s.info}>
+                <Text style={[s.name, { color: C.text }]}>{m.name}</Text>
+                <Text style={[s.phone, { color: C.textSecondary }]}>{m.phone}</Text>
+                {m.class_name ? (
+                  <View style={[s.classBadge, { backgroundColor: C.tintLight }]}>
+                    <Text style={[s.classBadgeText, { color: C.tint }]}>{m.class_name}</Text>
+                  </View>
+                ) : (
+                  <View style={[s.classBadge, { backgroundColor: STATUS_COLORS.pending.bg }]}>
+                    <Text style={[s.classBadgeText, { color: STATUS_COLORS.pending.color }]}>미승인</Text>
+                  </View>
+                )}
+                <Pressable
+                  style={[s.diaryBtn, { backgroundColor: "#059669" + "1A" }]}
+                  onPress={() => router.push({ pathname: "/(admin)/diary-write", params: { studentId: m.id, studentName: m.name } } as any)}
+                >
+                  <Feather name="book-open" size={12} color="#059669" />
+                  <Text style={[s.diaryBtnText, { color: "#059669" }]}>수영 일지 작성</Text>
+                </Pressable>
+              </View>
+              <Pressable onPress={() => handleDelete(m.id, m.name)} style={s.deleteBtn}>
+                <Feather name="trash-2" size={18} color={C.error} />
               </Pressable>
             </View>
-            <Pressable onPress={() => handleDelete(item.id, item.name)} style={styles.deleteBtn}>
-              <Feather name="trash-2" size={18} color={C.error} />
-            </Pressable>
-          </View>
-        )}
-      />
+          )}
+        />
+      </ScreenLayout>
 
-      {/* 모달 */}
+      {/* 회원 등록 모달 */}
       <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={[styles.modalSheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: C.text }]}>회원 등록</Text>
+        <KeyboardAvoidingView style={s.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View style={[s.sheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
+            <View style={s.handle} />
+            <View style={s.sheetHeader}>
+              <Text style={[s.sheetTitle, { color: C.text }]}>회원 등록</Text>
               <Pressable onPress={() => setShowModal(false)}>
                 <Feather name="x" size={22} color={C.textSecondary} />
               </Pressable>
             </View>
-
-            {error ? <Text style={[styles.errorText, { color: C.error }]}>{error}</Text> : null}
-
-            {[
-              { key: "name", label: "이름 *", placeholder: "회원 이름" },
-              { key: "phone", label: "전화번호 *", placeholder: "010-0000-0000" },
-              { key: "birth_date", label: "생년월일", placeholder: "2000-01-01" },
-              { key: "memo", label: "메모", placeholder: "특이사항 등" },
-            ].map(({ key, label, placeholder }) => (
-              <View key={key} style={styles.field}>
-                <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
+            {error ? <Text style={[s.errText, { color: C.error }]}>{error}</Text> : null}
+            {(["name", "phone", "birth_date", "memo"] as const).map(key => (
+              <View key={key} style={s.field}>
+                <Text style={[s.label, { color: C.textSecondary }]}>
+                  {key === "name" ? "이름 *" : key === "phone" ? "전화번호 *" : key === "birth_date" ? "생년월일" : "메모"}
+                </Text>
                 <TextInput
-                  style={[styles.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
-                  value={form[key as keyof typeof form]}
-                  onChangeText={(v) => setForm(f => ({ ...f, [key]: v }))}
-                  placeholder={placeholder}
+                  style={[s.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
+                  value={form[key]}
+                  onChangeText={v => setForm(f => ({ ...f, [key]: v }))}
+                  placeholder={key === "name" ? "회원 이름" : key === "phone" ? "010-0000-0000" : key === "birth_date" ? "2000-01-01" : "특이사항 등"}
                   placeholderTextColor={C.textMuted}
                 />
               </View>
             ))}
-
             <Pressable
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+              style={({ pressed }) => [s.saveBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
               onPress={handleCreate}
               disabled={saving}
             >
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>등록하기</Text>}
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.saveBtnText}>등록하기</Text>}
             </Pressable>
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16 },
-  title: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 20, marginBottom: 16 },
+const s = StyleSheet.create({
+  searchRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderWidth: 1.5, borderRadius: 12,
+    paddingHorizontal: 12, height: 44,
+    marginHorizontal: 16, marginBottom: 4,
+  },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
-  
-  // 상태 필터 (절대 고정 영역 - 절대 변하지 않음)
-  filterSpacer: { height: 200, backgroundColor: "transparent", paddingHorizontal: 20, paddingVertical: 15 },
-  filterRow: { height: 170, flexDirection: "row", gap: 10, justifyContent: "space-between", flexWrap: "nowrap" },
-  filterCard: { width: "23%", height: 170, borderRadius: 16, borderWidth: 2, alignItems: "center", justifyContent: "center", paddingHorizontal: 4, paddingVertical: 10, flexShrink: 0 },
-  filterPressable: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center" },
-  filterCardText: { fontSize: 12, fontFamily: "Inter_600SemiBold", textAlign: "center" },
-  
-  loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
-  emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 12 },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
-  
-  card: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, gap: 12, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
+
+  list: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
+
+  card: {
+    flexDirection: "row", alignItems: "center",
+    borderRadius: 14, padding: 14, gap: 12,
+  },
   avatar: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  cardInfo: { flex: 1, gap: 3 },
-  memberName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  memberPhone: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  info: { flex: 1, gap: 3 },
+  name:  { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  phone: { fontSize: 13, fontFamily: "Inter_400Regular" },
   classBadge: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginTop: 2 },
   classBadgeText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   deleteBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   diaryBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 4 },
   diaryBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  
-  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 8 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  errorText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 8 },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sheetTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  errText: { fontSize: 13, fontFamily: "Inter_400Regular" },
   field: { gap: 6 },
   label: { fontSize: 13, fontFamily: "Inter_500Medium" },
   input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular" },
