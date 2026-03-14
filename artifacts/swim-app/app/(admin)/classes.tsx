@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
+import { useSelectionMode } from "@/hooks/useSelectionMode";
+import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 
 const C = Colors.light;
 
@@ -31,14 +33,16 @@ export default function ClassesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const sel = useSelectionMode();
+  const visibleIds = groups.map(g => g.id);
 
   const load = useCallback(async () => {
     try {
       const res = await apiRequest(token, "/class-groups");
       if (res.ok) {
         const data = await res.json();
-        // is_deleted=false 인 반만 표시 (API가 이미 필터링하지만 이중 체크)
         setGroups(Array.isArray(data) ? data.filter((g: ClassGroup) => !g.is_deleted) : []);
       }
     } catch (e) { console.error(e); }
@@ -47,41 +51,86 @@ export default function ClassesScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleDelete(id: string, name: string) {
+  async function deleteIds(ids: string[]) {
+    if (ids.length === 0) return;
+    setDeleting(true);
+    try {
+      console.log(`[admin][deleteClass] selectedCount=${ids.length}`, ids);
+      const results = await Promise.allSettled(
+        ids.map(id => apiRequest(token, `/class-groups/${id}`, { method: "DELETE" })
+          .then(r => ({ id, ok: r.ok }))
+        )
+      );
+      const succeeded = results
+        .filter((r): r is PromiseFulfilledResult<{ id: string; ok: boolean }> => r.status === "fulfilled" && r.value.ok)
+        .map(r => r.value.id);
+      const failed = ids.length - succeeded.length;
+
+      setGroups(prev => prev.filter(g => !succeeded.includes(g.id)));
+      sel.exitSelectionMode();
+      console.log(`[admin][deleteClass] class soft deleted success: ${succeeded.join(", ")}`);
+      console.log(`[admin][deleteClass] UI refresh complete`);
+
+      if (failed > 0) Alert.alert("일부 실패", `${failed}개 삭제에 실패했습니다.`);
+    } catch (e) {
+      console.error(e);
+      Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
+    } finally { setDeleting(false); }
+  }
+
+  function confirmDelete(ids: string[]) {
+    if (ids.length === 0) return;
+    const isSingle = ids.length === 1;
+    const target = isSingle
+      ? groups.find(g => g.id === ids[0])?.name || "반"
+      : `${ids.length}개 반`;
+
     Alert.alert(
       "반 삭제",
-      `"${name}"을 삭제하면 소속 회원은 미배정 상태로 변경되고, 선생님·출결·스케줄 화면에서도 반영됩니다.\n\n삭제하시겠습니까?`,
+      `선택한 반을 삭제하면 소속 회원은 삭제되지 않고 미배정 상태로 변경됩니다.\n선생님·출결·스케줄·학부모 화면에도 즉시 반영됩니다.\n\n"${target}"을 삭제하시겠습니까?`,
       [
         { text: "취소", style: "cancel" },
         {
-          text: "삭제", style: "destructive", onPress: async () => {
-            setDeletingId(id);
-            try {
-              const res = await apiRequest(token, `/class-groups/${id}`, { method: "DELETE" });
-              if (res.ok) {
-                setGroups(prev => prev.filter(g => g.id !== id));
-              } else {
-                Alert.alert("오류", "삭제에 실패했습니다.");
-              }
-            } catch {
-              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
-            } finally {
-              setDeletingId(null);
-            }
-          },
+          text: "삭제", style: "destructive",
+          onPress: () => deleteIds(ids),
         },
       ]
     );
   }
 
+  function handleSingleDelete(id: string) {
+    console.log(`[admin][deleteClass] click classId=${id}`);
+    confirmDelete([id]);
+  }
+
+  function handleBulkDelete() {
+    const ids = Array.from(sel.selectedIds);
+    console.log(`[admin][deleteClass] click classId=${ids.join(",")}`);
+    confirmDelete(ids);
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
+      {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <Text style={s.title}>반 관리</Text>
-        <Pressable style={[s.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowCreate(true)}>
-          <Feather name="plus" size={16} color="#fff" />
-          <Text style={s.addBtnText}>반 등록</Text>
-        </Pressable>
+        <View style={s.headerRight}>
+          <Pressable
+            style={[s.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
+            onPress={sel.toggleSelectionMode}
+          >
+            <Feather name="check-square" size={18} color={sel.selectionMode ? C.tint : C.textSecondary} />
+            <Text style={[s.selBtnText, sel.selectionMode && { color: C.tint }]}>
+              {sel.selectionMode ? "취소" : "선택"}
+            </Text>
+          </Pressable>
+          {!sel.selectionMode && (
+            <Pressable style={[s.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowCreate(true)}>
+              <Feather name="plus" size={16} color="#fff" />
+              <Text style={s.addBtnText}>반 등록</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {loading ? (
@@ -91,7 +140,11 @@ export default function ClassesScreen() {
           data={groups}
           keyExtractor={item => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 120, paddingTop: 8, gap: 12 }}
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingBottom: sel.selectionMode ? insets.bottom + 90 : insets.bottom + 120,
+            paddingTop: 8, gap: 12,
+          }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={s.empty}>
@@ -103,12 +156,28 @@ export default function ClassesScreen() {
           renderItem={({ item }) => (
             <ClassGroupCard
               item={item}
-              onDelete={handleDelete}
-              isDeleting={deletingId === item.id}
+              selectionMode={sel.selectionMode}
+              isSelected={sel.isSelected(item.id)}
+              onToggle={() => sel.toggleItem(item.id)}
+              onDelete={() => handleSingleDelete(item.id)}
+              isDeleting={deleting}
             />
           )}
         />
       )}
+
+      {/* 선택모드 액션바 */}
+      <SelectionActionBar
+        visible={sel.selectionMode}
+        selectedCount={sel.selectedCount}
+        totalCount={groups.length}
+        isAllSelected={sel.isAllSelected(visibleIds)}
+        deleting={deleting}
+        onSelectAll={() => sel.selectAll(visibleIds)}
+        onClearSelection={sel.clearSelection}
+        onDeleteSelected={handleBulkDelete}
+        onExit={sel.exitSelectionMode}
+      />
 
       {showCreate && (
         <ClassCreateFlow
@@ -126,17 +195,31 @@ export default function ClassesScreen() {
 }
 
 function ClassGroupCard({
-  item, onDelete, isDeleting,
+  item, selectionMode, isSelected, onToggle, onDelete, isDeleting,
 }: {
   item: ClassGroup;
-  onDelete: (id: string, name: string) => void;
+  selectionMode: boolean;
+  isSelected: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
   isDeleting: boolean;
 }) {
   const days = item.schedule_days.split(",").map(d => d.trim()).join("·");
 
   return (
-    <View style={[cd.card, { shadowColor: C.shadow }]}>
+    <Pressable
+      style={[cd.card, { shadowColor: C.shadow }, isSelected && { borderWidth: 2, borderColor: C.tint }]}
+      onPress={selectionMode ? onToggle : undefined}
+    >
       <View style={cd.top}>
+        {/* 선택모드 체크박스 */}
+        {selectionMode && (
+          <Pressable onPress={onToggle} style={cd.checkWrap}>
+            <View style={[cd.checkbox, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
+              {isSelected && <Feather name="check" size={12} color="#fff" />}
+            </View>
+          </Pressable>
+        )}
         <View style={cd.icon}>
           <Feather name="layers" size={20} color="#7C3AED" />
         </View>
@@ -169,35 +252,35 @@ function ClassGroupCard({
         </View>
       </View>
 
-      <View style={cd.bottom}>
-        {item.capacity != null && (
-          <View style={cd.capacityChip}>
-            <Feather name="users" size={12} color={C.textMuted} />
-            <Text style={[cd.capacityText, { color: C.textSecondary }]}>정원 {item.capacity}명</Text>
-          </View>
-        )}
-        <Pressable
-          style={[cd.deleteBtn, isDeleting && { opacity: 0.5 }]}
-          onPress={() => !isDeleting && onDelete(item.id, item.name)}
-          disabled={isDeleting}
-        >
-          {isDeleting ? (
-            <ActivityIndicator size={14} color={C.error} />
-          ) : (
-            <Feather name="trash-2" size={14} color={C.error} />
+      {/* 하단: 삭제 버튼 (선택모드 아닐 때만) */}
+      {!selectionMode && (
+        <View style={cd.bottom}>
+          {item.capacity != null && (
+            <View style={cd.capacityChip}>
+              <Feather name="users" size={12} color={C.textMuted} />
+              <Text style={[cd.capacityText, { color: C.textSecondary }]}>정원 {item.capacity}명</Text>
+            </View>
           )}
-          <Text style={[cd.deleteBtnText, { color: C.error }]}>
-            {isDeleting ? "처리중..." : "삭제"}
-          </Text>
-        </Pressable>
-      </View>
-    </View>
+          <Pressable
+            style={[cd.deleteBtn, isDeleting && { opacity: 0.5 }]}
+            onPress={!isDeleting ? onDelete : undefined}
+            disabled={isDeleting}
+          >
+            <Feather name="trash-2" size={14} color={C.error} />
+            <Text style={[cd.deleteBtnText, { color: C.error }]}>삭제</Text>
+          </Pressable>
+        </View>
+      )}
+    </Pressable>
   );
 }
 
 const s = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
   title: { fontSize: 24, fontFamily: "Inter_700Bold", color: C.text },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  selBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
+  selBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
   addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
   empty: { alignItems: "center", paddingTop: 80, gap: 10 },
@@ -206,8 +289,10 @@ const s = StyleSheet.create({
 });
 
 const cd = StyleSheet.create({
-  card: { backgroundColor: C.card, borderRadius: 18, padding: 16, gap: 14, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3 },
+  card: { backgroundColor: C.card, borderRadius: 18, padding: 16, gap: 14, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3, borderWidth: 1.5, borderColor: "transparent" },
   top: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  checkWrap: { justifyContent: "center", paddingRight: 2, paddingTop: 2 },
+  checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: C.border, backgroundColor: C.background, alignItems: "center", justifyContent: "center" },
   icon: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#F3E8FF", alignItems: "center", justifyContent: "center" },
   name: { fontSize: 16, fontFamily: "Inter_700Bold" },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 5 },

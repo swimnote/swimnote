@@ -21,6 +21,8 @@ import {
   applyStudentFilter, searchStudents, buildInviteMessage,
   isValidPhone, isValidBirthYear, normalizePhone,
 } from "@/utils/studentUtils";
+import { useSelectionMode } from "@/hooks/useSelectionMode";
+import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 
 const C = Colors.light;
 
@@ -318,12 +320,15 @@ const reg = StyleSheet.create({
 });
 
 // ── 회원 카드 ────────────────────────────────────────────────────
-function StudentCard({ student, themeColor, onPressInvite, onPressDelete, isDeleting }: {
+function StudentCard({ student, themeColor, onPressInvite, onPressDelete, isDeleting, selectionMode, isSelected, onToggle }: {
   student: StudentMember;
   themeColor: string;
   onPressInvite: () => void;
   onPressDelete: () => void;
   isDeleting?: boolean;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggle?: () => void;
 }) {
   const assignStatus = getStudentAssignmentStatus(student);
   const connStatus   = getStudentConnectionStatus(student);
@@ -332,11 +337,18 @@ function StudentCard({ student, themeColor, onPressInvite, onPressDelete, isDele
 
   return (
     <Pressable
-      style={[sc.card, { backgroundColor: C.card }]}
-      onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: student.id } } as any)}
+      style={[sc.card, { backgroundColor: C.card }, isSelected && { borderWidth: 2, borderColor: themeColor }]}
+      onPress={selectionMode ? onToggle : () => router.push({ pathname: "/(admin)/member-detail", params: { id: student.id } } as any)}
     >
       {/* 상단: 아바타 + 이름 + 배지들 */}
       <View style={sc.top}>
+        {selectionMode && (
+          <Pressable onPress={onToggle} style={sc.checkWrap}>
+            <View style={[sc.checkbox, isSelected && { backgroundColor: themeColor, borderColor: themeColor }]}>
+              {isSelected && <Feather name="check" size={12} color="#fff" />}
+            </View>
+          </Pressable>
+        )}
         <View style={[sc.avatar, { backgroundColor: themeColor + "20" }]}>
           <Text style={[sc.avatarText, { color: themeColor }]}>{student.name[0]}</Text>
         </View>
@@ -388,38 +400,42 @@ function StudentCard({ student, themeColor, onPressInvite, onPressDelete, isDele
         </View>
       </View>
 
-      {/* 하단 버튼 */}
-      <View style={sc.bottom}>
-        <Pressable
-          style={[sc.actionBtn, { backgroundColor: themeColor + "15" }]}
-          onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: student.id } } as any)}
-        >
-          <Feather name="layers" size={13} color={themeColor} />
-          <Text style={[sc.actionText, { color: themeColor }]}>반 배정</Text>
-        </Pressable>
-        {student.invite_code && connStatus !== "linked" && (
-          <Pressable style={[sc.actionBtn, { backgroundColor: "#EDE9FE" }]} onPress={onPressInvite}>
-            <Feather name="send" size={13} color="#7C3AED" />
-            <Text style={[sc.actionText, { color: "#7C3AED" }]}>초대 문자</Text>
+      {/* 하단 버튼 (선택모드 아닐 때만) */}
+      {!selectionMode && (
+        <View style={sc.bottom}>
+          <Pressable
+            style={[sc.actionBtn, { backgroundColor: themeColor + "15" }]}
+            onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: student.id } } as any)}
+          >
+            <Feather name="layers" size={13} color={themeColor} />
+            <Text style={[sc.actionText, { color: themeColor }]}>반 배정</Text>
           </Pressable>
-        )}
-        <Pressable
-          style={[sc.actionBtn, { backgroundColor: "#FEE2E2", marginLeft: "auto" }, isDeleting && { opacity: 0.5 }]}
-          onPress={() => !isDeleting && onPressDelete()}
-          disabled={isDeleting}
-        >
-          {isDeleting
-            ? <ActivityIndicator size={13} color={C.error} />
-            : <Feather name="trash-2" size={13} color={C.error} />
-          }
-        </Pressable>
-      </View>
+          {student.invite_code && connStatus !== "linked" && (
+            <Pressable style={[sc.actionBtn, { backgroundColor: "#EDE9FE" }]} onPress={onPressInvite}>
+              <Feather name="send" size={13} color="#7C3AED" />
+              <Text style={[sc.actionText, { color: "#7C3AED" }]}>초대 문자</Text>
+            </Pressable>
+          )}
+          <Pressable
+            style={[sc.actionBtn, { backgroundColor: "#FEE2E2", marginLeft: "auto" }, isDeleting && { opacity: 0.5 }]}
+            onPress={() => !isDeleting && onPressDelete()}
+            disabled={isDeleting}
+          >
+            {isDeleting
+              ? <ActivityIndicator size={13} color={C.error} />
+              : <Feather name="trash-2" size={13} color={C.error} />
+            }
+          </Pressable>
+        </View>
+      )}
     </Pressable>
   );
 }
 const sc = StyleSheet.create({
-  card: { borderRadius: 16, padding: 14, gap: 12, marginHorizontal: 16 },
+  card: { borderRadius: 16, padding: 14, gap: 12, marginHorizontal: 16, borderWidth: 1.5, borderColor: "transparent" },
   top: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  checkWrap: { justifyContent: "center", paddingRight: 2, paddingTop: 2 },
+  checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: C.border, backgroundColor: C.background, alignItems: "center", justifyContent: "center" },
   avatar: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
@@ -450,6 +466,8 @@ export default function MembersScreen() {
   const [showRegister,   setShowRegister]   = useState(false);
   const [inviteTarget,   setInviteTarget]   = useState<StudentMember | null>(null);
   const [deletingId,     setDeletingId]     = useState<string | null>(null);
+  const [bulkDeleting,   setBulkDeleting]   = useState(false);
+  const sel = useSelectionMode();
 
   const load = useCallback(async () => {
     try {
@@ -491,6 +509,45 @@ export default function MembersScreen() {
     );
   }
 
+  function handleBulkDelete() {
+    const ids = Array.from(sel.selectedIds);
+    if (ids.length === 0) return;
+    const count = ids.length;
+    Alert.alert(
+      "선택 회원 삭제",
+      `선택한 ${count}명을 삭제 처리합니다.\n삭제된 회원은 운영 목록에서 제거되고 보관 목록에서 확인할 수 있습니다.\n학부모 계정은 유지됩니다.\n\n진행하시겠습니까?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: `${count}명 삭제`, style: "destructive", onPress: async () => {
+            setBulkDeleting(true);
+            try {
+              console.log(`[admin][deleteStudent] selectedCount=${count}`, ids);
+              const results = await Promise.allSettled(
+                ids.map(id => apiRequest(token, `/students/${id}`, { method: "DELETE" })
+                  .then(r => ({ id, ok: r.ok }))
+                )
+              );
+              const succeeded = results
+                .filter((r): r is PromiseFulfilledResult<{ id: string; ok: boolean }> => r.status === "fulfilled" && r.value.ok)
+                .map(r => r.value.id);
+              const failed = ids.length - succeeded.length;
+              setStudents(prev => prev.filter(s => !succeeded.includes(s.id)));
+              sel.exitSelectionMode();
+              console.log(`[admin][deleteStudent] student soft deleted: ${succeeded.join(", ")}`);
+              if (failed > 0) Alert.alert("일부 실패", `${failed}명 삭제에 실패했습니다.`);
+            } catch (e) {
+              console.error(e);
+              Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
+            } finally {
+              setBulkDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   // 필터 + 검색 적용
   const filtered = searchStudents(applyStudentFilter(students, filter), search);
 
@@ -504,22 +561,37 @@ export default function MembersScreen() {
 
   const poolName = (pool as any)?.name || "수영장";
 
+  const filteredIds = filtered.map(s => s.id);
+
   const header = (
     <>
       <PageHeader title="회원 관리" />
-      {/* 상단 버튼 2개 */}
+      {/* 상단 버튼 */}
       <View style={ms.actionRow}>
-        <Pressable style={[ms.actionBtn, { backgroundColor: themeColor }]} onPress={() => setShowRegister(true)}>
-          <Feather name="user-plus" size={14} color="#fff" />
-          <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
-        </Pressable>
-        <Pressable
-          style={[ms.actionBtn, { backgroundColor: "#6B7280" }]}
-          onPress={() => router.push("/(admin)/approvals" as any)}
-        >
-          <Feather name="check-circle" size={14} color="#fff" />
-          <Text style={ms.actionBtnText}>학부모 요청 승인</Text>
-        </Pressable>
+        {!sel.selectionMode ? (
+          <>
+            <Pressable style={[ms.actionBtn, { backgroundColor: themeColor }]} onPress={() => setShowRegister(true)}>
+              <Feather name="user-plus" size={14} color="#fff" />
+              <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
+            </Pressable>
+            <Pressable
+              style={[ms.actionBtn, { backgroundColor: "#6B7280" }]}
+              onPress={() => router.push("/(admin)/approvals" as any)}
+            >
+              <Feather name="check-circle" size={14} color="#fff" />
+              <Text style={ms.actionBtnText}>학부모 요청 승인</Text>
+            </Pressable>
+            <Pressable style={[ms.selBtn]} onPress={sel.enterSelectionMode}>
+              <Feather name="check-square" size={16} color={C.textSecondary} />
+            </Pressable>
+          </>
+        ) : (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 4 }}>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary }}>
+              선택 모드 — {sel.selectedCount}명 선택됨
+            </Text>
+          </View>
+        )}
       </View>
       {/* 검색 */}
       <View style={[ms.searchRow, { borderColor: C.border, backgroundColor: C.card }]}>
@@ -554,7 +626,7 @@ export default function MembersScreen() {
         <FlatList
           data={filtered}
           keyExtractor={item => item.id}
-          contentContainerStyle={[ms.list, { paddingBottom: insets.bottom + 120 }]}
+          contentContainerStyle={[ms.list, { paddingBottom: sel.selectionMode ? insets.bottom + 90 : insets.bottom + 120 }]}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
@@ -572,8 +644,22 @@ export default function MembersScreen() {
               onPressInvite={() => setInviteTarget(item)}
               onPressDelete={() => handleDelete(item.id, item.name)}
               isDeleting={deletingId === item.id}
+              selectionMode={sel.selectionMode}
+              isSelected={sel.isSelected(item.id)}
+              onToggle={() => sel.toggleItem(item.id)}
             />
           )}
+        />
+        <SelectionActionBar
+          visible={sel.selectionMode}
+          selectedCount={sel.selectedCount}
+          totalCount={filtered.length}
+          isAllSelected={sel.isAllSelected(filteredIds)}
+          deleting={bulkDeleting}
+          onSelectAll={() => sel.selectAll(filteredIds)}
+          onClearSelection={sel.clearSelection}
+          onDeleteSelected={handleBulkDelete}
+          onExit={sel.exitSelectionMode}
         />
       </ScreenLayout>
 
@@ -603,6 +689,7 @@ const ms = StyleSheet.create({
   actionRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12 },
   actionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  selBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border },
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 16, marginBottom: 4 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
   list: { paddingTop: 10 },

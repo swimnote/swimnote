@@ -8,6 +8,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useSelectionMode } from "@/hooks/useSelectionMode";
+import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 
 interface Notice {
   id: string;
@@ -40,6 +42,8 @@ export default function NoticesScreen() {
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [readStats, setReadStats] = useState<Record<string, ReadStats>>({});
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const sel = useSelectionMode();
 
   async function fetchNotices() {
     try {
@@ -145,6 +149,44 @@ export default function NoticesScreen() {
     ]);
   }
 
+  function handleBulkDelete() {
+    const ids = Array.from(sel.selectedIds);
+    if (ids.length === 0) return;
+    const count = ids.length;
+    Alert.alert(
+      "선택 공지 삭제",
+      `선택한 공지 ${count}건을 삭제하시겠습니까?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: `${count}건 삭제`, style: "destructive", onPress: async () => {
+            setBulkDeleting(true);
+            try {
+              const results = await Promise.allSettled(
+                ids.map(id => apiRequest(token, `/notices/${id}`, { method: "DELETE" })
+                  .then(r => ({ id, ok: r.ok }))
+                )
+              );
+              const succeeded = results
+                .filter((r): r is PromiseFulfilledResult<{ id: string; ok: boolean }> => r.status === "fulfilled" && r.value.ok)
+                .map(r => r.value.id);
+              const failed = ids.length - succeeded.length;
+              setNotices(prev => prev.filter(n => !succeeded.includes(n.id)));
+              if (expanded && succeeded.includes(expanded)) setExpanded(null);
+              sel.exitSelectionMode();
+              if (failed > 0) Alert.alert("일부 실패", `${failed}건 삭제에 실패했습니다.`);
+            } catch (e) {
+              console.error(e);
+              Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
+            } finally {
+              setBulkDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   function closeModal() {
     setShowModal(false);
     setForm({ title: "", content: "", is_pinned: false });
@@ -154,20 +196,34 @@ export default function NoticesScreen() {
 
   const pinned = notices.filter(n => n.is_pinned);
   const regular = notices.filter(n => !n.is_pinned);
+  const allNoticeIds = notices.map(n => n.id);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
         <Text style={[styles.title, { color: C.text }]}>공지사항</Text>
-        <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowModal(true)}>
-          <Feather name="edit-3" size={16} color="#fff" />
-          <Text style={styles.addBtnText}>공지 작성</Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable
+            style={[styles.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
+            onPress={sel.toggleSelectionMode}
+          >
+            <Feather name="check-square" size={16} color={sel.selectionMode ? C.tint : C.textSecondary} />
+            <Text style={[styles.selBtnText, sel.selectionMode && { color: C.tint }]}>
+              {sel.selectionMode ? "취소" : "선택"}
+            </Text>
+          </Pressable>
+          {!sel.selectionMode && (
+            <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowModal(true)}>
+              <Feather name="edit-3" size={16} color="#fff" />
+              <Text style={styles.addBtnText}>공지 작성</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} /> : (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 8, gap: 10 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: sel.selectionMode ? insets.bottom + 90 : insets.bottom + 100, paddingTop: 8, gap: 10 }}
           showsVerticalScrollIndicator={false}
         >
           {pinned.length > 0 && (
@@ -177,7 +233,9 @@ export default function NoticesScreen() {
                 <Text style={[styles.sectionText, { color: C.tint }]}>고정 공지</Text>
               </View>
               {pinned.map(n => (
-                <NoticeCard key={n.id} n={n} expanded={expanded} onExpand={handleExpand} handleDelete={handleDelete} readStats={readStats[n.id]} C={C} />
+                <NoticeCard key={n.id} n={n} expanded={sel.selectionMode ? null : expanded} onExpand={sel.selectionMode ? () => sel.toggleItem(n.id) : handleExpand} handleDelete={handleDelete} readStats={readStats[n.id]} C={C}
+                  selectionMode={sel.selectionMode} isSelected={sel.isSelected(n.id)} onToggle={() => sel.toggleItem(n.id)}
+                />
               ))}
               {regular.length > 0 && (
                 <View style={styles.sectionLabel}>
@@ -187,7 +245,9 @@ export default function NoticesScreen() {
             </>
           )}
           {regular.map(n => (
-            <NoticeCard key={n.id} n={n} expanded={expanded} onExpand={handleExpand} handleDelete={handleDelete} readStats={readStats[n.id]} C={C} />
+            <NoticeCard key={n.id} n={n} expanded={sel.selectionMode ? null : expanded} onExpand={sel.selectionMode ? () => sel.toggleItem(n.id) : handleExpand} handleDelete={handleDelete} readStats={readStats[n.id]} C={C}
+              selectionMode={sel.selectionMode} isSelected={sel.isSelected(n.id)} onToggle={() => sel.toggleItem(n.id)}
+            />
           ))}
           {notices.length === 0 && (
             <View style={styles.empty}>
@@ -197,6 +257,18 @@ export default function NoticesScreen() {
           )}
         </ScrollView>
       )}
+
+      <SelectionActionBar
+        visible={sel.selectionMode}
+        selectedCount={sel.selectedCount}
+        totalCount={notices.length}
+        isAllSelected={sel.isAllSelected(allNoticeIds)}
+        deleting={bulkDeleting}
+        onSelectAll={() => sel.selectAll(allNoticeIds)}
+        onClearSelection={sel.clearSelection}
+        onDeleteSelected={handleBulkDelete}
+        onExit={sel.exitSelectionMode}
+      />
 
       <Modal visible={showModal} animationType="slide" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -277,31 +349,47 @@ export default function NoticesScreen() {
   );
 }
 
-function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C }: {
+function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C, selectionMode, isSelected, onToggle }: {
   n: Notice;
   expanded: string | null;
   onExpand: (id: string) => void;
   handleDelete: (id: string) => void;
   readStats?: ReadStats;
   C: typeof Colors.light;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggle?: () => void;
 }) {
   const isOpen = expanded === n.id;
   const images: string[] = Array.isArray(n.image_urls) ? n.image_urls : [];
 
   return (
     <Pressable
-      style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow, borderLeftWidth: n.is_pinned ? 3 : 0, borderLeftColor: C.tint }]}
+      style={[
+        styles.card,
+        { backgroundColor: C.card, shadowColor: C.shadow, borderLeftWidth: n.is_pinned ? 3 : 0, borderLeftColor: C.tint },
+        isSelected && { borderWidth: 2, borderColor: C.tint, borderLeftWidth: 2 },
+      ]}
       onPress={() => onExpand(n.id)}
     >
       <View style={styles.cardHeader}>
+        {selectionMode && (
+          <Pressable onPress={onToggle} style={[styles.deleteBtn, { marginRight: 4 }]}>
+            <View style={[styles.selCheckbox, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
+              {isSelected && <Feather name="check" size={11} color="#fff" />}
+            </View>
+          </Pressable>
+        )}
         <View style={styles.cardTop}>
           {n.is_pinned ? <Feather name="pin" size={12} color={C.tint} /> : null}
           <Text style={[styles.noticeTitle, { color: C.text }]} numberOfLines={isOpen ? undefined : 1}>{n.title}</Text>
           {images.length > 0 && <Feather name="image" size={13} color={C.textMuted} />}
         </View>
-        <Pressable onPress={() => handleDelete(n.id)} style={styles.deleteBtn}>
-          <Feather name="trash-2" size={16} color={C.error} />
-        </Pressable>
+        {!selectionMode && (
+          <Pressable onPress={() => handleDelete(n.id)} style={styles.deleteBtn}>
+            <Feather name="trash-2" size={16} color={C.error} />
+          </Pressable>
+        )}
       </View>
 
       {isOpen && (
@@ -351,6 +439,8 @@ function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C }: {
 const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
   title: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  selBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
+  selBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.light.textSecondary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
   addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
   sectionLabel: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -366,6 +456,7 @@ const styles = StyleSheet.create({
   statText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   statDivider: { width: 1, height: 14 },
   deleteBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
+  selCheckbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB", backgroundColor: "#F9FAFB", alignItems: "center", justifyContent: "center" },
   cardMeta: { flexDirection: "row", justifyContent: "space-between" },
   metaText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },

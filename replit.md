@@ -212,6 +212,24 @@ All tables include `swimming_pool_id` for multi-tenant isolation.
 - **API validation**: Single-item endpoints (GET/PUT/DELETE) check pool ownership before returning data
 - **Login restriction**: pool_admin cannot login if pool.approval_status != 'approved'
 
+## 선택 모드 삭제 UX (관리자 화면)
+
+`hooks/useSelectionMode.ts` — 공통 선택 상태 훅 (toggle, selectAll, isSelected 등)
+`components/admin/SelectionActionBar.tsx` — 하단 고정 액션바 (전체선택·카운트·삭제·종료)
+
+적용 화면:
+- `app/(admin)/classes.tsx` — 반 선택 삭제 (soft delete, 학생 미배정 처리)
+- `app/(admin)/members.tsx` — 회원 선택 삭제 (soft delete, parent_students 유지)
+- `app/(admin)/notices.tsx` — 공지 선택 삭제 (hard delete)
+
+공통 UX 패턴:
+- 헤더 "선택" 버튼 → 선택 모드 진입
+- 각 아이템에 체크박스 표시 (선택 시 파란 테두리)
+- 선택 모드 중 기존 탭/이동 비활성, 카드 탭으로 선택 토글
+- SelectionActionBar: 전체선택 체크박스 + "선택됨 N개" 배지 + 빨간 삭제 버튼 + X 종료
+- 삭제 전 Alert 확인 → Promise.allSettled 병렬 처리 → 실패 시 부분 오류 알림
+- 성공 후 UI 즉시 갱신 + 선택 모드 자동 종료
+
 ## Branching & Git
 
 Main branch only. Commits auto-saved.
