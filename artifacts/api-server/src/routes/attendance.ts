@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { attendanceTable, studentsTable, usersTable, parentAccountsTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { attendanceTable, studentsTable, usersTable, parentAccountsTable, classGroupsTable } from "@workspace/db/schema";
+import { eq, and, gte, lte, like } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
@@ -17,6 +17,12 @@ async function getPoolIdForParent(parentId: string): Promise<string | null> {
   return pa?.swimming_pool_id || null;
 }
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const role = (req.user as { role: string }).role;
@@ -26,7 +32,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     } else {
       poolId = await getPoolId(req.user!.userId, role);
     }
-    if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+    if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
 
     const { class_group_id, student_id, date, month } = req.query;
 
@@ -49,22 +55,209 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     res.json(enriched);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });
+  }
+});
+
+// 주간 출결 조회: ?start_date=YYYY-MM-DD&class_group_id=...
+router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const role = (req.user as { role: string }).role;
+    let poolId: string | null;
+    if (role === "parent_account") {
+      poolId = await getPoolIdForParent(req.user!.userId);
+    } else {
+      poolId = await getPoolId(req.user!.userId, role);
+    }
+    if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
+
+    const { start_date, class_group_id } = req.query;
+    if (!start_date) { res.status(400).json({ success: false, message: "start_date가 필요합니다." }); return; }
+
+    const endDate = addDays(start_date as string, 6);
+
+    const allStudents = await db.select().from(studentsTable)
+      .where(eq(studentsTable.swimming_pool_id, poolId));
+
+    const filteredStudents = class_group_id
+      ? allStudents.filter(s => s.class_group_id === class_group_id)
+      : allStudents;
+
+    const allRecords = await db.select().from(attendanceTable)
+      .where(and(
+        eq(attendanceTable.swimming_pool_id, poolId),
+        gte(attendanceTable.date, start_date as string),
+        lte(attendanceTable.date, endDate)
+      ));
+
+    const classGroupIds = [...new Set(filteredStudents.map(s => s.class_group_id).filter(Boolean))];
+    const classGroups = await db.select().from(classGroupsTable)
+      .where(eq(classGroupsTable.swimming_pool_id, poolId));
+    const cgMap: Record<string, string> = {};
+    classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
+
+    const result = filteredStudents.map(s => {
+      const studentRecords = allRecords.filter(r => r.student_id === s.id);
+      const days: Record<string, string> = {};
+      studentRecords.forEach(r => { days[r.date] = r.status; });
+      return {
+        student_id: s.id,
+        student_name: s.name,
+        class_group_id: s.class_group_id,
+        class_name: s.class_group_id ? (cgMap[s.class_group_id] || null) : null,
+        days,
+      };
+    });
+
+    res.json({ success: true, data: result, start_date, end_date: endDate });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });
+  }
+});
+
+// 월간 요약: ?year=2026&month=3&class_group_id=...
+router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const role = (req.user as { role: string }).role;
+    let poolId: string | null;
+    if (role === "parent_account") {
+      poolId = await getPoolIdForParent(req.user!.userId);
+    } else {
+      poolId = await getPoolId(req.user!.userId, role);
+    }
+    if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
+
+    const { year, month, class_group_id } = req.query;
+    if (!year || !month) { res.status(400).json({ success: false, message: "year와 month가 필요합니다." }); return; }
+
+    const monthStr = `${year}-${String(month).padStart(2, "0")}`;
+
+    const allStudents = await db.select().from(studentsTable)
+      .where(eq(studentsTable.swimming_pool_id, poolId));
+
+    const filteredStudents = class_group_id
+      ? allStudents.filter(s => s.class_group_id === class_group_id)
+      : allStudents;
+
+    const allRecords = await db.select().from(attendanceTable)
+      .where(and(
+        eq(attendanceTable.swimming_pool_id, poolId),
+        gte(attendanceTable.date, `${monthStr}-01`),
+        lte(attendanceTable.date, `${monthStr}-31`)
+      ));
+
+    const classGroups = await db.select().from(classGroupsTable)
+      .where(eq(classGroupsTable.swimming_pool_id, poolId));
+    const cgMap: Record<string, string> = {};
+    classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
+
+    const result = filteredStudents.map(s => {
+      const studentRecords = allRecords.filter(r => r.student_id === s.id);
+      let present = 0, absent = 0, late = 0;
+      studentRecords.forEach(r => {
+        if (r.status === "present") present++;
+        else if (r.status === "absent") absent++;
+        else if (r.status === "late") late++;
+      });
+      return {
+        student_id: s.id,
+        student_name: s.name,
+        class_group_id: s.class_group_id,
+        class_name: s.class_group_id ? (cgMap[s.class_group_id] || null) : null,
+        present,
+        absent,
+        late,
+        total: studentRecords.length,
+      };
+    });
+
+    res.json({ success: true, data: result, year, month });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });
+  }
+});
+
+// 이름 검색: ?name=이름&days=30(7/30/0=전체)
+router.get("/search", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const role = (req.user as { role: string }).role;
+    let poolId: string | null;
+    if (role === "parent_account") {
+      poolId = await getPoolIdForParent(req.user!.userId);
+    } else {
+      poolId = await getPoolId(req.user!.userId, role);
+    }
+    if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
+
+    const { name, days } = req.query;
+    if (!name) { res.status(400).json({ success: false, message: "name이 필요합니다." }); return; }
+
+    const matchingStudents = await db.select().from(studentsTable)
+      .where(and(
+        eq(studentsTable.swimming_pool_id, poolId),
+        like(studentsTable.name, `%${name}%`)
+      ));
+
+    if (matchingStudents.length === 0) {
+      res.json({ success: true, data: [] }); return;
+    }
+
+    const daysNum = days ? parseInt(days as string) : 30;
+    const studentIds = matchingStudents.map(s => s.id);
+
+    let allRecords = await db.select().from(attendanceTable)
+      .where(eq(attendanceTable.swimming_pool_id, poolId));
+
+    allRecords = allRecords.filter(r => r.student_id && studentIds.includes(r.student_id));
+
+    if (daysNum > 0) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - daysNum);
+      const cutoffStr = cutoff.toISOString().split("T")[0];
+      allRecords = allRecords.filter(r => r.date >= cutoffStr);
+    }
+
+    allRecords.sort((a, b) => b.date.localeCompare(a.date));
+
+    const classGroups = await db.select().from(classGroupsTable)
+      .where(eq(classGroupsTable.swimming_pool_id, poolId));
+    const cgMap: Record<string, string> = {};
+    classGroups.forEach(cg => { cgMap[cg.id] = cg.name; });
+
+    const studentMap: Record<string, string> = {};
+    matchingStudents.forEach(s => { studentMap[s.id] = s.name; });
+
+    const result = allRecords.map(r => ({
+      id: r.id,
+      date: r.date,
+      status: r.status,
+      student_id: r.student_id,
+      student_name: r.student_id ? (studentMap[r.student_id] || null) : null,
+      class_group_id: r.class_group_id,
+      class_name: r.class_group_id ? (cgMap[r.class_group_id] || null) : null,
+    }));
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });
   }
 });
 
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
   const { class_group_id, student_id, date, status } = req.body;
   if (!student_id || !date || !status) {
-    res.status(400).json({ error: "student_id, date, status가 필요합니다." }); return;
+    res.status(400).json({ success: false, message: "student_id, date, status가 필요합니다." }); return;
   }
-  if (!["present", "absent"].includes(status)) {
-    res.status(400).json({ error: "status는 present 또는 absent여야 합니다." }); return;
+  if (!["present", "absent", "late"].includes(status)) {
+    res.status(400).json({ success: false, message: "status는 present, absent, late 중 하나여야 합니다." }); return;
   }
   try {
     const role = (req.user as { role: string }).role;
     const poolId = await getPoolId(req.user!.userId, role);
-    if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+    if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
 
     const [existing] = await db.select().from(attendanceTable)
       .where(and(eq(attendanceTable.student_id, student_id), eq(attendanceTable.date, date))).limit(1);
@@ -75,7 +268,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
         .where(eq(attendanceTable.id, existing.id))
         .returning();
       const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
-      res.json({ ...updated, student_name: s?.name || null }); return;
+      res.json({ success: true, data: { ...updated, student_name: s?.name || null } }); return;
     }
 
     const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -83,10 +276,10 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       id, swimming_pool_id: poolId, class_group_id: class_group_id || null, student_id, date, status,
     }).returning();
     const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
-    res.status(201).json({ ...record, student_name: s?.name || null });
+    res.status(201).json({ success: true, data: { ...record, student_name: s?.name || null } });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });
   }
 });
 
