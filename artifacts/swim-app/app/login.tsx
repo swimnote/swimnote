@@ -53,7 +53,7 @@ export default function LoginScreen() {
         onPress={() => router.replace("/")}
         style={[styles.backBtn, { top: insets.top + (Platform.OS === "web" ? 60 : 12) }]}
       >
-        <Feather name="arrow-left" size={22} color={C.text} />
+        <Feather name="x" size={22} color={C.text} />
       </Pressable>
 
       <ScrollView
@@ -176,7 +176,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, paddingHorizontal: 24, gap: 20 },
-  backBtn: { position: "absolute", left: 16, zIndex: 10, width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  backBtn: { position: "absolute", right: 16, zIndex: 10, width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   logoArea: { alignItems: "center", gap: 10 },
   logoBox: { width: 68, height: 68, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   appName: { fontSize: 24, fontFamily: "Inter_700Bold" },
