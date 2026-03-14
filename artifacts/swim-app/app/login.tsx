@@ -56,6 +56,10 @@ export default function LoginScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
+        <Pressable onPress={() => router.back()} style={styles.back}>
+          <Feather name="arrow-left" size={22} color={C.text} />
+        </Pressable>
+
         <View style={styles.logoArea}>
           <View style={[styles.logoBox, { backgroundColor: C.tint }]}>
             <Feather name="droplet" size={32} color="#fff" />
@@ -169,6 +173,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, paddingHorizontal: 24, gap: 20 },
+  back: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   logoArea: { alignItems: "center", gap: 10 },
   logoBox: { width: 68, height: 68, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   appName: { fontSize: 24, fontFamily: "Inter_700Bold" },

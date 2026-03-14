@@ -64,7 +64,7 @@ function RootNav() {
   useEffect(() => {
     if (isLoading) return;
 
-    if (!kind) { router.replace("/login"); return; }
+    if (!kind) { router.replace("/"); return; }
 
     if (kind === "parent") { router.replace("/(parent)/children"); return; }
 
@@ -88,6 +88,7 @@ function RootNav() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
       <Stack.Screen name="login" />
       <Stack.Screen name="parent-login" />
       <Stack.Screen name="register" />
