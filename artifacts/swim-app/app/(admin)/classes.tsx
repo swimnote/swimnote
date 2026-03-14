@@ -1,244 +1,191 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
-  Pressable, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, FlatList,
+  Pressable, RefreshControl, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 
-interface Class {
-  id: string; name: string; instructor: string; schedule: string; capacity?: number | null; member_count?: number | null; created_at: string;
+const C = Colors.light;
+
+interface ClassGroup {
+  id: string;
+  name: string;
+  schedule_days: string;
+  schedule_time: string;
+  instructor: string | null;
+  student_count: number;
+  level: string | null;
+  capacity: number | null;
+  teacher_user_id: string | null;
 }
-interface Member { id: string; name: string; phone: string; class_id?: string | null; }
 
 export default function ClassesScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const C = Colors.light;
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [groups, setGroups] = useState<ClassGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [showAddMember, setShowAddMember] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", instructor: "", schedule: "", capacity: "" });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
 
-  async function fetchAll() {
+  const load = useCallback(async () => {
     try {
-      const [cr, mr] = await Promise.all([apiRequest(token, "/classes"), apiRequest(token, "/members")]);
-      const [cls, mbs] = await Promise.all([cr.json(), mr.json()]);
-      setClasses(Array.isArray(cls) ? cls : []);
-      setMembers(Array.isArray(mbs) ? mbs : []);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  }
+      const res = await apiRequest(token, "/class-groups");
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(Array.isArray(data) ? data : []);
+      }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); setRefreshing(false); }
+  }, [token]);
 
-  useEffect(() => { fetchAll(); }, []);
-
-  async function handleCreate() {
-    if (!form.name || !form.instructor || !form.schedule) { setError("필수 항목을 입력해주세요."); return; }
-    setSaving(true); setError("");
-    try {
-      const res = await apiRequest(token, "/classes", { method: "POST", body: JSON.stringify({ ...form, capacity: form.capacity ? parseInt(form.capacity) : undefined }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setClasses(prev => [...prev, data]);
-      setShowModal(false);
-      setForm({ name: "", instructor: "", schedule: "", capacity: "" });
-    } catch (err: unknown) { setError(err instanceof Error ? err.message : "오류가 발생했습니다."); }
-    finally { setSaving(false); }
-  }
+  useEffect(() => { load(); }, [load]);
 
   async function handleDelete(id: string, name: string) {
-    Alert.alert("반 삭제", `${name} 반을 삭제하시겠습니까?`, [
+    Alert.alert("반 삭제", `"${name}"을 삭제하시겠습니까?\n학생 배정이 해제됩니다.`, [
       { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: async () => {
-        await apiRequest(token, `/classes/${id}`, { method: "DELETE" });
-        setClasses(prev => prev.filter(c => c.id !== id));
-      }},
+      {
+        text: "삭제", style: "destructive", onPress: async () => {
+          const res = await apiRequest(token, `/class-groups/${id}`, { method: "DELETE" });
+          if (res.ok) setGroups(prev => prev.filter(g => g.id !== id));
+          else Alert.alert("오류", "삭제에 실패했습니다.");
+        },
+      },
     ]);
   }
 
-  async function handleAddMember(classId: string, memberId: string) {
-    await apiRequest(token, `/classes/${classId}/members`, { method: "POST", body: JSON.stringify({ member_id: memberId }) });
-    await fetchAll();
-    setShowAddMember(null);
-  }
-
-  const unassignedMembers = members.filter(m => !m.class_id);
-
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Text style={[styles.title, { color: C.text }]}>반 관리</Text>
-        <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowModal(true)}>
+      {/* 헤더 */}
+      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
+        <Text style={s.title}>반 관리</Text>
+        <Pressable style={[s.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowCreate(true)}>
           <Feather name="plus" size={16} color="#fff" />
-          <Text style={styles.addBtnText}>반 등록</Text>
+          <Text style={s.addBtnText}>반 등록</Text>
         </Pressable>
       </View>
 
-      {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} /> : (
+      {loading ? (
+        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+      ) : (
         <FlatList
-          data={classes}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 8, gap: 12 }}
+          data={groups}
+          keyExtractor={item => item.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 120, paddingTop: 8, gap: 12 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Feather name="layers" size={40} color={C.textMuted} />
-              <Text style={[styles.emptyText, { color: C.textMuted }]}>등록된 반이 없습니다</Text>
+            <View style={s.empty}>
+              <Feather name="layers" size={48} color={C.textMuted} />
+              <Text style={[s.emptyTitle, { color: C.textMuted }]}>등록된 반이 없습니다</Text>
+              <Text style={[s.emptySub, { color: C.textMuted }]}>반 등록 버튼을 눌러 첫 번째 반을 만들어보세요</Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
-              <View style={styles.cardTop}>
-                <View style={[styles.classIcon, { backgroundColor: "#F3E8FF" }]}>
-                  <Feather name="layers" size={20} color="#7C3AED" />
-                </View>
-                <View style={styles.cardInfo}>
-                  <Text style={[styles.className, { color: C.text }]}>{item.name}</Text>
-                  <Text style={[styles.classDetail, { color: C.textSecondary }]}>강사: {item.instructor}</Text>
-                  <Text style={[styles.classDetail, { color: C.textSecondary }]}>{item.schedule}</Text>
-                </View>
-                <View style={styles.cardActions}>
-                  <View style={[styles.countBadge, { backgroundColor: C.tintLight }]}>
-                    <Text style={[styles.countText, { color: C.tint }]}>{item.member_count || 0}명</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.cardBottom}>
-                <Pressable
-                  style={[styles.actionBtn, { backgroundColor: "#F3E8FF" }]}
-                  onPress={() => setShowAddMember(item.id)}
-                >
-                  <Feather name="user-plus" size={14} color="#7C3AED" />
-                  <Text style={[styles.actionBtnText, { color: "#7C3AED" }]}>회원 배정</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.actionBtn, { backgroundColor: "#FEE2E2" }]}
-                  onPress={() => handleDelete(item.id, item.name)}
-                >
-                  <Feather name="trash-2" size={14} color={C.error} />
-                  <Text style={[styles.actionBtnText, { color: C.error }]}>삭제</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
+          renderItem={({ item }) => <ClassGroupCard item={item} onDelete={handleDelete} />}
         />
       )}
 
-      <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={[styles.modalSheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: C.text }]}>반 등록</Text>
-              <Pressable onPress={() => setShowModal(false)}>
-                <Feather name="x" size={22} color={C.textSecondary} />
-              </Pressable>
-            </View>
-            {error ? <Text style={[styles.errorText, { color: C.error }]}>{error}</Text> : null}
-            {[
-              { key: "name", label: "반 이름 *", placeholder: "예: 초급반 A" },
-              { key: "instructor", label: "담당 강사 *", placeholder: "강사 이름" },
-              { key: "schedule", label: "수업 일정 *", placeholder: "예: 월·수·금 09:00-10:00" },
-              { key: "capacity", label: "정원", placeholder: "최대 인원 수" },
-            ].map(({ key, label, placeholder }) => (
-              <View key={key} style={styles.field}>
-                <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
-                <TextInput
-                  style={[styles.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
-                  value={form[key as keyof typeof form]}
-                  onChangeText={(v) => setForm(f => ({ ...f, [key]: v }))}
-                  placeholder={placeholder}
-                  placeholderTextColor={C.textMuted}
-                  keyboardType={key === "capacity" ? "number-pad" : "default"}
-                />
-              </View>
-            ))}
-            <Pressable style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]} onPress={handleCreate} disabled={saving}>
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>등록하기</Text>}
-            </Pressable>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      <Modal visible={!!showAddMember} animationType="slide" transparent onRequestClose={() => setShowAddMember(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: C.text }]}>회원 배정</Text>
-              <Pressable onPress={() => setShowAddMember(null)}>
-                <Feather name="x" size={22} color={C.textSecondary} />
-              </Pressable>
-            </View>
-            {unassignedMembers.length === 0 ? (
-              <Text style={[styles.emptyText, { color: C.textMuted, textAlign: "center", paddingVertical: 20 }]}>배정 가능한 회원이 없습니다</Text>
-            ) : (
-              <FlatList
-                data={unassignedMembers}
-                keyExtractor={(item) => item.id}
-                style={{ maxHeight: 300 }}
-                renderItem={({ item }) => (
-                  <Pressable
-                    style={[styles.memberSelectItem, { borderColor: C.border }]}
-                    onPress={() => showAddMember && handleAddMember(showAddMember, item.id)}
-                  >
-                    <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
-                      <Text style={[styles.avatarText, { color: C.tint }]}>{item.name[0]}</Text>
-                    </View>
-                    <View>
-                      <Text style={[styles.memberName, { color: C.text }]}>{item.name}</Text>
-                      <Text style={[styles.classDetail, { color: C.textSecondary }]}>{item.phone}</Text>
-                    </View>
-                    <Feather name="plus-circle" size={20} color={C.tint} style={{ marginLeft: "auto" }} />
-                  </Pressable>
-                )}
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
+      {showCreate && (
+        <ClassCreateFlow
+          token={token}
+          role="pool_admin"
+          onSuccess={(newGroup) => {
+            setGroups(prev => [newGroup, ...prev]);
+            setShowCreate(false);
+          }}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+function ClassGroupCard({ item, onDelete }: { item: ClassGroup; onDelete: (id: string, name: string) => void }) {
+  const days = item.schedule_days.split(",").map(d => d.trim()).join("·");
+
+  return (
+    <View style={[cd.card, { shadowColor: C.shadow }]}>
+      {/* 상단: 아이콘 + 정보 + 학생수 */}
+      <View style={cd.top}>
+        <View style={cd.icon}>
+          <Feather name="layers" size={20} color="#7C3AED" />
+        </View>
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text style={[cd.name, { color: C.text }]}>{item.name}</Text>
+          <View style={cd.metaRow}>
+            <Feather name="calendar" size={12} color={C.textMuted} />
+            <Text style={[cd.meta, { color: C.textSecondary }]}>{days}요일</Text>
+          </View>
+          <View style={cd.metaRow}>
+            <Feather name="clock" size={12} color={C.textMuted} />
+            <Text style={[cd.meta, { color: C.textSecondary }]}>{item.schedule_time}</Text>
+          </View>
+          {item.instructor && (
+            <View style={cd.metaRow}>
+              <Feather name="user" size={12} color={C.textMuted} />
+              <Text style={[cd.meta, { color: C.textSecondary }]}>{item.instructor}</Text>
+            </View>
+          )}
+        </View>
+        <View style={{ alignItems: "flex-end", gap: 6 }}>
+          <View style={[cd.countBadge, { backgroundColor: C.tintLight }]}>
+            <Text style={[cd.countText, { color: C.tint }]}>{item.student_count}명</Text>
+          </View>
+          {item.level && (
+            <View style={[cd.levelBadge]}>
+              <Text style={cd.levelText}>{item.level}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* 하단 버튼 */}
+      <View style={cd.bottom}>
+        {item.capacity != null && (
+          <View style={cd.capacityChip}>
+            <Feather name="users" size={12} color={C.textMuted} />
+            <Text style={[cd.capacityText, { color: C.textSecondary }]}>정원 {item.capacity}명</Text>
+          </View>
+        )}
+        <Pressable
+          style={[cd.deleteBtn]}
+          onPress={() => onDelete(item.id, item.name)}
+        >
+          <Feather name="trash-2" size={14} color={C.error} />
+          <Text style={[cd.deleteBtnText, { color: C.error }]}>삭제</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
-  title: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  title: { fontSize: 24, fontFamily: "Inter_700Bold", color: C.text },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
   addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  card: { borderRadius: 16, padding: 16, gap: 14, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3 },
-  cardTop: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  classIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  cardInfo: { flex: 1, gap: 3 },
-  className: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  classDetail: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  cardActions: { alignItems: "flex-end" },
-  countBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  countText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  cardBottom: { flexDirection: "row", gap: 8 },
-  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 10 },
-  actionBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
-  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 8 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  errorText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  field: { gap: 6 },
-  label: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular" },
-  saveBtn: { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 4 },
-  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  memberSelectItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderBottomWidth: 1 },
-  avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  memberName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  empty: { alignItems: "center", paddingTop: 80, gap: 10 },
+  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+});
+
+const cd = StyleSheet.create({
+  card: { backgroundColor: C.card, borderRadius: 18, padding: 16, gap: 14, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3 },
+  top: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  icon: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#F3E8FF", alignItems: "center", justifyContent: "center" },
+  name: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  meta: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  countBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  countText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  levelBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#EDE9FE" },
+  levelText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#7C3AED" },
+  bottom: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
+  capacityChip: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1 },
+  capacityText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  deleteBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: "#FEE2E2" },
+  deleteBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });

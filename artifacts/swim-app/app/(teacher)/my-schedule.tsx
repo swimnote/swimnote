@@ -10,6 +10,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { PoolHeader } from "@/components/PoolHeader";
+import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 
 const C = Colors.light;
 
@@ -56,7 +57,6 @@ function ClassCard({ group, attendance, hasDiary, onPressAttendance, onPressDiar
 
   return (
     <View style={[crd.root, { backgroundColor: "#fff" }]}>
-      {/* 헤더: 시간 + 반이름 + 레벨 */}
       <View style={crd.head}>
         <View style={[crd.timePill, { backgroundColor: themeColor + "18" }]}>
           <Feather name="clock" size={11} color={themeColor} />
@@ -73,13 +73,12 @@ function ClassCard({ group, attendance, hasDiary, onPressAttendance, onPressDiar
         )}
       </View>
 
-      {/* 지표 4개 */}
       <View style={[crd.stats, { borderTopColor: C.border, borderBottomColor: C.border }]}>
         {[
-          { icon: "users" as const,        label: "학생",  val: `${total}명`,                      color: C.text },
-          { icon: "check-circle" as const, label: "출결",  val: `${checked}/${total}`,              color: allDone ? C.success : C.warning },
-          { icon: "user-x" as const,       label: "결석",  val: `${absent}명`,                      color: absent > 0 ? C.error : C.textMuted },
-          { icon: "book" as const,         label: "일지",  val: hasDiary ? "작성됨" : "미작성",       color: hasDiary ? C.success : C.textMuted },
+          { icon: "users" as const,        label: "학생",  val: `${total}명`,           color: C.text },
+          { icon: "check-circle" as const, label: "출결",  val: `${checked}/${total}`,  color: allDone ? C.success : C.warning },
+          { icon: "user-x" as const,       label: "결석",  val: `${absent}명`,           color: absent > 0 ? C.error : C.textMuted },
+          { icon: "book" as const,         label: "일지",  val: hasDiary ? "작성됨" : "미작성", color: hasDiary ? C.success : C.textMuted },
         ].map((item, i, arr) => (
           <React.Fragment key={item.label}>
             <View style={crd.statCol}>
@@ -92,7 +91,6 @@ function ClassCard({ group, attendance, hasDiary, onPressAttendance, onPressDiar
         ))}
       </View>
 
-      {/* 버튼 */}
       <View style={crd.btns}>
         <Pressable
           style={({ pressed }) => [crd.btn, { backgroundColor: themeColor + "15", opacity: pressed ? 0.75 : 1 }]}
@@ -117,7 +115,7 @@ function ClassCard({ group, attendance, hasDiary, onPressAttendance, onPressDiar
 
 // ── 메인 화면 ─────────────────────────────────────────────────
 export default function MyScheduleScreen() {
-  const { token } = useAuth();
+  const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
 
   const [view, setView]                   = useState<ScheduleView>("today");
@@ -126,6 +124,9 @@ export default function MyScheduleScreen() {
   const [diarySet, setDiarySet]           = useState<Set<string>>(new Set());
   const [loading, setLoading]             = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
+  const [showCreate, setShowCreate]       = useState(false);
+
+  const selfTeacher = adminUser ? { id: adminUser.id, name: adminUser.name || "나" } : undefined;
 
   const load = useCallback(async () => {
     try {
@@ -151,7 +152,6 @@ export default function MyScheduleScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 계산
   const todayGroups   = groups.filter(isTodayClass).sort(sortByTime);
   const weeklyGroups  = WEEK_DAYS
     .map(day => ({ day, items: groups.filter(g => g.schedule_days.split(",").map(d => d.trim()).includes(day)).sort(sortByTime) }))
@@ -165,12 +165,18 @@ export default function MyScheduleScreen() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       <PoolHeader />
 
-      {/* 페이지 제목 */}
+      {/* 타이틀 + 반 등록 버튼 */}
       <View style={s.titleRow}>
-        <Text style={s.title}>내 스케줄</Text>
-        <Text style={[s.titleSub, { color: C.textMuted }]}>
-          {today.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.title}>내 스케줄</Text>
+          <Text style={[s.titleSub, { color: C.textMuted }]}>
+            {today.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
+          </Text>
+        </View>
+        <Pressable style={[s.createBtn, { backgroundColor: themeColor }]} onPress={() => setShowCreate(true)}>
+          <Feather name="plus" size={14} color="#fff" />
+          <Text style={s.createBtnText}>반 등록</Text>
+        </Pressable>
       </View>
 
       {/* 오늘 / 주간 토글 */}
@@ -218,6 +224,10 @@ export default function MyScheduleScreen() {
               <View style={s.empty}>
                 <Feather name="calendar" size={48} color={C.textMuted} />
                 <Text style={[s.emptyText, { color: C.textMuted }]}>오늘({todayKo()}) 수업이 없습니다</Text>
+                <Pressable style={[s.emptyCreateBtn, { borderColor: themeColor }]} onPress={() => setShowCreate(true)}>
+                  <Feather name="plus-circle" size={16} color={themeColor} />
+                  <Text style={[s.emptyCreateText, { color: themeColor }]}>반 등록하기</Text>
+                </Pressable>
               </View>
             ) : (
               <View style={s.list}>
@@ -237,6 +247,10 @@ export default function MyScheduleScreen() {
               <View style={s.empty}>
                 <Feather name="calendar" size={48} color={C.textMuted} />
                 <Text style={[s.emptyText, { color: C.textMuted }]}>배정된 수업이 없습니다</Text>
+                <Pressable style={[s.emptyCreateBtn, { borderColor: themeColor }]} onPress={() => setShowCreate(true)}>
+                  <Feather name="plus-circle" size={16} color={themeColor} />
+                  <Text style={[s.emptyCreateText, { color: themeColor }]}>반 등록하기</Text>
+                </Pressable>
               </View>
             ) : (
               weeklyGroups.map(({ day, items }) => (
@@ -268,6 +282,20 @@ export default function MyScheduleScreen() {
           )}
         </ScrollView>
       )}
+
+      {/* 반 등록 Flow */}
+      {showCreate && (
+        <ClassCreateFlow
+          token={token}
+          role="teacher"
+          selfTeacher={selfTeacher}
+          onSuccess={(newGroup) => {
+            setGroups(prev => [...prev, newGroup]);
+            setShowCreate(false);
+          }}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -295,9 +323,11 @@ const crd = StyleSheet.create({
 // ── 화면 스타일 ───────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#F3F4F6" },
-  titleRow: { flexDirection: "row", alignItems: "baseline", gap: 8, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+  titleRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4, gap: 10 },
   title: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#111827" },
-  titleSub: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  titleSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  createBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  createBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
   toggle: { flexDirection: "row", marginHorizontal: 20, marginVertical: 12, borderRadius: 10, borderWidth: 1, overflow: "hidden" },
   toggleItem: { flex: 1, paddingVertical: 9, alignItems: "center" },
@@ -313,6 +343,8 @@ const s = StyleSheet.create({
   list: { gap: 12 },
   empty: { alignItems: "center", paddingTop: 80, gap: 12 },
   emptyText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  emptyCreateBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
+  emptyCreateText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
   weekSection: { marginBottom: 20 },
   weekDayRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },

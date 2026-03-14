@@ -1,0 +1,477 @@
+/**
+ * ClassCreateFlow — 반 등록 Step UI 공통 컴포넌트
+ *
+ * Step 1: 요일 선택 (월~토, 복수 선택)
+ * Step 2: 시간 선택 (평일 13:00-21:00 / 토 08:00-16:00)
+ * Step 3: 선생님 선택 (pool_admin만, teacher는 자동 스킵)
+ * Step 4: 반 개설 확인 카드
+ */
+import { Feather } from "@expo/vector-icons";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator, FlatList, Modal, Pressable,
+  ScrollView, StyleSheet, Text, View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Colors from "@/constants/colors";
+import { apiRequest } from "@/context/AuthContext";
+
+const C = Colors.light;
+
+const WEEKDAYS = ["월", "화", "수", "목", "금"] as const;
+const SATURDAY = "토" as const;
+const ALL_DAYS = [...WEEKDAYS, SATURDAY];
+
+function makeTimeSlots(days: string[]): string[] {
+  const hasSat = days.includes("토");
+  const hasWeekday = days.some(d => WEEKDAYS.includes(d as any));
+  const slots: string[] = [];
+  if (hasWeekday) {
+    for (let h = 13; h <= 21; h++) slots.push(`${String(h).padStart(2, "0")}:00`);
+  }
+  if (hasSat) {
+    for (let h = 8; h <= 16; h++) {
+      const t = `${String(h).padStart(2, "0")}:00`;
+      if (!slots.includes(t)) slots.push(t);
+    }
+    slots.sort();
+  }
+  return slots;
+}
+
+interface Teacher {
+  id: string;
+  name: string;
+  is_activated: boolean;
+  is_admin_self_teacher: boolean;
+}
+
+interface ClassCreateFlowProps {
+  token: string | null;
+  role: "pool_admin" | "teacher";
+  selfTeacher?: { id: string; name: string };
+  onSuccess: (newClass: any) => void;
+  onClose: () => void;
+}
+
+type StepId = 1 | 2 | 3 | 4;
+
+function StepDots({ current, total }: { current: number; total: number }) {
+  return (
+    <View style={sd.row}>
+      {Array.from({ length: total }).map((_, i) => (
+        <View
+          key={i}
+          style={[sd.dot, i + 1 <= current ? sd.dotActive : sd.dotInactive]}
+        />
+      ))}
+    </View>
+  );
+}
+const sd = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  dotActive: { backgroundColor: C.tint, width: 20 },
+  dotInactive: { backgroundColor: C.border },
+});
+
+function DayButton({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  const isSat = label === "토";
+  const color = selected ? (isSat ? "#DC2626" : C.tint) : C.text;
+  const bg = selected ? (isSat ? "#FEE2E2" : C.tintLight) : C.background;
+  const border = selected ? (isSat ? "#DC2626" : C.tint) : C.border;
+  return (
+    <Pressable
+      style={[db.btn, { backgroundColor: bg, borderColor: border }]}
+      onPress={onPress}
+    >
+      <Text style={[db.label, { color }]}>{label}</Text>
+    </Pressable>
+  );
+}
+const db = StyleSheet.create({
+  btn: {
+    width: 52, height: 52, borderRadius: 16, borderWidth: 1.5,
+    alignItems: "center", justifyContent: "center",
+  },
+  label: { fontSize: 16, fontFamily: "Inter_700Bold" },
+});
+
+function TimeButton({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={[tb.btn, selected && { backgroundColor: C.tint, borderColor: C.tint }]}
+      onPress={onPress}
+    >
+      <Text style={[tb.label, { color: selected ? "#fff" : C.text }]}>{label}</Text>
+    </Pressable>
+  );
+}
+const tb = StyleSheet.create({
+  btn: {
+    flex: 1, minWidth: 74, paddingVertical: 11,
+    borderRadius: 12, borderWidth: 1.5, borderColor: C.border,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: C.background,
+  },
+  label: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+});
+
+function TeacherRow({ t, selected, onPress }: { t: Teacher; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={[tr.row, { borderColor: selected ? C.tint : C.border, backgroundColor: selected ? C.tintLight : C.background }]}
+      onPress={onPress}
+    >
+      <View style={[tr.avatar, { backgroundColor: selected ? C.tint : C.border }]}>
+        <Text style={[tr.initial, { color: selected ? "#fff" : C.textSecondary }]}>{t.name[0]}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[tr.name, { color: C.text }]}>{t.name}</Text>
+        {t.is_admin_self_teacher && (
+          <Text style={{ fontSize: 11, color: C.textMuted, fontFamily: "Inter_400Regular" }}>관리자 본인</Text>
+        )}
+      </View>
+      {!t.is_activated && (
+        <View style={tr.badge}>
+          <Text style={tr.badgeText}>미활성</Text>
+        </View>
+      )}
+      {selected && <Feather name="check-circle" size={20} color={C.tint} />}
+    </Pressable>
+  );
+}
+const tr = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5, marginBottom: 8 },
+  avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  initial: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  name: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  badge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: "#FEF3C7" },
+  badgeText: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#92400E" },
+});
+
+export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, onClose }: ClassCreateFlowProps) {
+  const insets = useSafeAreaInsets();
+
+  const [step, setStep] = useState<StepId>(1);
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [teachersLoading, setTeachersLoading] = useState(false);
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const isAdmin = role === "pool_admin";
+  const totalSteps = isAdmin ? 4 : 3;
+
+  function stepIndex(s: StepId): number {
+    if (!isAdmin) {
+      if (s === 1) return 1;
+      if (s === 2) return 2;
+      return 3;
+    }
+    return s as number;
+  }
+
+  useEffect(() => {
+    if (step === 3 && isAdmin) {
+      setTeachersLoading(true);
+      apiRequest(token, "/teachers")
+        .then(r => r.json())
+        .then(data => setTeachers(Array.isArray(data) ? data : []))
+        .catch(() => setTeachers([]))
+        .finally(() => setTeachersLoading(false));
+    }
+  }, [step, isAdmin, token]);
+
+  function toggleDay(d: string) {
+    setSelectedDays(prev =>
+      prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]
+    );
+    setSelectedTime(null);
+  }
+
+  function handleNext() {
+    setErrorMsg(null);
+    if (step === 1) {
+      if (selectedDays.length === 0) { setErrorMsg("요일을 1개 이상 선택해주세요."); return; }
+      setStep(2);
+    } else if (step === 2) {
+      if (!selectedTime) { setErrorMsg("수업 시간을 선택해주세요."); return; }
+      if (isAdmin) setStep(3);
+      else setStep(4);
+    } else if (step === 3) {
+      if (isAdmin && !selectedTeacher) { setErrorMsg("선생님을 선택해주세요."); return; }
+      setStep(4);
+    }
+  }
+
+  function handleBack() {
+    setErrorMsg(null);
+    if (step === 2) setStep(1);
+    else if (step === 3) setStep(2);
+    else if (step === 4) setStep(isAdmin ? 3 : 2);
+  }
+
+  async function handleCreate() {
+    setSaving(true); setErrorMsg(null);
+    try {
+      const daysStr = selectedDays.join(",");
+      const teacherId = isAdmin ? selectedTeacher?.id : selfTeacher?.id;
+      const body: any = {
+        schedule_days: daysStr,
+        schedule_time: selectedTime,
+        teacher_user_id: teacherId || undefined,
+      };
+      const res = await apiRequest(token, "/class-groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErrorMsg(data.error || data.message || "개설에 실패했습니다."); return; }
+      onSuccess(data);
+    } catch (e) {
+      setErrorMsg("네트워크 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const timeSlots = makeTimeSlots(selectedDays);
+  const classLabel = selectedDays.length > 0 && selectedTime
+    ? `${selectedDays.join("·")} ${selectedTime}반`
+    : "—";
+  const teacherName = isAdmin
+    ? (selectedTeacher?.name || "미지정")
+    : (selfTeacher?.name || "본인");
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <View style={fl.overlay}>
+        <View style={[fl.sheet, { paddingBottom: insets.bottom + 20 }]}>
+          {/* 핸들 */}
+          <View style={fl.handle} />
+
+          {/* 헤더 */}
+          <View style={fl.header}>
+            <View>
+              <Text style={fl.title}>반 등록</Text>
+              <StepDots current={stepIndex(step)} total={totalSteps} />
+            </View>
+            <Pressable onPress={onClose}>
+              <Feather name="x" size={22} color={C.textSecondary} />
+            </Pressable>
+          </View>
+
+          {/* 에러 */}
+          {errorMsg && (
+            <View style={fl.errorRow}>
+              <Feather name="alert-circle" size={14} color={C.error} />
+              <Text style={fl.errorText}>{errorMsg}</Text>
+            </View>
+          )}
+
+          {/* ── Step 1: 요일 선택 ── */}
+          {step === 1 && (
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+              <Text style={fl.stepTitle}>수업 요일을 선택하세요</Text>
+              <Text style={fl.stepSub}>복수 선택 가능합니다</Text>
+              <View style={s1.grid}>
+                {ALL_DAYS.map(d => (
+                  <DayButton
+                    key={d}
+                    label={d}
+                    selected={selectedDays.includes(d)}
+                    onPress={() => toggleDay(d)}
+                  />
+                ))}
+              </View>
+              {selectedDays.length > 0 && (
+                <View style={s1.preview}>
+                  <Text style={s1.previewLabel}>선택: </Text>
+                  <Text style={[s1.previewValue, { color: C.tint }]}>
+                    {selectedDays.join("·")}요일
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          )}
+
+          {/* ── Step 2: 시간 선택 ── */}
+          {step === 2 && (
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+              <Text style={fl.stepTitle}>수업 시간을 선택하세요</Text>
+              <Text style={fl.stepSub}>
+                {selectedDays.includes("토") && selectedDays.some(d => WEEKDAYS.includes(d as any))
+                  ? "평일(13:00-21:00) · 토(08:00-16:00)"
+                  : selectedDays.includes("토")
+                  ? "토요일(08:00-16:00)"
+                  : "평일(13:00-21:00)"}
+              </Text>
+              <View style={s2.grid}>
+                {timeSlots.map(t => (
+                  <TimeButton
+                    key={t}
+                    label={t}
+                    selected={selectedTime === t}
+                    onPress={() => setSelectedTime(t)}
+                  />
+                ))}
+              </View>
+            </ScrollView>
+          )}
+
+          {/* ── Step 3: 선생님 선택 (관리자만) ── */}
+          {step === 3 && isAdmin && (
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0, maxHeight: 320 }}>
+              <Text style={fl.stepTitle}>담당 선생님을 선택하세요</Text>
+              <Text style={fl.stepSub}>선택하지 않으면 미지정으로 개설됩니다</Text>
+              {teachersLoading ? (
+                <ActivityIndicator color={C.tint} style={{ marginTop: 30 }} />
+              ) : teachers.length === 0 ? (
+                <View style={s3.empty}>
+                  <Feather name="user-x" size={36} color={C.textMuted} />
+                  <Text style={[s3.emptyText, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text>
+                </View>
+              ) : (
+                <>
+                  {/* 미지정 옵션 */}
+                  <Pressable
+                    style={[tr.row, {
+                      borderColor: selectedTeacher === null ? C.border : C.border,
+                      backgroundColor: selectedTeacher === null ? "#F3F4F6" : C.background,
+                    }]}
+                    onPress={() => setSelectedTeacher(null)}
+                  >
+                    <View style={[tr.avatar, { backgroundColor: C.border }]}>
+                      <Feather name="user-x" size={18} color={C.textMuted} />
+                    </View>
+                    <Text style={[tr.name, { color: C.textSecondary }]}>미지정</Text>
+                    {selectedTeacher === null && <Feather name="check-circle" size={20} color={C.textSecondary} />}
+                  </Pressable>
+                  {teachers.map(t => (
+                    <TeacherRow
+                      key={t.id}
+                      t={t}
+                      selected={selectedTeacher?.id === t.id}
+                      onPress={() => setSelectedTeacher(t)}
+                    />
+                  ))}
+                </>
+              )}
+            </ScrollView>
+          )}
+
+          {/* ── Step 4: 반 개설 확인 ── */}
+          {step === 4 && (
+            <View style={s4.wrap}>
+              <Text style={fl.stepTitle}>반 개설을 확인하세요</Text>
+              <View style={[s4.card, { borderColor: C.tint + "50" }]}>
+                {/* 반 이름 */}
+                <View style={[s4.nameRow, { backgroundColor: C.tintLight }]}>
+                  <Feather name="layers" size={20} color={C.tint} />
+                  <Text style={[s4.name, { color: C.tint }]}>{classLabel}</Text>
+                </View>
+                <View style={s4.rows}>
+                  <InfoRow icon="calendar" label="요일" value={selectedDays.join("·") + "요일"} />
+                  <InfoRow icon="clock" label="시간" value={selectedTime || "—"} />
+                  <InfoRow icon="user" label="선생님" value={teacherName} />
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* 하단 버튼 */}
+          <View style={fl.btnRow}>
+            {step > 1 && (
+              <Pressable style={fl.backBtn} onPress={handleBack}>
+                <Feather name="arrow-left" size={18} color={C.textSecondary} />
+              </Pressable>
+            )}
+            {step < 4 ? (
+              <Pressable
+                style={[fl.nextBtn, { backgroundColor: C.tint, flex: step > 1 ? 1 : undefined }]}
+                onPress={handleNext}
+              >
+                <Text style={fl.nextText}>다음</Text>
+                <Feather name="arrow-right" size={16} color="#fff" />
+              </Pressable>
+            ) : (
+              <Pressable
+                style={[fl.nextBtn, { backgroundColor: C.tint, flex: 1 }]}
+                onPress={handleCreate}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Feather name="check" size={16} color="#fff" />
+                    <Text style={fl.nextText}>반 개설하기</Text>
+                  </>
+                )}
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function InfoRow({ icon, label, value }: { icon: any; label: string; value: string }) {
+  return (
+    <View style={ir.row}>
+      <Feather name={icon} size={14} color={C.textMuted} />
+      <Text style={ir.label}>{label}</Text>
+      <Text style={ir.value}>{value}</Text>
+    </View>
+  );
+}
+const ir = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.border },
+  label: { width: 60, fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  value: { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+});
+
+const fl = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 16 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 6 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  title: { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 6 },
+  stepTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 4 },
+  stepSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginBottom: 16 },
+  errorRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEE2E2", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  errorText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.error },
+  btnRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+  backBtn: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  nextBtn: { height: 50, borderRadius: 14, paddingHorizontal: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  nextText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+});
+
+const s1 = StyleSheet.create({
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
+  preview: { flexDirection: "row", alignItems: "center", backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
+  previewLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  previewValue: { fontSize: 14, fontFamily: "Inter_700Bold" },
+});
+
+const s2 = StyleSheet.create({
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+});
+
+const s3 = StyleSheet.create({
+  empty: { alignItems: "center", paddingVertical: 40, gap: 10 },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+});
+
+const s4 = StyleSheet.create({
+  wrap: { gap: 12 },
+  card: { borderRadius: 18, borderWidth: 1.5, overflow: "hidden" },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  name: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  rows: { paddingHorizontal: 16 },
+});

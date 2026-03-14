@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -12,6 +12,11 @@ export const usersTable = pgTable("users", {
   phone: text("phone"),
   role: userRoleEnum("role").notNull().default("parent"),
   swimming_pool_id: text("swimming_pool_id"),
+  is_activated: boolean("is_activated").notNull().default(true),
+  is_admin_self_teacher: boolean("is_admin_self_teacher").notNull().default(false),
+  phone_verified: boolean("phone_verified").notNull().default(false),
+  created_by: text("created_by"),
+  permissions: jsonb("permissions"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });
