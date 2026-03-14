@@ -1,3 +1,28 @@
+# SwimClass — 수영장 관리 플랫폼
+
+## 앱 개요
+멀티테넌트 수영장 관리 B2B SaaS. 역할: super_admin / pool_admin / teacher / parent_account.
+한국어 UI. 데모 계정: 1/1(super_admin), 2/2(pool_admin), 3/3(teacher), 4/4(parent).
+데모 풀: 토이키즈(pool_toykids_001), 반: 초급반(cg_toykids_a), 학생: 서태웅(stu_taewung_001).
+
+## 사진 앨범 구조 (photo album)
+`student_photos` 테이블에 `album_type` (group|private) + `class_id` 컬럼 추가.
+- **group album**: student_id = NULL, class_id 필수. 반 모든 학부모에게 공개.
+- **private album**: student_id + class_id 모두 필수. 해당 학생 학부모만 공개.
+
+API 엔드포인트 (모두 인증 필수):
+- GET `/api/photos/group/:classId` — 반 전체 앨범 (teacher=담당반, parent=자녀반, pool_admin=자신의풀)
+- GET `/api/photos/private/:studentId` — 개인 앨범 (teacher=담당반, parent=자녀, pool_admin=자신의풀)
+- POST `/api/photos/group` — 반 전체 업로드 (body: class_id + photos[])
+- POST `/api/photos/private` — 개인 업로드 (body: class_id + student_id + photos[])
+- GET `/api/photos/parent-view` — parent용 자녀별 앨범 통합 뷰
+- GET `/api/photos/:photoId/file` — GCS에서 파일 스트리밍 (권한 검사 포함)
+- DELETE `/api/photos/:photoId` — 삭제 (teacher=자신이 올린 것만, admin=풀 내 전체)
+
+오브젝트 스토리지: `new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID })`
+업로드 메서드: `client.uploadFromBytes(objectName, buffer, { contentType })` — 인자 순서 주의.
+다운로드 메서드: `client.downloadAsBytes(objectName)` — 반환값 `[Buffer]` 배열. `bytes[0]` 로 접근.
+
 # Workspace
 
 ## Overview
