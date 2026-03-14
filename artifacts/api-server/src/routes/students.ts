@@ -64,12 +64,13 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     let students: any[];
 
     if (req.user!.role === "teacher") {
-      // teacher: 본인이 담당하는 반에 배정된 학생만 반환
+      // teacher: 본인이 담당하는 반에 배정된 학생만 반환 (삭제된 반 제외)
       const teacherClasses = await db.select({ id: classGroupsTable.id })
         .from(classGroupsTable)
         .where(and(
           eq(classGroupsTable.swimming_pool_id, poolId!),
-          eq(classGroupsTable.teacher_user_id, req.user!.userId)
+          eq(classGroupsTable.teacher_user_id, req.user!.userId),
+          eq(classGroupsTable.is_deleted, false)
         ));
       const classIds = teacherClasses.map(c => c.id);
       if (classIds.length === 0) {
@@ -79,7 +80,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       students = await db.select().from(studentsTable)
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),
-          sql`status != 'withdrawn'`,
+          sql`status NOT IN ('withdrawn', 'deleted')`,
           sql`(
             class_group_id = ANY(ARRAY[${sql.raw(classIdsLiteral)}])
             OR EXISTS (
@@ -92,7 +93,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       students = await db.select().from(studentsTable)
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),
-          sql`status != 'withdrawn'`
+          sql`status NOT IN ('withdrawn', 'deleted')`
         ));
     }
 
@@ -316,29 +317,50 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
-// ── DELETE /:id ────────────────────────────────────────────────────
+// ── DELETE /:id — 운영목록에서 제거 (soft delete, 기록 보존) ────────
 router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
-    const [existing] = await db.select({ swimming_pool_id: studentsTable.swimming_pool_id })
-      .from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    const [existing] = await db.select().from(studentsTable)
+      .where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
-    if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
+    if (req.user!.role !== "super_admin" && poolId && (existing as any).swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
+    }
+    if ((existing as any).status === "deleted") {
+      return res.json({ success: true, message: "이미 삭제회원으로 처리된 학생입니다." });
     }
 
     const sid = req.params.id;
+    console.log(`[deleteStudent] clicked studentId: ${sid}`);
 
-    // 연관 데이터 순서대로 삭제
-    await db.delete(parentStudentsTable).where(eq(parentStudentsTable.student_id, sid));
-    await db.delete(attendanceTable).where(eq(attendanceTable.student_id, sid));
-    // swim_diary student_id null 처리 (기록 보존)
-    await db.execute(sql`UPDATE swim_diary SET student_id = NULL WHERE student_id = ${sid}`);
-    await db.delete(studentsTable).where(eq(studentsTable.id, sid));
+    // 마지막 반 이름 저장
+    let lastClassName: string | null = (existing as any).last_class_group_name || null;
+    if ((existing as any).class_group_id && !lastClassName) {
+      const cgRes = await db.execute(sql`SELECT name FROM class_groups WHERE id = ${(existing as any).class_group_id} LIMIT 1`);
+      lastClassName = (cgRes.rows[0] as any)?.name ?? null;
+    }
 
-    console.log(`[students] DELETE ${sid}: parent_students, attendance, swim_diary cleaned`);
-    res.json({ success: true, message: "학생이 삭제되었습니다." });
-  } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
+    // soft delete: status='deleted', 반배정 해제, 출결 대상 제외
+    await db.execute(sql`
+      UPDATE students
+      SET
+        status = 'deleted',
+        deleted_at = NOW(),
+        archived_reason = 'member_deleted',
+        class_group_id = NULL,
+        assigned_class_ids = '[]'::jsonb,
+        schedule_labels = NULL,
+        last_class_group_name = COALESCE(${lastClassName}, last_class_group_name),
+        updated_at = NOW()
+      WHERE id = ${sid}
+    `);
+
+    // parent_students는 유지 (학부모가 과거 기록 조회 가능해야 함)
+    // swim_diary, attendance 기록도 유지
+    console.log(`[deleteStudent] archived success: ${sid}`);
+    res.json({ success: true, message: "회원이 삭제회원으로 처리되었습니다." });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
 // ── Attendance routes (unchanged) ─────────────────────────────────

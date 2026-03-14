@@ -23,6 +23,8 @@ export const studentsTable = pgTable("students", {
   schedule_labels: text("schedule_labels"),
   invite_code: text("invite_code"),
   withdrawn_at: timestamp("withdrawn_at"),
+  deleted_at: timestamp("deleted_at"),
+  archived_reason: text("archived_reason"),
   last_class_group_name: text("last_class_group_name"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),

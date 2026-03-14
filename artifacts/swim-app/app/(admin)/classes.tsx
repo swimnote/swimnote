@@ -21,6 +21,7 @@ interface ClassGroup {
   level: string | null;
   capacity: number | null;
   teacher_user_id: string | null;
+  is_deleted?: boolean;
 }
 
 export default function ClassesScreen() {
@@ -30,13 +31,15 @@ export default function ClassesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const res = await apiRequest(token, "/class-groups");
       if (res.ok) {
         const data = await res.json();
-        setGroups(Array.isArray(data) ? data : []);
+        // is_deleted=false 인 반만 표시 (API가 이미 필터링하지만 이중 체크)
+        setGroups(Array.isArray(data) ? data.filter((g: ClassGroup) => !g.is_deleted) : []);
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
@@ -45,21 +48,34 @@ export default function ClassesScreen() {
   useEffect(() => { load(); }, [load]);
 
   async function handleDelete(id: string, name: string) {
-    Alert.alert("반 삭제", `"${name}"을 삭제하시겠습니까?\n학생 배정이 해제됩니다.`, [
-      { text: "취소", style: "cancel" },
-      {
-        text: "삭제", style: "destructive", onPress: async () => {
-          const res = await apiRequest(token, `/class-groups/${id}`, { method: "DELETE" });
-          if (res.ok) setGroups(prev => prev.filter(g => g.id !== id));
-          else Alert.alert("오류", "삭제에 실패했습니다.");
+    Alert.alert(
+      "반 삭제",
+      `"${name}"을 삭제하면 소속 회원은 미배정 상태로 변경되고, 선생님·출결·스케줄 화면에서도 반영됩니다.\n\n삭제하시겠습니까?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제", style: "destructive", onPress: async () => {
+            setDeletingId(id);
+            try {
+              const res = await apiRequest(token, `/class-groups/${id}`, { method: "DELETE" });
+              if (res.ok) {
+                setGroups(prev => prev.filter(g => g.id !== id));
+              } else {
+                Alert.alert("오류", "삭제에 실패했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            } finally {
+              setDeletingId(null);
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <Text style={s.title}>반 관리</Text>
         <Pressable style={[s.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowCreate(true)}>
@@ -84,7 +100,13 @@ export default function ClassesScreen() {
               <Text style={[s.emptySub, { color: C.textMuted }]}>반 등록 버튼을 눌러 첫 번째 반을 만들어보세요</Text>
             </View>
           }
-          renderItem={({ item }) => <ClassGroupCard item={item} onDelete={handleDelete} />}
+          renderItem={({ item }) => (
+            <ClassGroupCard
+              item={item}
+              onDelete={handleDelete}
+              isDeleting={deletingId === item.id}
+            />
+          )}
         />
       )}
 
@@ -103,12 +125,17 @@ export default function ClassesScreen() {
   );
 }
 
-function ClassGroupCard({ item, onDelete }: { item: ClassGroup; onDelete: (id: string, name: string) => void }) {
+function ClassGroupCard({
+  item, onDelete, isDeleting,
+}: {
+  item: ClassGroup;
+  onDelete: (id: string, name: string) => void;
+  isDeleting: boolean;
+}) {
   const days = item.schedule_days.split(",").map(d => d.trim()).join("·");
 
   return (
     <View style={[cd.card, { shadowColor: C.shadow }]}>
-      {/* 상단: 아이콘 + 정보 + 학생수 */}
       <View style={cd.top}>
         <View style={cd.icon}>
           <Feather name="layers" size={20} color="#7C3AED" />
@@ -142,7 +169,6 @@ function ClassGroupCard({ item, onDelete }: { item: ClassGroup; onDelete: (id: s
         </View>
       </View>
 
-      {/* 하단 버튼 */}
       <View style={cd.bottom}>
         {item.capacity != null && (
           <View style={cd.capacityChip}>
@@ -151,11 +177,18 @@ function ClassGroupCard({ item, onDelete }: { item: ClassGroup; onDelete: (id: s
           </View>
         )}
         <Pressable
-          style={[cd.deleteBtn]}
-          onPress={() => onDelete(item.id, item.name)}
+          style={[cd.deleteBtn, isDeleting && { opacity: 0.5 }]}
+          onPress={() => !isDeleting && onDelete(item.id, item.name)}
+          disabled={isDeleting}
         >
-          <Feather name="trash-2" size={14} color={C.error} />
-          <Text style={[cd.deleteBtnText, { color: C.error }]}>삭제</Text>
+          {isDeleting ? (
+            <ActivityIndicator size={14} color={C.error} />
+          ) : (
+            <Feather name="trash-2" size={14} color={C.error} />
+          )}
+          <Text style={[cd.deleteBtnText, { color: C.error }]}>
+            {isDeleting ? "처리중..." : "삭제"}
+          </Text>
         </Pressable>
       </View>
     </View>

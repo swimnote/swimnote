@@ -677,13 +677,16 @@ router.get("/withdrawn-members", requireAuth, requireRole("super_admin", "pool_a
 
       const students = await db.execute(sql`
         SELECT
-          s.id, s.name, s.phone, s.last_class_group_name, s.withdrawn_at,
+          s.id, s.name, s.phone, s.last_class_group_name,
+          s.withdrawn_at, s.deleted_at, s.archived_reason, s.status,
           COUNT(a.id)::int AS attendance_count
         FROM students s
         LEFT JOIN attendance a ON a.student_id = s.id
-        WHERE s.swimming_pool_id = ${poolId} AND s.status = 'withdrawn'
-        GROUP BY s.id, s.name, s.phone, s.last_class_group_name, s.withdrawn_at
-        ORDER BY s.withdrawn_at DESC NULLS LAST
+        WHERE s.swimming_pool_id = ${poolId}
+          AND s.status IN ('withdrawn', 'deleted')
+        GROUP BY s.id, s.name, s.phone, s.last_class_group_name,
+                 s.withdrawn_at, s.deleted_at, s.archived_reason, s.status
+        ORDER BY GREATEST(COALESCE(s.withdrawn_at, '1970-01-01'), COALESCE(s.deleted_at, '1970-01-01')) DESC
       `);
       res.json(students.rows);
     } catch (err) {

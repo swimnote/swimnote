@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +13,8 @@ export const classGroupsTable = pgTable("class_groups", {
   level: text("level"),
   capacity: integer("capacity"),
   description: text("description"),
+  is_deleted: boolean("is_deleted").notNull().default(false),
+  deleted_at: timestamp("deleted_at"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

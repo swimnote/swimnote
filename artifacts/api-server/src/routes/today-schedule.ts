@@ -60,6 +60,7 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
         SELECT * FROM class_groups
         WHERE teacher_user_id = ${user.userId}
         AND schedule_days LIKE ${"%" + targetDayKO + "%"}
+        AND is_deleted = false
         ORDER BY schedule_time ASC
       `);
       groups = rows.rows as any[];
@@ -71,6 +72,7 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
         SELECT * FROM class_groups
         WHERE swimming_pool_id = ${poolId}
         AND schedule_days LIKE ${"%" + targetDayKO + "%"}
+        AND is_deleted = false
         ORDER BY schedule_time ASC
       `);
       groups = rows.rows as any[];

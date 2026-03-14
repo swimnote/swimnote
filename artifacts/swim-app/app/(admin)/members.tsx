@@ -318,11 +318,12 @@ const reg = StyleSheet.create({
 });
 
 // ── 회원 카드 ────────────────────────────────────────────────────
-function StudentCard({ student, themeColor, onPressInvite, onPressDelete }: {
+function StudentCard({ student, themeColor, onPressInvite, onPressDelete, isDeleting }: {
   student: StudentMember;
   themeColor: string;
   onPressInvite: () => void;
   onPressDelete: () => void;
+  isDeleting?: boolean;
 }) {
   const assignStatus = getStudentAssignmentStatus(student);
   const connStatus   = getStudentConnectionStatus(student);
@@ -402,8 +403,15 @@ function StudentCard({ student, themeColor, onPressInvite, onPressDelete }: {
             <Text style={[sc.actionText, { color: "#7C3AED" }]}>초대 문자</Text>
           </Pressable>
         )}
-        <Pressable style={[sc.actionBtn, { backgroundColor: "#FEE2E2", marginLeft: "auto" }]} onPress={onPressDelete}>
-          <Feather name="trash-2" size={13} color={C.error} />
+        <Pressable
+          style={[sc.actionBtn, { backgroundColor: "#FEE2E2", marginLeft: "auto" }, isDeleting && { opacity: 0.5 }]}
+          onPress={() => !isDeleting && onPressDelete()}
+          disabled={isDeleting}
+        >
+          {isDeleting
+            ? <ActivityIndicator size={13} color={C.error} />
+            : <Feather name="trash-2" size={13} color={C.error} />
+          }
         </Pressable>
       </View>
     </Pressable>
@@ -441,6 +449,7 @@ export default function MembersScreen() {
   const [search,         setSearch]         = useState("");
   const [showRegister,   setShowRegister]   = useState(false);
   const [inviteTarget,   setInviteTarget]   = useState<StudentMember | null>(null);
+  const [deletingId,     setDeletingId]     = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -456,16 +465,30 @@ export default function MembersScreen() {
   useEffect(() => { load(); }, [load]);
 
   async function handleDelete(id: string, name: string) {
-    Alert.alert("회원 삭제", `"${name}" 회원을 삭제하시겠습니까?`, [
-      { text: "취소", style: "cancel" },
-      {
-        text: "삭제", style: "destructive", onPress: async () => {
-          const res = await apiRequest(token, `/students/${id}`, { method: "DELETE" });
-          if (res.ok) setStudents(prev => prev.filter(s => s.id !== id));
-          else Alert.alert("오류", "삭제에 실패했습니다.");
+    Alert.alert(
+      "회원 삭제",
+      `"${name}" 회원은 운영 목록에서 제거되고 삭제회원으로 보관됩니다.\n학부모 계정은 유지되며 기존 수업 정보는 보존됩니다.\n\n진행하시겠습니까?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제", style: "destructive", onPress: async () => {
+            setDeletingId(id);
+            try {
+              const res = await apiRequest(token, `/students/${id}`, { method: "DELETE" });
+              if (res.ok) {
+                setStudents(prev => prev.filter(s => s.id !== id));
+              } else {
+                Alert.alert("오류", "삭제에 실패했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            } finally {
+              setDeletingId(null);
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   }
 
   // 필터 + 검색 적용
@@ -548,6 +571,7 @@ export default function MembersScreen() {
               themeColor={themeColor}
               onPressInvite={() => setInviteTarget(item)}
               onPressDelete={() => handleDelete(item.id, item.name)}
+              isDeleting={deletingId === item.id}
             />
           )}
         />

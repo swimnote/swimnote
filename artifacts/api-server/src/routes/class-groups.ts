@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { classGroupsTable, studentsTable, attendanceTable, usersTable } from "@workspace/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, ne } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
@@ -23,16 +23,27 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     let groups;
     if (req.user!.role === "teacher") {
       const rawRows = await db.execute(
-        sql`SELECT * FROM class_groups WHERE swimming_pool_id = ${poolId} AND teacher_user_id = ${req.user!.userId}`
+        sql`SELECT * FROM class_groups
+            WHERE swimming_pool_id = ${poolId}
+              AND teacher_user_id = ${req.user!.userId}
+              AND is_deleted = false`
       );
       groups = rawRows.rows as any[];
     } else {
-      groups = await db.select().from(classGroupsTable).where(eq(classGroupsTable.swimming_pool_id, poolId));
+      groups = await db.select().from(classGroupsTable)
+        .where(and(
+          eq(classGroupsTable.swimming_pool_id, poolId),
+          eq(classGroupsTable.is_deleted, false)
+        ));
     }
 
     const enriched = await Promise.all(groups.map(async (g: any) => {
       const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(studentsTable)
-        .where(and(eq(studentsTable.swimming_pool_id, poolId), eq(studentsTable.class_group_id, g.id)));
+        .where(and(
+          eq(studentsTable.swimming_pool_id, poolId),
+          eq(studentsTable.class_group_id, g.id),
+          sql`status NOT IN ('withdrawn', 'deleted')`
+        ));
       return { ...g, student_count: Number(count) };
     }));
 
@@ -50,23 +61,19 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
-    // 담당 선생님 결정
     const effectiveTeacherId: string | null =
       req.user!.role === "teacher"
         ? req.user!.userId
         : (teacher_user_id || null);
 
-    // 자동 반 이름 생성 (예: 월 13:00반)
     const autoName = name || `${schedule_days} ${schedule_time}반`;
 
-    // 강사 이름 조회
     let instructorName = instructor || null;
     if (effectiveTeacherId && !instructor) {
       const [tUser] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, effectiveTeacherId)).limit(1);
       if (tUser) instructorName = tUser.name;
     }
 
-    // 중복 체크: 같은 풀 + 같은 요일 + 같은 시간 + 같은 선생님
     if (effectiveTeacherId) {
       const dup = await db.execute(sql`
         SELECT id FROM class_groups
@@ -74,19 +81,20 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
           AND schedule_days = ${schedule_days}
           AND schedule_time = ${schedule_time}
           AND teacher_user_id = ${effectiveTeacherId}
+          AND is_deleted = false
         LIMIT 1
       `);
       if (dup.rows.length > 0) {
         return err(res, 409, "동일한 요일·시간·선생님으로 이미 개설된 반이 있습니다.");
       }
     } else {
-      // 선생님 미지정 시: 같은 이름·요일·시간 중복 체크
       const dup = await db.execute(sql`
         SELECT id FROM class_groups
         WHERE swimming_pool_id = ${poolId}
           AND schedule_days = ${schedule_days}
           AND schedule_time = ${schedule_time}
           AND teacher_user_id IS NULL
+          AND is_deleted = false
         LIMIT 1
       `);
       if (dup.rows.length > 0) {
@@ -116,6 +124,7 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
     const poolId = await getPoolId(req.user!.userId);
     const [group] = await db.select().from(classGroupsTable).where(eq(classGroupsTable.id, req.params.id)).limit(1);
     if (!group) return err(res, 404, "수업 그룹을 찾을 수 없습니다.");
+    if (group.is_deleted) return err(res, 404, "삭제된 반입니다.");
 
     if (req.user!.role !== "super_admin" && poolId && group.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
@@ -128,12 +137,18 @@ router.get("/:id/students", requireAuth, async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [group] = await db.select({ swimming_pool_id: classGroupsTable.swimming_pool_id })
-      .from(classGroupsTable).where(eq(classGroupsTable.id, req.params.id)).limit(1);
+      .from(classGroupsTable)
+      .where(and(eq(classGroupsTable.id, req.params.id), eq(classGroupsTable.is_deleted, false)))
+      .limit(1);
     if (!group) return err(res, 404, "수업 그룹을 찾을 수 없습니다.");
     if (req.user!.role !== "super_admin" && poolId && group.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
     }
-    const students = await db.select().from(studentsTable).where(eq(studentsTable.class_group_id, req.params.id));
+    const students = await db.select().from(studentsTable)
+      .where(and(
+        eq(studentsTable.class_group_id, req.params.id),
+        sql`status NOT IN ('withdrawn', 'deleted')`
+      ));
     res.json(students);
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -144,13 +159,20 @@ router.get("/:id/attendance", requireAuth, async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [group] = await db.select({ swimming_pool_id: classGroupsTable.swimming_pool_id })
-      .from(classGroupsTable).where(eq(classGroupsTable.id, req.params.id)).limit(1);
+      .from(classGroupsTable)
+      .where(and(eq(classGroupsTable.id, req.params.id), eq(classGroupsTable.is_deleted, false)))
+      .limit(1);
     if (!group) return err(res, 404, "수업 그룹을 찾을 수 없습니다.");
     if (req.user!.role !== "super_admin" && poolId && group.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
     }
 
-    const students = await db.select().from(studentsTable).where(eq(studentsTable.class_group_id, req.params.id));
+    // active 학생만 출결 대상
+    const students = await db.select().from(studentsTable)
+      .where(and(
+        eq(studentsTable.class_group_id, req.params.id),
+        sql`status NOT IN ('withdrawn', 'deleted')`
+      ));
     const attRecords = await db.select().from(attendanceTable)
       .where(and(eq(attendanceTable.class_group_id, req.params.id), eq(attendanceTable.date, date as string)));
 
@@ -166,9 +188,10 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
   const { name, schedule_days, schedule_time, instructor, teacher_user_id, level, capacity, description } = req.body;
   try {
     const poolId = await getPoolId(req.user!.userId);
-    const [existing] = await db.select({ swimming_pool_id: classGroupsTable.swimming_pool_id })
+    const [existing] = await db.select({ swimming_pool_id: classGroupsTable.swimming_pool_id, is_deleted: classGroupsTable.is_deleted })
       .from(classGroupsTable).where(eq(classGroupsTable.id, req.params.id)).limit(1);
     if (!existing) return err(res, 404, "수업 그룹을 찾을 수 없습니다.");
+    if (existing.is_deleted) return err(res, 400, "삭제된 반은 수정할 수 없습니다.");
     if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
     }
@@ -194,16 +217,33 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
 router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
-    const [existing] = await db.select({ swimming_pool_id: classGroupsTable.swimming_pool_id })
-      .from(classGroupsTable).where(eq(classGroupsTable.id, req.params.id)).limit(1);
+    const [existing] = await db.select({
+      swimming_pool_id: classGroupsTable.swimming_pool_id,
+      is_deleted: classGroupsTable.is_deleted,
+    }).from(classGroupsTable).where(eq(classGroupsTable.id, req.params.id)).limit(1);
+
     if (!existing) return err(res, 404, "수업 그룹을 찾을 수 없습니다.");
+    if (existing.is_deleted) return res.json({ success: true, message: "이미 삭제된 반입니다." });
     if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
     }
 
     const cgId = req.params.id;
+    console.log(`[deleteClass] clicked classId: ${cgId}`);
 
-    // 1) students: class_group_id null + assigned_class_ids에서 해당 id 제거
+    // 1) 해당 반에 속한 active 학생 조회
+    const affectedStudents = await db.execute(sql`
+      SELECT id FROM students
+      WHERE swimming_pool_id = ${poolId}
+        AND status NOT IN ('withdrawn', 'deleted')
+        AND (
+          class_group_id = ${cgId}
+          OR assigned_class_ids @> to_jsonb(${cgId}::text)
+        )
+    `);
+    console.log(`[deleteClass] students to unassign count: ${affectedStudents.rows.length}`);
+
+    // 2) 학생 미배정 처리: class_group_id null + assigned_class_ids에서 제거
     await db.execute(sql`
       UPDATE students
       SET
@@ -223,16 +263,18 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
         )
     `);
 
-    // 2) attendance: class_group_id null 처리 (출결 기록 보존)
+    // 3) attendance: class_group_id null 처리 (출결 기록 보존)
     await db.execute(sql`UPDATE attendance SET class_group_id = NULL WHERE class_group_id = ${cgId}`);
 
-    // 3) teacher_schedule_notes 삭제
+    // 4) teacher_schedule_notes 삭제
     await db.execute(sql`DELETE FROM teacher_schedule_notes WHERE class_group_id = ${cgId}`);
 
-    // 4) 반 삭제
-    await db.delete(classGroupsTable).where(eq(classGroupsTable.id, cgId));
+    // 5) 반 soft delete (hard delete 하지 않음)
+    await db.update(classGroupsTable)
+      .set({ is_deleted: true, deleted_at: new Date(), updated_at: new Date() })
+      .where(eq(classGroupsTable.id, cgId));
 
-    console.log(`[class-groups] DELETE ${cgId}: cascade cleaned`);
+    console.log(`[deleteClass] class soft deleted: ${cgId}`);
     res.json({ success: true });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
