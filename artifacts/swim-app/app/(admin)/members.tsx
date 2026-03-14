@@ -103,13 +103,13 @@ export default function MembersScreen() {
         />
       </View>
 
-      {/* 상태 필터 (절대 고정 높이) */}
+      {/* 상태 필터 (절대 고정 높이 - 크기 변동 불가) */}
       <View style={styles.filterSpacer}>
         <View style={styles.filterRow}>
           {STATUS_FILTERS.map(({ key, label }) => {
             const isActive = statusFilter === key;
             return (
-              <Pressable
+              <View
                 key={key}
                 style={[
                   styles.filterCard,
@@ -118,18 +118,22 @@ export default function MembersScreen() {
                     borderColor: isActive ? C.tint : C.border,
                   },
                 ]}
-                onPress={() => setStatusFilter(key)}
               >
-                <Text
-                  style={[
-                    styles.filterCardText,
-                    { color: isActive ? "#fff" : C.text },
-                  ]}
-                  numberOfLines={2}
+                <Pressable
+                  style={styles.filterPressable}
+                  onPress={() => setStatusFilter(key)}
                 >
-                  {label}
-                </Text>
-              </Pressable>
+                  <Text
+                    style={[
+                      styles.filterCardText,
+                      { color: isActive ? "#fff" : C.text },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              </View>
             );
           })}
         </View>
@@ -252,11 +256,12 @@ const styles = StyleSheet.create({
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 20, marginBottom: 16 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
   
-  // 상태 필터 (절대 고정 영역)
-  filterSpacer: { height: 190, paddingHorizontal: 20, paddingVertical: 12, justifyContent: "center" },
-  filterRow: { width: "100%", height: 170, flexDirection: "row", gap: 10, justifyContent: "space-between" },
-  filterCard: { width: "23%", height: 170, borderRadius: 16, borderWidth: 2, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
-  filterCardText: { fontSize: 13, fontFamily: "Inter_600SemiBold", textAlign: "center", lineHeight: 16 },
+  // 상태 필터 (절대 고정 영역 - 절대 변하지 않음)
+  filterSpacer: { height: 200, backgroundColor: "transparent", paddingHorizontal: 20, paddingVertical: 15 },
+  filterRow: { height: 170, flexDirection: "row", gap: 10, justifyContent: "space-between", flexWrap: "nowrap" },
+  filterCard: { width: "23%", height: 170, borderRadius: 16, borderWidth: 2, alignItems: "center", justifyContent: "center", paddingHorizontal: 4, paddingVertical: 10, flexShrink: 0 },
+  filterPressable: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center" },
+  filterCardText: { fontSize: 12, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   
   loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 12 },
