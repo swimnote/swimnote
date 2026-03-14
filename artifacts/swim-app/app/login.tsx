@@ -49,17 +49,19 @@ export default function LoginScreen() {
       style={[styles.root, { backgroundColor: C.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 48), paddingBottom: insets.bottom + 40 },
-        ]}
-        keyboardShouldPersistTaps="handled"
-      >
+      <View style={[styles.backHeader, { paddingTop: insets.top || (Platform.OS === "web" ? 56 : 12) }]}>
         <Pressable onPress={() => router.back()} style={styles.back}>
           <Feather name="arrow-left" size={22} color={C.text} />
         </Pressable>
+      </View>
 
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          { paddingTop: 8, paddingBottom: insets.bottom + 40 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.logoArea}>
           <View style={[styles.logoBox, { backgroundColor: C.tint }]}>
             <Feather name="droplet" size={32} color="#fff" />
@@ -173,6 +175,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, paddingHorizontal: 24, gap: 20 },
+  backHeader: { paddingHorizontal: 12, paddingBottom: 4 },
   back: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   logoArea: { alignItems: "center", gap: 10 },
   logoBox: { width: 68, height: 68, borderRadius: 20, alignItems: "center", justifyContent: "center" },
