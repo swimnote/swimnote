@@ -55,7 +55,13 @@ router.post("/login", async (req, res) => {
       return;
     }
 
-    const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
+    // platform_admin: permissions를 JWT에 포함
+    let permissions;
+    if (user.role === "platform_admin") {
+      permissions = (user as any).permissions || { canViewPools: true, canEditPools: false, canApprovePools: false, canManageSubscriptions: false, canManagePlatformAdmins: false };
+    }
+
+    const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id, permissions });
     const { password_hash: _, ...safeUser } = user;
     res.json({ success: true, token, user: safeUser });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }

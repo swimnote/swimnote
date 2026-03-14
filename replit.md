@@ -1,9 +1,38 @@
 # SwimNote — 전국 수영장 온라인 통합 관리 플랫폼
 
 ## 앱 개요
-멀티테넌트 수영장 관리 B2B SaaS. 역할: super_admin / pool_admin / teacher / parent_account.
+멀티테넌트 수영장 관리 B2B SaaS. 역할: super_admin / platform_admin / pool_admin / teacher / parent_account.
 한국어 UI. 데모 계정: 1/1(super_admin), 2/2(pool_admin-토이키즈), 3/3(teacher-토이키즈), 4/4(parent-서태웅).
 데모 풀: 토이키즈(pool_toykids_001), 아쿠아스타(pool_aquastar_002).
+
+## 플랫폼 관리자 권한 체계
+
+### 역할 구분
+- **super_admin**: 슈퍼관리자 — 모든 권한 보유 (변경 불가)
+- **platform_admin**: 플랫폼관리자 — 세부 권한 개별 부여
+
+### 플랫폼관리자 권한 항목 (permissions JSONB)
+| 권한 키 | 설명 |
+|---------|------|
+| `canViewPools` | 수영장 목록/상세 열람 |
+| `canEditPools` | 수영장 정보 편집 |
+| `canApprovePools` | 수영장 신청 승인/반려 |
+| `canManageSubscriptions` | 구독 상태 변경 |
+| `canManagePlatformAdmins` | 플랫폼 관리자 계정 생성/수정 |
+
+### API 권한 맵핑
+- `GET /admin/pools` → `canViewPools`
+- `GET /admin/pools/:id/detail` → `canViewPools`
+- `PATCH /admin/pools/:id/approve` → `canApprovePools`
+- `PATCH /admin/pools/:id/reject` → `canApprovePools`
+- `PATCH /admin/pools/:id/subscription` → `canManageSubscriptions`
+- `GET /admin/users` → `canManagePlatformAdmins`
+- `POST /admin/users` → super_admin 전용
+- `PATCH /admin/users/:id/permissions` → super_admin 전용
+
+### 미들웨어
+- `requirePermission(perm)`: super_admin은 항상 통과, platform_admin은 해당 권한 체크
+- `requireRole(...)`: 기존 역할 체크 (pool_admin, teacher 등에 사용)
 
 ## 플랫폼 승인 플로우 (수영장 가입 신청 ↔ 관리자 계정 활성화)
 

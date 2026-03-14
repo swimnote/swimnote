@@ -2,8 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable, studentRegistrationRequestsTable, classGroupsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
-import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
-import { hashPassword } from "../lib/auth.js";
+import { requireAuth, requireRole, requirePermission, type AuthRequest } from "../middlewares/auth.js";
+import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 
 const router = Router();
 
@@ -18,7 +18,7 @@ function getSubscriptionTier(approved: boolean, count: number): { tier: string; 
   return { tier: "paid_enterprise", label: "유료 엔터프라이즈", isFree: false };
 }
 
-router.get("/pools", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+router.get("/pools", requireAuth, requirePermission("canViewPools"), async (req: AuthRequest, res) => {
   try {
     const pools = await db.select().from(swimmingPoolsTable).orderBy(swimmingPoolsTable.name);
 
@@ -36,11 +36,11 @@ router.get("/pools", requireAuth, requireRole("super_admin"), async (req: AuthRe
     res.json(poolsWithCount);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    res.status(500).json({ success: false, message: "서버 오류가 발생했습니다.", error: String(err) });
   }
 });
 
-router.patch("/pools/:id/approve", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+router.patch("/pools/:id/approve", requireAuth, requirePermission("canApprovePools"), async (req: AuthRequest, res) => {
   const { id } = req.params;
   try {
     const [pool] = await db.update(swimmingPoolsTable)
@@ -67,7 +67,7 @@ router.patch("/pools/:id/approve", requireAuth, requireRole("super_admin"), asyn
   }
 });
 
-router.patch("/pools/:id/reject", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+router.patch("/pools/:id/reject", requireAuth, requirePermission("canApprovePools"), async (req: AuthRequest, res) => {
   const { id } = req.params;
   const { reason } = req.body;
   try {
@@ -82,7 +82,7 @@ router.patch("/pools/:id/reject", requireAuth, requireRole("super_admin"), async
   }
 });
 
-router.patch("/pools/:id/subscription", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+router.patch("/pools/:id/subscription", requireAuth, requirePermission("canManageSubscriptions"), async (req: AuthRequest, res) => {
   const { id } = req.params;
   const { subscription_status, subscription_start_at, subscription_end_at, note } = req.body;
   try {
@@ -209,16 +209,15 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
   }
 );
 
-router.get("/users", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+router.get("/users", requireAuth, requirePermission("canManagePlatformAdmins"), async (req: AuthRequest, res) => {
   try {
-    const platformRoles = ["super_admin", "platform_operator", "billing_admin"];
     const users = await db.execute(sql`
-      SELECT id, email, name, phone, role, created_at
+      SELECT id, email, name, phone, role, permissions, created_at
       FROM users
-      WHERE role = ANY(${sql.raw(`'{${platformRoles.join(",")}}')::text[]`)})
-      ORDER BY created_at DESC
+      WHERE role IN ('super_admin', 'platform_admin')
+      ORDER BY CASE role WHEN 'super_admin' THEN 0 ELSE 1 END, created_at DESC
     `);
-    res.json(users.rows);
+    res.json({ success: true, data: users.rows });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: "서버 오류가 발생했습니다.", error: String(err) });
@@ -226,33 +225,91 @@ router.get("/users", requireAuth, requireRole("super_admin"), async (req: AuthRe
 });
 
 router.post("/users", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
-  const { email, password, name, phone, role } = req.body;
+  const { email, password, name, phone, permissions } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ success: false, message: "필수 정보를 입력해주세요.", error: "missing_required_fields" });
-  }
-  
-  const platformRoles = ["super_admin", "platform_operator", "billing_admin"];
-  if (!platformRoles.includes(role)) {
-    return res.status(400).json({ success: false, message: "플랫폼 관리자 역할만 생성 가능합니다.", error: "invalid_role" });
   }
 
   try {
     const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
     if (existing) return res.status(400).json({ success: false, message: "이미 사용 중인 이메일입니다.", error: "email_exists" });
 
+    const perms: PlatformPermissions = {
+      ...DEFAULT_PLATFORM_ADMIN_PERMISSIONS,
+      ...(permissions || {}),
+    };
     const password_hash = await hashPassword(password);
     const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const [user] = await db.insert(usersTable).values({
-      id,
-      email,
-      password_hash,
-      name,
-      phone: phone || null,
-      role,
-      swimming_pool_id: null,
-    }).returning();
-    const { password_hash: _, ...safeUser } = user;
-    res.status(201).json(safeUser);
+    const result = await db.execute(sql`
+      INSERT INTO users (id, email, password_hash, name, phone, role, permissions, swimming_pool_id)
+      VALUES (${id}, ${email.trim().toLowerCase()}, ${password_hash}, ${name}, ${phone || null}, 'platform_admin', ${JSON.stringify(perms)}::jsonb, NULL)
+      RETURNING id, email, name, phone, role, permissions, created_at
+    `);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "서버 오류가 발생했습니다.", error: String(err) });
+  }
+});
+
+// ── 플랫폼 관리자 권한 수정 (super_admin 전용) ───────────────────────
+router.patch("/users/:id/permissions", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { permissions } = req.body;
+  if (!permissions || typeof permissions !== "object") {
+    return res.status(400).json({ success: false, message: "permissions 객체가 필요합니다.", error: "missing_permissions" });
+  }
+  try {
+    const targetResult = await db.execute(sql`SELECT id, role FROM users WHERE id = ${id} LIMIT 1`);
+    const user = (targetResult as any).rows?.[0];
+    if (!user) {
+      return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다.", error: "user_not_found" });
+    }
+    if (user.role === "super_admin") {
+      return res.status(400).json({ success: false, message: "슈퍼관리자 권한은 변경할 수 없습니다.", error: "cannot_modify_super_admin" });
+    }
+
+    const validKeys = ["canViewPools", "canEditPools", "canApprovePools", "canManageSubscriptions", "canManagePlatformAdmins"];
+    const sanitized: Record<string, boolean> = {};
+    for (const key of validKeys) {
+      if (key in permissions) sanitized[key] = Boolean(permissions[key]);
+    }
+
+    const result = await db.execute(sql`
+      UPDATE users
+      SET permissions = permissions || ${JSON.stringify(sanitized)}::jsonb, updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING id, email, name, phone, role, permissions, created_at
+    `);
+    res.json({ success: true, data: (result as any).rows[0] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "서버 오류가 발생했습니다.", error: String(err) });
+  }
+});
+
+// ── 수영장 상세 조회 (플랫폼 관리자, 권한 체크) ─────────────────────
+router.get("/pools/:id/detail", requireAuth, requirePermission("canViewPools"), async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  try {
+    const poolResult = await db.execute(sql`SELECT * FROM swimming_pools WHERE id = ${id} LIMIT 1`);
+    const pool = (poolResult as any).rows[0];
+    if (!pool) return res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다.", error: "pool_not_found" });
+
+    const [stats] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${id} AND status = 'active') AS student_count,
+          (SELECT COUNT(*) FROM users WHERE swimming_pool_id = ${id} AND role = 'teacher') AS teacher_count,
+          (SELECT COUNT(*) FROM class_groups WHERE swimming_pool_id = ${id}) AS class_count
+      `)
+    ]);
+
+    const role = req.user!.role;
+    const perms = req.user!.permissions;
+    const canEdit = role === "super_admin" || perms?.canEditPools === true;
+
+    res.json({ success: true, data: { ...pool, ...((stats as any).rows[0] || {}), canEdit } });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: "서버 오류가 발생했습니다.", error: String(err) });
