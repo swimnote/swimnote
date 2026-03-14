@@ -245,10 +245,12 @@ function DailyMemoPage({
     } catch { Alert.alert("오류", "재생에 실패했습니다."); }
   }
   function deleteAudio() {
-    Alert.alert("음성 메모 삭제", "녹음된 음성 메모를 삭제하시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: () => { setAudioUri(null); setAudioKey(null); setPlaying(false); sound?.unloadAsync(); setSound(null); } },
-    ]);
+    if (sound) { sound.unloadAsync(); setSound(null); }
+    setPlaying(false);
+    setPlayPos(0);
+    setPlayDur(0);
+    setAudioUri(null);
+    setAudioKey(null);
   }
 
   /* ── 음성 업로드 ── */
@@ -683,7 +685,12 @@ function MemoSheet({
                     <Feather name={playing ? "pause" : "play"} size={14} color="#fff" />
                     <Text style={ms.recBtnText}>{playing ? "일시정지" : "재생"}</Text>
                   </Pressable>
-                  <Pressable style={[ms.recBtn, { backgroundColor: "#F3F4F6" }]} onPress={() => { setAudioUri(null); setAudioKey(null); }}>
+                  <Pressable style={[ms.recBtn, { backgroundColor: "#F3F4F6" }]} onPress={() => {
+                    if (sound) { sound.unloadAsync(); setSound(null); }
+                    setPlaying(false);
+                    setAudioUri(null);
+                    setAudioKey(null);
+                  }}>
                     <Feather name="trash-2" size={14} color={C.error} />
                     <Text style={[ms.recBtnText, { color: C.error }]}>삭제</Text>
                   </Pressable>
