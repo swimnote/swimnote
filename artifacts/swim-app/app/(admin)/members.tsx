@@ -14,6 +14,15 @@ interface Member {
   memo?: string | null; class_id?: string | null; class_name?: string | null; created_at: string;
 }
 
+type StatusFilter = "all" | "pending" | "free" | "paid";
+
+const STATUS_FILTERS: Array<{ key: StatusFilter; label: string }> = [
+  { key: "all", label: "전체" },
+  { key: "pending", label: "미승인" },
+  { key: "free", label: "무료 이용" },
+  { key: "paid", label: "유료 이용" },
+];
+
 export default function MembersScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
@@ -25,6 +34,7 @@ export default function MembersScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   async function fetchMembers() {
     try {
@@ -61,10 +71,17 @@ export default function MembersScreen() {
     ]);
   }
 
-  const filtered = members.filter(m => m.name.includes(search) || m.phone.includes(search));
+  const filtered = members.filter(m => 
+    (m.name.includes(search) || m.phone.includes(search)) &&
+    (statusFilter === "all" || 
+     (statusFilter === "pending" && !m.class_id) ||
+     (statusFilter === "free" && m.class_id && m.class_name === "무료") ||
+     (statusFilter === "paid" && m.class_id && m.class_name !== "무료"))
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
+      {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
         <Text style={[styles.title, { color: C.text }]}>회원 관리</Text>
         <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowModal(true)}>
@@ -73,7 +90,8 @@ export default function MembersScreen() {
         </Pressable>
       </View>
 
-      <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.card, marginHorizontal: 20 }]}>
+      {/* 검색 */}
+      <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.card, marginHorizontal: 20, marginBottom: 16 }]}>
         <Feather name="search" size={16} color={C.textMuted} />
         <TextInput
           style={[styles.searchInput, { color: C.text }]}
@@ -84,18 +102,53 @@ export default function MembersScreen() {
         />
       </View>
 
+      {/* 상태 필터 (고정 높이) */}
+      <View style={styles.filterContainer}>
+        <View style={styles.filterRow}>
+          {STATUS_FILTERS.map(({ key, label }) => {
+            const isActive = statusFilter === key;
+            return (
+              <Pressable
+                key={key}
+                style={[
+                  styles.filterCard,
+                  {
+                    backgroundColor: isActive ? C.tint : C.card,
+                    borderColor: isActive ? C.tint : C.border,
+                  },
+                ]}
+                onPress={() => setStatusFilter(key)}
+              >
+                <Text
+                  style={[
+                    styles.filterCardText,
+                    { color: isActive ? "#fff" : C.text },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 목록 (FlatList - 남은 영역만 차지) */}
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={C.tint} size="large" />
+        </View>
       ) : (
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10, flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
+          scrollEnabled={true}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Feather name="users" size={40} color={C.textMuted} />
-              <Text style={[styles.emptyText, { color: C.textMuted }]}>등록된 회원이 없습니다</Text>
+            <View style={styles.emptyContainer}>
+              <Feather name="users" size={48} color={C.textMuted} />
+              <Text style={[styles.emptyText, { color: C.textMuted }]}>해당하는 회원이 없습니다</Text>
             </View>
           }
           renderItem={({ item }) => (
@@ -127,6 +180,7 @@ export default function MembersScreen() {
         />
       )}
 
+      {/* 모달 */}
       <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={[styles.modalSheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
@@ -179,6 +233,18 @@ const styles = StyleSheet.create({
   addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginBottom: 4 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  
+  // 상태 필터 (고정 높이)
+  filterContainer: { height: 170, paddingHorizontal: 20, paddingVertical: 12, justifyContent: "center" },
+  filterRow: { flexDirection: "row", gap: 12, justifyContent: "space-between" },
+  filterCard: { width: 150, height: 150, borderRadius: 16, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  filterCardText: { fontSize: 15, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  
+  // 목록 (FlatList)
+  loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
+  emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 12 },
+  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
+  
   card: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, gap: 12, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
   avatar: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 20, fontFamily: "Inter_700Bold" },
@@ -190,8 +256,7 @@ const styles = StyleSheet.create({
   deleteBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   diaryBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 4 },
   diaryBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
+  
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14 },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 8 },
