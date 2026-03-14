@@ -1,18 +1,33 @@
 import { Feather } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { router, Tabs } from "expo-router";
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, Pressable } from "react-native";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
+import { useAuth } from "@/context/AuthContext";
 
 export default function TeacherLayout() {
   const { themeColor } = useBrand();
+  const { logout } = useAuth();
   const C = Colors.light;
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/");
+  };
+
   return (
     <Tabs screenOptions={{
       tabBarActiveTintColor: themeColor,
       tabBarInactiveTintColor: C.tabIconDefault,
-      headerShown: false,
+      headerShown: true,
+      headerStyle: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
+      headerTitleStyle: { fontFamily: "Inter_600SemiBold", fontSize: 16, color: C.text },
+      headerRight: () => (
+        <Pressable onPress={handleLogout} style={{ marginRight: 16, padding: 8 }}>
+          <Feather name="log-out" size={20} color={C.text} />
+        </Pressable>
+      ),
       tabBarStyle: {
         backgroundColor: "#fff",
         borderTopWidth: 1,
@@ -22,11 +37,11 @@ export default function TeacherLayout() {
       },
       tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 10 },
     }}>
-      <Tabs.Screen name="my-schedule"    options={{ title: "내반",      tabBarIcon: ({ color }) => <Feather name="layers"       size={22} color={color} /> }} />
-      <Tabs.Screen name="today-schedule" options={{ title: "오늘 스케쥴", tabBarIcon: ({ color }) => <Feather name="calendar"     size={22} color={color} /> }} />
-      <Tabs.Screen name="attendance"     options={{ title: "출결",      tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }} />
-      <Tabs.Screen name="diary"          options={{ title: "수영일지",  tabBarIcon: ({ color }) => <Feather name="book"         size={22} color={color} /> }} />
-      <Tabs.Screen name="photos"         options={{ title: "사진·영상", tabBarIcon: ({ color }) => <Feather name="camera"       size={22} color={color} /> }} />
+      <Tabs.Screen name="my-schedule"    options={{ title: "내반",      headerTitle: "내반",      tabBarIcon: ({ color }) => <Feather name="layers"       size={22} color={color} /> }} />
+      <Tabs.Screen name="today-schedule" options={{ title: "오늘 스케쥴", headerTitle: "오늘 스케쥴", tabBarIcon: ({ color }) => <Feather name="calendar"     size={22} color={color} /> }} />
+      <Tabs.Screen name="attendance"     options={{ title: "출결",      headerTitle: "출결",      tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }} />
+      <Tabs.Screen name="diary"          options={{ title: "수영일지",  headerTitle: "수영일지",  tabBarIcon: ({ color }) => <Feather name="book"         size={22} color={color} /> }} />
+      <Tabs.Screen name="photos"         options={{ title: "사진·영상", headerTitle: "사진·영상", tabBarIcon: ({ color }) => <Feather name="camera"       size={22} color={color} /> }} />
     </Tabs>
   );
 }
