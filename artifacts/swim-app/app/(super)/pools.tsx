@@ -33,6 +33,8 @@ interface Pool {
   member_count: number;
   subscription_tier: SubscriptionTier;
   created_at: string;
+  business_license_status?: string;
+  bank_account_verification_status?: string;
 }
 
 // ── 구독 단계별 색상 ─────────────────────────────────────────────────
@@ -53,6 +55,20 @@ const STATUS_FILTER = [
   { key: "paid",     label: "유료 이용" },
   { key: "rejected", label: "반려" },
 ];
+
+function DocStatus({ label, status }: { label: string; status?: string }) {
+  const isOK = status === "uploaded" || status === "verified";
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: isOK ? "#D1FAE5" : "#FEE2E2", alignItems: "center", justifyContent: "center" }}>
+        <Feather name={isOK ? "check" : "alert-circle"} size={12} color={isOK ? "#059669" : "#DC2626"} />
+      </View>
+      <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: isOK ? "#059669" : "#DC2626" }}>
+        {label}: {status || "notUploaded"} {status === "verified" ? "✓" : ""}
+      </Text>
+    </View>
+  );
+}
 
 type SortMode = "ko" | "en";
 
@@ -129,6 +145,13 @@ export default function SuperPoolsScreen() {
   }, [pools]);
 
   async function handleApprove(pool: Pool) {
+    // 필수 서류 확인
+    const businessOK = pool.business_license_status === "uploaded" || pool.business_license_status === "verified";
+    const bankOK = pool.bank_account_verification_status === "uploaded" || pool.bank_account_verification_status === "verified";
+    if (!businessOK || !bankOK) {
+      Alert.alert("승인 불가", "필수 서류(사업자등록증, 자동이체 계좌인증)가 모두 업로드되어야 승인할 수 있습니다.");
+      return;
+    }
     Alert.alert("승인 확인", `${pool.name}을 승인하시겠습니까?\n승인 후 무료 이용(~50명)으로 시작됩니다.`, [
       { text: "취소", style: "cancel" },
       { text: "승인", onPress: async () => {
@@ -198,6 +221,14 @@ export default function SuperPoolsScreen() {
             </View>
           )}
         </View>
+
+        {/* 미승인 - 필수 서류 상태 */}
+        {isPending && (
+          <View style={{ gap: 8, marginBottom: 8 }}>
+            <DocStatus label="사업자등록증" status={item.business_license_status} />
+            <DocStatus label="자동이체 계좌인증" status={item.bank_account_verification_status} />
+          </View>
+        )}
 
         {/* 미승인 → 승인/반려 버튼 */}
         {isPending && (

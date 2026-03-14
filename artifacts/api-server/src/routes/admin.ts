@@ -43,24 +43,41 @@ router.get("/pools", requireAuth, requirePermission("canViewPools"), async (req:
 router.patch("/pools/:id/approve", requireAuth, requirePermission("canApprovePools"), async (req: AuthRequest, res) => {
   const { id } = req.params;
   try {
-    const [pool] = await db.update(swimmingPoolsTable)
+    // 필수 서류 상태 확인
+    const [pool] = await db.select().from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, id)).limit(1);
+    if (!pool) return res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다.", error: "pool not found" });
+
+    const businessLicenseOK = (pool as any).business_license_status === "uploaded" || (pool as any).business_license_status === "verified";
+    const bankAccountOK = (pool as any).bank_account_verification_status === "uploaded" || (pool as any).bank_account_verification_status === "verified";
+    
+    if (!businessLicenseOK || !bankAccountOK) {
+      return res.status(400).json({
+        success: false,
+        message: "필수 서류가 모두 업로드되어야 승인할 수 있습니다.",
+        error: "required_documents_missing",
+        document_status: {
+          business_license: (pool as any).business_license_status,
+          bank_account_verification: (pool as any).bank_account_verification_status,
+        },
+      });
+    }
+
+    // 승인 처리
+    const [updated] = await db.update(swimmingPoolsTable)
       .set({ approval_status: "approved", subscription_status: "trial", updated_at: new Date() })
       .where(eq(swimmingPoolsTable.id, id))
       .returning();
-    if (!pool) return res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다.", error: "pool not found" });
 
-    // 관리자 계정 활성화: 이미 로그인했던 사용자의 수영장이 승인됨
-    // (pool-apply.tsx에서 사용자가 먼저 가입 후 신청하므로 users 테이블에 이미 존재함)
-    const adminEmail = (pool as any).admin_email || pool.owner_email;
+    // 관리자 계정 활성화
+    const adminEmail = (updated as any).admin_email || updated.owner_email;
     const [existingAdmin] = await db.select().from(usersTable)
       .where(eq(usersTable.email, adminEmail)).limit(1);
     
     if (existingAdmin && existingAdmin.swimming_pool_id === id) {
-      // 이미 pool에 연결된 관리자 - 별도 처리 불필요
       console.log(`[INFO] 관리자 계정 활성화: ${adminEmail} (pool: ${id})`);
     }
 
-    res.json({ success: true, data: pool });
+    res.json({ success: true, data: updated });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: "서버 오류가 발생했습니다.", error: String(err) });
