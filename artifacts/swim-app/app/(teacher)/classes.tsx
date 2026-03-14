@@ -39,7 +39,12 @@ export default function TeacherClassesScreen() {
     })();
   }, []);
 
-  const filtered = selected ? students.filter(s => s.class_group_id === selected) : [];
+  const filtered = selected
+    ? students.filter(s =>
+        (Array.isArray((s as any).assigned_class_ids) && (s as any).assigned_class_ids.includes(selected))
+        || s.class_group_id === selected
+      )
+    : [];
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>

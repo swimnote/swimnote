@@ -61,11 +61,40 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId && req.user!.role !== "super_admin") return err(res, 403, "소속된 수영장이 없습니다.");
 
-    const students = await db.select().from(studentsTable)
-      .where(and(
-        eq(studentsTable.swimming_pool_id, poolId!),
-        sql`status != 'withdrawn'`
-      ));
+    let students: any[];
+
+    if (req.user!.role === "teacher") {
+      // teacher: 본인이 담당하는 반에 배정된 학생만 반환
+      const teacherClasses = await db.select({ id: classGroupsTable.id })
+        .from(classGroupsTable)
+        .where(and(
+          eq(classGroupsTable.swimming_pool_id, poolId!),
+          eq(classGroupsTable.teacher_user_id, req.user!.userId)
+        ));
+      const classIds = teacherClasses.map(c => c.id);
+      if (classIds.length === 0) {
+        return res.json([]);
+      }
+      const classIdsLiteral = classIds.map(id => `'${id}'`).join(",");
+      students = await db.select().from(studentsTable)
+        .where(and(
+          eq(studentsTable.swimming_pool_id, poolId!),
+          sql`status != 'withdrawn'`,
+          sql`(
+            class_group_id = ANY(ARRAY[${sql.raw(classIdsLiteral)}])
+            OR EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(COALESCE(assigned_class_ids, '[]'::jsonb)) AS cid
+              WHERE cid = ANY(ARRAY[${sql.raw(classIdsLiteral)}])
+            )
+          )`
+        ));
+    } else {
+      students = await db.select().from(studentsTable)
+        .where(and(
+          eq(studentsTable.swimming_pool_id, poolId!),
+          sql`status != 'withdrawn'`
+        ));
+    }
 
     const enriched = await Promise.all(students.map(async (s) => {
       let class_group_name: string | null = null;

@@ -22,11 +22,12 @@ export default function TeacherLayout() {
       },
       tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 10 },
     }}>
-      <Tabs.Screen name="my-schedule" options={{ title: "내 스케줄", tabBarIcon: ({ color }) => <Feather name="calendar"     size={22} color={color} /> }} />
-      <Tabs.Screen name="classes"     options={{ title: "내 반",     tabBarIcon: ({ color }) => <Feather name="layers"       size={22} color={color} /> }} />
-      <Tabs.Screen name="attendance" options={{ title: "출결",     tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }} />
-      <Tabs.Screen name="diary"      options={{ title: "수영일지", tabBarIcon: ({ color }) => <Feather name="book"         size={22} color={color} /> }} />
-      <Tabs.Screen name="photos"     options={{ title: "사진",     tabBarIcon: ({ color }) => <Feather name="camera"       size={22} color={color} /> }} />
+      <Tabs.Screen name="my-schedule" options={{ title: "내반",     tabBarIcon: ({ color }) => <Feather name="layers"       size={22} color={color} /> }} />
+      <Tabs.Screen name="attendance"  options={{ title: "출결",     tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }} />
+      <Tabs.Screen name="diary"       options={{ title: "수영일지", tabBarIcon: ({ color }) => <Feather name="book"         size={22} color={color} /> }} />
+      <Tabs.Screen name="photos"      options={{ title: "사진·영상", tabBarIcon: ({ color }) => <Feather name="camera"       size={22} color={color} /> }} />
+      {/* 숨김 화면 */}
+      <Tabs.Screen name="classes"     options={{ href: null }} />
     </Tabs>
   );
 }
