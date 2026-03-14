@@ -12,7 +12,7 @@ export interface AuthRequest extends Request {
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
-    res.status(401).json({ error: "인증이 필요합니다." });
+    res.status(401).json({ success: false, message: "인증이 필요합니다.", error: "인증이 필요합니다." });
     return;
   }
   const token = authHeader.slice(7);
@@ -21,18 +21,18 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     req.user = payload;
     next();
   } catch {
-    res.status(401).json({ error: "유효하지 않은 토큰입니다." });
+    res.status(401).json({ success: false, message: "유효하지 않은 토큰입니다.", error: "유효하지 않은 토큰입니다." });
   }
 }
 
 export function requireRole(...roles: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
-      res.status(401).json({ error: "인증이 필요합니다." });
+      res.status(401).json({ success: false, message: "인증이 필요합니다.", error: "인증이 필요합니다." });
       return;
     }
     if (!roles.includes(req.user.role)) {
-      res.status(403).json({ error: "권한이 없습니다." });
+      res.status(403).json({ success: false, message: "권한이 없습니다.", error: "권한이 없습니다." });
       return;
     }
     next();
