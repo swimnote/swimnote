@@ -11,12 +11,14 @@ import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Image, Pressable,
-  ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Dimensions, Image, Modal,
+  Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+
+const { width: W, height: H } = Dimensions.get("window");
 
 type AlbumType = "group" | "private";
 
@@ -44,6 +46,9 @@ export default function TeacherPhotosScreen() {
   const [loading, setLoading]       = useState(true);
   const [photosLoading, setPhotosLoading] = useState(false);
   const [uploading, setUploading]   = useState(false);
+  const [lightbox, setLightbox]     = useState<{ photo: Photo; index: number } | null>(null);
+  const [deleting, setDeleting]     = useState(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     (async () => {
@@ -164,7 +169,38 @@ export default function TeacherPhotosScreen() {
     albumType === "group" ? !!selClass :
     albumType === "private" ? !!selClass && !!selStudent : false;
 
+  // 라이트박스: 이전/다음 이동
+  function lbNav(dir: 1 | -1) {
+    if (!lightbox) return;
+    const next = lightbox.index + dir;
+    if (next < 0 || next >= photos.length) return;
+    setLightbox({ photo: photos[next], index: next });
+  }
+
+  // 사진 삭제 (자신이 올린 것만)
+  async function deletePhoto(photoId: string) {
+    Alert.alert("삭제 확인", "이 사진을 삭제하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제", style: "destructive",
+        onPress: async () => {
+          setDeleting(true);
+          try {
+            const r = await apiRequest(token, `/photos/${photoId}`, { method: "DELETE" });
+            if (!r.ok) throw new Error("삭제 실패");
+            setLightbox(null);
+            // 목록에서 제거
+            setPhotos(prev => prev.filter(p => p.id !== photoId));
+          } catch { Alert.alert("오류", "삭제 중 오류가 발생했습니다."); }
+          finally { setDeleting(false); }
+        },
+      },
+    ]);
+  }
+
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={themeColor} />;
+
+  const accentColor = albumType === "group" ? GROUP_COLOR : TINT;
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -207,18 +243,12 @@ export default function TeacherPhotosScreen() {
           <View style={s.section}>
             <Text style={s.stepLabel}>2단계 — 반 선택</Text>
             <View style={s.chipRow}>
-              {classes.length === 0 && (
-                <Text style={s.emptyNote}>담당 반이 없습니다</Text>
-              )}
+              {classes.length === 0 && <Text style={s.emptyNote}>담당 반이 없습니다</Text>}
               {classes.map(cls => {
                 const active = selClass?.id === cls.id;
-                const color = albumType === "group" ? GROUP_COLOR : TINT;
                 return (
-                  <Pressable
-                    key={cls.id}
-                    onPress={() => selectClass(cls)}
-                    style={[s.chip, active && { backgroundColor: color, borderColor: color }]}
-                  >
+                  <Pressable key={cls.id} onPress={() => selectClass(cls)}
+                    style={[s.chip, active && { backgroundColor: accentColor, borderColor: accentColor }]}>
                     <Text style={[s.chipText, active && { color: "#fff" }]}>{cls.name}</Text>
                   </Pressable>
                 );
@@ -238,11 +268,8 @@ export default function TeacherPhotosScreen() {
                 {classStudents.map(st => {
                   const active = selStudent?.id === st.id;
                   return (
-                    <Pressable
-                      key={st.id}
-                      onPress={() => setSelStudent(st)}
-                      style={[s.chip, active && { backgroundColor: TINT, borderColor: TINT }]}
-                    >
+                    <Pressable key={st.id} onPress={() => setSelStudent(st)}
+                      style={[s.chip, active && { backgroundColor: TINT, borderColor: TINT }]}>
                       <Text style={[s.chipText, active && { color: "#fff" }]}>{st.name}</Text>
                     </Pressable>
                   );
@@ -254,29 +281,25 @@ export default function TeacherPhotosScreen() {
 
         {/* 업로드 버튼 */}
         {canUpload && (
-          <Pressable
-            onPress={pickAndUpload}
-            disabled={uploading}
-            style={[s.uploadBtn, { backgroundColor: albumType === "group" ? GROUP_COLOR : TINT, opacity: uploading ? 0.7 : 1 }]}
-          >
-            {uploading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Feather name="upload-cloud" size={20} color="#fff" />
-                <Text style={s.uploadBtnText}>
-                  {albumType === "group"
-                    ? `${selClass!.name} 사진 업로드`
-                    : `${selStudent!.name} 개인 사진 업로드`}
-                </Text>
-              </>
-            )}
+          <Pressable onPress={pickAndUpload} disabled={uploading}
+            style={[s.uploadBtn, { backgroundColor: accentColor, opacity: uploading ? 0.7 : 1 }]}>
+            {uploading
+              ? <ActivityIndicator color="#fff" />
+              : <>
+                  <Feather name="upload-cloud" size={20} color="#fff" />
+                  <Text style={s.uploadBtnText}>
+                    {albumType === "group"
+                      ? `${selClass!.name} 사진 업로드`
+                      : `${selStudent!.name} 개인 사진 업로드`}
+                  </Text>
+                </>
+            }
           </Pressable>
         )}
 
-        {/* 사진 그리드 */}
+        {/* 사진 그리드 — 탭하면 라이트박스 */}
         {canUpload && (
-          <View>
+          <View style={s.section}>
             <Text style={s.stepLabel}>
               {albumType === "group"
                 ? `${selClass!.name} 앨범 (${photos.length}장)`
@@ -287,17 +310,30 @@ export default function TeacherPhotosScreen() {
             ) : photos.length === 0 ? (
               <View style={s.emptyBox}>
                 <Feather name="image" size={40} color="#D1D5DB" />
-                <Text style={s.emptyNote}>사진이 없습니다</Text>
+                <Text style={s.emptyNote}>사진이 없습니다{"\n"}업로드 버튼을 눌러 추가하세요</Text>
               </View>
             ) : (
               <View style={s.grid}>
-                {photos.map(item => (
-                  <Image
+                {photos.map((item, idx) => (
+                  <Pressable
                     key={item.id}
-                    source={{ uri: photoUri(item), headers: { Authorization: `Bearer ${token}` } }}
-                    style={s.gridPhoto}
-                    resizeMode="cover"
-                  />
+                    onPress={() => setLightbox({ photo: item, index: idx })}
+                    style={s.gridCell}
+                  >
+                    <Image
+                      source={{ uri: photoUri(item), headers: { Authorization: `Bearer ${token}` } }}
+                      style={s.gridPhoto}
+                      resizeMode="cover"
+                    />
+                    {/* 날짜 오버레이 */}
+                    {item.created_at && (
+                      <View style={s.dateOverlay}>
+                        <Text style={s.dateText}>
+                          {new Date(item.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
+                        </Text>
+                      </View>
+                    )}
+                  </Pressable>
                 ))}
               </View>
             )}
@@ -305,9 +341,88 @@ export default function TeacherPhotosScreen() {
         )}
 
       </ScrollView>
+
+      {/* ── 라이트박스 모달 ── */}
+      <Modal
+        visible={!!lightbox}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setLightbox(null)}
+      >
+        <View style={s.lb}>
+          {/* 상단 바 */}
+          <View style={[s.lbTop, { paddingTop: insets.top + (Platform.OS === "web" ? 12 : 8) }]}>
+            <Pressable onPress={() => setLightbox(null)} style={s.lbIconBtn}>
+              <Feather name="x" size={24} color="#fff" />
+            </Pressable>
+
+            <Text style={s.lbCounter}>
+              {lightbox ? `${lightbox.index + 1} / ${photos.length}` : ""}
+            </Text>
+
+            <Pressable
+              onPress={() => lightbox && deletePhoto(lightbox.photo.id)}
+              disabled={deleting}
+              style={[s.lbIconBtn, { opacity: deleting ? 0.5 : 1 }]}
+            >
+              {deleting
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Feather name="trash-2" size={20} color="#FF6B6B" />
+              }
+            </Pressable>
+          </View>
+
+          {/* 사진 */}
+          {lightbox && (
+            <Image
+              source={{ uri: photoUri(lightbox.photo), headers: { Authorization: `Bearer ${token}` } }}
+              style={s.lbImage}
+              resizeMode="contain"
+            />
+          )}
+
+          {/* 캡션 */}
+          {lightbox?.photo.caption ? (
+            <Text style={s.lbCaption}>{lightbox.photo.caption}</Text>
+          ) : null}
+
+          {/* 날짜 */}
+          {lightbox?.photo.created_at ? (
+            <Text style={s.lbDate}>
+              {new Date(lightbox.photo.created_at).toLocaleDateString("ko-KR", {
+                year: "numeric", month: "long", day: "numeric",
+              })}
+            </Text>
+          ) : null}
+
+          {/* 이전 / 다음 */}
+          <View style={[s.lbNavRow, { paddingBottom: insets.bottom + 16 }]}>
+            <Pressable
+              onPress={() => lbNav(-1)}
+              disabled={!lightbox || lightbox.index === 0}
+              style={[s.lbNavBtn, (!lightbox || lightbox.index === 0) && { opacity: 0.3 }]}
+            >
+              <Feather name="chevron-left" size={22} color="#fff" />
+              <Text style={s.lbNavText}>이전</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => lbNav(1)}
+              disabled={!lightbox || lightbox.index === photos.length - 1}
+              style={[s.lbNavBtn, (!lightbox || lightbox.index === photos.length - 1) && { opacity: 0.3 }]}
+            >
+              <Text style={s.lbNavText}>다음</Text>
+              <Feather name="chevron-right" size={22} color="#fff" />
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const CELL = (W - 32 - 6) / 3;   // 3열, 양쪽 padding 16, gap 3
 
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: "#F8FAFF" },
@@ -325,19 +440,41 @@ const s = StyleSheet.create({
   typeBtnTitle: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827", textAlign: "center" },
   typeBtnSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center", lineHeight: 17 },
 
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip:    { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+  chipRow:  { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip:     { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
   chipText: { fontSize: 14, fontFamily: "Inter_500Medium", color: "#374151" },
 
-  uploadBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 10, paddingVertical: 16, borderRadius: 14,
-  },
+  uploadBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 16, borderRadius: 14 },
   uploadBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
 
   emptyBox:  { alignItems: "center", gap: 10, paddingVertical: 32 },
-  emptyNote: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center" },
+  emptyNote: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center", lineHeight: 19 },
 
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 3 },
-  gridPhoto: { width: "32.5%", aspectRatio: 1, borderRadius: 6 },
+  grid:     { flexDirection: "row", flexWrap: "wrap", gap: 3 },
+  gridCell: { width: CELL, height: CELL, borderRadius: 6, overflow: "hidden", backgroundColor: "#E5E7EB" },
+  gridPhoto: { width: "100%", height: "100%" },
+  dateOverlay: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "rgba(0,0,0,0.38)", paddingVertical: 3, paddingHorizontal: 5,
+  },
+  dateText: { color: "#fff", fontSize: 10, fontFamily: "Inter_400Regular" },
+
+  // ── 라이트박스 ──
+  lb: { flex: 1, backgroundColor: "rgba(0,0,0,0.97)", justifyContent: "center" },
+
+  lbTop: {
+    position: "absolute", top: 0, left: 0, right: 0, zIndex: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingBottom: 10,
+  },
+  lbIconBtn:  { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  lbCounter:  { color: "rgba(255,255,255,0.7)", fontSize: 14, fontFamily: "Inter_500Medium" },
+
+  lbImage:   { width: "100%", height: "62%" },
+  lbCaption: { color: "#fff", fontSize: 14, textAlign: "center", paddingHorizontal: 24, paddingTop: 14, fontFamily: "Inter_400Regular" },
+  lbDate:    { color: "rgba(255,255,255,0.45)", fontSize: 12, textAlign: "center", marginTop: 6, fontFamily: "Inter_400Regular" },
+
+  lbNavRow:  { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 24, marginTop: 20 },
+  lbNavBtn:  { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 16 },
+  lbNavText: { color: "#fff", fontSize: 14, fontFamily: "Inter_500Medium" },
 });
