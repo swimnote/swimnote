@@ -71,7 +71,7 @@ function RootNav() {
     if (kind === "admin") {
       const role = adminUser?.role;
       if (role === "super_admin") { router.replace("/(super)/pools"); return; }
-      if (role === "teacher") { router.replace("/(teacher)/classes"); return; }
+      if (role === "teacher") { router.replace("/(teacher)/today-schedule"); return; }
       if (role === "pool_admin") {
         if (!adminUser?.swimming_pool_id) { router.replace("/pool-apply"); return; }
         if (pool) {
