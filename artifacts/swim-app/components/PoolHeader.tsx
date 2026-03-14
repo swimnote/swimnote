@@ -4,10 +4,10 @@
  *
  * 표시 형태 (수영장 로그인 시):
  *   [로고/이모지]  토이키즈스윔클럽 화정점
- *                  Powered by SwimClass
+ *                  Powered by 스윔노트
  *
  * 표시 형태 (미로그인 / 슈퍼관리자):
- *   [S]  SwimClass
+ *   [S]  스윔노트
  */
 import React from "react";
 import {

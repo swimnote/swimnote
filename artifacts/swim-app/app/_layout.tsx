@@ -18,7 +18,7 @@ const queryClient = new QueryClient();
  * 로그인 상태가 바뀔 때마다 BrandContext를 동기화한다.
  * - 수영장 관리자: pool 정보의 theme_color, logo_url, logo_emoji, name 적용
  * - 학부모: pool_name만 적용
- * - 슈퍼관리자: SwimClass 기본값 유지
+ * - 슈퍼관리자: 스윔노트 기본값 유지
  * - 로그아웃: 브랜드 초기화
  */
 function BrandSync() {

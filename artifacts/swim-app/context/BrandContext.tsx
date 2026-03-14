@@ -3,15 +3,15 @@
  * 수영장 브랜딩 컨텍스트
  *
  * 로그인 후 수영장별 테마 색상·로고·표시명을 앱 전체에 제공한다.
- * 앱스토어 이름: "SwimClass" (고정)
- * 앱 내 표시:    "수영장명" + "Powered by SwimClass"
+ * 앱스토어 이름: "스윔노트" (고정)
+ * 앱 내 표시:    "수영장명" + "Powered by 스윔노트"
  */
 import React, {
   createContext, useContext, useState, useEffect, useCallback, ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export const APP_PLATFORM_NAME = "SwimClass";
+export const APP_PLATFORM_NAME = "스윔노트";
 export const DEFAULT_THEME_COLOR = "#1A5CFF";
 export const SUPER_ADMIN_COLOR   = "#7C3AED";
 
@@ -26,7 +26,7 @@ export interface BrandState {
   logoEmoji: string | null;
   /** 헤더 표시 문자열: "수영장명" */
   headerTitle: string;
-  /** 풀 서브타이틀: "Powered by SwimClass" */
+  /** 풀 서브타이틀: "Powered by 스윔노트" */
   headerSubtitle: string;
 }
 

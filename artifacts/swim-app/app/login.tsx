@@ -60,7 +60,7 @@ export default function LoginScreen() {
           <View style={[styles.logoBox, { backgroundColor: C.tint }]}>
             <Feather name="droplet" size={32} color="#fff" />
           </View>
-          <Text style={[styles.appName, { color: C.text }]}>SwimClass</Text>
+          <Text style={[styles.appName, { color: C.text }]}>스윔노트</Text>
           <Text style={[styles.appSub, { color: C.textSecondary }]}>수영장 통합 관리 플랫폼</Text>
         </View>
 

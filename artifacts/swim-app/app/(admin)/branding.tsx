@@ -16,7 +16,7 @@ import { useBrand, APP_PLATFORM_NAME, DEFAULT_THEME_COLOR } from "@/context/Bran
 
 // ── 프리셋 색상 팔레트 ────────────────────────────────────────────────
 const PALETTE = [
-  { label: "SwimClass 기본", color: "#1A5CFF" },
+  { label: "스윔노트 기본", color: "#1A5CFF" },
   { label: "인디고",         color: "#4F46E5" },
   { label: "퍼플",           color: "#7C3AED" },
   { label: "핑크",           color: "#EC4899" },
@@ -106,7 +106,7 @@ export default function BrandingScreen() {
   }, [token, selectedColor, selectedEmoji, logoUrl, setBrand, refreshPool]);
 
   const handleReset = () => {
-    Alert.alert("기본값으로 초기화", "SwimClass 기본 색상으로 되돌리시겠습니까?", [
+    Alert.alert("기본값으로 초기화", "스윔노트 기본 색상으로 되돌리시겠습니까?", [
       { text: "취소", style: "cancel" },
       {
         text: "초기화",
@@ -169,7 +169,7 @@ export default function BrandingScreen() {
             </View>
           </View>
           <Text style={styles.previewNote}>
-            앱스토어·구글플레이 표시명: <Text style={{ fontFamily: "Inter_700Bold" }}>SwimClass</Text>
+            앱스토어·구글플레이 표시명: <Text style={{ fontFamily: "Inter_700Bold" }}>스윔노트</Text>
           </Text>
         </Section>
 
@@ -272,8 +272,8 @@ export default function BrandingScreen() {
           <View style={styles.infoBox}>
             <Feather name="info" size={16} color="#4F46E5" style={{ marginTop: 2 }} />
             <Text style={styles.infoText}>
-              앱스토어·구글플레이에서 다운로드되는 앱 아이콘은 항상 SwimClass 기본 아이콘으로 표시됩니다.{"\n\n"}
-              수영장별 아이콘 변경은 별도의 화이트라벨 빌드가 필요하며, 엔터프라이즈 플랜에서 지원됩니다. 문의: support@swimclass.kr
+              앱스토어·구글플레이에서 다운로드되는 앱 아이콘은 항상 스윔노트 기본 아이콘으로 표시됩니다.{"\n\n"}
+              수영장별 아이콘 변경은 별도의 화이트라벨 빌드가 필요하며, 엔터프라이즈 플랜에서 지원됩니다. 문의: support@swimnote.kr
             </Text>
           </View>
         </Section>
