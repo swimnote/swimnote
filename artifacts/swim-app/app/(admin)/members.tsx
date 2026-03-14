@@ -79,9 +79,10 @@ export default function MembersScreen() {
      (statusFilter === "paid" && m.class_id && m.class_name !== "무료"))
   );
 
-  return (
-    <View style={{ flex: 1, backgroundColor: C.background }}>
-      {/* 헤더 */}
+  // 헤더 컴포넌트 (고정)
+  const renderHeader = () => (
+    <View>
+      {/* 제목 */}
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
         <Text style={[styles.title, { color: C.text }]}>회원 관리</Text>
         <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowModal(true)}>
@@ -91,7 +92,7 @@ export default function MembersScreen() {
       </View>
 
       {/* 검색 */}
-      <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.card, marginHorizontal: 20, marginBottom: 16 }]}>
+      <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.card }]}>
         <Feather name="search" size={16} color={C.textMuted} />
         <TextInput
           style={[styles.searchInput, { color: C.text }]}
@@ -102,8 +103,8 @@ export default function MembersScreen() {
         />
       </View>
 
-      {/* 상태 필터 (고정 높이) */}
-      <View style={styles.filterContainer}>
+      {/* 상태 필터 (절대 고정 높이) */}
+      <View style={styles.filterSpacer}>
         <View style={styles.filterRow}>
           {STATUS_FILTERS.map(({ key, label }) => {
             const isActive = statusFilter === key;
@@ -124,6 +125,7 @@ export default function MembersScreen() {
                     styles.filterCardText,
                     { color: isActive ? "#fff" : C.text },
                   ]}
+                  numberOfLines={2}
                 >
                   {label}
                 </Text>
@@ -132,53 +134,66 @@ export default function MembersScreen() {
           })}
         </View>
       </View>
+    </View>
+  );
 
-      {/* 목록 (FlatList - 남은 영역만 차지) */}
-      {loading ? (
+  // 빈 상태 렌더
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Feather name="users" size={48} color={C.textMuted} />
+      <Text style={[styles.emptyText, { color: C.textMuted }]}>해당하는 회원이 없습니다</Text>
+    </View>
+  );
+
+  // 로딩 중
+  if (loading) {
+    return (
+      <View style={[styles.root, { backgroundColor: C.background }]}>
+        {renderHeader()}
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={C.tint} size="large" />
         </View>
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10, flexGrow: 1 }}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={true}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Feather name="users" size={48} color={C.textMuted} />
-              <Text style={[styles.emptyText, { color: C.textMuted }]}>해당하는 회원이 없습니다</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.root, { backgroundColor: C.background }]}>
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10 }}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={true}
+        renderItem={({ item }) => (
+          <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
+            <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
+              <Text style={[styles.avatarText, { color: C.tint }]}>{item.name[0]}</Text>
             </View>
-          }
-          renderItem={({ item }) => (
-            <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
-              <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
-                <Text style={[styles.avatarText, { color: C.tint }]}>{item.name[0]}</Text>
-              </View>
-              <View style={styles.cardInfo}>
-                <Text style={[styles.memberName, { color: C.text }]}>{item.name}</Text>
-                <Text style={[styles.memberPhone, { color: C.textSecondary }]}>{item.phone}</Text>
-                {item.class_name ? (
-                  <View style={[styles.classBadge, { backgroundColor: C.tintLight }]}>
-                    <Text style={[styles.classBadgeText, { color: C.tint }]}>{item.class_name}</Text>
-                  </View>
-                ) : null}
-                <Pressable
-                  style={[styles.diaryBtn, { backgroundColor: "#059669" + "1A" }]}
-                  onPress={() => router.push({ pathname: "/(admin)/diary-write", params: { studentId: item.id, studentName: item.name } } as any)}
-                >
-                  <Feather name="book-open" size={12} color="#059669" />
-                  <Text style={[styles.diaryBtnText, { color: "#059669" }]}>수영 일지 작성</Text>
-                </Pressable>
-              </View>
-              <Pressable onPress={() => handleDelete(item.id, item.name)} style={styles.deleteBtn}>
-                <Feather name="trash-2" size={18} color={C.error} />
+            <View style={styles.cardInfo}>
+              <Text style={[styles.memberName, { color: C.text }]}>{item.name}</Text>
+              <Text style={[styles.memberPhone, { color: C.textSecondary }]}>{item.phone}</Text>
+              {item.class_name ? (
+                <View style={[styles.classBadge, { backgroundColor: C.tintLight }]}>
+                  <Text style={[styles.classBadgeText, { color: C.tint }]}>{item.class_name}</Text>
+                </View>
+              ) : null}
+              <Pressable
+                style={[styles.diaryBtn, { backgroundColor: "#059669" + "1A" }]}
+                onPress={() => router.push({ pathname: "/(admin)/diary-write", params: { studentId: item.id, studentName: item.name } } as any)}
+              >
+                <Feather name="book-open" size={12} color="#059669" />
+                <Text style={[styles.diaryBtnText, { color: "#059669" }]}>수영 일지 작성</Text>
               </Pressable>
             </View>
-          )}
-        />
-      )}
+            <Pressable onPress={() => handleDelete(item.id, item.name)} style={styles.deleteBtn}>
+              <Feather name="trash-2" size={18} color={C.error} />
+            </Pressable>
+          </View>
+        )}
+      />
 
       {/* 모달 */}
       <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
@@ -227,22 +242,24 @@ export default function MembersScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
+  root: { flex: 1 },
+  
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16 },
   title: { fontSize: 24, fontFamily: "Inter_700Bold" },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
   addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginBottom: 4 },
+  
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 20, marginBottom: 16 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
   
-  // 상태 필터 (고정 높이)
-  filterContainer: { height: 170, paddingHorizontal: 20, paddingVertical: 12, justifyContent: "center" },
-  filterRow: { flexDirection: "row", gap: 12, justifyContent: "space-between" },
-  filterCard: { width: 150, height: 150, borderRadius: 16, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  filterCardText: { fontSize: 15, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  // 상태 필터 (절대 고정 영역)
+  filterSpacer: { height: 190, paddingHorizontal: 20, paddingVertical: 12, justifyContent: "center" },
+  filterRow: { width: "100%", height: 170, flexDirection: "row", gap: 10, justifyContent: "space-between" },
+  filterCard: { width: "23%", height: 170, borderRadius: 16, borderWidth: 2, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
+  filterCardText: { fontSize: 13, fontFamily: "Inter_600SemiBold", textAlign: "center", lineHeight: 16 },
   
-  // 목록 (FlatList)
   loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
-  emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 12 },
+  emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
   
   card: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, gap: 12, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
