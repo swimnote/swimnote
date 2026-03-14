@@ -9,3 +9,6 @@ export * from "./parent-pool-requests";
 export * from "./attendance";
 export * from "./notices";
 export * from "./subscriptions";
+export * from "./lesson-diaries";
+export * from "./photos";
+export * from "./videos";
