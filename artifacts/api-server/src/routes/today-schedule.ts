@@ -316,4 +316,151 @@ router.get("/schedule-notes/audio", requireAuth, async (req: AuthRequest, res) =
   }
 });
 
+/** ─────────────────────────────────────────────────────────
+ *  GET /daily-memos/dates
+ *  해당 월에 일간 메모가 있는 날짜 + 타입 목록 반환
+ *  Response: Array<{ date: string; has_text: boolean; has_audio: boolean }>
+ * ───────────────────────────────────────────────────────── */
+router.get("/daily-memos/dates", requireAuth, requireRole("teacher", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const user  = req.user!;
+    const year  = parseInt(req.query.year  as string) || new Date().getFullYear();
+    const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+    const monthStr  = String(month).padStart(2, "0");
+    const prefix    = `${year}-${monthStr}`;
+
+    const rows = await db.execute(sql`
+      SELECT
+        schedule_date                   AS date,
+        (note_text IS NOT NULL AND note_text <> '') AS has_text,
+        (audio_file_url IS NOT NULL)    AS has_audio
+      FROM teacher_daily_memos
+      WHERE teacher_id = ${user.userId}
+        AND schedule_date LIKE ${prefix + "-%"}
+    `);
+    res.json(rows.rows);
+  } catch (e: any) {
+    console.error("[daily-memos/dates]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** ─────────────────────────────────────────────────────────
+ *  GET /daily-memos?date=YYYY-MM-DD
+ *  특정 날짜 일간 메모 단건 조회
+ * ───────────────────────────────────────────────────────── */
+router.get("/daily-memos", requireAuth, requireRole("teacher", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const user = req.user!;
+    const date = req.query.date as string;
+    if (!date) { res.status(400).json({ error: "date 파라미터 필요" }); return; }
+
+    const rows = await db.execute(sql`
+      SELECT * FROM teacher_daily_memos
+      WHERE teacher_id = ${user.userId} AND schedule_date = ${date}
+      LIMIT 1
+    `);
+    res.json(rows.rows[0] || null);
+  } catch (e: any) {
+    console.error("[daily-memos GET]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** ─────────────────────────────────────────────────────────
+ *  POST /daily-memos
+ *  일간 메모 upsert  { date, note_text, audio_file_url }
+ * ───────────────────────────────────────────────────────── */
+router.post("/daily-memos", requireAuth, requireRole("teacher", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const user      = req.user!;
+    const { date, note_text, audio_file_url } = req.body as {
+      date: string; note_text?: string | null; audio_file_url?: string | null;
+    };
+    if (!date) { res.status(400).json({ error: "date 필드 필요" }); return; }
+
+    const existing = await db.execute(sql`
+      SELECT id FROM teacher_daily_memos
+      WHERE teacher_id = ${user.userId} AND schedule_date = ${date}
+      LIMIT 1
+    `);
+
+    if (existing.rows.length > 0) {
+      const updated = await db.execute(sql`
+        UPDATE teacher_daily_memos
+        SET note_text = ${note_text ?? null},
+            audio_file_url = ${audio_file_url ?? null},
+            updated_at = now()
+        WHERE teacher_id = ${user.userId} AND schedule_date = ${date}
+        RETURNING *
+      `);
+      res.json(updated.rows[0]);
+    } else {
+      const id = `tdm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const inserted = await db.execute(sql`
+        INSERT INTO teacher_daily_memos
+          (id, teacher_id, swimming_pool_id, schedule_date, note_text, audio_file_url)
+        VALUES (${id}, ${user.userId}, ${user.poolId || ""}, ${date}, ${note_text ?? null}, ${audio_file_url ?? null})
+        RETURNING *
+      `);
+      res.json(inserted.rows[0]);
+    }
+  } catch (e: any) {
+    console.error("[daily-memos POST]", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** ─────────────────────────────────────────────────────────
+ *  POST /daily-memos/audio
+ *  일간 메모 음성 파일 업로드
+ * ───────────────────────────────────────────────────────── */
+router.post(
+  "/daily-memos/audio",
+  requireAuth,
+  requireRole("teacher", "pool_admin"),
+  upload.single("audio"),
+  async (req: AuthRequest, res) => {
+    try {
+      const file = (req as any).file;
+      if (!file) { res.status(400).json({ error: "파일이 없습니다." }); return; }
+
+      const teacherId = req.user!.userId;
+      const ext = file.originalname.split(".").pop() || "m4a";
+      const key = `audio/daily_${teacherId}_${Date.now()}.${ext}`;
+      const client = getClient();
+
+      const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype || "audio/m4a" });
+      if (!ok) { res.status(500).json({ error: error?.message || "업로드 실패" }); return; }
+
+      res.json({ audio_file_url: key });
+    } catch (e: any) {
+      console.error("[daily-memos/audio]", e);
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
+
+/** ─────────────────────────────────────────────────────────
+ *  GET /daily-memos/audio
+ *  일간 메모 음성 파일 스트리밍 (?key=...)
+ * ───────────────────────────────────────────────────────── */
+router.get("/daily-memos/audio", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const key = req.query.key as string;
+    if (!key) { res.status(400).json({ error: "key 파라미터 필요" }); return; }
+    const client = getClient();
+    const { ok, value: bytes, error } = await client.downloadAsBytes(key);
+    if (!ok || !bytes) { res.status(404).json({ error: "파일 없음" }); return; }
+
+    const ext = key.split(".").pop() || "m4a";
+    const mimeMap: Record<string, string> = { m4a: "audio/m4a", mp4: "audio/mp4", webm: "audio/webm", ogg: "audio/ogg", mp3: "audio/mpeg" };
+    res.setHeader("Content-Type", mimeMap[ext] || "audio/octet-stream");
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.send(Buffer.from(bytes));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
