@@ -162,6 +162,7 @@ export default function ClassesScreen() {
               onToggle={() => sel.toggleItem(item.id)}
               onDelete={() => handleSingleDelete(item.id)}
               isDeleting={deleting}
+              onAssign={() => router.push(`/class-assign?classId=${item.id}` as any)}
             />
           )}
         />
@@ -210,7 +211,7 @@ export default function ClassesScreen() {
 }
 
 function ClassGroupCard({
-  item, selectionMode, isSelected, onToggle, onDelete, isDeleting,
+  item, selectionMode, isSelected, onToggle, onDelete, isDeleting, onAssign,
 }: {
   item: ClassGroup;
   selectionMode: boolean;
@@ -218,13 +219,14 @@ function ClassGroupCard({
   onToggle: () => void;
   onDelete: () => void;
   isDeleting: boolean;
+  onAssign: () => void;
 }) {
   const days = item.schedule_days.split(",").map(d => d.trim()).join("·");
 
   return (
     <Pressable
       style={[cd.card, { shadowColor: C.shadow }, isSelected && { borderWidth: 2, borderColor: C.tint }]}
-      onPress={selectionMode ? onToggle : undefined}
+      onPress={selectionMode ? onToggle : onAssign}
     >
       <View style={cd.top}>
         {/* 선택모드 체크박스 */}
@@ -267,15 +269,14 @@ function ClassGroupCard({
         </View>
       </View>
 
-      {/* 하단: 삭제 버튼 (선택모드 아닐 때만) */}
+      {/* 하단: 회원관리 + 삭제 (선택모드 아닐 때만) */}
       {!selectionMode && (
         <View style={cd.bottom}>
-          {item.capacity != null && (
-            <View style={cd.capacityChip}>
-              <Feather name="users" size={12} color={C.textMuted} />
-              <Text style={[cd.capacityText, { color: C.textSecondary }]}>정원 {item.capacity}명</Text>
-            </View>
-          )}
+          <Pressable style={cd.manageBtn} onPress={onAssign}>
+            <Feather name="users" size={13} color={C.tint} />
+            <Text style={[cd.manageBtnText, { color: C.tint }]}>회원관리</Text>
+            <Feather name="chevron-right" size={13} color={C.tint} />
+          </Pressable>
           <Pressable
             style={[cd.deleteBtn, isDeleting && { opacity: 0.5 }]}
             onPress={!isDeleting ? onDelete : undefined}
@@ -316,9 +317,11 @@ const cd = StyleSheet.create({
   countText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   levelBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#EDE9FE" },
   levelText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#7C3AED" },
-  bottom: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
+  bottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   capacityChip: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1 },
   capacityText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  manageBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: "#EDE9FE" },
+  manageBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   deleteBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: "#FEE2E2" },
   deleteBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });
