@@ -36,6 +36,8 @@ interface StudentOption {
 }
 
 // ── 드래그 닫기 시트 ─────────────────────────────────────────────
+const SCREEN_HEIGHT = 900; // 충분히 큰 값
+
 function DraggableSheet({
   visible, onClose, children, paddingBottom,
 }: {
@@ -44,51 +46,88 @@ function DraggableSheet({
   children: React.ReactNode;
   paddingBottom?: number;
 }) {
-  const translateY = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  // onClose를 ref로 보관해 panResponder 클로저가 항상 최신 값 사용
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  // 열기/닫기 애니메이션
+  useEffect(() => {
+    if (visible) {
+      translateY.setValue(SCREEN_HEIGHT);
+      Animated.parallel([
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 28, stiffness: 280, mass: 0.9 }),
+        Animated.timing(backdropOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const dismiss = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(translateY, { toValue: SCREEN_HEIGHT, duration: 220, useNativeDriver: true }),
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => {
+      translateY.setValue(SCREEN_HEIGHT);
+      backdropOpacity.setValue(0);
+      onCloseRef.current();
+    });
+  }, []);
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 4 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      // 핸들 영역에서 아래로 드래그하는 제스처만 잡음
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 3 && gs.vy >= 0,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_, gs) => {
-        if (gs.dy > 0) translateY.setValue(gs.dy);
+        if (gs.dy >= 0) translateY.setValue(gs.dy);
       },
       onPanResponderRelease: (_, gs) => {
-        if (gs.dy > DISMISS_THRESHOLD) {
-          Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(() => {
-            translateY.setValue(0);
-            onClose();
+        if (gs.dy > DISMISS_THRESHOLD || gs.vy > 0.8) {
+          // 속도 기반으로도 닫기
+          const duration = Math.max(100, Math.min(250, 250 - gs.vy * 100));
+          Animated.parallel([
+            Animated.timing(translateY, { toValue: SCREEN_HEIGHT, duration, useNativeDriver: true }),
+            Animated.timing(backdropOpacity, { toValue: 0, duration, useNativeDriver: true }),
+          ]).start(() => {
+            translateY.setValue(SCREEN_HEIGHT);
+            backdropOpacity.setValue(0);
+            onCloseRef.current();
           });
         } else {
-          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 20, stiffness: 300 }).start();
         }
       },
     })
   ).current;
 
-  // 모달이 열릴 때 position 초기화
-  useEffect(() => { if (visible) translateY.setValue(0); }, [visible]);
-
   return (
-    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={s.kvOverlay}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
-      >
-        {/* 배경 탭으로 닫기 */}
-        <Pressable style={s.backdrop} onPress={onClose} />
-
+    <Modal visible={visible} animationType="none" transparent onRequestClose={dismiss}>
+      <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        {/* 반투명 배경 */}
         <Animated.View
-          style={[s.sheet, { backgroundColor: C.card, paddingBottom: paddingBottom ?? 20 }, { transform: [{ translateY }] }]}
-        >
-          {/* 드래그 핸들 */}
-          <View {...panResponder.panHandlers} style={s.dragArea}>
-            <View style={s.handle} />
-          </View>
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.45)", opacity: backdropOpacity }]}
+          pointerEvents="none"
+        />
+        {/* 배경 탭으로 닫기 */}
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={dismiss} />
 
-          {children}
-        </Animated.View>
-      </KeyboardAvoidingView>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Animated.View
+            style={[s.sheet, { backgroundColor: C.card, paddingBottom: paddingBottom ?? 20 }, { transform: [{ translateY }] }]}
+          >
+            {/* 드래그 핸들 — 이 영역에 panHandlers 부착 */}
+            <View {...panResponder.panHandlers} style={s.dragArea} hitSlop={{ top: 10, bottom: 10, left: 40, right: 40 }}>
+              <View style={s.handle} />
+            </View>
+
+            {children}
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
