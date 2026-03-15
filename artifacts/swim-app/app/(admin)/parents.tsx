@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Animated, KeyboardAvoidingView,
+  Modal, PanResponder, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +12,7 @@ import { useSelectionMode } from "@/hooks/useSelectionMode";
 import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 
 const C = Colors.light;
+const DISMISS_THRESHOLD = 100;
 
 interface StudentLink {
   id: string; name: string; link_id: string;
@@ -23,8 +25,295 @@ interface ParentRow {
   students: StudentLink[];
   requested_children?: RequestedChild[];
 }
-interface StudentOption { id: string; name: string; class_group_name?: string | null; }
+interface StudentOption {
+  id: string;
+  name: string;
+  birth_year?: string | null;
+  parent_phone?: string | null;
+  class_group_name?: string | null;
+  schedule_labels?: string | null;
+  assigned_class_ids?: string[] | null;
+}
 
+// ── 드래그 닫기 시트 ─────────────────────────────────────────────
+function DraggableSheet({
+  visible, onClose, children, paddingBottom,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  paddingBottom?: number;
+}) {
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 4 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy > 0) translateY.setValue(gs.dy);
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > DISMISS_THRESHOLD) {
+          Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(() => {
+            translateY.setValue(0);
+            onClose();
+          });
+        } else {
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
+        }
+      },
+    })
+  ).current;
+
+  // 모달이 열릴 때 position 초기화
+  useEffect(() => { if (visible) translateY.setValue(0); }, [visible]);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={s.kvOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
+        {/* 배경 탭으로 닫기 */}
+        <Pressable style={s.backdrop} onPress={onClose} />
+
+        <Animated.View
+          style={[s.sheet, { backgroundColor: C.card, paddingBottom: paddingBottom ?? 20 }, { transform: [{ translateY }] }]}
+        >
+          {/* 드래그 핸들 */}
+          <View {...panResponder.panHandlers} style={s.dragArea}>
+            <View style={s.handle} />
+          </View>
+
+          {children}
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ── 학생 연결 모달 ───────────────────────────────────────────────
+function StudentLinkSheet({
+  visible, parent, students, onClose, onLink,
+}: {
+  visible: boolean;
+  parent: ParentRow | null;
+  students: StudentOption[];
+  onClose: () => void;
+  onLink: (studentId: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (visible) { setSearch(""); setSelectedId(""); setError(""); }
+  }, [visible]);
+
+  // 이미 연결된 학생 ID 목록
+  const linkedIds = new Set((parent?.students ?? []).filter(s => s.status !== "rejected").map(s => s.id));
+
+  // 미배정 학생: assigned_class_ids가 비어 있거나 null인 학생
+  const unassigned = students.filter(s => {
+    if (linkedIds.has(s.id)) return false;
+    const ids = s.assigned_class_ids;
+    return !ids || (Array.isArray(ids) && ids.length === 0);
+  });
+
+  // 검색어 필터링 (미배정 목록 기반)
+  const displayList = search.trim()
+    ? students.filter(s => {
+        if (linkedIds.has(s.id)) return false;
+        const q = search.trim().toLowerCase();
+        return s.name.toLowerCase().includes(q) ||
+          (s.parent_phone || "").includes(q) ||
+          (s.birth_year || "").includes(q);
+      })
+    : unassigned;
+
+  function handleConfirm() {
+    if (!selectedId) { setError("학생을 선택해주세요."); return; }
+    setSubmitting(true);
+    onLink(selectedId);
+  }
+
+  return (
+    <DraggableSheet visible={visible} onClose={onClose} paddingBottom={insets.bottom + 16}>
+      <Text style={s.sheetTitle}>학생 연결 요청</Text>
+
+      <View style={[s.infoBox, { backgroundColor: "#FEF3C7" }]}>
+        <Feather name="info" size={13} color="#D97706" />
+        <Text style={[s.infoText, { color: "#92400E" }]}>연결 요청은 관리자 승인 후 학부모에게 노출됩니다.</Text>
+      </View>
+
+      {/* 신청 시 입력한 자녀 */}
+      {(parent?.requested_children ?? []).length > 0 && (
+        <View style={[s.childRefBox, { backgroundColor: "#EEF2FF" }]}>
+          <View style={s.childRefHeader}>
+            <Feather name="user-check" size={13} color="#4338CA" />
+            <Text style={[s.childRefLabel, { color: "#4338CA" }]}>가입 신청 시 입력한 자녀</Text>
+          </View>
+          {(parent?.requested_children ?? []).map((c, i) => (
+            <View key={i} style={s.childRefRow}>
+              <Text style={[s.childRefName, { color: C.text }]}>{c.childName}</Text>
+              {c.childBirthYear && <Text style={[s.childRefYear, { color: C.textMuted }]}>{c.childBirthYear}년생</Text>}
+            </View>
+          ))}
+        </View>
+      )}
+
+      {!!error && (
+        <View style={[s.errBox, { backgroundColor: "#FEE2E2" }]}>
+          <Text style={[s.errText, { color: C.error }]}>{error}</Text>
+        </View>
+      )}
+
+      {/* 검색창 */}
+      <View style={[s.searchRow, { borderColor: C.border, backgroundColor: C.background }]}>
+        <Feather name="search" size={15} color={C.textMuted} />
+        <TextInput
+          style={[s.searchInput, { color: C.text }]}
+          value={search}
+          onChangeText={v => { setSearch(v); setSelectedId(""); setError(""); }}
+          placeholder="이름·전화번호 검색..."
+          placeholderTextColor={C.textMuted}
+          returnKeyType="search"
+        />
+        {search.length > 0 && (
+          <Pressable onPress={() => { setSearch(""); setSelectedId(""); }}>
+            <Feather name="x-circle" size={15} color={C.textMuted} />
+          </Pressable>
+        )}
+      </View>
+
+      {/* 섹션 헤더 */}
+      <View style={s.listHeader}>
+        <Text style={s.listHeaderText}>
+          {search.trim() ? `검색 결과 ${displayList.length}명` : `미배정 학생 ${unassigned.length}명`}
+        </Text>
+        {!search.trim() && <Text style={s.listHeaderSub}>반 배정이 없는 학생 목록</Text>}
+      </View>
+
+      {/* 학생 목록 */}
+      <ScrollView
+        style={s.listScroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {displayList.length === 0 ? (
+          <View style={s.emptyHint}>
+            <Feather name="users" size={28} color={C.textMuted} />
+            <Text style={[s.emptyHintText, { color: C.textMuted }]}>
+              {search.trim() ? `"${search}" 검색 결과가 없습니다` : "미배정 학생이 없습니다\n검색으로 전체 학생을 찾아보세요"}
+            </Text>
+          </View>
+        ) : displayList.map(student => {
+          const isSelected = selectedId === student.id;
+          return (
+            <Pressable
+              key={student.id}
+              style={[s.studentOption, { borderColor: isSelected ? C.tint : C.border, backgroundColor: isSelected ? C.tintLight : C.background }]}
+              onPress={() => { setSelectedId(student.id); setError(""); }}
+            >
+              <View style={[s.sOptionAvatar, { backgroundColor: isSelected ? C.tint + "20" : C.tintLight }]}>
+                <Text style={[s.sOptionAvatarText, { color: isSelected ? C.tint : C.tint }]}>{student.name[0]}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.sOptionName, { color: C.text }]}>{student.name}</Text>
+                <Text style={s.sOptionSub}>
+                  {student.birth_year ? `${student.birth_year}년생` : ""}
+                  {student.parent_phone ? ` · ${student.parent_phone}` : ""}
+                  {student.schedule_labels ? ` · ${student.schedule_labels}` : " · 미배정"}
+                </Text>
+              </View>
+              {isSelected
+                ? <Feather name="check-circle" size={20} color={C.tint} />
+                : <View style={s.sOptionCircle} />
+              }
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {/* 하단 버튼 */}
+      <View style={s.modalActions}>
+        <Pressable style={[s.cancelBtn, { borderColor: C.border }]} onPress={onClose}>
+          <Text style={[s.cancelText, { color: C.textSecondary }]}>취소</Text>
+        </Pressable>
+        <Pressable
+          style={[s.submitBtn, { backgroundColor: selectedId ? C.tint : "#D1D5DB" }]}
+          onPress={handleConfirm}
+          disabled={submitting || !selectedId}
+        >
+          {submitting
+            ? <ActivityIndicator color="#fff" size="small" />
+            : <Text style={s.submitText}>연결 요청</Text>
+          }
+        </Pressable>
+      </View>
+    </DraggableSheet>
+  );
+}
+
+// ── 학부모 직접 추가 시트 ─────────────────────────────────────────
+function AddParentSheet({
+  visible, onClose, onSubmit,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (name: string, phone: string, pin: string) => Promise<void>;
+}) {
+  const insets = useSafeAreaInsets();
+  const [formName, setFormName] = useState("");
+  const [formPhone, setFormPhone] = useState("");
+  const [formPin, setFormPin] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (visible) { setFormName(""); setFormPhone(""); setFormPin(""); setError(""); }
+  }, [visible]);
+
+  async function handleSubmit() {
+    if (!formName || !formPhone || !formPin) { setError("모든 필드를 입력해주세요."); return; }
+    setSubmitting(true);
+    try { await onSubmit(formName, formPhone, formPin); }
+    catch { setError("오류가 발생했습니다."); }
+    finally { setSubmitting(false); }
+  }
+
+  return (
+    <DraggableSheet visible={visible} onClose={onClose} paddingBottom={insets.bottom + 16}>
+      <Text style={s.sheetTitle}>학부모 계정 직접 추가</Text>
+      {!!error && <View style={[s.errBox, { backgroundColor: "#FEE2E2" }]}><Text style={[s.errText, { color: C.error }]}>{error}</Text></View>}
+      <View style={s.field}>
+        <Text style={[s.label, { color: C.textSecondary }]}>이름</Text>
+        <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={formName} onChangeText={setFormName} placeholder="홍길동" placeholderTextColor={C.textMuted} />
+      </View>
+      <View style={s.field}>
+        <Text style={[s.label, { color: C.textSecondary }]}>전화번호</Text>
+        <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={formPhone} onChangeText={setFormPhone} placeholder="010-0000-0000" keyboardType="phone-pad" placeholderTextColor={C.textMuted} />
+      </View>
+      <View style={s.field}>
+        <Text style={[s.label, { color: C.textSecondary }]}>PIN 번호 (4자리 이상)</Text>
+        <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={formPin} onChangeText={setFormPin} placeholder="****" keyboardType="number-pad" secureTextEntry maxLength={8} placeholderTextColor={C.textMuted} />
+      </View>
+      <View style={s.modalActions}>
+        <Pressable style={[s.cancelBtn, { borderColor: C.border }]} onPress={onClose}>
+          <Text style={[s.cancelText, { color: C.textSecondary }]}>취소</Text>
+        </Pressable>
+        <Pressable style={[s.submitBtn, { backgroundColor: C.tint }]} onPress={handleSubmit} disabled={submitting}>
+          {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.submitText}>추가</Text>}
+        </Pressable>
+      </View>
+    </DraggableSheet>
+  );
+}
+
+// ── 메인 화면 ─────────────────────────────────────────────────────
 export default function ParentsScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
@@ -34,13 +323,6 @@ export default function ParentsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showAddParent, setShowAddParent] = useState(false);
   const [showAddLink, setShowAddLink] = useState<ParentRow | null>(null);
-  const [formName, setFormName] = useState("");
-  const [formPhone, setFormPhone] = useState("");
-  const [formPin, setFormPin] = useState("");
-  const [formStudentId, setFormStudentId] = useState("");
-  const [studentSearch, setStudentSearch] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const sel = useSelectionMode();
@@ -76,29 +358,27 @@ export default function ParentsScreen() {
     ]);
   }
 
-  async function handleAddParent() {
-    if (!formName || !formPhone || !formPin) { setFormError("모든 필드를 입력해주세요."); return; }
-    setSubmitting(true); setFormError("");
+  async function handleAddParent(name: string, phone: string, pin: string) {
     const res = await apiRequest(token, "/admin/parents", {
-      method: "POST", body: JSON.stringify({ name: formName, phone: formPhone, pin: formPin }),
+      method: "POST", body: JSON.stringify({ name, phone, pin }),
     });
     const data = await res.json();
-    setSubmitting(false);
-    if (!res.ok) { setFormError(data.error || "오류가 발생했습니다."); return; }
-    setShowAddParent(false); setFormName(""); setFormPhone(""); setFormPin("");
+    if (!res.ok) throw new Error(data.error || "오류가 발생했습니다.");
+    setShowAddParent(false);
     await load();
   }
 
-  async function handleAddLink() {
-    if (!formStudentId || !showAddLink) { setFormError("학생을 선택해주세요."); return; }
-    setSubmitting(true); setFormError("");
+  async function handleAddLink(studentId: string) {
+    if (!showAddLink) return;
     const res = await apiRequest(token, `/admin/parents/${showAddLink.id}/students`, {
-      method: "POST", body: JSON.stringify({ student_id: formStudentId }),
+      method: "POST", body: JSON.stringify({ student_id: studentId }),
     });
     const data = await res.json();
-    setSubmitting(false);
-    if (!res.ok) { setFormError(data.error || "오류가 발생했습니다."); return; }
-    setShowAddLink(null); setFormStudentId("");
+    if (!res.ok) {
+      Alert.alert("오류", data.error || "오류가 발생했습니다.");
+      return;
+    }
+    setShowAddLink(null);
     await load();
   }
 
@@ -122,9 +402,7 @@ export default function ParentsScreen() {
     else setBulkDeleting(true);
     try {
       const results = await Promise.allSettled(
-        ids.map(id => apiRequest(token, `/admin/parents/${id}`, { method: "DELETE" })
-          .then(r => ({ id, ok: r.ok }))
-        )
+        ids.map(id => apiRequest(token, `/admin/parents/${id}`, { method: "DELETE" }).then(r => ({ id, ok: r.ok })))
       );
       const succeeded = results
         .filter((r): r is PromiseFulfilledResult<{ id: string; ok: boolean }> => r.status === "fulfilled" && r.value.ok)
@@ -133,17 +411,11 @@ export default function ParentsScreen() {
       setParents(prev => prev.filter(p => !succeeded.includes(p.id)));
       if (!isSingle) sel.exitSelectionMode();
       if (failed > 0) Alert.alert("일부 실패", `${failed}개 삭제에 실패했습니다.`);
-    } catch (e) {
-      console.error(e);
-      Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
-    } finally {
-      setDeletingId(null);
-      setBulkDeleting(false);
-    }
+    } catch { Alert.alert("오류", "삭제 중 오류가 발생했습니다."); }
+    finally { setDeletingId(null); setBulkDeleting(false); }
   }
 
   function handleDeleteParent(id: string, name: string) {
-    console.log(`[admin][deleteParent] click parentId=${id}`);
     Alert.alert(
       "학부모 계정 삭제",
       `"${name}" 계정을 삭제합니다.\n계정과 학생 연결이 모두 해제됩니다.\n자녀의 수업 이력·출결 기록은 보존됩니다.\n\n진행하시겠습니까?`,
@@ -157,7 +429,6 @@ export default function ParentsScreen() {
   function handleBulkDelete() {
     const ids = Array.from(sel.selectedIds);
     if (ids.length === 0) return;
-    console.log(`[admin][deleteParent] bulk selectedCount=${ids.length}`, ids);
     Alert.alert(
       "선택 학부모 삭제",
       `선택한 ${ids.length}개 학부모 계정을 삭제합니다.\n각 계정의 학생 연결이 모두 해제됩니다.\n자녀의 수업 이력은 보존됩니다.\n\n진행하시겠습니까?`,
@@ -172,38 +443,37 @@ export default function ParentsScreen() {
 
   const statusBadge = (status: string) => {
     const map: Record<string, { color: string; bg: string; label: string }> = {
-      pending: { color: C.warning, bg: "#FEF3C7", label: "승인 대기" },
-      approved: { color: C.success, bg: "#D1FAE5", label: "승인됨" },
-      rejected: { color: C.error, bg: "#FEE2E2", label: "거부됨" },
+      pending:  { color: C.warning,  bg: "#FEF3C7", label: "승인 대기" },
+      approved: { color: C.success,  bg: "#D1FAE5", label: "승인됨" },
+      rejected: { color: C.error,    bg: "#FEE2E2", label: "거부됨" },
     };
-    const s = map[status] || map["pending"];
+    const st = map[status] || map["pending"];
     return (
-      <View style={[styles.badge, { backgroundColor: s.bg }]}>
-        <Text style={[styles.badgeText, { color: s.color }]}>{s.label}</Text>
+      <View style={[s.badge, { backgroundColor: st.bg }]}>
+        <Text style={[s.badgeText, { color: st.color }]}>{st.label}</Text>
       </View>
     );
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: C.background }]}>
+    <View style={[s.root, { backgroundColor: C.background }]}>
       {/* 헤더 */}
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
-        <Text style={[styles.title, { color: C.text }]}>학부모 관리</Text>
-        <View style={styles.headerRight}>
-          {/* 선택 모드 토글 */}
+      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
+        <Text style={[s.title, { color: C.text }]}>학부모 관리</Text>
+        <View style={s.headerRight}>
           <Pressable
-            style={[styles.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
+            style={[s.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
             onPress={sel.toggleSelectionMode}
           >
             <Feather name="check-square" size={16} color={sel.selectionMode ? C.tint : C.textSecondary} />
-            <Text style={[styles.selBtnText, sel.selectionMode && { color: C.tint }]}>
+            <Text style={[s.selBtnText, sel.selectionMode && { color: C.tint }]}>
               {sel.selectionMode ? "취소" : "선택"}
             </Text>
           </Pressable>
           {!sel.selectionMode && (
-            <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => { setFormError(""); setShowAddParent(true); }}>
+            <Pressable style={[s.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowAddParent(true)}>
               <Feather name="plus" size={16} color="#fff" />
-              <Text style={styles.addBtnText}>직접 추가</Text>
+              <Text style={s.addBtnText}>직접 추가</Text>
             </Pressable>
           )}
         </View>
@@ -218,10 +488,10 @@ export default function ParentsScreen() {
           showsVerticalScrollIndicator={false}
         >
           {parents.length === 0 ? (
-            <View style={styles.empty}>
+            <View style={s.empty}>
               <Feather name="users" size={48} color={C.textMuted} />
-              <Text style={[styles.emptyTitle, { color: C.text }]}>등록된 학부모가 없습니다</Text>
-              <Text style={[styles.emptySub, { color: C.textSecondary }]}>승인 메뉴에서 가입 요청을 승인하거나 직접 추가하세요</Text>
+              <Text style={[s.emptyTitle, { color: C.text }]}>등록된 학부모가 없습니다</Text>
+              <Text style={[s.emptySub, { color: C.textSecondary }]}>승인 메뉴에서 가입 요청을 승인하거나 직접 추가하세요</Text>
             </View>
           ) : parents.map(pa => {
             const isSelected = sel.isSelected(pa.id);
@@ -229,37 +499,35 @@ export default function ParentsScreen() {
             return (
               <Pressable
                 key={pa.id}
-                style={[styles.accountCard, { backgroundColor: C.card }, isSelected && { borderWidth: 2, borderColor: C.tint }]}
+                style={[s.accountCard, { backgroundColor: C.card }, isSelected && { borderWidth: 2, borderColor: C.tint }]}
                 onPress={sel.selectionMode ? () => sel.toggleItem(pa.id) : undefined}
               >
-                <View style={styles.accountHeader}>
-                  {/* 선택 모드 체크박스 */}
+                <View style={s.accountHeader}>
                   {sel.selectionMode && (
-                    <Pressable onPress={() => sel.toggleItem(pa.id)} style={styles.checkWrap}>
-                      <View style={[styles.checkbox, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
+                    <Pressable onPress={() => sel.toggleItem(pa.id)} style={s.checkWrap}>
+                      <View style={[s.checkbox, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
                         {isSelected && <Feather name="check" size={12} color="#fff" />}
                       </View>
                     </Pressable>
                   )}
-                  <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
-                    <Text style={[styles.avatarText, { color: C.tint }]}>{pa.name[0]}</Text>
+                  <View style={[s.avatar, { backgroundColor: C.tintLight }]}>
+                    <Text style={[s.avatarText, { color: C.tint }]}>{pa.name[0]}</Text>
                   </View>
-                  <View style={styles.accountInfo}>
-                    <Text style={[styles.accountName, { color: C.text }]}>{pa.name}</Text>
-                    <Text style={[styles.accountPhone, { color: C.textSecondary }]}>{pa.phone}</Text>
+                  <View style={s.accountInfo}>
+                    <Text style={[s.accountName, { color: C.text }]}>{pa.name}</Text>
+                    <Text style={[s.accountPhone, { color: C.textSecondary }]}>{pa.phone}</Text>
                   </View>
-                  {/* 선택모드: 카드 우측엔 아무것도 안 보임 / 일반모드: 연결+삭제 */}
                   {!sel.selectionMode && (
-                    <View style={styles.cardActions}>
+                    <View style={s.cardActions}>
                       <Pressable
-                        style={[styles.linkBtn, { borderColor: C.tint }]}
-                        onPress={() => { setFormStudentId(""); setStudentSearch(""); setFormError(""); setShowAddLink(pa); }}
+                        style={[s.linkBtn, { borderColor: C.tint }]}
+                        onPress={() => setShowAddLink(pa)}
                       >
                         <Feather name="link" size={13} color={C.tint} />
-                        <Text style={[styles.linkBtnText, { color: C.tint }]}>학생 연결</Text>
+                        <Text style={[s.linkBtnText, { color: C.tint }]}>학생 연결</Text>
                       </Pressable>
                       <Pressable
-                        style={[styles.deleteParentBtn, isThisDeleting && { opacity: 0.5 }]}
+                        style={[s.deleteParentBtn, isThisDeleting && { opacity: 0.5 }]}
                         onPress={!isThisDeleting ? () => handleDeleteParent(pa.id, pa.name) : undefined}
                         disabled={isThisDeleting}
                       >
@@ -272,26 +540,26 @@ export default function ParentsScreen() {
                   )}
                 </View>
                 {pa.students.length > 0 && (
-                  <View style={[styles.studentsSection, { borderTopColor: C.border }]}>
-                    {pa.students.map((s: StudentLink) => (
-                      <View key={s.link_id} style={styles.studentRow}>
-                        <View style={styles.studentLeft}>
-                          {statusBadge(s.status)}
-                          <Text style={[styles.studentName, { color: C.text }]}>{s.name}</Text>
+                  <View style={[s.studentsSection, { borderTopColor: C.border }]}>
+                    {pa.students.map((st: StudentLink) => (
+                      <View key={st.link_id} style={s.studentRow}>
+                        <View style={s.studentLeft}>
+                          {statusBadge(st.status)}
+                          <Text style={[s.studentName, { color: C.text }]}>{st.name}</Text>
                         </View>
-                        <View style={styles.studentRight}>
-                          {!sel.selectionMode && s.status === "pending" && (
+                        <View style={s.studentRight}>
+                          {!sel.selectionMode && st.status === "pending" && (
                             <>
-                              <Pressable onPress={() => handleDecision(s.link_id, pa.id, "approve")} style={[styles.miniBtn, { backgroundColor: C.success }]}>
+                              <Pressable onPress={() => handleDecision(st.link_id, pa.id, "approve")} style={[s.miniBtn, { backgroundColor: C.success }]}>
                                 <Feather name="check" size={12} color="#fff" />
                               </Pressable>
-                              <Pressable onPress={() => handleDecision(s.link_id, pa.id, "reject")} style={[styles.miniBtn, { backgroundColor: C.error }]}>
+                              <Pressable onPress={() => handleDecision(st.link_id, pa.id, "reject")} style={[s.miniBtn, { backgroundColor: C.error }]}>
                                 <Feather name="x" size={12} color="#fff" />
                               </Pressable>
                             </>
                           )}
                           {!sel.selectionMode && (
-                            <Pressable onPress={() => handleDeleteLink(pa.id, s.link_id)}>
+                            <Pressable onPress={() => handleDeleteLink(pa.id, st.link_id)}>
                               <Feather name="trash-2" size={14} color={C.textMuted} />
                             </Pressable>
                           )}
@@ -306,7 +574,6 @@ export default function ParentsScreen() {
         </ScrollView>
       )}
 
-      {/* 선택 모드 액션바 */}
       <SelectionActionBar
         visible={sel.selectionMode}
         selectedCount={sel.selectedCount}
@@ -319,139 +586,29 @@ export default function ParentsScreen() {
         onExit={sel.exitSelectionMode}
       />
 
-      {/* 학부모 직접 추가 모달 */}
-      <Modal visible={showAddParent} animationType="slide" transparent presentationStyle="overFullScreen">
-        <View style={styles.overlay}>
-          <View style={[styles.sheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.sheetHandle} />
-            <Text style={[styles.sheetTitle, { color: C.text }]}>학부모 계정 직접 추가</Text>
-            {!!formError && <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
-              <Text style={[styles.errText, { color: C.error }]}>{formError}</Text>
-            </View>}
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: C.textSecondary }]}>이름</Text>
-              <TextInput style={[styles.input, { borderColor: C.border, color: C.text }]}
-                value={formName} onChangeText={setFormName} placeholder="홍길동" placeholderTextColor={C.textMuted} />
-            </View>
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: C.textSecondary }]}>전화번호</Text>
-              <TextInput style={[styles.input, { borderColor: C.border, color: C.text }]}
-                value={formPhone} onChangeText={setFormPhone} placeholder="010-0000-0000" keyboardType="phone-pad" placeholderTextColor={C.textMuted} />
-            </View>
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: C.textSecondary }]}>PIN 번호 (4자리 이상)</Text>
-              <TextInput style={[styles.input, { borderColor: C.border, color: C.text }]}
-                value={formPin} onChangeText={setFormPin} placeholder="****" keyboardType="number-pad"
-                secureTextEntry maxLength={8} placeholderTextColor={C.textMuted} />
-            </View>
-            <View style={styles.modalActions}>
-              <Pressable style={[styles.cancelBtn, { borderColor: C.border }]} onPress={() => setShowAddParent(false)}>
-                <Text style={[styles.cancelText, { color: C.textSecondary }]}>취소</Text>
-              </Pressable>
-              <Pressable style={[styles.submitBtn, { backgroundColor: C.tint }]} onPress={handleAddParent} disabled={submitting}>
-                {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.submitText}>추가</Text>}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* 학부모 직접 추가 시트 */}
+      <AddParentSheet
+        visible={showAddParent}
+        onClose={() => setShowAddParent(false)}
+        onSubmit={handleAddParent}
+      />
 
-      {/* 학생 연결 요청 모달 */}
-      <Modal visible={!!showAddLink} animationType="slide" transparent presentationStyle="overFullScreen">
-        <View style={styles.overlay}>
-          <View style={[styles.sheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.sheetHandle} />
-            <Text style={[styles.sheetTitle, { color: C.text }]}>학생 연결 요청</Text>
-            <View style={[styles.infoBox, { backgroundColor: "#FEF3C7", borderColor: C.warning }]}>
-              <Feather name="info" size={13} color={C.warning} />
-              <Text style={[styles.infoText, { color: "#92400E" }]}>연결 요청은 관리자 승인 후 학부모에게 노출됩니다.</Text>
-            </View>
-
-            {/* 신청 시 입력한 자녀명 */}
-            {(showAddLink?.requested_children ?? []).length > 0 && (
-              <View style={[styles.childRefBox, { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" }]}>
-                <View style={styles.childRefHeader}>
-                  <Feather name="user-check" size={13} color="#4338CA" />
-                  <Text style={[styles.childRefLabel, { color: "#4338CA" }]}>가입 신청 시 입력한 자녀</Text>
-                </View>
-                {(showAddLink?.requested_children ?? []).map((c, i) => (
-                  <View key={i} style={styles.childRefRow}>
-                    <Text style={[styles.childRefName, { color: C.text }]}>{c.childName}</Text>
-                    {c.childBirthYear && (
-                      <Text style={[styles.childRefYear, { color: C.textMuted }]}>{c.childBirthYear}년생</Text>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {!!formError && <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
-              <Text style={[styles.errText, { color: C.error }]}>{formError}</Text>
-            </View>}
-
-            <Text style={[styles.label, { color: C.textSecondary }]}>실제 학생 기록 검색</Text>
-            <View style={[styles.searchRow, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="search" size={15} color={C.textMuted} />
-              <TextInput
-                style={[styles.searchInput, { color: C.text }]}
-                value={studentSearch}
-                onChangeText={setStudentSearch}
-                placeholder="이름으로 검색..."
-                placeholderTextColor={C.textMuted}
-              />
-              {studentSearch.length > 0 && (
-                <Pressable onPress={() => { setStudentSearch(""); setFormStudentId(""); }}>
-                  <Feather name="x-circle" size={15} color={C.textMuted} />
-                </Pressable>
-              )}
-            </View>
-
-            <ScrollView style={{ maxHeight: 180 }} showsVerticalScrollIndicator={false}>
-              {studentSearch.trim().length === 0 ? (
-                <View style={styles.searchHint}>
-                  <Text style={[styles.searchHintText, { color: C.textMuted }]}>이름을 입력하면 학생 목록이 표시됩니다</Text>
-                </View>
-              ) : students.filter(s =>
-                s.name.includes(studentSearch.trim()) &&
-                !showAddLink?.students.some(ls => ls.id === s.id && ls.status !== "rejected")
-              ).length === 0 ? (
-                <View style={styles.searchHint}>
-                  <Text style={[styles.searchHintText, { color: C.textMuted }]}>"{studentSearch}"에 해당하는 학생이 없습니다</Text>
-                </View>
-              ) : (
-                students.filter(s =>
-                  s.name.includes(studentSearch.trim()) &&
-                  !showAddLink?.students.some(ls => ls.id === s.id && ls.status !== "rejected")
-                ).map(s => (
-                  <Pressable key={s.id}
-                    style={[styles.studentOption, { borderColor: formStudentId === s.id ? C.tint : C.border, backgroundColor: formStudentId === s.id ? C.tintLight : "transparent" }]}
-                    onPress={() => setFormStudentId(s.id)}
-                  >
-                    <Feather name={formStudentId === s.id ? "check-circle" : "circle"} size={16} color={formStudentId === s.id ? C.tint : C.textMuted} />
-                    <Text style={[styles.optionName, { color: C.text }]}>{s.name}</Text>
-                    {s.class_group_name && <Text style={[styles.optionSub, { color: C.textMuted }]}>{s.class_group_name}</Text>}
-                  </Pressable>
-                ))
-              )}
-            </ScrollView>
-
-            <View style={styles.modalActions}>
-              <Pressable style={[styles.cancelBtn, { borderColor: C.border }]} onPress={() => { setShowAddLink(null); setStudentSearch(""); }}>
-                <Text style={[styles.cancelText, { color: C.textSecondary }]}>취소</Text>
-              </Pressable>
-              <Pressable style={[styles.submitBtn, { backgroundColor: formStudentId ? C.tint : C.border }]} onPress={handleAddLink} disabled={submitting || !formStudentId}>
-                {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.submitText}>연결 요청</Text>}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* 학생 연결 시트 */}
+      <StudentLinkSheet
+        visible={!!showAddLink}
+        parent={showAddLink}
+        students={students}
+        onClose={() => setShowAddLink(null)}
+        onLink={handleAddLink}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   root: { flex: 1 },
+
+  // 헤더
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 12 },
   title: { fontSize: 22, fontFamily: "Inter_700Bold" },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -459,57 +616,88 @@ const styles = StyleSheet.create({
   selBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
   addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+  // 빈 상태
+  empty: { alignItems: "center", paddingTop: 80, gap: 12 },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
+  emptySub: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+
+  // 카드
   checkWrap: { justifyContent: "center", marginRight: 4 },
   checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: C.border, backgroundColor: C.background, alignItems: "center", justifyContent: "center" },
   avatar: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  accountCard: { borderRadius: 14, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2, borderWidth: 1.5, borderColor: "transparent" },
+  accountCard: { borderRadius: 14, overflow: "hidden", borderWidth: 1.5, borderColor: "transparent", backgroundColor: C.card },
   accountHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
   accountInfo: { flex: 1 },
   accountName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   accountPhone: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  cardActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  cardActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   linkBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   linkBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  deleteParentBtn: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#FEE2E2" },
-  studentsSection: { borderTopWidth: 1, paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
-  studentRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  deleteParentBtn: { padding: 6 },
+
+  // 학생 목록 (카드 내)
+  studentsSection: { borderTopWidth: 1, paddingHorizontal: 14, paddingVertical: 6, gap: 4 },
+  studentRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 5 },
   studentLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  studentName: { fontSize: 14, fontFamily: "Inter_500Medium" },
   studentRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  studentName: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  miniBtn: { width: 24, height: 24, borderRadius: 7, alignItems: "center", justifyContent: "center" },
-  badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  miniBtn: { width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  empty: { alignItems: "center", paddingTop: 80, gap: 12 },
-  emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
-  emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14 },
-  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
-  infoText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+
+  // 드래그 시트 공통
+  kvOverlay: { flex: 1, justifyContent: "flex-end" },
+  backdrop: { ...StyleSheet.absoluteFillObject },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 0, gap: 12 },
+  dragArea: { alignItems: "center", paddingVertical: 14 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB" },
+  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 2 },
+
+  // 연결 모달 내부
+  infoBox: { flexDirection: "row", gap: 8, alignItems: "flex-start", padding: 12, borderRadius: 12 },
+  infoText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  childRefBox: { borderRadius: 12, padding: 12, gap: 6 },
+  childRefHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  childRefLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  childRefRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  childRefName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  childRefYear: { fontSize: 13, fontFamily: "Inter_400Regular" },
+
+  // 검색
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44 },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+
+  // 리스트 헤더
+  listHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  listHeaderText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
+  listHeaderSub: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
+
+  // 학생 선택 목록
+  listScroll: { maxHeight: 220 },
+  emptyHint: { alignItems: "center", paddingVertical: 24, gap: 10 },
+  emptyHintText: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  studentOption: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1.5, marginBottom: 6 },
+  sOptionAvatar: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  sOptionAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  sOptionName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  sOptionSub: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  sOptionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: C.border },
+
+  // 에러
   errBox: { padding: 10, borderRadius: 10 },
   errText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  field: { gap: 6 },
+
+  // 추가 폼
+  field: { gap: 5 },
   label: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 48, fontSize: 15, fontFamily: "Inter_400Regular" },
-  studentOption: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, marginBottom: 8 },
-  optionName: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
-  optionSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  childRefBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, gap: 6 },
-  childRefHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
-  childRefLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  childRefRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  childRefName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  childRefYear: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 6 },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
-  searchHint: { paddingVertical: 16, alignItems: "center" },
-  searchHintText: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+  input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular" },
+
+  // 하단 버튼
   modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
-  cancelBtn: { flex: 1, height: 48, borderRadius: 12, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  cancelText: { fontSize: 15, fontFamily: "Inter_500Medium" },
-  submitBtn: { flex: 2, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  cancelBtn: { flex: 1, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1.5 },
+  cancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  submitBtn: { flex: 2, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   submitText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
