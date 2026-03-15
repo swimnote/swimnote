@@ -207,6 +207,26 @@ router.post("/parent-register", async (req, res) => {
   }
 });
 
+// ── 아이디 존재 여부 확인 ───────────────────────────────────────────────
+router.post("/check-id", async (req, res) => {
+  const { identifier } = req.body;
+  if (!identifier) return res.json({ exists: false, type: null });
+  const id = identifier.trim();
+  try {
+    const [user] = await db.select({ id: usersTable.id })
+      .from(usersTable).where(eq(usersTable.email, id.toLowerCase())).limit(1);
+    if (user) return res.json({ exists: true, type: "admin" });
+
+    const [parent] = await db.select({ id: parentAccountsTable.id })
+      .from(parentAccountsTable).where(eq(parentAccountsTable.phone, id)).limit(1);
+    if (parent) return res.json({ exists: true, type: "parent" });
+
+    return res.json({ exists: false, type: null });
+  } catch (e) {
+    return res.json({ exists: false, type: null });
+  }
+});
+
 // ── 통합 로그인 (MVP 테스트용) ─────────────────────────────────────────
 router.post("/unified-login", async (req, res) => {
   const { identifier, password } = req.body;

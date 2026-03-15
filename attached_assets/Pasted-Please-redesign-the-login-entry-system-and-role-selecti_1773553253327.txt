@@ -1,0 +1,716 @@
+Please redesign the login/entry system and role selection flow for the app.
+
+This is a combined UI + logic + routing + state task.
+Please do NOT treat this as a simple login page style update.
+The full flow, organization selection, role selection, auto-login landing, and ID existence detection must all work together.
+
+==================================================
+[MAIN GOAL]
+==================================================
+
+I want a clean first login flow with these rules:
+
+1. First screen must show ONLY:
+   - ID input
+   - Swimming Pool Search section
+
+2. Password must NOT appear on the first screen.
+   Password should only appear on the next screen after ID is entered and verified.
+
+3. ID detection logic:
+   - If entered ID already exists -> go to password screen
+   - If entered ID does not exist -> treat it as desired signup ID and go to signup screen automatically
+
+4. After successful login:
+   - show a mode/role selection screen
+   - roles: Admin / Teacher / Parent
+   - user enters app by choosing a role
+
+5. If user belongs to multiple swimming pools / organizations:
+   - add organization selector at the top-left of the role selection screen
+   - user must be able to switch organization there
+
+6. If app is reopened and login session is still valid:
+   - do NOT show login again
+   - directly show organization + role selection screen
+
+7. Inside app:
+   - user can move to role/mode switch page without logging out
+   - user can also switch organization there if they belong to multiple pools
+
+==================================================
+[KEY UX DIRECTION]
+==================================================
+
+The app should feel clean and minimal.
+
+First screen visual priority:
+1. App logo/title
+2. ID input
+3. Next button
+4. Swimming Pool Search
+
+Do NOT clutter the first screen.
+Do NOT show password there.
+
+Role selection screen should be:
+- clean
+- icon-based
+- no long explanations
+- easy to modify later
+- visually intuitive
+
+==================================================
+[SCREEN 1: LOGIN ID SCREEN]
+==================================================
+
+Purpose:
+- first entry screen
+- check whether user is existing user or new user
+- also provide swimming pool search access
+
+UI elements:
+- app logo/title
+- ID input field
+- Next button
+- Swimming Pool Search area/button/section
+- optional small helper text
+
+Visible elements on screen:
+- ID field
+- Next button
+- Swimming Pool Search only
+
+Behavior:
+1. user enters ID
+2. user taps Next
+3. system trims input and validates non-empty
+4. system checks whether login_id exists
+
+Case A: ID exists
+- show a short detection message
+- move to password screen
+
+Suggested message:
+- Existing account found
+- Please enter your password
+
+Case B: ID does not exist
+- show a short detection message
+- move to signup screen
+- prefill entered ID
+
+Suggested message:
+- This ID is not registered
+- Continue to sign up
+
+Important:
+Please implement actual ID existence check logic, not fake UI only.
+
+==================================================
+[SCREEN 2: PASSWORD SCREEN]
+==================================================
+
+Purpose:
+- password entry only for existing IDs
+
+UI elements:
+- entered ID display
+- edit/back option to change ID
+- password field
+- Login button
+- Forgot Password button/link
+- Invitation Link / Pool Code input section
+
+Behavior:
+- correct password -> login success
+- incorrect password -> clear error message
+- user can go back and edit ID
+- user can use invitation link or pool code here if needed
+
+Invitation / Pool code section:
+- allow input of:
+  - invitation link
+  - invitation code
+  - swimming pool unique code
+- validate code
+- if valid, connect user to organization or proceed to organization join flow
+
+==================================================
+[SCREEN 3: SIGNUP SCREEN]
+==================================================
+
+Purpose:
+- for non-existing ID entered on first screen
+
+Required behavior:
+- ID field should be prefilled with the entered ID
+- user can edit it if needed
+- complete signup flow after that
+
+Suggested fields:
+- desired ID
+- password
+- confirm password
+- name
+- phone number if needed
+- join method:
+  - invitation link
+  - pool code
+  - request join
+  - create new organization
+
+Important:
+The signup screen must receive the typed ID from screen 1 automatically.
+
+==================================================
+[SCREEN 4: ORGANIZATION + ROLE SELECTION SCREEN]
+==================================================
+
+Purpose:
+- appear after successful login
+- also appear as first screen when app reopens with valid session
+
+This screen is very important.
+
+Top-left area:
+- organization selector dropdown/button
+- shows swimming pools / organizations the user has access to
+
+Examples:
+- ToyKids Swim Club
+- Coach Kim Private Swim
+- Another Swim Center
+
+If user belongs to one organization only:
+- show it fixed in top-left
+- selector can still open but only one item
+
+If user belongs to multiple organizations:
+- allow switching organization directly here
+
+Below that:
+- show role selection cards/icons
+
+Roles to show only if user has permission in current selected organization:
+- Admin
+- Teacher
+- Parent
+
+Important:
+Do NOT show roles user does not actually have.
+
+Role selection screen style:
+- clean
+- icon-based
+- no description text required by default
+- card layout or large rounded buttons
+- easy to edit later
+
+==================================================
+[ROLE CARD UI STRUCTURE]
+==================================================
+
+Please build role cards in a reusable structure so text/icon can be changed later easily.
+
+Suggested component structure:
+RoleCard
+- roleKey
+- title
+- icon
+- isAvailable
+- onClick
+
+Suggested displayed titles:
+- 관리자
+- 선생님
+- 학부모
+
+Suggested English keys:
+- admin
+- teacher
+- parent
+
+Suggested entry buttons or tap action:
+- 관리자 모드
+- 선생님 모드
+- 학부모 모드
+
+Recommended icon direction:
+- Admin = settings / shield / building / control icon
+- Teacher = whistle / user / clipboard / teaching icon
+- Parent = child / family / heart / user-circle icon
+
+Keep icon selection simple and editable.
+
+Recommended card layout:
+- square or rounded rectangle
+- centered icon
+- title below icon
+- selected/hover/pressed state clearly visible
+
+Example layout:
+[Organization selector top-left]
+
+[관리자 카드] [선생님 카드]
+[학부모 카드]
+
+No long description text needed now.
+But structure should allow adding subtitle later if needed.
+
+==================================================
+[ORGANIZATION SELECTOR STRUCTURE]
+==================================================
+
+At the top-left of role selection screen, add organization selector.
+
+Purpose:
+- user may belong to multiple swimming pools
+- choose current active organization before choosing role
+
+Suggested structure:
+OrganizationSwitcher
+- currentOrganizationName
+- dropdown icon
+- organization list modal/dropdown
+- onSelectOrganization()
+
+Behavior:
+- selecting organization reloads available roles for that organization
+- last selected organization may be temporarily remembered in local state/session
+- switching organization should update role cards immediately
+
+Example:
+Top-left:
+[ 토이키즈스윔클럽 ▾ ]
+
+Tap ->
+- 토이키즈스윔클럽
+- 김코치개인레슨
+- 강남어린이수영
+
+When organization changes:
+- available roles list refreshes
+- user can then choose a role for that organization
+
+==================================================
+[AUTO LOGIN / APP REOPEN FLOW]
+==================================================
+
+When app opens:
+
+Case 1: no valid session
+-> show Login ID Screen
+
+Case 2: valid session exists
+-> skip login screens
+-> go directly to Organization + Role Selection Screen
+
+Reason:
+User is already authenticated.
+They only need to choose:
+1. which organization
+2. which role/mode
+
+Do NOT send already logged-in users to password screen again.
+
+==================================================
+[IN-APP MODE / ORGANIZATION SWITCH]
+==================================================
+
+Inside the app, add a clear entry point for switching:
+- role/mode
+- organization
+
+Suggested menu item names:
+- 권한 변경
+- 모드 변경
+- 수영장 변경
+
+Recommended:
+Use one page for both:
+- organization selector on top
+- role cards below
+
+This page should be accessible from:
+- profile
+- settings
+- top bar menu
+- side menu if available
+
+No re-login required.
+
+==================================================
+[SWIMMING POOL SEARCH ON FIRST SCREEN]
+==================================================
+
+Keep Swimming Pool Search on the first login screen below the ID section.
+
+Purpose:
+- platform discovery
+- let new users search swimming pools before signup or join
+
+MVP is enough:
+- search by pool name
+- search by region
+- show result list/cards
+- allow tap to view pool basic info
+
+Do NOT let this overpower the login area.
+It should remain secondary but visible.
+
+==================================================
+[FLOWCHART]
+==================================================
+
+Please implement the logic based on this flow:
+
+APP OPEN
+|
+|-- Has valid session?
+|      |-- NO --> Login ID Screen
+|      |          |-- user enters ID and taps Next
+|      |          |-- check if ID exists
+|      |                 |-- EXISTS --> Password Screen
+|      |                 |              |-- password success --> Organization + Role Selection
+|      |                 |              |-- forgot password available
+|      |                 |              |-- invite link / pool code available
+|      |                 |
+|      |                 |-- NOT EXISTS --> Signup Screen
+|      |                                 |-- prefill entered ID
+|      |                                 |-- complete signup
+|      |                                 |-- after signup success --> Organization + Role Selection
+|      |
+|      |-- YES --> Organization + Role Selection
+|
+Organization + Role Selection
+|
+|-- choose organization (top-left selector)
+|-- available role cards shown for selected organization
+|-- choose role
+|      |-- Admin --> Admin Home
+|      |-- Teacher --> Teacher Home
+|      |-- Parent --> Parent Home
+
+Inside app
+|
+|-- open mode/organization switch page
+|-- change organization and/or role
+|-- navigate without re-login
+
+==================================================
+[LOGIC STRUCTURE]
+==================================================
+
+Please structure the logic clearly.
+
+1. ID Check Logic
+Function example:
+- checkLoginIdExists(loginId)
+
+Input:
+- user typed ID
+
+Output:
+- exists: true/false
+- matched user minimal info if needed
+
+Behavior:
+- trim spaces
+- reject empty value
+- query auth/user table
+- return exact boolean result
+
+2. Login Logic
+Function example:
+- loginWithIdPassword(loginId, password)
+
+3. Signup Logic
+Function example:
+- signupWithPrefilledId(loginId, formData)
+
+4. Session Logic
+Function example:
+- getCurrentSession()
+- isSessionValid()
+
+5. Organization Logic
+Function example:
+- getUserOrganizations(userId)
+- setActiveOrganization(orgId)
+
+6. Role Logic
+Function example:
+- getRolesForOrganization(userId, orgId)
+- setActiveRole(role)
+
+==================================================
+[RECOMMENDED DATA MODEL]
+==================================================
+
+Please support this with role + organization based data model.
+
+User
+- id
+- login_id
+- password_hash
+- name
+- phone
+- status
+
+Organization
+- id
+- name
+- type
+- pool_code
+- status
+
+UserOrganizationRole
+- id
+- user_id
+- organization_id
+- role
+- approved_status
+
+Possible role values:
+- admin
+- teacher
+- parent
+
+Possible approved status:
+- pending
+- approved
+- rejected
+
+This is important because:
+- one user may belong to multiple organizations
+- one user may have multiple roles in one organization
+
+==================================================
+[ROUTING STRUCTURE]
+==================================================
+
+Suggested screens/routes:
+
+- /login-id
+- /login-password
+- /signup
+- /pool-search
+- /org-role-select
+- /admin-home
+- /teacher-home
+- /parent-home
+- /switch-mode
+
+Routing rules:
+- first open without session -> /login-id
+- existing ID -> /login-password
+- new ID -> /signup
+- successful login/signup -> /org-role-select
+- app reopen with valid session -> /org-role-select
+- inside app switch action -> /switch-mode or /org-role-select reuse
+
+==================================================
+[VALIDATION RULES]
+==================================================
+
+Login ID screen:
+- empty input blocked
+- whitespace trimmed
+- actual ID existence check required
+- proper loading state while checking
+
+Password screen:
+- empty password blocked
+- wrong password shows clear error
+- forgot password available
+- invalid invite code handled cleanly
+- back to ID screen available
+
+Signup screen:
+- prefilled ID visible
+- duplicate ID prevention
+- validation for password and required fields
+
+Organization/Role screen:
+- show only approved organizations
+- show only approved roles
+- prevent entering unauthorized mode
+
+==================================================
+[STATE MANAGEMENT REQUIREMENTS]
+==================================================
+
+Please manage these states clearly:
+
+Auth state:
+- session
+- currentUser
+- isLoggedIn
+
+Login flow state:
+- enteredLoginId
+- idCheckLoading
+- idExists
+- loginError
+
+Organization state:
+- organizations[]
+- activeOrganizationId
+
+Role state:
+- availableRoles[]
+- activeRole
+
+UI state:
+- isSwitchingMode
+- isSelectingOrganization
+- isLoadingRoles
+
+==================================================
+[EDGE CASES]
+==================================================
+
+Please handle all of these:
+
+- user types non-existing ID by mistake -> goes to signup -> must be able to go back easily
+- user types existing ID but wrong password
+- user belongs to multiple organizations
+- user has multiple roles in one organization
+- user has only one role
+- invite/pool code invalid
+- session expired while app reopening
+- organization selected but no approved roles in that org
+- role exists in one org but not another
+- logout then reopen app
+
+If user has multiple organizations but only one role in each:
+- still require organization selection first
+
+If user has one organization and one role:
+- showing org-role selection screen is still acceptable for consistency
+- but direct auto-enter option can be added later if needed
+
+==================================================
+[UI COPY / TEXT SUGGESTION]
+==================================================
+
+Please use these text labels for now so they are easy to edit later.
+
+Login ID screen:
+- 아이디
+- 다음
+- 수영장 찾기
+
+ID check result:
+- Existing account found
+- Please enter your password
+- This ID is not registered
+- Continue to sign up
+
+Password screen:
+- 비밀번호
+- 로그인
+- 비밀번호 찾기
+- 초대링크 또는 수영장 코드 입력
+
+Role selection titles:
+- 관리자
+- 선생님
+- 학부모
+
+Menu / switch labels:
+- 권한 변경
+- 수영장 변경
+- 모드 선택
+
+Keep all labels centralized as constants if possible so they are easy to modify later.
+
+==================================================
+[IMPLEMENTATION PRIORITY]
+==================================================
+
+Please implement in this order:
+
+1. Build Login ID screen
+2. Add ID existence detection logic
+3. Build Password screen
+4. Build Signup screen with prefilled ID
+5. Build Organization + Role Selection screen
+6. Add organization selector at top-left
+7. Filter role cards by selected organization
+8. Add auto-login app-open routing
+9. Add in-app mode/organization switch page
+10. Test full navigation logic end-to-end
+
+==================================================
+[REAL TEST CHECKLIST]
+==================================================
+
+Do NOT report completion without actually clicking through these flows.
+
+Required real tests:
+
+1. New ID flow
+- enter non-existing ID
+- move to signup
+- ID is prefilled correctly
+
+2. Existing ID flow
+- enter existing ID
+- move to password screen
+- login works
+
+3. Wrong password flow
+- existing ID
+- wrong password
+- proper error shown
+
+4. App reopen flow
+- logged in user closes and reopens app
+- lands on organization + role selection screen
+
+5. Multi-organization flow
+- user with multiple pool access
+- top-left organization selector works
+- changing organization refreshes role list
+
+6. Multi-role flow
+- user with admin + teacher
+- both cards shown
+- entering each mode works
+
+7. In-app switching flow
+- while logged in
+- go to switch page
+- change organization and/or role
+- enter target mode without re-login
+
+==================================================
+[COMPLETION REPORT FORMAT]
+==================================================
+
+When finished, do NOT just say “done”.
+
+Please report using this format:
+
+1. Files changed
+2. Screens/components added
+3. ID existence detection implementation
+4. Auth flow changes
+5. Organization selector implementation
+6. Role card implementation
+7. App reopen auto-login flow
+8. In-app mode/organization switch implementation
+9. Real click test results for:
+   - existing ID -> password
+   - non-existing ID -> signup
+   - login success -> org/role select
+   - app reopen -> org/role select
+   - organization switching
+   - role switching
+10. Remaining issues if any
+
+Important:
+Visual completion is NOT enough.
+This task is complete only when the real routing, logic, and click behavior all work correctly.

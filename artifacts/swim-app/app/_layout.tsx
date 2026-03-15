@@ -16,13 +16,6 @@ import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandCon
 SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
-/**
- * 로그인 상태가 바뀔 때마다 BrandContext를 동기화한다.
- * - 수영장 관리자: pool 정보의 theme_color, logo_url, logo_emoji, name 적용
- * - 학부모: pool_name만 적용
- * - 슈퍼관리자: 스윔노트 기본값 유지
- * - 로그아웃: 브랜드 초기화
- */
 function BrandSync() {
   const { kind, adminUser, parentAccount, pool } = useAuth();
   const { setBrand, resetBrand } = useBrand();
@@ -32,10 +25,8 @@ function BrandSync() {
       resetBrand();
       return;
     }
-
     if (kind === "admin") {
       if (adminUser?.role === "super_admin") {
-        // 슈퍼관리자는 플랫폼 기본 브랜드
         setBrand({ poolName: null, themeColor: DEFAULT_THEME_COLOR, logoUrl: null, logoEmoji: null });
         return;
       }
@@ -60,7 +51,6 @@ function BrandSync() {
   return null;
 }
 
-/** 로그인 후 Expo 푸시 토큰을 서버에 등록 */
 function PushTokenSync() {
   const { token, kind, parentAccount } = useAuth();
   const registered = useRef(false);
@@ -78,10 +68,8 @@ function PushTokenSync() {
           finalStatus = status;
         }
         if (finalStatus !== "granted") return;
-
         const tokenData = await Notifications.getExpoPushTokenAsync();
         if (!tokenData?.data) return;
-
         await apiRequest(token, "/push-token", {
           method: "POST",
           body: JSON.stringify({
@@ -92,45 +80,61 @@ function PushTokenSync() {
         registered.current = true;
       } catch (_) {}
     }
-
     registerToken();
   }, [token]);
 
   return null;
 }
 
+/**
+ * 인증 상태에 따른 라우팅:
+ * - 세션 없음 → "/" (로그인 ID 화면)
+ * - 세션 있음 → "/org-role-select" (조직+역할 선택 화면)
+ *
+ * 역할 선택 후 앱 내부 이동은 org-role-select에서 직접 router.replace()로 처리한다.
+ * 이 effect는 kind 또는 isLoading이 바뀔 때만 재실행되므로, 앱 내부 탐색 중에는 재실행되지 않는다.
+ */
 function RootNav() {
-  const { kind, adminUser, pool, isLoading } = useAuth();
+  const { kind, isLoading, adminUser, pool } = useAuth();
+  const didRoute = useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
 
-    if (!kind) { router.replace("/"); return; }
+    if (!kind) {
+      didRoute.current = false;
+      router.replace("/");
+      return;
+    }
 
-    if (kind === "parent") { router.replace("/(parent)/children"); return; }
+    if (didRoute.current) return;
 
     if (kind === "admin") {
       const role = adminUser?.role;
-      if (role === "super_admin") { router.replace("/(super)/pools"); return; }
-      if (role === "teacher") { router.replace("/(teacher)/today-schedule"); return; }
       if (role === "pool_admin") {
-        if (!adminUser?.swimming_pool_id) { router.replace("/pool-apply"); return; }
-        if (pool) {
-          if (pool.approval_status === "pending") { router.replace("/pending"); return; }
-          if (pool.approval_status === "rejected") { router.replace("/rejected"); return; }
-          if (["expired", "suspended", "cancelled"].includes(pool.subscription_status)) {
-            router.replace("/subscription-expired"); return;
-          }
+        if (!adminUser?.swimming_pool_id) {
+          didRoute.current = true;
+          router.replace("/pool-apply");
+          return;
         }
-        router.replace("/(admin)/dashboard");
+        if (!pool) return;
+        if (pool.approval_status === "pending") { router.replace("/pending"); return; }
+        if (pool.approval_status === "rejected") { router.replace("/rejected"); return; }
+        if (["expired", "suspended", "cancelled"].includes(pool.subscription_status)) {
+          router.replace("/subscription-expired"); return;
+        }
       }
     }
-  }, [kind, adminUser, pool, isLoading]);
+
+    didRoute.current = true;
+    router.replace("/org-role-select");
+  }, [kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="login" />
+      <Stack.Screen name="org-role-select" />
       <Stack.Screen name="parent-login" />
       <Stack.Screen name="register" />
       <Stack.Screen name="pool-apply" />

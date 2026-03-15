@@ -3,6 +3,7 @@ import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
+
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
 
@@ -42,6 +43,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="attendance" options={{ title: "출결", tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }} />
       <Tabs.Screen name="parents" options={{ title: "학부모", tabBarIcon: ({ color }) => <Feather name="user-check" size={22} color={color} /> }} />
       <Tabs.Screen name="notices" options={{ title: "공지", tabBarIcon: ({ color }) => <Feather name="bell" size={22} color={color} /> }} />
+      <Tabs.Screen name="mode" options={{ title: "모드변경", tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} /> }} />
       {/* 숨김 화면들 */}
       <Tabs.Screen name="diary-write"       options={{ href: null }} />
       <Tabs.Screen name="photo-upload"      options={{ href: null }} />

@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -18,11 +18,12 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 export default function RegisterScreen() {
-  const { login } = useAuth();
+  const { unifiedLogin } = useAuth();
+  const { id: prefillId } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
   const C = Colors.light;
 
-  const [form, setForm] = useState({ email: "", password: "", passwordConfirm: "", name: "", phone: "" });
+  const [form, setForm] = useState({ email: prefillId || "", password: "", passwordConfirm: "", name: "", phone: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -45,7 +46,7 @@ export default function RegisterScreen() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "가입에 실패했습니다.");
-      await login(form.email.trim(), form.password);
+      await unifiedLogin(form.email.trim(), form.password);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "가입에 실패했습니다.");
     } finally {

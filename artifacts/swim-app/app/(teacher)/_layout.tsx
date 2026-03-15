@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { router, Tabs } from "expo-router";
 import React from "react";
-import { Platform, Pressable } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
 import { useAuth } from "@/context/AuthContext";
@@ -16,6 +16,10 @@ export default function TeacherLayout() {
     router.replace("/");
   };
 
+  const handleSwitchMode = () => {
+    router.replace("/org-role-select");
+  };
+
   return (
     <Tabs screenOptions={{
       tabBarActiveTintColor: themeColor,
@@ -24,9 +28,14 @@ export default function TeacherLayout() {
       headerStyle: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
       headerTitleStyle: { fontFamily: "Inter_600SemiBold", fontSize: 16, color: C.text },
       headerRight: () => (
-        <Pressable onPress={handleLogout} style={{ marginRight: 16, padding: 8 }}>
-          <Feather name="log-out" size={20} color={C.text} />
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", marginRight: 8, gap: 4 }}>
+          <Pressable onPress={handleSwitchMode} style={{ padding: 8 }} hitSlop={4}>
+            <Feather name="grid" size={20} color={C.textSecondary} />
+          </Pressable>
+          <Pressable onPress={handleLogout} style={{ padding: 8 }} hitSlop={4}>
+            <Feather name="log-out" size={20} color={C.text} />
+          </Pressable>
+        </View>
       ),
       tabBarStyle: {
         backgroundColor: "#fff",
