@@ -73,6 +73,7 @@ const s = StyleSheet.create({
   bar: {
     position: "absolute",
     bottom: 0, left: 0, right: 0,
+    zIndex: 1000,
     backgroundColor: C.card,
     borderTopWidth: 1,
     borderTopColor: C.border,
@@ -82,7 +83,7 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 10,
+    elevation: 30,
   },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 6 },

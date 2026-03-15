@@ -367,10 +367,11 @@ function SingleClassActionBar({
 const sa = StyleSheet.create({
   bar: {
     position: "absolute", bottom: 0, left: 0, right: 0,
+    zIndex: 1000,
     backgroundColor: C.card,
     borderTopWidth: 1, borderTopColor: C.border,
     paddingTop: 12, paddingHorizontal: 16,
-    shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 30,
   },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
   assignBtn: {

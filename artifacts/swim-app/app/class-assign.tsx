@@ -1,17 +1,17 @@
 /**
  * class-assign.tsx — 반배정 변경 화면 (Admin + Teacher 공유)
  * 진입: ?classId=xxx
- * - 현재 소속 회원 목록 표시
- * - 미배정/타반 회원 검색 및 추가
+ * - 현재 소속 회원 목록 표시 + 해제
+ * - 미배정 회원 기본 목록 표시 + 이름 검색 필터
  * - 추가/해제 즉시 저장
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Platform,
+  ActivityIndicator, Alert, Platform,
   Pressable, RefreshControl,
-  StyleSheet, Text, TextInput, View,
+  ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -64,8 +64,6 @@ export default function ClassAssignScreen() {
         const allStu: Student[] = await stuRes.json();
         const active = allStu.filter(s => s.status !== "withdrawn" && s.status !== "deleted");
         setAllStudents(active);
-
-        // 현재 이 반에 배정된 학생: class_group_id 또는 assigned_class_ids에 포함된 경우
         const inClass = active.filter(s => {
           const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
           return s.class_group_id === classId || ids.includes(classId);
@@ -78,13 +76,13 @@ export default function ClassAssignScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 배정 가능한 학생: 현재 반 소속이 아닌 학생 (검색 필터 포함)
+  // 배정 가능: 이 반에 없는 학생 전체 → 검색어 있으면 필터
   const assignable = allStudents.filter(s => {
     const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
     const inThisClass = s.class_group_id === classId || ids.includes(classId);
     if (inThisClass) return false;
-    if (!search.trim()) return false; // 검색어 없으면 숨김
-    return s.name.includes(search.trim());
+    if (search.trim()) return s.name.includes(search.trim());
+    return true;
   });
 
   async function handleAssign(student: Student) {
@@ -93,7 +91,6 @@ export default function ClassAssignScreen() {
       ? student.assigned_class_ids : [];
     if (currentIds.includes(classId)) return;
 
-    // 정원 체크
     if (classInfo?.capacity != null && assigned.length >= classInfo.capacity) {
       Alert.alert("정원 초과", `이 반의 정원(${classInfo.capacity}명)이 꽉 찼습니다.`);
       return;
@@ -114,8 +111,7 @@ export default function ClassAssignScreen() {
       const updated: Student = await res.json();
       setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
       setAssigned(prev => [...prev, { ...student, ...updated }]);
-      setSearch("");
-    } catch (e) {
+    } catch {
       Alert.alert("오류", "네트워크 오류가 발생했습니다.");
     } finally { setSaving(null); }
   }
@@ -135,7 +131,6 @@ export default function ClassAssignScreen() {
               const currentIds: string[] = Array.isArray(student.assigned_class_ids)
                 ? student.assigned_class_ids : [];
               const newIds = currentIds.filter(id => id !== classId);
-              // class_group_id도 이 반이면 null로
               const res = await apiRequest(token, `/students/${student.id}/assign`, {
                 method: "PATCH",
                 body: JSON.stringify({ assigned_class_ids: newIds }),
@@ -148,7 +143,7 @@ export default function ClassAssignScreen() {
               const updated: Student = await res.json();
               setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
               setAssigned(prev => prev.filter(s => s.id !== student.id));
-            } catch (e) {
+            } catch {
               Alert.alert("오류", "네트워크 오류가 발생했습니다.");
             } finally { setSaving(null); }
           },
@@ -189,116 +184,117 @@ export default function ClassAssignScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* 반 정보 카드 */}
-      {classInfo && (
-        <View style={[s.classCard, { backgroundColor: C.card }]}>
-          <View style={[s.classIcon, { backgroundColor: "#F3E8FF" }]}>
-            <Feather name="layers" size={20} color="#7C3AED" />
-          </View>
-          <View style={{ flex: 1, gap: 3 }}>
-            <Text style={[s.className, { color: C.text }]}>{classInfo.name}</Text>
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <View style={s.metaRow}>
-                <Feather name="calendar" size={12} color={C.textMuted} />
-                <Text style={[s.meta, { color: C.textSecondary }]}>{days}요일</Text>
-              </View>
-              <View style={s.metaRow}>
-                <Feather name="clock" size={12} color={C.textMuted} />
-                <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.schedule_time}</Text>
-              </View>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 반 정보 카드 */}
+        {classInfo && (
+          <View style={[s.classCard, { backgroundColor: C.card }]}>
+            <View style={[s.classIcon, { backgroundColor: "#F3E8FF" }]}>
+              <Feather name="layers" size={20} color="#7C3AED" />
             </View>
-            {classInfo.instructor && (
-              <View style={s.metaRow}>
-                <Feather name="user" size={12} color={C.textMuted} />
-                <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.instructor}</Text>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={[s.className, { color: C.text }]}>{classInfo.name}</Text>
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                <View style={s.metaRow}>
+                  <Feather name="calendar" size={12} color={C.textMuted} />
+                  <Text style={[s.meta, { color: C.textSecondary }]}>{days}요일</Text>
+                </View>
+                <View style={s.metaRow}>
+                  <Feather name="clock" size={12} color={C.textMuted} />
+                  <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.schedule_time}</Text>
+                </View>
               </View>
-            )}
+              {classInfo.instructor && (
+                <View style={s.metaRow}>
+                  <Feather name="user" size={12} color={C.textMuted} />
+                  <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.instructor}</Text>
+                </View>
+              )}
+            </View>
+            <View style={[s.countBadge, { backgroundColor: capacityOver ? "#FEE2E2" : C.tintLight }]}>
+              <Text style={[s.countText, { color: capacityOver ? C.error : C.tint }]}>{capacityLabel}</Text>
+            </View>
           </View>
-          <View style={[s.countBadge, { backgroundColor: capacityOver ? "#FEE2E2" : C.tintLight }]}>
-            <Text style={[s.countText, { color: capacityOver ? C.error : C.tint }]}>{capacityLabel}</Text>
-          </View>
-        </View>
-      )}
-
-      {/* 섹션 1: 현재 소속 회원 */}
-      <View style={s.sectionHeader}>
-        <Text style={[s.sectionTitle, { color: C.text }]}>현재 소속 회원</Text>
-        <Text style={[s.sectionCount, { color: C.textMuted }]}>{assigned.length}명</Text>
-      </View>
-
-      {assigned.length === 0 ? (
-        <View style={s.emptyRow}>
-          <Text style={[s.emptyText, { color: C.textMuted }]}>이 반에 배정된 회원이 없습니다</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={assigned}
-          keyExtractor={i => i.id}
-          scrollEnabled={false}
-          style={{ maxHeight: 260 }}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-          renderItem={({ item }) => (
-            <StudentRow
-              student={item}
-              action="remove"
-              loading={saving === item.id}
-              onPress={() => handleRemove(item)}
-            />
-          )}
-        />
-      )}
-
-      {/* 구분선 */}
-      <View style={[s.divider, { borderTopColor: C.border }]} />
-
-      {/* 섹션 2: 회원 검색 */}
-      <View style={s.sectionHeader}>
-        <Text style={[s.sectionTitle, { color: C.text }]}>회원 추가</Text>
-        <Text style={[s.sectionSub, { color: C.textMuted }]}>이름으로 검색</Text>
-      </View>
-
-      <View style={[s.searchWrap, { backgroundColor: C.card, borderColor: C.border }]}>
-        <Feather name="search" size={16} color={C.textMuted} />
-        <TextInput
-          style={[s.searchInput, { color: C.text }]}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="이름 검색..."
-          placeholderTextColor={C.textMuted}
-        />
-        {search.length > 0 && (
-          <Pressable onPress={() => setSearch("")}>
-            <Feather name="x-circle" size={16} color={C.textMuted} />
-          </Pressable>
         )}
-      </View>
 
-      {search.trim().length === 0 ? (
-        <View style={s.emptyRow}>
-          <Text style={[s.emptyText, { color: C.textMuted }]}>이름을 입력하면 배정 가능한 회원이 표시됩니다</Text>
+        {/* 섹션 1: 현재 소속 회원 */}
+        <View style={s.sectionHeader}>
+          <Text style={[s.sectionTitle, { color: C.text }]}>현재 소속 회원</Text>
+          <Text style={[s.sectionCount, { color: C.textMuted }]}>{assigned.length}명</Text>
         </View>
-      ) : assignable.length === 0 ? (
-        <View style={s.emptyRow}>
-          <Text style={[s.emptyText, { color: C.textMuted }]}>"{search}"에 해당하는 미배정 회원이 없습니다</Text>
+
+        {assigned.length === 0 ? (
+          <View style={s.emptyRow}>
+            <Text style={[s.emptyText, { color: C.textMuted }]}>이 반에 배정된 회원이 없습니다</Text>
+          </View>
+        ) : (
+          <View style={{ paddingHorizontal: 16, gap: 8 }}>
+            {assigned.map(item => (
+              <StudentRow
+                key={item.id}
+                student={item}
+                action="remove"
+                loading={saving === item.id}
+                onPress={() => handleRemove(item)}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* 구분선 */}
+        <View style={[s.divider, { borderTopColor: C.border }]} />
+
+        {/* 섹션 2: 회원 추가 */}
+        <View style={s.sectionHeader}>
+          <Text style={[s.sectionTitle, { color: C.text }]}>회원 추가</Text>
+          <Text style={[s.sectionCount, { color: C.textMuted }]}>{assignable.length}명</Text>
         </View>
-      ) : (
-        <FlatList
-          data={assignable}
-          keyExtractor={i => i.id}
-          scrollEnabled={false}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: insets.bottom + 24 }}
-          renderItem={({ item }) => (
-            <StudentRow
-              student={item}
-              action="add"
-              loading={saving === item.id}
-              onPress={() => handleAssign(item)}
-              disabled={capacityOver}
-            />
+
+        {/* 검색창 */}
+        <View style={[s.searchWrap, { backgroundColor: C.card, borderColor: C.border }]}>
+          <Feather name="search" size={16} color={C.textMuted} />
+          <TextInput
+            style={[s.searchInput, { color: C.text }]}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="이름 검색..."
+            placeholderTextColor={C.textMuted}
+          />
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch("")}>
+              <Feather name="x-circle" size={16} color={C.textMuted} />
+            </Pressable>
           )}
-        />
-      )}
+        </View>
+
+        {/* 미배정 목록 */}
+        {assignable.length === 0 ? (
+          <View style={s.emptyRow}>
+            <Text style={[s.emptyText, { color: C.textMuted }]}>
+              {search.trim()
+                ? `"${search}"에 해당하는 배정 가능한 회원이 없습니다`
+                : "배정 가능한 회원이 없습니다"}
+            </Text>
+          </View>
+        ) : (
+          <View style={{ paddingHorizontal: 16, gap: 8 }}>
+            {assignable.map(item => (
+              <StudentRow
+                key={item.id}
+                student={item}
+                action="add"
+                loading={saving === item.id}
+                onPress={() => handleAssign(item)}
+                disabled={capacityOver}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -324,12 +320,11 @@ function StudentRow({
         {student.birth_year && (
           <Text style={[r.sub, { color: C.textMuted }]}>{student.birth_year}년생</Text>
         )}
-        {currentClass && (
+        {currentClass ? (
           <Text style={[r.sub, { color: C.textMuted }]}>현재 반: {currentClass}</Text>
-        )}
-        {!currentClass && !student.class_group_id && (
+        ) : !student.class_group_id ? (
           <Text style={[r.sub, { color: C.textMuted }]}>미배정</Text>
-        )}
+        ) : null}
       </View>
       <Pressable
         style={[
@@ -381,8 +376,7 @@ const s = StyleSheet.create({
   },
   sectionTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
   sectionCount: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  sectionSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  emptyRow: { paddingHorizontal: 16, paddingVertical: 16, alignItems: "center" },
+  emptyRow: { paddingHorizontal: 16, paddingVertical: 14, alignItems: "center" },
   emptyText: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
   divider: { borderTopWidth: 1, marginHorizontal: 16, marginVertical: 16 },
   searchWrap: {
