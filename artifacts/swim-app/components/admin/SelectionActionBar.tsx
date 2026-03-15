@@ -1,12 +1,19 @@
 import { Feather } from "@expo/vector-icons";
-import React from "react";
+import { useNavigation } from "expo-router";
+import React, { useEffect } from "react";
 import {
-  ActivityIndicator, Pressable, StyleSheet, Text, View,
+  ActivityIndicator, Platform, Pressable, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
+
+const ORIGINAL_TAB_STYLE = Platform.select({
+  ios: { position: "absolute" as const, backgroundColor: "transparent", borderTopWidth: 0, elevation: 0 },
+  web: { position: "absolute" as const, borderTopWidth: 1, borderTopColor: "#E5E7EB", height: 84 },
+  default: { position: "absolute" as const, backgroundColor: "#fff", borderTopWidth: 0, elevation: 0 },
+});
 
 interface Props {
   visible: boolean;
@@ -25,30 +32,43 @@ export function SelectionActionBar({
   deleting, onSelectAll, onClearSelection, onDeleteSelected, onExit,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    try {
+      const parent = navigation.getParent();
+      if (!parent) return;
+      parent.setOptions({ tabBarStyle: visible ? { display: "none" } : ORIGINAL_TAB_STYLE });
+    } catch { }
+  }, [visible, navigation]);
+
+  useEffect(() => {
+    return () => {
+      try {
+        navigation.getParent()?.setOptions({ tabBarStyle: ORIGINAL_TAB_STYLE });
+      } catch { }
+    };
+  }, [navigation]);
+
   if (!visible) return null;
 
   return (
     <View style={[s.bar, { paddingBottom: insets.bottom + 8 }]}>
       <View style={s.row}>
-        {/* 전체선택 체크박스 */}
-        <Pressable style={s.checkRow} onPress={onSelectAll}>
+        <Pressable style={s.checkRow} onPress={isAllSelected ? onClearSelection : onSelectAll}>
           <View style={[s.checkbox, isAllSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
             {isAllSelected && <Feather name="check" size={12} color="#fff" />}
           </View>
-          <Text style={s.checkLabel}>
-            {isAllSelected ? "전체해제" : `전체선택`}
-          </Text>
+          <Text style={s.checkLabel}>{isAllSelected ? "전체해제" : "전체선택"}</Text>
         </Pressable>
 
-        {/* 선택 개수 */}
         <View style={s.countBadge}>
           <Text style={s.countText}>선택됨 {selectedCount}개</Text>
         </View>
 
-        {/* 삭제 버튼 */}
         <Pressable
-          style={[s.deleteBtn, selectedCount === 0 && s.deleteBtnDisabled]}
-          onPress={selectedCount > 0 ? onDeleteSelected : undefined}
+          style={[s.deleteBtn, (selectedCount === 0 || deleting) && s.deleteBtnDisabled]}
+          onPress={selectedCount > 0 && !deleting ? onDeleteSelected : undefined}
           disabled={selectedCount === 0 || deleting}
         >
           {deleting
@@ -60,7 +80,6 @@ export function SelectionActionBar({
           </Text>
         </Pressable>
 
-        {/* 선택모드 종료 */}
         <Pressable style={s.exitBtn} onPress={onExit}>
           <Feather name="x" size={18} color={C.textSecondary} />
         </Pressable>
@@ -73,7 +92,6 @@ const s = StyleSheet.create({
   bar: {
     position: "absolute",
     bottom: 0, left: 0, right: 0,
-    zIndex: 1000,
     backgroundColor: C.card,
     borderTopWidth: 1,
     borderTopColor: C.border,
@@ -81,7 +99,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 30,
   },

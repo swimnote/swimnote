@@ -1,16 +1,23 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList,
+  ActivityIndicator, Alert, FlatList, Platform,
   Pressable, RefreshControl, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { useSelectionMode } from "@/hooks/useSelectionMode";
 import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
+
+const ORIGINAL_TAB_STYLE = Platform.select({
+  ios: { position: "absolute" as const, backgroundColor: "transparent", borderTopWidth: 0, elevation: 0 },
+  web: { position: "absolute" as const, borderTopWidth: 1, borderTopColor: "#E5E7EB", height: 84 },
+  default: { position: "absolute" as const, backgroundColor: "#fff", borderTopWidth: 0, elevation: 0 },
+});
 
 const C = Colors.light;
 
@@ -337,6 +344,19 @@ function SingleClassActionBar({
   onDelete: () => void;
   onExit: () => void;
 }) {
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    try {
+      navigation.getParent()?.setOptions({ tabBarStyle: { display: "none" } });
+    } catch { }
+    return () => {
+      try {
+        navigation.getParent()?.setOptions({ tabBarStyle: ORIGINAL_TAB_STYLE });
+      } catch { }
+    };
+  }, [navigation]);
+
   return (
     <View style={[sa.bar, { paddingBottom: insets.bottom + 8 }]}>
       <View style={sa.row}>
