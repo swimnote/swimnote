@@ -73,15 +73,17 @@ function MiniCalendar({
         <Pressable
           style={cal.navBtn}
           onPress={() => { const d = new Date(year, month - 2, 1); onChangeMonth(d.getFullYear(), d.getMonth() + 1); }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Feather name="chevron-left" size={22} color={C.text} />
+          <Feather name="chevron-left" size={24} color={C.text} />
         </Pressable>
         <Text style={cal.title}>{year}년 {month}월</Text>
         <Pressable
           style={cal.navBtn}
           onPress={() => { const d = new Date(year, month, 1); onChangeMonth(d.getFullYear(), d.getMonth() + 1); }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Feather name="chevron-right" size={22} color={C.text} />
+          <Feather name="chevron-right" size={24} color={C.text} />
         </Pressable>
       </View>
 
@@ -316,11 +318,15 @@ function DailyMemoPage({
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
       <View style={[dm.header, { paddingTop: insets.top + 12, borderBottomColor: C.border }]}>
-        <Pressable style={dm.backBtn} onPress={onBack}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+        <Pressable
+          style={dm.backBtn}
+          onPress={onBack}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Feather name="arrow-left" size={24} color={C.text} />
         </Pressable>
         <Text style={[dm.headerTitle, { color: C.text }]}>{formatDate(date)}</Text>
-        <View style={{ width: 40 }} />
+        <View style={{ width: 48 }} />
       </View>
 
       <ScrollView
@@ -495,7 +501,7 @@ function ScheduleMemoModal({
       transparent={false}
       onRequestClose={handleBack}
     >
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.background }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.background }} edges={["top", "left", "right"]}>
         {selectedDate ? (
           <DailyMemoPage
             date={selectedDate}
@@ -508,11 +514,15 @@ function ScheduleMemoModal({
           <>
             {/* 달력 헤더 */}
             <View style={[sm.header, { borderBottomColor: C.border }]}>
-              <Pressable style={sm.backBtn} onPress={onClose}>
-                <Feather name="arrow-left" size={22} color={C.text} />
+              <Pressable
+                style={sm.backBtn}
+                onPress={onClose}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Feather name="arrow-left" size={24} color={C.text} />
               </Pressable>
               <Text style={[sm.headerTitle, { color: C.text }]}>스케줄 메모</Text>
-              <View style={{ width: 40 }} />
+              <View style={{ width: 48 }} />
             </View>
 
             <ScrollView
@@ -1001,16 +1011,16 @@ const cal = StyleSheet.create({
 });
 
 const sm = StyleSheet.create({
-  header:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1 },
-  backBtn:     { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  header:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 14, borderBottomWidth: 1 },
+  backBtn:     { width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: 12 },
   headerTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   tipBox:      { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12 },
   tipText:     { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
 });
 
 const dm = StyleSheet.create({
-  header:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  backBtn:      { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  header:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1 },
+  backBtn:      { width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: 12 },
   headerTitle:  { fontSize: 16, fontFamily: "Inter_700Bold", flex: 1, textAlign: "center" },
   section:      { gap: 10 },
   sectionHeader:{ flexDirection: "row", alignItems: "center", gap: 8 },
