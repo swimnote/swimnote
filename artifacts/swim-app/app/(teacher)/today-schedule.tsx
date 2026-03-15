@@ -317,7 +317,7 @@ function DailyMemoPage({
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
-      <View style={[dm.header, { paddingTop: insets.top + 12, borderBottomColor: C.border }]}>
+      <View style={[dm.header, { paddingTop: 20, borderBottomColor: C.border }]}>
         <Pressable
           style={dm.backBtn}
           onPress={onBack}
@@ -513,7 +513,7 @@ function ScheduleMemoModal({
         ) : (
           <>
             {/* 달력 헤더 */}
-            <View style={[sm.header, { borderBottomColor: C.border }]}>
+            <View style={[sm.header, { borderBottomColor: C.border, paddingTop: 20 }]}>
               <Pressable
                 style={sm.backBtn}
                 onPress={onClose}
