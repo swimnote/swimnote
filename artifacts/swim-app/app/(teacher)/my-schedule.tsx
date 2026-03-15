@@ -308,7 +308,7 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
           </Pressable>
         </View>
 
-        {/* 출결/일지 버튼 */}
+        {/* 출결/일지/반배정 버튼 */}
         <View style={ds.actionRow}>
           <Pressable style={[ds.actionBtn, { backgroundColor: attDone ? "#D1FAE5" : "#FEE2E2" }]}
             onPress={() => { onClose(); router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: group.id} } as any); }}>
@@ -320,10 +320,11 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
             <Feather name="edit-3" size={14} color={diarDone ? "#059669" : "#D97706"} />
             <Text style={[ds.actionText, { color: diarDone ? "#059669" : "#D97706" }]}>수업일지</Text>
           </Pressable>
-          <View style={[ds.actionBtn, { backgroundColor: "#F3F4F6" }]}>
-            <Feather name="users" size={14} color={C.textSecondary} />
-            <Text style={[ds.actionText, { color: C.textSecondary }]}>{group.student_count}명</Text>
-          </View>
+          <Pressable style={[ds.actionBtn, { backgroundColor: "#EEF2FF" }]}
+            onPress={() => { onClose(); router.push(`/class-assign?classId=${group.id}` as any); }}>
+            <Feather name="users" size={14} color="#4338CA" />
+            <Text style={[ds.actionText, { color: "#4338CA" }]}>반배정</Text>
+          </Pressable>
         </View>
 
         {/* 학생 목록 */}
@@ -576,6 +577,11 @@ export default function MyScheduleScreen() {
             onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name} } as any)}>
             <Feather name="edit-3" size={14} color={diarDone ? "#059669" : "#D97706"} />
             <Text style={[s.subActionText, { color: diarDone ? "#059669" : "#D97706" }]}>일지</Text>
+          </Pressable>
+          <Pressable style={[s.subActionBtn, { backgroundColor: "#EEF2FF" }]}
+            onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
+            <Feather name="users" size={14} color="#4338CA" />
+            <Text style={[s.subActionText, { color: "#4338CA" }]}>반배정</Text>
           </Pressable>
         </View>
 

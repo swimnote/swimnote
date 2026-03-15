@@ -17,9 +17,11 @@ interface StudentLink {
   status: "pending" | "approved" | "rejected";
   rejection_reason?: string | null; created_at: string;
 }
+interface RequestedChild { childName: string; childBirthYear?: number | null; }
 interface ParentRow {
   id: string; name: string; phone: string;
   students: StudentLink[];
+  requested_children?: RequestedChild[];
 }
 interface StudentOption { id: string; name: string; class_group_name?: string | null; }
 
@@ -36,6 +38,7 @@ export default function ParentsScreen() {
   const [formPhone, setFormPhone] = useState("");
   const [formPin, setFormPin] = useState("");
   const [formStudentId, setFormStudentId] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -250,7 +253,7 @@ export default function ParentsScreen() {
                     <View style={styles.cardActions}>
                       <Pressable
                         style={[styles.linkBtn, { borderColor: C.tint }]}
-                        onPress={() => { setFormStudentId(""); setFormError(""); setShowAddLink(pa); }}
+                        onPress={() => { setFormStudentId(""); setStudentSearch(""); setFormError(""); setShowAddLink(pa); }}
                       >
                         <Feather name="link" size={13} color={C.tint} />
                         <Text style={[styles.linkBtnText, { color: C.tint }]}>학생 연결</Text>
@@ -363,27 +366,80 @@ export default function ParentsScreen() {
               <Feather name="info" size={13} color={C.warning} />
               <Text style={[styles.infoText, { color: "#92400E" }]}>연결 요청은 관리자 승인 후 학부모에게 노출됩니다.</Text>
             </View>
+
+            {/* 신청 시 입력한 자녀명 */}
+            {(showAddLink?.requested_children ?? []).length > 0 && (
+              <View style={[styles.childRefBox, { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" }]}>
+                <View style={styles.childRefHeader}>
+                  <Feather name="user-check" size={13} color="#4338CA" />
+                  <Text style={[styles.childRefLabel, { color: "#4338CA" }]}>가입 신청 시 입력한 자녀</Text>
+                </View>
+                {(showAddLink?.requested_children ?? []).map((c, i) => (
+                  <View key={i} style={styles.childRefRow}>
+                    <Text style={[styles.childRefName, { color: C.text }]}>{c.childName}</Text>
+                    {c.childBirthYear && (
+                      <Text style={[styles.childRefYear, { color: C.textMuted }]}>{c.childBirthYear}년생</Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+
             {!!formError && <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
               <Text style={[styles.errText, { color: C.error }]}>{formError}</Text>
             </View>}
-            <Text style={[styles.label, { color: C.textSecondary }]}>학생 선택</Text>
-            <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
-              {students.filter(s => !showAddLink?.students.some(ls => ls.id === s.id && ls.status !== "rejected")).map(s => (
-                <Pressable key={s.id}
-                  style={[styles.studentOption, { borderColor: formStudentId === s.id ? C.tint : C.border, backgroundColor: formStudentId === s.id ? C.tintLight : "transparent" }]}
-                  onPress={() => setFormStudentId(s.id)}
-                >
-                  <Feather name={formStudentId === s.id ? "check-circle" : "circle"} size={16} color={formStudentId === s.id ? C.tint : C.textMuted} />
-                  <Text style={[styles.optionName, { color: C.text }]}>{s.name}</Text>
-                  {s.class_group_name && <Text style={[styles.optionSub, { color: C.textMuted }]}>{s.class_group_name}</Text>}
+
+            <Text style={[styles.label, { color: C.textSecondary }]}>실제 학생 기록 검색</Text>
+            <View style={[styles.searchRow, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="search" size={15} color={C.textMuted} />
+              <TextInput
+                style={[styles.searchInput, { color: C.text }]}
+                value={studentSearch}
+                onChangeText={setStudentSearch}
+                placeholder="이름으로 검색..."
+                placeholderTextColor={C.textMuted}
+              />
+              {studentSearch.length > 0 && (
+                <Pressable onPress={() => { setStudentSearch(""); setFormStudentId(""); }}>
+                  <Feather name="x-circle" size={15} color={C.textMuted} />
                 </Pressable>
-              ))}
+              )}
+            </View>
+
+            <ScrollView style={{ maxHeight: 180 }} showsVerticalScrollIndicator={false}>
+              {studentSearch.trim().length === 0 ? (
+                <View style={styles.searchHint}>
+                  <Text style={[styles.searchHintText, { color: C.textMuted }]}>이름을 입력하면 학생 목록이 표시됩니다</Text>
+                </View>
+              ) : students.filter(s =>
+                s.name.includes(studentSearch.trim()) &&
+                !showAddLink?.students.some(ls => ls.id === s.id && ls.status !== "rejected")
+              ).length === 0 ? (
+                <View style={styles.searchHint}>
+                  <Text style={[styles.searchHintText, { color: C.textMuted }]}>"{studentSearch}"에 해당하는 학생이 없습니다</Text>
+                </View>
+              ) : (
+                students.filter(s =>
+                  s.name.includes(studentSearch.trim()) &&
+                  !showAddLink?.students.some(ls => ls.id === s.id && ls.status !== "rejected")
+                ).map(s => (
+                  <Pressable key={s.id}
+                    style={[styles.studentOption, { borderColor: formStudentId === s.id ? C.tint : C.border, backgroundColor: formStudentId === s.id ? C.tintLight : "transparent" }]}
+                    onPress={() => setFormStudentId(s.id)}
+                  >
+                    <Feather name={formStudentId === s.id ? "check-circle" : "circle"} size={16} color={formStudentId === s.id ? C.tint : C.textMuted} />
+                    <Text style={[styles.optionName, { color: C.text }]}>{s.name}</Text>
+                    {s.class_group_name && <Text style={[styles.optionSub, { color: C.textMuted }]}>{s.class_group_name}</Text>}
+                  </Pressable>
+                ))
+              )}
             </ScrollView>
+
             <View style={styles.modalActions}>
-              <Pressable style={[styles.cancelBtn, { borderColor: C.border }]} onPress={() => setShowAddLink(null)}>
+              <Pressable style={[styles.cancelBtn, { borderColor: C.border }]} onPress={() => { setShowAddLink(null); setStudentSearch(""); }}>
                 <Text style={[styles.cancelText, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
-              <Pressable style={[styles.submitBtn, { backgroundColor: C.tint }]} onPress={handleAddLink} disabled={submitting}>
+              <Pressable style={[styles.submitBtn, { backgroundColor: formStudentId ? C.tint : C.border }]} onPress={handleAddLink} disabled={submitting || !formStudentId}>
                 {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.submitText}>연결 요청</Text>}
               </Pressable>
             </View>
@@ -441,6 +497,16 @@ const styles = StyleSheet.create({
   studentOption: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, marginBottom: 8 },
   optionName: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
   optionSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  childRefBox: { borderRadius: 10, borderWidth: 1.5, padding: 12, gap: 6 },
+  childRefHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+  childRefLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  childRefRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  childRefName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  childRefYear: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 6 },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  searchHint: { paddingVertical: 16, alignItems: "center" },
+  searchHintText: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
   modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
   cancelBtn: { flex: 1, height: 48, borderRadius: 12, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   cancelText: { fontSize: 15, fontFamily: "Inter_500Medium" },

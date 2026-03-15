@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList,
@@ -166,18 +167,32 @@ export default function ClassesScreen() {
         />
       )}
 
-      {/* 선택모드 액션바 */}
-      <SelectionActionBar
-        visible={sel.selectionMode}
-        selectedCount={sel.selectedCount}
-        totalCount={groups.length}
-        isAllSelected={sel.isAllSelected(visibleIds)}
-        deleting={deleting}
-        onSelectAll={() => sel.selectAll(visibleIds)}
-        onClearSelection={sel.clearSelection}
-        onDeleteSelected={handleBulkDelete}
-        onExit={sel.exitSelectionMode}
-      />
+      {/* 선택모드 액션바 — 1개 선택 시 회원 반배정 버튼 포함 */}
+      {sel.selectionMode && sel.selectedCount === 1 ? (
+        <SingleClassActionBar
+          selectedId={Array.from(sel.selectedIds)[0]}
+          deleting={deleting}
+          insets={insets}
+          onAssign={(classId) => {
+            sel.exitSelectionMode();
+            router.push(`/class-assign?classId=${classId}`);
+          }}
+          onDelete={() => handleBulkDelete()}
+          onExit={sel.exitSelectionMode}
+        />
+      ) : (
+        <SelectionActionBar
+          visible={sel.selectionMode}
+          selectedCount={sel.selectedCount}
+          totalCount={groups.length}
+          isAllSelected={sel.isAllSelected(visibleIds)}
+          deleting={deleting}
+          onSelectAll={() => sel.selectAll(visibleIds)}
+          onClearSelection={sel.clearSelection}
+          onDeleteSelected={handleBulkDelete}
+          onExit={sel.exitSelectionMode}
+        />
+      )}
 
       {showCreate && (
         <ClassCreateFlow
@@ -306,4 +321,70 @@ const cd = StyleSheet.create({
   capacityText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   deleteBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: "#FEE2E2" },
   deleteBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+});
+
+// ── 1개 반 선택 시 전용 액션바 ───────────────────────────────────────
+function SingleClassActionBar({
+  selectedId, deleting, insets, onAssign, onDelete, onExit,
+}: {
+  selectedId: string;
+  deleting: boolean;
+  insets: { bottom: number };
+  onAssign: (classId: string) => void;
+  onDelete: () => void;
+  onExit: () => void;
+}) {
+  return (
+    <View style={[sa.bar, { paddingBottom: insets.bottom + 8 }]}>
+      <View style={sa.row}>
+        <Pressable style={[sa.assignBtn, { backgroundColor: C.tint }]} onPress={() => onAssign(selectedId)}>
+          <Feather name="users" size={15} color="#fff" />
+          <Text style={sa.assignText}>회원 반배정</Text>
+        </Pressable>
+        <Pressable
+          style={[sa.deleteBtn, deleting && { opacity: 0.5 }]}
+          onPress={!deleting ? onDelete : undefined}
+          disabled={deleting}
+        >
+          {deleting
+            ? <ActivityIndicator size={14} color={C.error} />
+            : <Feather name="trash-2" size={14} color={C.error} />
+          }
+          <Text style={sa.deleteText}>{deleting ? "삭제 중..." : "삭제"}</Text>
+        </Pressable>
+        <Pressable style={sa.cancelBtn} onPress={onExit}>
+          <Feather name="x" size={16} color={C.textSecondary} />
+          <Text style={sa.cancelText}>취소</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const sa = StyleSheet.create({
+  bar: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: C.card,
+    borderTopWidth: 1, borderTopColor: C.border,
+    paddingTop: 12, paddingHorizontal: 16,
+    shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 10,
+  },
+  row: { flexDirection: "row", alignItems: "center", gap: 8 },
+  assignBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 12, borderRadius: 12,
+  },
+  assignText: { color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" },
+  deleteBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: "#FEE2E2",
+  },
+  deleteText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.error },
+  cancelBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 12, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: C.background,
+  },
+  cancelText: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
 });

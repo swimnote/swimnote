@@ -350,7 +350,27 @@ router.get("/parents", requireAuth, requireRole("super_admin", "pool_admin"), as
         const [s] = await db.select({ id: studentsTable.id, name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, l.student_id)).limit(1);
         return s ? { ...s, link_id: l.id, status: l.status, rejection_reason: l.rejection_reason, created_at: l.created_at } : null;
       }));
-      return { ...pa, pin_hash: undefined, students: linkedStudents.filter(Boolean) };
+
+      // 학부모 가입 신청 시 입력한 자녀명 조회 (전화번호 기준 매칭, 최신 approved 요청)
+      const reqRow = await db.execute(sql`
+        SELECT child_name, children_requested FROM parent_pool_requests
+        WHERE swimming_pool_id = ${poolId} AND phone = ${pa.phone}
+        ORDER BY requested_at DESC LIMIT 1
+      `);
+      const reqData = reqRow.rows[0] as any;
+      let requested_children: Array<{ childName: string; childBirthYear?: number | null }> = [];
+      if (reqData) {
+        const cr = typeof reqData.children_requested === "string"
+          ? JSON.parse(reqData.children_requested || "[]")
+          : (reqData.children_requested || []);
+        if (cr.length > 0) {
+          requested_children = cr;
+        } else if (reqData.child_name) {
+          requested_children = [{ childName: reqData.child_name }];
+        }
+      }
+
+      return { ...pa, pin_hash: undefined, students: linkedStudents.filter(Boolean), requested_children };
     }));
     res.json(enriched);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }

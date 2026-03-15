@@ -265,8 +265,8 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
-// ── PATCH /:id/assign — 반 배정 (관리자 전용) ──────────────────────
-router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+// ── PATCH /:id/assign — 반 배정 (관리자 + 선생님 허용) ─────────────
+router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
   const { assigned_class_ids, weekly_count } = req.body;
   if (!Array.isArray(assigned_class_ids)) return err(res, 400, "assigned_class_ids는 배열이어야 합니다.");
 
@@ -276,6 +276,22 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
     if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
     if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
+    }
+
+    // 선생님 scope check: 배정하려는 반이 모두 본인 담당인지 확인
+    if (req.user!.role === "teacher" && assigned_class_ids.length > 0) {
+      const myClasses = await db.select({ id: classGroupsTable.id })
+        .from(classGroupsTable)
+        .where(and(
+          eq(classGroupsTable.swimming_pool_id, poolId!),
+          eq(classGroupsTable.teacher_user_id, req.user!.userId),
+          eq(classGroupsTable.is_deleted, false)
+        ));
+      const myClassIds = new Set(myClasses.map(c => c.id));
+      const unauthorized = assigned_class_ids.filter((id: string) => !myClassIds.has(id));
+      if (unauthorized.length > 0) {
+        return err(res, 403, "본인이 담당하는 반에만 학생을 배정할 수 있습니다.");
+      }
     }
 
     const wc = weekly_count !== undefined ? Number(weekly_count) : (existing.weekly_count || 1);

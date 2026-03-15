@@ -1,0 +1,558 @@
+Please implement the following two features carefully based on the current app UI.
+
+This is NOT just a UI update.
+The actual navigation, data loading, assignment logic, approval-request child-name handling, and cross-role reuse must all work correctly.
+
+==================================================
+[MAIN TASK 1]
+Admin Mode > Class Management
+When tapping "선택", it must immediately open a member class-assignment screen for the selected class.
+
+Also, the assignment change screen used in Admin mode and Teacher mode must be the SAME shared screen / same logic.
+Do NOT create two different versions with different behavior.
+
+==================================================
+[CURRENT INTENT]
+==================================================
+
+In Admin > 반관리 screen:
+- there is a "선택" button
+- when class/card is selected, user should be able to assign or change members for that class immediately
+
+This should behave like:
+반 선택 -> 반배정 변경 화면 진입 -> 회원 추가/해제/이동 가능
+
+Also:
+Teacher login should use the same assignment-change screen structure
+when teacher is allowed to do class assignment change.
+
+==================================================
+[TASK 1-A: CLASS MANAGEMENT SELECTION FLOW]
+==================================================
+
+Required new behavior:
+
+1. Admin enters 반관리 screen
+2. Admin taps "선택"
+3. Class cards enter selection mode
+4. When a class is chosen, show action options OR immediately enter assignment screen
+5. Preferred behavior:
+   - if only one class is selected -> open class assignment management screen directly
+   - if multiple classes are selected -> keep bulk selection mode for delete etc.
+   - class assignment screen should be for single selected class only
+
+Please implement this clearly.
+
+Recommended logic:
+- "선택" toggles selection mode
+- In selection mode:
+  - tapping a class selects it
+  - if exactly 1 class is selected and user taps "회원 반배정" button, open assignment screen
+- OR even better:
+  - when a single class card is selected, show bottom action bar with:
+    - 회원 반배정
+    - 삭제
+    - 취소
+
+Important:
+Class assignment is not bulk class edit.
+It is a single-class member assignment screen.
+
+==================================================
+[TASK 1-B: CLASS ASSIGNMENT SCREEN]
+==================================================
+
+Create or reuse a shared screen/component for class-member assignment.
+
+This same screen must be used by:
+- Admin mode
+- Teacher mode
+
+Do NOT duplicate different UI if avoidable.
+
+Suggested screen title:
+- 회원 반배정
+or
+- 반배정 변경
+
+Screen structure:
+Top:
+- selected class name
+- class day/time
+- teacher name if needed
+- current assigned member count / capacity
+
+Main body:
+- currently assigned members list
+- available/unassigned members list or searchable all-member list
+
+Actions per member:
+- assign to this class
+- remove from this class
+- move to another class if needed later
+
+Recommended layout:
+Section 1:
+현재 반 소속 회원
+
+Section 2:
+배정 가능한 회원
+or
+회원 검색
+
+Each member row:
+- member name
+- age/level if available
+- current class info if assigned elsewhere
+- action button
+
+Possible actions:
+- 추가
+- 해제
+- 변경
+
+==================================================
+[TASK 1-C: ASSIGNMENT SCREEN FUNCTIONAL RULES]
+==================================================
+
+Please implement these rules:
+
+1. When entering class assignment screen:
+- load selected class info
+- load currently assigned members
+- load assignable members
+
+2. Add member to class:
+- member gets linked to selected class
+- UI updates immediately
+- class member count updates immediately
+
+3. Remove member from class:
+- member becomes unassigned OR follows current app policy
+- UI updates immediately
+
+4. Prevent impossible states:
+- class capacity exceeded
+- duplicate assignment to same class
+- invalid teacher/class mismatch if relevant
+
+5. Save behavior:
+Choose one clear policy and implement fully:
+Option A: immediate save on each action
+Option B: select changes then tap save button
+
+Recommended for now:
+- immediate save for simple MVP
+OR
+- explicit "저장" button if current architecture needs safer batching
+
+But whichever is used, it must actually persist after refresh.
+
+==================================================
+[TASK 1-D: ADMIN AND TEACHER MUST SHARE SAME ASSIGNMENT SCREEN]
+==================================================
+
+This is important.
+
+Admin and Teacher should use the same class assignment change screen and same handler logic.
+
+Please share:
+- component
+- hooks
+- data loading logic
+- save/update logic
+
+Only permission/access may differ.
+
+Example:
+- Admin can assign any member
+- Teacher can assign only within allowed scope if needed
+
+But UI screen structure must be same.
+
+Recommended shared structure:
+- ClassAssignmentScreen
+- useClassAssignment()
+- assignMemberToClass()
+- removeMemberFromClass()
+
+Do NOT build:
+- AdminClassAssignmentScreen
+- TeacherClassAssignmentScreen
+as completely separate copies unless absolutely necessary
+
+==================================================
+[TASK 1-E: NAVIGATION RULES]
+==================================================
+
+Please define routing clearly.
+
+Suggested flow:
+
+Admin > 반관리
+- tap 선택
+- choose class
+- tap 회원 반배정
+- go to shared ClassAssignmentScreen(selectedClassId)
+
+Teacher mode
+- from teacher schedule / class list / my class
+- tap assignment edit / 반배정 변경
+- go to same ClassAssignmentScreen(selectedClassId)
+
+If teacher is not allowed for all classes:
+- only open for teacher-owned classes
+
+==================================================
+[TASK 1-F: TASK 1 UI DETAILS]
+==================================================
+
+Please add clear button(s) in selection mode.
+
+Recommended top or bottom action bar when one class is selected:
+- 회원 반배정
+- 삭제
+- 취소
+
+If no class selected:
+- 회원 반배정 button disabled
+
+If multiple classes selected:
+- 회원 반배정 disabled
+- bulk delete allowed if needed
+
+This avoids confusion.
+
+==================================================
+[MAIN TASK 2]
+Parent Management
+When approval request arrives, in the student connection tab/screen,
+show ONLY the child name that the parent entered during approval request.
+
+==================================================
+[CURRENT INTENT FOR TASK 2]
+==================================================
+
+In Parent Management screen:
+- approval request comes in
+- parent has entered child name at request time
+- in student connection related area, only that requested child name should be shown
+
+Do NOT show unrelated students.
+Do NOT show full student list by default for approval requests.
+Only show the child name(s) submitted by the parent at signup/approval request stage.
+
+==================================================
+[TASK 2-A: APPROVAL REQUEST DATA REQUIREMENT]
+==================================================
+
+When parent submits approval request,
+store the child information entered at request time.
+
+Minimum required stored fields:
+- request_id
+- parent_user_id or pending_parent_id
+- parent_name
+- requested_child_name
+- requested_child_birth_year if available
+- request_status (pending / approved / rejected)
+- organization_id
+
+If parent can input multiple children later, structure should support array/list,
+but for now at least support one entered child name cleanly.
+
+==================================================
+[TASK 2-B: STUDENT CONNECTION SCREEN BEHAVIOR]
+==================================================
+
+In Parent Management > approval request / 학생 연결 related UI:
+
+For pending approval request:
+- show ONLY requested_child_name that parent entered
+- do not show all students by default
+- admin should use that requested child name as the basis for linking
+
+Example desired behavior:
+
+승인 대기
+학부모: 서태웅 부모님
+요청 자녀명: 서태웅
+
+Then in 학생 연결 화면:
+- display "서태웅" only
+- allow admin to search/select matching actual student record if needed
+- or directly confirm if already matched
+
+Important:
+The requested child name is a reference from the parent request.
+It should appear clearly in the connection UI.
+
+==================================================
+[TASK 2-C: APPROVAL / LINKING FLOW]
+==================================================
+
+Recommended logic:
+
+1. Parent submits approval request
+   -> includes child name
+
+2. Admin opens Parent Management
+   -> sees pending request block
+
+3. Admin taps 학생 연결
+   -> open connection screen/modal
+
+4. In connection screen:
+   - show requested child name entered by parent
+   - show matching student candidates if any
+   - allow connect to actual student record
+
+5. After connect:
+   - parent-child relation saved
+   - pending request status updated appropriately
+   - UI reflects connected state
+
+==================================================
+[TASK 2-D: MATCHING UI RECOMMENDATION]
+==================================================
+
+Please build the student connection UI like this:
+
+Top area:
+- 학부모 이름
+- 요청 자녀 이름
+- 요청 상태
+
+Candidate area:
+- matching students only if searched/found
+- do NOT dump full student list immediately unless admin explicitly searches
+
+Suggested fields:
+- 요청 자녀명: 서태웅
+- 실제 학생 검색
+- 검색 결과 리스트
+- 연결 버튼
+
+This is cleaner and avoids confusion.
+
+==================================================
+[TASK 2-E: FILTERING RULE]
+==================================================
+
+Very important:
+In the student connection flow for approval requests,
+default visible student reference should be ONLY the name the parent submitted.
+
+Meaning:
+- requested_child_name must be displayed first
+- unrelated existing students should not automatically appear
+- admin can search further only if needed
+
+This should make the approval flow clearer.
+
+==================================================
+[SHARED LOGIC / DATA MODEL RECOMMENDATION]
+==================================================
+
+Please organize data clearly.
+
+Suggested entities / fields:
+
+Class
+- id
+- name
+- day_of_week
+- time
+- teacher_id
+- capacity
+
+Member
+- id
+- name
+- status
+- class_id or separate enrollment table
+
+ParentApprovalRequest
+- id
+- organization_id
+- parent_name
+- login_id
+- requested_child_name
+- requested_child_birth_year
+- status
+- created_at
+
+ParentChildLink
+- id
+- parent_id
+- child_member_id
+- organization_id
+
+If current structure differs, adapt accordingly,
+but keep the behavior exactly as requested.
+
+==================================================
+[FLOWCHART 1: CLASS ASSIGNMENT]
+==================================================
+
+Admin > 반관리
+|
+|-- tap "선택"
+|-- select one class
+|-- show action bar
+|      |-- tap "회원 반배정"
+|             -> open shared ClassAssignmentScreen
+|                    |-- load class info
+|                    |-- load assigned members
+|                    |-- load assignable members
+|                    |-- assign/remove member
+|                    |-- persist changes
+|                    |-- refresh list/count
+
+Teacher Mode
+|
+|-- open own class or class management entry
+|-- tap "반배정 변경"
+|-- open SAME shared ClassAssignmentScreen
+|-- same behavior / same save logic
+
+==================================================
+[FLOWCHART 2: PARENT APPROVAL REQUEST]
+==================================================
+
+Parent signup/request
+|
+|-- enter child name
+|-- submit approval request
+|-- store requested_child_name
+
+Admin > 학부모관리
+|
+|-- pending approval visible
+|-- tap 학생 연결
+|-- open connection UI
+|      |-- show requested_child_name only
+|      |-- optionally search matching actual student
+|      |-- connect selected student
+|      |-- approve/save
+|      |-- update parent-child relation
+
+==================================================
+[LOGIC STRUCTURE]
+==================================================
+
+Please implement clear logic functions.
+
+For class assignment:
+- getClassById(classId)
+- getAssignedMembers(classId)
+- getAssignableMembers(classId or orgId)
+- assignMemberToClass(memberId, classId)
+- removeMemberFromClass(memberId, classId)
+
+For parent approval:
+- createParentApprovalRequest(data)
+- getPendingParentRequests(orgId)
+- getParentRequestById(requestId)
+- linkParentToStudent(parentId or requestId, studentId)
+- approveParentRequest(requestId)
+- rejectParentRequest(requestId)
+
+==================================================
+[VALIDATION / RULES]
+==================================================
+
+Task 1 validation:
+- class assignment screen cannot open without selected class
+- member cannot be added twice
+- class capacity check
+- save must persist after refresh
+- member count on class card must update after assignment
+
+Task 2 validation:
+- requested child name must be stored during approval request
+- student connection screen must show requested child name
+- connection must not auto-show unrelated students without reason
+- after approval/linking, parent management screen updates properly
+
+==================================================
+[UI COPY SUGGESTION]
+==================================================
+
+Task 1 labels:
+- 선택
+- 회원 반배정
+- 반배정 변경
+- 현재 반 회원
+- 회원 검색
+- 추가
+- 해제
+- 저장
+- 취소
+
+Task 2 labels:
+- 승인 대기
+- 요청 자녀명
+- 학생 연결
+- 학생 검색
+- 연결
+- 승인
+- 반려
+
+==================================================
+[IMPLEMENTATION PRIORITY]
+==================================================
+
+Please implement in this order:
+
+1. Add single-class selection -> assignment action in 반관리
+2. Build shared ClassAssignmentScreen for Admin + Teacher
+3. Connect save/update/count refresh logic
+4. Store requested_child_name in parent approval request data
+5. Update 학생 연결 screen to show only requested child name first
+6. Add actual connect/approve flow
+7. End-to-end click test both features
+
+==================================================
+[REAL TEST CHECKLIST]
+==================================================
+
+Do NOT report completion without real click testing.
+
+Task 1 tests:
+- Admin > 반관리 > 선택 works
+- selecting one class enables 회원 반배정
+- 회원 반배정 opens shared assignment screen
+- assigned members load correctly
+- adding/removing member works
+- class card member count updates
+- refresh keeps the updated state
+- Teacher mode opens the same assignment screen
+
+Task 2 tests:
+- parent approval request stores child name
+- Admin > 학부모관리 shows pending request
+- 학생 연결 shows only requested child name first
+- linking to actual student works
+- approval updates parent-child relation
+- refresh keeps linked state
+
+==================================================
+[COMPLETION REPORT FORMAT]
+==================================================
+
+When finished, do NOT just say "done".
+
+Please report:
+1. Files changed
+2. Shared class assignment screen/component added
+3. Admin 반관리 selection -> assignment flow implementation
+4. Teacher mode shared assignment implementation
+5. Parent approval request child-name storage implementation
+6. 학생 연결 screen filtering implementation
+7. Real click test results
+8. Remaining issues if any
+
+Important:
+This task is complete only if navigation, logic, UI update, and persistence all actually work.
+Not just visual changes.
