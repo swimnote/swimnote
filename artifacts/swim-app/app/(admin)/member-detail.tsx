@@ -189,6 +189,8 @@ export default function MemberDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<{ value: string; label: string } | null>(null);
 
   // 편집 상태
   const [editName, setEditName] = useState("");
@@ -276,30 +278,11 @@ export default function MemberDetailScreen() {
 
   // ── 상태 변경 ────────────────────────────────────────────────────────
   function showStatusPicker() {
-    const options = [
-      { label: "재원", value: "active" },
-      { label: "휴원", value: "inactive" },
-      { label: "정지", value: "suspended" },
-      { label: "탈퇴 처리", value: "withdrawn" },
-    ];
-    Alert.alert("상태 변경", "새로운 상태를 선택하세요", [
-      ...options.map(o => ({
-        text: o.label,
-        onPress: () => confirmStatusChange(o.value, o.label),
-      })),
-      { text: "취소", style: "cancel" },
-    ]);
+    setShowStatusModal(true);
   }
 
   async function confirmStatusChange(status: string, label: string) {
-    if (status === "withdrawn") {
-      Alert.alert("탈퇴 처리", `${data?.name}님을 탈퇴 처리하시겠습니까?`, [
-        { text: "취소", style: "cancel" },
-        { text: "탈퇴", style: "destructive", onPress: () => doStatusChange(status) },
-      ]);
-    } else {
-      doStatusChange(status);
-    }
+    setPendingStatus({ value: status, label });
   }
 
   async function doStatusChange(status: string) {
@@ -926,6 +909,51 @@ export default function MemberDetailScreen() {
           </View>
         </ScrollView>
       )}
+
+      {/* ═══ 상태 변경 모달 ═══ */}
+      <Modal visible={showStatusModal} transparent animationType="fade">
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}
+          onPress={() => { setShowStatusModal(false); setPendingStatus(null); }}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: C.text, marginBottom: 16, textAlign: "center" }}>상태 변경</Text>
+            {pendingStatus ? (
+              <View style={{ gap: 12 }}>
+                <Text style={{ textAlign: "center", color: C.textSecondary, fontSize: 14 }}>
+                  {data?.name}님을 "{pendingStatus.label}"(으)로 변경하시겠습니까?
+                </Text>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center" }}
+                    onPress={() => setPendingStatus(null)}>
+                    <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
+                  </Pressable>
+                  <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: pendingStatus.value === "withdrawn" ? "#DC2626" : themeColor, alignItems: "center" }}
+                    onPress={() => { doStatusChange(pendingStatus.value); setShowStatusModal(false); setPendingStatus(null); }}>
+                    <Text style={{ fontWeight: "700", color: "#fff" }}>확인</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <View style={{ gap: 8 }}>
+                {[{ label: "재원", value: "active", color: "#059669", bg: "#D1FAE5" },
+                  { label: "휴원", value: "inactive", color: "#D97706", bg: "#FEF3C7" },
+                  { label: "정지", value: "suspended", color: "#DC2626", bg: "#FEE2E2" },
+                  { label: "탈퇴 처리", value: "withdrawn", color: "#7C3AED", bg: "#F3E8FF" }
+                ].map(opt => (
+                  <Pressable key={opt.value} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, backgroundColor: opt.bg }}
+                    onPress={() => setPendingStatus(opt)}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: opt.color }} />
+                    <Text style={{ fontSize: 15, fontWeight: "600", color: opt.color }}>{opt.label}</Text>
+                  </Pressable>
+                ))}
+                <Pressable style={{ paddingVertical: 14, alignItems: "center" }}
+                  onPress={() => { setShowStatusModal(false); setPendingStatus(null); }}>
+                  <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
+                </Pressable>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* 반 선택 모달 */}
       {showPicker && (

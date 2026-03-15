@@ -42,6 +42,9 @@ export default function CommunicationScreen() {
   const [newType, setNewType]         = useState<"all" | "class" | "individual">("all");
   const [creating, setCreating]       = useState(false);
 
+  const [deleteTarget, setDeleteTarget]   = useState<string | null>(null);
+  const [approveTarget, setApproveTarget] = useState<{ id: string; action: "approve" | "reject" } | null>(null);
+
   const loadNotices = useCallback(async () => {
     setLoading(true);
     const r = await apiRequest(token, "/notices");
@@ -84,26 +87,22 @@ export default function CommunicationScreen() {
     else Alert.alert("등록 실패");
   };
 
-  const deleteNotice = (id: string) => {
-    Alert.alert("공지 삭제", "삭제 후 복구할 수 없습니다.", [
-      { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: async () => {
-        await apiRequest(token, `/notices/${id}`, { method: "DELETE" });
-        loadNotices();
-      }},
-    ]);
+  const deleteNotice = (id: string) => setDeleteTarget(id);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await apiRequest(token, `/notices/${deleteTarget}`, { method: "DELETE" });
+    setDeleteTarget(null);
+    loadNotices();
   };
 
-  const handleApprove = (id: string, action: "approve" | "reject") => {
-    Alert.alert(action === "approve" ? "승인" : "거절", "진행하시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      { text: action === "approve" ? "승인" : "거절", style: action === "reject" ? "destructive" : "default",
-        onPress: async () => {
-          await apiRequest(token, `/admin/parent-requests/${id}`, { method: "PATCH", body: JSON.stringify({ action }) });
-          loadRequests();
-        },
-      },
-    ]);
+  const handleApprove = (id: string, action: "approve" | "reject") => setApproveTarget({ id, action });
+
+  const confirmApprove = async () => {
+    if (!approveTarget) return;
+    await apiRequest(token, `/admin/parent-requests/${approveTarget.id}`, { method: "PATCH", body: JSON.stringify({ action: approveTarget.action }) });
+    setApproveTarget(null);
+    loadRequests();
   };
 
   const listData = tab === "공지사항" ? notices : tab === "학부모 요청" ? requests : diaries;
@@ -233,6 +232,52 @@ export default function CommunicationScreen() {
               <Text style={s.submitBtnTxt}>{creating ? "등록 중..." : "공지 등록"}</Text>
             </Pressable>
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* 공지 삭제 확인 모달 */}
+      <Modal visible={!!deleteTarget} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 }}>
+          <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20, width: "100%", gap: 14 }}>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: C.text, textAlign: "center" }}>공지 삭제</Text>
+            <Text style={{ color: C.textSecondary, textAlign: "center", fontSize: 14 }}>삭제된 공지는 복구할 수 없습니다.{"\n"}삭제하시겠습니까?</Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center" }}
+                onPress={() => setDeleteTarget(null)}>
+                <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
+              </Pressable>
+              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#DC2626", alignItems: "center" }}
+                onPress={confirmDelete}>
+                <Text style={{ fontWeight: "700", color: "#fff" }}>삭제</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 승인/거절 확인 모달 */}
+      <Modal visible={!!approveTarget} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 }}>
+          <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20, width: "100%", gap: 14 }}>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: C.text, textAlign: "center" }}>
+              {approveTarget?.action === "approve" ? "학부모 요청 승인" : "학부모 요청 거절"}
+            </Text>
+            <Text style={{ color: C.textSecondary, textAlign: "center", fontSize: 14 }}>
+              {approveTarget?.action === "approve" ? "이 요청을 승인하시겠습니까?" : "이 요청을 거절하시겠습니까?"}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center" }}
+                onPress={() => setApproveTarget(null)}>
+                <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
+              </Pressable>
+              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: approveTarget?.action === "reject" ? "#DC2626" : C.tint, alignItems: "center" }}
+                onPress={confirmApprove}>
+                <Text style={{ fontWeight: "700", color: "#fff" }}>
+                  {approveTarget?.action === "approve" ? "승인" : "거절"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
       </Modal>
     </View>
