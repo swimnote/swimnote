@@ -88,29 +88,37 @@ export default function DiaryWriteScreen() {
   }
 
   async function handleSave() {
-    if (!form.title.trim()) { setError("제목을 입력해주세요."); return; }
+    if (!form.lesson_content.trim()) { setError("수업 내용을 입력해주세요."); return; }
     if (!selectedGroups.size) { setError("스케줄 그룹을 선택해주세요."); return; }
     setSaving(true); setError("");
     try {
-      const fd = new FormData();
-      fd.append("title", form.title.trim());
-      fd.append("class_group_ids", JSON.stringify([...selectedGroups]));
-      if (form.lesson_content.trim()) fd.append("lesson_content", form.lesson_content.trim());
-      if (form.practice_goals.trim()) fd.append("practice_goals", form.practice_goals.trim());
-      if (form.good_points.trim()) fd.append("good_points", form.good_points.trim());
-      if (form.next_focus.trim()) fd.append("next_focus", form.next_focus.trim());
-      for (const img of images) {
-        const filename = img.uri.split("/").pop() || "photo.jpg";
-        const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-        fd.append("images", { uri: img.uri, name: filename, type: ext === "png" ? "image/png" : "image/jpeg" } as any);
+      const groupIds = [...selectedGroups];
+      let success = 0;
+      const errors: string[] = [];
+      for (const groupId of groupIds) {
+        const r = await apiRequest(token, "/diaries", {
+          method: "POST",
+          body: JSON.stringify({
+            class_group_id: groupId,
+            common_content: [
+              form.lesson_content.trim(),
+              form.practice_goals.trim() ? `[연습 동작] ${form.practice_goals.trim()}` : "",
+              form.good_points.trim() ? `[잘한 점] ${form.good_points.trim()}` : "",
+              form.next_focus.trim() ? `[다음 포인트] ${form.next_focus.trim()}` : "",
+            ].filter(Boolean).join("\n\n"),
+          }),
+        });
+        if (r.ok) { success++; }
+        else {
+          const d = await r.json();
+          errors.push(d.error || "저장 실패");
+        }
       }
-      const res = await fetch(`${API_BASE}/api/diary`, {
-        method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "저장 실패");
-      const count = Array.isArray(data) ? data.length : 1;
-      Alert.alert("완료", `${count}개 스케줄에 수영 일지가 등록되었습니다.`, [{ text: "확인", onPress: () => router.back() }]);
+      if (success > 0) {
+        Alert.alert("완료", `${success}개 반에 수업 일지가 등록되었습니다.\n학부모에게 알림이 발송됩니다.`, [{ text: "확인", onPress: () => router.back() }]);
+      } else {
+        setError(errors[0] || "저장에 실패했습니다.");
+      }
     } catch (err: any) { setError(err.message || "오류가 발생했습니다."); }
     finally { setSaving(false); }
   }

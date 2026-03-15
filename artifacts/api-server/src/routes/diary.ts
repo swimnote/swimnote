@@ -1,20 +1,23 @@
 /**
- * diary.ts — 수영일지 API
+ * diary.ts — 수영일지 API (v2)
  *
- * 테이블: swim_diary
- * 컬럼: id, student_id(null), swimming_pool_id, author_id, author_name,
- *       created_at, title, lesson_content, practice_goals, good_points,
- *       next_focus, image_urls(jsonb), media_items(jsonb), class_group_id
+ * 신규 구조: class_diaries + class_diary_student_notes + class_diary_audit_logs + diary_templates
+ * 레거시 구조: swim_diary (미디어 업로드 엔드포인트 유지)
  *
- * media_items 형식: [{key: string, type: 'image'|'video'}]
+ * ⚠️ 마이그레이션 포인트:
+ *   기존 swim_diary 테이블에 6건의 데이터가 있습니다.
+ *   아래 SQL로 수동 마이그레이션 가능:
+ *   INSERT INTO class_diaries(class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content, created_at)
+ *   SELECT class_group_id, author_id, author_name, swimming_pool_id,
+ *          to_char(created_at, 'YYYY-MM-DD'), COALESCE(lesson_content, title, ''), created_at
+ *   FROM swim_diary WHERE class_group_id IS NOT NULL;
  */
 import { Router } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
 import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
@@ -26,373 +29,617 @@ function getClient() {
   return _client;
 }
 
-function err(res: any, status: number, message: string) {
-  return res.status(status).json({ success: false, message, error: message });
+function apiErr(res: any, status: number, message: string) {
+  return res.status(status).json({ success: false, error: message });
+}
+
+function genId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 async function getUserPoolId(userId: string): Promise<string | null> {
-  const rows = await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
-  return (rows.rows[0] as any)?.swimming_pool_id || null;
+  const r = await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
+  return (r.rows[0] as any)?.swimming_pool_id || null;
 }
 
 async function getUserName(userId: string): Promise<string> {
-  const [u] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  return u?.name || userId;
+  const r = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+  return (r.rows[0] as any)?.name || userId;
 }
 
-async function teacherOwnsClass(teacherUserId: string, classId: string): Promise<boolean> {
-  const rows = await db.execute(sql`
-    SELECT id FROM class_groups WHERE id = ${classId} AND teacher_user_id = ${teacherUserId}
+async function logAudit({
+  diaryId, studentNoteId, targetType, actionType,
+  beforeContent, afterContent, actorId, actorName, actorRole, poolId,
+}: {
+  diaryId?: string | null; studentNoteId?: string | null;
+  targetType: "common" | "student_note"; actionType: "create" | "update" | "delete";
+  beforeContent?: string | null; afterContent?: string | null;
+  actorId: string; actorName: string; actorRole: string; poolId: string;
+}) {
+  const id = genId("cal");
+  await db.execute(sql`
+    INSERT INTO class_diary_audit_logs
+      (id, diary_id, student_note_id, target_type, action_type,
+       before_content, after_content, actor_id, actor_name, actor_role, swimming_pool_id)
+    VALUES
+      (${id}, ${diaryId ?? null}, ${studentNoteId ?? null}, ${targetType}, ${actionType},
+       ${beforeContent ?? null}, ${afterContent ?? null},
+       ${actorId}, ${actorName}, ${actorRole}, ${poolId})
   `);
-  return rows.rows.length > 0;
 }
 
-/** 일지 저장 후 해당 반 학부모에게 in-app + Expo 푸시 알림 발송 */
-async function sendDiaryNotifications(classId: string, diaryId: string, className: string, poolId: string) {
+async function sendDiaryPush(classId: string, diaryId: string, className: string, poolId: string) {
   try {
-    // 학반의 학생에 연결된 승인된 학부모 조회 (JOIN으로 배열 없이)
     const parentRows = await db.execute(sql`
-      SELECT DISTINCT pa.id AS parent_account_id, pa.name AS parent_name
+      SELECT DISTINCT pa.id AS parent_account_id
       FROM students s
       JOIN parent_students ps ON ps.student_id = s.id
       JOIN parent_accounts pa ON pa.id = ps.parent_id
-      WHERE s.class_group_id = ${classId}
-        AND s.status != 'deleted'
-        AND ps.status = 'approved'
+      WHERE s.class_group_id = ${classId} AND s.status != 'deleted' AND ps.status = 'approved'
     `);
-    const parents = parentRows.rows as any[];
-    if (parents.length === 0) return;
-
-    // In-app 알림 삽입
-    for (const parent of parents) {
-      const notifId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    for (const p of parentRows.rows as any[]) {
+      const nid = genId("notif");
       await db.execute(sql`
-        INSERT INTO notifications
-          (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
-        VALUES
-          (${notifId}, ${parent.parent_account_id}, 'parent_account', 'diary_upload',
-           ${'새 수영 일지가 작성되었습니다'},
-           ${`${className} 수업 일지가 작성되었습니다. 확인해보세요!`},
-           ${diaryId}, 'diary', ${poolId}, false)
+        INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
+        VALUES (${nid}, ${p.parent_account_id}, 'parent_account', 'diary_upload',
+                '새 수업 일지가 작성되었습니다',
+                ${`${className} 수업 일지가 작성되었습니다. 확인해보세요!`},
+                ${diaryId}, 'class_diary', ${poolId}, false)
         ON CONFLICT DO NOTHING
       `);
     }
-
-    // Expo 푸시 토큰 조회 (JOIN으로 배열 없이)
     const tokenRows = await db.execute(sql`
-      SELECT DISTINCT pt.token
-      FROM push_tokens pt
+      SELECT DISTINCT pt.token FROM push_tokens pt
       JOIN students s ON s.class_group_id = ${classId}
       JOIN parent_students ps ON ps.student_id = s.id AND ps.parent_id = pt.parent_account_id
-      WHERE s.status != 'deleted'
-        AND ps.status = 'approved'
-        AND pt.token IS NOT NULL AND pt.token != ''
+      WHERE s.status != 'deleted' AND ps.status = 'approved' AND pt.token IS NOT NULL AND pt.token != ''
     `);
     const tokens = (tokenRows.rows as any[]).map((r: any) => r.token).filter(Boolean);
-    if (tokens.length === 0) return;
-
-    const messages = tokens.map((t: string) => ({
-      to: t,
-      title: "📒 새 수영 일지",
-      body: `${className} 수업 일지가 작성되었습니다`,
-      data: { type: "diary_upload", diaryId, classId },
-    }));
-
-    await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(messages),
-    }).catch(() => {});
-  } catch (e) {
-    console.error("알림 발송 오류:", e);
-  }
+    if (tokens.length > 0) {
+      await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(tokens.map((t: string) => ({
+          to: t, title: "📒 새 수업 일지",
+          body: `${className} 수업 일지가 작성되었습니다`,
+          data: { type: "diary_upload", diaryId, classId },
+        }))),
+      }).catch(() => {});
+    }
+  } catch (e) { console.error("푸시 알림 오류:", e); }
 }
 
-// ── POST /diary/upload ─────────────────────────────────────────────────
-// 일지용 미디어(사진/영상) 업로드
-router.post("/diary/upload", requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
-  upload.single("file"), async (req: AuthRequest, res) => {
-  try {
-    const file = req.file;
-    if (!file) return err(res, 400, "파일을 선택해주세요.");
+// ════════════════════════════════════════════════════════════════════════
+// 1. 미디어 업로드 (레거시 호환 유지)
+// ════════════════════════════════════════════════════════════════════════
 
-    const ext = file.originalname.split(".").pop()?.toLowerCase() || "jpg";
-    const isVideo = ["mp4", "mov", "avi", "mkv", "webm", "m4v"].includes(ext);
-    const type = isVideo ? "video" : "image";
-    const key = `diary-media/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`;
-
-    const client = getClient();
-    const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
-    if (!ok) throw new Error((error as any)?.message || "업로드 실패");
-
-    return res.json({ key, type });
-  } catch (e: any) {
-    console.error(e);
-    return err(res, 500, "업로드 중 오류가 발생했습니다.");
+router.post("/diary/upload",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  upload.single("file"),
+  async (req: AuthRequest, res) => {
+    try {
+      const file = req.file;
+      if (!file) return apiErr(res, 400, "파일을 선택해주세요.");
+      const ext = file.originalname.split(".").pop()?.toLowerCase() || "jpg";
+      const isVideo = ["mp4", "mov", "avi", "mkv", "webm", "m4v"].includes(ext);
+      const key = `diary/${Date.now()}_${Math.random().toString(36).substr(2, 8)}.${ext}`;
+      const client = getClient();
+      await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
+      return res.json({ key, type: isVideo ? "video" : "image" });
+    } catch (e) { console.error(e); return apiErr(res, 500, "업로드 오류"); }
   }
-});
+);
 
-// ── GET /diary ─────────────────────────────────────────────────────────
-router.get("/diary", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { date, class_group_id } = req.query as Record<string, string>;
-    const { role, userId } = req.user!;
+// ════════════════════════════════════════════════════════════════════════
+// 2. 공통 일지 CRUD
+// ════════════════════════════════════════════════════════════════════════
 
-    const poolId = await getUserPoolId(userId);
-    if (!poolId && role !== "super_admin") return err(res, 403, "소속된 수영장이 없습니다.");
+// ── GET /diaries ─────────────────────────────────────────────────────────
+// 쿼리: class_group_id, lesson_date, include_deleted(admin only)
+router.get("/diaries",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const { class_group_id, lesson_date, include_deleted } = req.query;
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
-    if (class_group_id) {
+      let whereClauses = [`cd.swimming_pool_id = ${db.execute(sql`${poolId}`)} `];
+
+      // 역할별 제한
       if (role === "teacher") {
-        const ok = await teacherOwnsClass(userId, class_group_id);
-        if (!ok) return err(res, 403, "담당 반이 아닙니다.");
-      } else if (role === "pool_admin") {
-        const classRows = await db.execute(sql`
-          SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId}
+        // 선생님: 본인 반만 조회
+        const rows = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId}`);
+        const myClassIds = (rows.rows as any[]).map(r => r.id);
+        if (myClassIds.length === 0) { res.json([]); return; }
+        // 삭제된 데이터는 본인 것도 숨김
+        const classFilter = myClassIds.map(id => `cd.class_group_id = '${id}'`).join(" OR ");
+        const rows2 = await db.execute(sql`
+          SELECT
+            cd.*,
+            cg.name AS class_name,
+            cg.schedule_days, cg.schedule_time,
+            (SELECT COUNT(*) FROM class_diary_student_notes csn WHERE csn.diary_id = cd.id AND csn.is_deleted = false) AS note_count
+          FROM class_diaries cd
+          LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+          WHERE cd.swimming_pool_id = ${poolId}
+            AND (${sql.raw(classFilter)})
+            AND cd.is_deleted = false
+            ${class_group_id ? sql`AND cd.class_group_id = ${class_group_id}` : sql``}
+            ${lesson_date ? sql`AND cd.lesson_date = ${lesson_date}` : sql``}
+          ORDER BY cd.lesson_date DESC, cd.created_at DESC
+          LIMIT 100
         `);
-        if (!classRows.rows.length) return err(res, 403, "접근 권한이 없습니다.");
+        res.json(rows2.rows);
+        return;
       }
 
-      const rows = await db.execute(sql`
-        SELECT id, class_group_id, swimming_pool_id, author_id, author_name,
-               title, lesson_content, practice_goals, good_points, next_focus,
-               image_urls, media_items, created_at
-        FROM swim_diary
-        WHERE class_group_id = ${class_group_id}
-        ORDER BY created_at DESC
+      // pool_admin / super_admin: 전체 조회 + 삭제된 것도 볼 수 있음
+      const showDeleted = include_deleted === "true";
+      const rows3 = await db.execute(sql`
+        SELECT
+          cd.*,
+          cg.name AS class_name,
+          cg.schedule_days, cg.schedule_time,
+          (SELECT COUNT(*) FROM class_diary_student_notes csn WHERE csn.diary_id = cd.id AND csn.is_deleted = false) AS note_count
+        FROM class_diaries cd
+        LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.swimming_pool_id = ${poolId}
+          ${!showDeleted ? sql`AND cd.is_deleted = false` : sql``}
+          ${class_group_id ? sql`AND cd.class_group_id = ${class_group_id}` : sql``}
+          ${lesson_date ? sql`AND cd.lesson_date = ${lesson_date}` : sql``}
+        ORDER BY cd.lesson_date DESC, cd.created_at DESC
+        LIMIT 200
       `);
-      return res.json(rows.rows);
-    }
+      res.json(rows3.rows);
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
 
-    if (date) {
+// ── POST /diaries ─────────────────────────────────────────────────────────
+// Body: { class_group_id, lesson_date?, common_content, student_notes?: [{student_id, note_content}] }
+router.post("/diaries",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const { class_group_id, lesson_date, common_content, student_notes } = req.body;
+
+      if (!class_group_id || !common_content?.trim()) {
+        return apiErr(res, 400, "반 ID와 공통 일지 내용은 필수입니다.");
+      }
+
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+
+      // 선생님: 본인 반인지 확인
+      if (role === "teacher") {
+        const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND teacher_user_id = ${userId}`);
+        if (r.rows.length === 0) return apiErr(res, 403, "본인 반의 일지만 작성할 수 있습니다.");
+      }
+
+      const teacherName = await getUserName(userId);
+      const dateStr = lesson_date || new Date().toISOString().slice(0, 10);
+      const diaryId = genId("cd");
+
+      // 중복 방지: 같은 날 같은 반에 이미 일지 있으면 오류
+      const dup = await db.execute(sql`
+        SELECT id FROM class_diaries
+        WHERE class_group_id = ${class_group_id} AND lesson_date = ${dateStr} AND is_deleted = false
+      `);
+      if (dup.rows.length > 0) {
+        return apiErr(res, 409, "이미 해당 날짜에 일지가 작성되었습니다. 수정 기능을 사용해주세요.");
+      }
+
+      await db.execute(sql`
+        INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content)
+        VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${common_content.trim()})
+      `);
+
+      await logAudit({
+        diaryId, targetType: "common", actionType: "create",
+        afterContent: common_content.trim(),
+        actorId: userId, actorName: teacherName, actorRole: role, poolId,
+      });
+
+      // 학생별 추가 일지 저장
+      const notes: any[] = Array.isArray(student_notes) ? student_notes : [];
+      const savedNotes: any[] = [];
+      for (const n of notes) {
+        if (!n.student_id || !n.note_content?.trim()) continue;
+        const noteId = genId("csn");
+        await db.execute(sql`
+          INSERT INTO class_diary_student_notes (id, diary_id, student_id, note_content)
+          VALUES (${noteId}, ${diaryId}, ${n.student_id}, ${n.note_content.trim()})
+        `);
+        await logAudit({
+          diaryId, studentNoteId: noteId, targetType: "student_note", actionType: "create",
+          afterContent: n.note_content.trim(),
+          actorId: userId, actorName: teacherName, actorRole: role, poolId,
+        });
+        savedNotes.push({ id: noteId, student_id: n.student_id, note_content: n.note_content.trim() });
+      }
+
+      // 학부모 푸시 알림
+      const cgRow = await db.execute(sql`SELECT name FROM class_groups WHERE id = ${class_group_id}`);
+      const className = (cgRow.rows[0] as any)?.name || "수업";
+      sendDiaryPush(class_group_id, diaryId, className, poolId);
+
+      res.json({ success: true, diary_id: diaryId, student_notes: savedNotes });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ── GET /diaries/:id ─────────────────────────────────────────────────────
+router.get("/diaries/:id",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const poolId = await getUserPoolId(userId);
+
+      const rows = await db.execute(sql`
+        SELECT cd.*, cg.name AS class_name
+        FROM class_diaries cd
+        LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.id = ${req.params.id} AND cd.swimming_pool_id = ${poolId}
+      `);
+      const diary = rows.rows[0] as any;
+      if (!diary) return apiErr(res, 404, "일지를 찾을 수 없습니다.");
+      if (role === "teacher" && diary.teacher_id !== userId) {
+        return apiErr(res, 403, "접근 권한이 없습니다.");
+      }
+
+      // 학생별 추가 일지
+      const noteRows = await db.execute(sql`
+        SELECT csn.*, s.name AS student_name
+        FROM class_diary_student_notes csn
+        JOIN students s ON s.id = csn.student_id
+        WHERE csn.diary_id = ${req.params.id} AND csn.is_deleted = false
+      `);
+
+      res.json({ ...diary, student_notes: noteRows.rows });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ── PUT /diaries/:id ─────────────────────────────────────────────────────
+router.put("/diaries/:id",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const { common_content } = req.body;
+      if (!common_content?.trim()) return apiErr(res, 400, "내용을 입력해주세요.");
+
+      const poolId = await getUserPoolId(userId);
+      const rows = await db.execute(sql`SELECT * FROM class_diaries WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      const diary = rows.rows[0] as any;
+      if (!diary) return apiErr(res, 404, "일지를 찾을 수 없습니다.");
+      if (diary.is_deleted) return apiErr(res, 400, "삭제된 일지는 수정할 수 없습니다.");
+      if (role === "teacher" && diary.teacher_id !== userId) return apiErr(res, 403, "본인 일지만 수정할 수 있습니다.");
+
+      const actorName = await getUserName(userId);
+      await db.execute(sql`
+        UPDATE class_diaries
+        SET common_content = ${common_content.trim()}, is_edited = true,
+            edited_at = NOW(), edited_by = ${userId}, updated_at = NOW()
+        WHERE id = ${req.params.id}
+      `);
+      await logAudit({
+        diaryId: req.params.id, targetType: "common", actionType: "update",
+        beforeContent: diary.common_content, afterContent: common_content.trim(),
+        actorId: userId, actorName, actorRole: role, poolId: poolId!,
+      });
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ── DELETE /diaries/:id (soft delete) ────────────────────────────────────
+router.delete("/diaries/:id",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      const rows = await db.execute(sql`SELECT * FROM class_diaries WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      const diary = rows.rows[0] as any;
+      if (!diary) return apiErr(res, 404, "일지를 찾을 수 없습니다.");
+      if (diary.is_deleted) return apiErr(res, 400, "이미 삭제된 일지입니다.");
+      if (role === "teacher" && diary.teacher_id !== userId) return apiErr(res, 403, "본인 일지만 삭제할 수 있습니다.");
+
+      const actorName = await getUserName(userId);
+      await db.execute(sql`
+        UPDATE class_diaries
+        SET is_deleted = true, deleted_at = NOW(), deleted_by = ${userId}, updated_at = NOW()
+        WHERE id = ${req.params.id}
+      `);
+      await logAudit({
+        diaryId: req.params.id, targetType: "common", actionType: "delete",
+        beforeContent: diary.common_content,
+        actorId: userId, actorName, actorRole: role, poolId: poolId!,
+      });
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════
+// 3. 학생별 추가 일지 CRUD
+// ════════════════════════════════════════════════════════════════════════
+
+// ── POST /diaries/:id/student-notes ──────────────────────────────────────
+router.post("/diaries/:id/student-notes",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const { student_id, note_content } = req.body;
+      if (!student_id || !note_content?.trim()) return apiErr(res, 400, "학생 ID와 내용은 필수입니다.");
+
+      const poolId = await getUserPoolId(userId);
+      const dRows = await db.execute(sql`SELECT * FROM class_diaries WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      const diary = dRows.rows[0] as any;
+      if (!diary) return apiErr(res, 404, "일지를 찾을 수 없습니다.");
+      if (diary.is_deleted) return apiErr(res, 400, "삭제된 일지에는 추가할 수 없습니다.");
+      if (role === "teacher" && diary.teacher_id !== userId) return apiErr(res, 403, "본인 일지에만 추가할 수 있습니다.");
+
+      // 중복 방지
+      const dup = await db.execute(sql`
+        SELECT id FROM class_diary_student_notes WHERE diary_id = ${req.params.id} AND student_id = ${student_id} AND is_deleted = false
+      `);
+      if (dup.rows.length > 0) return apiErr(res, 409, "이미 이 학생의 추가 일지가 존재합니다. 수정을 사용해주세요.");
+
+      const noteId = genId("csn");
+      const actorName = await getUserName(userId);
+      await db.execute(sql`
+        INSERT INTO class_diary_student_notes (id, diary_id, student_id, note_content)
+        VALUES (${noteId}, ${req.params.id}, ${student_id}, ${note_content.trim()})
+      `);
+      await logAudit({
+        diaryId: req.params.id, studentNoteId: noteId, targetType: "student_note", actionType: "create",
+        afterContent: note_content.trim(),
+        actorId: userId, actorName, actorRole: role, poolId: poolId!,
+      });
+      res.json({ success: true, note_id: noteId });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ── PUT /diaries/student-notes/:noteId ───────────────────────────────────
+router.put("/diaries/student-notes/:noteId",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const { note_content } = req.body;
+      if (!note_content?.trim()) return apiErr(res, 400, "내용을 입력해주세요.");
+
+      const poolId = await getUserPoolId(userId);
+      const nRows = await db.execute(sql`
+        SELECT csn.*, cd.teacher_id, cd.swimming_pool_id
+        FROM class_diary_student_notes csn
+        JOIN class_diaries cd ON cd.id = csn.diary_id
+        WHERE csn.id = ${req.params.noteId} AND cd.swimming_pool_id = ${poolId}
+      `);
+      const note = nRows.rows[0] as any;
+      if (!note) return apiErr(res, 404, "추가 일지를 찾을 수 없습니다.");
+      if (note.is_deleted) return apiErr(res, 400, "삭제된 추가 일지는 수정할 수 없습니다.");
+      if (role === "teacher" && note.teacher_id !== userId) return apiErr(res, 403, "본인 일지만 수정할 수 있습니다.");
+
+      const actorName = await getUserName(userId);
+      await db.execute(sql`
+        UPDATE class_diary_student_notes
+        SET note_content = ${note_content.trim()}, is_edited = true,
+            edited_at = NOW(), edited_by = ${userId}, updated_at = NOW()
+        WHERE id = ${req.params.noteId}
+      `);
+      await logAudit({
+        diaryId: note.diary_id, studentNoteId: req.params.noteId, targetType: "student_note", actionType: "update",
+        beforeContent: note.note_content, afterContent: note_content.trim(),
+        actorId: userId, actorName, actorRole: role, poolId: poolId!,
+      });
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ── DELETE /diaries/student-notes/:noteId ────────────────────────────────
+router.delete("/diaries/student-notes/:noteId",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      const nRows = await db.execute(sql`
+        SELECT csn.*, cd.teacher_id, cd.swimming_pool_id
+        FROM class_diary_student_notes csn
+        JOIN class_diaries cd ON cd.id = csn.diary_id
+        WHERE csn.id = ${req.params.noteId} AND cd.swimming_pool_id = ${poolId}
+      `);
+      const note = nRows.rows[0] as any;
+      if (!note) return apiErr(res, 404, "추가 일지를 찾을 수 없습니다.");
+      if (note.is_deleted) return apiErr(res, 400, "이미 삭제된 추가 일지입니다.");
+      if (role === "teacher" && note.teacher_id !== userId) return apiErr(res, 403, "본인 일지만 삭제할 수 있습니다.");
+
+      const actorName = await getUserName(userId);
+      await db.execute(sql`
+        UPDATE class_diary_student_notes
+        SET is_deleted = true, deleted_at = NOW(), deleted_by = ${userId}, updated_at = NOW()
+        WHERE id = ${req.params.noteId}
+      `);
+      await logAudit({
+        diaryId: note.diary_id, studentNoteId: req.params.noteId, targetType: "student_note", actionType: "delete",
+        beforeContent: note.note_content,
+        actorId: userId, actorName, actorRole: role, poolId: poolId!,
+      });
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════
+// 4. 감사 기록 조회 (관리자 전용)
+// ════════════════════════════════════════════════════════════════════════
+
+router.get("/diaries/:id/audit-logs",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      const rows = await db.execute(sql`
+        SELECT * FROM class_diary_audit_logs
+        WHERE diary_id = ${req.params.id} AND swimming_pool_id = ${poolId}
+        ORDER BY created_at ASC
+      `);
+      res.json(rows.rows);
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════
+// 5. 템플릿 관리
+// ════════════════════════════════════════════════════════════════════════
+
+// GET /diary-templates — 선생님 + 관리자 조회
+router.get("/diary-templates",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const rows = await db.execute(sql`
+        SELECT * FROM diary_templates WHERE swimming_pool_id = ${poolId} AND is_active = true
+        ORDER BY category, created_at DESC
+      `);
+      res.json(rows.rows);
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// POST /diary-templates — 관리자 전용 생성
+router.post("/diary-templates",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { category, level, template_text } = req.body;
+      if (!template_text?.trim()) return apiErr(res, 400, "템플릿 내용을 입력해주세요.");
+      const poolId = await getUserPoolId(req.user!.userId);
+      const id = genId("dt");
+      await db.execute(sql`
+        INSERT INTO diary_templates (id, swimming_pool_id, category, level, template_text, created_by)
+        VALUES (${id}, ${poolId}, ${category || "general"}, ${level || null}, ${template_text.trim()}, ${req.user!.userId})
+      `);
+      res.json({ success: true, id });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// PATCH /diary-templates/:id — 관리자 전용 수정
+router.patch("/diary-templates/:id",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { template_text, category, level, is_active } = req.body;
+      const poolId = await getUserPoolId(req.user!.userId);
+      await db.execute(sql`
+        UPDATE diary_templates
+        SET template_text = COALESCE(${template_text ?? null}, template_text),
+            category = COALESCE(${category ?? null}, category),
+            level = COALESCE(${level ?? null}, level),
+            is_active = COALESCE(${is_active ?? null}, is_active),
+            updated_at = NOW()
+        WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
+      `);
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// DELETE /diary-templates/:id — 소프트 비활성화
+router.delete("/diary-templates/:id",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      await db.execute(sql`UPDATE diary_templates SET is_active = false WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════
+// 6. 레거시 diary 엔드포인트 유지 (swim_diary 테이블)
+//    teacher/diary.tsx 의 기존 호출 대응용 — 신규 API 전환 전까지 유지
+// ════════════════════════════════════════════════════════════════════════
+
+router.get("/diary/class-groups",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const poolId = await getUserPoolId(userId);
       let rows;
       if (role === "teacher") {
         rows = await db.execute(sql`
-          SELECT sd.id, sd.class_group_id, sd.title, sd.created_at
-          FROM swim_diary sd
-          JOIN class_groups cg ON cg.id = sd.class_group_id
-          WHERE sd.swimming_pool_id = ${poolId}
-            AND cg.teacher_user_id = ${userId}
-            AND DATE(sd.created_at) = ${date}::date
-          ORDER BY sd.created_at DESC
-        `);
-      } else if (role === "pool_admin") {
-        rows = await db.execute(sql`
-          SELECT id, class_group_id, title, created_at
-          FROM swim_diary
-          WHERE swimming_pool_id = ${poolId}
-            AND DATE(created_at) = ${date}::date
-          ORDER BY created_at DESC
+          SELECT cg.*, (SELECT COUNT(*) FROM students s WHERE s.class_group_id = cg.id AND s.status != 'deleted') AS student_count
+          FROM class_groups cg WHERE cg.teacher_user_id = ${userId} AND cg.swimming_pool_id = ${poolId}
+          ORDER BY cg.schedule_days, cg.schedule_time
         `);
       } else {
         rows = await db.execute(sql`
-          SELECT id, class_group_id, title, created_at
-          FROM swim_diary
-          WHERE DATE(created_at) = ${date}::date
-          ORDER BY created_at DESC
+          SELECT cg.*, (SELECT COUNT(*) FROM students s WHERE s.class_group_id = cg.id AND s.status != 'deleted') AS student_count
+          FROM class_groups cg WHERE cg.swimming_pool_id = ${poolId}
+          ORDER BY cg.schedule_days, cg.schedule_time
         `);
       }
-      return res.json(rows.rows);
-    }
+      res.json(rows.rows);
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
 
-    if (role === "teacher") {
-      const rows = await db.execute(sql`
-        SELECT sd.id, sd.class_group_id, sd.title, sd.lesson_content, sd.next_focus,
-               sd.author_name, sd.created_at, sd.media_items
-        FROM swim_diary sd
-        JOIN class_groups cg ON cg.id = sd.class_group_id
-        WHERE sd.swimming_pool_id = ${poolId}
-          AND cg.teacher_user_id = ${userId}
-        ORDER BY sd.created_at DESC
-        LIMIT 50
-      `);
-      return res.json(rows.rows);
-    }
-
-    const rows = await db.execute(sql`
-      SELECT id, class_group_id, title, lesson_content, next_focus, author_name, created_at, media_items
-      FROM swim_diary
-      WHERE swimming_pool_id = ${poolId}
-      ORDER BY created_at DESC
-      LIMIT 50
-    `);
-    return res.json(rows.rows);
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
-});
-
-// ── POST /diary ────────────────────────────────────────────────────────
-// body: { lesson_content?, media_items?: [{key, type}][], class_group_ids: string[] }
-router.post("/diary", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  try {
-    const { lesson_content, practice_goals, good_points, media_items, class_group_ids } = req.body;
-
-    const classIds: string[] = Array.isArray(class_group_ids) ? class_group_ids : [];
-    if (classIds.length === 0) return err(res, 400, "반(class_group_ids)을 선택해주세요.");
-
-    const { role, userId } = req.user!;
-    const poolId = await getUserPoolId(userId);
-    if (!poolId && role !== "super_admin") return err(res, 403, "소속된 수영장이 없습니다.");
-
-    const authorName = await getUserName(userId);
-    const mediaItemsJson = JSON.stringify(Array.isArray(media_items) ? media_items : []);
-    const inserted: any[] = [];
-
-    for (const classId of classIds) {
-      if (role === "teacher") {
-        const ok = await teacherOwnsClass(userId, classId);
-        if (!ok) return err(res, 403, `담당 반이 아닙니다: ${classId}`);
-      } else if (role === "pool_admin") {
-        const classRows = await db.execute(sql`
-          SELECT id FROM class_groups WHERE id = ${classId} AND swimming_pool_id = ${poolId}
-        `);
-        if (!classRows.rows.length) return err(res, 403, "접근 권한이 없습니다.");
-      }
-
-      // 반 이름 조회 (알림용)
-      const classInfo = await db.execute(sql`SELECT name FROM class_groups WHERE id = ${classId}`);
-      const className = (classInfo.rows[0] as any)?.name || "반";
-
-      const id = `diary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const effectivePoolId = poolId || "super";
-      // 자동 제목 생성
-      const today = new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric" });
-      const autoTitle = `${className} ${today} 수업 일지`;
-
-      const rows = await db.execute(sql`
-        INSERT INTO swim_diary
-          (id, student_id, swimming_pool_id, author_id, author_name,
-           title, lesson_content, practice_goals, good_points, next_focus,
-           image_urls, media_items, class_group_id)
-        VALUES
-          (${id}, NULL, ${effectivePoolId}, ${userId}, ${authorName},
-           ${autoTitle}, ${lesson_content || null},
-           ${practice_goals || null}, ${good_points || null}, NULL,
-           '[]'::jsonb, ${mediaItemsJson}::jsonb, ${classId})
-        RETURNING *
-      `);
-      const diaryRow = rows.rows[0] as any;
-      inserted.push(diaryRow);
-
-      // 비동기 알림 발송 (await 하지 않음 - 응답 먼저)
-      sendDiaryNotifications(classId, id, className, effectivePoolId).catch(console.error);
-    }
-
-    if (inserted.length === 1) return res.status(201).json({ success: true, ...inserted[0] });
-    return res.status(201).json({ success: true, count: inserted.length, diaries: inserted });
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
-});
-
-// ── GET /diary/:id ─────────────────────────────────────────────────────
-router.get("/diary/:id", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const { role, userId } = req.user!;
-    const rows = await db.execute(sql`SELECT * FROM swim_diary WHERE id = ${req.params.id}`);
-    const diary = rows.rows[0] as any;
-    if (!diary) return err(res, 404, "일지를 찾을 수 없습니다.");
-
-    if (role === "teacher") {
-      const ok = await teacherOwnsClass(userId, diary.class_group_id);
-      if (!ok) return err(res, 403, "접근 권한이 없습니다.");
-    } else if (role === "pool_admin") {
-      const poolId = await getUserPoolId(userId);
-      if (diary.swimming_pool_id !== poolId) return err(res, 403, "접근 권한이 없습니다.");
-    }
-
-    return res.json(diary);
-  } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
-});
-
-// ── PUT /diary/:id ─────────────────────────────────────────────────────
-router.put("/diary/:id", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  try {
-    const { lesson_content, next_focus, practice_goals, good_points, media_items } = req.body;
-    const { role, userId } = req.user!;
-
-    const rows = await db.execute(sql`SELECT * FROM swim_diary WHERE id = ${req.params.id}`);
-    const diary = rows.rows[0] as any;
-    if (!diary) return err(res, 404, "일지를 찾을 수 없습니다.");
-
-    if (role === "teacher") {
-      if (diary.author_id !== userId) return err(res, 403, "자신이 작성한 일지만 수정할 수 있습니다.");
-    } else if (role === "pool_admin") {
-      const poolId = await getUserPoolId(userId);
-      if (diary.swimming_pool_id !== poolId) return err(res, 403, "접근 권한이 없습니다.");
-    }
-
-    const newMediaItems = media_items !== undefined
-      ? JSON.stringify(Array.isArray(media_items) ? media_items : [])
-      : JSON.stringify(diary.media_items || []);
-
-    const updated = await db.execute(sql`
-      UPDATE swim_diary SET
-        lesson_content = ${lesson_content ?? diary.lesson_content},
-        practice_goals = ${practice_goals ?? diary.practice_goals},
-        good_points = ${good_points ?? diary.good_points},
-        next_focus = ${next_focus ?? diary.next_focus},
-        media_items = ${newMediaItems}::jsonb
-      WHERE id = ${req.params.id}
-      RETURNING *
-    `);
-    return res.json({ success: true, ...updated.rows[0] });
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
-});
-
-// ── DELETE /diary/:id/media/:key ────────────────────────────────────────
-// media_items 배열에서 특정 key 항목 제거
-router.delete("/diary/:diaryId/media", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  try {
-    const { role, userId } = req.user!;
-    const key = req.body?.key as string;
-    if (!key) return err(res, 400, "key가 필요합니다.");
-    const diaryId = req.params.diaryId;
-
-    const rows = await db.execute(sql`SELECT * FROM swim_diary WHERE id = ${diaryId}`);
-    const diary = rows.rows[0] as any;
-    if (!diary) return err(res, 404, "일지를 찾을 수 없습니다.");
-
-    if (role === "teacher") {
-      if (diary.author_id !== userId) return err(res, 403, "자신이 작성한 일지만 수정할 수 있습니다.");
-    } else if (role === "pool_admin") {
-      const poolId = await getUserPoolId(userId);
-      if (diary.swimming_pool_id !== poolId) return err(res, 403, "접근 권한이 없습니다.");
-    }
-
-    const currentItems: any[] = Array.isArray(diary.media_items) ? diary.media_items : [];
-    const filtered = currentItems.filter((item: any) => item.key !== key);
-    const newJson = JSON.stringify(filtered);
-
-    await db.execute(sql`
-      UPDATE swim_diary SET media_items = ${newJson}::jsonb WHERE id = ${diaryId}
-    `);
-
-    // Object Storage에서도 삭제 시도
+// GET /diary — 레거시: class_diaries로 리다이렉트
+router.get("/diary",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
     try {
-      const client = getClient();
-      await client.delete(key);
-    } catch (_) {}
-
-    return res.json({ success: true, media_items: filtered });
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
-});
-
-// ── DELETE /diary/:id ──────────────────────────────────────────────────
-router.delete("/diary/:id", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  try {
-    const { role, userId } = req.user!;
-
-    const rows = await db.execute(sql`SELECT * FROM swim_diary WHERE id = ${req.params.id}`);
-    const diary = rows.rows[0] as any;
-    if (!diary) return err(res, 404, "일지를 찾을 수 없습니다.");
-
-    if (role === "teacher") {
-      if (diary.author_id !== userId) return err(res, 403, "자신이 작성한 일지만 삭제할 수 있습니다.");
-    } else if (role === "pool_admin") {
+      const { userId, role } = req.user!;
       const poolId = await getUserPoolId(userId);
-      if (diary.swimming_pool_id !== poolId) return err(res, 403, "접근 권한이 없습니다.");
-    }
+      const { class_group_id, date } = req.query;
 
-    await db.execute(sql`DELETE FROM swim_diary WHERE id = ${req.params.id}`);
-    return res.json({ success: true });
-  } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
-});
+      if (role === "teacher") {
+        const myClasses = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId}`);
+        const classIds = (myClasses.rows as any[]).map(r => r.id);
+        if (classIds.length === 0) { res.json([]); return; }
+        const classFilter = classIds.map(id => `'${id}'`).join(",");
+        const rows = await db.execute(sql`
+          SELECT cd.*, cg.name AS class_name
+          FROM class_diaries cd
+          LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+          WHERE cd.swimming_pool_id = ${poolId}
+            AND cd.class_group_id IN (${sql.raw(classFilter)})
+            AND cd.is_deleted = false
+            ${class_group_id ? sql`AND cd.class_group_id = ${class_group_id}` : sql``}
+            ${date ? sql`AND cd.lesson_date = ${date}` : sql``}
+          ORDER BY cd.lesson_date DESC, cd.created_at DESC
+          LIMIT 50
+        `);
+        res.json(rows.rows);
+      } else {
+        const rows = await db.execute(sql`
+          SELECT cd.*, cg.name AS class_name
+          FROM class_diaries cd
+          LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+          WHERE cd.swimming_pool_id = ${poolId} AND cd.is_deleted = false
+          ORDER BY cd.lesson_date DESC, cd.created_at DESC
+          LIMIT 100
+        `);
+        res.json(rows.rows);
+      }
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
 
 export default router;

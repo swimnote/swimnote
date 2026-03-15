@@ -1,166 +1,115 @@
+/**
+ * (parent)/swim-diary.tsx — 학부모용 수영일지 (v2)
+ *
+ * 새 구조: lesson_date, common_content, teacher_name, is_edited
+ *          student_note: { note_content, is_edited }
+ */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Dimensions, Image, Linking, Modal,
-  Platform, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, TouchableOpacity, View,
+  ActivityIndicator, Platform, Pressable, RefreshControl,
+  ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
-interface MediaItem {
-  key: string;
-  type: "image" | "video";
+const C = Colors.light;
+
+interface StudentNote {
+  id: string;
+  note_content: string;
+  is_edited: boolean;
 }
 
 interface DiaryEntry {
   id: string;
-  student_id: string;
-  author_name: string;
-  title?: string | null;
-  lesson_content?: string | null;
-  practice_goals?: string | null;
-  good_points?: string | null;
-  improve_points?: string | null;
-  next_focus?: string | null;
-  image_urls?: string[];
-  media_items?: MediaItem[];
+  lesson_date: string;
+  common_content: string;
+  teacher_name: string;
+  is_edited: boolean;
   created_at: string;
+  student_note?: StudentNote | null;
 }
 
-const C = Colors.light;
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
-const { width: SCREEN_W } = Dimensions.get("window");
-
-function mediaUrl(key: string) {
-  return `${API_BASE}/api/uploads/${encodeURIComponent(key)}`;
-}
-
-function Section({ label, color, value }: { label: string; color: string; value?: string | null }) {
-  if (!value?.trim()) return null;
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <View style={[styles.sectionDot, { backgroundColor: color }]} />
-        <Text style={[styles.sectionLabel, { color }]}>{label}</Text>
-      </View>
-      <Text style={[styles.sectionValue, { color: C.text }]}>{value}</Text>
-    </View>
-  );
-}
-
-function MediaGrid({ items, legacyUrls }: { items: MediaItem[]; legacyUrls: string[] }) {
-  const [lightboxUri, setLightboxUri] = useState<string | null>(null);
-
-  const allMedia: MediaItem[] = [
-    ...items,
-    ...legacyUrls.map(url => ({ key: url, type: "image" as const })),
-  ];
-
-  if (allMedia.length === 0) return null;
-
-  return (
-    <>
-      <View style={styles.mediaSection}>
-        <View style={styles.sectionHeader}>
-          <View style={[styles.sectionDot, { backgroundColor: "#6366F1" }]} />
-          <Text style={[styles.sectionLabel, { color: "#6366F1" }]}>수업 사진 · 영상</Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaRow}>
-          {allMedia.map((m, i) => (
-            <Pressable
-              key={i}
-              style={styles.mediaTile}
-              onPress={() => {
-                if (m.type === "video") {
-                  Linking.openURL(mediaUrl(m.key)).catch(() => {});
-                } else {
-                  setLightboxUri(mediaUrl(m.key));
-                }
-              }}
-            >
-              {m.type === "image" ? (
-                <Image source={{ uri: mediaUrl(m.key) }} style={styles.mediaImg} resizeMode="cover" />
-              ) : (
-                <View style={[styles.mediaImg, styles.videoTile]}>
-                  <View style={styles.playIcon}>
-                    <Feather name="play" size={22} color="#fff" />
-                  </View>
-                  <Text style={styles.videoLabel}>영상</Text>
-                </View>
-              )}
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* 이미지 전체화면 */}
-      <Modal visible={!!lightboxUri} transparent animationType="fade" onRequestClose={() => setLightboxUri(null)}>
-        <Pressable style={styles.lightboxBg} onPress={() => setLightboxUri(null)}>
-          {lightboxUri && (
-            <Image
-              source={{ uri: lightboxUri }}
-              style={styles.lightboxImg}
-              resizeMode="contain"
-            />
-          )}
-          <Pressable style={styles.lightboxClose} onPress={() => setLightboxUri(null)}>
-            <Feather name="x" size={22} color="#fff" />
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </>
-  );
+function parseLessonDate(dateStr: string) {
+  const d = new Date(dateStr.includes("T") ? dateStr : dateStr + "T00:00:00");
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  return {
+    month: d.getMonth() + 1,
+    day: d.getDate(),
+    weekday: weekdays[d.getDay()],
+    year: d.getFullYear(),
+  };
 }
 
 function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
-  const media: MediaItem[] = Array.isArray(entry.media_items) ? entry.media_items : [];
-  const legacyUrls: string[] = Array.isArray(entry.image_urls) ? entry.image_urls : [];
-  const d = new Date(entry.created_at);
-  const dateStr = d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
-  const weekday = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+  const { month, day, weekday, year } = parseLessonDate(entry.lesson_date);
+  const isCurrentYear = year === new Date().getFullYear();
 
   return (
-    <View style={[styles.card, { backgroundColor: C.card }]}>
-      <Pressable onPress={() => setOpen(o => !o)} style={styles.cardHeader}>
-        <View style={styles.cardHeaderLeft}>
-          <View style={[styles.dateBadge, { backgroundColor: C.tint }]}>
-            <Text style={styles.dateBadgeMonth}>{d.getMonth() + 1}월</Text>
-            <Text style={styles.dateBadgeDay}>{d.getDate()}</Text>
-            <Text style={styles.dateBadgeWeekday}>{weekday}</Text>
+    <View style={[s.card, { backgroundColor: C.card }]}>
+      <Pressable onPress={() => setOpen(o => !o)} style={s.cardHeader}>
+        {/* 날짜 배지 */}
+        <View style={[s.dateBadge, { backgroundColor: C.tint }]}>
+          <Text style={s.dateMonth}>{month}월</Text>
+          <Text style={s.dateDay}>{day}</Text>
+          <Text style={s.dateWeekday}>{weekday}</Text>
+        </View>
+
+        {/* 메타 */}
+        <View style={s.cardMeta}>
+          <View style={s.cardMetaRow}>
+            <Text style={[s.cardTeacher, { color: C.text }]}>{entry.teacher_name} 선생님</Text>
+            {entry.is_edited && (
+              <View style={s.editedBadge}>
+                <Text style={s.editedBadgeText}>수정됨</Text>
+              </View>
+            )}
+            {entry.student_note && (
+              <View style={[s.editedBadge, { backgroundColor: "#EDE9FE" }]}>
+                <Feather name="user" size={9} color="#7C3AED" />
+                <Text style={[s.editedBadgeText, { color: "#7C3AED" }]}>개별 일지</Text>
+              </View>
+            )}
           </View>
-          <View style={styles.cardMeta}>
-            <Text style={[styles.cardTitle, { color: C.text }]} numberOfLines={open ? undefined : 1}>
-              {entry.title || "수업 일지"}
-            </Text>
-            <View style={styles.cardSubRow}>
-              <Text style={[styles.cardAuthor, { color: C.textMuted }]}>{entry.author_name} 선생님</Text>
-              {(media.length > 0 || legacyUrls.length > 0) && (
-                <View style={styles.mediaBadge}>
-                  <Feather name="image" size={10} color="#6366F1" />
-                  <Text style={styles.mediaBadgeText}>{media.length + legacyUrls.length}</Text>
-                </View>
-              )}
-            </View>
-          </View>
+          <Text style={[s.cardPreview, { color: C.textMuted }]} numberOfLines={open ? undefined : 1}>
+            {!isCurrentYear && `${year}년 · `}{entry.common_content}
+          </Text>
         </View>
         <Feather name={open ? "chevron-up" : "chevron-down"} size={18} color={C.textMuted} />
       </Pressable>
 
       {open && (
-        <View style={styles.cardBody}>
-          <View style={[styles.divider, { backgroundColor: C.border }]} />
+        <View style={s.cardBody}>
+          <View style={[s.divider, { backgroundColor: C.border }]} />
 
-          <Section color="#1A5CFF" label="오늘의 수업 내용" value={entry.lesson_content} />
-          <Section color="#059669" label="연습한 동작 / 목표" value={entry.practice_goals} />
-          <Section color="#F59E0B" label="잘한 점" value={entry.good_points} />
-          <Section color="#EF4444" label="보완할 점" value={entry.improve_points} />
-          <Section color="#7C3AED" label="다음 수업 포인트" value={entry.next_focus} />
+          {/* 공통 일지 */}
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <View style={[s.dot, { backgroundColor: C.tint }]} />
+              <Text style={[s.sectionLabel, { color: C.tint }]}>수업 내용</Text>
+            </View>
+            <Text style={[s.sectionValue, { color: C.text }]}>{entry.common_content}</Text>
+          </View>
 
-          <MediaGrid items={media} legacyUrls={legacyUrls} />
+          {/* 개별 추가 일지 */}
+          {entry.student_note?.note_content && (
+            <View style={[s.noteBox, { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" }]}>
+              <View style={s.sectionHeader}>
+                <Feather name="user" size={12} color="#7C3AED" />
+                <Text style={s.noteTitle}>우리 아이 개별 일지</Text>
+                {entry.student_note.is_edited && (
+                  <View style={[s.editedBadge, { backgroundColor: "#EDE9FE" }]}>
+                    <Text style={[s.editedBadgeText, { color: "#7C3AED" }]}>수정됨</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[s.sectionValue, { color: "#374151" }]}>{entry.student_note.note_content}</Text>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -178,7 +127,7 @@ export default function SwimDiaryScreen() {
 
   async function fetchEntries() {
     try {
-      const res = await apiRequest(token, `/students/${id}/diary`);
+      const res = await apiRequest(token, `/parent/students/${id}/diary`);
       if (res.ok) {
         const data = await res.json();
         setEntries(Array.isArray(data) ? data : []);
@@ -190,26 +139,29 @@ export default function SwimDiaryScreen() {
   useEffect(() => { fetchEntries(); }, [id]);
 
   return (
-    <View style={[styles.root, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+    <View style={[s.root, { backgroundColor: C.background }]}>
+      {/* 헤더 */}
+      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
+        <Pressable onPress={() => router.back()} style={s.backBtn}>
           <Feather name="chevron-left" size={24} color={C.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: C.text }]}>{name} 수영 일지</Text>
+        <Text style={[s.headerTitle, { color: C.text }]}>{name} 수업 일지</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : (
+      {loading ? (
+        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+      ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 8, gap: 12 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, paddingTop: 8, gap: 12 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchEntries(); }} />}
         >
           {entries.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>📒</Text>
-              <Text style={[styles.emptyTitle, { color: C.text }]}>아직 수영 일지가 없습니다</Text>
-              <Text style={[styles.emptySub, { color: C.textSecondary }]}>
+            <View style={s.empty}>
+              <Text style={s.emptyEmoji}>📒</Text>
+              <Text style={[s.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>
+              <Text style={[s.emptySub, { color: C.textSecondary }]}>
                 선생님이 수업 후 일지를 작성하면{"\n"}여기에서 확인하실 수 있습니다
               </Text>
             </View>
@@ -222,8 +174,8 @@ export default function SwimDiaryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root:   { flex: 1 },
+const s = StyleSheet.create({
+  root: { flex: 1 },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingBottom: 12,
@@ -235,39 +187,32 @@ const styles = StyleSheet.create({
     borderRadius: 18, overflow: "hidden",
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 3, shadowColor: "#00000014",
   },
-  cardHeader: { flexDirection: "row", alignItems: "center", padding: 16, gap: 12 },
-  cardHeaderLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
-  dateBadge: { width: 52, borderRadius: 12, alignItems: "center", paddingVertical: 8, gap: 1 },
-  dateBadgeMonth: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.8)" },
-  dateBadgeDay: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff", lineHeight: 26 },
-  dateBadgeWeekday: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.8)" },
-  cardMeta: { flex: 1, gap: 3 },
-  cardTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  cardSubRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  cardAuthor: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  mediaBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#EEF2FF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
-  mediaBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#6366F1" },
+  cardHeader: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
 
-  cardBody: { paddingHorizontal: 16, paddingBottom: 16, gap: 14 },
-  divider: { height: 1, marginBottom: 4 },
+  dateBadge: { width: 52, borderRadius: 12, alignItems: "center", paddingVertical: 8, gap: 1, flexShrink: 0 },
+  dateMonth: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.8)" },
+  dateDay: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff", lineHeight: 26 },
+  dateWeekday: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.8)" },
+
+  cardMeta: { flex: 1, gap: 4 },
+  cardMetaRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  cardTeacher: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  cardPreview: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+
+  editedBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEF3C7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
+  editedBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#92400E" },
+
+  cardBody: { paddingHorizontal: 14, paddingBottom: 14, gap: 12 },
+  divider: { height: 1, marginBottom: 2 },
 
   section: { gap: 6 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionDot: { width: 8, height: 8, borderRadius: 4 },
-  sectionLabel: { fontSize: 12, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0.5 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  sectionLabel: { fontSize: 11, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0.5 },
   sectionValue: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, paddingLeft: 14 },
 
-  mediaSection: { gap: 8 },
-  mediaRow:     { gap: 10, paddingVertical: 4 },
-  mediaTile:    { width: 120, height: 100, borderRadius: 10, overflow: "hidden" },
-  mediaImg:     { width: 120, height: 100 },
-  videoTile:    { backgroundColor: "#1F2937", alignItems: "center", justifyContent: "center", gap: 6 },
-  playIcon:     { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  videoLabel:   { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.7)" },
-
-  lightboxBg:   { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" },
-  lightboxImg:  { width: SCREEN_W, height: SCREEN_W * 1.2 },
-  lightboxClose:{ position: "absolute", top: 50, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  noteBox: { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
+  noteTitle: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#7C3AED", flex: 1 },
 
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 100, gap: 12 },
   emptyEmoji: { fontSize: 56 },
