@@ -426,8 +426,8 @@ function StudentCard({ student, themeColor, onPressInvite, onPressDelete, isDele
             style={[sc.actionBtn, { backgroundColor: themeColor + "15" }]}
             onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: student.id } } as any)}
           >
-            <Feather name="layers" size={13} color={themeColor} />
-            <Text style={[sc.actionText, { color: themeColor }]}>반 배정</Text>
+            <Feather name="user" size={13} color={themeColor} />
+            <Text style={[sc.actionText, { color: themeColor }]}>회원 상세</Text>
           </Pressable>
           {student.invite_code && connStatus !== "linked" && (
             <Pressable style={[sc.actionBtn, { backgroundColor: "#EDE9FE" }]} onPress={onPressInvite}>

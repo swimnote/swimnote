@@ -212,6 +212,38 @@ All tables include `swimming_pool_id` for multi-tenant isolation.
 - **API validation**: Single-item endpoints (GET/PUT/DELETE) check pool ownership before returning data
 - **Login restriction**: pool_admin cannot login if pool.approval_status != 'approved'
 
+## 관리자 앱 5탭 구조 (v2 — 2026-03)
+
+### 탭 구성
+1. **대시보드** — 통합 검색(모달), KPI 4카드, 처리필요 배지, 빠른액션 6개, 오늘수업통계, 최근등록회원, 최근변경이력
+2. **회원** — 필터(전체/미배정/배정불일치/연결대기/주N회/연결완료), 검색, 카드형 목록, 선택삭제, 회원등록 모달
+3. **수업** — 반관리, 출결, 수업일지 (classes.tsx)
+4. **커뮤니티** — 공지사항(CRUD), 학부모연결요청 승인/거절 (community.tsx)
+5. **더보기** — 설정메뉴 허브 + 활동로그 전체 조회 (more.tsx)
+
+### 회원 상세 6탭 허브 (member-detail.tsx)
+- 기본정보: 이름/출생/보호자 편집, 상태변경(재원/휴원/정지/탈퇴), 복구
+- 수업정보: 반배정(주N회), 최근출결30일 시각화, 최근일지 5건
+- 레벨/평가: 수영레벨 뱃지선택+자유입력, 관리자내부메모
+- 학부모공유: 앱연결상태, 초대코드 복사/공유
+- 결제/이용: 이용정보, 결제관리 바로가기
+- 활동로그: 관리자 변경이력 타임라인
+
+### 신규 Admin API 엔드포인트 (2026-03)
+- `GET /admin/dashboard-stats` — 통합 통계 (members, attendance, classes, pending, recent)
+- `GET /admin/search?q=` — 전체 검색 (회원/반/선생님/공지/학부모)
+- `GET /admin/activity-logs?limit&offset` — 수영장 전체 활동 로그 (페이지네이션)
+- `GET /admin/member-logs/:studentId` — 회원별 활동 로그
+- `PATCH /admin/students/:id/status` — 상태변경 (활동로그 자동기록)
+- `POST /admin/students/:id/restore` — 탈퇴/삭제 회원 복구 (활동로그 자동기록)
+- `PATCH /admin/students/:id/info` — 기본정보 수정 (활동로그 자동기록)
+- `GET /admin/students/:id/detail` — 통합 상세 (출결30일, 일지5건 포함)
+
+### 활동 로그 DB
+- 테이블: `member_activity_logs`
+- 컬럼: id, swimming_pool_id, student_id, parent_id, target_name, action_type, target_type, before_value, after_value, actor_id, actor_name, actor_role, note, created_at
+- 자동 기록: 상태변경, 정보수정, 복구 시
+
 ## 선택 모드 삭제 UX (관리자 화면)
 
 `hooks/useSelectionMode.ts` — 공통 선택 상태 훅 (toggle, selectAll, isSelected 등)

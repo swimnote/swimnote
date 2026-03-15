@@ -738,4 +738,361 @@ router.get("/pending-connections", requireAuth, requireRole("super_admin", "pool
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ════════════════════════════════════════════════════════════════════════
+// 신규: 대시보드 통합 통계
+// ════════════════════════════════════════════════════════════════════════
+async function getAdminPoolId(req: AuthRequest): Promise<string | null> {
+  if (req.user!.role === "pool_admin") {
+    const [u] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id }).from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    return u?.swimming_pool_id ?? null;
+  }
+  return req.query.pool_id as string ?? null;
+}
+
+async function writeActivityLog(opts: {
+  poolId: string; studentId?: string | null; parentId?: string | null;
+  targetName: string; actionType: string; targetType: string;
+  beforeValue?: string | null; afterValue?: string | null;
+  actorId: string; actorName: string; actorRole: string; note?: string | null;
+}) {
+  const id = `mal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  await db.execute(sql`
+    INSERT INTO member_activity_logs
+      (id, swimming_pool_id, student_id, parent_id, target_name, action_type, target_type,
+       before_value, after_value, actor_id, actor_name, actor_role, note)
+    VALUES
+      (${id}, ${opts.poolId}, ${opts.studentId ?? null}, ${opts.parentId ?? null},
+       ${opts.targetName}, ${opts.actionType}, ${opts.targetType},
+       ${opts.beforeValue ?? null}, ${opts.afterValue ?? null},
+       ${opts.actorId}, ${opts.actorName}, ${opts.actorRole}, ${opts.note ?? null})
+  `);
+}
+
+router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 정보가 없습니다." }); return; }
+
+      const today = new Date().toISOString().split("T")[0];
+
+      const [statsRow] = (await db.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE status NOT IN ('withdrawn','deleted'))::int AS total_members,
+          COUNT(*) FILTER (WHERE status NOT IN ('withdrawn','deleted') AND (class_group_id IS NULL OR class_group_id = ''))::int AS unassigned_members,
+          COUNT(*) FILTER (WHERE status = 'withdrawn')::int AS withdrawn_members,
+          COUNT(*) FILTER (WHERE status = 'deleted')::int AS deleted_members,
+          COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days' AND status NOT IN ('withdrawn','deleted'))::int AS new_this_week
+        FROM students WHERE swimming_pool_id = ${poolId}
+      `)).rows as any[];
+
+      const [attRow] = (await db.execute(sql`
+        SELECT COUNT(*) FILTER (WHERE status = 'present')::int AS today_present
+        FROM attendance WHERE date = ${today} AND swimming_pool_id = ${poolId}
+      `)).rows as any[];
+
+      const [pendingRow] = (await db.execute(sql`
+        SELECT COUNT(*)::int AS pending_requests FROM student_registration_requests
+        WHERE swimming_pool_id = ${poolId} AND status = 'pending'
+      `)).rows as any[];
+
+      const [parentPendingRow] = (await db.execute(sql`
+        SELECT COUNT(*)::int AS parent_pending FROM parent_students
+        WHERE swimming_pool_id = ${poolId} AND status = 'pending'
+      `)).rows as any[];
+
+      const [diaryRow] = (await db.execute(sql`
+        SELECT COUNT(DISTINCT cg.id)::int AS total_classes,
+               COUNT(DISTINCT cd.class_group_id) FILTER (WHERE cd.lesson_date = ${today})::int AS diary_done_today
+        FROM class_groups cg
+        LEFT JOIN class_diaries cd ON cd.class_group_id = cg.id AND cd.is_deleted = false
+        WHERE cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
+      `)).rows as any[];
+
+      const [teacherRow] = (await db.execute(sql`
+        SELECT COUNT(*)::int AS total_teachers
+        FROM users WHERE swimming_pool_id = ${poolId} AND role = 'teacher'
+      `)).rows as any[];
+
+      // 최근 등록 회원 5명
+      const recentMembers = (await db.execute(sql`
+        SELECT id, name, status, class_group_id, created_at,
+               (SELECT cg.name FROM class_groups cg WHERE cg.id = s.class_group_id LIMIT 1) AS class_name
+        FROM students s
+        WHERE swimming_pool_id = ${poolId} AND status NOT IN ('withdrawn','deleted')
+        ORDER BY created_at DESC LIMIT 5
+      `)).rows;
+
+      // 최근 활동 로그 10건
+      const activityLogs = (await db.execute(sql`
+        SELECT * FROM member_activity_logs
+        WHERE swimming_pool_id = ${poolId}
+        ORDER BY created_at DESC LIMIT 10
+      `)).rows;
+
+      res.json({
+        total_members:   statsRow?.total_members   ?? 0,
+        unassigned:      statsRow?.unassigned_members ?? 0,
+        withdrawn:       statsRow?.withdrawn_members ?? 0,
+        deleted_members: statsRow?.deleted_members ?? 0,
+        new_this_week:   statsRow?.new_this_week ?? 0,
+        today_present:   attRow?.today_present ?? 0,
+        pending_requests: Number(pendingRow?.pending_requests ?? 0) + Number(parentPendingRow?.parent_pending ?? 0),
+        total_classes:   diaryRow?.total_classes ?? 0,
+        diary_done_today: diaryRow?.diary_done_today ?? 0,
+        total_teachers:  teacherRow?.total_teachers ?? 0,
+        expiring_soon:   0,
+        recent_members:  recentMembers,
+        activity_logs:   activityLogs,
+      });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 통합 검색 ────────────────────────────────────────────────────────────
+router.get("/search", requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const q = (req.query.q as string || "").trim();
+      if (q.length < 1) { res.json({ students: [], teachers: [], classes: [], notices: [], parents: [] }); return; }
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 정보가 없습니다." }); return; }
+
+      const pattern = `%${q}%`;
+      const [students, teachers, classes, notices, parents] = await Promise.all([
+        db.execute(sql`
+          SELECT id, name, status, class_group_id, birth_year, parent_name,
+                 (SELECT cg.name FROM class_groups cg WHERE cg.id = s.class_group_id LIMIT 1) AS class_name
+          FROM students s
+          WHERE swimming_pool_id = ${poolId} AND status NOT IN ('deleted')
+            AND (name ILIKE ${pattern} OR parent_name ILIKE ${pattern})
+          ORDER BY name LIMIT 10
+        `),
+        db.execute(sql`
+          SELECT id, name, phone FROM users
+          WHERE swimming_pool_id = ${poolId} AND role = 'teacher'
+            AND name ILIKE ${pattern}
+          LIMIT 5
+        `),
+        db.execute(sql`
+          SELECT id, name, schedule_days, schedule_time, instructor
+          FROM class_groups
+          WHERE swimming_pool_id = ${poolId} AND is_deleted = false
+            AND name ILIKE ${pattern}
+          LIMIT 5
+        `),
+        db.execute(sql`
+          SELECT id, title, notice_type, created_at FROM notices
+          WHERE swimming_pool_id = ${poolId} AND title ILIKE ${pattern}
+          ORDER BY created_at DESC LIMIT 5
+        `),
+        db.execute(sql`
+          SELECT id, name, phone FROM parent_accounts
+          WHERE swimming_pool_id = ${poolId} AND name ILIKE ${pattern}
+          LIMIT 5
+        `),
+      ]);
+
+      res.json({
+        students: students.rows,
+        teachers: teachers.rows,
+        classes:  classes.rows,
+        notices:  notices.rows,
+        parents:  parents.rows,
+      });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 수영장 활동 로그 ─────────────────────────────────────────────────────
+router.get("/activity-logs", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 정보가 없습니다." }); return; }
+      const { limit = "30", offset = "0" } = req.query;
+      const rows = await db.execute(sql`
+        SELECT * FROM member_activity_logs
+        WHERE swimming_pool_id = ${poolId}
+        ORDER BY created_at DESC
+        LIMIT ${parseInt(limit as string)} OFFSET ${parseInt(offset as string)}
+      `);
+      res.json(rows.rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 회원별 활동 로그 ──────────────────────────────────────────────────────
+router.get("/member-logs/:studentId", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 정보가 없습니다." }); return; }
+      const rows = await db.execute(sql`
+        SELECT * FROM member_activity_logs
+        WHERE swimming_pool_id = ${poolId} AND student_id = ${req.params.studentId}
+        ORDER BY created_at DESC LIMIT 50
+      `);
+      res.json(rows.rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 회원 상태 변경 (활동 로그 자동 기록) ─────────────────────────────────
+router.patch("/students/:id/status", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { status, reason } = req.body;
+      const allowedStatus = ["active", "inactive", "withdrawn", "suspended"];
+      if (!allowedStatus.includes(status)) {
+        return res.status(400).json({ error: "유효하지 않은 상태값입니다." });
+      }
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
+
+      const [student] = (await db.execute(sql`SELECT id, name, status FROM students WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`)).rows as any[];
+      if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
+
+      const [actor] = (await db.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
+      const actorName = actor?.name || req.user!.userId;
+
+      if (status === 'withdrawn') {
+        await db.execute(sql`UPDATE students SET status = ${status}, archived_reason = ${reason ?? null}, withdrawn_at = NOW(), updated_at = NOW() WHERE id = ${req.params.id}`);
+      } else {
+        await db.execute(sql`UPDATE students SET status = ${status}, archived_reason = ${reason ?? null}, updated_at = NOW() WHERE id = ${req.params.id}`);
+      }
+
+      await writeActivityLog({
+        poolId, studentId: req.params.id, targetName: student.name,
+        actionType: "update", targetType: "status",
+        beforeValue: student.status, afterValue: status,
+        actorId: req.user!.userId, actorName, actorRole: req.user!.role,
+        note: reason,
+      });
+      res.json({ success: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 회원 복구 (deleted → active) ──────────────────────────────────────────
+router.post("/students/:id/restore", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
+
+      const [student] = (await db.execute(sql`SELECT id, name, status FROM students WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`)).rows as any[];
+      if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
+      if (!["withdrawn", "deleted"].includes(student.status)) {
+        return res.status(400).json({ error: "탈퇴/삭제 회원만 복구할 수 있습니다." });
+      }
+
+      const [actor] = (await db.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
+      const actorName = actor?.name || req.user!.userId;
+
+      await db.execute(sql`
+        UPDATE students SET status = 'active', withdrawn_at = NULL, deleted_at = NULL,
+          archived_reason = NULL, updated_at = NOW()
+        WHERE id = ${req.params.id}
+      `);
+
+      await writeActivityLog({
+        poolId, studentId: req.params.id, targetName: student.name,
+        actionType: "restore", targetType: "status",
+        beforeValue: student.status, afterValue: "active",
+        actorId: req.user!.userId, actorName, actorRole: req.user!.role,
+      });
+      res.json({ success: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 회원 정보 수정 (활동 로그 자동 기록) ──────────────────────────────────
+router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
+      const { name, phone, birth_year, parent_name, parent_phone, memo } = req.body;
+
+      const [student] = (await db.execute(sql`SELECT * FROM students WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`)).rows as any[];
+      if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
+
+      const [actor] = (await db.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
+      const actorName = actor?.name || req.user!.userId;
+
+      const changes: string[] = [];
+      if (name && name !== student.name) changes.push(`이름: ${student.name}→${name}`);
+      if (phone && phone !== student.phone) changes.push(`연락처: ${student.phone}→${phone}`);
+      if (birth_year && String(birth_year) !== String(student.birth_year)) changes.push(`출생년: ${student.birth_year}→${birth_year}`);
+      if (parent_name && parent_name !== student.parent_name) changes.push(`보호자: ${student.parent_name}→${parent_name}`);
+      if (parent_phone && parent_phone !== student.parent_phone) changes.push(`보호자연락처 변경`);
+
+      await db.execute(sql`
+        UPDATE students SET
+          name = COALESCE(${name ?? null}, name),
+          phone = COALESCE(${phone ?? null}, phone),
+          birth_year = COALESCE(${birth_year ?? null}, birth_year),
+          parent_name = COALESCE(${parent_name ?? null}, parent_name),
+          parent_phone = COALESCE(${parent_phone ?? null}, parent_phone),
+          memo = COALESCE(${memo ?? null}, memo),
+          updated_at = NOW()
+        WHERE id = ${req.params.id}
+      `);
+
+      if (changes.length > 0) {
+        await writeActivityLog({
+          poolId, studentId: req.params.id, targetName: student.name,
+          actionType: "update", targetType: "info",
+          afterValue: changes.join(", "),
+          actorId: req.user!.userId, actorName, actorRole: req.user!.role,
+        });
+      }
+      res.json({ success: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 회원 상세 (통합 데이터 + 수업 + 출결 + 일지) ─────────────────────────
+router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
+
+      const [student] = (await db.execute(sql`
+        SELECT s.*,
+          (SELECT cg.name FROM class_groups cg WHERE cg.id = s.class_group_id LIMIT 1) AS class_name,
+          (SELECT u.name FROM users u WHERE u.id = cg.teacher_user_id LIMIT 1) AS teacher_name,
+          (SELECT pa.name FROM parent_students ps JOIN parent_accounts pa ON pa.id = ps.parent_id
+           WHERE ps.student_id = s.id AND ps.status = 'approved' LIMIT 1) AS parent_account_name,
+          (SELECT ps.status FROM parent_students ps WHERE ps.student_id = s.id ORDER BY ps.created_at DESC LIMIT 1) AS parent_link_status
+        FROM students s
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id
+        WHERE s.id = ${req.params.id} AND s.swimming_pool_id = ${poolId}
+      `)).rows as any[];
+      if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
+
+      // 최근 출결 30일
+      const attendance = (await db.execute(sql`
+        SELECT date, status, class_group_id FROM attendance
+        WHERE student_id = ${req.params.id}
+        ORDER BY date DESC LIMIT 30
+      `)).rows;
+
+      // 최근 일지 (본인 반)
+      const diaries = student.class_group_id ? (await db.execute(sql`
+        SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited,
+               csn.note_content AS student_note
+        FROM class_diaries cd
+        LEFT JOIN class_diary_student_notes csn ON csn.diary_id = cd.id AND csn.student_id = ${req.params.id} AND csn.is_deleted = false
+        WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
+        ORDER BY cd.lesson_date DESC LIMIT 10
+      `)).rows : [];
+
+      res.json({ ...student, recent_attendance: attendance, recent_diaries: diaries });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 export default router;
