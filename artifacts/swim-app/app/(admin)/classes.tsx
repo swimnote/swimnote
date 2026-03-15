@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { router, useNavigation } from "expo-router";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, Platform,
@@ -13,11 +13,8 @@ import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { useSelectionMode } from "@/hooks/useSelectionMode";
 import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 
-const ORIGINAL_TAB_STYLE = Platform.select({
-  ios: { position: "absolute" as const, backgroundColor: "transparent", borderTopWidth: 0, elevation: 0 },
-  web: { position: "absolute" as const, borderTopWidth: 1, borderTopColor: "#E5E7EB", height: 84 },
-  default: { position: "absolute" as const, backgroundColor: "#fff", borderTopWidth: 0, elevation: 0 },
-});
+// 탭바 높이: iOS 49, Android 56, Web 84
+const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
 
 const C = Colors.light;
 
@@ -344,21 +341,11 @@ function SingleClassActionBar({
   onDelete: () => void;
   onExit: () => void;
 }) {
-  const navigation = useNavigation();
-
-  useEffect(() => {
-    try {
-      navigation.getParent()?.setOptions({ tabBarStyle: { display: "none" } });
-    } catch { }
-    return () => {
-      try {
-        navigation.getParent()?.setOptions({ tabBarStyle: ORIGINAL_TAB_STYLE });
-      } catch { }
-    };
-  }, [navigation]);
+  // 탭바 위에 위치
+  const bottomPos = insets.bottom + TAB_BAR_HEIGHT;
 
   return (
-    <View style={[sa.bar, { paddingBottom: insets.bottom + 8 }]}>
+    <View style={[sa.bar, { bottom: bottomPos }]}>
       <View style={sa.row}>
         <Pressable style={[sa.assignBtn, { backgroundColor: C.tint }]} onPress={() => onAssign(selectedId)}>
           <Feather name="users" size={15} color="#fff" />
@@ -386,11 +373,11 @@ function SingleClassActionBar({
 
 const sa = StyleSheet.create({
   bar: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
+    position: "absolute", left: 0, right: 0,
     zIndex: 1000,
     backgroundColor: C.card,
     borderTopWidth: 1, borderTopColor: C.border,
-    paddingTop: 12, paddingHorizontal: 16,
+    paddingTop: 12, paddingBottom: 12, paddingHorizontal: 16,
     shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 30,
   },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
