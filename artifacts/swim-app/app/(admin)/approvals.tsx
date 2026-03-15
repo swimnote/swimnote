@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList,
-  RefreshControl, StyleSheet, Text, View,
+  ActivityIndicator, Alert, FlatList, Modal, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -34,6 +35,15 @@ interface TeacherInvite {
   approved_at: string | null; user_email: string | null;
 }
 
+interface StudentOption {
+  id: string;
+  name: string;
+  birth_year?: string | null;
+  parent_phone?: string | null;
+  schedule_labels?: string | null;
+  assigned_class_ids?: string[];
+}
+
 type MainTab   = "parents" | "teachers";
 type StatusFilter = "pending" | "approved" | "rejected";
 
@@ -43,6 +53,241 @@ const FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
   { key: "approved", label: "승인",   icon: "check-circle", activeColor: STATUS_COLORS.approved.color, activeBg: STATUS_COLORS.approved.bg },
   { key: "rejected", label: "거절됨", icon: "x-circle",     activeColor: STATUS_COLORS.rejected.color, activeBg: STATUS_COLORS.rejected.bg },
 ];
+
+// ── 학생 연결 모달 ────────────────────────────────────────────────
+function StudentLinkModal({
+  request,
+  token,
+  onConfirm,
+  onCancel,
+}: {
+  request: JoinRequest;
+  token: string | null;
+  onConfirm: (opts: { link_student_id?: string; create_student?: boolean; child_name?: string; child_birth_year?: string }) => void;
+  onCancel: () => void;
+}) {
+  const [students, setStudents]     = useState<StudentOption[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState("");
+  const [selected, setSelected]     = useState<string | null>(null);
+  const [mode, setMode]             = useState<"select" | "create" | null>(null);
+
+  // 자녀 이름/출생년도 추출
+  const children: Array<{ childName: string; childBirthYear: number | null }> =
+    Array.isArray(request.children_requested) && request.children_requested.length > 0
+      ? request.children_requested
+      : request.child_name ? [{ childName: request.child_name, childBirthYear: request.child_birth_year ?? null }] : [];
+  const firstChild = children[0];
+
+  const [childName, setChildName] = useState(firstChild?.childName || "");
+  const [childBirthYear, setChildBirthYear] = useState(firstChild?.childBirthYear ? String(firstChild.childBirthYear) : "");
+
+  useEffect(() => {
+    async function loadStudents() {
+      try {
+        const res = await apiRequest(token, "/students");
+        if (res.ok) {
+          const data = await res.json();
+          setStudents(Array.isArray(data) ? data : []);
+        }
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
+    }
+    loadStudents();
+  }, [token]);
+
+  const filtered = students.filter(s => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return s.name.toLowerCase().includes(q) ||
+      (s.birth_year || "").includes(q) ||
+      (s.parent_phone || "").includes(q);
+  });
+
+  function handleConfirm() {
+    if (mode === "select") {
+      if (!selected) { Alert.alert("알림", "연결할 학생을 선택해주세요."); return; }
+      onConfirm({ link_student_id: selected });
+    } else if (mode === "create") {
+      if (!childName.trim()) { Alert.alert("알림", "학생 이름을 입력해주세요."); return; }
+      onConfirm({ create_student: true, child_name: childName.trim(), child_birth_year: childBirthYear || undefined });
+    } else {
+      onConfirm({});
+    }
+  }
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onCancel}>
+      <View style={lm.overlay}>
+        <View style={lm.sheet}>
+          <View style={lm.handle} />
+          <View style={lm.header}>
+            <Text style={lm.title}>학부모 승인 — 학생 연결</Text>
+            <Pressable onPress={onCancel}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
+          </View>
+
+          {/* 요청 정보 요약 */}
+          <View style={lm.reqCard}>
+            <Feather name="user" size={14} color={C.tint} />
+            <View style={{ flex: 1 }}>
+              <Text style={lm.reqName}>{request.parent_name} ({request.phone})</Text>
+              {children.length > 0 && (
+                <Text style={lm.reqChild}>
+                  자녀: {children.map(c => `${c.childName}${c.childBirthYear ? ` (${c.childBirthYear}년생)` : ""}`).join(", ")}
+                </Text>
+              )}
+            </View>
+          </View>
+
+          {/* 연결 방식 선택 */}
+          <Text style={lm.sectionLabel}>연결 방식 선택</Text>
+          <View style={lm.modeRow}>
+            <Pressable
+              style={[lm.modeBtn, mode === "select" && { borderColor: C.tint, backgroundColor: C.tintLight }]}
+              onPress={() => setMode("select")}
+            >
+              <Feather name="link" size={16} color={mode === "select" ? C.tint : C.textSecondary} />
+              <Text style={[lm.modeBtnText, mode === "select" && { color: C.tint }]}>기존 학생 연결</Text>
+            </Pressable>
+            <Pressable
+              style={[lm.modeBtn, mode === "create" && { borderColor: "#7C3AED", backgroundColor: "#EDE9FE" }]}
+              onPress={() => setMode("create")}
+            >
+              <Feather name="user-plus" size={16} color={mode === "create" ? "#7C3AED" : C.textSecondary} />
+              <Text style={[lm.modeBtnText, mode === "create" && { color: "#7C3AED" }]}>신규 학생 생성</Text>
+            </Pressable>
+          </View>
+
+          {/* 기존 학생 선택 */}
+          {mode === "select" && (
+            <View style={lm.studentList}>
+              <View style={[lm.searchRow, { borderColor: C.border }]}>
+                <Feather name="search" size={14} color={C.textMuted} />
+                <TextInput
+                  style={[lm.searchInput, { color: C.text }]}
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="학생 이름·전화번호 검색"
+                  placeholderTextColor={C.textMuted}
+                />
+              </View>
+              {loading ? (
+                <ActivityIndicator color={C.tint} style={{ marginTop: 16 }} />
+              ) : (
+                <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator={false}>
+                  {filtered.length === 0 ? (
+                    <Text style={lm.emptyText}>검색 결과가 없습니다</Text>
+                  ) : filtered.map(s => (
+                    <Pressable
+                      key={s.id}
+                      style={[lm.studentRow, selected === s.id && { borderColor: C.tint, backgroundColor: C.tintLight }]}
+                      onPress={() => setSelected(s.id)}
+                    >
+                      <View style={[lm.sAvatar, { backgroundColor: C.tintLight }]}>
+                        <Text style={[lm.sAvatarText, { color: C.tint }]}>{s.name[0]}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={lm.sName}>{s.name}</Text>
+                        <Text style={lm.sSub}>
+                          {s.birth_year ? `${s.birth_year}년생` : ""}
+                          {s.parent_phone ? ` · ${s.parent_phone}` : ""}
+                          {s.schedule_labels ? ` · ${s.schedule_labels}` : ""}
+                        </Text>
+                      </View>
+                      {selected === s.id && <Feather name="check-circle" size={20} color={C.tint} />}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          )}
+
+          {/* 신규 학생 생성 */}
+          {mode === "create" && (
+            <View style={lm.createForm}>
+              <Text style={lm.fieldLabel}>학생 이름 *</Text>
+              <TextInput
+                style={[lm.fieldInput, { borderColor: C.border, color: C.text }]}
+                value={childName}
+                onChangeText={setChildName}
+                placeholder="학생 이름"
+                placeholderTextColor={C.textMuted}
+              />
+              <Text style={[lm.fieldLabel, { marginTop: 10 }]}>출생년도</Text>
+              <TextInput
+                style={[lm.fieldInput, { borderColor: C.border, color: C.text }]}
+                value={childBirthYear}
+                onChangeText={setChildBirthYear}
+                placeholder="예: 2015"
+                placeholderTextColor={C.textMuted}
+                keyboardType="number-pad"
+                maxLength={4}
+              />
+              <View style={lm.createNote}>
+                <Feather name="info" size={12} color={C.textMuted} />
+                <Text style={lm.createNoteText}>보호자 정보(이름·전화번호)는 요청에서 자동 입력됩니다.</Text>
+              </View>
+            </View>
+          )}
+
+          {/* 안내: 연결 없이 승인 */}
+          {mode === null && (
+            <View style={lm.skipNote}>
+              <Feather name="info" size={13} color="#6B7280" />
+              <Text style={lm.skipNoteText}>연결 방식을 선택하지 않으면 학부모 계정만 생성되고 학생 연결은 나중에 회원관리에서 진행할 수 있습니다.</Text>
+            </View>
+          )}
+
+          {/* 버튼 */}
+          <View style={lm.btnRow}>
+            <Pressable style={[lm.btn, { backgroundColor: C.background, borderWidth: 1, borderColor: C.border }]} onPress={onCancel}>
+              <Text style={[lm.btnText, { color: C.textSecondary }]}>취소</Text>
+            </Pressable>
+            <Pressable style={[lm.btn, { backgroundColor: mode === "create" ? "#7C3AED" : C.tint }]} onPress={handleConfirm}>
+              <Text style={[lm.btnText, { color: "#fff" }]}>
+                {mode === "select" ? "연결 후 승인" : mode === "create" ? "생성 후 승인" : "그냥 승인"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const lm = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 14, maxHeight: "85%" },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  title: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
+  reqCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
+  reqName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  reqChild: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  modeRow: { flexDirection: "row", gap: 10 },
+  modeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background },
+  modeBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  studentList: { gap: 8 },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 10, height: 40 },
+  searchInput: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
+  emptyText: { textAlign: "center", color: C.textMuted, fontSize: 13, fontFamily: "Inter_400Regular", paddingVertical: 16 },
+  studentRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background, marginBottom: 6 },
+  sAvatar: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  sAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  sName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  sSub: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  createForm: { gap: 4 },
+  fieldLabel: { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  fieldInput: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, height: 42, fontSize: 14, fontFamily: "Inter_400Regular", backgroundColor: C.background },
+  createNote: { flexDirection: "row", gap: 6, alignItems: "flex-start", marginTop: 8, backgroundColor: C.tintLight, padding: 10, borderRadius: 10 },
+  createNoteText: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, lineHeight: 16 },
+  skipNote: { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#F3F4F6", padding: 12, borderRadius: 12 },
+  skipNoteText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", lineHeight: 18 },
+  btnRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+  btn: { flex: 1, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  btnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+});
 
 // ── 메인 컴포넌트 ───────────────────────────────────────────────
 export default function ApprovalsScreen() {
@@ -57,6 +302,8 @@ export default function ApprovalsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  // 학생 연결 모달
+  const [linkTarget, setLinkTarget] = useState<JoinRequest | null>(null);
 
   // ── 데이터 로드 ───────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -73,19 +320,42 @@ export default function ApprovalsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── 학부모 승인/거절 ──────────────────────────────────────────
-  async function handleJoinDecision(reqId: string, action: "approve" | "reject", reason?: string) {
+  // ── 학부모 승인 (학생 연결 포함) ──────────────────────────────
+  async function handleJoinApprove(reqId: string, opts: {
+    link_student_id?: string;
+    create_student?: boolean;
+    child_name?: string;
+    child_birth_year?: string;
+  }) {
+    setLinkTarget(null);
+    setProcessingId(reqId);
+    try {
+      const body: any = { action: "approve", ...opts };
+      const res = await apiRequest(token, `/admin/parent-requests/${reqId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      const d = await res.json();
+      if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
+
+      let msg = "학부모 계정이 생성되었습니다.";
+      if (d.default_pin) msg += `\n초기 PIN: ${d.default_pin} (학부모에게 전달해 주세요)`;
+      if (d.linked_student_id) msg += "\n학생과 연결이 완료되었습니다.";
+      Alert.alert("승인 완료", msg);
+      await load();
+    } finally { setProcessingId(null); }
+  }
+
+  // ── 학부모 거절 ───────────────────────────────────────────────
+  async function handleJoinReject(reqId: string, reason?: string) {
     setProcessingId(reqId);
     try {
       const res = await apiRequest(token, `/admin/parent-requests/${reqId}`, {
         method: "PATCH",
-        body: JSON.stringify({ action, rejection_reason: reason }),
+        body: JSON.stringify({ action: "reject", rejection_reason: reason }),
       });
       const d = await res.json();
       if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
-      if (action === "approve" && d.default_pin) {
-        Alert.alert("승인 완료", `학부모 계정이 생성되었습니다.\n초기 PIN: ${d.default_pin}\n(학부모에게 전달해 주세요)`);
-      }
       setRejectTargetId(null);
       await load();
     } finally { setProcessingId(null); }
@@ -196,7 +466,7 @@ export default function ApprovalsScreen() {
   const isParentTarget = rejectTargetId ? joinReqs.some(r => r.id === rejectTargetId) : false;
   function handleRejectConfirm(reason: string) {
     if (!rejectTargetId) return;
-    if (isParentTarget) handleJoinDecision(rejectTargetId, "reject", reason);
+    if (isParentTarget) handleJoinReject(rejectTargetId, reason);
     else                handleInviteAction(rejectTargetId, "reject", reason);
   }
 
@@ -262,7 +532,7 @@ export default function ApprovalsScreen() {
                 <ApprovalCard
                   meta={buildParentMeta(req)}
                   extra={buildParentExtra(req)}
-                  onApprove={() => handleJoinDecision(req.id, "approve")}
+                  onApprove={() => setLinkTarget(req)}
                   onReject={() => setRejectTargetId(req.id)}
                 />
               );
@@ -279,6 +549,16 @@ export default function ApprovalsScreen() {
           }}
         />
       </ScreenLayout>
+
+      {/* 학생 연결 모달 */}
+      {linkTarget && (
+        <StudentLinkModal
+          request={linkTarget}
+          token={token}
+          onConfirm={(opts) => handleJoinApprove(linkTarget.id, opts)}
+          onCancel={() => setLinkTarget(null)}
+        />
+      )}
 
       {/* 거절 사유 모달 */}
       <RejectModal

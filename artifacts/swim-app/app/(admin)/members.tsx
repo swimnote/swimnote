@@ -335,6 +335,15 @@ function StudentCard({ student, themeColor, onPressInvite, onPressDelete, isDele
   const wc = (student.weekly_count || 1) as WeeklyCount;
   const badge = WEEKLY_BADGE[wc] || WEEKLY_BADGE[1];
 
+  // 담당 선생님 이름 (assignedClasses 에서 추출)
+  const instructors = (student.assignedClasses || [])
+    .map((c: any) => c.instructor)
+    .filter((v: any): v is string => !!v);
+  const instructorLabel = [...new Set(instructors)].join(", ");
+
+  // 등록 경로
+  const isParentRequested = student.registration_path === "parent_requested";
+
   return (
     <Pressable
       style={[sc.card, { backgroundColor: C.card }, isSelected && { borderWidth: 2, borderColor: themeColor }]}
@@ -359,6 +368,12 @@ function StudentCard({ student, themeColor, onPressInvite, onPressDelete, isDele
             <View style={[sc.badge, { backgroundColor: badge.bg }]}>
               <Text style={[sc.badgeText, { color: badge.color }]}>{badge.label}</Text>
             </View>
+            {/* 등록경로 배지 */}
+            {isParentRequested && (
+              <View style={[sc.badge, { backgroundColor: "#EDE9FE" }]}>
+                <Text style={[sc.badgeText, { color: "#7C3AED" }]}>학부모 요청</Text>
+              </View>
+            )}
           </View>
           {/* 수업 라벨 */}
           {student.schedule_labels ? (
@@ -366,6 +381,10 @@ function StudentCard({ student, themeColor, onPressInvite, onPressDelete, isDele
           ) : (
             <Text style={[sc.label, { color: C.textMuted }]}>수업 미배정</Text>
           )}
+          {/* 담당 선생님 */}
+          {instructorLabel ? (
+            <Text style={sc.teacherInfo}>선생님: {instructorLabel}</Text>
+          ) : null}
           {/* 보호자 정보 */}
           {(student.parent_name || student.parent_phone) ? (
             <Text style={sc.parentInfo}>
@@ -443,6 +462,7 @@ const sc = StyleSheet.create({
   badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   label: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151", marginTop: 2 },
+  teacherInfo: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   parentInfo: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   badges: { gap: 4, alignItems: "flex-end" },
   statusBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },

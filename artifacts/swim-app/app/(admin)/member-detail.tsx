@@ -340,6 +340,7 @@ export default function MemberDetailScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={[s.className, { color: C.text }]}>{g.name}</Text>
                       <Text style={[s.classLabel, { color: themeColor }]}>{label} · {g.schedule_time}</Text>
+                      {g.instructor ? <Text style={[s.classInstructor, { color: C.textSecondary }]}>선생님: {g.instructor}</Text> : null}
                     </View>
                     <Pressable
                       onPress={() => { setAssignedIds(prev => prev.filter(x => x !== g.id)); setIsDirty(true); }}
@@ -453,6 +454,7 @@ const s = StyleSheet.create({
   classChip: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1.5, gap: 10 },
   className: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   classLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 2 },
+  classInstructor: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
 
   mismatchWarn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF3C7", padding: 10, borderRadius: 10 },
   mismatchText: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#D97706" },

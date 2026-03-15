@@ -3,12 +3,15 @@
  * POST /auth/pool-join-request  - 공개: 학부모 가입 요청
  * GET  /pools/public-search     - 공개: 수영장 검색
  * GET  /admin/parent-requests   - 관리자: 요청 목록
- * PATCH /admin/parent-requests/:id - 관리자: 승인/거절
+ * PATCH /admin/parent-requests/:id - 관리자: 승인/거절 (학생 연결 지원)
  */
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { swimmingPoolsTable, usersTable, parentAccountsTable } from "@workspace/db/schema";
-import { eq, ilike, sql } from "drizzle-orm";
+import {
+  swimmingPoolsTable, usersTable, parentAccountsTable,
+  parentStudentsTable, studentsTable,
+} from "@workspace/db/schema";
+import { eq, ilike, sql, and } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword } from "../lib/auth.js";
 
@@ -16,6 +19,11 @@ const router = Router();
 
 function genId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function generateInviteCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
 // ─── 공개: 수영장 이름 검색 ───────────────────────────────────────────
@@ -50,14 +58,12 @@ router.post("/auth/pool-join-request", async (req, res) => {
       res.status(400).json({ success: false, message: "자녀 정보는 필수입니다." }); return;
     }
 
-    // 수영장 존재 확인
     const [pool] = await db.select({ id: swimmingPoolsTable.id })
       .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) {
       res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다." }); return;
     }
 
-    // 중복 요청 확인 (같은 풀에 pending 요청 존재)
     const dup = await db.execute(sql`
       SELECT id FROM parent_pool_requests
       WHERE swimming_pool_id = ${swimming_pool_id}
@@ -70,13 +76,13 @@ router.post("/auth/pool-join-request", async (req, res) => {
     }
 
     const id = genId("ppr");
-    const childrenData = children_requested?.length > 0 
-      ? children_requested 
+    const childrenData = children_requested?.length > 0
+      ? children_requested
       : [{ childName: child_name.trim(), childBirthYear: child_birth_year }];
-    
+
     await db.execute(sql`
       INSERT INTO parent_pool_requests (id, swimming_pool_id, parent_name, phone, child_name, child_birth_year, children_requested, request_status, requested_at)
-      VALUES (${id}, ${swimming_pool_id}, ${parent_name.trim()}, ${phone.trim()}, 
+      VALUES (${id}, ${swimming_pool_id}, ${parent_name.trim()}, ${phone.trim()},
               ${child_name?.trim() || null}, ${child_birth_year || null},
               ${JSON.stringify(childrenData)}, 'pending', NOW())
     `);
@@ -112,11 +118,26 @@ router.get("/admin/parent-requests", requireAuth, requireRole("pool_admin", "sup
   }
 );
 
-// ─── 관리자: 학부모 요청 승인/거절 ──────────────────────────────────
+// ─── 관리자: 학부모 요청 승인/거절 (학생 연결 지원) ──────────────────
+/**
+ * body:
+ *   action: "approve" | "reject"
+ *   rejection_reason?: string  (거절 시)
+ *   pin?: string               (승인 시 초기 PIN, 기본 "0000")
+ *   link_student_id?: string   (승인 시 기존 학생과 연결)
+ *   create_student?: boolean   (승인 시 요청 데이터로 신규 학생 생성)
+ *   child_name?: string        (신규 생성 시 이름 override)
+ *   child_birth_year?: string  (신규 생성 시 출생년도 override)
+ */
 router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const { action, rejection_reason, pin } = req.body;
+      const {
+        action, rejection_reason, pin,
+        link_student_id, create_student,
+        child_name: bodyChildName, child_birth_year: bodyChildBirthYear,
+      } = req.body;
+
       if (!["approve", "reject"].includes(action)) {
         res.status(400).json({ success: false, message: "action은 approve 또는 reject여야 합니다." }); return;
       }
@@ -138,12 +159,11 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
       }
 
       if (action === "approve") {
-        // 승인: parent_accounts 생성
+        // ── 1. parent_account 생성 또는 기존 계정 조회 ──────────────
         const defaultPin = pin || "0000";
         const pinHash = await hashPassword(defaultPin);
         const paId = genId("pa");
 
-        // 이미 같은 전화번호의 계정이 있는지 확인
         const dupAcc = await db.execute(sql`
           SELECT id FROM parent_accounts
           WHERE phone = ${request.phone} AND swimming_pool_id = ${me.swimming_pool_id}
@@ -159,6 +179,7 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
           parentAccountId = paId;
         }
 
+        // ── 2. 승인 처리 ────────────────────────────────────────────
         await db.execute(sql`
           UPDATE parent_pool_requests
           SET request_status = 'approved', processed_at = NOW(), processed_by = ${req.user!.userId},
@@ -166,8 +187,106 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
           WHERE id = ${req.params.id}
         `);
 
-        res.json({ success: true, message: "승인되었습니다. 학부모 계정이 생성되었습니다.", default_pin: defaultPin });
+        let linkedStudentId: string | null = null;
+
+        // ── 3a. 기존 학생과 연결 ────────────────────────────────────
+        if (link_student_id) {
+          const [existStudent] = await db.select({ id: studentsTable.id, swimming_pool_id: studentsTable.swimming_pool_id })
+            .from(studentsTable).where(eq(studentsTable.id, link_student_id)).limit(1);
+
+          if (existStudent && existStudent.swimming_pool_id === me.swimming_pool_id) {
+            // parent_students 연결 (이미 있으면 skip)
+            const existLink = await db.select({ id: parentStudentsTable.id })
+              .from(parentStudentsTable)
+              .where(and(
+                eq(parentStudentsTable.parent_id, parentAccountId),
+                eq(parentStudentsTable.student_id, existStudent.id),
+              )).limit(1);
+
+            if (!existLink.length) {
+              const psId = genId("ps");
+              await db.insert(parentStudentsTable).values({
+                id: psId,
+                parent_id: parentAccountId,
+                student_id: existStudent.id,
+                swimming_pool_id: me.swimming_pool_id,
+                status: "approved",
+                approved_by: req.user!.userId,
+                approved_at: new Date(),
+              });
+            } else {
+              // 기존 링크가 있으면 status를 approved로 업데이트
+              await db.update(parentStudentsTable)
+                .set({ status: "approved", approved_by: req.user!.userId, approved_at: new Date() })
+                .where(eq(parentStudentsTable.id, existLink[0].id));
+            }
+
+            // student의 parent_user_id 업데이트
+            await db.update(studentsTable)
+              .set({ parent_user_id: parentAccountId, status: "active", updated_at: new Date() })
+              .where(eq(studentsTable.id, existStudent.id));
+
+            linkedStudentId = existStudent.id;
+          }
+        }
+
+        // ── 3b. 신규 학생 생성 후 연결 ──────────────────────────────
+        if (create_student && !linkedStudentId) {
+          // 자녀 이름/출생년도: body에서 override하거나 request에서 추출
+          const childrenList: Array<{ childName: string; childBirthYear: number | null }> =
+            Array.isArray(request.children_requested) && request.children_requested.length > 0
+              ? request.children_requested
+              : [{ childName: request.child_name || request.parent_name, childBirthYear: request.child_birth_year || null }];
+
+          // 첫 번째 자녀로 신규 학생 생성 (bodyChildName으로 override 가능)
+          const studentName = bodyChildName?.trim() || childrenList[0]?.childName || request.parent_name;
+          const birthYear = bodyChildBirthYear
+            ? String(bodyChildBirthYear)
+            : (childrenList[0]?.childBirthYear ? String(childrenList[0].childBirthYear) : null);
+
+          const inviteCode = generateInviteCode();
+          const newStudentId = genId("student");
+
+          const [newStudent] = await db.insert(studentsTable).values({
+            id: newStudentId,
+            swimming_pool_id: me.swimming_pool_id,
+            name: studentName,
+            birth_year: birthYear,
+            parent_name: request.parent_name,
+            parent_phone: request.phone,
+            parent_user_id: parentAccountId,
+            registration_path: "parent_requested",
+            status: "active",
+            weekly_count: 1,
+            invite_code: inviteCode,
+            assigned_class_ids: [],
+            schedule_labels: null,
+          }).returning();
+
+          if (newStudent) {
+            const psId = genId("ps");
+            await db.insert(parentStudentsTable).values({
+              id: psId,
+              parent_id: parentAccountId,
+              student_id: newStudentId,
+              swimming_pool_id: me.swimming_pool_id,
+              status: "approved",
+              approved_by: req.user!.userId,
+              approved_at: new Date(),
+            });
+            linkedStudentId = newStudentId;
+          }
+        }
+
+        res.json({
+          success: true,
+          message: "승인되었습니다.",
+          default_pin: !dupAcc.rows[0]?.id ? defaultPin : undefined,
+          parent_account_id: parentAccountId,
+          linked_student_id: linkedStudentId,
+        });
       } else {
+        // ── 거절 ────────────────────────────────────────────────────
         await db.execute(sql`
           UPDATE parent_pool_requests
           SET request_status = 'rejected', processed_at = NOW(), processed_by = ${req.user!.userId},
