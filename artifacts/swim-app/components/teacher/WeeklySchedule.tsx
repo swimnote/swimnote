@@ -34,9 +34,11 @@ interface WeeklyScheduleProps {
   statusMap:   Record<string, SlotStatus>;
   onSelectClass: (group: TeacherClassGroup) => void;
   themeColor:  string;
-  /** 외부에서 selectedDay를 제어할 경우 사용 */
   selectedDay?: string;
   onDayChange?: (day: string) => void;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 const WEEK_DAYS = ["월", "화", "수", "목", "금", "토", "일"];
@@ -58,6 +60,7 @@ function getDayClasses(groups: TeacherClassGroup[], day: string) {
 export function WeeklySchedule({
   classGroups, statusMap, onSelectClass, themeColor,
   selectedDay: externalDay, onDayChange,
+  selectionMode = false, selectedIds = new Set(), onToggleSelect,
 }: WeeklyScheduleProps) {
   const today = todayKo();
   const [internalDay, setInternalDay] = useState(today);
@@ -144,13 +147,21 @@ export function WeeklySchedule({
             const inactive  = total === 0;
             const hour      = g.schedule_time.split(/[:-]/)[0].trim();
 
+            const isSelected = selectedIds.has(g.id);
             return (
               <Pressable
                 key={g.id}
-                style={[ws.slot, { backgroundColor: inactive ? "#F9FAFB" : C.card, borderColor: inactive ? "#E5E7EB" : C.border }]}
-                onPress={() => !inactive && onSelectClass(g)}
-                disabled={inactive}
+                style={[ws.slot, { backgroundColor: inactive ? "#F9FAFB" : C.card, borderColor: inactive ? "#E5E7EB" : isSelected ? themeColor : C.border }]}
+                onPress={() => selectionMode ? onToggleSelect?.(g.id) : (!inactive && onSelectClass(g))}
+                onLongPress={() => !inactive && onToggleSelect?.(g.id)}
+                disabled={!selectionMode && inactive}
               >
+                {/* 선택 모드 체크박스 */}
+                {selectionMode && !inactive && (
+                  <View style={[ws.checkBox, { borderColor: themeColor, backgroundColor: isSelected ? themeColor : "#fff" }]}>
+                    {isSelected && <Feather name="check" size={10} color="#fff" />}
+                  </View>
+                )}
                 {/* 시간 pill */}
                 <View style={[ws.timePill, { backgroundColor: inactive ? "#F3F4F6" : themeColor + "18" }]}>
                   <Text style={[ws.timeText, { color: inactive ? C.textMuted : themeColor }]}>{hour}시</Text>
@@ -270,6 +281,8 @@ const ws = StyleSheet.create({
 
   inactiveBadge: { backgroundColor: "#F3F4F6", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   inactiveText:  { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
+  checkBox:      { width: 20, height: 20, borderRadius: 10, borderWidth: 2,
+                   alignItems: "center", justifyContent: "center" },
 
   empty:     { alignItems: "center", paddingTop: 48, gap: 10 },
   emptyText: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },

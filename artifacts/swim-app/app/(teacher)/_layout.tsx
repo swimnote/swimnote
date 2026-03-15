@@ -42,6 +42,7 @@ export default function TeacherLayout() {
       <Tabs.Screen name="attendance"     options={{ title: "출결",      headerTitle: "출결",      tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }} />
       <Tabs.Screen name="diary"          options={{ title: "수영일지",  headerTitle: "수영일지",  tabBarIcon: ({ color }) => <Feather name="book"         size={22} color={color} /> }} />
       <Tabs.Screen name="photos"         options={{ title: "사진·영상", headerTitle: "사진·영상", tabBarIcon: ({ color }) => <Feather name="camera"       size={22} color={color} /> }} />
+      <Tabs.Screen name="student-detail" options={{ href: null }} />
     </Tabs>
   );
 }

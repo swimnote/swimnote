@@ -214,18 +214,22 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
-router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [existing] = await db.select({
       swimming_pool_id: classGroupsTable.swimming_pool_id,
       is_deleted: classGroupsTable.is_deleted,
-    }).from(classGroupsTable).where(eq(classGroupsTable.id, req.params.id)).limit(1);
+      teacher_user_id: classGroupsTable.teacher_user_id,
+    } as any).from(classGroupsTable).where(eq(classGroupsTable.id, req.params.id)).limit(1);
 
     if (!existing) return err(res, 404, "수업 그룹을 찾을 수 없습니다.");
     if (existing.is_deleted) return res.json({ success: true, message: "이미 삭제된 반입니다." });
     if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
+    }
+    if (req.user!.role === "teacher" && existing.teacher_user_id !== req.user!.userId) {
+      return err(res, 403, "자신이 담당하는 반만 삭제할 수 있습니다.");
     }
 
     const cgId = req.params.id;
