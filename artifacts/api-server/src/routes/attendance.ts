@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { attendanceTable, studentsTable, usersTable, parentAccountsTable, classGroupsTable } from "@workspace/db/schema";
-import { eq, and, gte, lte, like } from "drizzle-orm";
+import { attendanceTable, studentsTable, usersTable, parentAccountsTable, classGroupsTable, makeupSessionsTable } from "@workspace/db/schema";
+import { eq, and, gte, lte, like, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
@@ -246,6 +246,50 @@ router.get("/search", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+async function autoCreateMakeup(
+  poolId: string,
+  studentId: string,
+  date: string,
+  classGroupId: string | null | undefined,
+  attendanceId: string,
+  previousStatus?: string | null
+) {
+  if (previousStatus === "absent") return;
+  const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, studentId)).limit(1);
+  if (!student) return;
+  const [existing] = await (db as any).execute(sql`
+    SELECT id FROM makeup_sessions
+    WHERE student_id = ${studentId} AND absence_date = ${date} AND status != 'cancelled'
+    LIMIT 1
+  `).then((r: any) => r.rows as any[]);
+  if (existing) return;
+  let teacherId: string | null = null;
+  let teacherName: string | null = null;
+  let cgName: string | null = null;
+  const cgId = classGroupId || student.class_group_id;
+  if (cgId) {
+    const [cg] = await db.select().from(classGroupsTable).where(eq(classGroupsTable.id, cgId)).limit(1);
+    if (cg) {
+      teacherId = cg.teacher_user_id || null;
+      teacherName = cg.instructor || null;
+      cgName = cg.name || null;
+    }
+  }
+  const mkId = `mk_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+  await (db as any).execute(sql`
+    INSERT INTO makeup_sessions (
+      id, swimming_pool_id, student_id, student_name,
+      original_class_group_id, original_class_group_name,
+      original_teacher_id, original_teacher_name,
+      absence_date, absence_attendance_id, status
+    ) VALUES (
+      ${mkId}, ${poolId}, ${studentId}, ${student.name},
+      ${cgId || null}, ${cgName}, ${teacherId}, ${teacherName},
+      ${date}, ${attendanceId}, 'waiting'
+    )
+  `);
+}
+
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
   const { class_group_id, student_id, date, status } = req.body;
   if (!student_id || !date || !status) {
@@ -263,11 +307,15 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       .where(and(eq(attendanceTable.student_id, student_id), eq(attendanceTable.date, date))).limit(1);
 
     if (existing) {
+      const prevStatus = existing.status;
       const [updated] = await db.update(attendanceTable)
         .set({ status, class_group_id: class_group_id || existing.class_group_id })
         .where(eq(attendanceTable.id, existing.id))
         .returning();
       const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
+      if (status === "absent") {
+        await autoCreateMakeup(poolId, student_id, date, class_group_id || existing.class_group_id, existing.id, prevStatus);
+      }
       res.json({ success: true, data: { ...updated, student_name: s?.name || null } }); return;
     }
 
@@ -276,6 +324,9 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       id, swimming_pool_id: poolId, class_group_id: class_group_id || null, student_id, date, status,
     }).returning();
     const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
+    if (status === "absent") {
+      await autoCreateMakeup(poolId, student_id, date, class_group_id, id, null);
+    }
     res.status(201).json({ success: true, data: { ...record, student_name: s?.name || null } });
   } catch (err) {
     console.error(err);

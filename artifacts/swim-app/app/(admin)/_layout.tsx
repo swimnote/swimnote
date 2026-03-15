@@ -36,28 +36,32 @@ export default function AdminLayout() {
       }}
     >
       {/* ─── 5개 메인 탭 ─── */}
-      <Tabs.Screen name="dashboard" options={{ title: "대시보드", tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} /> }} />
-      <Tabs.Screen name="members"   options={{ title: "회원",    tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} /> }} />
-      <Tabs.Screen name="classes"   options={{ title: "수업",    tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }} />
-      <Tabs.Screen name="community" options={{ title: "커뮤니티", tabBarIcon: ({ color }) => <Feather name="message-square" size={22} color={color} /> }} />
-      <Tabs.Screen name="more"      options={{ title: "더보기",  tabBarIcon: ({ color }) => <Feather name="menu" size={22} color={color} /> }} />
+      <Tabs.Screen name="dashboard"     options={{ title: "대시보드",    tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} /> }} />
+      <Tabs.Screen name="people"        options={{ title: "사람",        tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} /> }} />
+      <Tabs.Screen name="classes"       options={{ title: "수업",        tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }} />
+      <Tabs.Screen name="communication" options={{ title: "커뮤니케이션", tabBarIcon: ({ color }) => <Feather name="message-square" size={22} color={color} /> }} />
+      <Tabs.Screen name="more"          options={{ title: "더보기",      tabBarIcon: ({ color }) => <Feather name="menu" size={22} color={color} /> }} />
 
       {/* ─── 숨김 화면들 (탭 없이 push/navigate로 접근) ─── */}
-      <Tabs.Screen name="approvals"        options={{ href: null }} />
-      <Tabs.Screen name="attendance"       options={{ href: null }} />
-      <Tabs.Screen name="parents"          options={{ href: null }} />
-      <Tabs.Screen name="notices"          options={{ href: null }} />
-      <Tabs.Screen name="mode"             options={{ href: null }} />
-      <Tabs.Screen name="diary-write"      options={{ href: null }} />
-      <Tabs.Screen name="photo-upload"     options={{ href: null }} />
-      <Tabs.Screen name="teachers"         options={{ href: null }} />
-      <Tabs.Screen name="pool-settings"    options={{ href: null }} />
-      <Tabs.Screen name="notifications"    options={{ href: null }} />
-      <Tabs.Screen name="branches"         options={{ href: null }} />
+      <Tabs.Screen name="members"           options={{ href: null }} />
+      <Tabs.Screen name="community"         options={{ href: null }} />
+      <Tabs.Screen name="approvals"         options={{ href: null }} />
+      <Tabs.Screen name="attendance"        options={{ href: null }} />
+      <Tabs.Screen name="parents"           options={{ href: null }} />
+      <Tabs.Screen name="notices"           options={{ href: null }} />
+      <Tabs.Screen name="mode"              options={{ href: null }} />
+      <Tabs.Screen name="diary-write"       options={{ href: null }} />
+      <Tabs.Screen name="photo-upload"      options={{ href: null }} />
+      <Tabs.Screen name="teachers"          options={{ href: null }} />
+      <Tabs.Screen name="pool-settings"     options={{ href: null }} />
+      <Tabs.Screen name="notifications"     options={{ href: null }} />
+      <Tabs.Screen name="branches"          options={{ href: null }} />
       <Tabs.Screen name="withdrawn-members" options={{ href: null }} />
-      <Tabs.Screen name="billing"          options={{ href: null }} />
-      <Tabs.Screen name="branding"         options={{ href: null }} />
-      <Tabs.Screen name="member-detail"    options={{ href: null }} />
+      <Tabs.Screen name="billing"           options={{ href: null }} />
+      <Tabs.Screen name="branding"          options={{ href: null }} />
+      <Tabs.Screen name="member-detail"     options={{ href: null }} />
+      <Tabs.Screen name="teacher-hub"       options={{ href: null }} />
+      <Tabs.Screen name="makeups"           options={{ href: null }} />
     </Tabs>
   );
 }

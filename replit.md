@@ -212,21 +212,36 @@ All tables include `swimming_pool_id` for multi-tenant isolation.
 - **API validation**: Single-item endpoints (GET/PUT/DELETE) check pool ownership before returning data
 - **Login restriction**: pool_admin cannot login if pool.approval_status != 'approved'
 
-## 관리자 앱 5탭 구조 (v2 — 2026-03)
+## 관리자 앱 5탭 구조 (v3 — 2026-03)
 
 ### 탭 구성
 1. **대시보드** — 통합 검색(모달), KPI 4카드, 처리필요 배지, 빠른액션 6개, 오늘수업통계, 최근등록회원, 최근변경이력
-2. **회원** — 필터(전체/미배정/배정불일치/연결대기/주N회/연결완료), 검색, 카드형 목록, 선택삭제, 회원등록 모달
-3. **수업** — 반관리, 출결, 수업일지 (classes.tsx)
-4. **커뮤니티** — 공지사항(CRUD), 학부모연결요청 승인/거절 (community.tsx)
-5. **더보기** — 설정메뉴 허브 + 활동로그 전체 조회 (more.tsx)
+2. **사람** (`people.tsx`) — 회원/학부모/선생님/승인 4탭, 실DB 연동, 학부모 요청 승인/거절(PATCH /admin/parent-requests/:id)
+3. **수업** (`classes.tsx`) — 반관리, 출결, 수업일지, 보강 화면 링크
+4. **커뮤니케이션** (`communication.tsx`) — 공지사항(CRUD), 학부모 요청 처리, 선생님 일지 조회
+5. **더보기** (`more.tsx`) — 설정메뉴 허브(승인관리/선생님관리/학부모계정/삭제복구센터/브랜드/지점/알림/수영장/결제/모드변경) + 활동로그
 
-### 회원 상세 6탭 허브 (member-detail.tsx)
+### 숨김 라우트 (탭에 보이지 않지만 내비게이션 가능)
+`members, community, approvals, attendance, parents, notices, mode, teachers, pool-settings, notifications, branches, withdrawn-members, billing, branding, member-detail, teacher-hub, makeups`
+
+### 회원 상세 8탭 허브 (member-detail.tsx)
 - 기본정보: 이름/출생/보호자 편집, 상태변경(재원/휴원/정지/탈퇴), 복구
 - 수업정보: 반배정(주N회), 최근출결30일 시각화, 최근일지 5건
+- **보강**: 이 회원의 보강 이력 목록 (GET /admin/makeups/student/:id)
 - 레벨/평가: 수영레벨 뱃지선택+자유입력, 관리자내부메모
 - 학부모공유: 앱연결상태, 초대코드 복사/공유
+- **학부모 요청**: 이 회원 관련 학부모 요청 목록 (GET /admin/parent-requests)
 - 결제/이용: 이용정보, 결제관리 바로가기
+- 활동로그: 관리자 액션 로그 (GET /admin/students/:id/activity-logs)
+
+### 보강 시스템 (makeups.tsx + attendance.ts)
+- `makeup_sessions` 테이블: id, swimming_pool_id, student_id, original_class_group_id, original_teacher_id, absence_date, status(waiting/assigned/transferred/completed/cancelled), assigned_class_group_id, substitute_teacher_id, transferred_to_teacher_id, completed_at
+- 결석 기록 시 자동 보강 대기 생성: `autoCreateMakeup()` in attendance.ts
+- 보강 API: GET/POST/PATCH /api/admin/makeups, /makeups/:id/assign, /transfer, /complete, /cancel, /student/:id
+
+### 선생님 허브 (teacher-hub.tsx)
+- 담당 회원목록, 출결 기록, 수업일지 목록(삭제), 내 보강 현황
+- GET /api/admin/teacher-hub/:teacherId
 - 활동로그: 관리자 변경이력 타임라인
 
 ### 신규 Admin API 엔드포인트 (2026-03)

@@ -118,8 +118,12 @@ export default function ClassesScreen() {
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={s.title}>반 관리</Text>
+        <Text style={s.title}>수업</Text>
         <View style={s.headerRight}>
+          <Pressable style={[s.makeupBtn]} onPress={() => router.push("/(admin)/makeups")}>
+            <Feather name="rotate-ccw" size={15} color="#7C3AED" />
+            <Text style={s.makeupBtnTxt}>보강</Text>
+          </Pressable>
           <Pressable
             style={[s.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
             onPress={sel.toggleSelectionMode}
@@ -303,6 +307,8 @@ const s = StyleSheet.create({
   selBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
   addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  makeupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: "#EDE9FE", borderWidth: 1, borderColor: "#DDD6FE" },
+  makeupBtnTxt: { fontSize: 13, fontWeight: "600", color: "#7C3AED" },
   empty: { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },

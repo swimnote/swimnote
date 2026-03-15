@@ -11,3 +11,4 @@ export * from "./notices";
 export * from "./subscriptions";
 export * from "./teacher-schedule-notes";
 export * from "./class-diaries";
+export * from "./makeup-sessions";
