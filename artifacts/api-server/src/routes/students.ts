@@ -389,8 +389,48 @@ router.get("/:id/attendance", requireAuth, async (req: AuthRequest, res) => {
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+async function autoCreateMakeupForAbsent(
+  poolId: string, studentId: string, cgId: string | null, date: string, attendanceId: string
+) {
+  const existing = (await db.execute(sql`
+    SELECT id FROM makeup_sessions
+    WHERE student_id = ${studentId} AND absence_date = ${date} AND status != 'cancelled'
+    LIMIT 1
+  `)).rows as any[];
+  if (existing.length > 0) return;
+  const [student] = await db.select({ name: studentsTable.name })
+    .from(studentsTable).where(eq(studentsTable.id, studentId)).limit(1);
+  if (!student) return;
+  let teacherId: string | null = null, teacherName: string | null = null, cgName: string | null = null;
+  if (cgId) {
+    const [cg] = await db.select().from(classGroupsTable).where(eq(classGroupsTable.id, cgId)).limit(1);
+    if (cg) { teacherId = cg.teacher_user_id || null; teacherName = cg.instructor || null; cgName = cg.name || null; }
+  }
+  const mkId = `mk_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+  await db.execute(sql`
+    INSERT INTO makeup_sessions (
+      id, swimming_pool_id, student_id, student_name,
+      original_class_group_id, original_class_group_name,
+      original_teacher_id, original_teacher_name,
+      absence_date, absence_attendance_id, status
+    ) VALUES (
+      ${mkId}, ${poolId}, ${studentId}, ${student.name},
+      ${cgId}, ${cgName}, ${teacherId}, ${teacherName},
+      ${date}, ${attendanceId}, 'waiting'
+    )
+  `);
+}
+
+async function cancelWaitingMakeup(studentId: string, date: string) {
+  await db.execute(sql`
+    UPDATE makeup_sessions
+    SET status = 'cancelled', cancelled_at = now(), cancelled_reason = 'absent_cleared'
+    WHERE student_id = ${studentId} AND absence_date = ${date} AND status = 'waiting'
+  `);
+}
+
 router.post("/:id/attendance", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { date, status } = req.body;
+  const { date, status, class_group_id } = req.body;
   if (!date || !["present", "absent"].includes(status)) {
     return err(res, 400, "날짜와 출결 상태(present/absent)를 입력해주세요.");
   }
@@ -401,25 +441,41 @@ router.post("/:id/attendance", requireAuth, requireRole("super_admin", "pool_adm
     const [actor] = await db.select({ name: usersTable.name, role: usersTable.role })
       .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     const actorName = actor?.name || req.user!.userId;
-    const actorRole = actor?.role || req.user!.role;
+
+    const [student] = await db.select().from(studentsTable)
+      .where(eq(studentsTable.id, req.params.id)).limit(1);
+    const cgId = class_group_id || student?.class_group_id || null;
 
     const existing = await db.select().from(attendanceTable)
       .where(and(eq(attendanceTable.student_id, req.params.id), eq(attendanceTable.date, date))).limit(1);
 
     if (existing.length > 0) {
-      if (actorRole !== "super_admin" && actorRole !== "pool_admin") {
-        return err(res, 403, "이미 입력된 출결은 관리자만 수정할 수 있습니다.");
-      }
+      const prevStatus = existing[0].status;
       const [updated] = await db.update(attendanceTable)
-        .set({ status, updated_at: new Date(), modified_by: req.user!.userId, modified_by_name: actorName })
+        .set({
+          status,
+          class_group_id: cgId || existing[0].class_group_id,
+          updated_at: new Date(),
+          modified_by: req.user!.userId,
+          modified_by_name: actorName,
+        })
         .where(eq(attendanceTable.id, existing[0].id)).returning();
+      if (status === "absent" && prevStatus !== "absent") {
+        await autoCreateMakeupForAbsent(poolId, req.params.id, cgId, date, existing[0].id);
+      } else if (status === "present" && prevStatus === "absent") {
+        await cancelWaitingMakeup(req.params.id, date);
+      }
       res.json({ success: true, ...updated, was_modified: true });
     } else {
       const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const [created] = await db.insert(attendanceTable).values({
         id, student_id: req.params.id, swimming_pool_id: poolId,
+        class_group_id: cgId || null,
         date, status, created_by: req.user!.userId, created_by_name: actorName,
       }).returning();
+      if (status === "absent") {
+        await autoCreateMakeupForAbsent(poolId, req.params.id, cgId, date, id);
+      }
       res.status(201).json({ success: true, ...created, was_modified: false });
     }
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }

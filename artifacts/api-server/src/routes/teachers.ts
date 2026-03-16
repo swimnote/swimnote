@@ -414,12 +414,14 @@ router.get("/teacher/makeups", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { status = "pending" } = req.query as any;
+      const { status = "waiting" } = req.query as any;
+      // "pending"은 "waiting"과 동일하게 처리
+      const dbStatus = status === "pending" ? "waiting" : status;
       const rows = await db.execute(sql`
         SELECT ms.*
         FROM makeup_sessions ms
         WHERE ms.original_teacher_id = ${userId}
-          AND ms.status = ${status}
+          AND ms.status = ${dbStatus}
           AND ms.cancelled_at IS NULL
         ORDER BY ms.absence_date ASC, ms.created_at ASC
       `);

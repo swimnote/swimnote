@@ -1,0 +1,137 @@
+[출결 → 보강 자동연결 MVP 작업지시]
+
+목표
+- MVP에서는 보강 가능 기간, 횟수, 제한 정책은 넣지 않는다.
+- 학생이 결석 처리되면 즉시 보강관리 대기명단으로 자동 이동되게 연결한다.
+- 같은 결석건으로 중복 보강 생성되지 않게 한다.
+- 출결관리 / 오늘스케줄 / 수업관리 화면 상태가 모두 동일하게 반영되게 데이터 연결을 통합한다.
+
+1. 결석 처리 기본 규칙
+- 출결 화면에서 학생을 "결석"으로 처리하면 attendance 테이블에 absent 저장
+- 동시에 makeup 테이블에 waiting 상태로 1건 자동 생성
+- 이미 같은 날짜, 같은 학생, 같은 수업에 대해 waiting/completed 보강건이 있으면 중복 생성 금지
+
+기준키
+- student_id
+- class_id
+- lesson_date
+
+2. 데이터 구조
+attendance
+- id
+- student_id
+- class_id
+- lesson_date
+- status (present, absent)
+- created_at
+- updated_at
+
+makeup_requests
+- id
+- student_id
+- origin_class_id
+- origin_date
+- attendance_id
+- status (waiting, assigned, completed, canceled)
+- assigned_class_id nullable
+- assigned_date nullable
+- created_at
+- updated_at
+
+3. 결석 처리 로직
+함수명 예시
+markStudentAbsent(studentId, classId, lessonDate)
+
+동작
+1) attendance에서 해당 학생/수업/날짜 기록 upsert
+   status = absent
+2) makeup_requests 조회
+   같은 student_id + class_id + lesson_date + canceled 제외
+   existing 있으면 새로 만들지 않음
+3) 없으면 makeup_requests에 waiting 생성
+4) 성공 후 아래 화면 전부 새로고침
+   - 오늘 스케줄
+   - 출결 관리
+   - 보강 관리
+   - 수업 관리 반 상세 상태
+
+4. 출석 처리 로직
+함수명 예시
+markStudentPresent(studentId, classId, lessonDate)
+
+동작
+1) attendance status = present 저장
+2) 동일 attendance에 연결된 waiting 상태 보강이 있으면 자동 삭제 또는 canceled 처리
+   -> MVP에서는 canceled 처리 권장
+3) 보강관리에서 즉시 사라지게 반영
+
+5. 보강관리 화면 규칙
+보강관리 탭에서는 waiting 상태만 표시
+표시 항목
+- 학생 이름
+- 원래 반 이름
+- 원래 수업 날짜
+- 결석 처리일
+- 상태 waiting
+
+빈 화면 문구
+- 보강 대기 중인 학생이 없습니다
+
+학생 카드 클릭 시
+- 일단 MVP에서는 상세팝업 없이도 됨
+- 최소한 학생 정보가 보이고 waiting 목록에서 확인 가능해야 함
+
+6. 지금 발견된 연결 오류도 함께 수정
+반드시 고칠 것
+- 오늘스케줄의 학생수와 수업관리의 학생수가 다르게 나오는 문제 수정
+- 출결완료 여부가 오늘스케줄과 출결관리에서 다르게 보이는 문제 수정
+- 모든 화면의 학생수/출결상태는 동일한 원본 데이터에서 계산되게 변경
+
+원칙
+- class 학생수 = class_members 기준
+- 출결 상태 = attendance 기준
+- 보강대기 = makeup_requests 기준
+
+7. 중복 방지 규칙
+- 같은 학생이 같은 날짜 같은 수업에서 결석 처리 여러 번 되어도 보강은 1건만 생성
+- 결석 -> 출석으로 변경되면 waiting 보강은 canceled 처리
+- 다시 결석으로 바꾸면 canceled 건 재사용하지 말고 새 waiting 생성 가능
+  또는 최신 1건만 유지하는 방식으로 구현
+- MVP에서는 단순하게 “현재 waiting 있으면 생성 금지”로 처리
+
+8. UI 상태 아이콘 연결
+출결관리 화면
+- 초록 체크 = 출결 완료
+- 빨간 X 또는 회색 = 미완료/결석 상태를 정확히 반영
+- 연필 아이콘 = 일지 상태만 표시
+
+오늘 스케줄 화면
+- 출결 완료 0/1 같은 숫자는 attendance 기준으로 계산
+- 학생 0명으로 보이는 문제 수정
+- 수업카드 클릭 시 해당 반 출결화면으로 이동 가능하게 연결
+
+9. 테스트 체크리스트
+반드시 실제로 눌러서 검증할 것
+- 학생 결석 처리 시 보강관리 탭에 즉시 보이는지
+- 결석 취소 후 출석 처리 시 보강관리에서 사라지는지
+- 같은 학생 결석 버튼 두 번 눌러도 보강이 2개 생기지 않는지
+- 오늘스케줄 / 수업관리 / 출결관리 학생 수가 동일한지
+- 앱 새로고침 후에도 보강대기 데이터가 유지되는지
+- 관리자/선생님 화면에서 동일하게 반영되는지
+
+10. MVP 범위 제외
+이번 작업에서는 넣지 않음
+- 보강 가능 기간 제한
+- 보강 가능 횟수 제한
+- 수영장별 정책 설정
+- 관리자 승인 절차
+- 보강 예약 캘린더 자동 배정
+- 정원 초과 차단 로직
+
+11. 완료 기준
+아래가 되면 이번 작업 완료
+- 결석 버튼 클릭
+- 보강관리 탭에 즉시 학생 표시
+- 출석으로 변경하면 목록에서 제거
+- 중복 생성 없음
+- 화면 간 숫자/상태 불일치 없음

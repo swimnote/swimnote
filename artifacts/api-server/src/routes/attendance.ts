@@ -315,6 +315,12 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
       if (status === "absent") {
         await autoCreateMakeup(poolId, student_id, date, class_group_id || existing.class_group_id, existing.id, prevStatus);
+      } else if (status === "present" && prevStatus === "absent") {
+        await db.execute(sql`
+          UPDATE makeup_sessions
+          SET status = 'cancelled', cancelled_at = now(), cancelled_reason = 'absent_cleared'
+          WHERE student_id = ${student_id} AND absence_date = ${date} AND status = 'waiting'
+        `);
       }
       res.json({ success: true, data: { ...updated, student_name: s?.name || null } }); return;
     }

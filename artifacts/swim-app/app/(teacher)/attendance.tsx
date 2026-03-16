@@ -167,7 +167,7 @@ export default function TeacherAttendanceScreen() {
     setSelectedGroup(group);
     setSaving(false); setSaveMsg("");
     try {
-      const r = await apiRequest(token, `/attendance?class_id=${group.id}&date=${d}`);
+      const r = await apiRequest(token, `/attendance?class_group_id=${group.id}&date=${d}`);
       if (r.ok) {
         const arr: any[] = await r.json();
         const map: Record<string, AttStatus> = {};
@@ -191,31 +191,49 @@ export default function TeacherAttendanceScreen() {
   }
 
   async function saveOne(studentId: string, status: AttStatus) {
+    const prevStatus = attState[studentId];
     try {
       await apiRequest(token, `/students/${studentId}/attendance`, {
         method: "POST",
-        body: JSON.stringify({ date, status }),
+        body: JSON.stringify({ date, status, class_group_id: selectedGroup?.id }),
       });
       setAttState(prev => ({ ...prev, [studentId]: status }));
+      // 출결 완료 카운트 업데이트 (체크 여부 기준, present+absent 모두)
+      setAttTodayMap(prev => {
+        const cgId = selectedGroup?.id;
+        if (!cgId) return prev;
+        let cnt = prev[cgId] || 0;
+        if (!prevStatus) cnt = Math.min(cnt + 1, groupStudents.length); // 신규 체크
+        return { ...prev, [cgId]: cnt };
+      });
+      // 결석 시 보강 목록 갱신
+      if (status === "absent" && prevStatus !== "absent") {
+        setTimeout(() => loadMakeups(), 600);
+      }
+      // 출석 전환 시 보강 대기 즉시 제거
+      if (status === "present" && prevStatus === "absent") {
+        setMakeupList(prev => prev.filter(m => !(m.student_id === studentId && m.absence_date === date)));
+      }
     } catch { }
   }
 
   async function doSaveAll() {
     setSaving(true); setSaveMsg("");
     try {
+      const checkedStudents = groupStudents.filter(st => attState[st.id]);
       await Promise.all(
-        groupStudents
-          .filter(st => attState[st.id])
-          .map(st =>
-            apiRequest(token, `/students/${st.id}/attendance`, {
-              method: "POST",
-              body: JSON.stringify({ date, status: attState[st.id] }),
-            })
-          )
+        checkedStudents.map(st =>
+          apiRequest(token, `/students/${st.id}/attendance`, {
+            method: "POST",
+            body: JSON.stringify({ date, status: attState[st.id], class_group_id: selectedGroup?.id }),
+          })
+        )
       );
-      const cnt = groupStudents.filter(st => attState[st.id]).length;
-      setAttTodayMap(prev => ({ ...prev, [selectedGroup!.id]: cnt }));
+      const checkedCnt = checkedStudents.length; // 체크된 학생 수 (present + absent)
+      const hasAbsent = checkedStudents.some(st => attState[st.id] === "absent");
+      setAttTodayMap(prev => ({ ...prev, [selectedGroup!.id]: checkedCnt }));
       setSaveMsg("출결이 저장되었습니다.");
+      if (hasAbsent) setTimeout(() => loadMakeups(), 600);
       setTimeout(() => { setSaveMsg(""); setSelectedGroup(null); }, 1200);
     } catch { setSaveMsg("저장에 실패했습니다."); }
     finally { setSaving(false); }

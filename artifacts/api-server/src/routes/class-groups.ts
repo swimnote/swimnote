@@ -38,13 +38,14 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     }
 
     const enriched = await Promise.all(groups.map(async (g: any) => {
-      const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(studentsTable)
-        .where(and(
-          eq(studentsTable.swimming_pool_id, poolId),
-          eq(studentsTable.class_group_id, g.id),
-          sql`status NOT IN ('withdrawn', 'deleted')`
-        ));
-      return { ...g, student_count: Number(count) };
+      const rows = await db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM students
+        WHERE swimming_pool_id = ${poolId}
+          AND (class_group_id = ${g.id} OR assigned_class_ids @> to_jsonb(${g.id}::text))
+          AND deleted_at IS NULL
+          AND status NOT IN ('withdrawn', 'deleted')
+      `);
+      return { ...g, student_count: Number((rows.rows[0] as any).count || 0) };
     }));
 
     res.json(enriched);
