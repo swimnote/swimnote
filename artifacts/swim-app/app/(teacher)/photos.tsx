@@ -28,6 +28,19 @@ type AlbumScope = "group" | "private";
 type Step = "home" | "schedule" | "student" | "upload";
 
 interface Student { id: string; name: string; assigned_class_ids?: string[]; class_group_id?: string | null; }
+interface MediaUsage {
+  photo_bytes: number; photo_count: number;
+  video_bytes: number; video_count: number;
+  total_bytes: number; month_bytes: number;
+}
+
+function fmtBytes(bytes: number): string {
+  if (!bytes || bytes === 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 const MEDIA_CONFIG: Record<`${MediaType}_${AlbumScope}`, {
   icon: React.ComponentProps<typeof Feather>["name"];
@@ -45,10 +58,11 @@ export default function TeacherPhotosScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
 
-  const [groups,    setGroups]    = useState<TeacherClassGroup[]>([]);
-  const [students,  setStudents]  = useState<Student[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [uploading, setUploading] = useState(false);
+  const [groups,     setGroups]     = useState<TeacherClassGroup[]>([]);
+  const [students,   setStudents]   = useState<Student[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [uploading,  setUploading]  = useState(false);
+  const [usage,      setUsage]      = useState<MediaUsage | null>(null);
 
   const [mediaType, setMediaType] = useState<MediaType>("photo");
   const [scope,     setScope]     = useState<AlbumScope>("group");
@@ -58,13 +72,15 @@ export default function TeacherPhotosScreen() {
 
   useEffect(() => {
     (async () => {
-      const [cgRes, stRes] = await Promise.all([
+      const [cgRes, stRes, usageRes] = await Promise.all([
         apiRequest(token, "/class-groups"),
         apiRequest(token, "/students"),
+        apiRequest(token, "/teacher/me/media-usage"),
       ]);
       const [cls, sts] = await Promise.all([safeJson(cgRes), safeJson(stRes)]);
       setGroups(Array.isArray(cls) ? cls : []);
       setStudents(Array.isArray(sts) ? sts : []);
+      if (usageRes.ok) setUsage(await usageRes.json());
       setLoading(false);
     })();
   }, []);
@@ -158,31 +174,61 @@ export default function TeacherPhotosScreen() {
     );
   }
 
-  // ── 홈: 4버튼 그리드 ────────────────────────────────────────
+  // ── 홈: 4버튼 그리드 + 사용량 ────────────────────────────────────────
   if (step === "home") {
     return (
       <SafeAreaView style={s.safe} edges={["top"]}>
         <PoolHeader />
-        <View style={s.titleRow}><Text style={s.title}>사진 & 영상</Text></View>
-        <View style={s.grid}>
-          {(["photo_group", "photo_private", "video_group", "video_private"] as const).map(key => {
-            const [mt, sc] = key.split("_") as [MediaType, AlbumScope];
-            const c = MEDIA_CONFIG[key];
-            return (
-              <Pressable
-                key={key}
-                style={[s.gridBtn, { backgroundColor: c.bg, borderColor: c.color + "40" }]}
-                onPress={() => startFlow(mt, sc)}
-              >
-                <View style={[s.gridIcon, { backgroundColor: c.color + "25" }]}>
-                  <Feather name={c.icon} size={28} color={c.color} />
-                </View>
-                <Text style={[s.gridTitle, { color: c.color }]}>{c.title}</Text>
-                <Text style={[s.gridSub, { color: c.color + "CC" }]}>{c.sub}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+          <View style={s.titleRow}><Text style={s.title}>사진 & 영상</Text></View>
+          <View style={s.grid}>
+            {(["photo_group", "photo_private", "video_group", "video_private"] as const).map(key => {
+              const [mt, sc] = key.split("_") as [MediaType, AlbumScope];
+              const c = MEDIA_CONFIG[key];
+              return (
+                <Pressable
+                  key={key}
+                  style={[s.gridBtn, { backgroundColor: c.bg, borderColor: c.color + "40" }]}
+                  onPress={() => startFlow(mt, sc)}
+                >
+                  <View style={[s.gridIcon, { backgroundColor: c.color + "25" }]}>
+                    <Feather name={c.icon} size={28} color={c.color} />
+                  </View>
+                  <Text style={[s.gridTitle, { color: c.color }]}>{c.title}</Text>
+                  <Text style={[s.gridSub, { color: c.color + "CC" }]}>{c.sub}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* 사용량 카드 */}
+          <View style={s.usageCard}>
+            <View style={s.usageCardHeader}>
+              <Feather name="hard-drive" size={15} color={themeColor} />
+              <Text style={[s.usageCardTitle, { color: themeColor }]}>내 업로드 사용량</Text>
+            </View>
+            <View style={s.usageCardBody}>
+              <View style={s.usageItem}>
+                <Feather name="image" size={14} color="#F59E0B" />
+                <Text style={s.usageItemLabel}>사진 {usage?.photo_count || 0}개</Text>
+                <Text style={s.usageItemBytes}>{fmtBytes(usage?.photo_bytes || 0)}</Text>
+              </View>
+              <View style={s.usageDivider} />
+              <View style={s.usageItem}>
+                <Feather name="video" size={14} color="#7C3AED" />
+                <Text style={s.usageItemLabel}>영상 {usage?.video_count || 0}개</Text>
+                <Text style={s.usageItemBytes}>{fmtBytes(usage?.video_bytes || 0)}</Text>
+              </View>
+              <View style={s.usageDivider} />
+              <View style={[s.usageItem, { backgroundColor: themeColor + "08" }]}>
+                <Feather name="database" size={14} color={themeColor} />
+                <Text style={[s.usageItemLabel, { color: themeColor, fontFamily: "Inter_700Bold" }]}>총 사용량</Text>
+                <Text style={[s.usageItemBytes, { color: themeColor, fontFamily: "Inter_700Bold" }]}>{fmtBytes(usage?.total_bytes || 0)}</Text>
+              </View>
+              <Text style={s.usageMonthText}>이번 달: {fmtBytes(usage?.month_bytes || 0)}</Text>
+            </View>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -331,4 +377,14 @@ const s = StyleSheet.create({
 
   emptyBox:   { alignItems: "center", paddingTop: 60, gap: 10 },
   emptyText:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+
+  usageCard:        { marginHorizontal: 12, marginTop: 4, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden" },
+  usageCardHeader:  { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  usageCardTitle:   { fontSize: 14, fontFamily: "Inter_700Bold" },
+  usageCardBody:    { padding: 12, gap: 2 },
+  usageItem:        { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 10 },
+  usageItemLabel:   { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
+  usageItemBytes:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  usageDivider:     { height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 8 },
+  usageMonthText:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center", paddingTop: 6 },
 });

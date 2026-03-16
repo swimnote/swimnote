@@ -46,11 +46,12 @@ export default function TeacherLayout() {
       },
       tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 10 },
     }}>
-      <Tabs.Screen name="my-schedule"    options={{ title: "내반",      headerTitle: "내반",      tabBarIcon: ({ color }) => <Feather name="layers"       size={22} color={color} /> }} />
-      <Tabs.Screen name="today-schedule" options={{ title: "오늘 스케쥴", headerTitle: "오늘 스케쥴", tabBarIcon: ({ color }) => <Feather name="calendar"     size={22} color={color} /> }} />
-      <Tabs.Screen name="attendance"     options={{ title: "출결",      headerTitle: "출결",      tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }} />
-      <Tabs.Screen name="diary"          options={{ title: "수영일지",  headerTitle: "수영일지",  tabBarIcon: ({ color }) => <Feather name="book"         size={22} color={color} /> }} />
-      <Tabs.Screen name="photos"         options={{ title: "사진·영상", headerTitle: "사진·영상", tabBarIcon: ({ color }) => <Feather name="camera"       size={22} color={color} /> }} />
+      <Tabs.Screen name="today-schedule" options={{ title: "오늘 스케줄", headerTitle: "오늘 스케줄", tabBarIcon: ({ color }) => <Feather name="sun"          size={22} color={color} /> }} />
+      <Tabs.Screen name="my-schedule"    options={{ title: "수업 관리",   headerTitle: "수업 관리",   tabBarIcon: ({ color }) => <Feather name="layers"       size={22} color={color} /> }} />
+      <Tabs.Screen name="attendance"     options={{ title: "출결 관리",   headerTitle: "출결 관리",   tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }} />
+      <Tabs.Screen name="diary"          options={{ title: "수영일지",    headerTitle: "수영일지",    tabBarIcon: ({ color }) => <Feather name="book"         size={22} color={color} /> }} />
+      <Tabs.Screen name="photos"         options={{ title: "사진영상",    headerTitle: "사진영상",    tabBarIcon: ({ color }) => <Feather name="camera"       size={22} color={color} /> }} />
+      <Tabs.Screen name="settings"       options={{ title: "관리설정",    headerTitle: "관리설정",    tabBarIcon: ({ color }) => <Feather name="settings"     size={22} color={color} /> }} />
       <Tabs.Screen name="student-detail" options={{ href: null }} />
     </Tabs>
   );
