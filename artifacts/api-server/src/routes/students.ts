@@ -460,7 +460,8 @@ router.post("/:id/attendance", requireAuth, requireRole("super_admin", "pool_adm
           modified_by_name: actorName,
         })
         .where(eq(attendanceTable.id, existing[0].id)).returning();
-      if (status === "absent" && prevStatus !== "absent") {
+      if (status === "absent") {
+        // autoCreateMakeupForAbsent 내부에서 중복 방지 처리 (non-cancelled 보강 있으면 skip)
         await autoCreateMakeupForAbsent(poolId, req.params.id, cgId, date, existing[0].id);
       } else if (status === "present" && prevStatus === "absent") {
         await cancelWaitingMakeup(req.params.id, date);
