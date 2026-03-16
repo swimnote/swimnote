@@ -74,9 +74,10 @@ export default function MoreScreen() {
     {
       title: "운영",
       items: [
-        { label: "승인 관리",    icon: "check-circle" as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/approvals"     },
-        { label: "선생님 관리",  icon: "user-check"   as const, color: "#7C3AED", bg: "#F3E8FF", route: "/(admin)/teachers"      },
-        { label: "학부모 계정",  icon: "users"        as const, color: "#2563EB", bg: "#DBEAFE", route: "/(admin)/parents"       },
+        { label: "승인 관리",    icon: "check-circle" as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/approvals"          },
+        { label: "선생님 관리",  icon: "user-check"   as const, color: "#7C3AED", bg: "#F3E8FF", route: "/(admin)/teachers"           },
+        { label: "학부모 계정",  icon: "users"        as const, color: "#2563EB", bg: "#DBEAFE", route: "/(admin)/parents"            },
+        { label: "수업 관리",    icon: "book-open"    as const, color: "#0D9488", bg: "#CCFBF1", route: "/(admin)/class-management"   },
         { label: "삭제/복구 센터", icon: "archive"      as const, color: "#DC2626", bg: "#FEE2E2", route: "/(admin)/withdrawn-members" },
       ],
     },

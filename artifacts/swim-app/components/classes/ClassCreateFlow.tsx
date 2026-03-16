@@ -1,7 +1,7 @@
 /**
  * ClassCreateFlow — 반 등록 Step UI 공통 컴포넌트
  *
- * Step 1: 요일 선택 (월~토, 복수 선택)
+ * Step 1: 요일 선택 (월~토, 복수 선택) / 1회성 반이면 날짜 선택
  * Step 2: 시간 선택 (평일 13:00-21:00 / 토 08:00-16:00)
  * Step 3: 선생님 선택 (pool_admin만, teacher는 자동 스킵)
  * Step 4: 반 개설 확인 카드
@@ -9,8 +9,8 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal, Pressable,
-  ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Modal, Pressable,
+  ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -21,6 +21,7 @@ const C = Colors.light;
 const WEEKDAYS = ["월", "화", "수", "목", "금"] as const;
 const SATURDAY = "토" as const;
 const ALL_DAYS = [...WEEKDAYS, SATURDAY];
+const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
 function makeTimeSlots(days: string[]): string[] {
   const hasSat = days.includes("토");
@@ -37,6 +38,14 @@ function makeTimeSlots(days: string[]): string[] {
     slots.sort();
   }
   return slots;
+}
+
+function getDayOfWeek(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    return DAY_NAMES[d.getDay()];
+  } catch { return ""; }
 }
 
 interface Teacher {
@@ -162,8 +171,23 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // 1회성 반
+  const [isOneTime, setIsOneTime]   = useState(false);
+  const [oneTimeDate, setOneTimeDate] = useState(() => new Date().toISOString().split("T")[0]);
+
+  // 기본 정원
+  const [defaultCapacity, setDefaultCapacity] = useState<number>(20);
+
   const isAdmin = role === "pool_admin";
   const totalSteps = isAdmin ? 4 : 3;
+
+  // 기본 정원 로드
+  useEffect(() => {
+    apiRequest(token, "/admin/class-settings")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.default_capacity) setDefaultCapacity(d.default_capacity); })
+      .catch(() => {});
+  }, [token]);
 
   function stepIndex(s: StepId): number {
     if (!isAdmin) {
@@ -192,17 +216,33 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
     setSelectedTime(null);
   }
 
+  function handleOneTimeDateChange(date: string) {
+    setOneTimeDate(date);
+    const day = getDayOfWeek(date);
+    if (day) setSelectedDays([day]);
+    else setSelectedDays([]);
+    setSelectedTime(null);
+  }
+
   function handleNext() {
     setErrorMsg(null);
     if (step === 1) {
-      if (selectedDays.length === 0) { setErrorMsg("요일을 1개 이상 선택해주세요."); return; }
+      if (isOneTime) {
+        const day = getDayOfWeek(oneTimeDate);
+        if (!oneTimeDate || !day) { setErrorMsg("유효한 날짜를 입력해주세요. (YYYY-MM-DD)"); return; }
+        setSelectedDays([day]);
+      } else {
+        if (selectedDays.length === 0) { setErrorMsg("요일을 1개 이상 선택해주세요."); return; }
+      }
       setStep(2);
     } else if (step === 2) {
       if (!selectedTime) { setErrorMsg("수업 시간을 선택해주세요."); return; }
       if (isAdmin) setStep(3);
       else setStep(4);
     } else if (step === 3) {
-      if (isAdmin && !selectedTeacher) { setErrorMsg("선생님을 선택해주세요."); return; }
+      if (isAdmin && isOneTime && !selectedTeacher) {
+        setErrorMsg("1회성 반은 담당 선생님 지정이 필수입니다."); return;
+      }
       setStep(4);
     }
   }
@@ -223,6 +263,9 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
         schedule_days: daysStr,
         schedule_time: selectedTime,
         teacher_user_id: teacherId || undefined,
+        capacity: defaultCapacity,
+        is_one_time: isOneTime,
+        one_time_date: isOneTime ? oneTimeDate : undefined,
       };
       const res = await apiRequest(token, "/class-groups", {
         method: "POST",
@@ -239,9 +282,10 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
     }
   }
 
-  const timeSlots = makeTimeSlots(selectedDays);
-  const classLabel = selectedDays.length > 0 && selectedTime
-    ? `${selectedDays.join("·")} ${selectedTime}반`
+  const timeSlots = makeTimeSlots(selectedDays.length > 0 ? selectedDays : isOneTime ? [getDayOfWeek(oneTimeDate) || "월"] : ["월"]);
+  const dayLabel = isOneTime ? `${oneTimeDate} (${getDayOfWeek(oneTimeDate)}요일)` : selectedDays.join("·") + "요일";
+  const classLabel = selectedTime
+    ? (isOneTime ? `${oneTimeDate} ${selectedTime}반` : `${selectedDays.join("·")} ${selectedTime}반`)
     : "—";
   const teacherName = isAdmin
     ? (selectedTeacher?.name || "미지정")
@@ -273,28 +317,83 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
             </View>
           )}
 
-          {/* ── Step 1: 요일 선택 ── */}
+          {/* ── Step 1: 요일/날짜 선택 ── */}
           {step === 1 && (
             <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
-              <Text style={fl.stepTitle}>수업 요일을 선택하세요</Text>
-              <Text style={fl.stepSub}>복수 선택 가능합니다</Text>
-              <View style={s1.grid}>
-                {ALL_DAYS.map(d => (
-                  <DayButton
-                    key={d}
-                    label={d}
-                    selected={selectedDays.includes(d)}
-                    onPress={() => toggleDay(d)}
-                  />
-                ))}
-              </View>
-              {selectedDays.length > 0 && (
-                <View style={s1.preview}>
-                  <Text style={s1.previewLabel}>선택: </Text>
-                  <Text style={[s1.previewValue, { color: C.tint }]}>
-                    {selectedDays.join("·")}요일
+              {/* 1회성 반 토글 */}
+              <Pressable
+                style={[ot.toggleRow, {
+                  backgroundColor: isOneTime ? "#F3E8FF" : C.background,
+                  borderColor: isOneTime ? "#7C3AED" : C.border,
+                }]}
+                onPress={() => {
+                  setIsOneTime(!isOneTime);
+                  setSelectedDays([]);
+                  setSelectedTime(null);
+                  setErrorMsg(null);
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[ot.toggleLabel, { color: isOneTime ? "#7C3AED" : C.text }]}>1회성 반</Text>
+                  <Text style={[ot.toggleSub, { color: isOneTime ? "#7C3AED" : C.textMuted }]}>
+                    특정 날짜 1회만 운영하는 특별반
                   </Text>
                 </View>
+                <View style={[ot.toggleSwitch, { backgroundColor: isOneTime ? "#7C3AED" : C.border }]}>
+                  <View style={[ot.toggleKnob, { transform: [{ translateX: isOneTime ? 18 : 0 }] }]} />
+                </View>
+              </Pressable>
+
+              {isOneTime ? (
+                // 1회성: 날짜 입력
+                <>
+                  <Text style={fl.stepTitle}>수업 날짜를 입력하세요</Text>
+                  <Text style={fl.stepSub}>1회만 운영되는 특별 수업입니다</Text>
+                  <View style={[ot.dateBox, { borderColor: oneTimeDate && getDayOfWeek(oneTimeDate) ? C.tint : C.border, backgroundColor: C.background }]}>
+                    <Feather name="calendar" size={18} color={C.tint} style={{ marginRight: 10 }} />
+                    <TextInput
+                      style={[ot.dateInput, { color: C.text }]}
+                      value={oneTimeDate}
+                      onChangeText={handleOneTimeDateChange}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={C.textMuted}
+                      keyboardType="numeric"
+                      maxLength={10}
+                    />
+                  </View>
+                  {oneTimeDate && getDayOfWeek(oneTimeDate) ? (
+                    <View style={[s1.preview, { backgroundColor: "#F3E8FF" }]}>
+                      <Feather name="check-circle" size={14} color="#7C3AED" />
+                      <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#7C3AED" }}>
+                        {oneTimeDate} ({getDayOfWeek(oneTimeDate)}요일)
+                      </Text>
+                    </View>
+                  ) : null}
+                </>
+              ) : (
+                // 일반: 요일 선택
+                <>
+                  <Text style={fl.stepTitle}>수업 요일을 선택하세요</Text>
+                  <Text style={fl.stepSub}>복수 선택 가능합니다</Text>
+                  <View style={s1.grid}>
+                    {ALL_DAYS.map(d => (
+                      <DayButton
+                        key={d}
+                        label={d}
+                        selected={selectedDays.includes(d)}
+                        onPress={() => toggleDay(d)}
+                      />
+                    ))}
+                  </View>
+                  {selectedDays.length > 0 && (
+                    <View style={s1.preview}>
+                      <Text style={s1.previewLabel}>선택: </Text>
+                      <Text style={[s1.previewValue, { color: C.tint }]}>
+                        {selectedDays.join("·")}요일
+                      </Text>
+                    </View>
+                  )}
+                </>
               )}
             </ScrollView>
           )}
@@ -304,7 +403,9 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
             <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
               <Text style={fl.stepTitle}>수업 시간을 선택하세요</Text>
               <Text style={fl.stepSub}>
-                {selectedDays.includes("토") && selectedDays.some(d => WEEKDAYS.includes(d as any))
+                {isOneTime
+                  ? `${oneTimeDate} (${getDayOfWeek(oneTimeDate)}요일) 수업`
+                  : selectedDays.includes("토") && selectedDays.some(d => WEEKDAYS.includes(d as any))
                   ? "평일(13:00-21:00) · 토(08:00-16:00)"
                   : selectedDays.includes("토")
                   ? "토요일(08:00-16:00)"
@@ -327,7 +428,9 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
           {step === 3 && isAdmin && (
             <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0, maxHeight: 320 }}>
               <Text style={fl.stepTitle}>담당 선생님을 선택하세요</Text>
-              <Text style={fl.stepSub}>선택하지 않으면 미지정으로 개설됩니다</Text>
+              <Text style={fl.stepSub}>
+                {isOneTime ? "1회성 반은 선생님 지정을 권장합니다" : "선택하지 않으면 미지정으로 개설됩니다"}
+              </Text>
               {teachersLoading ? (
                 <ActivityIndicator color={C.tint} style={{ marginTop: 30 }} />
               ) : teachers.length === 0 ? (
@@ -337,20 +440,21 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 </View>
               ) : (
                 <>
-                  {/* 미지정 옵션 */}
-                  <Pressable
-                    style={[tr.row, {
-                      borderColor: selectedTeacher === null ? C.border : C.border,
-                      backgroundColor: selectedTeacher === null ? "#F3F4F6" : C.background,
-                    }]}
-                    onPress={() => setSelectedTeacher(null)}
-                  >
-                    <View style={[tr.avatar, { backgroundColor: C.border }]}>
-                      <Feather name="user-x" size={18} color={C.textMuted} />
-                    </View>
-                    <Text style={[tr.name, { color: C.textSecondary }]}>미지정</Text>
-                    {selectedTeacher === null && <Feather name="check-circle" size={20} color={C.textSecondary} />}
-                  </Pressable>
+                  {!isOneTime && (
+                    <Pressable
+                      style={[tr.row, {
+                        borderColor: selectedTeacher === null ? C.border : C.border,
+                        backgroundColor: selectedTeacher === null ? "#F3F4F6" : C.background,
+                      }]}
+                      onPress={() => setSelectedTeacher(null)}
+                    >
+                      <View style={[tr.avatar, { backgroundColor: C.border }]}>
+                        <Feather name="user-x" size={18} color={C.textMuted} />
+                      </View>
+                      <Text style={[tr.name, { color: C.textSecondary }]}>미지정</Text>
+                      {selectedTeacher === null && <Feather name="check-circle" size={20} color={C.textSecondary} />}
+                    </Pressable>
+                  )}
                   {teachers.map(t => (
                     <TeacherRow
                       key={t.id}
@@ -368,16 +472,25 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
           {step === 4 && (
             <View style={s4.wrap}>
               <Text style={fl.stepTitle}>반 개설을 확인하세요</Text>
-              <View style={[s4.card, { borderColor: C.tint + "50" }]}>
+              <View style={[s4.card, { borderColor: (isOneTime ? "#7C3AED" : C.tint) + "50" }]}>
                 {/* 반 이름 */}
-                <View style={[s4.nameRow, { backgroundColor: C.tintLight }]}>
-                  <Feather name="layers" size={20} color={C.tint} />
-                  <Text style={[s4.name, { color: C.tint }]}>{classLabel}</Text>
+                <View style={[s4.nameRow, { backgroundColor: isOneTime ? "#F3E8FF" : C.tintLight }]}>
+                  {isOneTime && (
+                    <View style={[ot.oneTimeBadge, { backgroundColor: "#7C3AED" }]}>
+                      <Text style={{ color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" }}>1회성</Text>
+                    </View>
+                  )}
+                  <Feather name="layers" size={20} color={isOneTime ? "#7C3AED" : C.tint} />
+                  <Text style={[s4.name, { color: isOneTime ? "#7C3AED" : C.tint }]}>{classLabel}</Text>
                 </View>
                 <View style={s4.rows}>
-                  <InfoRow icon="calendar" label="요일" value={selectedDays.join("·") + "요일"} />
+                  {isOneTime
+                    ? <InfoRow icon="calendar" label="날짜" value={`${oneTimeDate} (${getDayOfWeek(oneTimeDate)}요일)`} />
+                    : <InfoRow icon="calendar" label="요일" value={selectedDays.join("·") + "요일"} />
+                  }
                   <InfoRow icon="clock" label="시간" value={selectedTime || "—"} />
                   <InfoRow icon="user" label="선생님" value={teacherName} />
+                  <InfoRow icon="users" label="기본 정원" value={`${defaultCapacity}명`} />
                 </View>
               </View>
             </View>
@@ -400,7 +513,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
               </Pressable>
             ) : (
               <Pressable
-                style={[fl.nextBtn, { backgroundColor: C.tint, flex: 1 }]}
+                style={[fl.nextBtn, { backgroundColor: isOneTime ? "#7C3AED" : C.tint, flex: 1 }]}
                 onPress={handleCreate}
                 disabled={saving}
               >
@@ -409,7 +522,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 ) : (
                   <>
                     <Feather name="check" size={16} color="#fff" />
-                    <Text style={fl.nextText}>반 개설하기</Text>
+                    <Text style={fl.nextText}>{isOneTime ? "1회성 반 개설" : "반 개설하기"}</Text>
                   </>
                 )}
               </Pressable>
@@ -454,7 +567,7 @@ const fl = StyleSheet.create({
 
 const s1 = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
-  preview: { flexDirection: "row", alignItems: "center", backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
+  preview: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
   previewLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
   previewValue: { fontSize: 14, fontFamily: "Inter_700Bold" },
 });
@@ -474,4 +587,15 @@ const s4 = StyleSheet.create({
   nameRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   name: { fontSize: 18, fontFamily: "Inter_700Bold" },
   rows: { paddingHorizontal: 16 },
+});
+
+const ot = StyleSheet.create({
+  toggleRow: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 14, padding: 14, marginBottom: 16, gap: 12 },
+  toggleLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  toggleSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  toggleSwitch: { width: 44, height: 26, borderRadius: 13, padding: 3, justifyContent: "center" },
+  toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
+  dateBox: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52, marginBottom: 12 },
+  dateInput: { flex: 1, fontSize: 16, fontFamily: "Inter_500Medium", letterSpacing: 1 },
+  oneTimeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
 });

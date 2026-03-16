@@ -17,6 +17,7 @@ export const swimmingPoolsTable = pgTable("swimming_pools", {
   subscription_status: subscriptionStatusEnum("subscription_status").notNull().default("trial"),
   subscription_start_at: timestamp("subscription_start_at"),
   subscription_end_at: timestamp("subscription_end_at"),
+  default_capacity: integer("default_capacity").default(20),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

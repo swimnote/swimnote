@@ -53,7 +53,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 
 // 반 등록: pool_admin + teacher 모두 허용
 router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { name, schedule_days, schedule_time, instructor, teacher_user_id, level, capacity, description } = req.body;
+  const { name, schedule_days, schedule_time, instructor, teacher_user_id, level, capacity, description, is_one_time, one_time_date } = req.body;
   if (!schedule_days || !schedule_time) {
     return err(res, 400, "수업 요일과 수업 시간을 입력해주세요.");
   }
@@ -66,7 +66,10 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
         ? req.user!.userId
         : (teacher_user_id || null);
 
-    const autoName = name || `${schedule_days} ${schedule_time}반`;
+    const isOneTime = Boolean(is_one_time);
+    const autoName = name || (isOneTime
+      ? `${one_time_date || schedule_days} ${schedule_time} 특별반`
+      : `${schedule_days} ${schedule_time}반`);
 
     let instructorName = instructor || null;
     if (effectiveTeacherId && !instructor) {
@@ -74,31 +77,36 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
       if (tUser) instructorName = tUser.name;
     }
 
-    if (effectiveTeacherId) {
-      const dup = await db.execute(sql`
-        SELECT id FROM class_groups
-        WHERE swimming_pool_id = ${poolId}
-          AND schedule_days = ${schedule_days}
-          AND schedule_time = ${schedule_time}
-          AND teacher_user_id = ${effectiveTeacherId}
-          AND is_deleted = false
-        LIMIT 1
-      `);
-      if (dup.rows.length > 0) {
-        return err(res, 409, "동일한 요일·시간·선생님으로 이미 개설된 반이 있습니다.");
-      }
-    } else {
-      const dup = await db.execute(sql`
-        SELECT id FROM class_groups
-        WHERE swimming_pool_id = ${poolId}
-          AND schedule_days = ${schedule_days}
-          AND schedule_time = ${schedule_time}
-          AND teacher_user_id IS NULL
-          AND is_deleted = false
-        LIMIT 1
-      `);
-      if (dup.rows.length > 0) {
-        return err(res, 409, "동일한 요일·시간으로 이미 개설된 반이 있습니다.");
+    // 1회성 반은 중복 검사 생략 (날짜 기반 단건 수업)
+    if (!isOneTime) {
+      if (effectiveTeacherId) {
+        const dup = await db.execute(sql`
+          SELECT id FROM class_groups
+          WHERE swimming_pool_id = ${poolId}
+            AND schedule_days = ${schedule_days}
+            AND schedule_time = ${schedule_time}
+            AND teacher_user_id = ${effectiveTeacherId}
+            AND is_one_time = false
+            AND is_deleted = false
+          LIMIT 1
+        `);
+        if (dup.rows.length > 0) {
+          return err(res, 409, "동일한 요일·시간·선생님으로 이미 개설된 반이 있습니다.");
+        }
+      } else {
+        const dup = await db.execute(sql`
+          SELECT id FROM class_groups
+          WHERE swimming_pool_id = ${poolId}
+            AND schedule_days = ${schedule_days}
+            AND schedule_time = ${schedule_time}
+            AND teacher_user_id IS NULL
+            AND is_one_time = false
+            AND is_deleted = false
+          LIMIT 1
+        `);
+        if (dup.rows.length > 0) {
+          return err(res, 409, "동일한 요일·시간으로 이미 개설된 반이 있습니다.");
+        }
       }
     }
 
@@ -114,6 +122,8 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
       level: level || null,
       capacity: capacity || null,
       description: description || null,
+      is_one_time: isOneTime,
+      one_time_date: isOneTime ? (one_time_date || null) : null,
     }).returning();
     res.status(201).json({ success: true, ...group, student_count: 0 });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }

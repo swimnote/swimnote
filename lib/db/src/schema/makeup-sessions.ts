@@ -15,6 +15,7 @@ export const makeupSessionsTable = pgTable("makeup_sessions", {
 
   absence_date:          text("absence_date").notNull(),
   absence_attendance_id: text("absence_attendance_id"),
+  absence_time:          text("absence_time"),
 
   status: text("status").notNull().default("waiting"),
 
@@ -36,6 +37,12 @@ export const makeupSessionsTable = pgTable("makeup_sessions", {
   transferred_at:              timestamp("transferred_at"),
   transferred_by:              text("transferred_by"),
   transferred_by_name:         text("transferred_by_name"),
+
+  cancelled_reason:   text("cancelled_reason"),
+  cancelled_custom:   text("cancelled_custom"),
+  cancelled_at:       timestamp("cancelled_at"),
+  cancelled_by:       text("cancelled_by"),
+  cancelled_by_name:  text("cancelled_by_name"),
 
   note:       text("note"),
   created_at: timestamp("created_at").notNull().default(sql`now()`),

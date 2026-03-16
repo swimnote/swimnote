@@ -1,8 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Platform, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
+  ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView,
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -31,8 +31,20 @@ interface SearchRecord {
   student_id: string | null; student_name: string | null;
   class_group_id: string | null; class_name: string | null;
 }
+interface MakeupSession {
+  id: string; student_id: string; student_name: string;
+  original_class_group_id: string | null; original_class_group_name: string;
+  original_teacher_id: string | null; original_teacher_name: string;
+  absence_date: string; status: string;
+}
+interface EligibleClass {
+  id: string; name: string; schedule_days: string; schedule_time: string;
+  capacity: number; current_members: number; available_slots: number;
+  instructor: string; teacher_user_id: string;
+}
+
 type AttStatus = "present" | "absent" | "late";
-type ViewMode  = "daily" | "weekly" | "monthly" | "search";
+type ViewMode  = "daily" | "weekly" | "monthly" | "search" | "makeup";
 
 const STATUS_CONFIG = {
   present: { label: "출석", color: Colors.light.present, bg: "#D1FAE5", icon: "check-circle" as const },
@@ -44,6 +56,11 @@ const SEARCH_DAY_OPTIONS = [
   { label: "최근 7일",  value: 7  },
   { label: "최근 30일", value: 30 },
   { label: "전체",      value: 0  },
+];
+const EXTINGUISH_REASONS = [
+  { key: "보강원하지않음", label: "보강 원하지 않음" },
+  { key: "무단결석",       label: "무단결석" },
+  { key: "기타",           label: "기타 (직접입력)" },
 ];
 
 // ── 날짜 유틸 ──────────────────────────────────────────────────
@@ -69,6 +86,12 @@ function formatMonthLabel(ds: string): string {
   const d = new Date(ds);
   return `${d.getFullYear()}년 ${d.getMonth()+1}월`;
 }
+function daysSince(dateStr: string): number {
+  const d = new Date(dateStr);
+  const now = new Date();
+  return Math.floor((now.getTime() - d.getTime()) / 86400000);
+}
+function todayStr(): string { return new Date().toISOString().split("T")[0]; }
 
 // ── 메인 컴포넌트 ───────────────────────────────────────────────
 export default function AttendanceScreen() {
@@ -97,6 +120,24 @@ export default function AttendanceScreen() {
   const [searchResults,   setSearchResults]   = useState<SearchRecord[]>([]);
   const [loadingSearch,   setLoadingSearch]   = useState(false);
   const [searchTriggered, setSearchTriggered] = useState(false);
+
+  // 보강관리 상태
+  const [makeupList,    setMakeupList]    = useState<MakeupSession[]>([]);
+  const [loadingMakeup, setLoadingMakeup] = useState(false);
+
+  // 보강 지정 모달
+  const [assignTarget,    setAssignTarget]    = useState<MakeupSession | null>(null);
+  const [eligibleClasses, setEligibleClasses] = useState<EligibleClass[]>([]);
+  const [loadingEligible, setLoadingEligible] = useState(false);
+  const [assignClassId,   setAssignClassId]   = useState<string>("");
+  const [assignDate,      setAssignDate]      = useState<string>("");
+  const [assigning,       setAssigning]       = useState(false);
+
+  // 결석소멸 모달
+  const [extinguishTarget, setExtinguishTarget] = useState<MakeupSession | null>(null);
+  const [extReason,        setExtReason]        = useState<string>("");
+  const [extCustom,        setExtCustom]        = useState<string>("");
+  const [extinguishing,    setExtinguishing]    = useState(false);
 
   const searchInputRef = useRef<TextInput>(null);
 
@@ -181,6 +222,81 @@ export default function AttendanceScreen() {
       setSearchResults(json.data ?? []);
     } catch (e) { console.error(e); }
     finally { setLoadingSearch(false); }
+  }
+
+  // ── 보강 대기 목록 ────────────────────────────────────────────
+  const fetchMakeup = useCallback(async () => {
+    setLoadingMakeup(true);
+    try {
+      const res  = await apiRequest(token, "/admin/makeups/pending");
+      const data = await res.json();
+      setMakeupList(Array.isArray(data) ? data : []);
+    } catch (e) { console.error(e); }
+    finally { setLoadingMakeup(false); }
+  }, [token]);
+
+  useEffect(() => {
+    if (viewMode === "makeup") fetchMakeup();
+  }, [viewMode]);
+
+  // ── 보강 지정 열기 ────────────────────────────────────────────
+  async function openAssign(mk: MakeupSession) {
+    setAssignTarget(mk);
+    setAssignClassId("");
+    setAssignDate(todayStr());
+    setLoadingEligible(true);
+    try {
+      const res = await apiRequest(token, "/admin/makeups/eligible-classes");
+      const data = await res.json();
+      const list: EligibleClass[] = Array.isArray(data) ? data : [];
+      // 같은 선생님 우선 정렬
+      list.sort((a, b) => {
+        const aMatch = a.teacher_user_id === mk.original_teacher_id ? 0 : 1;
+        const bMatch = b.teacher_user_id === mk.original_teacher_id ? 0 : 1;
+        return aMatch - bMatch;
+      });
+      setEligibleClasses(list);
+    } catch (e) { console.error(e); }
+    finally { setLoadingEligible(false); }
+  }
+
+  async function doAssign() {
+    if (!assignTarget || !assignClassId) return;
+    setAssigning(true);
+    try {
+      const res = await apiRequest(token, `/admin/makeups/${assignTarget.id}/assign`, {
+        method: "PATCH",
+        body: JSON.stringify({ class_group_id: assignClassId, assigned_date: assignDate }),
+      });
+      if (res.ok) {
+        setAssignTarget(null);
+        fetchMakeup();
+      }
+    } catch (e) { console.error(e); }
+    finally { setAssigning(false); }
+  }
+
+  // ── 결석소멸 ─────────────────────────────────────────────────
+  function openExtinguish(mk: MakeupSession) {
+    setExtinguishTarget(mk);
+    setExtReason("");
+    setExtCustom("");
+  }
+
+  async function doExtinguish() {
+    if (!extinguishTarget || !extReason) return;
+    setExtinguishing(true);
+    try {
+      const res = await apiRequest(token, `/admin/makeups/${extinguishTarget.id}/extinguish`, {
+        method: "POST",
+        body: JSON.stringify({ reason: extReason, custom: extReason === "기타" ? extCustom : undefined }),
+      });
+      if (res.ok) {
+        setExtinguishTarget(null);
+        fetchMakeup();
+      }
+    } catch (e) { console.error(e); }
+    finally { setExtinguishing(false); }
   }
 
   // ── 출결 저장 ─────────────────────────────────────────────────
@@ -269,12 +385,241 @@ export default function AttendanceScreen() {
           { key: "weekly",  label: "주간"   },
           { key: "monthly", label: "월간"   },
           { key: "search",  label: "검색"   },
+          { key: "makeup",  label: makeupList.length > 0 ? `보강(${makeupList.length})` : "보강관리" },
         ]}
         active={viewMode}
         onChange={handleTabChange}
       />
     </>
   );
+
+  // ── 보강 관리 탭 ─────────────────────────────────────────────
+  if (viewMode === "makeup") {
+    return (
+      <ScreenLayout header={header}>
+        {/* 보강 지정 모달 */}
+        <Modal visible={!!assignTarget} transparent animationType="slide" onRequestClose={() => setAssignTarget(null)}>
+          <View style={a.modalOverlay}>
+            <View style={[a.modalSheet, { backgroundColor: C.card }]}>
+              <View style={a.modalHeader}>
+                <Text style={[a.modalTitle, { color: C.text }]}>보강 반 지정</Text>
+                <Pressable onPress={() => setAssignTarget(null)}>
+                  <Feather name="x" size={22} color={C.textSecondary} />
+                </Pressable>
+              </View>
+              {assignTarget && (
+                <Text style={[a.modalSub, { color: C.textSecondary }]}>
+                  {assignTarget.student_name} · 결석일 {assignTarget.absence_date}
+                </Text>
+              )}
+              {/* 날짜 선택 */}
+              <Text style={[a.fieldLabel, { color: C.textSecondary }]}>보강 날짜</Text>
+              <View style={[a.dateInput, { borderColor: C.border, backgroundColor: C.background }]}>
+                <Feather name="calendar" size={16} color={C.textSecondary} style={{ marginRight: 8 }} />
+                <TextInput
+                  style={[{ flex: 1, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text }]}
+                  value={assignDate}
+                  onChangeText={setAssignDate}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={C.textMuted}
+                />
+              </View>
+              {/* 반 목록 */}
+              <Text style={[a.fieldLabel, { color: C.textSecondary, marginTop: 8 }]}>보강 가능 반 (정원 여유)</Text>
+              {loadingEligible ? (
+                <ActivityIndicator color={C.tint} style={{ marginTop: 16 }} />
+              ) : (
+                <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+                  {eligibleClasses.length === 0 ? (
+                    <Text style={[{ color: C.textMuted, textAlign: "center", marginTop: 24, fontFamily: "Inter_400Regular" }]}>
+                      보강 가능한 반이 없습니다
+                    </Text>
+                  ) : eligibleClasses.map(ec => {
+                    const isSame = assignTarget && ec.teacher_user_id === assignTarget.original_teacher_id;
+                    const selected = assignClassId === ec.id;
+                    return (
+                      <TouchableOpacity
+                        key={ec.id}
+                        style={[a.eligibleCard, {
+                          backgroundColor: selected ? C.tintLight : C.background,
+                          borderColor: selected ? C.tint : C.border,
+                        }]}
+                        onPress={() => setAssignClassId(ec.id)}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Text style={[a.eligibleName, { color: C.text }]}>{ec.name}</Text>
+                            {isSame && (
+                              <View style={[a.sameTag, { backgroundColor: "#DBEAFE" }]}>
+                                <Text style={{ fontSize: 10, color: "#2563EB", fontFamily: "Inter_600SemiBold" }}>담당</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={[a.eligibleSub, { color: C.textSecondary }]}>
+                            {ec.schedule_days} {ec.schedule_time} · {ec.instructor || "-"}
+                          </Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={[a.slotText, { color: ec.available_slots > 0 ? C.tint : "#EF4444" }]}>
+                            여유 {ec.available_slots}명
+                          </Text>
+                          <Text style={[{ fontSize: 11, color: C.textMuted, fontFamily: "Inter_400Regular" }]}>
+                            {ec.current_members}/{ec.capacity ?? "∞"}명
+                          </Text>
+                        </View>
+                        {selected && <Feather name="check-circle" size={20} color={C.tint} style={{ marginLeft: 8 }} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+              <Pressable
+                style={[a.confirmBtn, { backgroundColor: assignClassId ? C.tint : C.border, opacity: assigning ? 0.6 : 1 }]}
+                onPress={doAssign}
+                disabled={!assignClassId || assigning}
+              >
+                {assigning
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={a.confirmBtnText}>보강 지정</Text>
+                }
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* 결석소멸 모달 */}
+        <Modal visible={!!extinguishTarget} transparent animationType="slide" onRequestClose={() => setExtinguishTarget(null)}>
+          <View style={a.modalOverlay}>
+            <View style={[a.modalSheet, { backgroundColor: C.card }]}>
+              <View style={a.modalHeader}>
+                <Text style={[a.modalTitle, { color: C.text }]}>결석 소멸</Text>
+                <Pressable onPress={() => setExtinguishTarget(null)}>
+                  <Feather name="x" size={22} color={C.textSecondary} />
+                </Pressable>
+              </View>
+              {extinguishTarget && (
+                <Text style={[a.modalSub, { color: C.textSecondary }]}>
+                  {extinguishTarget.student_name} · 결석일 {extinguishTarget.absence_date}
+                </Text>
+              )}
+              <Text style={[a.fieldLabel, { color: C.textSecondary }]}>소멸 사유 선택</Text>
+              {EXTINGUISH_REASONS.map(r => (
+                <TouchableOpacity
+                  key={r.key}
+                  style={[a.reasonRow, {
+                    backgroundColor: extReason === r.key ? C.tintLight : C.background,
+                    borderColor: extReason === r.key ? C.tint : C.border,
+                  }]}
+                  onPress={() => setExtReason(r.key)}
+                >
+                  <View style={[a.radio, { borderColor: extReason === r.key ? C.tint : C.border }]}>
+                    {extReason === r.key && <View style={[a.radioDot, { backgroundColor: C.tint }]} />}
+                  </View>
+                  <Text style={[a.reasonLabel, { color: C.text }]}>{r.label}</Text>
+                </TouchableOpacity>
+              ))}
+              {extReason === "기타" && (
+                <TextInput
+                  style={[a.customInput, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
+                  placeholder="사유를 직접 입력하세요"
+                  placeholderTextColor={C.textMuted}
+                  value={extCustom}
+                  onChangeText={setExtCustom}
+                  multiline
+                  numberOfLines={2}
+                />
+              )}
+              <View style={[a.warnBox, { backgroundColor: "#FEF3C7" }]}>
+                <Feather name="alert-triangle" size={14} color="#D97706" />
+                <Text style={[{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", flex: 1 }]}>
+                  소멸 처리 후 보강 기회가 사라집니다. 신중히 처리하세요.
+                </Text>
+              </View>
+              <Pressable
+                style={[a.confirmBtn, { backgroundColor: extReason ? "#EF4444" : C.border, opacity: extinguishing ? 0.6 : 1 }]}
+                onPress={doExtinguish}
+                disabled={!extReason || extinguishing || (extReason === "기타" && !extCustom.trim())}
+              >
+                {extinguishing
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={a.confirmBtnText}>소멸 처리</Text>
+                }
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* 보강 대기 목록 */}
+        {loadingMakeup ? (
+          <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+        ) : (
+          <FlatList
+            data={makeupList}
+            keyExtractor={item => item.id}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10 }}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <View style={[a.makeupSummary, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
+                <Feather name="clock" size={16} color={C.tint} />
+                <Text style={[{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.tint }]}>
+                  보강 대기 {makeupList.length}명
+                </Text>
+                <Pressable style={[a.refreshBtn]} onPress={fetchMakeup}>
+                  <Feather name="refresh-cw" size={14} color={C.tint} />
+                </Pressable>
+              </View>
+            }
+            ListEmptyComponent={
+              <View style={a.empty}>
+                <Feather name="check-circle" size={40} color={C.textMuted} />
+                <Text style={[a.emptyText, { color: C.textMuted }]}>보강 대기 중인 회원이 없습니다</Text>
+              </View>
+            }
+            renderItem={({ item }) => {
+              const days = daysSince(item.absence_date);
+              return (
+                <View style={[a.mkCard, { backgroundColor: C.card, borderColor: days >= 14 ? "#FCA5A5" : C.border }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <View style={[a.avatar, { backgroundColor: C.tintLight }]}>
+                      <Text style={[a.avatarText, { color: C.tint }]}>{item.student_name?.[0] ?? "?"}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[a.memberName, { color: C.text }]}>{item.student_name}</Text>
+                      <Text style={[a.mkSub, { color: C.textSecondary }]}>
+                        {item.original_class_group_name} · {item.original_teacher_name}
+                      </Text>
+                    </View>
+                    <View style={[a.daysTag, { backgroundColor: days >= 14 ? "#FEE2E2" : "#F3F4F6" }]}>
+                      <Text style={[a.daysTagText, { color: days >= 14 ? "#EF4444" : C.textSecondary }]}>
+                        {days}일 경과
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[a.absDate, { color: C.textMuted }]}>결석일: {item.absence_date}</Text>
+                  <View style={a.mkActions}>
+                    <Pressable
+                      style={[a.mkBtn, { backgroundColor: C.tint }]}
+                      onPress={() => openAssign(item)}
+                    >
+                      <Feather name="calendar" size={14} color="#fff" />
+                      <Text style={a.mkBtnText}>보강 지정</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[a.mkBtn, { backgroundColor: "#FEE2E2", borderWidth: 1, borderColor: "#FCA5A5" }]}
+                      onPress={() => openExtinguish(item)}
+                    >
+                      <Feather name="x-circle" size={14} color="#EF4444" />
+                      <Text style={[a.mkBtnText, { color: "#EF4444" }]}>결석 소멸</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            }}
+          />
+        )}
+      </ScreenLayout>
+    );
+  }
 
   // ── 검색 모드 ─────────────────────────────────────────────────
   if (viewMode === "search") {
@@ -592,4 +937,38 @@ const a = StyleSheet.create({
   searchName:  { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   searchSub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
   resultCount: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 8 },
+
+  // 보강 관리
+  makeupSummary: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1.5, marginBottom: 4 },
+  refreshBtn:    { marginLeft: "auto" as any, padding: 4 },
+  mkCard:        { borderRadius: 14, padding: 14, borderWidth: 1.5, backgroundColor: "#fff" },
+  mkSub:         { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  absDate:       { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 8 },
+  daysTag:       { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  daysTagText:   { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  mkActions:     { flexDirection: "row", gap: 8 },
+  mkBtn:         { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  mkBtnText:     { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+
+  // 모달
+  modalOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalSheet:    { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, gap: 12, maxHeight: "85%" },
+  modalHeader:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  modalTitle:    { fontSize: 18, fontFamily: "Inter_700Bold" },
+  modalSub:      { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: -4 },
+  fieldLabel:    { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 4 },
+  dateInput:     { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 46 },
+  eligibleCard:  { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, padding: 12, marginBottom: 8, gap: 8 },
+  eligibleName:  { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  eligibleSub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  sameTag:       { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  slotText:      { fontSize: 13, fontFamily: "Inter_700Bold" },
+  confirmBtn:    { padding: 14, borderRadius: 14, alignItems: "center", marginTop: 8 },
+  confirmBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  reasonRow:     { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 12, padding: 12, marginBottom: 6 },
+  radio:         { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  radioDot:      { width: 10, height: 10, borderRadius: 5 },
+  reasonLabel:   { fontSize: 14, fontFamily: "Inter_500Medium" },
+  customInput:   { borderWidth: 1.5, borderRadius: 12, padding: 12, minHeight: 60, textAlignVertical: "top", fontSize: 14, fontFamily: "Inter_400Regular" },
+  warnBox:       { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 10 },
 });

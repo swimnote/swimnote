@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView,
+  ActivityIndicator, KeyboardAvoidingView,
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,15 +24,27 @@ export default function PoolSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const [defaultCapacity, setDefaultCapacity] = useState<string>("20");
+  const [savingCapacity,  setSavingCapacity]  = useState(false);
+  const [capacityMsg,     setCapacityMsg]     = useState("");
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await apiRequest(token, "/pools/settings");
-        if (res.ok) {
-          const data = await res.json();
+        const [settingsRes, capRes] = await Promise.all([
+          apiRequest(token, "/pools/settings"),
+          apiRequest(token, "/admin/class-settings"),
+        ]);
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
           setSettings(data);
           setForm({ name: data.name || "", name_en: data.name_en || "", address: data.address || "", phone: data.phone || "", owner_name: data.owner_name || "" });
+        }
+        if (capRes.ok) {
+          const capData = await capRes.json();
+          setDefaultCapacity(String(capData.default_capacity ?? 20));
         }
       } finally { setLoading(false); }
     })();
@@ -42,7 +54,7 @@ export default function PoolSettingsScreen() {
     if (form.name_en && !/^[a-z0-9_]+$/.test(form.name_en)) {
       setError("영문표시명은 소문자, 숫자, 언더스코어(_)만 사용할 수 있습니다."); return;
     }
-    setSaving(true); setError("");
+    setSaving(true); setError(""); setSaved(false);
     try {
       const res = await apiRequest(token, "/pools/settings", {
         method: "PUT",
@@ -52,9 +64,29 @@ export default function PoolSettingsScreen() {
       if (!res.ok) throw new Error(data.error || "저장 실패");
       setSettings(data);
       await refreshPool?.();
-      Alert.alert("완료", "수영장 정보가 저장되었습니다.");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
     } catch (err: any) { setError(err.message || "저장 중 오류"); }
     finally { setSaving(false); }
+  }
+
+  async function handleSaveCapacity() {
+    const cap = parseInt(defaultCapacity, 10);
+    if (isNaN(cap) || cap < 1 || cap > 200) {
+      setCapacityMsg("1~200 사이의 숫자를 입력하세요."); return;
+    }
+    setSavingCapacity(true); setCapacityMsg("");
+    try {
+      const res = await apiRequest(token, "/admin/class-settings", {
+        method: "PATCH",
+        body: JSON.stringify({ default_capacity: cap }),
+      });
+      if (res.ok) {
+        setCapacityMsg("저장되었습니다.");
+        setTimeout(() => setCapacityMsg(""), 3000);
+      }
+    } catch { setCapacityMsg("저장 중 오류가 발생했습니다."); }
+    finally { setSavingCapacity(false); }
   }
 
   if (loading) return <View style={[styles.root, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}><ActivityIndicator color={C.tint} /></View>;
@@ -67,7 +99,7 @@ export default function PoolSettingsScreen() {
           style={[styles.saveBtn, { backgroundColor: C.tint, opacity: saving ? 0.6 : 1 }]}
           onPress={handleSave} disabled={saving}
         >
-          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>저장</Text>}
+          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>{saved ? "저장됨 ✓" : "저장"}</Text>}
         </Pressable>
       </View>
 
@@ -130,6 +162,50 @@ export default function PoolSettingsScreen() {
           ) : null}
         </View>
 
+        {/* 반 기본 설정 */}
+        <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Feather name="users" size={16} color={C.tint} />
+            <Text style={[styles.sectionTitle, { color: C.text }]}>반 기본 설정</Text>
+          </View>
+          <Text style={[styles.hint, { color: C.textMuted }]}>
+            새 반을 만들 때 기본으로 적용되는 정원입니다. 반별로 개별 수정이 가능합니다.
+          </Text>
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>기본 정원 (명)</Text>
+            <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="users" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={defaultCapacity}
+                onChangeText={setDefaultCapacity}
+                placeholder="20"
+                placeholderTextColor={C.textMuted}
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+              <Text style={[{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted, paddingRight: 4 }]}>명</Text>
+            </View>
+          </View>
+          {capacityMsg ? (
+            <View style={[styles.msgBox, { backgroundColor: capacityMsg === "저장되었습니다." ? "#D1FAE5" : "#FEE2E2" }]}>
+              <Feather name={capacityMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
+                color={capacityMsg === "저장되었습니다." ? "#059669" : C.error} />
+              <Text style={[styles.errText, { color: capacityMsg === "저장되었습니다." ? "#059669" : C.error }]}>{capacityMsg}</Text>
+            </View>
+          ) : null}
+          <Pressable
+            style={[styles.saveBtn, { backgroundColor: C.tint, opacity: savingCapacity ? 0.6 : 1, alignSelf: "flex-start", marginTop: 4 }]}
+            onPress={handleSaveCapacity}
+            disabled={savingCapacity}
+          >
+            {savingCapacity
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={styles.saveBtnText}>정원 저장</Text>
+            }
+          </Pressable>
+        </View>
+
         {settings && (
           <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
             <Text style={[styles.sectionTitle, { color: C.text }]}>계정 상태</Text>
@@ -169,6 +245,7 @@ const styles = StyleSheet.create({
   saveBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, minWidth: 60, alignItems: "center" },
   saveBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },
+  msgBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10 },
   errText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
   card: { borderRadius: 16, padding: 18, gap: 14, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3 },
   sectionTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
