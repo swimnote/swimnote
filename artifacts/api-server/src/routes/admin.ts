@@ -1488,4 +1488,82 @@ router.get("/dashboard-stats2", requireAuth, requireRole("super_admin","pool_adm
   }
 );
 
+// ── 반 상세 현황판 API ────────────────────────────────────────────────
+router.get("/class-groups/:id/detail", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const { id } = req.params;
+      const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
+
+      // 반 + 선생님 정보
+      const cgRows = (await db.execute(sql`
+        SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
+               u.id AS teacher_id, u.name AS teacher_name
+        FROM class_groups cg
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
+        WHERE cg.id = ${id} AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
+      `)).rows as any[];
+      if (!cgRows.length) { res.status(404).json({ error: "반 없음" }); return; }
+      const cg = cgRows[0];
+
+      // 학생 목록 + 보강 여부
+      const students = (await db.execute(sql`
+        SELECT s.id, s.name, s.status,
+               EXISTS (
+                 SELECT 1 FROM makeup_sessions mk
+                 WHERE mk.student_id = s.id
+                   AND mk.swimming_pool_id = ${poolId}
+                   AND mk.status IN ('assigned','waiting')
+               ) AS has_makeup
+        FROM students s
+        WHERE s.class_group_id = ${id}
+          AND s.status NOT IN ('withdrawn','deleted')
+        ORDER BY s.name
+      `)).rows as any[];
+
+      // 출결 (보강 여부 포함)
+      const attendance = (await db.execute(sql`
+        SELECT a.student_id, s.name AS student_name, a.status,
+               EXISTS (
+                 SELECT 1 FROM makeup_sessions mk
+                 WHERE mk.student_id = a.student_id
+                   AND mk.swimming_pool_id = ${poolId}
+                   AND mk.status IN ('assigned','waiting')
+               ) AS has_makeup
+        FROM attendance a
+        LEFT JOIN students s ON s.id = a.student_id
+        WHERE a.class_group_id = ${id}
+          AND a.swimming_pool_id = ${poolId}
+          AND a.date = ${date}
+        ORDER BY s.name
+      `)).rows as any[];
+
+      // 일지
+      const diaryRows = (await db.execute(sql`
+        SELECT id, common_content, teacher_name, created_at, is_edited
+        FROM class_diaries
+        WHERE class_group_id = ${id}
+          AND swimming_pool_id = ${poolId}
+          AND lesson_date = ${date}
+          AND is_deleted = false
+        LIMIT 1
+      `)).rows as any[];
+
+      res.json({
+        class_group: {
+          id: cg.id, name: cg.name,
+          schedule_days: cg.schedule_days, schedule_time: cg.schedule_time,
+          capacity: cg.capacity,
+          teacher_id: cg.teacher_id, teacher_name: cg.teacher_name,
+        },
+        students,
+        attendance,
+        diary: diaryRows[0] ?? null,
+      });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 export default router;
