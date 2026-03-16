@@ -11,6 +11,17 @@ I prefer the AI to operate with a clear understanding of the existing system's m
 ### UI/UX Decisions
 The administrator application features a 5-tab structure (Dashboard, People, Classes, Communication, More) with additional hidden routes for detailed management. A consistent selection mode UX is implemented for bulk actions like deletion, featuring a common selection hook, a fixed action bar, and clear visual feedback for selected items. The member detail screen is a comprehensive 8-tab hub for managing individual student information, including personal details, class info, makeup lessons, parent sharing, and activity logs.
 
+**Navigation Rule (시간표 탐색 순서)**: 시간표 → 선생님 선택(TeacherPickerList) → 반 목록 → 반 현황판(ClassDetailPanel) — 1명/1개여도 항상 모든 단계 표시, 자동 스킵 금지. Alert.alert 금지 (웹뷰 미작동), 모든 확인 UI는 Modal 사용.
+
+**Shared Admin Components**:
+- `AdminWeekBoard.tsx`: 주간 시간표 보드 (셀 클릭 → 탐색)
+- `TeacherPickerList.tsx`: 가나다순 선생님 선택 목록 (props: day?, date?, time, teachers, onSelectTeacher, onBack, bottomInset?)
+- `ClassDetailPanel.tsx`: 4탭 반 현황판 (학생/출결/일지/결석)
+
+**Classes Tab** (`(admin)/classes.tsx`): AdminWeekBoard 고정 → 셀 클릭 → TeacherPickerList → 반 목록 → ClassDetailPanel. 반 등록(ClassCreateFlow), 삭제 Modal 포함. NavStep: main→teachers→classes→detail.
+
+**Teachers Tab** (`(admin)/teachers.tsx`): 탭 일간(Daily)/월간(Monthly). 일간=오늘 통계+시간대 목록, 월간=MonthlyCalendar(인라인, 날짜 점 표시) → timeslots → TeacherPickerList → 반 목록 → ClassDetailPanel. 계정 관리 모달(추가·수정·삭제·인증코드) 포함. NavStep: main→[timeslots]→teachers→classes→detail.
+
 ### Technical Implementations
 The platform is built as a pnpm workspace monorepo using TypeScript. It leverages Node.js 24, pnpm, TypeScript 5.9, Express 5 for the API server, PostgreSQL with Drizzle ORM for the database, Zod for validation, and Orval for API codegen. Esbuild is used for CJS bundling. Object storage is integrated for managing photos, with distinct album types (group and private) and corresponding access controls.
 

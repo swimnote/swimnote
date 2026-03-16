@@ -1,407 +1,366 @@
+/**
+ * (admin)/classes.tsx — 관리자 수업 탭
+ * 주간 시간표 고정 → 셀 클릭 → 선생님 선택 → 반 목록 → 반 현황판
+ * 반 등록(ClassCreateFlow) 포함
+ */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Platform,
-  Pressable, RefreshControl, StyleSheet, Text, View,
+  ActivityIndicator, Modal, Platform, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import AdminWeekBoard, { ClassGroupItem } from "@/components/admin/AdminWeekBoard";
+import TeacherPickerList, { TeacherForPicker } from "@/components/admin/TeacherPickerList";
+import ClassDetailPanel, { ClassDetail } from "@/components/admin/ClassDetailPanel";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
-import { useSelectionMode } from "@/hooks/useSelectionMode";
-import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
-
-// 탭바 높이: iOS 49, Android 56, Web 84
-const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
 
 const C = Colors.light;
+const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
 
-interface ClassGroup {
-  id: string;
-  name: string;
-  schedule_days: string;
-  schedule_time: string;
-  instructor: string | null;
-  student_count: number;
-  level: string | null;
-  capacity: number | null;
-  teacher_user_id: string | null;
-  is_deleted?: boolean;
+function todayDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+function parseStartTime(t: string) { return t.split(/[-~]/)[0].trim(); }
+
+interface Teacher {
+  id: string; name: string; phone: string; position: string; is_activated: boolean;
+}
+interface AttRecord { student_id: string; status: string; class_group_id: string; }
+interface DiaryRec { id: string; class_group_id: string; }
+
+type NavStep =
+  | { step: "main" }
+  | { step: "teachers"; day: string; time: string }
+  | { step: "classes"; day: string; time: string; teacherId: string }
+  | { step: "detail"; day: string; time: string; teacherId: string; classId: string };
 
 export default function ClassesScreen() {
-  const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const [groups, setGroups] = useState<ClassGroup[]>([]);
+  const { token } = useAuth();
+
+  const [classGroups, setClassGroups] = useState<ClassGroupItem[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [attendanceMap, setAttendanceMap] = useState<Record<string, AttRecord[]>>({});
+  const [diarySet, setDiarySet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
+
+  const [nav, setNav] = useState<NavStep>({ step: "main" });
+  const [classDetail, setClassDetail] = useState<ClassDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailDate, setDetailDate] = useState(todayDateStr());
+
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
 
-  const sel = useSelectionMode();
-  const visibleIds = groups.map(g => g.id);
-
-  const load = useCallback(async () => {
+  // ── 데이터 로드
+  const loadAll = useCallback(async () => {
     try {
-      const res = await apiRequest(token, "/class-groups");
-      if (res.ok) {
-        const data = await res.json();
-        setGroups(Array.isArray(data) ? data.filter((g: ClassGroup) => !g.is_deleted) : []);
+      const today = todayDateStr();
+      const [cgRes, tRes, attRes, diaryRes] = await Promise.all([
+        apiRequest(token, "/class-groups"),
+        apiRequest(token, "/teachers"),
+        apiRequest(token, `/attendance?date=${today}`),
+        apiRequest(token, `/diary?date=${today}`),
+      ]);
+      if (cgRes.ok) setClassGroups((await cgRes.json()).filter((g: any) => !g.is_deleted));
+      if (tRes.ok) setTeachers(await tRes.json());
+      if (attRes.ok) {
+        const data: AttRecord[] = await attRes.json();
+        const map: Record<string, AttRecord[]> = {};
+        data.forEach(a => { if (!map[a.class_group_id]) map[a.class_group_id] = []; map[a.class_group_id].push(a); });
+        setAttendanceMap(map);
       }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); setRefreshing(false); }
+      if (diaryRes.ok) {
+        const data: DiaryRec[] = await diaryRes.json();
+        setDiarySet(new Set(data.map(d => d.class_group_id)));
+      }
+    } finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
-  async function deleteIds(ids: string[]) {
-    if (ids.length === 0) return;
-    setDeleting(true);
+  async function fetchClassDetail(classId: string) {
+    setDetailLoading(true);
+    const today = todayDateStr();
+    setDetailDate(today);
     try {
-      console.log(`[admin][deleteClass] selectedCount=${ids.length}`, ids);
-      const results = await Promise.allSettled(
-        ids.map(id => apiRequest(token, `/class-groups/${id}`, { method: "DELETE" })
-          .then(r => ({ id, ok: r.ok }))
-        )
-      );
-      const succeeded = results
-        .filter((r): r is PromiseFulfilledResult<{ id: string; ok: boolean }> => r.status === "fulfilled" && r.value.ok)
-        .map(r => r.value.id);
-      const failed = ids.length - succeeded.length;
-
-      setGroups(prev => prev.filter(g => !succeeded.includes(g.id)));
-      sel.exitSelectionMode();
-      console.log(`[admin][deleteClass] class soft deleted success: ${succeeded.join(", ")}`);
-      console.log(`[admin][deleteClass] UI refresh complete`);
-
-      if (failed > 0) Alert.alert("일부 실패", `${failed}개 삭제에 실패했습니다.`);
-    } catch (e) {
-      console.error(e);
-      Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
-    } finally { setDeleting(false); }
+      const res = await apiRequest(token, `/admin/class-groups/${classId}/detail?date=${today}`);
+      if (res.ok) setClassDetail(await res.json());
+    } finally { setDetailLoading(false); }
   }
 
-  function confirmDelete(ids: string[]) {
-    if (ids.length === 0) return;
-    const isSingle = ids.length === 1;
-    const target = isSingle
-      ? groups.find(g => g.id === ids[0])?.name || "반"
-      : `${ids.length}개 반`;
+  // ── 탐색 핸들러
+  function onCellPress(day: string, time: string) { setNav({ step: "teachers", day, time }); }
 
-    Alert.alert(
-      "반 삭제",
-      `선택한 반을 삭제하면 소속 회원은 삭제되지 않고 미배정 상태로 변경됩니다.\n선생님·출결·스케줄·학부모 화면에도 즉시 반영됩니다.\n\n"${target}"을 삭제하시겠습니까?`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "삭제", style: "destructive",
-          onPress: () => deleteIds(ids),
-        },
-      ]
+  function onSelectTeacher(teacherId: string) {
+    if (nav.step !== "teachers") return;
+    setNav({ step: "classes", day: nav.day, time: nav.time, teacherId });
+  }
+
+  function onSelectClass(classId: string) {
+    if (nav.step !== "classes") return;
+    setClassDetail(null);
+    setNav({ step: "detail", day: nav.day, time: nav.time, teacherId: nav.teacherId, classId });
+    fetchClassDetail(classId);
+  }
+
+  function goBack() {
+    if (nav.step === "detail") { const { day, time, teacherId } = nav; setNav({ step: "classes", day, time, teacherId }); }
+    else if (nav.step === "classes") { const { day, time } = nav; setNav({ step: "teachers", day, time }); }
+    else if (nav.step === "teachers") { setNav({ step: "main" }); }
+  }
+
+  // ── 선생님 목록 for picker
+  const teachersForPicker = useMemo((): TeacherForPicker[] => {
+    if (nav.step !== "teachers") return [];
+    const { day, time } = nav;
+    const slotGroups = classGroups.filter(g =>
+      g.schedule_days.split(",").map(d => d.trim()).includes(day) &&
+      parseStartTime(g.schedule_time) === time
     );
+    const ids = [...new Set(slotGroups.map(g => g.teacher_user_id).filter(Boolean))] as string[];
+    return ids.map(id => {
+      const t = teachers.find(x => x.id === id);
+      if (!t) return null;
+      const tgs = slotGroups.filter(g => g.teacher_user_id === id);
+      return {
+        id: t.id, name: t.name, position: t.position, classCount: tgs.length,
+        uncheckedAtt: tgs.filter(g => (attendanceMap[g.id]?.length ?? 0) < g.student_count).length,
+        unwrittenDiary: tgs.filter(g => !diarySet.has(g.id)).length,
+      };
+    }).filter(Boolean) as TeacherForPicker[];
+  }, [nav, classGroups, teachers, attendanceMap, diarySet]);
+
+  // ── 반 목록 for list view
+  const classesForList = useMemo(() => {
+    if (nav.step !== "classes") return [];
+    const { day, time, teacherId } = nav;
+    return classGroups.filter(g =>
+      g.schedule_days.split(",").map(d => d.trim()).includes(day) &&
+      parseStartTime(g.schedule_time) === time &&
+      g.teacher_user_id === teacherId
+    );
+  }, [nav, classGroups]);
+
+  // ── 반 삭제
+  async function confirmDeleteClass() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const res = await apiRequest(token, `/class-groups/${deleteTarget.id}`, { method: "DELETE" });
+    setDeleting(false); setDeleteTarget(null);
+    if (res.ok) { setClassGroups(prev => prev.filter(g => g.id !== deleteTarget.id)); setNav({ step: "main" }); }
   }
 
-  function handleSingleDelete(id: string) {
-    console.log(`[admin][deleteClass] click classId=${id}`);
-    confirmDelete([id]);
-  }
+  const crumbTeacher = (nav.step === "classes" || nav.step === "detail")
+    ? teachers.find(t => t.id === (nav as any).teacherId)?.name ?? "선생님" : "";
 
-  function handleBulkDelete() {
-    const ids = Array.from(sel.selectedIds);
-    console.log(`[admin][deleteClass] click classId=${ids.join(",")}`);
-    confirmDelete(ids);
-  }
+  const headerTitle = nav.step === "main" ? "수업"
+    : nav.step === "teachers" ? `${nav.day}요일 ${nav.time}`
+    : nav.step === "classes" ? crumbTeacher
+    : (classDetail?.class_group.name ?? "반 현황판");
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
-      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={s.title}>수업</Text>
-        <View style={s.headerRight}>
-          <Pressable style={[s.makeupBtn]} onPress={() => router.push("/(admin)/makeups")}>
-            <Feather name="rotate-ccw" size={15} color="#7C3AED" />
-            <Text style={s.makeupBtnTxt}>보강</Text>
-          </Pressable>
-          <Pressable
-            style={[s.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
-            onPress={sel.toggleSelectionMode}
-          >
-            <Feather name="check-square" size={18} color={sel.selectionMode ? C.tint : C.textSecondary} />
-            <Text style={[s.selBtnText, sel.selectionMode && { color: C.tint }]}>
-              {sel.selectionMode ? "취소" : "선택"}
-            </Text>
-          </Pressable>
-          {!sel.selectionMode && (
-            <Pressable style={[s.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowCreate(true)}>
-              <Feather name="plus" size={16} color="#fff" />
-              <Text style={s.addBtnText}>반 등록</Text>
+      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+          {nav.step !== "main" && (
+            <Pressable onPress={goBack} hitSlop={8}>
+              <Feather name="arrow-left" size={20} color={C.tint} />
+            </Pressable>
+          )}
+          <Text style={[s.title, { color: C.text }]} numberOfLines={1}>{headerTitle}</Text>
+        </View>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {nav.step === "main" && (
+            <>
+              <Pressable style={[s.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => {}}>
+                <Feather name="rotate-ccw" size={14} color="#7C3AED" />
+                <Text style={[s.btnTxt, { color: "#7C3AED" }]}>보강</Text>
+              </Pressable>
+              <Pressable style={[s.btn, { backgroundColor: C.tint }]} onPress={() => setShowCreate(true)}>
+                <Feather name="plus" size={14} color="#fff" />
+                <Text style={[s.btnTxt, { color: "#fff" }]}>반 등록</Text>
+              </Pressable>
+            </>
+          )}
+          {nav.step === "detail" && classDetail && (
+            <Pressable style={[s.btn, { backgroundColor: "#FEE2E2" }]}
+              onPress={() => setDeleteTarget({ id: classDetail.class_group.id, name: classDetail.class_group.name })}>
+              <Feather name="trash-2" size={14} color="#EF4444" />
+              <Text style={[s.btnTxt, { color: "#EF4444" }]}>삭제</Text>
             </Pressable>
           )}
         </View>
       </View>
 
+      {/* 브레드크럼 */}
+      {nav.step !== "main" && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          style={[s.breadcrumb, { borderBottomColor: C.border }]}
+          contentContainerStyle={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 20, paddingVertical: 8 }}>
+          <Pressable onPress={() => setNav({ step: "main" })}><Text style={[s.crumb, { color: C.tint }]}>주간보드</Text></Pressable>
+          {(nav.step === "teachers" || nav.step === "classes" || nav.step === "detail") && (
+            <>
+              <Feather name="chevron-right" size={12} color={C.textMuted} />
+              <Pressable onPress={() => nav.step !== "teachers" && setNav({ step: "teachers", day: (nav as any).day, time: (nav as any).time })}>
+                <Text style={[s.crumb, { color: nav.step === "teachers" ? C.text : C.tint, fontWeight: nav.step === "teachers" ? "700" : "500" }]}>
+                  {(nav as any).day}요일 {(nav as any).time}
+                </Text>
+              </Pressable>
+            </>
+          )}
+          {(nav.step === "classes" || nav.step === "detail") && (
+            <>
+              <Feather name="chevron-right" size={12} color={C.textMuted} />
+              <Pressable onPress={() => nav.step !== "classes" && setNav({ step: "classes", day: (nav as any).day, time: (nav as any).time, teacherId: (nav as any).teacherId })}>
+                <Text style={[s.crumb, { color: nav.step === "classes" ? C.text : C.tint, fontWeight: nav.step === "classes" ? "700" : "500" }]}>{crumbTeacher}</Text>
+              </Pressable>
+            </>
+          )}
+          {nav.step === "detail" && classDetail && (
+            <>
+              <Feather name="chevron-right" size={12} color={C.textMuted} />
+              <Text style={[s.crumb, { color: C.text, fontWeight: "700" }]}>{classDetail.class_group.name}</Text>
+            </>
+          )}
+        </ScrollView>
+      )}
+
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
       ) : (
-        <FlatList
-          data={groups}
-          keyExtractor={item => item.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-          contentContainerStyle={{
-            paddingHorizontal: 20,
-            paddingBottom: sel.selectionMode ? insets.bottom + 90 : insets.bottom + 120,
-            paddingTop: 8, gap: 12,
-          }}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Feather name="layers" size={48} color={C.textMuted} />
-              <Text style={[s.emptyTitle, { color: C.textMuted }]}>등록된 반이 없습니다</Text>
-              <Text style={[s.emptySub, { color: C.textMuted }]}>반 등록 버튼을 눌러 첫 번째 반을 만들어보세요</Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <ClassGroupCard
-              item={item}
-              selectionMode={sel.selectionMode}
-              isSelected={sel.isSelected(item.id)}
-              onToggle={() => sel.toggleItem(item.id)}
-              onDelete={() => handleSingleDelete(item.id)}
-              isDeleting={deleting}
-              onAssign={() => router.push(`/class-assign?classId=${item.id}` as any)}
-            />
+        <>
+          {/* ── 주간 보드 */}
+          {nav.step === "main" && (
+            <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAll(); }} />}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_H + 20 }}>
+              <View style={[s.hintRow, { backgroundColor: C.tintLight }]}>
+                <Feather name="info" size={13} color={C.tint} />
+                <Text style={[s.hintTxt, { color: C.tint }]}>요일·시간 셀을 눌러 선생님·반을 탐색하세요</Text>
+              </View>
+              <AdminWeekBoard classGroups={classGroups} onCellPress={onCellPress} />
+              {classGroups.length === 0 && (
+                <View style={s.emptyBox}>
+                  <Feather name="layers" size={48} color={C.textMuted} />
+                  <Text style={[s.emptyTitle, { color: C.textMuted }]}>등록된 반이 없습니다</Text>
+                  <Text style={[s.emptySub, { color: C.textMuted }]}>상단 '반 등록'을 눌러 첫 번째 반을 만들어보세요</Text>
+                </View>
+              )}
+            </ScrollView>
           )}
-        />
+
+          {/* ── 선생님 선택 */}
+          {nav.step === "teachers" && (
+            <TeacherPickerList day={nav.day} time={nav.time} teachers={teachersForPicker}
+              onSelectTeacher={onSelectTeacher} onBack={goBack} bottomInset={insets.bottom + TAB_BAR_H + 20} />
+          )}
+
+          {/* ── 반 목록 */}
+          {nav.step === "classes" && (
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + TAB_BAR_H + 20, gap: 8 }} showsVerticalScrollIndicator={false}>
+              <Text style={[s.sectionHead, { color: C.text }]}>반 선택</Text>
+              <Text style={[s.sectionSub, { color: C.textMuted }]}>{nav.day}요일 {nav.time} · {crumbTeacher}</Text>
+              {classesForList.length === 0 ? (
+                <View style={s.emptyBox}>
+                  <Feather name="layers" size={36} color={C.textMuted} />
+                  <Text style={[s.emptyTitle, { color: C.textMuted }]}>해당 시간에 반이 없습니다</Text>
+                </View>
+              ) : classesForList.map(g => {
+                const att = attendanceMap[g.id] || [];
+                const present = att.filter(a => a.status === "present").length;
+                const absent = att.filter(a => a.status === "absent").length;
+                const hasDiary = diarySet.has(g.id);
+                return (
+                  <Pressable key={g.id} style={[s.classRow, { backgroundColor: C.card }]} onPress={() => onSelectClass(g.id)}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                        <Text style={[s.className, { color: C.text }]}>{g.name}</Text>
+                        <View style={[s.diaryBadge, { backgroundColor: hasDiary ? "#D1FAE5" : "#FEF3C7" }]}>
+                          <Text style={[s.diaryBadgeTxt, { color: hasDiary ? "#059669" : "#D97706" }]}>{hasDiary ? "일지 완료" : "일지 미작성"}</Text>
+                        </View>
+                      </View>
+                      <View style={{ flexDirection: "row", gap: 12 }}>
+                        <Text style={[s.classStat, { color: C.textSecondary }]}>학생 {g.student_count}명</Text>
+                        <Text style={[s.classStat, { color: "#059669" }]}>출석 {present}</Text>
+                        <Text style={[s.classStat, { color: "#EF4444" }]}>결석 {absent}</Text>
+                      </View>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={C.textMuted} />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          {/* ── 반 현황판 */}
+          {nav.step === "detail" && (
+            <ClassDetailPanel detail={classDetail} loading={detailLoading} date={detailDate}
+              onBack={goBack} bottomInset={insets.bottom + TAB_BAR_H + 20} />
+          )}
+        </>
       )}
 
-      {/* 선택모드 액션바 — 1개 선택 시 회원 반배정 버튼 포함 */}
-      {sel.selectionMode && sel.selectedCount === 1 ? (
-        <SingleClassActionBar
-          selectedId={Array.from(sel.selectedIds)[0]}
-          deleting={deleting}
-          insets={insets}
-          onAssign={(classId) => {
-            sel.exitSelectionMode();
-            router.push(`/class-assign?classId=${classId}`);
-          }}
-          onDelete={() => handleBulkDelete()}
-          onExit={sel.exitSelectionMode}
-        />
-      ) : (
-        <SelectionActionBar
-          visible={sel.selectionMode}
-          selectedCount={sel.selectedCount}
-          totalCount={groups.length}
-          isAllSelected={sel.isAllSelected(visibleIds)}
-          deleting={deleting}
-          onSelectAll={() => sel.selectAll(visibleIds)}
-          onClearSelection={sel.clearSelection}
-          onDeleteSelected={handleBulkDelete}
-          onExit={sel.exitSelectionMode}
-        />
-      )}
-
+      {/* 반 등록 모달 */}
       {showCreate && (
-        <ClassCreateFlow
-          token={token}
-          role="pool_admin"
-          onSuccess={(newGroup) => {
-            setGroups(prev => [newGroup, ...prev]);
-            setShowCreate(false);
-          }}
-          onClose={() => setShowCreate(false)}
-        />
+        <ClassCreateFlow token={token} role="pool_admin"
+          onSuccess={(newGroup) => { setClassGroups(prev => [newGroup, ...prev]); setShowCreate(false); }}
+          onClose={() => setShowCreate(false)} />
       )}
+
+      {/* 삭제 확인 모달 */}
+      <Modal visible={!!deleteTarget} animationType="fade" transparent presentationStyle="overFullScreen">
+        <View style={s.overlay}>
+          <View style={[s.confirmCard, { backgroundColor: C.card }]}>
+            <Text style={[s.confirmTitle, { color: C.text }]}>반 삭제</Text>
+            <Text style={[s.confirmMsg, { color: C.textSecondary }]}>
+              {deleteTarget?.name}을 삭제하면{"\n"}소속 학생은 미배정 상태로 변경됩니다.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+              <Pressable style={[s.confirmBtn, { borderColor: C.border, borderWidth: 1.5 }]} onPress={() => setDeleteTarget(null)}>
+                <Text style={[s.confirmBtnTxt, { color: C.textSecondary }]}>취소</Text>
+              </Pressable>
+              <Pressable style={[s.confirmBtn, { backgroundColor: "#EF4444" }]} onPress={confirmDeleteClass} disabled={deleting}>
+                {deleting ? <ActivityIndicator size={16} color="#fff" /> : <Text style={[s.confirmBtnTxt, { color: "#fff" }]}>삭제</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
-  );
-}
-
-function ClassGroupCard({
-  item, selectionMode, isSelected, onToggle, onDelete, isDeleting, onAssign,
-}: {
-  item: ClassGroup;
-  selectionMode: boolean;
-  isSelected: boolean;
-  onToggle: () => void;
-  onDelete: () => void;
-  isDeleting: boolean;
-  onAssign: () => void;
-}) {
-  const days = item.schedule_days.split(",").map(d => d.trim()).join("·");
-
-  return (
-    <Pressable
-      style={[cd.card, { shadowColor: C.shadow }, isSelected && { borderWidth: 2, borderColor: C.tint }]}
-      onPress={selectionMode ? onToggle : onAssign}
-    >
-      <View style={cd.top}>
-        {/* 선택모드 체크박스 */}
-        {selectionMode && (
-          <Pressable onPress={onToggle} style={cd.checkWrap}>
-            <View style={[cd.checkbox, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
-              {isSelected && <Feather name="check" size={12} color="#fff" />}
-            </View>
-          </Pressable>
-        )}
-        <View style={cd.icon}>
-          <Feather name="layers" size={20} color="#7C3AED" />
-        </View>
-        <View style={{ flex: 1, gap: 3 }}>
-          <Text style={[cd.name, { color: C.text }]}>{item.name}</Text>
-          <View style={cd.metaRow}>
-            <Feather name="calendar" size={12} color={C.textMuted} />
-            <Text style={[cd.meta, { color: C.textSecondary }]}>{days}요일</Text>
-          </View>
-          <View style={cd.metaRow}>
-            <Feather name="clock" size={12} color={C.textMuted} />
-            <Text style={[cd.meta, { color: C.textSecondary }]}>{item.schedule_time}</Text>
-          </View>
-          {item.instructor && (
-            <View style={cd.metaRow}>
-              <Feather name="user" size={12} color={C.textMuted} />
-              <Text style={[cd.meta, { color: C.textSecondary }]}>{item.instructor}</Text>
-            </View>
-          )}
-        </View>
-        <View style={{ alignItems: "flex-end", gap: 6 }}>
-          <View style={[cd.countBadge, { backgroundColor: C.tintLight }]}>
-            <Text style={[cd.countText, { color: C.tint }]}>{item.student_count}명</Text>
-          </View>
-          {item.level && (
-            <View style={[cd.levelBadge]}>
-              <Text style={cd.levelText}>{item.level}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* 하단: 회원관리 + 삭제 (선택모드 아닐 때만) */}
-      {!selectionMode && (
-        <View style={cd.bottom}>
-          <Pressable style={cd.manageBtn} onPress={onAssign}>
-            <Feather name="users" size={13} color={C.tint} />
-            <Text style={[cd.manageBtnText, { color: C.tint }]}>회원관리</Text>
-            <Feather name="chevron-right" size={13} color={C.tint} />
-          </Pressable>
-          <Pressable
-            style={[cd.deleteBtn, isDeleting && { opacity: 0.5 }]}
-            onPress={!isDeleting ? onDelete : undefined}
-            disabled={isDeleting}
-          >
-            <Feather name="trash-2" size={14} color={C.error} />
-            <Text style={[cd.deleteBtnText, { color: C.error }]}>삭제</Text>
-          </Pressable>
-        </View>
-      )}
-    </Pressable>
   );
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
-  title: { fontSize: 24, fontFamily: "Inter_700Bold", color: C.text },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  selBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
-  selBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
-  addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  makeupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: "#EDE9FE", borderWidth: 1, borderColor: "#DDD6FE" },
-  makeupBtnTxt: { fontSize: 13, fontWeight: "600", color: "#7C3AED" },
-  empty: { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
-});
-
-const cd = StyleSheet.create({
-  card: { backgroundColor: C.card, borderRadius: 18, padding: 16, gap: 14, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3, borderWidth: 1.5, borderColor: "transparent" },
-  top: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  checkWrap: { justifyContent: "center", paddingRight: 2, paddingTop: 2 },
-  checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: C.border, backgroundColor: C.background, alignItems: "center", justifyContent: "center" },
-  icon: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#F3E8FF", alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  meta: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  countBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  countText: { fontSize: 13, fontFamily: "Inter_700Bold" },
-  levelBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#EDE9FE" },
-  levelText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#7C3AED" },
-  bottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  capacityChip: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1 },
-  capacityText: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  manageBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: "#EDE9FE" },
-  manageBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  deleteBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: "#FEE2E2" },
-  deleteBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-});
-
-// ── 1개 반 선택 시 전용 액션바 ───────────────────────────────────────
-function SingleClassActionBar({
-  selectedId, deleting, insets, onAssign, onDelete, onExit,
-}: {
-  selectedId: string;
-  deleting: boolean;
-  insets: { bottom: number };
-  onAssign: (classId: string) => void;
-  onDelete: () => void;
-  onExit: () => void;
-}) {
-  // 탭바 위에 위치
-  const bottomPos = insets.bottom + TAB_BAR_HEIGHT;
-
-  return (
-    <View style={[sa.bar, { bottom: bottomPos }]}>
-      <View style={sa.row}>
-        <Pressable style={[sa.assignBtn, { backgroundColor: C.tint }]} onPress={() => onAssign(selectedId)}>
-          <Feather name="users" size={15} color="#fff" />
-          <Text style={sa.assignText}>회원 반배정</Text>
-        </Pressable>
-        <Pressable
-          style={[sa.deleteBtn, deleting && { opacity: 0.5 }]}
-          onPress={!deleting ? onDelete : undefined}
-          disabled={deleting}
-        >
-          {deleting
-            ? <ActivityIndicator size={14} color={C.error} />
-            : <Feather name="trash-2" size={14} color={C.error} />
-          }
-          <Text style={sa.deleteText}>{deleting ? "삭제 중..." : "삭제"}</Text>
-        </Pressable>
-        <Pressable style={sa.cancelBtn} onPress={onExit}>
-          <Feather name="x" size={16} color={C.textSecondary} />
-          <Text style={sa.cancelText}>취소</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-const sa = StyleSheet.create({
-  bar: {
-    position: "absolute", left: 0, right: 0,
-    zIndex: 1000,
-    backgroundColor: C.card,
-    borderTopWidth: 1, borderTopColor: C.border,
-    paddingTop: 12, paddingBottom: 12, paddingHorizontal: 16,
-    shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 30,
-  },
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
-  assignBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 12, borderRadius: 12,
-  },
-  assignText: { color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" },
-  deleteBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12,
-    backgroundColor: "#FEE2E2",
-  },
-  deleteText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.error },
-  cancelBtn: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 12, paddingVertical: 12, borderRadius: 12,
-    backgroundColor: C.background,
-  },
-  cancelText: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 10 },
+  title: { fontSize: 22, fontFamily: "Inter_700Bold", flex: 1 },
+  btn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
+  btnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  breadcrumb: { borderBottomWidth: 1 },
+  crumb: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  hintRow: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginVertical: 10, padding: 10, borderRadius: 10 },
+  hintTxt: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+  sectionHead: { fontSize: 17, fontFamily: "Inter_700Bold", marginBottom: 2 },
+  sectionSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 8 },
+  classRow: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 },
+  className: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  classStat: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  diaryBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  diaryBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  emptyBox: { alignItems: "center", paddingVertical: 60, gap: 10 },
+  emptyTitle: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  emptySub: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center" },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" },
+  confirmCard: { borderRadius: 20, padding: 24, gap: 8, width: "80%", maxWidth: 320 },
+  confirmTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
+  confirmMsg: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  confirmBtn: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  confirmBtnTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
