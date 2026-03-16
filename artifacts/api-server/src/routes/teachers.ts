@@ -31,7 +31,7 @@ router.get("/teachers", requireAuth, requireRole("pool_admin", "super_admin"),
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const teachers = await db.execute(sql`
-        SELECT id, name, email, phone, is_activated, is_admin_self_teacher, created_at
+        SELECT id, name, email, phone, position, is_activated, is_admin_self_teacher, created_at
         FROM users
         WHERE swimming_pool_id = ${poolId}
           AND role = 'teacher'
@@ -188,6 +188,32 @@ router.patch("/teachers/:id/password", requireAuth, requireRole("pool_admin"),
 
       const passwordHash = await hashPassword(password);
       await db.execute(sql`UPDATE users SET password_hash = ${passwordHash}, updated_at = now() WHERE id = ${req.params.id}`);
+      res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 선생님 정보 수정 (이름/연락처/직급) ───────────────────────────────
+router.patch("/teachers/:id", requireAuth, requireRole("pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { name, phone, position } = req.body;
+      const poolId = await getAdminPoolId(req.user!.userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      const teacher = await db.execute(sql`
+        SELECT id FROM users WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId} AND role = 'teacher'
+      `);
+      if (!teacher.rows.length) { res.status(404).json({ error: "선생님을 찾을 수 없습니다." }); return; }
+
+      await db.execute(sql`
+        UPDATE users SET
+          name     = COALESCE(${name?.trim() || null}, name),
+          phone    = COALESCE(${phone?.trim() || null}, phone),
+          position = COALESCE(${position ?? null}, position),
+          updated_at = now()
+        WHERE id = ${req.params.id}
+      `);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "서버 오류" }); }
   }

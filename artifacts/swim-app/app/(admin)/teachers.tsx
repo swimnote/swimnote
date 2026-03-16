@@ -14,7 +14,7 @@ const C = Colors.light;
 
 // ── 타입 ──────────────────────────────────────────────────────
 interface Teacher {
-  id: string; name: string; email: string; phone: string;
+  id: string; name: string; email: string; phone: string; position: string;
   is_activated: boolean; is_admin_self_teacher: boolean; created_at: string;
 }
 
@@ -183,6 +183,14 @@ export default function TeachersScreen() {
   const [loadingCode, setLoadingCode] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", is_admin_self_teacher: false });
 
+  // 선생님 상세 모달
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editPosition, setEditPosition] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Teacher | null>(null);
+
   // 스케줄
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [attendanceMap, setAttendanceMap] = useState<Record<string, AttendanceRecord[]>>({});
@@ -267,15 +275,35 @@ export default function TeachersScreen() {
     } finally { setLoadingCode(null); }
   }
 
+  function openTeacherDetail(t: Teacher) {
+    setSelectedTeacher(t);
+    setEditName(t.name);
+    setEditPhone(t.phone || "");
+    setEditPosition(t.position || "");
+  }
+
+  async function handleSaveTeacher() {
+    if (!selectedTeacher) return;
+    setEditSaving(true);
+    try {
+      const res = await apiRequest(token, `/teachers/${selectedTeacher.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: editName, phone: editPhone, position: editPosition }),
+      });
+      if (res.ok) { fetchAll(); setSelectedTeacher(null); }
+    } finally { setEditSaving(false); }
+  }
+
   async function handleDeleteTeacher(id: string, name: string) {
-    Alert.alert("선생님 삭제", `${name} 계정을 삭제하시겠습니까?`, [
-      { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: async () => {
-        const res = await apiRequest(token, `/teachers/${id}`, { method: "DELETE" });
-        if (res.ok) fetchAll();
-        else Alert.alert("오류", "삭제에 실패했습니다.");
-      }},
-    ]);
+    const t = teachers.find(x => x.id === id);
+    if (t) setDeleteTarget(t);
+  }
+
+  async function confirmDeleteTeacher() {
+    if (!deleteTarget) return;
+    const res = await apiRequest(token, `/teachers/${deleteTarget.id}`, { method: "DELETE" });
+    setDeleteTarget(null);
+    if (res.ok) { fetchAll(); setSelectedTeacher(null); }
   }
 
   // ── 스케줄 계산 ────────────────────────────────────────────
@@ -354,7 +382,7 @@ export default function TeachersScreen() {
               </View>
             ) : teachers.map(t => (
               <View key={t.id} style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
-                <View style={styles.cardTop}>
+                <Pressable style={styles.cardTop} onPress={() => openTeacherDetail(t)}>
                   <View style={[styles.avatar, { backgroundColor: t.is_admin_self_teacher ? "#7C3AED15" : C.tintLight }]}>
                     <Feather name="user" size={20} color={t.is_admin_self_teacher ? "#7C3AED" : C.tint} />
                   </View>
@@ -369,13 +397,17 @@ export default function TeachersScreen() {
                     </View>
                     <Text style={[styles.teacherEmail, { color: C.textSecondary }]}>{t.email}</Text>
                     {t.phone && <Text style={[styles.teacherPhone, { color: C.textMuted }]}>{t.phone}</Text>}
+                    {t.position && <Text style={[styles.teacherPhone, { color: C.tint, fontWeight: "600" }]}>{t.position}</Text>}
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: t.is_activated ? "#D1FAE5" : "#FEF3C7" }]}>
-                    <Text style={[styles.statusText, { color: t.is_activated ? "#059669" : "#D97706" }]}>
-                      {t.is_activated ? "활성" : "인증 대기"}
-                    </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View style={[styles.statusBadge, { backgroundColor: t.is_activated ? "#D1FAE5" : "#FEF3C7" }]}>
+                      <Text style={[styles.statusText, { color: t.is_activated ? "#059669" : "#D97706" }]}>
+                        {t.is_activated ? "활성" : "인증 대기"}
+                      </Text>
+                    </View>
+                    <Feather name="chevron-right" size={16} color={C.textMuted} />
                   </View>
-                </View>
+                </Pressable>
                 {!t.is_activated && (
                   <View style={[styles.codeSection, { borderTopColor: C.border }]}>
                     {codeVisible[t.id] ? (
@@ -584,6 +616,93 @@ export default function TeachersScreen() {
             <Pressable style={[styles.modalBtn, { backgroundColor: C.tint }]} onPress={() => setNewTeacher(null)}>
               <Text style={styles.modalBtnText}>확인</Text>
             </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 선생님 상세 모달 ──────────────────────────────────── */}
+      <Modal visible={!!selectedTeacher} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={[styles.overlay, { justifyContent: "flex-end" }]}>
+          <View style={[styles.sheet, { backgroundColor: C.card, paddingBottom: 40 }]}>
+            <View style={styles.sheetHandle} />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={[styles.sheetTitle, { color: C.text }]}>선생님 정보</Text>
+              <Pressable onPress={() => setSelectedTeacher(null)}>
+                <Feather name="x" size={22} color={C.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: C.textSecondary }]}>이름</Text>
+              <TextInput
+                style={[styles.input, { borderColor: C.border, backgroundColor: C.bg, color: C.text }]}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="이름"
+                placeholderTextColor={C.textMuted}
+              />
+            </View>
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: C.textSecondary }]}>연락처</Text>
+              <TextInput
+                style={[styles.input, { borderColor: C.border, backgroundColor: C.bg, color: C.text }]}
+                value={editPhone}
+                onChangeText={setEditPhone}
+                placeholder="010-0000-0000"
+                placeholderTextColor={C.textMuted}
+                keyboardType="phone-pad"
+              />
+            </View>
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: C.textSecondary }]}>직급</Text>
+              <TextInput
+                style={[styles.input, { borderColor: C.border, backgroundColor: C.bg, color: C.text }]}
+                value={editPosition}
+                onChangeText={setEditPosition}
+                placeholder="예: 수석코치, 보조강사"
+                placeholderTextColor={C.textMuted}
+              />
+            </View>
+
+            <View style={[styles.field, { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 12 }]}>
+              <Text style={[styles.label, { color: C.textMuted }]}>이메일: {selectedTeacher?.email}</Text>
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.cancelBtn, { borderColor: "#EF4444" }]}
+                onPress={() => { const t = selectedTeacher; setSelectedTeacher(null); setDeleteTarget(t); }}
+              >
+                <Text style={[styles.cancelText, { color: "#EF4444" }]}>삭제</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.submitBtn, { backgroundColor: editSaving ? C.textMuted : C.tint }]}
+                onPress={handleSaveTeacher}
+                disabled={editSaving}
+              >
+                <Text style={styles.submitText}>{editSaving ? "저장 중…" : "저장"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 삭제 확인 모달 ──────────────────────────────────── */}
+      <Modal visible={!!deleteTarget} animationType="fade" transparent presentationStyle="overFullScreen">
+        <View style={[styles.overlay, { justifyContent: "center" }]}>
+          <View style={[styles.sheet, { backgroundColor: C.card, marginHorizontal: 24, borderRadius: 20 }]}>
+            <Text style={[styles.sheetTitle, { color: C.text, textAlign: "center" }]}>선생님 삭제</Text>
+            <Text style={[styles.label, { color: C.textSecondary, textAlign: "center" }]}>
+              {deleteTarget?.name} 계정을 삭제하시겠습니까?{"\n"}이 작업은 되돌릴 수 없습니다.
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.cancelBtn, { borderColor: C.border }]} onPress={() => setDeleteTarget(null)}>
+                <Text style={[styles.cancelText, { color: C.textSecondary }]}>취소</Text>
+              </Pressable>
+              <Pressable style={[styles.submitBtn, { backgroundColor: "#EF4444" }]} onPress={confirmDeleteTeacher}>
+                <Text style={styles.submitText}>삭제</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
