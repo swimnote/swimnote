@@ -185,8 +185,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    await AsyncStorage.multiRemove(["auth_token", "auth_kind", "auth_admin", "auth_parent"]);
-    setToken(null); setKind(null); setAdminUser(null); setParentAccount(null); setPool(null);
+    await AsyncStorage.multiRemove([
+      "auth_token",
+      "auth_kind",
+      "auth_admin",
+      "auth_parent",
+      "parent_selected_student_id",
+      "brand_data",
+    ]);
+    setToken(null);
+    setKind(null);
+    setAdminUser(null);
+    setParentAccount(null);
+    setPool(null);
   }
 
   return (

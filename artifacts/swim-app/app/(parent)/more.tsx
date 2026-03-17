@@ -35,17 +35,7 @@ export default function ParentMoreScreen() {
   const { selectedStudent, students } = useParent();
 
   async function handleFullLogout() {
-    if (Platform.OS === "web") {
-      try {
-        ["auth_token", "auth_kind", "auth_admin", "auth_parent", "parent_selected_student_id"]
-          .forEach(k => localStorage.removeItem(k));
-        sessionStorage.clear();
-      } catch { }
-      (window as any).location.replace("/");
-      return;
-    }
     await logout();
-    router.replace("/");
   }
 
   return (

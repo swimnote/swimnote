@@ -41,7 +41,6 @@ export default function OrgRoleSelectScreen() {
 
   async function handleLogout() {
     await logout();
-    router.replace("/");
   }
 
   return (

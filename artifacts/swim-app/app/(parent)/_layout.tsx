@@ -4,6 +4,7 @@ import React from "react";
 import { Platform } from "react-native";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
+import { useAuth } from "@/context/AuthContext";
 import { ParentProvider } from "@/context/ParentContext";
 
 const C = Colors.light;
@@ -67,6 +68,12 @@ function ParentTabs() {
 }
 
 export default function ParentLayout() {
+  const { kind, isLoading } = useAuth();
+
+  if (isLoading || kind !== "parent") {
+    return null;
+  }
+
   return (
     <ParentProvider>
       <ParentTabs />

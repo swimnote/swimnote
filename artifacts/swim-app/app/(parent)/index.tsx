@@ -159,24 +159,13 @@ export default function ParentHomeScreen() {
   const [currentLevel, setCurrentLevel] = useState<string | null>(null);
 
   async function handleFullLogout() {
-    if (Platform.OS === "web") {
-      try {
-        ["auth_token", "auth_kind", "auth_admin", "auth_parent", "parent_selected_student_id"]
-          .forEach(k => localStorage.removeItem(k));
-        sessionStorage.clear();
-      } catch { }
-      (window as any).location.replace("/");
-      return;
-    }
     await logout();
-    router.replace("/");
   }
 
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== "web") {
         const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-          handleFullLogout();
           return true;
         });
         return () => sub.remove();
