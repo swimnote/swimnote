@@ -64,7 +64,7 @@ export function ParentProvider({ children }: { children: React.ReactNode }) {
     } else if (!kind) {
       setStudents([]);
       setSelectedId(null);
-      setLoading(true);
+      setLoading(false);
     }
   }, [kind, fetchStudents]);
 
@@ -76,7 +76,7 @@ export function ParentProvider({ children }: { children: React.ReactNode }) {
   const reset = useCallback(async () => {
     setStudents([]);
     setSelectedId(null);
-    setLoading(true);
+    setLoading(false);
     try { await AsyncStorage.removeItem(STORAGE_KEY); } catch { }
   }, []);
 

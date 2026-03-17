@@ -151,7 +151,7 @@ function ChildSelectorModal({ visible, onClose }: { visible: boolean; onClose: (
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const { token, parentAccount, logout } = useAuth();
-  const { students, selectedStudent, loading: ctxLoading, refresh, reset: resetParent } = useParent();
+  const { students, selectedStudent, loading: ctxLoading, refresh } = useParent();
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -159,9 +159,10 @@ export default function ParentHomeScreen() {
   const [currentLevel, setCurrentLevel] = useState<string | null>(null);
 
   async function handleFullLogout() {
-    await resetParent();
-    router.replace("/");
     await logout();
+    if (Platform.OS === "web") {
+      (window as any).location.replace("/");
+    }
   }
 
   useFocusEffect(

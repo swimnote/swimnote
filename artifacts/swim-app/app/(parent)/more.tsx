@@ -32,12 +32,13 @@ function MenuItem({ icon, label, sub, onPress, danger = false }: {
 export default function ParentMoreScreen() {
   const insets = useSafeAreaInsets();
   const { parentAccount, logout } = useAuth();
-  const { selectedStudent, students, reset: resetParent } = useParent();
+  const { selectedStudent, students } = useParent();
 
   async function handleFullLogout() {
-    await resetParent();
-    router.replace("/");
     await logout();
+    if (Platform.OS === "web") {
+      (window as any).location.replace("/");
+    }
   }
 
   return (
