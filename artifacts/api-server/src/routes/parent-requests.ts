@@ -50,18 +50,30 @@ router.get("/pools/public-search", async (req, res) => {
 // ─── 공개: 학부모 수영장 가입 요청 ───────────────────────────────────
 router.post("/auth/pool-join-request", async (req, res) => {
   try {
-    const { swimming_pool_id, parent_name, phone, child_name, child_birth_year, children_requested } = req.body;
+    const { swimming_pool_id, parent_name, phone, child_name, child_birth_year, children_requested, loginId, password } = req.body;
     if (!swimming_pool_id || !parent_name?.trim() || !phone?.trim()) {
       res.status(400).json({ success: false, message: "수영장, 이름, 전화번호는 필수입니다." }); return;
     }
     if (!child_name?.trim() && (!children_requested || children_requested.length === 0)) {
       res.status(400).json({ success: false, message: "자녀 정보는 필수입니다." }); return;
     }
+    const lid = loginId?.trim() || null;
+    const pw = password?.trim() || null;
+    if (!lid) { res.status(400).json({ success: false, message: "아이디는 필수입니다." }); return; }
+    if (lid.length < 3) { res.status(400).json({ success: false, message: "아이디는 3자 이상이어야 합니다." }); return; }
+    if (!pw) { res.status(400).json({ success: false, message: "비밀번호는 필수입니다." }); return; }
+    if (pw.length < 4) { res.status(400).json({ success: false, message: "비밀번호는 4자리 이상이어야 합니다." }); return; }
 
     const [pool] = await db.select({ id: swimmingPoolsTable.id })
       .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) {
       res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다." }); return;
+    }
+
+    const dupIdInAccounts = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
+    const dupIdInRequests = await db.execute(sql`SELECT id FROM parent_pool_requests WHERE login_id = ${lid} AND request_status = 'pending' LIMIT 1`);
+    if (dupIdInAccounts.rows.length > 0 || dupIdInRequests.rows.length > 0) {
+      res.status(409).json({ success: false, message: "이미 사용 중인 아이디입니다." }); return;
     }
 
     const dup = await db.execute(sql`
@@ -80,11 +92,13 @@ router.post("/auth/pool-join-request", async (req, res) => {
       ? children_requested
       : [{ childName: child_name.trim(), childBirthYear: child_birth_year }];
 
+    const pwHash = await hashPassword(pw);
+
     await db.execute(sql`
-      INSERT INTO parent_pool_requests (id, swimming_pool_id, parent_name, phone, child_name, child_birth_year, children_requested, request_status, requested_at)
+      INSERT INTO parent_pool_requests (id, swimming_pool_id, parent_name, phone, child_name, child_birth_year, children_requested, login_id, password_hash, request_status, requested_at)
       VALUES (${id}, ${swimming_pool_id}, ${parent_name.trim()}, ${phone.trim()},
               ${child_name?.trim() || null}, ${child_birth_year || null},
-              ${JSON.stringify(childrenData)}, 'pending', NOW())
+              ${JSON.stringify(childrenData)}, ${lid}, ${pwHash}, 'pending', NOW())
     `);
 
     res.status(201).json({ success: true, data: { id, message: "가입 요청이 접수되었습니다. 수영장 관리자 승인 후 이용 가능합니다." } });
@@ -172,9 +186,11 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
 
         let parentAccountId = dupAcc.rows[0]?.id as string | undefined;
         if (!parentAccountId) {
+          const finalPinHash = request.password_hash || pinHash;
+          const finalLoginId = request.login_id || null;
           await db.execute(sql`
-            INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, created_at, updated_at)
-            VALUES (${paId}, ${me.swimming_pool_id}, ${request.phone}, ${pinHash}, ${request.parent_name}, NOW(), NOW())
+            INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, created_at, updated_at)
+            VALUES (${paId}, ${me.swimming_pool_id}, ${request.phone}, ${finalPinHash}, ${request.parent_name}, ${finalLoginId}, NOW(), NOW())
           `);
           parentAccountId = paId;
         }

@@ -14,18 +14,18 @@ const C = Colors.light;
 export default function ParentLoginScreen() {
   const { parentLogin } = useAuth();
   const insets = useSafeAreaInsets();
-  const [phone, setPhone] = useState("");
-  const [pin, setPin] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function handleLogin() {
-    const cleanPhone = phone.replace(/\D/g, "");
-    if (cleanPhone.length < 10) { setError("올바른 전화번호를 입력해주세요."); return; }
-    if (pin.length < 4) { setError("PIN은 4자리 이상이어야 합니다."); return; }
+    if (!identifier.trim()) { setError("아이디 또는 전화번호를 입력해주세요."); return; }
+    if (password.length < 4) { setError("비밀번호는 4자리 이상이어야 합니다."); return; }
     setLoading(true); setError("");
     try {
-      await parentLogin(phone.trim(), pin);
+      await parentLogin(identifier.trim(), password);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "로그인에 실패했습니다.");
     } finally { setLoading(false); }
@@ -41,11 +41,11 @@ export default function ParentLoginScreen() {
 
         <View style={styles.header}>
           <View style={[styles.iconBox, { backgroundColor: "#D1FAE5" }]}>
-            <Feather name="smartphone" size={30} color={C.success} />
+            <Feather name="user" size={30} color={C.success} />
           </View>
           <Text style={[styles.title, { color: C.text }]}>학부모 로그인</Text>
           <Text style={[styles.sub, { color: C.textSecondary }]}>
-            수영장 관리자가 등록한{"\n"}전화번호와 PIN으로 로그인하세요
+            가입 시 설정한{"\n"}아이디(또는 전화번호)와 비밀번호로 로그인하세요
           </Text>
         </View>
 
@@ -58,34 +58,39 @@ export default function ParentLoginScreen() {
           )}
 
           <View style={styles.field}>
-            <Text style={[styles.label, { color: C.textSecondary }]}>전화번호</Text>
+            <Text style={[styles.label, { color: C.textSecondary }]}>아이디 또는 전화번호</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="phone" size={16} color={C.textMuted} />
+              <Feather name="user" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="010-0000-0000"
+                value={identifier}
+                onChangeText={v => { setIdentifier(v); setError(""); }}
+                placeholder="아이디 또는 010-0000-0000"
                 placeholderTextColor={C.textMuted}
-                keyboardType="phone-pad"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
               />
             </View>
           </View>
 
           <View style={styles.field}>
-            <Text style={[styles.label, { color: C.textSecondary }]}>PIN 번호</Text>
+            <Text style={[styles.label, { color: C.textSecondary }]}>비밀번호</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
               <Feather name="lock" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
-                value={pin}
-                onChangeText={setPin}
-                placeholder="관리자가 알려준 PIN"
+                value={password}
+                onChangeText={v => { setPassword(v); setError(""); }}
+                placeholder="비밀번호 입력"
                 placeholderTextColor={C.textMuted}
-                secureTextEntry
-                keyboardType="number-pad"
-                maxLength={8}
+                secureTextEntry={!showPw}
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
               />
+              <Pressable onPress={() => setShowPw(v => !v)} hitSlop={10}>
+                <Feather name={showPw ? "eye-off" : "eye"} size={16} color={C.textMuted} />
+              </Pressable>
             </View>
           </View>
 
@@ -139,8 +144,6 @@ const styles = StyleSheet.create({
   btn: { height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   btnContent: { flexDirection: "row", alignItems: "center", gap: 8 },
   btnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 14, borderRadius: 12, borderWidth: 1 },
-  infoText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
   joinRequestBtn: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderRadius: 16, borderWidth: 1.5 },
   joinIconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   joinBtnTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },

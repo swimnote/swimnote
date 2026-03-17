@@ -138,22 +138,28 @@ router.post("/activate-teacher", async (req, res) => {
 
 // ── 학부모 로그인 ─────────────────────────────────────────────────────
 router.post("/parent-login", async (req, res) => {
-  const { phone, pin } = req.body;
-  if (!phone || !pin) return err(res, 400, "전화번호와 PIN을 입력해주세요.");
+  const { identifier, loginId, phone, pin, password } = req.body;
+  const id = (identifier || loginId || phone || "").trim();
+  const pw = (password || pin || "").trim();
+  if (!id || !pw) return err(res, 400, "아이디와 비밀번호를 입력해주세요.");
   try {
-    const accounts = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.phone, phone));
-    if (accounts.length === 0) return err(res, 401, "등록되지 않은 전화번호입니다.");
-    let matched = null;
+    // login_id 기반 조회 먼저, 없으면 phone 기반 조회
+    const byLoginId = await db.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
+    const byPhone = byLoginId.rows.length === 0
+      ? await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.phone, id))
+      : [];
+    const accounts: any[] = byLoginId.rows.length > 0 ? byLoginId.rows : byPhone;
+    if (accounts.length === 0) return err(res, 401, "등록되지 않은 아이디 또는 전화번호입니다.");
+    let matched: any = null;
     for (const acc of accounts) {
-      const valid = await comparePassword(pin, acc.pin_hash);
+      const valid = await comparePassword(pw, acc.pin_hash);
       if (valid) { matched = acc; break; }
     }
-    if (!matched) return err(res, 401, "PIN이 올바르지 않습니다.");
+    if (!matched) return err(res, 401, "비밀번호가 올바르지 않습니다.");
     const token = signToken({ userId: matched.id, role: "parent_account", poolId: matched.swimming_pool_id });
     res.json({
-      success: true,
-      token,
-      parent: { id: matched.id, name: matched.name, phone: matched.phone, swimming_pool_id: matched.swimming_pool_id },
+      success: true, token,
+      parent: { id: matched.id, name: matched.name, phone: matched.phone, swimming_pool_id: matched.swimming_pool_id, login_id: matched.login_id },
     });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -183,9 +189,12 @@ router.get("/pools", async (req, res) => {
 
 // ── 학부모 가입 ───────────────────────────────────────────────────────
 router.post("/parent-register", async (req, res) => {
-  const { name, phone, pin, swimming_pool_id, child_names, memo } = req.body;
-  if (!name || !phone || !pin || !swimming_pool_id) return err(res, 400, "이름, 전화번호, PIN, 수영장은 필수입니다.");
-  if (pin.length < 4) return err(res, 400, "PIN은 4자리 이상이어야 합니다.");
+  const { name, phone, pin, loginId, password, swimming_pool_id, child_names, memo } = req.body;
+  const pw = (password || pin || "").trim();
+  const lid = loginId?.trim() || null;
+  if (!name || !phone || !pw || !swimming_pool_id) return err(res, 400, "이름, 전화번호, 비밀번호, 수영장은 필수입니다.");
+  if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
+  if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
   const names: string[] = Array.isArray(child_names)
     ? child_names.map((n: string) => n.trim()).filter(Boolean) : [];
   if (names.length === 0) return err(res, 400, "자녀 이름을 1명 이상 입력해주세요.");
@@ -194,14 +203,22 @@ router.post("/parent-register", async (req, res) => {
       .where(and(eq(swimmingPoolsTable.id, swimming_pool_id), eq(swimmingPoolsTable.approval_status, "approved"))).limit(1);
     if (!pool) return err(res, 400, "유효하지 않은 수영장입니다.");
 
+    if (lid) {
+      const dupId = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
+      if ((dupId.rows as any[]).length > 0) return err(res, 409, "이미 사용 중인 아이디입니다.");
+    }
+
     const existing = await db.select().from(parentAccountsTable)
       .where(and(eq(parentAccountsTable.phone, phone), eq(parentAccountsTable.swimming_pool_id, swimming_pool_id)));
     if (existing.length > 0) return err(res, 400, "이미 해당 수영장에 등록된 전화번호입니다.");
 
-    const pin_hash = await hashPassword(pin);
+    const pin_hash = await hashPassword(pw);
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const [pa] = await db.insert(parentAccountsTable)
-      .values({ id: parentId, swimming_pool_id, phone, pin_hash, name }).returning();
+    await db.execute(sql`
+      INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, created_at, updated_at)
+      VALUES (${parentId}, ${swimming_pool_id}, ${phone}, ${pin_hash}, ${name}, ${lid}, now(), now())
+    `);
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
 
     const reqId = `srr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.insert(studentRegistrationRequestsTable).values({
@@ -211,9 +228,8 @@ router.post("/parent-register", async (req, res) => {
 
     const token = signToken({ userId: pa.id, role: "parent_account", poolId: pa.swimming_pool_id });
     res.status(201).json({
-      success: true,
-      token,
-      parent: { id: pa.id, name: pa.name, phone: pa.phone, swimming_pool_id: pa.swimming_pool_id, pool_name: pool.name },
+      success: true, token,
+      parent: { id: pa.id, name: pa.name, phone: pa.phone, login_id: pa.login_id, swimming_pool_id: pa.swimming_pool_id, pool_name: pool.name },
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
@@ -283,23 +299,28 @@ router.post("/unified-login", async (req, res) => {
       res.json({ success: true, token, kind: "admin", user: safeUser }); return;
     }
 
-    // 2) parent_accounts 테이블
-    const [parent] = await db.select().from(parentAccountsTable)
-      .where(eq(parentAccountsTable.phone, identifier.trim())).limit(1);
+    // 2) parent_accounts 테이블 (login_id 먼저, 없으면 phone)
+    const parentByLoginId = await db.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${identifier.trim()} LIMIT 1`);
+    let parentRow: any = parentByLoginId.rows[0] ?? null;
+    if (!parentRow) {
+      const [byPhone] = await db.select().from(parentAccountsTable)
+        .where(eq(parentAccountsTable.phone, identifier.trim())).limit(1);
+      parentRow = byPhone ?? null;
+    }
 
-    if (parent) {
-      const valid = await comparePassword(password, parent.pin_hash);
+    if (parentRow) {
+      const valid = await comparePassword(password, parentRow.pin_hash);
       if (!valid) {
         res.status(401).json({ success: false, error: "비밀번호가 일치하지 않습니다.", error_code: "wrong_password" }); return;
       }
       let poolName: string | null = null;
       try {
         const [pool] = await db.select({ name: swimmingPoolsTable.name })
-          .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, parent.swimming_pool_id)).limit(1);
+          .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, parentRow.swimming_pool_id)).limit(1);
         poolName = pool?.name ?? null;
       } catch {}
-      const token = signToken({ userId: parent.id, role: "parent_account", poolId: parent.swimming_pool_id });
-      res.json({ success: true, token, kind: "parent", parent: { id: parent.id, name: parent.name, phone: parent.phone, swimming_pool_id: parent.swimming_pool_id, pool_name: poolName } }); return;
+      const token = signToken({ userId: parentRow.id, role: "parent_account", poolId: parentRow.swimming_pool_id });
+      res.json({ success: true, token, kind: "parent", parent: { id: parentRow.id, name: parentRow.name, phone: parentRow.phone, login_id: parentRow.login_id, swimming_pool_id: parentRow.swimming_pool_id, pool_name: poolName } }); return;
     }
 
     // 계정 없음
@@ -410,9 +431,12 @@ router.get("/parent-invite/verify", async (req, res) => {
 
 // ── 학부모 초대코드로 가입 (즉시 ACTIVE) ────────────────────────────────
 router.post("/parent-invite/join", async (req, res) => {
-  const { code, pin } = req.body;
-  if (!code || !pin) return err(res, 400, "코드와 PIN이 필요합니다.");
-  if (pin.length < 4) return err(res, 400, "PIN은 4자리 이상이어야 합니다.");
+  const { code, pin, loginId, password } = req.body;
+  const pw = (password || pin || "").trim();
+  const lid = loginId?.trim() || null;
+  if (!code || !pw) return err(res, 400, "코드와 비밀번호가 필요합니다.");
+  if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
+  if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
   try {
     const rows = await db.execute(sql`SELECT * FROM parent_invite_codes WHERE code = ${code.trim().toUpperCase()} LIMIT 1`);
     const invite = rows.rows[0] as any;
@@ -422,15 +446,20 @@ router.post("/parent-invite/join", async (req, res) => {
       return res.status(410).json({ success: false, error: "만료된 코드입니다.", error_code: "code_expired" });
     }
 
+    if (lid) {
+      const dupId = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
+      if ((dupId.rows as any[]).length > 0) return err(res, 409, "이미 사용 중인 아이디입니다.");
+    }
+
     // parent_account 생성
     const existing = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${invite.phone} AND swimming_pool_id = ${invite.swimming_pool_id} LIMIT 1`);
     if ((existing.rows as any[]).length > 0) return err(res, 409, "이미 이 수영장에 가입된 계정이 있습니다.");
 
-    const pinHash = await hashPassword(pin);
+    const pinHash = await hashPassword(pw);
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.execute(sql`
-      INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, created_at, updated_at)
-      VALUES (${parentId}, ${invite.swimming_pool_id}, ${invite.phone}, ${pinHash}, ${invite.parent_name}, now(), now())
+      INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, created_at, updated_at)
+      VALUES (${parentId}, ${invite.swimming_pool_id}, ${invite.phone}, ${pinHash}, ${invite.parent_name}, ${lid}, now(), now())
     `);
 
     // 코드 사용 처리

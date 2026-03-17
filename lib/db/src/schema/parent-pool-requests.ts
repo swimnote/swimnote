@@ -17,6 +17,8 @@ export const parentPoolRequestsTable = pgTable("parent_pool_requests", {
   child_name: text("child_name"),
   child_birth_year: integer("child_birth_year"),
   children_requested: jsonb("children_requested").default([]),
+  login_id: text("login_id"),
+  password_hash: text("password_hash"),
 });
 
 export const insertParentPoolRequestSchema = createInsertSchema(parentPoolRequestsTable).omit({

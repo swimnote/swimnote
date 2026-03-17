@@ -1,8 +1,5 @@
 /**
  * 학부모 수영장 가입 요청 화면
- * - 수영장 이름 검색
- * - 원하는 수영장 선택
- * - 이름/전화번호 입력 후 가입 요청 제출
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -18,50 +15,51 @@ const C = Colors.light;
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
 
 interface PoolResult { id: string; name: string; address: string | null; }
-
 type Step = "search" | "form" | "done";
-
 interface Child { childName: string; childBirthYear: number | null; }
 
 export default function PoolJoinRequestScreen() {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>("search");
 
-  // 검색 단계
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PoolResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedPool, setSelectedPool] = useState<PoolResult | null>(null);
 
-  // 폼 단계
   const [parentName, setParentName] = useState("");
   const [phone, setPhone] = useState("");
+  const [loginId, setLoginId] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [children, setChildren] = useState<Child[]>([{ childName: "", childBirthYear: null }]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   async function handleSearch() {
     if (!query.trim()) return;
-    setSearching(true);
-    setError("");
+    setSearching(true); setError("");
     try {
       const res = await fetch(`${API_BASE}/api/pools/public-search?name=${encodeURIComponent(query)}`);
       const data = await res.json();
       if (data.success) setResults(data.data);
       else setError("검색 중 오류가 발생했습니다.");
-    } catch {
-      setError("네트워크 오류가 발생했습니다.");
-    } finally { setSearching(false); }
+    } catch { setError("네트워크 오류가 발생했습니다."); }
+    finally { setSearching(false); }
   }
 
   function handleSelectPool(pool: PoolResult) {
-    setSelectedPool(pool);
-    setStep("form");
-    setError("");
+    setSelectedPool(pool); setStep("form"); setError("");
   }
 
   async function handleSubmit() {
     if (!parentName.trim() || !phone.trim()) { setError("이름과 전화번호를 입력해주세요."); return; }
+    if (!loginId.trim()) { setError("아이디를 입력해주세요."); return; }
+    if (loginId.trim().length < 3) { setError("아이디는 3자 이상이어야 합니다."); return; }
+    if (!password) { setError("비밀번호를 입력해주세요."); return; }
+    if (password.length < 4) { setError("비밀번호는 4자리 이상이어야 합니다."); return; }
+    if (password !== passwordConfirm) { setError("비밀번호가 일치하지 않습니다."); return; }
     const validChildren = children.filter(c => c.childName.trim());
     if (validChildren.length === 0) { setError("최소 1명의 자녀 정보를 입력해주세요."); return; }
     if (!selectedPool) return;
@@ -74,15 +72,16 @@ export default function PoolJoinRequestScreen() {
           swimming_pool_id: selectedPool.id,
           parent_name: parentName.trim(),
           phone: phone.trim(),
+          loginId: loginId.trim(),
+          password,
           children_requested: validChildren,
         }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.message || "오류가 발생했습니다."); return; }
       setStep("done");
-    } catch {
-      setError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-    } finally { setSubmitting(false); }
+    } catch { setError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요."); }
+    finally { setSubmitting(false); }
   }
 
   return (
@@ -129,8 +128,7 @@ export default function PoolJoinRequestScreen() {
             <Feather name="search" size={18} color={C.textMuted} />
             <TextInput
               style={[styles.searchInput, { color: C.text }]}
-              value={query}
-              onChangeText={setQuery}
+              value={query} onChangeText={setQuery}
               placeholder="예: 토이키즈, 아쿠아스타..."
               placeholderTextColor={C.textMuted}
               returnKeyType="search"
@@ -145,12 +143,12 @@ export default function PoolJoinRequestScreen() {
             )}
           </View>
 
-          {error ? (
+          {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
               <Feather name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
-          ) : null}
+          )}
 
           {results.length > 0 ? (
             <View style={{ gap: 8 }}>
@@ -184,7 +182,6 @@ export default function PoolJoinRequestScreen() {
       {/* ── 폼 단계 ───────────────────────────────────────────── */}
       {step === "form" && selectedPool && (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
-          {/* 선택된 수영장 */}
           <View style={[styles.selectedPool, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
             <View style={[styles.poolIcon, { backgroundColor: "#fff" }]}>
               <Feather name="droplet" size={18} color={C.tint} />
@@ -201,14 +198,15 @@ export default function PoolJoinRequestScreen() {
           <Text style={[styles.sectionTitle, { color: C.text }]}>학부모 정보를 입력하세요</Text>
           <Text style={[styles.sectionSub, { color: C.textSecondary }]}>수영장 관리자가 확인 후 승인 처리합니다</Text>
 
-          {error ? (
+          {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
               <Feather name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
-          ) : null}
+          )}
 
           <View style={{ gap: 14 }}>
+            {/* 이름 */}
             <View style={{ gap: 6 }}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>학부모 이름 *</Text>
               <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
@@ -220,6 +218,8 @@ export default function PoolJoinRequestScreen() {
                 />
               </View>
             </View>
+
+            {/* 전화번호 */}
             <View style={{ gap: 6 }}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>전화번호 *</Text>
               <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
@@ -232,15 +232,60 @@ export default function PoolJoinRequestScreen() {
                 />
               </View>
             </View>
-            
+
+            {/* 아이디 */}
+            <View style={{ gap: 6 }}>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디 * (로그인에 사용)</Text>
+              <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
+                <Feather name="at-sign" size={16} color={C.textMuted} />
+                <TextInput
+                  style={[styles.textInput, { color: C.text }]}
+                  value={loginId} onChangeText={setLoginId}
+                  placeholder="영문/숫자 3자 이상" placeholderTextColor={C.textMuted}
+                  autoCapitalize="none" autoCorrect={false}
+                />
+              </View>
+            </View>
+
+            {/* 비밀번호 */}
+            <View style={{ gap: 6 }}>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 * (4자리 이상)</Text>
+              <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
+                <Feather name="lock" size={16} color={C.textMuted} />
+                <TextInput
+                  style={[styles.textInput, { color: C.text }]}
+                  value={password} onChangeText={setPassword}
+                  placeholder="비밀번호 설정" placeholderTextColor={C.textMuted}
+                  secureTextEntry={!showPw}
+                />
+                <Pressable onPress={() => setShowPw(v => !v)} hitSlop={10}>
+                  <Feather name={showPw ? "eye-off" : "eye"} size={16} color={C.textMuted} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* 비밀번호 확인 */}
+            <View style={{ gap: 6 }}>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 확인 *</Text>
+              <View style={[styles.inputRow, { borderColor: passwordConfirm && password !== passwordConfirm ? C.error : C.border, backgroundColor: C.card }]}>
+                <Feather name="lock" size={16} color={C.textMuted} />
+                <TextInput
+                  style={[styles.textInput, { color: C.text }]}
+                  value={passwordConfirm} onChangeText={setPasswordConfirm}
+                  placeholder="비밀번호 재입력" placeholderTextColor={C.textMuted}
+                  secureTextEntry={!showPw}
+                />
+              </View>
+              {!!passwordConfirm && password !== passwordConfirm && (
+                <Text style={{ color: C.error, fontSize: 12, fontFamily: "Inter_400Regular" }}>비밀번호가 일치하지 않습니다</Text>
+              )}
+            </View>
+
             {/* 자녀 정보 */}
-            <View style={{ gap: 8, marginTop: 8 }}>
+            <View style={{ gap: 8, marginTop: 4 }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>자녀 정보 *</Text>
-                <Pressable
-                  onPress={() => setChildren([...children, { childName: "", childBirthYear: null }])}
-                  style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-                >
+                <Pressable onPress={() => setChildren([...children, { childName: "", childBirthYear: null }])}>
                   <Text style={[styles.fieldLabel, { color: C.tint }]}>+ 추가</Text>
                 </Pressable>
               </View>
@@ -277,7 +322,7 @@ export default function PoolJoinRequestScreen() {
             <Feather name="info" size={14} color="#D97706" />
             <Text style={[styles.noticeText, { color: "#92400E" }]}>
               가입 요청 후 수영장 관리자가 승인하면{"\n"}
-              SMS로 안내 메시지가 발송됩니다.{"\n"}
+              설정한 아이디/비밀번호로 로그인 가능합니다.{"\n"}
               승인 전까지는 앱 이용이 제한됩니다.
             </Text>
           </View>
@@ -305,8 +350,8 @@ export default function PoolJoinRequestScreen() {
           <Text style={[styles.doneSub, { color: C.textSecondary }]}>
             {selectedPool?.name} 수영장에{"\n"}
             가입 요청을 보냈습니다.{"\n\n"}
-            관리자 승인 후 이용 가능하며{"\n"}
-            승인 시 문자로 안내드립니다.
+            관리자 승인 후{"\n"}
+            아이디 <Text style={{ fontFamily: "Inter_700Bold", color: C.text }}>{loginId}</Text>로 로그인할 수 있습니다.
           </Text>
           <Pressable
             style={[styles.doneBtn, { backgroundColor: C.tint }]}

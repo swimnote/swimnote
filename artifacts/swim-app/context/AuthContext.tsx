@@ -60,7 +60,7 @@ interface AuthContextType {
   isLoading: boolean;
   unifiedLogin: (identifier: string, password: string) => Promise<void>;
   adminLogin: (email: string, password: string) => Promise<void>;
-  parentLogin: (phone: string, pin: string) => Promise<void>;
+  parentLogin: (identifier: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshPool: () => Promise<void>;
 }
@@ -167,10 +167,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data.user.swimming_pool_id) await fetchPool(data.token);
   }
 
-  async function parentLogin(phone: string, pin: string) {
+  async function parentLogin(identifier: string, password: string) {
     const res = await fetch(`${API_BASE}/auth/parent-login`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, pin }),
+      body: JSON.stringify({ identifier, password }),
     });
     const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "로그인에 실패했습니다.");

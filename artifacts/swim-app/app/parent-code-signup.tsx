@@ -20,16 +20,18 @@ type InviteInfo = {
 
 export default function ParentCodeSignupScreen() {
   const insets = useSafeAreaInsets();
-  const { setSession } = useAuth() as any;
-  const pinRef = useRef<TextInput>(null);
-  const pin2Ref = useRef<TextInput>(null);
+  const pwRef = useRef<TextInput>(null);
+  const pw2Ref = useRef<TextInput>(null);
 
-  const [step, setStep] = useState<"code" | "confirm" | "pin" | "done">("code");
+  const [step, setStep] = useState<"code" | "confirm" | "account" | "done">("code");
   const [code, setCode] = useState("");
   const [invite, setInvite] = useState<InviteInfo | null>(null);
-  const [pin, setPin] = useState("");
-  const [pin2, setPin2] = useState("");
-  const [showPin, setShowPin] = useState(false);
+
+  const [loginId, setLoginId] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -46,14 +48,16 @@ export default function ParentCodeSignupScreen() {
   }
 
   async function joinWithCode() {
-    if (!pin || pin.length < 4) { setError("PIN은 4자리 이상이어야 합니다."); return; }
-    if (pin !== pin2) { setError("PIN이 일치하지 않습니다."); return; }
+    if (!loginId.trim()) { setError("아이디를 입력해주세요."); return; }
+    if (loginId.trim().length < 3) { setError("아이디는 3자 이상이어야 합니다."); return; }
+    if (!password || password.length < 4) { setError("비밀번호는 4자리 이상이어야 합니다."); return; }
+    if (password !== passwordConfirm) { setError("비밀번호가 일치하지 않습니다."); return; }
     setLoading(true); setError("");
     try {
       const res = await fetch(`${API_BASE}/api/auth/parent-invite/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim().toUpperCase(), pin }),
+        body: JSON.stringify({ code: code.trim().toUpperCase(), loginId: loginId.trim(), password }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
@@ -72,7 +76,9 @@ export default function ParentCodeSignupScreen() {
           <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
             <Text style={{ fontFamily: "Inter_600SemiBold", color: C.text }}>{invite?.pool_name}</Text>
             {" "}에 가입되었습니다.{"\n"}
-            학부모 로그인 화면에서 로그인해주세요.
+            아이디{" "}
+            <Text style={{ fontFamily: "Inter_700Bold", color: C.text }}>{loginId}</Text>
+            {"\n"}로 로그인해주세요.
           </Text>
           <Pressable
             style={({ pressed }) => [styles.doneBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
@@ -101,7 +107,7 @@ export default function ParentCodeSignupScreen() {
             style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
             onPress={() => {
               if (step === "confirm") { setStep("code"); setInvite(null); }
-              else if (step === "pin") setStep("confirm");
+              else if (step === "account") setStep("confirm");
               else router.back();
             }}
           >
@@ -191,63 +197,82 @@ export default function ParentCodeSignupScreen() {
 
             <Pressable
               style={({ pressed }) => [styles.submitBtn, { backgroundColor: "#10B981", opacity: pressed ? 0.85 : 1 }]}
-              onPress={() => setStep("pin")}
+              onPress={() => setStep("account")}
             >
               <Text style={styles.submitBtnText}>맞습니다, 계속</Text>
             </Pressable>
           </View>
         )}
 
-        {/* 단계 3: PIN 설정 */}
-        {step === "pin" && (
+        {/* 단계 3: 계정 설정 */}
+        {step === "account" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
               <Feather name="lock" size={24} color={C.tint} />
             </View>
-            <Text style={[styles.cardTitle, { color: C.text }]}>PIN 설정</Text>
+            <Text style={[styles.cardTitle, { color: C.text }]}>계정 설정</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
-              로그인에 사용할 PIN을 설정해주세요.{"\n"}4자리 이상 숫자 또는 문자
+              로그인에 사용할 아이디와{"\n"}비밀번호를 설정해주세요.
             </Text>
 
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>PIN</Text>
-              <View style={[styles.inputRow, { borderColor: pin ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="lock" size={15} color={pin ? C.tint : C.textMuted} />
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디 (3자 이상)</Text>
+              <View style={[styles.inputRow, { borderColor: loginId ? C.tint : C.border, backgroundColor: C.background }]}>
+                <Feather name="at-sign" size={15} color={loginId ? C.tint : C.textMuted} />
                 <TextInput
-                  ref={pinRef}
                   style={[styles.input, { color: C.text }]}
-                  value={pin}
-                  onChangeText={v => { setPin(v); setError(""); }}
-                  placeholder="4자리 이상"
+                  value={loginId}
+                  onChangeText={v => { setLoginId(v); setError(""); }}
+                  placeholder="영문/숫자 아이디"
                   placeholderTextColor={C.textMuted}
-                  secureTextEntry={!showPin}
-                  keyboardType="number-pad"
+                  autoCapitalize="none"
+                  autoCorrect={false}
                   returnKeyType="next"
-                  onSubmitEditing={() => pin2Ref.current?.focus()}
+                  onSubmitEditing={() => pwRef.current?.focus()}
                 />
-                <Pressable onPress={() => setShowPin(v => !v)} hitSlop={10}>
-                  <Feather name={showPin ? "eye-off" : "eye"} size={15} color={C.textMuted} />
+              </View>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 (4자리 이상)</Text>
+              <View style={[styles.inputRow, { borderColor: password ? C.tint : C.border, backgroundColor: C.background }]}>
+                <Feather name="lock" size={15} color={password ? C.tint : C.textMuted} />
+                <TextInput
+                  ref={pwRef}
+                  style={[styles.input, { color: C.text }]}
+                  value={password}
+                  onChangeText={v => { setPassword(v); setError(""); }}
+                  placeholder="비밀번호 설정"
+                  placeholderTextColor={C.textMuted}
+                  secureTextEntry={!showPw}
+                  returnKeyType="next"
+                  onSubmitEditing={() => pw2Ref.current?.focus()}
+                />
+                <Pressable onPress={() => setShowPw(v => !v)} hitSlop={10}>
+                  <Feather name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
                 </Pressable>
               </View>
             </View>
 
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>PIN 확인</Text>
-              <View style={[styles.inputRow, { borderColor: pin2 ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="lock" size={15} color={pin2 ? C.tint : C.textMuted} />
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 확인</Text>
+              <View style={[styles.inputRow, { borderColor: passwordConfirm && password !== passwordConfirm ? C.error : (passwordConfirm ? C.tint : C.border), backgroundColor: C.background }]}>
+                <Feather name="lock" size={15} color={passwordConfirm ? C.tint : C.textMuted} />
                 <TextInput
-                  ref={pin2Ref}
+                  ref={pw2Ref}
                   style={[styles.input, { color: C.text }]}
-                  value={pin2}
-                  onChangeText={v => { setPin2(v); setError(""); }}
-                  placeholder="PIN 재입력"
+                  value={passwordConfirm}
+                  onChangeText={v => { setPasswordConfirm(v); setError(""); }}
+                  placeholder="비밀번호 재입력"
                   placeholderTextColor={C.textMuted}
-                  secureTextEntry={!showPin}
-                  keyboardType="number-pad"
+                  secureTextEntry={!showPw}
                   returnKeyType="done"
                   onSubmitEditing={joinWithCode}
                 />
               </View>
+              {!!passwordConfirm && password !== passwordConfirm && (
+                <Text style={{ color: C.error, fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 }}>비밀번호가 일치하지 않습니다</Text>
+              )}
             </View>
 
             {!!error && (
@@ -305,7 +330,6 @@ const styles = StyleSheet.create({
   errText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
   submitBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
   submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
-  /* 완료 */
   doneWrap: { flex: 1, alignItems: "center", paddingHorizontal: 32, gap: 16 },
   doneIcon: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   doneTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },

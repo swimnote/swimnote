@@ -8,6 +8,7 @@ export const parentAccountsTable = pgTable("parent_accounts", {
   phone: text("phone").notNull(),
   pin_hash: text("pin_hash").notNull(),
   name: text("name").notNull(),
+  login_id: text("login_id"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });
