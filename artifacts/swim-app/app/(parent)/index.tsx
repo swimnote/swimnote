@@ -159,13 +159,17 @@ export default function ParentHomeScreen() {
   const [currentLevel, setCurrentLevel] = useState<string | null>(null);
 
   async function handleFullLogout() {
-    await logout();
     if (Platform.OS === "web") {
-      try { sessionStorage.clear(); } catch { }
+      try {
+        ["auth_token", "auth_kind", "auth_admin", "auth_parent", "parent_selected_student_id"]
+          .forEach(k => localStorage.removeItem(k));
+        sessionStorage.clear();
+      } catch { }
       (window as any).location.replace("/");
-    } else {
-      router.replace("/");
+      return;
     }
+    await logout();
+    router.replace("/");
   }
 
   useFocusEffect(
