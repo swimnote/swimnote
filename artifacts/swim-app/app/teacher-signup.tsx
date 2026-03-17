@@ -17,6 +17,7 @@ type Pool = { id: string; name: string; address?: string };
 export default function TeacherSignupScreen() {
   const insets = useSafeAreaInsets();
   const emailRef = useRef<TextInput>(null);
+  const loginIdRef = useRef<TextInput>(null);
   const pwRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
 
@@ -31,6 +32,7 @@ export default function TeacherSignupScreen() {
   /* 정보 입력 */
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [loginId, setLoginId] = useState("");
   const [pw, setPw] = useState("");
   const [phone, setPhone] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -48,15 +50,18 @@ export default function TeacherSignupScreen() {
   }
 
   async function handleSubmit() {
-    if (!name.trim() || !email.trim() || !pw) {
-      setError("이름, 이메일, 비밀번호는 필수입니다."); return;
+    if (!name.trim() || !loginId.trim() || !pw) {
+      setError("이름, 아이디, 비밀번호는 필수입니다."); return;
+    }
+    if (loginId.trim().length < 3) {
+      setError("아이디는 3자 이상이어야 합니다."); return;
     }
     setLoading(true); setError("");
     try {
       const res = await fetch(`${API_BASE}/api/auth/teacher-self-signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password: pw, phone: phone.trim(), pool_id: selectedPool!.id }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase() || undefined, loginId: loginId.trim().toLowerCase(), password: pw, phone: phone.trim(), pool_id: selectedPool!.id }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
@@ -182,30 +187,64 @@ export default function TeacherSignupScreen() {
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>기본 정보 입력</Text>
 
-            {[
-              { label: "이름", value: name, setter: setName, placeholder: "홍길동", ref: undefined, next: emailRef, icon: "user" },
-              { label: "이메일", value: email, setter: setEmail, placeholder: "teacher@email.com", ref: emailRef, next: pwRef, icon: "mail" },
-            ].map(f => (
-              <View key={f.label} style={styles.field}>
-                <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>{f.label}</Text>
-                <View style={[styles.inputRow, { borderColor: f.value ? C.tint : C.border, backgroundColor: C.background }]}>
-                  <Feather name={f.icon as any} size={15} color={f.value ? C.tint : C.textMuted} />
-                  <TextInput
-                    ref={f.ref as any}
-                    style={[styles.input, { color: C.text }]}
-                    value={f.value}
-                    onChangeText={v => { f.setter(v); setError(""); }}
-                    placeholder={f.placeholder}
-                    placeholderTextColor={C.textMuted}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType={f.label === "이메일" ? "email-address" : "default"}
-                    returnKeyType="next"
-                    onSubmitEditing={() => (f.next as any)?.current?.focus()}
-                  />
-                </View>
+            {/* 이름 */}
+            <View style={styles.field}>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>이름 *</Text>
+              <View style={[styles.inputRow, { borderColor: name ? C.tint : C.border, backgroundColor: C.background }]}>
+                <Feather name="user" size={15} color={name ? C.tint : C.textMuted} />
+                <TextInput
+                  style={[styles.input, { color: C.text }]}
+                  value={name}
+                  onChangeText={v => { setName(v); setError(""); }}
+                  placeholder="홍길동"
+                  placeholderTextColor={C.textMuted}
+                  returnKeyType="next"
+                  onSubmitEditing={() => loginIdRef.current?.focus()}
+                />
               </View>
-            ))}
+            </View>
+
+            {/* 사용할 아이디 (로그인 식별자) */}
+            <View style={styles.field}>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>사용할 아이디 *</Text>
+              <View style={[styles.inputRow, { borderColor: loginId ? C.tint : C.border, backgroundColor: C.background }]}>
+                <Feather name="at-sign" size={15} color={loginId ? C.tint : C.textMuted} />
+                <TextInput
+                  ref={loginIdRef}
+                  style={[styles.input, { color: C.text }]}
+                  value={loginId}
+                  onChangeText={v => { setLoginId(v.toLowerCase().replace(/\s/g, "")); setError(""); }}
+                  placeholder="teacher_kim"
+                  placeholderTextColor={C.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  onSubmitEditing={() => emailRef.current?.focus()}
+                />
+              </View>
+              <Text style={[styles.hintText, { color: C.textMuted }]}>로그인에 사용할 아이디입니다 (3자 이상)</Text>
+            </View>
+
+            {/* 이메일 (선택, 연락용) */}
+            <View style={styles.field}>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>이메일 <Text style={{ color: C.textMuted }}>(선택)</Text></Text>
+              <View style={[styles.inputRow, { borderColor: email ? C.tint : C.border, backgroundColor: C.background }]}>
+                <Feather name="mail" size={15} color={email ? C.tint : C.textMuted} />
+                <TextInput
+                  ref={emailRef}
+                  style={[styles.input, { color: C.text }]}
+                  value={email}
+                  onChangeText={v => { setEmail(v); setError(""); }}
+                  placeholder="teacher@email.com"
+                  placeholderTextColor={C.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  returnKeyType="next"
+                  onSubmitEditing={() => pwRef.current?.focus()}
+                />
+              </View>
+            </View>
 
             {/* 비밀번호 */}
             <View style={styles.field}>
@@ -317,6 +356,7 @@ const styles = StyleSheet.create({
   poolName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   poolAddr: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
   emptyText: { textAlign: "center", fontSize: 13, fontFamily: "Inter_400Regular", paddingVertical: 8 },
+  hintText: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   errText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
   submitBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },

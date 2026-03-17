@@ -42,6 +42,10 @@ export default function LoginScreen() {
       setFailCount(0);
     } catch (err: unknown) {
       const e = err as Error & { needs_activation?: boolean; teacher_id?: string; error_code?: string };
+      if (e.error_code === "pending_teacher_approval") {
+        setError("관리자 승인 대기 중입니다. 수영장 관리자가 승인하면 로그인할 수 있습니다.");
+        return;
+      }
       if (e.needs_activation && e.teacher_id) {
         router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } } as any);
         return;

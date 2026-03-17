@@ -44,14 +44,30 @@ router.post("/login", async (req, res) => {
     }
 
     if (user.role === "teacher" && !(user as any).is_activated) {
-      res.status(403).json({
-        success: false,
-        message: "계정이 아직 활성화되지 않았습니다.",
-        error: "계정이 아직 활성화되지 않았습니다.",
-        needs_activation: true,
-        teacher_id: user.id,
-        hint: "관리자로부터 받은 인증코드로 계정을 활성화해주세요.",
-      });
+      // 자체 가입 신청(대기중)인지 확인
+      const pendingInvite = await db.execute(sql`
+        SELECT id FROM teacher_invites
+        WHERE user_id = ${user.id} AND invite_status = 'joinedPendingApproval'
+        LIMIT 1
+      `);
+      if (pendingInvite.rows.length > 0) {
+        res.status(403).json({
+          success: false,
+          message: "관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다.",
+          error: "pending_teacher_approval",
+          error_code: "pending_teacher_approval",
+        });
+      } else {
+        res.status(403).json({
+          success: false,
+          message: "계정이 아직 활성화되지 않았습니다.",
+          error: "계정이 아직 활성화되지 않았습니다.",
+          error_code: "needs_activation",
+          needs_activation: true,
+          teacher_id: user.id,
+          hint: "관리자로부터 받은 인증코드로 계정을 활성화해주세요.",
+        });
+      }
       return;
     }
 
@@ -245,6 +261,20 @@ router.post("/unified-login", async (req, res) => {
         const rawRows = await db.execute(sql`SELECT is_activated FROM users WHERE id = ${user.id} LIMIT 1`);
         const isActivated = (rawRows.rows[0] as any)?.is_activated ?? true;
         if (!isActivated) {
+          // 자체 가입 신청(대기중)인지 먼저 확인
+          const pendingInvite = await db.execute(sql`
+            SELECT id FROM teacher_invites
+            WHERE user_id = ${user.id} AND invite_status = 'joinedPendingApproval'
+            LIMIT 1
+          `);
+          if (pendingInvite.rows.length > 0) {
+            res.status(403).json({
+              success: false,
+              message: "관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다.",
+              error: "pending_teacher_approval",
+              error_code: "pending_teacher_approval",
+            }); return;
+          }
           res.status(403).json({ success: false, error: "계정이 아직 활성화되지 않았습니다.", error_code: "needs_activation", needs_activation: true, teacher_id: user.id }); return;
         }
       }
@@ -303,16 +333,18 @@ router.post("/reset-password", async (req, res) => {
 
 // ── 선생님 자체 회원가입 (풀 검색 후 등록, PENDING 상태) ───────────────
 router.post("/teacher-self-signup", async (req, res) => {
-  const { name, email, password, phone, pool_id } = req.body;
-  if (!name?.trim() || !email?.trim() || !password || !pool_id) {
-    return err(res, 400, "이름, 이메일, 비밀번호, 수영장은 필수입니다.");
+  const { name, email, loginId, password, phone, pool_id } = req.body;
+  // loginId = 실제 로그인 식별자 (email 컬럼에 저장), email = 연락용 (현재 저장 안 함)
+  const identifier = (loginId?.trim() || email?.trim() || "").toLowerCase();
+  if (!name?.trim() || !identifier || !password || !pool_id) {
+    return err(res, 400, "이름, 아이디, 비밀번호, 수영장은 필수입니다.");
   }
   if (password.length < 6) return err(res, 400, "비밀번호는 6자 이상이어야 합니다.");
   try {
-    // 이메일 중복 확인
+    // 아이디 중복 확인
     const [exist] = await db.select({ id: usersTable.id }).from(usersTable)
-      .where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
-    if (exist) return err(res, 409, "이미 사용 중인 이메일입니다.");
+      .where(eq(usersTable.email, identifier)).limit(1);
+    if (exist) return err(res, 409, "이미 사용 중인 아이디입니다.");
 
     // 수영장 확인
     const [pool] = await db.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name })
@@ -320,19 +352,28 @@ router.post("/teacher-self-signup", async (req, res) => {
     if (!pool) return err(res, 404, "수영장을 찾을 수 없습니다.");
 
     const hash = await hashPassword(password);
-    const id = `u_teacher_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const userId = `u_teacher_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // 유저 생성 (is_activated = false → 관리자 승인 전 로그인 불가)
     await db.execute(sql`
       INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, created_at, updated_at)
-      VALUES (${id}, ${email.trim().toLowerCase()}, ${hash}, ${name.trim()}, ${phone?.trim() || null},
+      VALUES (${userId}, ${identifier}, ${hash}, ${name.trim()}, ${phone?.trim() || null},
               'teacher', ${pool_id}, false, now(), now())
+    `);
+
+    // teacher_invites에 승인 대기 레코드 생성 (관리자 승인 화면에서 처리 가능하도록)
+    const inviteId = `ti_self_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await db.execute(sql`
+      INSERT INTO teacher_invites (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, requested_at, created_at)
+      VALUES (${inviteId}, ${pool_id}, ${name.trim()}, ${phone?.trim() || ''},
+              'joinedPendingApproval', ${userId}, ${userId}, now(), now())
     `);
 
     res.status(201).json({
       success: true,
-      message: "가입 승인 요청이 전송되었습니다. 수영장 관리자 승인 후 로그인 가능합니다.",
+      message: "가입 신청이 완료되었습니다. 수영장 관리자 승인 후 로그인 가능합니다.",
       pool_name: pool.name,
-      status: "pending",
+      status: "pending_approval",
     });
   } catch (e: any) {
     console.error("[teacher-self-signup]", e);

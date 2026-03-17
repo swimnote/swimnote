@@ -43,24 +43,9 @@ router.get("/pools", requireAuth, requirePermission("canViewPools"), async (req:
 router.patch("/pools/:id/approve", requireAuth, requirePermission("canApprovePools"), async (req: AuthRequest, res) => {
   const { id } = req.params;
   try {
-    // 필수 서류 상태 확인
+    // 수영장 확인
     const [pool] = await db.select().from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, id)).limit(1);
     if (!pool) return res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다.", error: "pool not found" });
-
-    const businessLicenseOK = (pool as any).business_license_status === "uploaded" || (pool as any).business_license_status === "verified";
-    const bankAccountOK = (pool as any).bank_account_verification_status === "uploaded" || (pool as any).bank_account_verification_status === "verified";
-    
-    if (!businessLicenseOK || !bankAccountOK) {
-      return res.status(400).json({
-        success: false,
-        message: "필수 서류가 모두 업로드되어야 승인할 수 있습니다.",
-        error: "required_documents_missing",
-        document_status: {
-          business_license: (pool as any).business_license_status,
-          bank_account_verification: (pool as any).bank_account_verification_status,
-        },
-      });
-    }
 
     // 승인 처리
     const [updated] = await db.update(swimmingPoolsTable)

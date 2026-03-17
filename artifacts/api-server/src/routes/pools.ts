@@ -32,11 +32,12 @@ router.post("/apply", requireAuth,
         ? name_en.trim().toLowerCase().replace(/[^a-z0-9_]/g, "")
         : sanitizePoolName(name);
 
+      const safeAdminPhone = admin_phone?.trim() || null;
       const rows = await db.execute(sql`
         INSERT INTO swimming_pools
           (id, name, name_en, address, phone, owner_name, owner_email, admin_name, admin_email, admin_phone, approval_status, subscription_status)
         VALUES
-          (${id}, ${name}, ${resolvedNameEn}, ${address}, ${phone}, ${owner_name}, ${admin_email}, ${admin_name}, ${admin_email}, ${admin_phone}, 'pending', 'trial')
+          (${id}, ${name}, ${resolvedNameEn}, ${address}, ${phone}, ${owner_name}, ${admin_email}, ${admin_name}, ${admin_email}, ${safeAdminPhone}, 'pending', 'trial')
         RETURNING *
       `);
 
