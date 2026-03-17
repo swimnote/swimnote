@@ -1,8 +1,8 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Modal, Platform, Pressable, RefreshControl,
+  ActivityIndicator, BackHandler, Modal, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -151,12 +151,30 @@ function ChildSelectorModal({ visible, onClose }: { visible: boolean; onClose: (
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const { token, parentAccount, logout } = useAuth();
-  const { students, selectedStudent, loading: ctxLoading, refresh } = useParent();
+  const { students, selectedStudent, loading: ctxLoading, refresh, reset: resetParent } = useParent();
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectorVisible, setSelectorVisible] = useState(false);
   const [currentLevel, setCurrentLevel] = useState<string | null>(null);
+
+  async function handleFullLogout() {
+    await resetParent();
+    router.replace("/");
+    await logout();
+  }
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "web") {
+        const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+          handleFullLogout();
+          return true;
+        });
+        return () => sub.remove();
+      }
+    }, [])
+  );
 
   useEffect(() => {
     if (selectedStudent?.id) {
@@ -213,7 +231,7 @@ export default function ParentHomeScreen() {
           <Text style={[s.poolName, { color: C.text }]}>{parentAccount?.pool_name || "스윔노트"}</Text>
           <Text style={[s.greeting, { color: C.textSecondary }]}>{parentAccount?.name}님, 안녕하세요</Text>
         </View>
-        <Pressable onPress={logout} style={[s.logoutBtn, { backgroundColor: C.card }]}>
+        <Pressable onPress={handleFullLogout} style={[s.logoutBtn, { backgroundColor: C.card }]}>
           <Feather name="log-out" size={18} color={C.textSecondary} />
         </Pressable>
       </View>

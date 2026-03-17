@@ -23,6 +23,7 @@ interface ParentContextValue {
   setSelectedStudentId: (id: string) => void;
   loading: boolean;
   refresh: () => Promise<void>;
+  reset: () => Promise<void>;
 }
 
 const ParentContext = createContext<ParentContextValue>({
@@ -31,6 +32,7 @@ const ParentContext = createContext<ParentContextValue>({
   setSelectedStudentId: () => {},
   loading: true,
   refresh: async () => {},
+  reset: async () => {},
 });
 
 const STORAGE_KEY = "parent_selected_student_id";
@@ -56,17 +58,32 @@ export function ParentProvider({ children }: { children: React.ReactNode }) {
     finally { setLoading(false); }
   }, [token, kind]);
 
-  useEffect(() => { if (kind === "parent") fetchStudents(); }, [kind, fetchStudents]);
+  useEffect(() => {
+    if (kind === "parent") {
+      fetchStudents();
+    } else if (!kind) {
+      setStudents([]);
+      setSelectedId(null);
+      setLoading(true);
+    }
+  }, [kind, fetchStudents]);
 
   const setSelectedStudentId = useCallback((id: string) => {
     setSelectedId(id);
     AsyncStorage.setItem(STORAGE_KEY, id).catch(() => {});
   }, []);
 
+  const reset = useCallback(async () => {
+    setStudents([]);
+    setSelectedId(null);
+    setLoading(true);
+    try { await AsyncStorage.removeItem(STORAGE_KEY); } catch { }
+  }, []);
+
   const selectedStudent = students.find(s => s.id === selectedId) ?? students[0] ?? null;
 
   return (
-    <ParentContext.Provider value={{ students, selectedStudent, setSelectedStudentId, loading, refresh: fetchStudents }}>
+    <ParentContext.Provider value={{ students, selectedStudent, setSelectedStudentId, loading, refresh: fetchStudents, reset }}>
       {children}
     </ParentContext.Provider>
   );
