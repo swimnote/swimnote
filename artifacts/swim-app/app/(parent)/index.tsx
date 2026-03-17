@@ -23,6 +23,10 @@ interface FeedItem {
   album_type?: string;
 }
 
+interface StudentLevel {
+  level: string;
+}
+
 function fmtDate(d: string) {
   const dt = new Date(d.includes("T") ? d : d + "T00:00:00");
   return dt.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
@@ -152,9 +156,13 @@ export default function ParentHomeScreen() {
   const [feedLoading, setFeedLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectorVisible, setSelectorVisible] = useState(false);
+  const [currentLevel, setCurrentLevel] = useState<string | null>(null);
 
   useEffect(() => {
-    if (selectedStudent?.id) loadFeed(selectedStudent.id);
+    if (selectedStudent?.id) {
+      loadFeed(selectedStudent.id);
+      loadLevel(selectedStudent.id);
+    }
   }, [selectedStudent?.id]);
 
   async function loadFeed(studentId: string) {
@@ -166,10 +174,26 @@ export default function ParentHomeScreen() {
     finally { setFeedLoading(false); }
   }
 
+  async function loadLevel(studentId: string) {
+    try {
+      const res = await apiRequest(token, `/parent/students/${studentId}/levels`);
+      if (res.ok) {
+        const data: StudentLevel[] = await res.json();
+        if (data.length > 0) setCurrentLevel(data[0].level);
+        else setCurrentLevel(null);
+      }
+    } catch { }
+  }
+
   async function onRefresh() {
     setRefreshing(true);
     await refresh();
-    if (selectedStudent?.id) await loadFeed(selectedStudent.id);
+    if (selectedStudent?.id) {
+      await Promise.all([
+        loadFeed(selectedStudent.id),
+        loadLevel(selectedStudent.id),
+      ]);
+    }
     setRefreshing(false);
   }
 
@@ -209,7 +233,15 @@ export default function ParentHomeScreen() {
               <Text style={s.childCardAvatarText}>{selectedStudent.name[0]}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.childCardName}>{selectedStudent.name}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={s.childCardName}>{selectedStudent.name}</Text>
+                {currentLevel ? (
+                  <View style={s.levelBadge}>
+                    <Feather name="award" size={11} color="rgba(255,255,255,0.9)" />
+                    <Text style={s.levelTxt}>{currentLevel}</Text>
+                  </View>
+                ) : null}
+              </View>
               {selectedStudent.class_group?.name ? (
                 <Text style={s.childCardSub}>{selectedStudent.class_group.name} · {selectedStudent.class_group.instructor || selectedStudent.class_group.schedule_days + " " + selectedStudent.class_group.schedule_time}</Text>
               ) : null}
@@ -251,7 +283,7 @@ export default function ParentHomeScreen() {
             </View>
           ) : (
             <View style={{ gap: 10 }}>
-              {feed.map(item => <FeedCard key={`${item.type}_${item.id}`} item={item} />)}
+              {feed.slice(0, 3).map(item => <FeedCard key={`${item.type}_${item.id}`} item={item} />)}
             </View>
           )}
         </View>
@@ -309,6 +341,8 @@ const s = StyleSheet.create({
   childCardSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
   switchRow: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   switchTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.9)" },
+  levelBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  levelTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.95)" },
 
   section: { paddingHorizontal: 20, paddingTop: 20, gap: 12 },
   sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },

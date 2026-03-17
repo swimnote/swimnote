@@ -7,7 +7,7 @@ import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
+  ActivityIndicator, FlatList, KeyboardAvoidingView,
   Modal, Platform, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
@@ -109,15 +109,17 @@ function EditModal({ diary, token, onDone, onClose }: {
 }) {
   const [content, setContent] = useState(diary.common_content);
   const [saving, setSaving] = useState(false);
+  const [editErr, setEditErr] = useState<string | null>(null);
 
   async function handleSave() {
-    if (!content.trim()) { Alert.alert("오류", "내용을 입력해주세요."); return; }
+    if (!content.trim()) { setEditErr("내용을 입력해주세요."); return; }
+    setEditErr(null);
     setSaving(true);
     try {
       const r = await apiRequest(token, `/diaries/${diary.id}`, { method: "PUT", body: JSON.stringify({ common_content: content }) });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
       onDone();
-    } catch (e: any) { Alert.alert("오류", e.message); }
+    } catch (e: any) { setEditErr(e.message || "수정 중 오류가 발생했습니다."); }
     finally { setSaving(false); }
   }
 
@@ -132,13 +134,19 @@ function EditModal({ diary, token, onDone, onClose }: {
           <View style={{ padding: 16, gap: 12 }}>
             <Text style={[a.logTarget, { color: C.textSecondary }]}>{diary.lesson_date} 수업 내용</Text>
             <TextInput
-              style={[a.editInput, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
+              style={[a.editInput, { borderColor: editErr ? C.error : C.border, color: C.text, backgroundColor: C.background }]}
               value={content}
-              onChangeText={setContent}
+              onChangeText={t => { setContent(t); if (editErr) setEditErr(null); }}
               multiline
               placeholder="수업 내용을 입력하세요"
               placeholderTextColor={C.textMuted}
             />
+            {editErr && (
+              <View style={[s.inlineError, { backgroundColor: "#FEE2E2" }]}>
+                <Feather name="alert-circle" size={13} color={C.error} />
+                <Text style={[s.inlineErrorText, { color: C.error }]}>{editErr}</Text>
+              </View>
+            )}
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Pressable style={[a.cancelBtn, { borderColor: C.border }]} onPress={onClose}>
                 <Text style={{ color: C.textSecondary, fontFamily: "Inter_600SemiBold" }}>취소</Text>
@@ -186,6 +194,13 @@ export default function TeacherDiaryScreen() {
   const [diaryLoading, setDiaryLoading] = useState(false);
   const [editTarget,   setEditTarget]   = useState<DiaryEntry | null>(null);
   const [auditTarget,  setAuditTarget]  = useState<string | null>(null);
+
+  // ── 인라인 메시지 (Alert 대체) ────────────────────────────────────────
+  const [saveMsg,         setSaveMsg]         = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [formError,       setFormError]       = useState<string | null>(null);
+  const [deleteTarget,    setDeleteTarget]    = useState<DiaryEntry | null>(null);
+  const [deleteLoading,   setDeleteLoading]   = useState(false);
+  const [deleteError,     setDeleteError]     = useState<string | null>(null);
 
   // ── 초기 로드 ────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -292,7 +307,8 @@ export default function TeacherDiaryScreen() {
   // ── 저장 ─────────────────────────────────────────────────────────────
   async function handleSave() {
     if (!selectedGroup) return;
-    if (!commonContent.trim()) { Alert.alert("필수 입력", "공통 일지 내용을 입력해주세요."); return; }
+    if (!commonContent.trim()) { setFormError("공통 일지 내용을 입력해주세요."); return; }
+    setFormError(null);
     setSaving(true);
     try {
       const r = await apiRequest(token, "/diaries", {
@@ -307,35 +323,36 @@ export default function TeacherDiaryScreen() {
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || "저장 실패");
       setDiarySet(prev => new Set([...prev, selectedGroup.id]));
-      Alert.alert("저장 완료", "수업 일지가 작성되었습니다.\n학부모에게 알림이 발송됩니다.", [
-        { text: "확인", onPress: () => { setSelectedGroup(null); } }
-      ]);
-    } catch (e: any) { Alert.alert("오류", e.message); }
+      setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
+      setTimeout(() => { setSaveMsg(null); setSelectedGroup(null); }, 2200);
+    } catch (e: any) { setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." }); }
     finally { setSaving(false); }
   }
 
   // ── 삭제 ─────────────────────────────────────────────────────────────
   function handleDelete(diary: DiaryEntry) {
-    Alert.alert("일지 삭제", "이 일지를 삭제하시겠습니까?\n삭제된 일지는 관리자만 확인할 수 있습니다.", [
-      { text: "취소", style: "cancel" },
-      {
-        text: "삭제", style: "destructive",
-        onPress: async () => {
-          const r = await apiRequest(token, `/diaries/${diary.id}`, { method: "DELETE" });
-          if (r.ok) {
-            setDiaries(prev => prev.filter(d => d.id !== diary.id));
-            if (selectedGroup) setDiarySet(prev => {
-              const next = new Set(prev);
-              next.delete(selectedGroup.id);
-              return next;
-            });
-          } else {
-            const d = await r.json();
-            Alert.alert("오류", d.error || "삭제 실패");
-          }
-        }
-      },
-    ]);
+    setDeleteTarget(diary);
+    setDeleteError(null);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const r = await apiRequest(token, `/diaries/${deleteTarget.id}`, { method: "DELETE" });
+      if (r.ok) {
+        setDiaries(prev => prev.filter(d => d.id !== deleteTarget.id));
+        if (selectedGroup) setDiarySet(prev => {
+          const next = new Set(prev);
+          next.delete(selectedGroup.id);
+          return next;
+        });
+        setDeleteTarget(null);
+      } else {
+        const d = await r.json();
+        setDeleteError(d.error || "삭제 실패");
+      }
+    } finally { setDeleteLoading(false); }
   }
 
   const statusMap: Record<string, SlotStatus> = {};
@@ -525,19 +542,38 @@ export default function TeacherDiaryScreen() {
 
             {/* 저장 버튼 */}
             <View style={s.footer}>
-              <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={() => setSelectedGroup(null)}>
-                <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>나가기</Text>
-              </Pressable>
-              <Pressable
-                style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving || myDiaryExists ? 0.5 : 1, flex: 2 }]}
-                onPress={handleSave}
-                disabled={saving || myDiaryExists}
-              >
-                {saving
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <><Feather name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>
-                }
-              </Pressable>
+              {/* 인라인 유효성 오류 */}
+              {formError && (
+                <View style={[s.inlineError, { backgroundColor: "#FEE2E2" }]}>
+                  <Feather name="alert-circle" size={13} color={C.error} />
+                  <Text style={[s.inlineErrorText, { color: C.error }]}>{formError}</Text>
+                </View>
+              )}
+              {/* 저장 성공/실패 메시지 */}
+              {saveMsg && (
+                <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#D1FAE5" : "#FEE2E2" }]}>
+                  <Feather name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
+                    color={saveMsg.type === "success" ? "#059669" : C.error} />
+                  <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? "#059669" : C.error }]}>
+                    {saveMsg.text}
+                  </Text>
+                </View>
+              )}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={() => setSelectedGroup(null)}>
+                  <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>나가기</Text>
+                </Pressable>
+                <Pressable
+                  style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving || myDiaryExists ? 0.5 : 1, flex: 2 }]}
+                  onPress={handleSave}
+                  disabled={saving || myDiaryExists}
+                >
+                  {saving
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <><Feather name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>
+                  }
+                </Pressable>
+              </View>
             </View>
           </KeyboardAvoidingView>
         ) : (
@@ -620,6 +656,40 @@ export default function TeacherDiaryScreen() {
         {auditTarget && (
           <AuditModal diaryId={auditTarget} token={token} onClose={() => setAuditTarget(null)} />
         )}
+
+        {/* 삭제 확인 모달 */}
+        <Modal visible={!!deleteTarget} transparent animationType="fade" onRequestClose={() => setDeleteTarget(null)}>
+          <View style={s.delOverlay}>
+            <View style={[s.delSheet, { backgroundColor: C.card }]}>
+              <View style={[s.delIconWrap, { backgroundColor: "#FEE2E2" }]}>
+                <Feather name="trash-2" size={26} color={C.error} />
+              </View>
+              <Text style={[s.delTitle, { color: C.text }]}>일지 삭제</Text>
+              <Text style={[s.delDesc, { color: C.textSecondary }]}>
+                이 일지를 삭제하시겠습니까?{"\n"}삭제된 일지는 관리자만 확인할 수 있습니다.
+              </Text>
+              {deleteError && (
+                <View style={[s.inlineError, { backgroundColor: "#FEE2E2" }]}>
+                  <Feather name="alert-circle" size={13} color={C.error} />
+                  <Text style={[s.inlineErrorText, { color: C.error }]}>{deleteError}</Text>
+                </View>
+              )}
+              <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
+                <Pressable style={[s.delBtn, { borderColor: C.border, backgroundColor: C.bg, flex: 1 }]}
+                  onPress={() => setDeleteTarget(null)} disabled={deleteLoading}>
+                  <Text style={{ color: C.textSecondary, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>취소</Text>
+                </Pressable>
+                <Pressable style={[s.delBtn, { backgroundColor: C.error, flex: 1, opacity: deleteLoading ? 0.6 : 1 }]}
+                  onPress={confirmDelete} disabled={deleteLoading}>
+                  {deleteLoading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 14 }}>삭제</Text>
+                  }
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -686,7 +756,7 @@ const s = StyleSheet.create({
   noteTextarea: { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: "#fff" },
   noteBtn:      { flex: 1, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
 
-  footer:       { flexDirection: "row", gap: 10, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  footer:       { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
   cancelBtnFt:  { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   cancelBtnFtText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   saveBtn:      { flexDirection: "row", height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 8 },
@@ -705,6 +775,16 @@ const s = StyleSheet.create({
 
   emptyBox:     { alignItems: "center", paddingTop: 60, gap: 10 },
   emptyText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+
+  inlineError:  { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, borderRadius: 10 },
+  inlineErrorText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", lineHeight: 17 },
+
+  delOverlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 },
+  delSheet:     { width: "100%", borderRadius: 22, padding: 24, alignItems: "center", gap: 14 },
+  delIconWrap:  { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  delTitle:     { fontSize: 18, fontFamily: "Inter_700Bold" },
+  delDesc:      { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  delBtn:       { height: 48, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
 });
 
 // ── 감사기록/수정 모달 스타일 ────────────────────────────────────────────

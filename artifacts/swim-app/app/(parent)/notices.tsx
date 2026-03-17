@@ -1,8 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, Pressable, ScrollView,
-  StyleSheet, Text, View, RefreshControl, Image,
+  ActivityIndicator, Image, Platform, Pressable, RefreshControl,
+  ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -21,16 +21,32 @@ interface Notice {
   image_urls?: string[];
 }
 
+const C = Colors.light;
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
+
+function TypeBadge({ type }: { type?: string }) {
+  const isClass = type === "class";
+  return (
+    <View style={[tb.badge, { backgroundColor: isClass ? "#EDE9FE" : "#EFF6FF" }]}>
+      <Text style={[tb.txt, { color: isClass ? "#6D28D9" : "#1D4ED8" }]}>
+        {isClass ? "반" : "전체"}
+      </Text>
+    </View>
+  );
+}
+const tb = StyleSheet.create({
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, alignSelf: "flex-start" },
+  txt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+});
 
 export default function ParentNoticesScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const C = Colors.light;
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "general" | "class">("all");
 
   async function fetchNotices() {
     try {
@@ -51,8 +67,9 @@ export default function ParentNoticesScreen() {
     }
   }
 
-  const pinned = notices.filter(n => n.is_pinned);
-  const regular = notices.filter(n => !n.is_pinned);
+  const filtered = filter === "all" ? notices : notices.filter(n => (n.notice_type || "general") === filter);
+  const pinned = filtered.filter(n => n.is_pinned);
+  const regular = filtered.filter(n => !n.is_pinned);
   const unreadCount = notices.filter(n => !n.is_read).length;
 
   return (
@@ -65,10 +82,22 @@ export default function ParentNoticesScreen() {
               <Text style={styles.unreadCount}>미읽음 {unreadCount}</Text>
             </View>
           )}
-          <View style={[styles.countBadge, { backgroundColor: C.tintLight }]}>
-            <Text style={[styles.countText, { color: C.tint }]}>{notices.length}개</Text>
-          </View>
         </View>
+      </View>
+
+      {/* 필터 탭 */}
+      <View style={styles.filterRow}>
+        {(["all", "general", "class"] as const).map(f => (
+          <Pressable
+            key={f}
+            style={[styles.filterBtn, { backgroundColor: filter === f ? C.tint : "#F3F4F6" }]}
+            onPress={() => setFilter(f)}
+          >
+            <Text style={[styles.filterTxt, { color: filter === f ? "#fff" : C.textSecondary }]}>
+              {f === "all" ? "전체" : f === "general" ? "수영장 공지" : "반 공지"}
+            </Text>
+          </Pressable>
+        ))}
       </View>
 
       {loading ? (
@@ -85,16 +114,20 @@ export default function ParentNoticesScreen() {
                 <Feather name="pin" size={13} color={C.tint} />
                 <Text style={[styles.sectionLabel, { color: C.tint }]}>고정 공지</Text>
               </View>
-              {pinned.map(n => <NoticeItem key={n.id} n={n} expanded={expanded} onOpen={handleOpen} C={C} />)}
-              {regular.length > 0 && (
+              {pinned.map(n => <NoticeItem key={n.id} n={n} expanded={expanded} onOpen={handleOpen} />)}
+            </>
+          )}
+          {regular.length > 0 && (
+            <>
+              {pinned.length > 0 && (
                 <View style={styles.sectionRow}>
                   <Text style={[styles.sectionLabel, { color: C.textSecondary }]}>일반 공지</Text>
                 </View>
               )}
+              {regular.map(n => <NoticeItem key={n.id} n={n} expanded={expanded} onOpen={handleOpen} />)}
             </>
           )}
-          {regular.map(n => <NoticeItem key={n.id} n={n} expanded={expanded} onOpen={handleOpen} C={C} />)}
-          {notices.length === 0 && (
+          {filtered.length === 0 && (
             <View style={styles.empty}>
               <Feather name="bell-off" size={48} color={C.textMuted} />
               <Text style={[styles.emptyTitle, { color: C.text }]}>공지사항 없음</Text>
@@ -107,11 +140,8 @@ export default function ParentNoticesScreen() {
   );
 }
 
-function NoticeItem({ n, expanded, onOpen, C }: {
-  n: Notice;
-  expanded: string | null;
-  onOpen: (n: Notice) => void;
-  C: typeof Colors.light;
+function NoticeItem({ n, expanded, onOpen }: {
+  n: Notice; expanded: string | null; onOpen: (n: Notice) => void;
 }) {
   const isOpen = expanded === n.id;
   const images: string[] = Array.isArray(n.image_urls) ? n.image_urls : [];
@@ -120,30 +150,23 @@ function NoticeItem({ n, expanded, onOpen, C }: {
     <Pressable
       style={[
         styles.card,
-        { backgroundColor: C.card, shadowColor: C.shadow, borderLeftWidth: n.is_pinned ? 3 : 0, borderLeftColor: C.tint },
+        { backgroundColor: C.card, borderLeftWidth: n.is_pinned ? 3 : 0, borderLeftColor: C.tint },
         !n.is_read && { borderWidth: 1.5, borderColor: C.tint + "60" },
       ]}
       onPress={() => onOpen(n)}
     >
       <View style={styles.cardRow}>
-        {n.is_pinned ? <Feather name="pin" size={12} color={C.tint} /> : null}
-        <View style={styles.titleBlock}>
-          {!n.is_read && (
-            <View style={[styles.unreadDot, { backgroundColor: C.tint }]} />
-          )}
-          <Text style={[styles.noticeTitle, { color: C.text }]} numberOfLines={isOpen ? undefined : 2}>{n.title}</Text>
+        <View style={{ flex: 1, gap: 6 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TypeBadge type={n.notice_type} />
+            {!n.is_read && <View style={[styles.unreadDot, { backgroundColor: C.tint }]} />}
+          </View>
+          <Text style={[styles.noticeTitle, { color: C.text, fontFamily: n.is_read ? "Inter_500Medium" : "Inter_700Bold" }]} numberOfLines={isOpen ? undefined : 2}>
+            {n.title}
+          </Text>
         </View>
         <View style={{ alignItems: "flex-end", gap: 4 }}>
           <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={16} color={C.textMuted} />
-          {n.is_read ? (
-            <View style={[styles.readTag, { backgroundColor: C.success + "22" }]}>
-              <Text style={[styles.readTagText, { color: C.success }]}>읽음</Text>
-            </View>
-          ) : (
-            <View style={[styles.readTag, { backgroundColor: C.error + "22" }]}>
-              <Text style={[styles.readTagText, { color: C.error }]}>미읽음</Text>
-            </View>
-          )}
         </View>
       </View>
 
@@ -181,20 +204,18 @@ function NoticeItem({ n, expanded, onOpen, C }: {
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
-  title: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  countBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  countText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  title: { fontSize: 20, fontFamily: "Inter_700Bold" },
   unreadBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   unreadCount: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  filterRow: { flexDirection: "row", paddingHorizontal: 20, gap: 8, marginBottom: 12 },
+  filterBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
+  filterTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   sectionRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  card: { borderRadius: 14, padding: 14, gap: 10, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
-  cardRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  titleBlock: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  unreadDot: { width: 7, height: 7, borderRadius: 4, marginTop: 5, flexShrink: 0 },
-  noticeTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", flex: 1 },
-  readTag: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  readTagText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  card: { borderRadius: 14, padding: 14, gap: 10, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2, shadowColor: "#0000001A", backgroundColor: "#fff" },
+  cardRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  unreadDot: { width: 7, height: 7, borderRadius: 4, marginTop: 2, flexShrink: 0 },
+  noticeTitle: { fontSize: 15, lineHeight: 22 },
   expandedArea: { gap: 8 },
   individualTag: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   individualText: { fontSize: 12, fontFamily: "Inter_500Medium" },

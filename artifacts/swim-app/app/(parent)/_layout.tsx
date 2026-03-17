@@ -27,7 +27,7 @@ function ParentTabs() {
         height: Platform.OS === "web" ? 84 : 60,
         paddingBottom: Platform.OS === "ios" ? 8 : 4,
       },
-      tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 11 },
+      tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 10 },
     }}>
       <Tabs.Screen
         name="index"
@@ -44,6 +44,10 @@ function ParentTabs() {
       <Tabs.Screen
         name="attendance-history"
         options={{ title: "출결", tabBarIcon: ({ color }) => <TabBarIcon name="calendar" color={color} /> }}
+      />
+      <Tabs.Screen
+        name="shopping"
+        options={{ title: "쇼핑", tabBarIcon: ({ color }) => <TabBarIcon name="shopping-bag" color={color} /> }}
       />
       <Tabs.Screen
         name="more"

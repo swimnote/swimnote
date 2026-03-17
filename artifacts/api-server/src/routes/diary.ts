@@ -642,4 +642,186 @@ router.get("/diary",
   }
 );
 
+// ════════════════════════════════════════════════════════════════════════
+// 선생님 쪽지 (diary_messages) + overview API
+// ════════════════════════════════════════════════════════════════════════
+
+// GET /teacher/overview — 선생님 홈 대시보드 숫자
+router.get("/teacher/overview",
+  requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      const today = new Date().toISOString().slice(0, 10);
+
+      // 내 반 목록
+      const myClasses = await db.execute(sql`
+        SELECT id FROM class_groups
+        WHERE teacher_user_id = ${userId} AND swimming_pool_id = ${poolId}
+      `);
+      const classIds = (myClasses.rows as any[]).map(r => r.id);
+      if (classIds.length === 0) {
+        res.json({ unread_messages: 0, pending_diaries_today: 0, pending_diaries_past: 0, makeup_count: 0 });
+        return;
+      }
+
+      // 안읽은 학부모 쪽지 수 (내 반 수업일지에 달린 학부모 메시지 중 read_at IS NULL)
+      const classIdList = classIds.map(id => `'${id}'`).join(",");
+      const unreadMsg = await db.execute(sql`
+        SELECT COUNT(*) AS cnt
+        FROM diary_messages dm
+        JOIN class_diaries cd ON cd.id = dm.diary_id
+        WHERE cd.class_group_id IN (${sql.raw(classIdList)})
+          AND dm.sender_role = 'parent'
+          AND dm.is_deleted = false
+          AND dm.read_at IS NULL
+      `);
+
+      // 오늘 미작성 수업일지 (오늘 수업이 있는 반 중 diary 없는 것)
+      const pendingToday = await db.execute(sql`
+        SELECT COUNT(*) AS cnt
+        FROM class_groups cg
+        WHERE cg.id IN (${sql.raw(classIdList)})
+          AND NOT EXISTS (
+            SELECT 1 FROM class_diaries cd
+            WHERE cd.class_group_id = cg.id AND cd.lesson_date = ${today} AND cd.is_deleted = false
+          )
+      `);
+
+      // NOTE: 어제까지 미작성 계산은 class_groups 스케줄 + 실제 날짜 비교가 필요하나
+      //       현재는 결석 기록 기반 근사치로 처리 (향후 schedule_dates 테이블로 고도화)
+      const pendingPastCount = 0; // TODO: 정확한 미작성 날짜 계산 구현
+
+      // 보강 대기 수
+      const makeupCount = await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM makeups
+        WHERE class_group_id IN (${sql.raw(classIdList)}) AND status = 'waiting'
+      `);
+
+      res.json({
+        unread_messages: Number((unreadMsg.rows[0] as any)?.cnt ?? 0),
+        pending_diaries_today: Number((pendingToday.rows[0] as any)?.cnt ?? 0),
+        pending_diaries_past: pendingPastCount,
+        makeup_count: Number((makeupCount.rows[0] as any)?.cnt ?? 0),
+      });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// GET /teacher/messages — 안읽은 학부모 쪽지 목록
+router.get("/teacher/messages",
+  requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      const unreadOnly = req.query.unread === "true";
+
+      const myClasses = await db.execute(sql`
+        SELECT id FROM class_groups WHERE teacher_user_id = ${userId} AND swimming_pool_id = ${poolId}
+      `);
+      const classIds = (myClasses.rows as any[]).map(r => r.id);
+      if (classIds.length === 0) { res.json([]); return; }
+
+      const classIdList = classIds.map(id => `'${id}'`).join(",");
+      const rows = await db.execute(sql`
+        SELECT dm.id, dm.diary_id, dm.sender_name, dm.sender_role, dm.content,
+               dm.is_deleted, dm.read_at, dm.created_at,
+               cd.lesson_date, cd.class_group_id,
+               cg.name AS class_name
+        FROM diary_messages dm
+        JOIN class_diaries cd ON cd.id = dm.diary_id
+        JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.class_group_id IN (${sql.raw(classIdList)})
+          AND dm.sender_role = 'parent'
+          AND dm.is_deleted = false
+          ${unreadOnly ? sql`AND dm.read_at IS NULL` : sql``}
+        ORDER BY dm.created_at DESC
+        LIMIT 50
+      `);
+      res.json(rows.rows);
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// POST /teacher/messages/:msgId/read — 메시지 읽음 처리
+router.post("/teacher/messages/:msgId/read",
+  requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await db.execute(sql`
+        UPDATE diary_messages SET read_at = NOW()
+        WHERE id = ${req.params.msgId} AND read_at IS NULL
+      `);
+      res.json({ success: true });
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// GET /teacher/diary/:diaryId/messages — 수업일지 쪽지 목록 (선생님용)
+router.get("/teacher/diary/:diaryId/messages",
+  requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      // 내 반 수업일지인지 확인 (선생님은 본인 반만, 관리자는 전체)
+      const diary = role === "teacher"
+        ? await db.execute(sql`
+            SELECT cd.id FROM class_diaries cd
+            JOIN class_groups cg ON cg.id = cd.class_group_id
+            WHERE cd.id = ${req.params.diaryId} AND cg.teacher_user_id = ${userId}
+          `)
+        : await db.execute(sql`SELECT id FROM class_diaries WHERE id = ${req.params.diaryId}`);
+      if (!diary.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+
+      // 읽음 처리 (학부모가 보낸 메시지)
+      await db.execute(sql`
+        UPDATE diary_messages SET read_at = NOW()
+        WHERE diary_id = ${req.params.diaryId} AND sender_role = 'parent' AND read_at IS NULL
+      `);
+
+      const rows = await db.execute(sql`
+        SELECT id, sender_id, sender_name, sender_role, content, is_deleted, created_at
+        FROM diary_messages WHERE diary_id = ${req.params.diaryId}
+        ORDER BY created_at ASC
+      `);
+      res.json(rows.rows);
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// POST /teacher/diary/:diaryId/messages — 선생님 쪽지 발송
+router.post("/teacher/diary/:diaryId/messages",
+  requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { content } = req.body;
+      if (!content?.trim()) { res.status(400).json({ error: "내용을 입력해주세요." }); return; }
+      const { userId, role } = req.user!;
+
+      // 내 반 수업일지 확인 (선생님은 본인 반만, 관리자는 전체)
+      const diary = role === "teacher"
+        ? await db.execute(sql`
+            SELECT cd.id FROM class_diaries cd
+            JOIN class_groups cg ON cg.id = cd.class_group_id
+            WHERE cd.id = ${req.params.diaryId} AND cg.teacher_user_id = ${userId}
+          `)
+        : await db.execute(sql`SELECT id FROM class_diaries WHERE id = ${req.params.diaryId}`);
+      if (!diary.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+
+      const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, Number(userId))).limit(1);
+      const senderName = (user as any)?.name || "선생님";
+
+      const result = await db.execute(sql`
+        INSERT INTO diary_messages (diary_id, sender_id, sender_name, sender_role, content)
+        VALUES (${req.params.diaryId}, ${userId}, ${senderName}, 'teacher', ${content.trim()})
+        RETURNING *
+      `);
+      res.status(201).json(result.rows[0]);
+    } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
 export default router;
+

@@ -799,6 +799,108 @@ function ScheduleCard({
 /* ══════════════════════════════════════════════════
    메인 화면
    ═════════════════════════════════════════════════ */
+interface TeacherOverview {
+  unread_messages: number;
+  pending_diaries_today: number;
+  pending_diaries_past: number;
+  makeup_count: number;
+}
+interface UnreadMessage {
+  id: string; diary_id: string; sender_name: string; content: string;
+  created_at: string; lesson_date: string; class_name: string;
+}
+
+/* ══ 안읽은 쪽지 모달 ══════════════════════════════ */
+function UnreadMessagesModal({
+  visible, token, themeColor, onClose, onOpenDiary,
+}: {
+  visible: boolean; token: string | null; themeColor: string;
+  onClose: () => void; onOpenDiary: (diaryId: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [messages, setMessages] = useState<UnreadMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setLoading(true);
+    apiRequest(token, "/teacher/messages?unread=true")
+      .then(r => r.ok ? r.json() : [])
+      .then(setMessages)
+      .catch(() => setMessages([]))
+      .finally(() => setLoading(false));
+  }, [visible]);
+
+  function fmtDate(s: string) {
+    const d = new Date(s);
+    return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={um.overlay} onPress={onClose} />
+      <View style={[um.sheet, { paddingBottom: insets.bottom + 20 }]}>
+        <View style={um.handle} />
+        <View style={um.header}>
+          <Text style={[um.title, { color: C.text }]}>읽지 않은 쪽지</Text>
+          {messages.length > 0 && (
+            <View style={[um.countBadge, { backgroundColor: C.error }]}>
+              <Text style={um.countTxt}>{messages.length}</Text>
+            </View>
+          )}
+          <Pressable onPress={onClose} style={um.closeBtn}>
+            <Feather name="x" size={18} color={C.textSecondary} />
+          </Pressable>
+        </View>
+        {loading ? (
+          <ActivityIndicator color={themeColor} style={{ marginTop: 30 }} />
+        ) : messages.length === 0 ? (
+          <View style={um.empty}>
+            <Feather name="mail" size={36} color={C.textMuted} />
+            <Text style={[um.emptyTxt, { color: C.textMuted }]}>읽지 않은 쪽지가 없습니다</Text>
+          </View>
+        ) : (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {messages.map(msg => (
+              <Pressable
+                key={msg.id}
+                style={[um.item, { borderBottomColor: C.border }]}
+                onPress={() => { onOpenDiary(msg.diary_id); onClose(); }}
+              >
+                <View style={um.itemDot} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[um.itemName, { color: C.text }]}>{msg.sender_name}</Text>
+                  <Text style={[um.itemContent, { color: C.textSecondary }]} numberOfLines={1}>{msg.content}</Text>
+                  <Text style={[um.itemMeta, { color: C.textMuted }]}>{msg.class_name} · {fmtDate(msg.created_at)}</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={C.textMuted} />
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+const um = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet: { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "55%" },
+  handle: { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 4 },
+  header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingBottom: 12 },
+  title: { fontSize: 17, fontFamily: "Inter_700Bold", flex: 1 },
+  countBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  countTxt: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  closeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  empty: { alignItems: "center", gap: 10, paddingVertical: 40 },
+  emptyTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  item: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
+  itemDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#2563EB" },
+  itemName: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  itemContent: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  itemMeta: { fontSize: 12, fontFamily: "Inter_400Regular" },
+});
+
 export default function TodayScheduleScreen() {
   const { token }   = useAuth();
   const { themeColor } = useBrand();
@@ -810,11 +912,17 @@ export default function TodayScheduleScreen() {
   const [memoItem, setMemoItem]       = useState<ScheduleItem | null>(null);
   const [memoVisible, setMemoVisible] = useState(false);
   const [schedMemoVisible, setSchedMemoVisible] = useState(false);
+  const [overview, setOverview]       = useState<TeacherOverview | null>(null);
+  const [unreadMsgVisible, setUnreadMsgVisible] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const res = await apiRequest(token, `/today-schedule?date=${today}`);
-      if (res.ok) setItems(await res.json());
+      const [schedRes, ovRes] = await Promise.all([
+        apiRequest(token, `/today-schedule?date=${today}`),
+        apiRequest(token, "/teacher/overview"),
+      ]);
+      if (schedRes.ok) setItems(await schedRes.json());
+      if (ovRes.ok) setOverview(await ovRes.json());
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token, today]);
@@ -827,6 +935,10 @@ export default function TodayScheduleScreen() {
   const handleMemoSaved = (classGroupId: string, updated: Partial<ScheduleItem>) => {
     setItems(prev => prev.map(i => i.id === classGroupId ? { ...i, ...updated } : i));
   };
+
+  function handleOpenDiaryFromMsg(diaryId: string) {
+    router.push({ pathname: "/(teacher)/diary" } as any);
+  }
 
   if (loading) {
     return (
@@ -874,6 +986,79 @@ export default function TodayScheduleScreen() {
                 <Text style={s.headerNoClass}>오늘 담당 수업이 없습니다</Text>
               )}
             </View>
+
+            {/* ──── 오늘 할 일 ──────────────────────── */}
+            <View style={[s.todoCard, { backgroundColor: C.card }]}>
+              <Text style={[s.todoTitle, { color: C.text }]}>오늘 할 일</Text>
+              <View style={s.todoGrid}>
+                {/* 1. 미읽은 쪽지 */}
+                <Pressable
+                  style={[s.todoItem, { borderColor: (overview?.unread_messages ?? 0) > 0 ? "#2563EB30" : C.border,
+                    backgroundColor: (overview?.unread_messages ?? 0) > 0 ? "#EFF6FF" : C.bg }]}
+                  onPress={() => setUnreadMsgVisible(true)}
+                >
+                  <View style={[s.todoIcon, { backgroundColor: "#2563EB20" }]}>
+                    <Feather name="mail" size={18} color="#2563EB" />
+                  </View>
+                  <Text style={[s.todoNum, { color: (overview?.unread_messages ?? 0) > 0 ? "#2563EB" : C.textSecondary }]}>
+                    {overview?.unread_messages ?? "-"}
+                  </Text>
+                  <Text style={[s.todoLabel, { color: C.textSecondary }]}>안읽은 쪽지</Text>
+                  {(overview?.unread_messages ?? 0) > 0 && <View style={[s.todoDot, { backgroundColor: C.error }]} />}
+                </Pressable>
+
+                {/* 2. 오늘 미작성 일지 */}
+                <Pressable
+                  style={[s.todoItem, { borderColor: (overview?.pending_diaries_today ?? 0) > 0 ? "#D9770630" : C.border,
+                    backgroundColor: (overview?.pending_diaries_today ?? 0) > 0 ? "#FFFBEB" : C.bg }]}
+                  onPress={() => router.push("/(teacher)/diary" as any)}
+                >
+                  <View style={[s.todoIcon, { backgroundColor: "#F59E0B20" }]}>
+                    <Feather name="edit" size={18} color="#D97706" />
+                  </View>
+                  <Text style={[s.todoNum, { color: (overview?.pending_diaries_today ?? 0) > 0 ? "#D97706" : C.textSecondary }]}>
+                    {overview?.pending_diaries_today ?? "-"}
+                  </Text>
+                  <Text style={[s.todoLabel, { color: C.textSecondary }]}>미작성 일지</Text>
+                  {(overview?.pending_diaries_today ?? 0) > 0 && <View style={[s.todoDot, { backgroundColor: "#D97706" }]} />}
+                </Pressable>
+
+                {/* 3. 오늘 출결 미완료 */}
+                <Pressable
+                  style={[s.todoItem, { borderColor: (items.length - attDoneCount) > 0 ? "#05966930" : C.border,
+                    backgroundColor: (items.length - attDoneCount) > 0 && items.length > 0 ? "#F0FDF4" : C.bg }]}
+                  onPress={() => items[0] &&
+                    router.push({ pathname: "/(teacher)/attendance", params: { classGroupId: items[0].id } } as any)
+                  }
+                >
+                  <View style={[s.todoIcon, { backgroundColor: "#10B98120" }]}>
+                    <Feather name="check-square" size={18} color="#059669" />
+                  </View>
+                  <Text style={[s.todoNum, { color: items.length > 0 && attDoneCount < items.length ? "#059669" : C.textSecondary }]}>
+                    {items.length > 0 ? `${attDoneCount}/${items.length}` : "-"}
+                  </Text>
+                  <Text style={[s.todoLabel, { color: C.textSecondary }]}>출결 완료</Text>
+                  {items.length > 0 && attDoneCount < items.length && <View style={[s.todoDot, { backgroundColor: "#059669" }]} />}
+                </Pressable>
+
+                {/* 4. 보강 대기 */}
+                <Pressable
+                  style={[s.todoItem, { borderColor: (overview?.makeup_count ?? 0) > 0 ? "#7C3AED30" : C.border,
+                    backgroundColor: (overview?.makeup_count ?? 0) > 0 ? "#F5F3FF" : C.bg }]}
+                  onPress={() => router.push("/(teacher)/makeups" as any)}
+                >
+                  <View style={[s.todoIcon, { backgroundColor: "#7C3AED20" }]}>
+                    <Feather name="refresh-cw" size={18} color="#7C3AED" />
+                  </View>
+                  <Text style={[s.todoNum, { color: (overview?.makeup_count ?? 0) > 0 ? "#7C3AED" : C.textSecondary }]}>
+                    {overview?.makeup_count ?? "-"}
+                  </Text>
+                  <Text style={[s.todoLabel, { color: C.textSecondary }]}>보강 대기</Text>
+                  {(overview?.makeup_count ?? 0) > 0 && <View style={[s.todoDot, { backgroundColor: "#7C3AED" }]} />}
+                </Pressable>
+              </View>
+            </View>
+
             {items.length > 0 && (
               <Text style={s.sectionTitle}>시간순 수업 목록</Text>
             )}
@@ -931,6 +1116,15 @@ export default function TodayScheduleScreen() {
         themeColor={themeColor}
         onClose={() => setSchedMemoVisible(false)}
       />
+
+      {/* 안읽은 쪽지 모달 */}
+      <UnreadMessagesModal
+        visible={unreadMsgVisible}
+        token={token}
+        themeColor={themeColor}
+        onClose={() => setUnreadMsgVisible(false)}
+        onOpenDiary={handleOpenDiaryFromMsg}
+      />
     </SafeAreaView>
   );
 }
@@ -947,6 +1141,14 @@ const s = StyleSheet.create({
   summaryItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   summaryText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.9)" },
   sectionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginTop: 4, marginBottom: 2, paddingHorizontal: 4 },
+  todoCard:   { borderRadius: 18, padding: 16, marginTop: 10, gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  todoTitle:  { fontSize: 15, fontFamily: "Inter_700Bold" },
+  todoGrid:   { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  todoItem:   { width: "47%", borderRadius: 14, borderWidth: 1.5, padding: 12, gap: 4, position: "relative" },
+  todoIcon:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  todoNum:    { fontSize: 22, fontFamily: "Inter_700Bold" },
+  todoLabel:  { fontSize: 11, fontFamily: "Inter_400Regular" },
+  todoDot:    { position: "absolute", top: 10, right: 10, width: 8, height: 8, borderRadius: 4 },
   schedCard:  { flexDirection: "row", alignItems: "center", gap: 14, padding: 18, borderRadius: 18, marginTop: 6 },
   schedIcon:  { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   schedTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },

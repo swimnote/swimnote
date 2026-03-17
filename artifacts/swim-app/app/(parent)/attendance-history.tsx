@@ -1,8 +1,8 @@
 import { Feather } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, Pressable, RefreshControl,
+  ActivityIndicator, Platform, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,7 +12,7 @@ import { useParent } from "@/context/ParentContext";
 
 interface Attendance {
   id: string; date: string;
-  status: "present" | "absent" | "late" | "excused";
+  status: "present" | "absent" | "makeup";
   note?: string | null;
   created_by_name?: string | null;
   modified_by_name?: string | null;
@@ -21,9 +21,19 @@ interface Attendance {
 
 const C = Colors.light;
 
-const STATUS_LABEL: Record<string, string> = { present: "출석", absent: "결석", late: "지각", excused: "공결" };
+const STATUS_LABEL: Record<string, string> = {
+  present: "출석",
+  absent: "결석",
+  makeup: "보강",
+  late: "출석",
+  excused: "출석",
+};
 const STATUS_COLOR: Record<string, string> = {
-  present: C.success, absent: C.error, late: C.warning, excused: "#7C3AED",
+  present: C.success,
+  absent: C.error,
+  makeup: "#7C3AED",
+  late: C.success,
+  excused: C.success,
 };
 const WEEKDAY: Record<string, string> = { "0": "일", "1": "월", "2": "화", "3": "수", "4": "목", "5": "금", "6": "토" };
 
@@ -58,10 +68,9 @@ export default function AttendanceHistoryScreen() {
 
   useEffect(() => { fetchRecords(month); }, [id, month]);
 
-  const present = records.filter(r => r.status === "present").length;
+  const present = records.filter(r => ["present", "late", "excused"].includes(r.status)).length;
   const absent = records.filter(r => r.status === "absent").length;
-  const late = records.filter(r => r.status === "late").length;
-  const excused = records.filter(r => r.status === "excused").length;
+  const makeup = records.filter(r => r.status === "makeup").length;
 
   function getWeekday(dateStr: string) {
     const d = new Date(dateStr);
@@ -71,11 +80,7 @@ export default function AttendanceHistoryScreen() {
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="chevron-left" size={24} color={C.text} />
-        </Pressable>
         <Text style={[styles.headerTitle, { color: C.text }]}>{name} 출결 기록</Text>
-        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
@@ -92,25 +97,26 @@ export default function AttendanceHistoryScreen() {
             const [y, mo] = m.split("-");
             const isSelected = m === month;
             return (
-              <Pressable
+              <View
                 key={m}
                 style={[styles.monthBtn, { backgroundColor: isSelected ? C.tint : C.card, borderColor: isSelected ? C.tint : C.border }]}
-                onPress={() => { setMonth(m); setLoading(true); }}
+                onStartShouldSetResponder={() => true}
+                onResponderRelease={() => { setMonth(m); setLoading(true); }}
               >
                 <Text style={[styles.monthText, { color: isSelected ? "#fff" : C.textSecondary }]}>{y}.{mo}</Text>
-              </Pressable>
+              </View>
             );
           })}
         </ScrollView>
 
         <View style={styles.statsRow}>
           {[
-            { label: "출석", count: present, color: C.success },
-            { label: "결석", count: absent, color: C.error },
-            { label: "지각", count: late, color: C.warning },
-            { label: "공결", count: excused, color: "#7C3AED" },
+            { label: "출석", count: present, color: C.success, icon: "check-circle" as const },
+            { label: "결석", count: absent, color: C.error, icon: "x-circle" as const },
+            { label: "보강", count: makeup, color: "#7C3AED", icon: "refresh-cw" as const },
           ].map(s => (
             <View key={s.label} style={[styles.statBox, { backgroundColor: s.color + "18" }]}>
+              <Feather name={s.icon} size={18} color={s.color} />
               <Text style={[styles.statNum, { color: s.color }]}>{s.count}</Text>
               <Text style={[styles.statLabel, { color: s.color }]}>{s.label}</Text>
             </View>
@@ -160,15 +166,14 @@ export default function AttendanceHistoryScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  header: { paddingHorizontal: 20, paddingBottom: 12 },
+  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
   monthScroll: { paddingVertical: 12 },
   monthBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5 },
   monthText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   statsRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, marginBottom: 16 },
-  statBox: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center", gap: 3 },
-  statNum: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  statBox: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: "center", gap: 4 },
+  statNum: { fontSize: 24, fontFamily: "Inter_700Bold" },
   statLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
   list: { paddingHorizontal: 20, gap: 10 },
   recordBox: { borderRadius: 14, padding: 14, gap: 6, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 2, shadowColor: "#00000010" },

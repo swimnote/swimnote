@@ -32,7 +32,7 @@ function MenuItem({ icon, label, sub, onPress, danger = false }: {
 export default function ParentMoreScreen() {
   const insets = useSafeAreaInsets();
   const { parentAccount, logout } = useAuth();
-  const { selectedStudent } = useParent();
+  const { selectedStudent, students } = useParent();
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
@@ -44,24 +44,69 @@ export default function ParentMoreScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 8 }}
       >
+        {/* 프로필 카드 */}
         {parentAccount && (
           <View style={[s.profileCard, { backgroundColor: C.tint }]}>
             <View style={s.profileAvatar}>
               <Text style={s.profileAvatarTxt}>{parentAccount.name?.[0] ?? "P"}</Text>
             </View>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={s.profileName}>{parentAccount.name}님</Text>
               <Text style={s.profilePool}>{parentAccount.pool_name || "수영장"}</Text>
             </View>
+            <Pressable style={s.settingsBtn}>
+              <Feather name="settings" size={20} color="rgba(255,255,255,0.8)" />
+            </Pressable>
+          </View>
+        )}
+
+        {/* 자녀 정보 */}
+        {students.length > 0 && (
+          <View style={[s.childrenCard, { backgroundColor: C.card }]}>
+            <Text style={[s.childrenTitle, { color: C.textMuted }]}>등록된 자녀</Text>
+            {students.map(st => (
+              <View key={st.id} style={[s.childRow, { borderTopColor: C.border }]}>
+                <View style={[s.childAvatar, { backgroundColor: C.tintLight }]}>
+                  <Text style={[s.childAvatarTxt, { color: C.tint }]}>{st.name[0]}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.childName, { color: C.text }]}>{st.name}</Text>
+                  {st.class_group?.name ? (
+                    <Text style={[s.childClass, { color: C.textMuted }]}>{st.class_group.name}</Text>
+                  ) : null}
+                </View>
+                {selectedStudent?.id === st.id && (
+                  <View style={[s.selectedBadge, { backgroundColor: C.tintLight }]}>
+                    <Feather name="check" size={12} color={C.tint} />
+                    <Text style={[s.selectedTxt, { color: C.tint }]}>선택됨</Text>
+                  </View>
+                )}
+              </View>
+            ))}
           </View>
         )}
 
         <Text style={[s.sectionLabel, { color: C.textMuted }]}>자녀 정보</Text>
-        <MenuItem icon="award" label="레벨" sub={selectedStudent ? `${selectedStudent.name}의 레벨 기록` : "자녀를 선택해주세요"} onPress={() => router.push("/(parent)/level" as any)} />
-        <MenuItem icon="calendar" label="출결" sub={selectedStudent ? `${selectedStudent.name}의 출결 기록` : "자녀를 선택해주세요"} onPress={() => router.push("/(parent)/attendance-history" as any)} />
+        <MenuItem
+          icon="award"
+          label="레벨"
+          sub={selectedStudent ? `${selectedStudent.name}의 레벨 기록` : "자녀를 선택해주세요"}
+          onPress={() => router.push("/(parent)/level" as any)}
+        />
+        <MenuItem
+          icon="calendar"
+          label="출결"
+          sub={selectedStudent ? `${selectedStudent.name}의 출결 기록` : "자녀를 선택해주세요"}
+          onPress={() => router.push("/(parent)/attendance-history" as any)}
+        />
 
         <Text style={[s.sectionLabel, { color: C.textMuted }]}>수영장 소식</Text>
-        <MenuItem icon="bell" label="공지사항" sub="수영장·반 공지 확인" onPress={() => router.push("/(parent)/notices" as any)} />
+        <MenuItem
+          icon="bell"
+          label="공지사항"
+          sub="수영장·반 공지 확인"
+          onPress={() => router.push("/(parent)/notices" as any)}
+        />
 
         <Text style={[s.sectionLabel, { color: C.textMuted }]}>계정</Text>
         <MenuItem icon="log-out" label="로그아웃" danger onPress={logout} />
@@ -84,6 +129,18 @@ const s = StyleSheet.create({
   profileAvatarTxt: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff" },
   profileName: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
   profilePool: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
+  settingsBtn: { padding: 6 },
+
+  childrenCard: { borderRadius: 16, padding: 14, marginBottom: 4 },
+  childrenTitle: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 },
+  childRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 10, borderTopWidth: 1 },
+  childAvatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  childAvatarTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  childName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  childClass: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  selectedBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  selectedTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
   sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5, textTransform: "uppercase", marginTop: 8 },
   menuItem: {
     flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, gap: 12,
