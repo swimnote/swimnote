@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView,
@@ -30,6 +31,13 @@ export default function PoolSettingsScreen() {
   const [savingCapacity,  setSavingCapacity]  = useState(false);
   const [capacityMsg,     setCapacityMsg]     = useState("");
 
+  // ── 단가표 관련 ───────────────────────────────────────
+  interface PricingItem { id: string; type_key: string; type_name: string; monthly_fee: number; sessions_per_month: number; is_active: boolean; }
+  const [pricing, setPricing] = useState<PricingItem[]>([]);
+  const [pricingEdits, setPricingEdits] = useState<Record<string, Partial<PricingItem>>>({});
+  const [savingPricing, setSavingPricing] = useState(false);
+  const [pricingMsg, setPricingMsg] = useState("");
+
   useEffect(() => {
     (async () => {
       try {
@@ -41,6 +49,11 @@ export default function PoolSettingsScreen() {
           const data = await settingsRes.json();
           setSettings(data);
           setForm({ name: data.name || "", name_en: data.name_en || "", address: data.address || "", phone: data.phone || "", owner_name: data.owner_name || "" });
+          // 단가표 로드
+          if (data.id) {
+            const priceRes = await apiRequest(token, `/pricing?pool_id=${data.id}`);
+            if (priceRes.ok) { const pr = await priceRes.json(); setPricing(pr.pricing || []); }
+          }
         }
         if (capRes.ok) {
           const capData = await capRes.json();
@@ -49,6 +62,39 @@ export default function PoolSettingsScreen() {
       } finally { setLoading(false); }
     })();
   }, [token]);
+
+  function updatePricing(typeKey: string, field: string, value: string | number) {
+    setPricingEdits(prev => ({ ...prev, [typeKey]: { ...(prev[typeKey] || {}), [field]: value } }));
+  }
+  function getPricingVal(p: PricingItem, field: "type_name" | "monthly_fee" | "sessions_per_month") {
+    const edit = pricingEdits[p.type_key];
+    if (edit && field in edit) return String(edit[field as keyof PricingItem]);
+    return String(p[field] ?? "");
+  }
+
+  async function handleSavePricing() {
+    setSavingPricing(true); setPricingMsg("");
+    try {
+      const items = pricing.map(p => ({
+        type_key: p.type_key,
+        type_name: pricingEdits[p.type_key]?.type_name ?? p.type_name,
+        monthly_fee: parseInt(String(pricingEdits[p.type_key]?.monthly_fee ?? p.monthly_fee), 10) || 0,
+        sessions_per_month: parseInt(String(pricingEdits[p.type_key]?.sessions_per_month ?? p.sessions_per_month), 10) || 4,
+        is_active: p.is_active,
+      }));
+      const res = await apiRequest(token, `/pricing/${settings?.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPricing(data.pricing || []); setPricingEdits({});
+        setPricingMsg("저장되었습니다."); setTimeout(() => setPricingMsg(""), 3000);
+      } else { const d = await res.json(); setPricingMsg("저장 실패: " + d.error); }
+    } catch { setPricingMsg("저장 중 오류"); }
+    finally { setSavingPricing(false); }
+  }
 
   async function handleSave() {
     if (form.name_en && !/^[a-z0-9_]+$/.test(form.name_en)) {
@@ -205,6 +251,87 @@ export default function PoolSettingsScreen() {
             }
           </Pressable>
         </View>
+
+        {/* ── 단가표 관리 ───────────────────────────────────── */}
+        {pricing.length > 0 && (
+          <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Feather name="dollar-sign" size={16} color="#7C3AED" />
+              <Text style={[styles.sectionTitle, { color: C.text }]}>수업 단가표</Text>
+            </View>
+            <Text style={[styles.hint, { color: C.textMuted }]}>월 수업료 기준. 주1회=4회, 주2회=8회, 주3회=12회 기본.</Text>
+            {pricing.map(p => (
+              <View key={p.type_key} style={{ gap: 6, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border }}>
+                <Text style={[styles.label, { color: C.textSecondary }]}>
+                  {p.type_key.startsWith("custom") ? "커스텀명" : p.type_name}
+                  {p.type_key.startsWith("custom") && <Text style={[styles.hint, { color: C.textMuted }]}> (이름 변경 가능)</Text>}
+                </Text>
+                {p.type_key.startsWith("custom") && (
+                  <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+                    <Feather name="tag" size={16} color={C.textMuted} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: C.text }]}
+                      value={getPricingVal(p, "type_name")}
+                      onChangeText={v => updatePricing(p.type_key, "type_name", v)}
+                      placeholder={p.type_name} placeholderTextColor={C.textMuted}
+                    />
+                  </View>
+                )}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background, flex: 1 }]}>
+                    <Feather name="dollar-sign" size={14} color={C.textMuted} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: C.text }]}
+                      value={getPricingVal(p, "monthly_fee")}
+                      onChangeText={v => updatePricing(p.type_key, "monthly_fee", v)}
+                      placeholder="월 수업료" placeholderTextColor={C.textMuted}
+                      keyboardType="number-pad"
+                    />
+                    <Text style={[{ fontSize: 12, color: C.textMuted, paddingRight: 4 }]}>원</Text>
+                  </View>
+                  <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background, width: 80 }]}>
+                    <TextInput
+                      style={[styles.input, { color: C.text, textAlign: "center" }]}
+                      value={getPricingVal(p, "sessions_per_month")}
+                      onChangeText={v => updatePricing(p.type_key, "sessions_per_month", v)}
+                      placeholder="4" placeholderTextColor={C.textMuted}
+                      keyboardType="number-pad"
+                    />
+                    <Text style={[{ fontSize: 12, color: C.textMuted, paddingRight: 4 }]}>회</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+            {pricingMsg ? (
+              <View style={[styles.msgBox, { backgroundColor: pricingMsg === "저장되었습니다." ? "#D1FAE5" : "#FEE2E2" }]}>
+                <Feather name={pricingMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
+                  color={pricingMsg === "저장되었습니다." ? "#059669" : C.error} />
+                <Text style={[styles.errText, { color: pricingMsg === "저장되었습니다." ? "#059669" : C.error }]}>{pricingMsg}</Text>
+              </View>
+            ) : null}
+            <Pressable
+              style={[styles.saveBtn, { backgroundColor: "#7C3AED", opacity: savingPricing ? 0.6 : 1, alignSelf: "flex-start", marginTop: 4 }]}
+              onPress={handleSavePricing} disabled={savingPricing}
+            >
+              {savingPricing ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>단가표 저장</Text>}
+            </Pressable>
+          </View>
+        )}
+
+        {/* ── 휴무일 관리 바로가기 ─────────────────────────── */}
+        <Pressable
+          style={[styles.card, { backgroundColor: "#FEE2E2", shadowColor: C.shadow, flexDirection: "row", alignItems: "center", gap: 12 }]}
+          onPress={() => router.push("/(admin)/holidays" as any)}
+        >
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#EF444420", alignItems: "center", justifyContent: "center" }}>
+            <Feather name="x-square" size={20} color="#EF4444" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.sectionTitle, { color: "#DC2626" }]}>휴무일 관리</Text>
+            <Text style={[styles.hint, { color: "#EF4444" }]}>달력에서 수영장 휴무일을 설정합니다</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color="#EF4444" />
+        </Pressable>
 
         {settings && (
           <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>

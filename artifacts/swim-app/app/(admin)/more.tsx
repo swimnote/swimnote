@@ -82,6 +82,13 @@ export default function MoreScreen() {
       ],
     },
     {
+      title: "정산 · 일정",
+      items: [
+        { label: "수업 단가표",  icon: "dollar-sign"  as const, color: "#7C3AED", bg: "#EDE9FE", route: "/(admin)/pool-settings" },
+        { label: "휴무일 관리",  icon: "x-square"     as const, color: "#EF4444", bg: "#FEE2E2", route: "/(admin)/holidays"      },
+      ],
+    },
+    {
       title: "설정",
       items: [
         { label: "브랜드 설정",  icon: "sliders"      as const, color: "#EC4899", bg: "#FCE7F3", route: "/(admin)/branding"      },

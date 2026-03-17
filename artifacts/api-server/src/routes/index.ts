@@ -23,6 +23,11 @@ import videosRouter from "./videos.js";
 import todayScheduleRouter from "./today-schedule.js";
 import pushTokenRouter from "./push-token.js";
 import messengerRouter from "./messenger.js";
+import pricingRouter from "./pricing.js";
+import holidaysRouter from "./holidays.js";
+import absencesRouter from "./absences.js";
+import extraClassesRouter from "./extra-classes.js";
+import settlementRouter from "./settlement.js";
 
 const router: IRouter = Router();
 
@@ -50,5 +55,10 @@ router.use("/", classSchedulesRouter);
 router.use("/", todayScheduleRouter);
 router.use("/", pushTokenRouter);
 router.use("/", messengerRouter);
+router.use("/", pricingRouter);
+router.use("/", holidaysRouter);
+router.use("/", absencesRouter);
+router.use("/", extraClassesRouter);
+router.use("/", settlementRouter);
 
 export default router;

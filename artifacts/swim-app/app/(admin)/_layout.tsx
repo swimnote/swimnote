@@ -63,6 +63,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="member-detail"     options={{ href: null }} />
       <Tabs.Screen name="teacher-hub"       options={{ href: null }} />
       <Tabs.Screen name="makeups"           options={{ href: null }} />
+      <Tabs.Screen name="holidays"          options={{ href: null }} />
     </Tabs>
   );
 }

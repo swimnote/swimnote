@@ -9,7 +9,7 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Dimensions, FlatList, Modal,
-  Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
+  Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -438,6 +438,171 @@ const dcl = StyleSheet.create({
   classSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
 });
 
+// ─── 기타 수업 생성 모달 ──────────────────────────────────────────
+interface ExtraClassModalProps {
+  token: string | null;
+  poolId: string;
+  group: TeacherClassGroup;
+  groupStudents: StudentItem[];
+  onClose: () => void;
+  onCreated: () => void;
+}
+
+function ExtraClassModal({ token, poolId, group, groupStudents, onClose, onCreated }: ExtraClassModalProps) {
+  const { themeColor } = useBrand();
+  const [className, setClassName]   = useState(group.name + " 기타수업");
+  const [classDate, setClassDate]   = useState(todayDateStr());
+  const [classTime, setClassTime]   = useState(group.schedule_time || "09:00");
+  const [notes, setNotes]           = useState("");
+  const [isFifthWeek, setIsFifthWeek] = useState(false);
+  const [selectedStuIds, setSelectedStuIds] = useState<Set<string>>(new Set());
+  const [unreg, setUnreg]           = useState("");
+  const [unregNames, setUnregNames] = useState<string[]>([]);
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState("");
+
+  function toggleStu(id: string) {
+    setSelectedStuIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  function addUnreg() {
+    const name = unreg.trim();
+    if (!name) return;
+    setUnregNames(prev => [...prev, name]);
+    setUnreg("");
+  }
+
+  async function handleCreate() {
+    if (!className.trim() || !classDate || !classTime) { setError("수업명·날짜·시간을 입력하세요."); return; }
+    setSaving(true); setError("");
+    try {
+      const res = await apiRequest(token, "/extra-classes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pool_id: poolId,
+          class_name: className.trim(),
+          class_date: classDate,
+          class_time: classTime,
+          student_ids: Array.from(selectedStuIds),
+          unregistered_names: unregNames,
+          is_fifth_week: isFifthWeek,
+          notes: notes.trim() || null,
+        }),
+      });
+      if (res.ok) { onCreated(); onClose(); }
+      else { const d = await res.json(); setError(d.error || "생성 실패"); }
+    } catch { setError("네트워크 오류"); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={em.backdrop} onPress={onClose} />
+      <View style={em.sheet}>
+        <View style={em.handle} />
+        <View style={em.header}>
+          <Text style={em.title}>기타 수업 추가</Text>
+          <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
+        </View>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+          {/* 수업명 */}
+          <View style={em.field}>
+            <Text style={em.label}>수업명 *</Text>
+            <TextInput style={em.input} value={className} onChangeText={setClassName} placeholder="수업명" placeholderTextColor={C.textMuted} />
+          </View>
+          {/* 날짜·시간 */}
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={[em.field, { flex: 1 }]}>
+              <Text style={em.label}>날짜 *</Text>
+              <TextInput style={em.input} value={classDate} onChangeText={setClassDate} placeholder="YYYY-MM-DD" placeholderTextColor={C.textMuted} />
+            </View>
+            <View style={[em.field, { width: 100 }]}>
+              <Text style={em.label}>시간 *</Text>
+              <TextInput style={em.input} value={classTime} onChangeText={setClassTime} placeholder="09:00" placeholderTextColor={C.textMuted} />
+            </View>
+          </View>
+          {/* 5주차 여부 */}
+          <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 8 }} onPress={() => setIsFifthWeek(!isFifthWeek)}>
+            <View style={[em.checkbox, isFifthWeek && { backgroundColor: themeColor, borderColor: themeColor }]}>
+              {isFifthWeek && <Feather name="check" size={12} color="#fff" />}
+            </View>
+            <Text style={em.label}>5주차 수업</Text>
+          </Pressable>
+          {/* 등록 학생 선택 */}
+          {groupStudents.length > 0 && (
+            <View style={em.field}>
+              <Text style={em.label}>참가 학생 (이 반)</Text>
+              {groupStudents.map(st => (
+                <Pressable key={st.id} style={em.stuRow} onPress={() => toggleStu(st.id)}>
+                  <View style={[em.checkbox, selectedStuIds.has(st.id) && { backgroundColor: themeColor, borderColor: themeColor }]}>
+                    {selectedStuIds.has(st.id) && <Feather name="check" size={12} color="#fff" />}
+                  </View>
+                  <Text style={em.stuName}>{st.name}</Text>
+                  {st.birth_year && <Text style={em.stuSub}>{st.birth_year}년생</Text>}
+                </Pressable>
+              ))}
+            </View>
+          )}
+          {/* 미등록 회원 */}
+          <View style={em.field}>
+            <Text style={em.label}>미등록 회원 추가</Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TextInput style={[em.input, { flex: 1 }]} value={unreg} onChangeText={setUnreg} placeholder="이름 입력" placeholderTextColor={C.textMuted} onSubmitEditing={addUnreg} returnKeyType="done" />
+              <Pressable style={[em.addBtn, { backgroundColor: themeColor }]} onPress={addUnreg}>
+                <Feather name="plus" size={16} color="#fff" />
+              </Pressable>
+            </View>
+            {unregNames.map((n, i) => (
+              <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <View style={[em.checkbox, { backgroundColor: "#F3F4F6", borderColor: C.border }]}>
+                  <Feather name="user" size={11} color={C.textMuted} />
+                </View>
+                <Text style={em.stuName}>{n}</Text>
+                <Text style={[em.stuSub, { marginLeft: "auto" }]}>미등록</Text>
+                <Pressable onPress={() => setUnregNames(prev => prev.filter((_, j) => j !== i))}>
+                  <Feather name="x" size={14} color={C.textMuted} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+          {/* 메모 */}
+          <View style={em.field}>
+            <Text style={em.label}>메모</Text>
+            <TextInput style={[em.input, { height: 72, textAlignVertical: "top" }]} value={notes} onChangeText={setNotes} placeholder="특이사항 등..." placeholderTextColor={C.textMuted} multiline />
+          </View>
+          {error ? <Text style={em.error}>{error}</Text> : null}
+          <Pressable style={[em.createBtn, { backgroundColor: themeColor, opacity: saving ? 0.6 : 1 }]} onPress={handleCreate} disabled={saving}>
+            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={em.createBtnText}>기타 수업 등록</Text>}
+          </Pressable>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const em = StyleSheet.create({
+  backdrop:  { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
+               borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%", paddingBottom: 0 },
+  handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  header:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
+  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  field:     { gap: 6 },
+  label:     { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  input:     { borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+               fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, backgroundColor: "#F9FAFB" },
+  checkbox:  { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: C.border,
+               backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  stuRow:    { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
+  stuName:   { fontSize: 14, fontFamily: "Inter_500Medium", color: C.text },
+  stuSub:    { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
+  addBtn:    { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  createBtn: { paddingVertical: 14, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  createBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  error:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#DC2626", textAlign: "center" },
+});
+
 // ─── 메인 스크린 ─────────────────────────────────────────────────
 export default function MyScheduleScreen() {
   const { token, adminUser } = useAuth();
@@ -466,6 +631,12 @@ export default function MyScheduleScreen() {
 
   // 월간 → 날짜 클릭 시트
   const [daySheet,       setDaySheet]       = useState<{ dateStr: string; cls: TeacherClassGroup[] } | null>(null);
+
+  // 기타 수업 생성 모달
+  const [showExtraModal, setShowExtraModal] = useState(false);
+
+  // pool_id
+  const poolId = (adminUser as any)?.swimming_pool_id || "";
 
   const load = useCallback(async () => {
     const today = todayDateStr();
@@ -583,7 +754,23 @@ export default function MyScheduleScreen() {
             <Feather name="users" size={14} color="#4338CA" />
             <Text style={[s.subActionText, { color: "#4338CA" }]}>반배정</Text>
           </Pressable>
+          <Pressable style={[s.subActionBtn, { backgroundColor: "#FEF9C3" }]}
+            onPress={() => setShowExtraModal(true)}>
+            <Feather name="plus-circle" size={14} color="#CA8A04" />
+            <Text style={[s.subActionText, { color: "#CA8A04" }]}>기타수업</Text>
+          </Pressable>
         </View>
+
+        {showExtraModal && poolId && (
+          <ExtraClassModal
+            token={token}
+            poolId={poolId}
+            group={g}
+            groupStudents={groupStudents}
+            onClose={() => setShowExtraModal(false)}
+            onCreated={() => { setShowExtraModal(false); load(); }}
+          />
+        )}
 
         <FlatList
           data={groupStudents}
