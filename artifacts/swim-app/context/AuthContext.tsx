@@ -173,7 +173,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ identifier, password }),
     });
     const data = await safeJson(res);
-    if (!res.ok) throw new Error(data.error || "로그인에 실패했습니다.");
+    if (!res.ok) throw Object.assign(new Error(data.error || "로그인에 실패했습니다."), {
+      error_code: data.error_code || "unknown",
+    });
     await AsyncStorage.multiSet([
       ["auth_token", data.token],
       ["auth_kind", "parent"],

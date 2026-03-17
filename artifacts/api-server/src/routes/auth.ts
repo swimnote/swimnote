@@ -149,7 +149,22 @@ router.post("/parent-login", async (req, res) => {
       ? await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.phone, id))
       : [];
     const accounts: any[] = byLoginId.rows.length > 0 ? byLoginId.rows : byPhone;
-    if (accounts.length === 0) return err(res, 401, "등록되지 않은 아이디 또는 전화번호입니다.");
+    if (accounts.length === 0) {
+      const pending = await db.execute(sql`
+        SELECT id, parent_name FROM parent_pool_requests
+        WHERE (login_id = ${id} OR phone = ${id})
+          AND request_status = 'pending'
+        LIMIT 1
+      `);
+      if ((pending.rows as any[]).length > 0) {
+        return res.status(403).json({
+          success: false,
+          error: "가입 요청이 승인 대기 중입니다. 수영장 관리자 승인 후 로그인 가능합니다.",
+          error_code: "pending_pool_request",
+        });
+      }
+      return err(res, 401, "등록되지 않은 아이디 또는 전화번호입니다.");
+    }
     let matched: any = null;
     for (const acc of accounts) {
       const valid = await comparePassword(pw, acc.pin_hash);
@@ -323,7 +338,21 @@ router.post("/unified-login", async (req, res) => {
       res.json({ success: true, token, kind: "parent", parent: { id: parentRow.id, name: parentRow.name, phone: parentRow.phone, login_id: parentRow.login_id, swimming_pool_id: parentRow.swimming_pool_id, pool_name: poolName } }); return;
     }
 
-    // 계정 없음
+    // 계정 없음 — pending 요청 확인
+    const pendingReq = await db.execute(sql`
+      SELECT id FROM parent_pool_requests
+      WHERE (login_id = ${identifier.trim()} OR phone = ${identifier.trim()})
+        AND request_status = 'pending'
+      LIMIT 1
+    `);
+    if ((pendingReq.rows as any[]).length > 0) {
+      res.status(403).json({
+        success: false,
+        error: "가입 요청이 승인 대기 중입니다. 수영장 관리자 승인 후 로그인 가능합니다.",
+        error_code: "pending_pool_request",
+      });
+      return;
+    }
     res.status(401).json({ success: false, error: "가입된 계정이 없습니다.", error_code: "user_not_found" });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

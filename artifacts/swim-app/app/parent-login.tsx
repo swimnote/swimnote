@@ -27,7 +27,12 @@ export default function ParentLoginScreen() {
     try {
       await parentLogin(identifier.trim(), password);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "로그인에 실패했습니다.");
+      const e = err as Error & { error_code?: string };
+      if (e.error_code === "pending_pool_request") {
+        setError("가입 요청이 승인 대기 중입니다.\n수영장 관리자 승인 후 로그인 가능합니다.");
+      } else {
+        setError(e.message || "로그인에 실패했습니다.");
+      }
     } finally { setLoading(false); }
   }
 

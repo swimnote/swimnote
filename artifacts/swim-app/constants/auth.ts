@@ -34,7 +34,7 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
     icon: "heart",
     color: "#059669",
     bgColor: "#D1FAE5",
-    route: "/(parent)",
+    route: "/(parent)/home",
   },
   super_admin: {
     key: "super_admin",

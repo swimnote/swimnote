@@ -2,7 +2,7 @@ import {
   Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, router } from "expo-router";
+import { Stack, router, useSegments } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
@@ -96,7 +96,18 @@ function PushTokenSync() {
  */
 function RootNav() {
   const { kind, isLoading, adminUser, pool } = useAuth();
+  const segments = useSegments();
   const didRoute = useRef(false);
+
+  // 뒤로가기(브라우저 히스토리 등)로 로그인 화면에 도달했을 때 재리다이렉트
+  useEffect(() => {
+    if (isLoading || !kind || !didRoute.current) return;
+    const APP_ROOTS = ["(admin)", "(super)", "(teacher)", "(parent)",
+      "org-role-select", "pool-apply", "pending", "rejected", "subscription-expired"];
+    if (segments.length === 0 || !APP_ROOTS.includes(segments[0] as string)) {
+      router.replace("/org-role-select");
+    }
+  }, [segments]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -131,7 +142,7 @@ function RootNav() {
   }, [kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#ffffff" } }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="login" />
       <Stack.Screen name="org-role-select" />

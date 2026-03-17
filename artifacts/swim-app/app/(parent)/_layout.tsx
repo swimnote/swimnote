@@ -31,7 +31,7 @@ function ParentTabs() {
       tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 10 },
     }}>
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{ title: "홈", tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} /> }}
       />
       <Tabs.Screen
