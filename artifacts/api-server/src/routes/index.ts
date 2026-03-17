@@ -22,6 +22,7 @@ import classSchedulesRouter from "./class-schedules.js";
 import videosRouter from "./videos.js";
 import todayScheduleRouter from "./today-schedule.js";
 import pushTokenRouter from "./push-token.js";
+import messengerRouter from "./messenger.js";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use("/", teacherInvitesRouter);
 router.use("/", classSchedulesRouter);
 router.use("/", todayScheduleRouter);
 router.use("/", pushTokenRouter);
+router.use("/", messengerRouter);
 
 export default router;

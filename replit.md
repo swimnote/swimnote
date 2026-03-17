@@ -9,7 +9,7 @@ I prefer the AI to operate with a clear understanding of the existing system's m
 ## System Architecture
 
 ### UI/UX Decisions
-The administrator application features a 5-tab structure (Dashboard, People, Classes, Communication, More) with additional hidden routes for detailed management. A consistent selection mode UX is implemented for bulk actions like deletion, featuring a common selection hook, a fixed action bar, and clear visual feedback for selected items. The member detail screen is a comprehensive 8-tab hub for managing individual student information, including personal details, class info, makeup lessons, parent sharing, and activity logs.
+The administrator application features a 6-tab structure (Dashboard, People, Classes, Communication, Messenger, More) with additional hidden routes for detailed management. The teacher application features a 7-tab structure (Today's Schedule, Class Management, Attendance, Swim Diary, Photos, Messenger, Settings). A consistent selection mode UX is implemented for bulk actions like deletion, featuring a common selection hook, a fixed action bar, and clear visual feedback for selected items. The member detail screen is a comprehensive 8-tab hub for managing individual student information, including personal details, class info, makeup lessons, parent sharing, and activity logs.
 
 **Navigation Rule (시간표 탐색 순서)**: 시간표 → 선생님 선택(TeacherPickerList) → 반 목록 → 반 현황판(ClassDetailPanel) — 1명/1개여도 항상 모든 단계 표시, 자동 스킵 금지. Alert.alert 금지 (웹뷰 미작동), 모든 확인 UI는 Modal 사용.
 
@@ -32,6 +32,7 @@ The platform is built as a pnpm workspace monorepo using TypeScript. It leverage
 - **Photo Album System**: Supports both group and private photo albums with access control based on user roles and student/class assignments. Utilizes a dedicated object storage client for file uploads and downloads.
 - **Makeup Lesson System**: Automated creation of makeup lesson requests upon student absence, with comprehensive lifecycle management (waiting, assigned, transferred, completed, cancelled) via dedicated API endpoints.
 - **Activity Logging**: Automated tracking of significant administrator actions (e.g., status changes, information edits, restorations) in a `member_activity_logs` table, providing a detailed audit trail.
+- **Work Messenger (업무 메신저)**: Internal staff messaging system accessible to pool_admin and teacher roles. Features: text messages (全体 or target-specific), photo attachments (stored in object storage, served via auth-protected API), member transfer cards (회원이전), message filters (전체/사진/회원이전). DB tables: `work_messages`, `member_transfers`. API: `/messenger/*` routes. Shared component: `components/common/MessengerScreen.tsx`.
 
 ### System Design Choices
 - **API Design**: RESTful API endpoints with clear responsibilities, consistent JSON response formats (success/failure), and strong authentication/authorization middleware.

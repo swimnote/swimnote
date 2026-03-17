@@ -40,6 +40,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="people"        options={{ title: "사람",        tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} /> }} />
       <Tabs.Screen name="classes"       options={{ title: "수업",        tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }} />
       <Tabs.Screen name="communication" options={{ title: "커뮤니케이션", tabBarIcon: ({ color }) => <Feather name="message-square" size={22} color={color} /> }} />
+      <Tabs.Screen name="messenger"     options={{ title: "메신저",      tabBarIcon: ({ color }) => <Feather name="send" size={22} color={color} /> }} />
       <Tabs.Screen name="more"          options={{ title: "더보기",      tabBarIcon: ({ color }) => <Feather name="menu" size={22} color={color} /> }} />
 
       {/* ─── 숨김 화면들 (탭 없이 push/navigate로 접근) ─── */}
