@@ -37,7 +37,10 @@ export default function ParentMoreScreen() {
   async function handleFullLogout() {
     await logout();
     if (Platform.OS === "web") {
+      try { sessionStorage.clear(); } catch { }
       (window as any).location.replace("/");
+    } else {
+      router.replace("/");
     }
   }
 
