@@ -129,12 +129,6 @@ export default function SuperPoolsScreen() {
   }, [pools]);
 
   async function handleApprove(pool: Pool) {
-    const businessOK = pool.business_license_status === "uploaded" || pool.business_license_status === "verified";
-    const bankOK     = pool.bank_account_verification_status === "uploaded" || pool.bank_account_verification_status === "verified";
-    if (!businessOK || !bankOK) {
-      Alert.alert("승인 불가", "필수 서류(사업자등록증, 자동이체 계좌인증)가 모두 업로드되어야 승인할 수 있습니다.");
-      return;
-    }
     Alert.alert("승인 확인", `${pool.name}을 승인하시겠습니까?\n승인 후 무료 이용(~50명)으로 시작됩니다.`, [
       { text: "취소", style: "cancel" },
       { text: "승인", onPress: async () => {
@@ -281,13 +275,7 @@ export default function SuperPoolsScreen() {
                     )}
                   </View>
 
-                  {/* 서류 상태 (미승인 시) */}
-                  {isPending && (
-                    <View style={{ gap: 8, marginBottom: 4 }}>
-                      <DocStatus label="사업자등록증"    status={pool.business_license_status} />
-                      <DocStatus label="자동이체 계좌인증" status={pool.bank_account_verification_status} />
-                    </View>
-                  )}
+                  {/* 서류 상태 섹션 제거 — 기본 정보 확인 후 수동 승인 */}
 
                   {/* 승인/반려 버튼 (미승인 시) */}
                   {isPending && (
@@ -368,9 +356,8 @@ function PoolDetailModal({ pool, onClose }: { pool: Pool; onClose: () => void })
     { label: "주소",        value: pool.address },
     { label: "대표 전화",   value: pool.phone },
     { label: "대표자",      value: pool.owner_name },
-    { label: "이메일",      value: pool.owner_email },
-    { label: "사업자번호",  value: pool.business_reg_number || "미제출" },
-    { label: "신청일",      value: new Date(pool.created_at).toLocaleDateString("ko-KR") },
+    { label: "이메일",  value: pool.owner_email },
+    { label: "신청일",  value: new Date(pool.created_at).toLocaleDateString("ko-KR") },
   ];
 
   return (

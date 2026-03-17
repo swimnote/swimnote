@@ -23,7 +23,7 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const C = Colors.light;
 
-  const [form, setForm] = useState({ email: prefillId || "", password: "", passwordConfirm: "", name: "", phone: "" });
+  const [form, setForm] = useState({ email: prefillId || "", password: "", passwordConfirm: "", name: "", phone: "" }); // email 필드는 내부적으로 로그인 아이디로 사용됩니다
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -76,7 +76,7 @@ export default function RegisterScreen() {
 
           {[
             { key: "name", label: "이름 *", placeholder: "담당자 이름", icon: "user" as const, keyboardType: "default" as const },
-            { key: "email", label: "이메일 *", placeholder: "이메일 주소", icon: "mail" as const, keyboardType: "email-address" as const },
+            { key: "email", label: "아이디 *", placeholder: "로그인에 사용할 아이디", icon: "user" as const, keyboardType: "default" as const },
             { key: "phone", label: "연락처", placeholder: "010-0000-0000", icon: "phone" as const, keyboardType: "phone-pad" as const },
             { key: "password", label: "비밀번호 *", placeholder: "6자 이상", icon: "lock" as const, secure: true, keyboardType: "default" as const },
             { key: "passwordConfirm", label: "비밀번호 확인 *", placeholder: "비밀번호 재입력", icon: "lock" as const, secure: true, keyboardType: "default" as const },

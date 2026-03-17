@@ -16,26 +16,16 @@ function getClient() {
   return _client;
 }
 
-// ── 수영장 등록 신청 (multipart: 사업자등록증 이미지 포함) ────────────
-router.post("/apply", requireAuth, upload.single("business_reg_image"),
+// ── 수영장 등록 신청 (기본 정보만 입력, JSON) ─────────────────────────
+router.post("/apply", requireAuth,
   async (req: AuthRequest, res) => {
-    const { name, name_en, business_reg_number, address, phone, owner_name, admin_name, admin_email, admin_phone } = req.body;
-    if (!name || !address || !phone || !owner_name || !business_reg_number || !admin_name || !admin_email) {
+    const { name, name_en, address, phone, owner_name, admin_name, admin_email, admin_phone } = req.body;
+    if (!name || !address || !phone || !owner_name || !admin_name || !admin_email) {
       return res.status(400).json({ success: false, message: "모든 필수 항목을 입력해주세요.", error: "필수 항목 누락" });
     }
     try {
       const user = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!user[0]) return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다.", error: "사용자 없음" });
-
-      let businessRegImageKey: string | null = null;
-      if (req.file) {
-        const client = getClient();
-        const ext = (req.file.originalname.split(".").pop() || "jpg").toLowerCase();
-        const key = `docs/business_reg/${Date.now()}_${Math.random().toString(36).substr(2, 6)}.${ext}`;
-        const { ok, error } = await client.uploadFromBuffer(req.file.buffer, key, { contentType: req.file.mimetype });
-        if (ok) { businessRegImageKey = key; }
-        else { console.error("사업자등록증 업로드 실패:", error); }
-      }
 
       const id = `pool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const resolvedNameEn = name_en?.trim()
@@ -44,10 +34,9 @@ router.post("/apply", requireAuth, upload.single("business_reg_image"),
 
       const rows = await db.execute(sql`
         INSERT INTO swimming_pools
-          (id, name, name_en, business_reg_number, business_reg_image_key, address, phone, owner_name, owner_email, admin_name, admin_email, admin_phone, approval_status, subscription_status)
+          (id, name, name_en, address, phone, owner_name, owner_email, admin_name, admin_email, admin_phone, approval_status, subscription_status)
         VALUES
-          (${id}, ${name}, ${resolvedNameEn}, ${business_reg_number}, ${businessRegImageKey},
-           ${address}, ${phone}, ${owner_name}, ${admin_email}, ${admin_name}, ${admin_email}, ${admin_phone}, 'pending', 'trial')
+          (${id}, ${name}, ${resolvedNameEn}, ${address}, ${phone}, ${owner_name}, ${admin_email}, ${admin_name}, ${admin_email}, ${admin_phone}, 'pending', 'trial')
         RETURNING *
       `);
 
