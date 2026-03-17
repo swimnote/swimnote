@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 interface ClassGroup {
@@ -76,15 +77,15 @@ export default function ChildrenScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
-        <View>
-          <Text style={[styles.poolName, { color: C.text }]}>{parentAccount?.pool_name || "수영장"}</Text>
-          <Text style={[styles.greeting, { color: C.textSecondary }]}>{parentAccount?.name}님, 안녕하세요</Text>
-        </View>
-        <Pressable onPress={logout} style={[styles.logoutBtn, { backgroundColor: C.card }]}>
-          <Feather name="log-out" size={18} color={C.textSecondary} />
-        </Pressable>
-      </View>
+      <SubScreenHeader
+        title={parentAccount?.pool_name || "수영장"}
+        subtitle={`${parentAccount?.name}님, 안녕하세요`}
+        rightSlot={
+          <Pressable onPress={logout} style={[styles.logoutBtn, { backgroundColor: C.card }]}>
+            <Feather name="log-out" size={18} color={C.textSecondary} />
+          </Pressable>
+        }
+      />
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 12, paddingTop: 8 }}

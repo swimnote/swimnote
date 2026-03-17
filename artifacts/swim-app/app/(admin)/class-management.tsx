@@ -6,6 +6,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 
@@ -86,25 +87,27 @@ export default function ClassManagementScreen() {
 
   if (loading) {
     return (
-      <View style={[s.root, { backgroundColor: C.background, justifyContent: "center", alignItems: "center", paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) }]}>
+      <View style={[s.root, { backgroundColor: C.background, justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator color={C.tint} size="large" />
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={[s.root, { backgroundColor: C.background }]}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* 헤더 */}
-      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Text style={[s.title, { color: C.text }]}>수업 관리</Text>
-        <Pressable onPress={load} style={s.refreshBtn}>
-          <Feather name="refresh-cw" size={18} color={C.textSecondary} />
-        </Pressable>
-      </View>
+    <View style={[s.root, { backgroundColor: C.background }]}>
+      <SubScreenHeader
+        title="수업 관리"
+        rightSlot={
+          <Pressable onPress={load} style={s.refreshBtn} hitSlop={8}>
+            <Feather name="refresh-cw" size={18} color={C.textSecondary} />
+          </Pressable>
+        }
+      />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
+        showsVerticalScrollIndicator={false}
+      >
 
       {error ? (
         <View style={[s.errBox, { backgroundColor: "#FEE2E2", marginHorizontal: 16 }]}>
@@ -219,7 +222,8 @@ export default function ClassManagementScreen() {
           })}
         </>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

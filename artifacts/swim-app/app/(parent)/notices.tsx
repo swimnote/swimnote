@@ -6,6 +6,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 interface Notice {
@@ -74,16 +75,16 @@ export default function ParentNoticesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Text style={[styles.title, { color: C.text }]}>공지사항</Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {unreadCount > 0 && (
+      <SubScreenHeader
+        title="공지사항"
+        rightSlot={
+          unreadCount > 0 ? (
             <View style={[styles.unreadBadge, { backgroundColor: C.error }]}>
               <Text style={styles.unreadCount}>미읽음 {unreadCount}</Text>
             </View>
-          )}
-        </View>
-      </View>
+          ) : undefined
+        }
+      />
 
       {/* 필터 탭 */}
       <View style={styles.filterRow}>

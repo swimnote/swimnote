@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useSelectionMode } from "@/hooks/useSelectionMode";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 
 const C = Colors.light;
@@ -496,27 +497,28 @@ export default function ParentsScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      {/* 헤더 */}
-      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
-        <Text style={[s.title, { color: C.text }]}>학부모 관리</Text>
-        <View style={s.headerRight}>
-          <Pressable
-            style={[s.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
-            onPress={sel.toggleSelectionMode}
-          >
-            <Feather name="check-square" size={16} color={sel.selectionMode ? C.tint : C.textSecondary} />
-            <Text style={[s.selBtnText, sel.selectionMode && { color: C.tint }]}>
-              {sel.selectionMode ? "취소" : "선택"}
-            </Text>
-          </Pressable>
-          {!sel.selectionMode && (
-            <Pressable style={[s.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowAddParent(true)}>
-              <Feather name="plus" size={16} color="#fff" />
-              <Text style={s.addBtnText}>직접 추가</Text>
+      <SubScreenHeader
+        title="학부모 관리"
+        rightSlot={
+          <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+            <Pressable
+              style={[s.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
+              onPress={sel.toggleSelectionMode}
+            >
+              <Feather name="check-square" size={16} color={sel.selectionMode ? C.tint : C.textSecondary} />
+              <Text style={[s.selBtnText, sel.selectionMode && { color: C.tint }]}>
+                {sel.selectionMode ? "취소" : "선택"}
+              </Text>
             </Pressable>
-          )}
-        </View>
-      </View>
+            {!sel.selectionMode && (
+              <Pressable style={[s.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowAddParent(true)}>
+                <Feather name="plus" size={16} color="#fff" />
+                <Text style={s.addBtnText}>추가</Text>
+              </Pressable>
+            )}
+          </View>
+        }
+      />
 
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />

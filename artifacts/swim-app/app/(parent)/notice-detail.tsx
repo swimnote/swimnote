@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 interface Notice {
@@ -48,13 +49,7 @@ export default function NoticeDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="chevron-left" size={24} color={C.text} />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: C.text }]}>공지 상세</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <SubScreenHeader title="공지 상세" showHome={false} />
 
       {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : !notice ? (
         <View style={styles.empty}>

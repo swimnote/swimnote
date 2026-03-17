@@ -10,6 +10,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useSelectionMode } from "@/hooks/useSelectionMode";
 import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 interface Notice {
   id: string;
@@ -200,26 +201,28 @@ export default function NoticesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Text style={[styles.title, { color: C.text }]}>공지사항</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Pressable
-            style={[styles.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
-            onPress={sel.toggleSelectionMode}
-          >
-            <Feather name="check-square" size={16} color={sel.selectionMode ? C.tint : C.textSecondary} />
-            <Text style={[styles.selBtnText, sel.selectionMode && { color: C.tint }]}>
-              {sel.selectionMode ? "취소" : "선택"}
-            </Text>
-          </Pressable>
-          {!sel.selectionMode && (
-            <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowModal(true)}>
-              <Feather name="edit-3" size={16} color="#fff" />
-              <Text style={styles.addBtnText}>공지 작성</Text>
+      <SubScreenHeader
+        title="공지사항"
+        rightSlot={
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable
+              style={[styles.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
+              onPress={sel.toggleSelectionMode}
+            >
+              <Feather name="check-square" size={16} color={sel.selectionMode ? C.tint : C.textSecondary} />
+              <Text style={[styles.selBtnText, sel.selectionMode && { color: C.tint }]}>
+                {sel.selectionMode ? "취소" : "선택"}
+              </Text>
             </Pressable>
-          )}
-        </View>
-      </View>
+            {!sel.selectionMode && (
+              <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowModal(true)}>
+                <Feather name="edit-3" size={16} color="#fff" />
+                <Text style={styles.addBtnText}>작성</Text>
+              </Pressable>
+            )}
+          </View>
+        }
+      />
 
       {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} /> : (
         <ScrollView

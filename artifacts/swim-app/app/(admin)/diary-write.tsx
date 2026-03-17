@@ -9,6 +9,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
@@ -126,22 +127,19 @@ export default function DiaryWriteScreen() {
   if (step === "groups") {
     return (
       <View style={[styles.root, { backgroundColor: C.background }]}>
-        <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="chevron-left" size={24} color={C.text} />
-          </Pressable>
-          <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: C.text }]}>수영 일지 작성</Text>
-            <Text style={[styles.headerSub, { color: C.textMuted }]}>적용할 스케줄 그룹 선택</Text>
-          </View>
-          <Pressable
-            style={[styles.nextBtn, { backgroundColor: selectedGroups.size > 0 ? C.tint : C.border }]}
-            onPress={() => { if (selectedGroups.size > 0) setStep("content"); }}
-            disabled={selectedGroups.size === 0}
-          >
-            <Text style={styles.nextBtnText}>다음</Text>
-          </Pressable>
-        </View>
+        <SubScreenHeader
+          title="수영 일지 작성"
+          subtitle="적용할 스케줄 그룹 선택"
+          rightSlot={
+            <Pressable
+              style={[styles.nextBtn, { backgroundColor: selectedGroups.size > 0 ? C.tint : C.border }]}
+              onPress={() => { if (selectedGroups.size > 0) setStep("content"); }}
+              disabled={selectedGroups.size === 0}
+            >
+              <Text style={styles.nextBtnText}>다음</Text>
+            </Pressable>
+          }
+        />
 
         {loadingGroups ? <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} /> : (
           <ScrollView contentContainerStyle={{ padding: 20, gap: 10, paddingBottom: insets.bottom + 40 }}>
@@ -210,18 +208,20 @@ export default function DiaryWriteScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.root, { backgroundColor: C.background }]}>
-        <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-          <Pressable onPress={() => setStep("groups")} style={styles.backBtn}>
-            <Feather name="chevron-left" size={24} color={C.text} />
-          </Pressable>
-          <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: C.text }]}>수영 일지 작성</Text>
-            <Text style={[styles.headerSub, { color: C.tint }]}>{selectedGroups.size}개 그룹 적용</Text>
-          </View>
-          <Pressable style={[styles.nextBtn, { backgroundColor: C.tint, opacity: saving ? 0.6 : 1 }]} onPress={handleSave} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.nextBtnText}>게시</Text>}
-          </Pressable>
-        </View>
+        <SubScreenHeader
+          title="수영 일지 작성"
+          subtitle={`${selectedGroups.size}개 그룹 적용`}
+          onBack={() => setStep("groups")}
+          rightSlot={
+            <Pressable
+              style={[styles.nextBtn, { backgroundColor: C.tint, opacity: saving ? 0.6 : 1 }]}
+              onPress={handleSave}
+              disabled={saving}
+            >
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.nextBtnText}>게시</Text>}
+            </Pressable>
+          }
+        />
 
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 60, paddingTop: 4, gap: 2 }}>

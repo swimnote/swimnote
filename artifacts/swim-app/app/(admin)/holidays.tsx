@@ -10,10 +10,11 @@ import {
   ActivityIndicator, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 
@@ -28,6 +29,7 @@ export default function HolidaysScreen() {
   const { token, adminUser } = useAuth();
   const poolId = (adminUser as any)?.swimming_pool_id || "";
   const { themeColor } = useBrand();
+  const insets = useSafeAreaInsets();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
@@ -94,8 +96,9 @@ export default function HolidaysScreen() {
   const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+    <View style={s.safe}>
+      <SubScreenHeader title="휴무일 관리" />
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }} showsVerticalScrollIndicator={false}>
         {/* 월 선택 */}
         <View style={[s.monthRow, { backgroundColor: C.card }]}>
           <Pressable onPress={() => changeMonth(-1)} style={s.navBtn}>
@@ -216,7 +219,7 @@ export default function HolidaysScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

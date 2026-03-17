@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
@@ -140,14 +141,7 @@ export default function SwimDiaryScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      {/* 헤더 */}
-      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Pressable onPress={() => router.back()} style={s.backBtn}>
-          <Feather name="chevron-left" size={24} color={C.text} />
-        </Pressable>
-        <Text style={[s.headerTitle, { color: C.text }]}>{name} 수업 일지</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <SubScreenHeader title={`${name} 수업 일지`} showHome={false} />
 
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />

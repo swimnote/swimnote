@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import TeacherPickerList, { TeacherForPicker } from "@/components/admin/TeacherPickerList";
 import ClassDetailPanel, { ClassDetail } from "@/components/admin/ClassDetailPanel";
 
@@ -354,25 +355,22 @@ export default function TeachersScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      {/* 헤더 */}
-      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-          {nav.step !== "main" && (
-            <Pressable onPress={goBack} hitSlop={8}><Feather name="arrow-left" size={20} color={C.tint} /></Pressable>
-          )}
-          <Text style={[s.headerTitle, { color: C.text }]}>
-            {nav.step === "main" ? "선생님 관리"
-              : nav.step === "timeslots" ? dateLabel((nav as any).date)
-              : nav.step === "teachers" ? (crumbDate ? dateLabel(crumbDate) : `${crumbDay ?? "오늘"}요일 ${crumbTime}`)
-              : nav.step === "classes" ? crumbTeacher
-              : (classDetail?.class_group.name ?? "반 현황판")}
-          </Text>
-        </View>
-        <Pressable style={[s.accountsBtn, { backgroundColor: C.tintLight }]} onPress={() => setShowAccounts(true)}>
-          <Feather name="users" size={15} color={C.tint} />
-          <Text style={[s.accountsBtnText, { color: C.tint }]}>계정</Text>
-        </Pressable>
-      </View>
+      <SubScreenHeader
+        title={
+          nav.step === "main" ? "선생님 관리"
+          : nav.step === "timeslots" ? dateLabel((nav as any).date)
+          : nav.step === "teachers" ? (crumbDate ? dateLabel(crumbDate) : `${crumbDay ?? "오늘"}요일 ${crumbTime}`)
+          : nav.step === "classes" ? crumbTeacher
+          : (classDetail?.class_group.name ?? "반 현황판")
+        }
+        onBack={nav.step !== "main" ? goBack : undefined}
+        rightSlot={
+          <Pressable style={[s.accountsBtn, { backgroundColor: C.tintLight }]} onPress={() => setShowAccounts(true)}>
+            <Feather name="users" size={15} color={C.tint} />
+            <Text style={[s.accountsBtnText, { color: C.tint }]}>계정</Text>
+          </Pressable>
+        }
+      />
 
       {/* 탭 바 (daily/monthly) — main에서만 표시 */}
       {nav.step === "main" && (

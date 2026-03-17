@@ -8,6 +8,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 interface ArchivedMember {
   id: string;
@@ -75,14 +76,7 @@ export default function WithdrawnMembersScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      {/* 헤더 */}
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={C.text} />
-        </Pressable>
-        <Text style={[styles.title, { color: C.text }]}>보관 회원 관리</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <SubScreenHeader title="보관 회원 관리" />
 
       {/* 탭 */}
       <View style={styles.tabRow}>

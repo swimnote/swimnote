@@ -9,6 +9,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
@@ -81,22 +82,19 @@ export default function PhotoUploadScreen() {
     const allFiltered = filtered.every(s => selected.has(s.id));
     return (
       <View style={[styles.root, { backgroundColor: C.background }]}>
-        <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="chevron-left" size={24} color={C.text} />
-          </Pressable>
-          <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: C.text }]}>사진 업로드</Text>
-            <Text style={[styles.headerSub, { color: C.textMuted }]}>사진을 받을 학생 선택</Text>
-          </View>
-          <Pressable
-            style={[styles.nextBtn, { backgroundColor: selected.size > 0 ? C.tint : C.border }]}
-            onPress={() => { if (selected.size > 0) setStep("photos"); }}
-            disabled={selected.size === 0}
-          >
-            <Text style={styles.nextBtnText}>다음</Text>
-          </Pressable>
-        </View>
+        <SubScreenHeader
+          title="사진 업로드"
+          subtitle="사진을 받을 학생 선택"
+          rightSlot={
+            <Pressable
+              style={[styles.nextBtn, { backgroundColor: selected.size > 0 ? C.tint : C.border }]}
+              onPress={() => { if (selected.size > 0) setStep("photos"); }}
+              disabled={selected.size === 0}
+            >
+              <Text style={styles.nextBtnText}>다음</Text>
+            </Pressable>
+          }
+        />
 
         <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.card, marginHorizontal: 20, marginBottom: 8 }]}>
           <Feather name="search" size={16} color={C.textMuted} />
@@ -157,18 +155,20 @@ export default function PhotoUploadScreen() {
   // Step 2: 사진 선택 + 업로드
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Pressable onPress={() => setStep("students")} style={styles.backBtn}>
-          <Feather name="chevron-left" size={24} color={C.text} />
-        </Pressable>
-        <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: C.text }]}>사진 업로드</Text>
-          <Text style={[styles.headerSub, { color: C.tint }]}>{selected.size}명에게 업로드</Text>
-        </View>
-        <Pressable style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#059669" : C.border, opacity: uploading ? 0.6 : 1 }]} onPress={handleUpload} disabled={uploading || images.length === 0}>
-          {uploading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.nextBtnText}>업로드</Text>}
-        </Pressable>
-      </View>
+      <SubScreenHeader
+        title="사진 업로드"
+        subtitle={`${selected.size}명에게 업로드`}
+        onBack={() => setStep("students")}
+        rightSlot={
+          <Pressable
+            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#059669" : C.border, opacity: uploading ? 0.6 : 1 }]}
+            onPress={handleUpload}
+            disabled={uploading || images.length === 0}
+          >
+            {uploading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.nextBtnText}>업로드</Text>}
+          </Pressable>
+        }
+      />
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 40 }}>
         {/* 선택된 학생 칩 */}

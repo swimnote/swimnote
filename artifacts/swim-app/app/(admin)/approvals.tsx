@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { ScreenLayout }  from "@/components/common/ScreenLayout";
-import { PageHeader }    from "@/components/common/PageHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { MainTabs }      from "@/components/common/MainTabs";
 import { FilterChips, FilterChipItem } from "@/components/common/FilterChips";
 import { EmptyState }    from "@/components/common/EmptyState";
@@ -473,7 +473,7 @@ export default function ApprovalsScreen() {
   // ── 공통 헤더 ─────────────────────────────────────────────────
   const header = (
     <>
-      <PageHeader title="승인 관리" />
+      <SubScreenHeader title="승인 관리" />
       <MainTabs<MainTab>
         tabs={[
           { key: "parents",  label: "학부모 승인", badge: pendingParentsCnt  },

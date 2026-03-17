@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const PURPLE = "#7C3AED";
 
@@ -97,14 +98,7 @@ export default function StoragePolicyScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F3FF" }}>
-      {/* 헤더 */}
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color="#1F1235" />
-        </Pressable>
-        <Text style={styles.title}>저장 용량 정책</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <SubScreenHeader title="저장 용량 정책" showHome={false} />
 
       {/* 안내 배너 */}
       <View style={[styles.infoBanner, { marginHorizontal: 20 }]}>

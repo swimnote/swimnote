@@ -10,9 +10,9 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, ActivityIndicator, Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { useBrand, APP_PLATFORM_NAME, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 // ── 프리셋 색상 팔레트 ────────────────────────────────────────────────
 const PALETTE = [
@@ -121,17 +121,15 @@ export default function BrandingScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Feather name="arrow-left" size={22} color="#111827" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>브랜드 설정</Text>
-        <TouchableOpacity onPress={handleReset}>
-          <Text style={[styles.resetBtn, { color: selectedColor }]}>초기화</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.safe}>
+      <SubScreenHeader
+        title="브랜드 설정"
+        rightSlot={
+          <TouchableOpacity onPress={handleReset} hitSlop={8}>
+            <Text style={[styles.resetBtn, { color: selectedColor }]}>초기화</Text>
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
@@ -292,7 +290,7 @@ export default function BrandingScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { ScreenLayout } from "@/components/common/ScreenLayout";
-import { PageHeader }   from "@/components/common/PageHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { MainTabs }     from "@/components/common/MainTabs";
 
 const C = Colors.light;
@@ -378,7 +378,7 @@ export default function AttendanceScreen() {
   // ── 고정 상단 헤더 ───────────────────────────────────────────
   const header = (
     <>
-      <PageHeader title="출결 관리" />
+      <SubScreenHeader title="출결 관리" />
       <MainTabs<ViewMode>
         tabs={[
           { key: "daily",   label: "일자별" },

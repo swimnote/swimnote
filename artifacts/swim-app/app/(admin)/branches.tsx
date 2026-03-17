@@ -8,6 +8,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 interface Branch {
   id: string;
@@ -141,22 +142,20 @@ export default function BranchesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      {/* 헤더 */}
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={C.text} />
-        </Pressable>
-        <Text style={[styles.title, { color: C.text }]}>지점 관리</Text>
-        <Pressable
-          style={[styles.editModeBtn, { backgroundColor: editMode ? C.tint : C.card, borderColor: C.border }]}
-          onPress={() => setEditMode(e => !e)}
-        >
-          <Feather name={editMode ? "check" : "move"} size={15} color={editMode ? "#fff" : C.textSecondary} />
-          <Text style={[styles.editModeTxt, { color: editMode ? "#fff" : C.textSecondary }]}>
-            {editMode ? "완료" : "순서 변경"}
-          </Text>
-        </Pressable>
-      </View>
+      <SubScreenHeader
+        title="지점 관리"
+        rightSlot={
+          <Pressable
+            style={[styles.editModeBtn, { backgroundColor: editMode ? C.tint : C.card, borderColor: C.border }]}
+            onPress={() => setEditMode(e => !e)}
+          >
+            <Feather name={editMode ? "check" : "move"} size={15} color={editMode ? "#fff" : C.textSecondary} />
+            <Text style={[styles.editModeTxt, { color: editMode ? "#fff" : C.textSecondary }]}>
+              {editMode ? "완료" : "순서 변경"}
+            </Text>
+          </Pressable>
+        }
+      />
 
       {/* 정렬 + 카운트 */}
       <View style={[styles.toolbar, { paddingHorizontal: 20 }]}>

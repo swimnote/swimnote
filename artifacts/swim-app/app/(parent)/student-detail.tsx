@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 interface ClassGroup {
@@ -53,12 +54,7 @@ export default function ParentStudentDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="chevron-left" size={24} color={C.text} />
-        </Pressable>
-        <View style={{ width: 40 }} />
-      </View>
+      <SubScreenHeader title={name as string || "학생 정보"} showHome={false} />
 
       {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : (
         <ScrollView

@@ -9,9 +9,9 @@ import {
   ActivityIndicator, Alert, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 interface Plan { tier: string; name: string; price_per_month: number; member_limit: number; storage_gb: number; }
 interface CardInfo { id: string; card_last4: string; card_brand: string; card_nickname?: string | null; }
@@ -102,14 +102,8 @@ export default function BillingScreen() {
   const currentTier = status?.tier ?? "free";
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Feather name="arrow-left" size={22} color="#111827" />
-        </Pressable>
-        <Text style={s.title}>결제 관리</Text>
-        <View style={{ width: 22 }} />
-      </View>
+    <View style={s.safe}>
+      <SubScreenHeader title="결제 관리" />
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
@@ -270,7 +264,7 @@ export default function BillingScreen() {
           }
         </Section>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -285,8 +279,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const s = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: "#F8FAFF" },
-  header:          { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:           { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
   section:         { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 12 },
   sectionTitle:    { fontSize: 12, fontFamily: "Inter_700Bold", color: "#6B7280", letterSpacing: 0.5, textTransform: "uppercase" },
   // 현재 구독

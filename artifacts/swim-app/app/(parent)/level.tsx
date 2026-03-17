@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
@@ -49,17 +50,17 @@ export default function ParentLevelScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
-        <Pressable onPress={() => router.canGoBack() && router.back()} style={s.backBtn}>
-          <Feather name="chevron-left" size={24} color={C.text} />
-        </Pressable>
-        <Text style={[s.headerTitle, { color: C.text }]}>레벨</Text>
-        {selectedStudent && (
-          <View style={[s.childChip, { backgroundColor: C.tintLight }]}>
-            <Text style={[s.childChipTxt, { color: C.tint }]}>{selectedStudent.name}</Text>
-          </View>
-        )}
-      </View>
+      <SubScreenHeader
+        title="레벨"
+        showHome={false}
+        rightSlot={
+          selectedStudent ? (
+            <View style={[s.childChip, { backgroundColor: C.tintLight }]}>
+              <Text style={[s.childChipTxt, { color: C.tint }]}>{selectedStudent.name}</Text>
+            </View>
+          ) : undefined
+        }
+      />
 
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />

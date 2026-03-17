@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 interface AttRecord { id: string; member_id: string; member_name: string; date: string; status: "present" | "absent" | "late"; class_id: string; }
@@ -55,15 +56,15 @@ export default function ParentAttendanceScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <View>
-          <Text style={[styles.poolName, { color: C.text }]}>{pool?.name || "수영장"}</Text>
-          <Text style={[styles.subtitle, { color: C.textSecondary }]}>안녕하세요, {user?.name}님</Text>
-        </View>
-        <Pressable onPress={logout} style={[styles.logoutBtn, { backgroundColor: C.card }]}>
-          <Feather name="log-out" size={18} color={C.textSecondary} />
-        </Pressable>
-      </View>
+      <SubScreenHeader
+        title={pool?.name || "수영장"}
+        subtitle={`안녕하세요, ${user?.name}님`}
+        rightSlot={
+          <Pressable onPress={logout} style={[styles.logoutBtn, { backgroundColor: C.card }]}>
+            <Feather name="log-out" size={18} color={C.textSecondary} />
+          </Pressable>
+        }
+      />
 
       {members.length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 8 }}>

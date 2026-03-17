@@ -89,6 +89,11 @@ export default function CommunityScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <PoolHeader
+        left={
+          <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+            <Feather name="arrow-left" size={22} color="#374151" />
+          </Pressable>
+        }
         right={
           tab === "공지사항" ? (
             <Pressable

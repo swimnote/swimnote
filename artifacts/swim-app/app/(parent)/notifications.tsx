@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
@@ -85,17 +86,17 @@ export default function ParentNotificationsScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <View>
-          <Text style={[styles.title, { color: C.text }]}>알림</Text>
-          {unread > 0 && <Text style={[styles.sub, { color: "#059669" }]}>읽지 않은 알림 {unread}개</Text>}
-        </View>
-        {unread > 0 && (
-          <Pressable style={[styles.readAllBtn, { borderColor: C.border }]} onPress={markAllRead}>
-            <Text style={[styles.readAllText, { color: C.textSecondary }]}>모두 읽음</Text>
-          </Pressable>
-        )}
-      </View>
+      <SubScreenHeader
+        title="알림"
+        subtitle={unread > 0 ? `읽지 않은 알림 ${unread}개` : undefined}
+        rightSlot={
+          unread > 0 ? (
+            <Pressable style={[styles.readAllBtn, { borderColor: C.border }]} onPress={markAllRead}>
+              <Text style={[styles.readAllText, { color: C.textSecondary }]}>모두 읽음</Text>
+            </Pressable>
+          ) : undefined
+        }
+      />
 
       {loading ? (
         <ActivityIndicator color="#059669" style={{ marginTop: 60 }} />

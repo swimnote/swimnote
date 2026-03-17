@@ -8,6 +8,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 
@@ -139,15 +140,18 @@ export default function PoolSettingsScreen() {
 
   return (
     <KeyboardAvoidingView style={[styles.root, { backgroundColor: C.background }]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Text style={[styles.headerTitle, { color: C.text }]}>수영장 설정</Text>
-        <Pressable
-          style={[styles.saveBtn, { backgroundColor: C.tint, opacity: saving ? 0.6 : 1 }]}
-          onPress={handleSave} disabled={saving}
-        >
-          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>{saved ? "저장됨 ✓" : "저장"}</Text>}
-        </Pressable>
-      </View>
+      <SubScreenHeader
+        title="수영장 설정"
+        rightSlot={
+          <Pressable
+            style={[styles.saveBtn, { backgroundColor: C.tint, opacity: saving ? 0.6 : 1 }]}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>{saved ? "저장됨 ✓" : "저장"}</Text>}
+          </Pressable>
+        }
+      />
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
         {error ? (

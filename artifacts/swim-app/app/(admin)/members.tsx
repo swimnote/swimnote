@@ -12,7 +12,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { ScreenLayout }  from "@/components/common/ScreenLayout";
-import { PageHeader }    from "@/components/common/PageHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { FilterChips, FilterChipItem } from "@/components/common/FilterChips";
 import { EmptyState }    from "@/components/common/EmptyState";
 import {
@@ -585,7 +585,7 @@ export default function MembersScreen() {
 
   const header = (
     <>
-      <PageHeader title="회원 관리" />
+      <SubScreenHeader title="회원 관리" />
       {/* 상단 버튼 */}
       <View style={ms.actionRow}>
         {!sel.selectionMode ? (

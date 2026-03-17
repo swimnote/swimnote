@@ -10,11 +10,10 @@ import {
   ActivityIndicator, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PoolHeader } from "@/components/PoolHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 
@@ -85,39 +84,30 @@ export default function StudentDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
-        <PoolHeader />
+      <View style={s.safe}>
+        <SubScreenHeader title="회원 정보" showHome={false} />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!student) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
-        <PoolHeader />
+      <View style={s.safe}>
+        <SubScreenHeader title="회원 정보" showHome={false} />
         <View style={s.emptyBox}>
           <Feather name="user-x" size={40} color={C.textMuted} />
           <Text style={s.emptyText}>학생 정보를 불러올 수 없습니다</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   const statusBadge = getStatusLabel(student.status);
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      <PoolHeader />
-
-      {/* 뒤로 가기 헤더 */}
-      <View style={s.header}>
-        <Pressable style={s.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color={C.text} />
-        </Pressable>
-        <Text style={s.headerTitle}>회원 정보</Text>
-        <View style={{ width: 36 }} />
-      </View>
+    <View style={s.safe}>
+      <SubScreenHeader title="회원 정보" showHome={false} />
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
         {/* 프로필 카드 */}
@@ -213,7 +203,7 @@ export default function StudentDetailScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

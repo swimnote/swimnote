@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useBrand } from "@/context/BrandContext";
 
 const C = Colors.light;
@@ -119,13 +120,8 @@ export default function MakeupsScreen() {
   };
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} style={s.back}><Feather name="arrow-left" size={22} color={C.text} /></Pressable>
-        <Text style={s.title}>보강 관리</Text>
-        <View style={{ width: 32 }} />
-      </View>
+    <View style={s.root}>
+      <SubScreenHeader title="보강 관리" />
 
       {/* 탭 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}

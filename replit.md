@@ -13,6 +13,11 @@ The administrator application features a 6-tab structure (Dashboard, People, Cla
 
 **Navigation Rule (시간표 탐색 순서)**: 시간표 → 선생님 선택(TeacherPickerList) → 반 목록 → 반 현황판(ClassDetailPanel) — 1명/1개여도 항상 모든 단계 표시, 자동 스킵 금지. Alert.alert 금지 (웹뷰 미작동), 모든 확인 UI는 Modal 사용.
 
+**UI 통일 공통 컴포넌트**:
+- `components/common/SubScreenHeader.tsx`: 하위 화면 공통 헤더 — back 버튼 + 중앙 타이틀 + subtitle prop + home 버튼(showHome=true) 또는 rightSlot 커스텀 영역. `onBack` prop으로 커스텀 뒤로가기 처리 가능. 자체적으로 safe area insets 처리.
+- `components/common/ModalSheet.tsx`: 공통 바텀 시트 — 75% 높이, PanResponder 스와이프 닫기, X 버튼, ScrollView 내장, KeyboardAvoidingView 지원.
+- **적용 완료 범위**: admin 하위 화면 전체 (20개+), parent 하위 화면 8개, teacher/student-detail, super/storage-policy, admin/community(PoolHeader left prop 추가). Alert.alert 금지 규칙 유지.
+
 **Shared Admin Components**:
 - `AdminWeekBoard.tsx`: 주간 시간표 보드 (셀 클릭 → 탐색)
 - `TeacherPickerList.tsx`: 가나다순 선생님 선택 목록 (props: day?, date?, time, teachers, onSelectTeacher, onBack, bottomInset?)

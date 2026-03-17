@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 const TABS = ["담당 회원", "출결", "수업일지", "보강"] as const;
@@ -81,13 +82,8 @@ export default function TeacherHubScreen() {
     (data?.makeups || []);
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} style={s.back}><Feather name="arrow-left" size={22} color={C.text} /></Pressable>
-        <Text style={s.title} numberOfLines={1}>{data?.teacher?.name || params.name} 운영현황</Text>
-        <View style={{ width: 32 }} />
-      </View>
+    <View style={s.root}>
+      <SubScreenHeader title={`${data?.teacher?.name || params.name} 운영현황`} />
 
       {/* 요약 통계 카드 */}
       <View style={s.statsCard}>

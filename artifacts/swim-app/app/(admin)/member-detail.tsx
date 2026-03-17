@@ -11,10 +11,11 @@ import {
   ActivityIndicator, Alert, Modal, Pressable, ScrollView,
   Share, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import {
   StudentMember, WeeklyCount, WEEKLY_BADGE,
   getStudentConnectionStatus, buildInviteMessage,
@@ -340,20 +341,20 @@ export default function MemberDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.background }} edges={["top"]}>
+      <View style={{ flex: 1, backgroundColor: C.background }}>
         <ActivityIndicator color={themeColor} size="large" style={{ flex: 1 }} />
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!data) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.background }} edges={["top"]}>
-        <Pressable style={s.backBtn} onPress={() => router.back()}><Feather name="arrow-left" size={22} color={C.text} /></Pressable>
+      <View style={{ flex: 1, backgroundColor: C.background }}>
+        <SubScreenHeader title="회원 정보" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <Text style={{ color: C.textMuted }}>회원을 찾을 수 없습니다</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -365,25 +366,12 @@ export default function MemberDetailScreen() {
   const isArchived = ["withdrawn", "deleted"].includes(data.status);
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Pressable style={s.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color={C.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={s.headerTitle} numberOfLines={1}>{data.name}</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <View style={[s.statusDot, { backgroundColor: statusMeta.bg }]}>
-              <Text style={[s.statusText, { color: statusMeta.color }]}>{statusMeta.label}</Text>
-            </View>
-            <View style={[s.badge, { backgroundColor: badge.bg }]}>
-              <Text style={[s.badgeText, { color: badge.color }]}>{badge.label}</Text>
-            </View>
-          </View>
-        </View>
-        {saving && <ActivityIndicator color={themeColor} size="small" />}
-      </View>
+    <View style={s.safe}>
+      <SubScreenHeader
+        title={data.name}
+        subtitle={statusMeta.label}
+        rightSlot={saving ? <ActivityIndicator color={themeColor} size="small" /> : undefined}
+      />
 
       {/* 탭 스크롤 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabScroll} contentContainerStyle={{ paddingHorizontal: 12 }}>
@@ -965,7 +953,7 @@ export default function MemberDetailScreen() {
           onClose={() => setShowPicker(false)}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
