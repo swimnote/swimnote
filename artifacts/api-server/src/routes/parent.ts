@@ -233,4 +233,167 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ── 레벨 기록 ──────────────────────────────────────────────────────────────
+router.get("/students/:id/levels", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(
+        eq(parentStudentsTable.parent_id, req.user!.userId),
+        eq(parentStudentsTable.student_id, req.params.id),
+        eq(parentStudentsTable.status, "approved")
+      )).limit(1);
+    if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+    const rows = await db.execute(sql`
+      SELECT id, level, achieved_date, note, teacher_name, created_at
+      FROM student_levels WHERE student_id = ${req.params.id}
+      ORDER BY achieved_date DESC, created_at DESC
+    `);
+    res.json(rows.rows);
+  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 반응 (좋아요/감사합니다) ───────────────────────────────────────────────
+router.get("/diary/:diaryId/reactions", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT reaction_type FROM diary_reactions
+      WHERE diary_id = ${req.params.diaryId} AND parent_id = ${req.user!.userId}
+    `);
+    const myReactions = (rows.rows as any[]).map((r: any) => r.reaction_type);
+    res.json({ myReactions });
+  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
+router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  const { reaction_type } = req.body;
+  if (!["like", "thank"].includes(reaction_type)) {
+    res.status(400).json({ error: "유효하지 않은 반응 유형입니다." }); return;
+  }
+  try {
+    const existing = await db.execute(sql`
+      SELECT id FROM diary_reactions WHERE diary_id=${req.params.diaryId} AND parent_id=${req.user!.userId} AND reaction_type=${reaction_type}
+    `);
+    if (existing.rows.length > 0) {
+      await db.execute(sql`DELETE FROM diary_reactions WHERE diary_id=${req.params.diaryId} AND parent_id=${req.user!.userId} AND reaction_type=${reaction_type}`);
+      res.json({ active: false });
+    } else {
+      await db.execute(sql`
+        INSERT INTO diary_reactions (diary_id, parent_id, reaction_type) VALUES (${req.params.diaryId}, ${req.user!.userId}, ${reaction_type})
+        ON CONFLICT (diary_id, parent_id, reaction_type) DO NOTHING
+      `);
+      res.json({ active: true });
+    }
+  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 쪽지 (메시지) ─────────────────────────────────────────────────────────
+router.get("/diary/:diaryId/messages", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT id, sender_id, sender_name, sender_role, content, is_deleted, created_at
+      FROM diary_messages WHERE diary_id = ${req.params.diaryId}
+      ORDER BY created_at ASC
+    `);
+    res.json(rows.rows);
+  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
+router.post("/diary/:diaryId/messages", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  const { content } = req.body;
+  if (!content?.trim()) { res.status(400).json({ error: "내용을 입력해주세요." }); return; }
+  try {
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
+    const result = await db.execute(sql`
+      INSERT INTO diary_messages (diary_id, sender_id, sender_name, sender_role, content)
+      VALUES (${req.params.diaryId}, ${req.user!.userId}, ${pa.name}, 'parent', ${content.trim()})
+      RETURNING *
+    `);
+    res.status(201).json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
+router.delete("/diary/:diaryId/messages/:msgId", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT id, sender_id FROM diary_messages WHERE id=${req.params.msgId} AND diary_id=${req.params.diaryId}
+    `);
+    if (!rows.rows.length) { res.status(404).json({ error: "메시지를 찾을 수 없습니다." }); return; }
+    const msg = rows.rows[0] as any;
+    if (msg.sender_id !== req.user!.userId) { res.status(403).json({ error: "본인 메시지만 삭제 가능합니다." }); return; }
+    await db.execute(sql`UPDATE diary_messages SET is_deleted=true, deleted_at=now() WHERE id=${req.params.msgId}`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
+router.post("/diary/:diaryId/messages/:msgId/restore", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const rows = await db.execute(sql`SELECT sender_id FROM diary_messages WHERE id=${req.params.msgId}`);
+    if (!rows.rows.length) { res.status(404).json({ error: "메시지를 찾을 수 없습니다." }); return; }
+    const msg = rows.rows[0] as any;
+    if (msg.sender_id !== req.user!.userId) { res.status(403).json({ error: "본인 메시지만 복구 가능합니다." }); return; }
+    await db.execute(sql`UPDATE diary_messages SET is_deleted=false, deleted_at=null WHERE id=${req.params.msgId}`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
+router.delete("/diary/:diaryId/messages/:msgId/permanent", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const rows = await db.execute(sql`SELECT sender_id, is_deleted FROM diary_messages WHERE id=${req.params.msgId}`);
+    if (!rows.rows.length) { res.status(404).json({ error: "메시지를 찾을 수 없습니다." }); return; }
+    const msg = rows.rows[0] as any;
+    if (msg.sender_id !== req.user!.userId) { res.status(403).json({ error: "본인 메시지만 영구삭제 가능합니다." }); return; }
+    if (!msg.is_deleted) { res.status(400).json({ error: "먼저 삭제 처리 후 영구삭제 가능합니다." }); return; }
+    await db.execute(sql`DELETE FROM diary_messages WHERE id=${req.params.msgId}`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 홈 피드 (최근 수업일지 + 사진) ──────────────────────────────────────
+router.get("/students/:id/feed", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(
+        eq(parentStudentsTable.parent_id, req.user!.userId),
+        eq(parentStudentsTable.student_id, req.params.id),
+        eq(parentStudentsTable.status, "approved")
+      )).limit(1);
+    if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+
+    const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    const cgId = student?.class_group_id;
+
+    const feed: any[] = [];
+
+    if (cgId) {
+      const diaryRows = await db.execute(sql`
+        SELECT cd.id, cd.lesson_date AS date, cd.common_content, cd.teacher_name, cd.created_at,
+               csn.note_content AS student_note
+        FROM class_diaries cd
+        LEFT JOIN class_diary_student_notes csn ON csn.diary_id = cd.id AND csn.student_id = ${req.params.id} AND csn.is_deleted = false
+        WHERE cd.class_group_id = ${cgId} AND cd.is_deleted = false
+        ORDER BY cd.lesson_date DESC LIMIT 10
+      `);
+      for (const d of diaryRows.rows as any[]) {
+        feed.push({ type: "diary", id: d.id, date: d.date, teacher_name: d.teacher_name,
+          content: d.common_content, student_note: d.student_note, created_at: d.created_at });
+      }
+    }
+
+    const photoRows = await db.execute(sql`
+      SELECT id, caption, uploader_name, created_at, storage_key, album_type
+      FROM student_photos WHERE student_id = ${req.params.id}
+      ORDER BY created_at DESC LIMIT 10
+    `);
+    for (const p of photoRows.rows as any[]) {
+      feed.push({ type: "photo", id: p.id, date: (p.created_at as string).split("T")[0],
+        teacher_name: p.uploader_name, content: p.caption, created_at: p.created_at, album_type: p.album_type });
+    }
+
+    feed.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    res.json(feed.slice(0, 20));
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
 export default router;
+

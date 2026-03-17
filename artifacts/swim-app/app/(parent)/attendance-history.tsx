@@ -8,6 +8,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useParent } from "@/context/ParentContext";
 
 interface Attendance {
   id: string; date: string;
@@ -29,7 +30,10 @@ const WEEKDAY: Record<string, string> = { "0": "일", "1": "월", "2": "화", "3
 export default function AttendanceHistoryScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
+  const { id: paramId, name: paramName } = useLocalSearchParams<{ id: string; name: string }>();
+  const { selectedStudent } = useParent();
+  const id = paramId || selectedStudent?.id || "";
+  const name = paramName || selectedStudent?.name || "";
 
   const [records, setRecords] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);

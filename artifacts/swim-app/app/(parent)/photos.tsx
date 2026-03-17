@@ -22,6 +22,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
+import { useParent } from "@/context/ParentContext";
 
 type Tab = "group" | "private";
 
@@ -60,7 +61,10 @@ function fmtDate(d?: string | null) {
 export default function ParentPhotosScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const { id: studentId, name: studentName } = useLocalSearchParams<{ id: string; name: string }>();
+  const { id: paramId, name: paramName } = useLocalSearchParams<{ id: string; name: string }>();
+  const { selectedStudent } = useParent();
+  const studentId = paramId || selectedStudent?.id;
+  const studentName = paramName || selectedStudent?.name;
 
   const [tab, setTab]           = useState<Tab>("group");
   const [albums, setAlbums]     = useState<ChildAlbum[]>([]);
