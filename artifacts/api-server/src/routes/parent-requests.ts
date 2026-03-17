@@ -302,4 +302,56 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
   }
 );
 
+// ─── 관리자: 학부모 초대코드 생성 ────────────────────────────────────────
+router.post("/admin/parent-invites", requireAuth, requireRole("pool_admin", "super_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { parent_name, phone, child_name, child_birth_year, notes } = req.body;
+      if (!parent_name?.trim() || !phone?.trim()) {
+        res.status(400).json({ success: false, message: "이름과 전화번호는 필수입니다." }); return;
+      }
+      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const code = generateInviteCode();
+      const id = genId("pic");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
+
+      await db.execute(sql`
+        INSERT INTO parent_invite_codes (id, swimming_pool_id, parent_name, phone, child_name, child_birth_year, notes, code, expires_at, is_used, created_by, created_at)
+        VALUES (${id}, ${me.swimming_pool_id}, ${parent_name.trim()}, ${phone.trim()},
+                ${child_name?.trim() || null}, ${child_birth_year || null}, ${notes?.trim() || null},
+                ${code}, ${expiresAt.toISOString()}, false, ${req.user!.userId}, now())
+      `);
+
+      res.status(201).json({ success: true, data: { id, code, expires_at: expiresAt } });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 관리자: 학부모 초대코드 목록 ─────────────────────────────────────────
+router.get("/admin/parent-invites", requireAuth, requireRole("pool_admin", "super_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const rows = await db.execute(sql`
+        SELECT * FROM parent_invite_codes
+        WHERE swimming_pool_id = ${me.swimming_pool_id}
+        ORDER BY created_at DESC LIMIT 50
+      `);
+      res.json({ success: true, data: rows.rows });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
 export default router;

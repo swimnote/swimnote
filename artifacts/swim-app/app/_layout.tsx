@@ -140,6 +140,11 @@ function RootNav() {
       <Stack.Screen name="pool-apply" />
       <Stack.Screen name="pool-join-request" />
       <Stack.Screen name="teacher-invite-join" />
+      <Stack.Screen name="signup-role" />
+      <Stack.Screen name="teacher-signup" />
+      <Stack.Screen name="parent-signup" />
+      <Stack.Screen name="parent-code-signup" />
+      <Stack.Screen name="forgot-password" />
       <Stack.Screen name="pending" />
       <Stack.Screen name="rejected" />
       <Stack.Screen name="subscription-expired" />

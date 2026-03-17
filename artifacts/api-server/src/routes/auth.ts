@@ -227,38 +227,30 @@ router.post("/check-id", async (req, res) => {
   }
 });
 
-// ── 통합 로그인 (MVP 테스트용) ─────────────────────────────────────────
+// ── 통합 로그인 (error_code 포함) ──────────────────────────────────────
 router.post("/unified-login", async (req, res) => {
   const { identifier, password } = req.body;
   if (!identifier || !password) return err(res, 400, "아이디와 비밀번호를 입력해주세요.");
   try {
-    // 1) users 테이블 (super_admin / pool_admin / teacher) 먼저 조회
+    // 1) users 테이블
     const [user] = await db.select().from(usersTable)
       .where(eq(usersTable.email, identifier.trim().toLowerCase())).limit(1);
 
     if (user) {
       const valid = await comparePassword(password, user.password_hash);
-      if (!valid) return err(res, 401, "아이디 또는 비밀번호가 올바르지 않습니다.");
-
+      if (!valid) {
+        res.status(401).json({ success: false, error: "비밀번호가 일치하지 않습니다.", error_code: "wrong_password" }); return;
+      }
       if (user.role === "teacher") {
         const rawRows = await db.execute(sql`SELECT is_activated FROM users WHERE id = ${user.id} LIMIT 1`);
         const isActivated = (rawRows.rows[0] as any)?.is_activated ?? true;
         if (!isActivated) {
-          res.status(403).json({
-            success: false,
-            message: "계정이 아직 활성화되지 않았습니다.",
-            error: "계정이 아직 활성화되지 않았습니다.",
-            needs_activation: true,
-            teacher_id: user.id,
-          });
-          return;
+          res.status(403).json({ success: false, error: "계정이 아직 활성화되지 않았습니다.", error_code: "needs_activation", needs_activation: true, teacher_id: user.id }); return;
         }
       }
-
       const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
       const { password_hash: _, ...safeUser } = user;
-      res.json({ success: true, token, kind: "admin", user: safeUser });
-      return;
+      res.json({ success: true, token, kind: "admin", user: safeUser }); return;
     }
 
     // 2) parent_accounts 테이블
@@ -267,27 +259,170 @@ router.post("/unified-login", async (req, res) => {
 
     if (parent) {
       const valid = await comparePassword(password, parent.pin_hash);
-      if (!valid) return err(res, 401, "아이디 또는 비밀번호가 올바르지 않습니다.");
-
+      if (!valid) {
+        res.status(401).json({ success: false, error: "비밀번호가 일치하지 않습니다.", error_code: "wrong_password" }); return;
+      }
       let poolName: string | null = null;
       try {
         const [pool] = await db.select({ name: swimmingPoolsTable.name })
           .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, parent.swimming_pool_id)).limit(1);
         poolName = pool?.name ?? null;
       } catch {}
-
       const token = signToken({ userId: parent.id, role: "parent_account", poolId: parent.swimming_pool_id });
-      res.json({
-        success: true,
-        token,
-        kind: "parent",
-        parent: { id: parent.id, name: parent.name, phone: parent.phone, swimming_pool_id: parent.swimming_pool_id, pool_name: poolName },
-      });
-      return;
+      res.json({ success: true, token, kind: "parent", parent: { id: parent.id, name: parent.name, phone: parent.phone, swimming_pool_id: parent.swimming_pool_id, pool_name: poolName } }); return;
     }
 
-    return err(res, 401, "아이디 또는 비밀번호가 올바르지 않습니다.");
+    // 계정 없음
+    res.status(401).json({ success: false, error: "가입된 계정이 없습니다.", error_code: "user_not_found" });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 비밀번호 재설정 (MVP: 이메일 확인 → 바로 변경) ────────────────────
+router.post("/reset-password", async (req, res) => {
+  const { identifier, new_password } = req.body;
+  if (!identifier || !new_password) return err(res, 400, "아이디와 새 비밀번호를 입력해주세요.");
+  if (new_password.length < 6) return err(res, 400, "비밀번호는 6자 이상이어야 합니다.");
+  try {
+    const [user] = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.email, identifier.trim().toLowerCase())).limit(1);
+    if (user) {
+      const hash = await hashPassword(new_password);
+      await db.execute(sql`UPDATE users SET password_hash = ${hash}, updated_at = now() WHERE id = ${user.id}`);
+      res.json({ success: true, message: "비밀번호가 변경되었습니다." }); return;
+    }
+    const [parent] = await db.select({ id: parentAccountsTable.id }).from(parentAccountsTable)
+      .where(eq(parentAccountsTable.phone, identifier.trim())).limit(1);
+    if (parent) {
+      const hash = await hashPassword(new_password);
+      await db.execute(sql`UPDATE parent_accounts SET pin_hash = ${hash}, updated_at = now() WHERE id = ${parent.id}`);
+      res.json({ success: true, message: "비밀번호가 변경되었습니다." }); return;
+    }
+    return err(res, 404, "해당 아이디로 등록된 계정이 없습니다.");
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 선생님 자체 회원가입 (풀 검색 후 등록, PENDING 상태) ───────────────
+router.post("/teacher-self-signup", async (req, res) => {
+  const { name, email, password, phone, pool_id } = req.body;
+  if (!name?.trim() || !email?.trim() || !password || !pool_id) {
+    return err(res, 400, "이름, 이메일, 비밀번호, 수영장은 필수입니다.");
+  }
+  if (password.length < 6) return err(res, 400, "비밀번호는 6자 이상이어야 합니다.");
+  try {
+    // 이메일 중복 확인
+    const [exist] = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
+    if (exist) return err(res, 409, "이미 사용 중인 이메일입니다.");
+
+    // 수영장 확인
+    const [pool] = await db.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name })
+      .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, pool_id)).limit(1);
+    if (!pool) return err(res, 404, "수영장을 찾을 수 없습니다.");
+
+    const hash = await hashPassword(password);
+    const id = `u_teacher_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    await db.execute(sql`
+      INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, created_at, updated_at)
+      VALUES (${id}, ${email.trim().toLowerCase()}, ${hash}, ${name.trim()}, ${phone?.trim() || null},
+              'teacher', ${pool_id}, false, now(), now())
+    `);
+
+    res.status(201).json({
+      success: true,
+      message: "가입 승인 요청이 전송되었습니다. 수영장 관리자 승인 후 로그인 가능합니다.",
+      pool_name: pool.name,
+      status: "pending",
+    });
+  } catch (e: any) {
+    console.error("[teacher-self-signup]", e);
+    return err(res, 500, e.message || "서버 오류가 발생했습니다.");
+  }
+});
+
+// ── 학부모 초대코드 검증 ───────────────────────────────────────────────
+router.get("/parent-invite/verify", async (req, res) => {
+  const { code } = req.query as { code: string };
+  if (!code) return err(res, 400, "코드를 입력해주세요.");
+  try {
+    const rows = await db.execute(sql`
+      SELECT pic.*, sp.name AS pool_name
+      FROM parent_invite_codes pic
+      LEFT JOIN swimming_pools sp ON sp.id = pic.swimming_pool_id
+      WHERE pic.code = ${code.trim().toUpperCase()}
+      LIMIT 1
+    `);
+    const invite = rows.rows[0] as any;
+    if (!invite) return err(res, 404, "유효하지 않은 코드입니다.");
+    if (invite.is_used) return res.status(410).json({ success: false, error: "이미 사용된 코드입니다.", error_code: "code_used" });
+    if (new Date(invite.expires_at) < new Date()) {
+      return res.status(410).json({ success: false, error: "만료된 코드입니다. 새 코드를 요청해주세요.", error_code: "code_expired" });
+    }
+    res.json({ success: true, invite: {
+      id: invite.id, code: invite.code, pool_name: invite.pool_name,
+      parent_name: invite.parent_name, phone: invite.phone,
+      child_name: invite.child_name, child_birth_year: invite.child_birth_year,
+      swimming_pool_id: invite.swimming_pool_id,
+    }});
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 학부모 초대코드로 가입 (즉시 ACTIVE) ────────────────────────────────
+router.post("/parent-invite/join", async (req, res) => {
+  const { code, pin } = req.body;
+  if (!code || !pin) return err(res, 400, "코드와 PIN이 필요합니다.");
+  if (pin.length < 4) return err(res, 400, "PIN은 4자리 이상이어야 합니다.");
+  try {
+    const rows = await db.execute(sql`SELECT * FROM parent_invite_codes WHERE code = ${code.trim().toUpperCase()} LIMIT 1`);
+    const invite = rows.rows[0] as any;
+    if (!invite) return err(res, 404, "유효하지 않은 코드입니다.");
+    if (invite.is_used) return res.status(410).json({ success: false, error: "이미 사용된 코드입니다.", error_code: "code_used" });
+    if (new Date(invite.expires_at) < new Date()) {
+      return res.status(410).json({ success: false, error: "만료된 코드입니다.", error_code: "code_expired" });
+    }
+
+    // parent_account 생성
+    const existing = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${invite.phone} AND swimming_pool_id = ${invite.swimming_pool_id} LIMIT 1`);
+    if ((existing.rows as any[]).length > 0) return err(res, 409, "이미 이 수영장에 가입된 계정이 있습니다.");
+
+    const pinHash = await hashPassword(pin);
+    const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await db.execute(sql`
+      INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, created_at, updated_at)
+      VALUES (${parentId}, ${invite.swimming_pool_id}, ${invite.phone}, ${pinHash}, ${invite.parent_name}, now(), now())
+    `);
+
+    // 코드 사용 처리
+    await db.execute(sql`UPDATE parent_invite_codes SET is_used = true, used_at = now() WHERE id = ${invite.id}`);
+
+    // 학생 연결 (child_name 있는 경우, 기존 학생 찾거나 요청 상태 저장)
+    if (invite.child_name) {
+      const studentRows = await db.execute(sql`
+        SELECT id FROM students WHERE swimming_pool_id = ${invite.swimming_pool_id} AND name = ${invite.child_name} LIMIT 1
+      `);
+      if ((studentRows.rows as any[]).length > 0) {
+        const studentId = (studentRows.rows[0] as any).id;
+        await db.execute(sql`
+          INSERT INTO parent_students (id, parent_id, student_id, created_at)
+          VALUES (gen_random_uuid()::text, ${parentId}, ${studentId}, now())
+          ON CONFLICT DO NOTHING
+        `);
+        await db.execute(sql`UPDATE students SET parent_user_id = ${parentId} WHERE id = ${studentId}`);
+      }
+    }
+
+    // 로그인 토큰 발급
+    const [poolRow] = await db.select({ name: swimmingPoolsTable.name }).from(swimmingPoolsTable)
+      .where(eq(swimmingPoolsTable.id, invite.swimming_pool_id)).limit(1);
+    const token = signToken({ userId: parentId, role: "parent_account", poolId: invite.swimming_pool_id });
+
+    res.status(201).json({
+      success: true,
+      token,
+      kind: "parent",
+      parent: { id: parentId, name: invite.parent_name, phone: invite.phone, swimming_pool_id: invite.swimming_pool_id, pool_name: poolRow?.name || null },
+    });
+  } catch (e: any) { console.error(e); return err(res, 500, e.message || "서버 오류가 발생했습니다."); }
 });
 
 export default router;

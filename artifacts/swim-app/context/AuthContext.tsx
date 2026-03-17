@@ -118,13 +118,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const data = await safeJson(res);
     if (!res.ok) {
-      if (data.needs_activation) {
+      if (data.needs_activation || data.error_code === "needs_activation") {
         throw Object.assign(new Error(data.error || "계정 활성화가 필요합니다."), {
           needs_activation: true,
+          error_code: "needs_activation",
           teacher_id: data.teacher_id,
         });
       }
-      throw new Error(data.error || "로그인에 실패했습니다.");
+      throw Object.assign(new Error(data.error || "로그인에 실패했습니다."), {
+        error_code: data.error_code || "unknown",
+      });
     }
     await AsyncStorage.setItem("auth_token", data.token);
     setToken(data.token);

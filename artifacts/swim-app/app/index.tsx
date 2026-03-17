@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,6 +25,8 @@ export default function LoginScreen() {
   const [showPw, setShowPw]         = useState(false);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState("");
+  const [failCount, setFailCount]   = useState(0);
+  const [showNotFoundModal, setShowNotFoundModal] = useState(false);
 
   async function handleLogin(overrideId?: string, overridePw?: string) {
     const finalId = (overrideId ?? identifier).trim();
@@ -37,10 +39,25 @@ export default function LoginScreen() {
     setError("");
     try {
       await unifiedLogin(finalId, finalPw);
+      setFailCount(0);
     } catch (err: unknown) {
-      const e = err as Error & { needs_activation?: boolean; teacher_id?: string };
+      const e = err as Error & { needs_activation?: boolean; teacher_id?: string; error_code?: string };
       if (e.needs_activation && e.teacher_id) {
         router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } } as any);
+        return;
+      }
+      if (e.error_code === "user_not_found") {
+        setShowNotFoundModal(true);
+        return;
+      }
+      if (e.error_code === "wrong_password") {
+        const nextCount = failCount + 1;
+        setFailCount(nextCount);
+        if (nextCount >= 3) {
+          router.push({ pathname: "/forgot-password", params: { identifier: finalId } } as any);
+          return;
+        }
+        setError("비밀번호가 일치하지 않습니다.");
         return;
       }
       setError(e.message || "아이디 또는 비밀번호를 확인해주세요.");
@@ -49,18 +66,18 @@ export default function LoginScreen() {
     }
   }
 
+  function handleIdentifierChange(v: string) {
+    setIdentifier(v);
+    setError("");
+    setFailCount(0);
+  }
+
   const entryLinks = [
     {
-      icon: "briefcase",
-      label: "수영장 사업자이신가요?",
-      action: "가입 신청",
-      onPress: () => router.push("/register" as any),
-    },
-    {
-      icon: "mail",
-      label: "선생님으로 초대받으셨나요?",
-      action: "초대 코드로 가입",
-      onPress: () => router.push("/teacher-invite-join" as any),
+      icon: "user-plus",
+      label: "처음 이용하시나요?",
+      action: "회원가입",
+      onPress: () => router.push("/signup-role" as any),
     },
     {
       icon: "heart",
@@ -111,7 +128,7 @@ export default function LoginScreen() {
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={identifier}
-                onChangeText={v => { setIdentifier(v); setError(""); }}
+                onChangeText={handleIdentifierChange}
                 placeholder="이메일 또는 전화번호"
                 placeholderTextColor={C.textMuted}
                 autoCapitalize="none"
@@ -152,6 +169,17 @@ export default function LoginScreen() {
               <Feather name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
+          )}
+
+          {/* 비밀번호 찾기 버튼 (2회 이상 틀렸을 때) */}
+          {failCount >= 2 && (
+            <Pressable
+              style={({ pressed }) => [styles.forgotBtn, { opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => router.push({ pathname: "/forgot-password", params: { identifier } } as any)}
+            >
+              <Feather name="key" size={13} color={C.tint} />
+              <Text style={[styles.forgotText, { color: C.tint }]}>비밀번호를 잊으셨나요?</Text>
+            </Pressable>
           )}
 
           {/* 로그인 버튼 */}
@@ -205,6 +233,44 @@ export default function LoginScreen() {
         {/* ── 하단 진입 링크 ── */}
         <AuthEntryLinks links={entryLinks} />
       </ScrollView>
+
+      {/* ── 계정 없음 모달 ── */}
+      <Modal
+        transparent
+        visible={showNotFoundModal}
+        animationType="fade"
+        onRequestClose={() => setShowNotFoundModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowNotFoundModal(false)}>
+          <Pressable style={[styles.modalCard, { backgroundColor: C.card }]} onPress={e => e.stopPropagation()}>
+            <View style={[styles.modalIconWrap, { backgroundColor: "#FEF3C7" }]}>
+              <Feather name="user-x" size={26} color="#D97706" />
+            </View>
+            <Text style={[styles.modalTitle, { color: C.text }]}>가입된 계정이 없습니다</Text>
+            <Text style={[styles.modalDesc, { color: C.textSecondary }]}>
+              입력하신 아이디로 등록된 계정이 없습니다.{"\n"}
+              아이디를 다시 확인하거나, 새로 가입해주세요.
+            </Text>
+            <View style={styles.modalBtns}>
+              <Pressable
+                style={({ pressed }) => [styles.modalBtn, styles.modalBtnSecondary, { borderColor: C.border, opacity: pressed ? 0.7 : 1 }]}
+                onPress={() => setShowNotFoundModal(false)}
+              >
+                <Text style={[styles.modalBtnText, { color: C.textSecondary }]}>다시 입력</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+                onPress={() => {
+                  setShowNotFoundModal(false);
+                  router.push("/signup-role" as any);
+                }}
+              >
+                <Text style={[styles.modalBtnText, { color: "#fff" }]}>회원가입하기</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -248,6 +314,11 @@ const styles = StyleSheet.create({
     padding: 12, borderRadius: 12,
   },
   errText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  forgotBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    alignSelf: "center", paddingVertical: 4,
+  },
+  forgotText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   loginBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
   loginBtnInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   loginBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
@@ -258,4 +329,26 @@ const styles = StyleSheet.create({
   demoDivider: { flex: 1, height: 1 },
   demoTitle: { fontSize: 11, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.6 },
   demoGrid: { gap: 8 },
+
+  /* 계정 없음 모달 */
+  modalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center", justifyContent: "center",
+  },
+  modalCard: {
+    width: 300, borderRadius: 22, padding: 24,
+    alignItems: "center", gap: 12,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15, shadowRadius: 24, elevation: 10,
+  },
+  modalIconWrap: {
+    width: 56, height: 56, borderRadius: 16,
+    alignItems: "center", justifyContent: "center", marginBottom: 4,
+  },
+  modalTitle: { fontSize: 17, fontFamily: "Inter_700Bold", textAlign: "center" },
+  modalDesc: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  modalBtns: { flexDirection: "row", gap: 10, marginTop: 6, width: "100%" },
+  modalBtn: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  modalBtnSecondary: { borderWidth: 1.5 },
+  modalBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });
