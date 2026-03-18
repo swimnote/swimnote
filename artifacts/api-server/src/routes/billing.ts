@@ -10,6 +10,7 @@ import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { getPaymentProvider } from "../payment/index.js";
+import { logEvent } from "../lib/event-logger.js";
 
 const router = Router();
 
@@ -19,6 +20,12 @@ async function getPoolId(userId: string): Promise<string | null> {
   const [u] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
     .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return u?.swimming_pool_id ?? null;
+}
+
+async function getActorInfo(userId: string): Promise<{ pool_id: string | null; name: string }> {
+  const [u] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id, name: usersTable.name })
+    .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return { pool_id: u?.swimming_pool_id ?? null, name: (u as any)?.name || "관리자" };
 }
 
 function daysBetween(from: string | Date, to: string | Date): number {
@@ -270,6 +277,19 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
             next_billing_at = ${nextBilling}, updated_at = now()
     `);
 
+    const isUpgrade = sub?.tier && sub.tier !== "free" && sub.tier !== tier;
+    const actorInfo = await getActorInfo(req.user!.userId);
+    logEvent({
+      pool_id: poolId,
+      category: isUpgrade ? "구독" : "결제",
+      actor_id: req.user!.userId,
+      actor_name: actorInfo.name,
+      description: isUpgrade
+        ? `플랜 업그레이드 — ${sub.tier} → ${tier}`
+        : `구독 시작 — ${newPlan.name} (${newPlan.price_per_month.toLocaleString()}원/월)`,
+      metadata: { tier, plan_name: newPlan.name, price: newPlan.price_per_month, prorate_amount: proAmt },
+    }).catch(console.error);
+
     res.json({ success: true, prorate_amount: proAmt, next_billing_at: nextBilling });
   } catch (err: any) {
     console.error(err);
@@ -334,6 +354,16 @@ router.post("/storage-addon", requireAuth, requireRole("pool_admin", "super_admi
       WHERE swimming_pool_id = ${poolId}
     `);
 
+    const addonActor = await getActorInfo(req.user!.userId);
+    logEvent({
+      pool_id: poolId,
+      category: "저장공간",
+      actor_id: req.user!.userId,
+      actor_name: addonActor.name,
+      description: `추가 저장 용량 구매 — ${extra_gb}GB (${chargeAmt.toLocaleString()}원 결제)`,
+      metadata: { extra_gb, charge_amount: chargeAmt, monthly_amount: monthlyAmount },
+    }).catch(console.error);
+
     res.json({ success: true, charge_amount: chargeAmt, monthly_amount: monthlyAmount });
   } catch (err: any) {
     console.error(err);
@@ -361,12 +391,28 @@ router.get("/history", requireAuth, requireRole("pool_admin", "super_admin"), as
 // ── 구독 해지 ────────────────────────────────────────────────────────
 router.post("/cancel", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
   try {
-    const poolId = await getPoolId(req.user!.userId);
+    const cancelActor = await getActorInfo(req.user!.userId);
+    const poolId = cancelActor.pool_id;
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+    const [sub] = (await db.execute(sql`
+      SELECT tier FROM pool_subscriptions WHERE swimming_pool_id = ${poolId} LIMIT 1
+    `)).rows as any[];
+
     await db.execute(sql`
       UPDATE pool_subscriptions SET status = 'cancelled', updated_at = now()
       WHERE swimming_pool_id = ${poolId}
     `);
+
+    logEvent({
+      pool_id: poolId,
+      category: "해지",
+      actor_id: req.user!.userId,
+      actor_name: cancelActor.name,
+      description: `구독 해지 신청 — ${sub?.tier ?? "현재"} 플랜 (기간 종료 후 해지)`,
+      metadata: { tier: sub?.tier },
+    }).catch(console.error);
+
     res.json({ success: true, message: "현재 구독 기간 종료 후 자동으로 해지됩니다." });
   } catch (err) {
     console.error(err);

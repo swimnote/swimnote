@@ -14,6 +14,7 @@ import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword } from "../lib/auth.js";
+import { logEvent } from "../lib/event-logger.js";
 
 const router = Router();
 
@@ -133,14 +134,18 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         res.status(400).json({ success: false, message: "유효하지 않은 action입니다." }); return;
       }
 
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id, name: usersTable.name })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const actorId   = req.user!.userId;
+      const actorName = (me as any).name || "관리자";
+      const poolId    = me.swimming_pool_id;
 
       const existing = await db.execute(sql`
         SELECT ti.*, u.roles as user_roles FROM teacher_invites ti
         LEFT JOIN users u ON ti.user_id = u.id
-        WHERE ti.id = ${req.params.id} AND ti.swimming_pool_id = ${me.swimming_pool_id}
+        WHERE ti.id = ${req.params.id} AND ti.swimming_pool_id = ${poolId}
         LIMIT 1
       `);
       if (!existing.rows.length) { res.status(404).json({ success: false, message: "초대 정보를 찾을 수 없습니다." }); return; }
@@ -152,16 +157,16 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
           res.status(409).json({ success: false, message: "승인 대기 상태인 초대만 승인할 수 있습니다." }); return;
         }
         if (invite.user_id) {
-          // 승인 시 기본 teacher 역할만 부여
           const approvedRoles: string[] = ["teacher"];
           const rolesLiteral = `{${approvedRoles.map((r: string) => `"${r}"`).join(",")}}`;
           await db.execute(sql`UPDATE users SET is_activated = true, roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
         await db.execute(sql`
           UPDATE teacher_invites
-          SET invite_status = 'approved', approved_at = NOW(), approved_by = ${req.user!.userId}
+          SET invite_status = 'approved', approved_at = NOW(), approved_by = ${actorId}
           WHERE id = ${req.params.id}
         `);
+        logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.teacher_name, description: `선생님 승인 — ${invite.teacher_name}` }).catch(console.error);
         res.json({ success: true, message: "선생님이 승인되었습니다." });
 
       } else if (action === "reject") {
@@ -170,7 +175,7 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         }
         await db.execute(sql`
           UPDATE teacher_invites
-          SET invite_status = 'rejected', approved_at = NOW(), approved_by = ${req.user!.userId},
+          SET invite_status = 'rejected', approved_at = NOW(), approved_by = ${actorId},
               rejection_reason = ${rejection_reason || null}
           WHERE id = ${req.params.id}
         `);
@@ -181,6 +186,7 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
           await db.execute(sql`UPDATE users SET is_activated = false, updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
         await db.execute(sql`UPDATE teacher_invites SET invite_status = 'inactive' WHERE id = ${req.params.id}`);
+        logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.teacher_name, description: `선생님 승인 해제 — ${invite.teacher_name}` }).catch(console.error);
         res.json({ success: true, message: "승인이 해제되었습니다." });
 
       } else if (action === "reactivate") {
@@ -188,33 +194,33 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
           await db.execute(sql`UPDATE users SET is_activated = true, updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
         await db.execute(sql`UPDATE teacher_invites SET invite_status = 'approved' WHERE id = ${req.params.id}`);
+        logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.teacher_name, description: `선생님 재활성화 — ${invite.teacher_name}` }).catch(console.error);
         res.json({ success: true, message: "재활성화되었습니다." });
 
       } else if (action === "set-sub-admin") {
         if (!invite.user_id) {
           res.status(400).json({ success: false, message: "사용자 계정이 없습니다." }); return;
         }
-        // 현재 roles 파싱
         let currentRoles: string[] = Array.isArray(invite.user_roles)
           ? invite.user_roles
           : (invite.user_roles ? [invite.user_roles] : ["teacher"]);
 
         if (grant) {
-          // 부관리자 지정
-          if (!currentRoles.includes("sub_admin")) {
-            currentRoles = [...currentRoles, "sub_admin"];
-          }
+          if (!currentRoles.includes("sub_admin")) currentRoles = [...currentRoles, "sub_admin"];
         } else {
-          // 부관리자 해제
           currentRoles = currentRoles.filter((r: string) => r !== "sub_admin");
           if (!currentRoles.includes("teacher")) currentRoles = ["teacher"];
         }
 
         const rolesLiteral = `{${currentRoles.map((r: string) => `"${r}"`).join(",")}}`;
-        await db.execute(sql`
-          UPDATE users SET roles = ${rolesLiteral}::TEXT[], updated_at = NOW()
-          WHERE id = ${invite.user_id}
-        `);
+        await db.execute(sql`UPDATE users SET roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${invite.user_id}`);
+
+        logEvent({
+          pool_id: poolId, category: "권한", actor_id: actorId, actor_name: actorName,
+          target: invite.teacher_name,
+          description: grant ? `부관리자 지정 — ${invite.teacher_name}` : `부관리자 해제 — ${invite.teacher_name}`,
+          metadata: { grant, teacher_name: invite.teacher_name },
+        }).catch(console.error);
 
         res.json({ success: true, message: grant ? "부관리자로 지정되었습니다." : "부관리자 권한이 해제되었습니다.", roles: currentRoles });
       }
@@ -234,9 +240,12 @@ router.post("/admin/teacher-invites/:id/transfer", requireAuth, requireRole("poo
         res.status(400).json({ success: false, message: "target_user_id가 필요합니다." }); return;
       }
 
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id, name: usersTable.name })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const actorId   = req.user!.userId;
+      const actorName = (me as any).name || "관리자";
 
       // 소스 선생님 invite 조회
       const inviteResult = await db.execute(sql`
@@ -251,6 +260,7 @@ router.post("/admin/teacher-invites/:id/transfer", requireAuth, requireRole("poo
       }
       const invite = inviteResult.rows[0] as any;
       const sourceUserId = invite.source_user_id;
+      const sourceName   = invite.source_name || invite.teacher_name || "이전 선생님";
       if (!sourceUserId) {
         res.status(400).json({ success: false, message: "소스 선생님 계정이 없습니다." }); return;
       }
@@ -272,10 +282,22 @@ router.post("/admin/teacher-invites/:id/transfer", requireAuth, requireRole("poo
           AND is_deleted = false
       `);
 
+      const transferredCount = (updateResult as any).rowCount ?? 0;
+
+      logEvent({
+        pool_id: me.swimming_pool_id,
+        category: "선생님",
+        actor_id: actorId,
+        actor_name: actorName,
+        target: `${sourceName} → ${targetName}`,
+        description: `수업 인수 — ${sourceName} 담당 반 ${transferredCount}개 → ${targetName}에게 이전`,
+        metadata: { source_name: sourceName, target_name: targetName, transferred_count: transferredCount },
+      }).catch(console.error);
+
       res.json({
         success: true,
         message: `수업 인수가 완료되었습니다. 담당 수업이 ${targetName} 선생님에게 이전되었습니다.`,
-        transferred_count: (updateResult as any).rowCount ?? 0,
+        transferred_count: transferredCount,
       });
     } catch (err) {
       console.error(err);

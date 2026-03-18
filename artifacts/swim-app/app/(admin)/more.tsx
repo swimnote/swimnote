@@ -7,7 +7,7 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, View,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -18,7 +18,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
-const TABS = ["설정 메뉴", "활동 로그"] as const;
+const TABS = ["설정 메뉴", "활동 로그", "이벤트 기록"] as const;
 type Tab = typeof TABS[number];
 
 function fmtBytes(bytes: number): string {
@@ -62,6 +62,30 @@ const TYPE_LABEL: Record<string, string> = {
   attendance: "출결", parent: "학부모",
 };
 
+interface EventLogItem {
+  id: string; pool_id: string; category: string;
+  actor_id: string; actor_name: string; target: string | null;
+  description: string; metadata: any; created_at: string;
+}
+
+const EVENT_CAT_META: Record<string, { icon: string; color: string; bg: string }> = {
+  "삭제":     { icon: "trash-2",      color: "#DC2626", bg: "#FEE2E2" },
+  "결제":     { icon: "credit-card",  color: "#059669", bg: "#D1FAE5" },
+  "구독":     { icon: "star",         color: "#7C3AED", bg: "#EDE9FE" },
+  "해지":     { icon: "x-circle",     color: "#F59E0B", bg: "#FEF3C7" },
+  "권한":     { icon: "shield",       color: "#2563EB", bg: "#DBEAFE" },
+  "선생님":   { icon: "user-check",   color: "#0D9488", bg: "#CCFBF1" },
+  "저장공간": { icon: "hard-drive",   color: "#EC4899", bg: "#FCE7F3" },
+  "휴무일":   { icon: "calendar",     color: "#6B7280", bg: "#F3F4F6" },
+};
+const EVENT_CATEGORIES = ["전체", "삭제", "결제", "구독", "해지", "권한", "선생님", "저장공간", "휴무일"] as const;
+
+const KS_TYPES = [
+  { key: "photo",  label: "사진",    icon: "image" as const,    color: "#F59E0B", bg: "#FEF3C7" },
+  { key: "video",  label: "영상",    icon: "video" as const,    color: "#7C3AED", bg: "#EDE9FE" },
+  { key: "record", label: "기록/일지", icon: "book-open" as const, color: "#059669", bg: "#D1FAE5" },
+];
+
 export default function MoreScreen() {
   const { token, adminUser, switchRole } = useAuth();
   const { themeColor } = useBrand();
@@ -95,6 +119,25 @@ export default function MoreScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  /* ─ 이벤트 기록 ─ */
+  const [eventLogs, setEventLogs] = useState<EventLogItem[]>([]);
+  const [eventLogsLoading, setEventLogsLoading] = useState(false);
+  const [eventLogsPage, setEventLogsPage] = useState(0);
+  const [eventLogsHasMore, setEventLogsHasMore] = useState(true);
+  const [eventLogsFilter, setEventLogsFilter] = useState<string>("전체");
+  const [eventLogsRefreshing, setEventLogsRefreshing] = useState(false);
+
+  /* ─ 킬 스위치 ─ */
+  const [ksModalVisible, setKsModalVisible]         = useState(false);
+  const [ksType,          setKsType]                = useState("photo");
+  const [ksMonths,        setKsMonths]              = useState(3);
+  const [ksPreview,       setKsPreview]             = useState<{ count: number; total_bytes: number } | null>(null);
+  const [ksPreviewLoading, setKsPreviewLoading]     = useState(false);
+  const [ksStep,          setKsStep]                = useState<"select" | "preview" | "confirm">("select");
+  const [ksPassword,      setKsPassword]            = useState("");
+  const [ksExecLoading,   setKsExecLoading]         = useState(false);
+  const [ksResult,        setKsResult]              = useState<string | null>(null);
+
   const loadStorage = useCallback(async () => {
     setStorageLoading(true);
     try {
@@ -125,6 +168,72 @@ export default function MoreScreen() {
   useEffect(() => {
     if (tab === "활동 로그") loadLogs(0);
   }, [tab]);
+
+  const loadEventLogs = useCallback(async (page = 0, filter = eventLogsFilter) => {
+    if (eventLogsLoading) return;
+    setEventLogsLoading(true);
+    try {
+      const cat = filter === "전체" ? "" : `&category=${encodeURIComponent(filter)}`;
+      const res = await apiRequest(token, `/admin/event-logs?limit=30&offset=${page * 30}${cat}`);
+      if (res.ok) {
+        const data: EventLogItem[] = await res.json();
+        if (page === 0) setEventLogs(data);
+        else setEventLogs(prev => [...prev, ...data]);
+        setEventLogsHasMore(data.length === 30);
+        setEventLogsPage(page);
+      }
+    } catch (e) { console.error(e); }
+    finally { setEventLogsLoading(false); setEventLogsRefreshing(false); }
+  }, [token, eventLogsLoading, eventLogsFilter]);
+
+  useEffect(() => {
+    if (tab === "이벤트 기록") loadEventLogs(0, eventLogsFilter);
+  }, [tab, eventLogsFilter]);
+
+  async function ksLoadPreview() {
+    setKsPreviewLoading(true);
+    try {
+      const res = await apiRequest(token, "/admin/kill-switch/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ types: [ksType], months: ksMonths }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setKsPreview({ count: data.count ?? 0, total_bytes: data.total_bytes ?? 0 });
+        setKsStep("preview");
+      }
+    } catch (e) { console.error(e); }
+    finally { setKsPreviewLoading(false); }
+  }
+
+  async function ksExecute() {
+    setKsExecLoading(true);
+    try {
+      const res = await apiRequest(token, "/admin/kill-switch/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ types: [ksType], months: ksMonths, password: ksPassword }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setKsResult(`삭제 완료: ${data.deleted_count ?? 0}건, ${fmtBytes(data.deleted_bytes ?? 0)} 정리됨`);
+        setKsStep("confirm");
+        setKsPassword("");
+      } else {
+        setKsResult(`오류: ${data.error || data.message || "알 수 없는 오류"}`);
+      }
+    } catch (e) { setKsResult("서버 오류가 발생했습니다."); }
+    finally { setKsExecLoading(false); }
+  }
+
+  function ksReset() {
+    setKsModalVisible(false);
+    setKsStep("select");
+    setKsPreview(null);
+    setKsPassword("");
+    setKsResult(null);
+  }
 
   const settingGroups = [
     {
@@ -232,6 +341,26 @@ export default function MoreScreen() {
             </View>
           ))}
 
+          {/* ── 데이터 관리 (킬 스위치) ── */}
+          <View>
+            <Text style={s.groupTitle}>데이터 관리</Text>
+            <View style={[s.groupCard, { backgroundColor: C.card }]}>
+              <Pressable
+                style={({ pressed }) => [s.menuRow, { opacity: pressed ? 0.7 : 1 }]}
+                onPress={() => { setKsStep("select"); setKsPreview(null); setKsPassword(""); setKsResult(null); setKsModalVisible(true); }}
+              >
+                <View style={[s.menuIcon, { backgroundColor: "#FEE2E2" }]}>
+                  <Feather name="alert-triangle" size={18} color="#DC2626" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.menuLabel}>원본 데이터 삭제</Text>
+                  <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Inter_400Regular", marginTop: 1 }}>선택 기간 파일 영구 삭제 (킬 스위치)</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={C.textMuted} />
+              </Pressable>
+            </View>
+          </View>
+
           {/* ── 저장공간 관리 ── */}
           <View>
             <Text style={s.groupTitle}>저장공간 관리</Text>
@@ -325,7 +454,7 @@ export default function MoreScreen() {
             </View>
           </View>
         </ScrollView>
-      ) : (
+      ) : tab === "활동 로그" ? (
         /* 활동 로그 탭 */
         <FlatList
           data={logs}
@@ -402,7 +531,212 @@ export default function MoreScreen() {
             );
           }}
         />
+      ) : (
+        /* 이벤트 기록 탭 */
+        <View style={{ flex: 1 }}>
+          {/* 카테고리 필터 */}
+          <ScrollView
+            horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, flexDirection: "row" }}
+            style={{ borderBottomWidth: 1, borderBottomColor: C.border }}
+          >
+            {EVENT_CATEGORIES.map(cat => {
+              const active = eventLogsFilter === cat;
+              const meta = EVENT_CAT_META[cat];
+              return (
+                <Pressable
+                  key={cat}
+                  onPress={() => { setEventLogsFilter(cat); }}
+                  style={[s.evtChip, active && { backgroundColor: (meta?.color ?? themeColor) + "20", borderColor: meta?.color ?? themeColor }]}
+                >
+                  {meta && <Feather name={meta.icon as any} size={12} color={active ? (meta.color ?? themeColor) : C.textMuted} />}
+                  <Text style={[s.evtChipText, { color: active ? (meta?.color ?? themeColor) : C.textSecondary }]}>{cat}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <FlatList
+            data={eventLogs}
+            keyExtractor={(l, i) => l.id || String(i)}
+            refreshControl={
+              <RefreshControl
+                refreshing={eventLogsRefreshing}
+                onRefresh={() => { setEventLogsRefreshing(true); loadEventLogs(0, eventLogsFilter); }}
+                tintColor={themeColor}
+              />
+            }
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10 }}
+            ListEmptyComponent={
+              eventLogsLoading ? (
+                <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />
+              ) : (
+                <View style={s.empty}>
+                  <Feather name="clock" size={40} color={C.textMuted} />
+                  <Text style={s.emptyText}>이벤트 기록이 없습니다</Text>
+                </View>
+              )
+            }
+            onEndReached={() => { if (eventLogsHasMore && !eventLogsLoading) loadEventLogs(eventLogsPage + 1, eventLogsFilter); }}
+            onEndReachedThreshold={0.3}
+            ListFooterComponent={
+              eventLogsLoading && eventLogs.length > 0 ? <ActivityIndicator color={themeColor} style={{ marginVertical: 16 }} /> : null
+            }
+            renderItem={({ item: ev }) => {
+              const meta = EVENT_CAT_META[ev.category] || { icon: "activity", color: C.textSecondary, bg: "#F3F4F6" };
+              const dt = new Date(ev.created_at);
+              const dateStr = dt.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+              const timeStr = `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+              return (
+                <View style={[s.evtCard, { backgroundColor: C.card }]}>
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                    <View style={[s.evtIconWrap, { backgroundColor: meta.bg }]}>
+                      <Feather name={meta.icon as any} size={16} color={meta.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                        <View style={[s.evtCatBadge, { backgroundColor: meta.bg }]}>
+                          <Text style={[s.evtCatText, { color: meta.color }]}>{ev.category}</Text>
+                        </View>
+                      </View>
+                      <Text style={s.evtDesc}>{ev.description}</Text>
+                      {ev.target && <Text style={s.evtTarget}>대상: {ev.target}</Text>}
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={s.logDate}>{dateStr}</Text>
+                      <Text style={s.logTime}>{timeStr}</Text>
+                    </View>
+                  </View>
+                  <View style={s.logFooter}>
+                    <Feather name="user" size={11} color={C.textMuted} />
+                    <Text style={s.logActor}>{ev.actor_name}</Text>
+                  </View>
+                </View>
+              );
+            }}
+          />
+        </View>
       )}
+
+      {/* ── 킬 스위치 모달 ── */}
+      <Modal visible={ksModalVisible} transparent animationType="slide" onRequestClose={ksReset}>
+        <Pressable style={sm.overlay} onPress={ksReset}>
+          <Pressable style={[sm.sheet, { maxHeight: "90%" }]} onPress={e => e.stopPropagation()}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" }}>
+                  <Feather name="alert-triangle" size={16} color="#DC2626" />
+                </View>
+                <Text style={[sm.title, { color: "#DC2626" }]}>원본 데이터 삭제</Text>
+              </View>
+              <Pressable onPress={ksReset} hitSlop={8}><Feather name="x" size={22} color={C.text} /></Pressable>
+            </View>
+            <Text style={[sm.sub, { color: "#DC2626", marginBottom: 12 }]}>삭제된 원본 파일은 복구할 수 없습니다. 이벤트 로그는 보존됩니다.</Text>
+
+            {ksStep === "select" && (
+              <>
+                <Text style={s.stSectionTitle}>삭제할 데이터 종류</Text>
+                <View style={{ gap: 8, marginBottom: 16 }}>
+                  {KS_TYPES.map(kt => (
+                    <Pressable
+                      key={kt.key}
+                      onPress={() => setKsType(kt.key)}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: ksType === kt.key ? kt.color : C.border, backgroundColor: ksType === kt.key ? kt.bg : "#fff" }}
+                    >
+                      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: kt.bg, alignItems: "center", justifyContent: "center" }}>
+                        <Feather name={kt.icon} size={18} color={kt.color} />
+                      </View>
+                      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: ksType === kt.key ? kt.color : C.text }}>{kt.label}</Text>
+                      {ksType === kt.key && <Feather name="check" size={18} color={kt.color} style={{ marginLeft: "auto" }} />}
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={s.stSectionTitle}>삭제 기간</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                  {[1, 3, 6, 12].map(m => (
+                    <Pressable
+                      key={m}
+                      onPress={() => setKsMonths(m)}
+                      style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: ksMonths === m ? "#DC2626" : C.border, backgroundColor: ksMonths === m ? "#FEE2E2" : "#fff" }}
+                    >
+                      <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: ksMonths === m ? "#DC2626" : C.text }}>{m}개월 이상 전</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Pressable
+                  style={{ height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#DC2626" }}
+                  onPress={ksLoadPreview}
+                  disabled={ksPreviewLoading}
+                >
+                  {ksPreviewLoading
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>미리보기 →</Text>
+                  }
+                </Pressable>
+              </>
+            )}
+
+            {ksStep === "preview" && ksPreview && (
+              <>
+                <View style={{ backgroundColor: "#FEF2F2", borderRadius: 14, padding: 16, gap: 8, marginBottom: 16 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#DC2626", marginBottom: 4 }}>
+                    {KS_TYPES.find(k => k.key === ksType)?.label} · {ksMonths}개월 이상 전
+                  </Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: C.text }}>삭제 대상 건수</Text>
+                    <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#DC2626" }}>{ksPreview.count.toLocaleString()}건</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: C.text }}>예상 정리 용량</Text>
+                    <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#DC2626" }}>{fmtBytes(ksPreview.total_bytes)}</Text>
+                  </View>
+                </View>
+                <Text style={[sm.sub, { marginBottom: 8 }]}>관리자 비밀번호를 입력해 영구 삭제를 승인하세요.</Text>
+                <TextInput
+                  style={s.pwInput}
+                  placeholder="비밀번호"
+                  secureTextEntry
+                  value={ksPassword}
+                  onChangeText={setKsPassword}
+                  autoFocus
+                />
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+                  <Pressable
+                    style={{ flex: 1, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6" }}
+                    onPress={() => setKsStep("select")}
+                  >
+                    <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary }}>← 수정</Text>
+                  </Pressable>
+                  <Pressable
+                    style={{ flex: 2, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: ksPassword.length > 0 ? "#DC2626" : "#FCA5A5", opacity: ksExecLoading ? 0.7 : 1 }}
+                    onPress={ksExecute}
+                    disabled={ksExecLoading || ksPassword.length === 0}
+                  >
+                    {ksExecLoading
+                      ? <ActivityIndicator color="#fff" />
+                      : <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" }}>영구 삭제</Text>
+                    }
+                  </Pressable>
+                </View>
+              </>
+            )}
+
+            {ksStep === "confirm" && (
+              <>
+                <View style={{ alignItems: "center", gap: 12, paddingVertical: 20 }}>
+                  <View style={{ width: 60, height: 60, borderRadius: 20, backgroundColor: ksResult?.startsWith("삭제 완료") ? "#D1FAE5" : "#FEE2E2", alignItems: "center", justifyContent: "center" }}>
+                    <Feather name={ksResult?.startsWith("삭제 완료") ? "check-circle" : "alert-circle"} size={30} color={ksResult?.startsWith("삭제 완료") ? "#059669" : "#DC2626"} />
+                  </View>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: C.text, textAlign: "center" }}>{ksResult}</Text>
+                </View>
+                <Pressable style={sm.closeBtn} onPress={ksReset}>
+                  <Text style={sm.closeBtnText}>확인</Text>
+                </Pressable>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* 계정별 저장공간 상세 모달 */}
       <Modal visible={!!selectedStaff} transparent animationType="slide" onRequestClose={() => setSelectedStaff(null)}>
@@ -572,4 +906,16 @@ const s = StyleSheet.create({
   logFooter: { flexDirection: "row", alignItems: "center", gap: 4 },
   logActor: { fontSize: 11, fontFamily: "Inter_500Medium", color: C.textMuted },
   logActorRole: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
+
+  evtChip:     { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
+  evtChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+
+  evtCard:    { borderRadius: 16, padding: 14, gap: 8, backgroundColor: C.card, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
+  evtIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  evtCatBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  evtCatText:  { fontSize: 11, fontFamily: "Inter_700Bold" },
+  evtDesc:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text, lineHeight: 20 },
+  evtTarget:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+
+  pwInput: { height: 48, borderWidth: 1.5, borderColor: C.border, borderRadius: 14, paddingHorizontal: 14, fontSize: 15, fontFamily: "Inter_400Regular", backgroundColor: "#F9FAFB" },
 });

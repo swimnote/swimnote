@@ -8,6 +8,7 @@ import { Router, type Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { logEvent } from "../lib/event-logger.js";
 
 const router = Router();
 
@@ -55,6 +56,9 @@ router.post("/holidays", requireAuth, requireRole("pool_admin", "super_admin"), 
       ON CONFLICT (pool_id, holiday_date) DO UPDATE SET reason = EXCLUDED.reason
       RETURNING *
     `);
+    const actorRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId} LIMIT 1`);
+    const actorName = (actorRow.rows[0] as any)?.name || "관리자";
+    logEvent({ pool_id, category: "휴무일", actor_id: userId!, actor_name: actorName, description: `휴무일 등록 — ${holiday_date}${reason ? ` (${reason})` : ""}`, metadata: { holiday_date, reason } }).catch(console.error);
     return res.status(201).json({ success: true, holiday: rows.rows[0] });
   } catch (e: any) {
     return err(res, 500, e.message);
@@ -74,6 +78,9 @@ router.delete("/holidays/:id", requireAuth, requireRole("pool_admin", "super_adm
       if (up !== h.pool_id) return err(res, 403, "권한이 없습니다.");
     }
     await db.execute(sql`DELETE FROM pool_holidays WHERE id = ${id}`);
+    const actorRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId} LIMIT 1`);
+    const actorName = (actorRow.rows[0] as any)?.name || "관리자";
+    logEvent({ pool_id: h.pool_id, category: "휴무일", actor_id: userId!, actor_name: actorName, description: `휴무일 삭제 — ${h.holiday_date}`, metadata: { holiday_date: h.holiday_date } }).catch(console.error);
     return res.json({ success: true });
   } catch (e: any) {
     return err(res, 500, e.message);

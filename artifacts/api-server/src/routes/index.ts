@@ -29,6 +29,7 @@ import absencesRouter from "./absences.js";
 import extraClassesRouter from "./extra-classes.js";
 import settlementRouter from "./settlement.js";
 import storageRouter from "./storage.js";
+import killSwitchRouter from "./kill-switch.js";
 
 const router: IRouter = Router();
 
@@ -62,5 +63,6 @@ router.use("/", absencesRouter);
 router.use("/", extraClassesRouter);
 router.use("/", settlementRouter);
 router.use("/", storageRouter);
+router.use("/", killSwitchRouter);
 
 export default router;
