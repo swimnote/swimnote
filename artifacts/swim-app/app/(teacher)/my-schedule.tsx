@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { addTabResetListener } from "@/utils/tabReset";
 import { PoolHeader } from "@/components/PoolHeader";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
@@ -695,6 +696,17 @@ export default function MyScheduleScreen() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 같은 탭 재탭 시 첫 화면으로 초기화
+  useEffect(() => {
+    return addTabResetListener("my-schedule", () => {
+      setSelectedGroup(null);
+      setDetailGroup(null);
+      setDaySheet(null);
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+    });
+  }, []);
 
   // 상태맵
   const statusMap: Record<string, SlotStatus> = {};

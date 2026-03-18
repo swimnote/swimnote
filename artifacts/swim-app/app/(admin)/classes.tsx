@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { addTabResetListener } from "@/utils/tabReset";
 import AdminWeekBoard, { ClassGroupItem } from "@/components/admin/AdminWeekBoard";
 import TeacherPickerList, { TeacherForPicker } from "@/components/admin/TeacherPickerList";
 import ClassDetailPanel, { ClassDetail } from "@/components/admin/ClassDetailPanel";
@@ -52,12 +53,18 @@ export default function ClassesScreen() {
 
   const [nav, setNav] = useState<NavStep>({ step: "main" });
 
-  // 탭 클릭 시 항상 첫 화면으로 초기화
+  // 탭 포커스 시 첫 화면으로 초기화
   useFocusEffect(
     useCallback(() => {
       setNav({ step: "main" });
     }, [])
   );
+
+  // 같은 탭 재탭 시 첫 화면으로 초기화
+  useEffect(() => {
+    return addTabResetListener("classes", () => setNav({ step: "main" }));
+  }, []);
+
   const [classDetail, setClassDetail] = useState<ClassDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailDate, setDetailDate] = useState(todayDateStr());
