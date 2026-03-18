@@ -32,10 +32,15 @@ interface Profile {
 }
 interface DayStat { day: string; count: number; }
 interface MemberStatus { active: number; suspended: number; withdrawn: number; }
-interface MediaUsage {
+interface StorageUsage {
   photo_bytes: number; photo_count: number;
   video_bytes: number; video_count: number;
-  total_bytes: number; month_bytes: number;
+  messenger_bytes: number;
+  diary_bytes: number;
+  notice_bytes: number;
+  system_bytes: number;
+  total_bytes: number;
+  quota_bytes: number;
 }
 interface MemberItem {
   id: string; name: string; status: string;
@@ -65,7 +70,7 @@ export default function TeacherSettingsScreen() {
   const [profile,     setProfile]     = useState<Profile | null>(null);
   const [dayStats,    setDayStats]    = useState<DayStat[]>([]);
   const [memStatus,   setMemStatus]   = useState<MemberStatus>({ active: 0, suspended: 0, withdrawn: 0 });
-  const [mediaUsage,  setMediaUsage]  = useState<MediaUsage | null>(null);
+  const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
 
@@ -107,10 +112,10 @@ export default function TeacherSettingsScreen() {
   /* ════════ 로드 ════════ */
   const load = useCallback(async () => {
     try {
-      const [profRes, statsRes, mediaRes] = await Promise.all([
+      const [profRes, statsRes, storageRes] = await Promise.all([
         apiRequest(token, "/teacher/me"),
         apiRequest(token, "/teacher/me/stats"),
-        apiRequest(token, "/teacher/me/media-usage"),
+        apiRequest(token, "/teacher/me/storage"),
       ]);
       if (profRes.ok)  setProfile(await profRes.json());
       if (statsRes.ok) {
@@ -118,7 +123,7 @@ export default function TeacherSettingsScreen() {
         setDayStats(d.day_stats || []);
         setMemStatus(d.member_status || { active: 0, suspended: 0, withdrawn: 0 });
       }
-      if (mediaRes.ok) setMediaUsage(await mediaRes.json());
+      if (storageRes.ok) setStorageUsage(await storageRes.json());
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
@@ -321,38 +326,66 @@ export default function TeacherSettingsScreen() {
           ))}
         </View>
 
-        {/* ── 용량 관리 ── */}
+        {/* ── 내 저장공간 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
             <Feather name="hard-drive" size={16} color={themeColor} />
-            <Text style={s.cardTitle}>용량 관리</Text>
+            <Text style={s.cardTitle}>내 저장공간</Text>
           </View>
-          <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 10 }}>
-            <View style={s.usageRow}>
-              <View style={[s.usageIcon, { backgroundColor: "#FEF3C7" }]}>
-                <Feather name="image" size={16} color="#F59E0B" />
+          <View style={{ padding: 16, gap: 14 }}>
+            {/* 총합 요약 + 게이지 */}
+            {(() => {
+              const used  = storageUsage?.total_bytes ?? 0;
+              const quota = storageUsage?.quota_bytes ?? 5 * 1024 ** 3;
+              const pct   = quota > 0 ? Math.min(100, (used / quota) * 100) : 0;
+              const gaugeColor = pct >= 90 ? "#DC2626" : pct >= 70 ? "#F59E0B" : themeColor;
+              return (
+                <View style={[s.storageSummary, { borderColor: gaugeColor + "30", backgroundColor: gaugeColor + "08" }]}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
+                    <View>
+                      <Text style={[s.storageUsedLabel, { color: gaugeColor }]}>사용 중</Text>
+                      <Text style={[s.storageUsedBytes, { color: gaugeColor }]}>{fmtBytes(used)}</Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={s.storageQuotaLabel}>제공 용량</Text>
+                      <Text style={s.storageQuotaBytes}>{fmtBytes(quota)}</Text>
+                    </View>
+                  </View>
+                  <View style={s.gaugeWrap}>
+                    <View style={[s.gaugeBar, { width: `${pct}%` as any, backgroundColor: gaugeColor }]} />
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+                    <Text style={[s.gaugePct, { color: gaugeColor }]}>{pct.toFixed(1)}% 사용</Text>
+                    <Text style={s.gaugeRemain}>남은 용량 {fmtBytes(Math.max(0, quota - used))}</Text>
+                  </View>
+                </View>
+              );
+            })()}
+
+            {/* 카테고리별 */}
+            {([
+              { icon: "image"      as const, bg: "#FEF3C7", color: "#F59E0B", label: "사진",   sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
+              { icon: "video"      as const, bg: "#EDE9FE", color: "#7C3AED", label: "영상",   sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
+              { icon: "message-square" as const, bg: "#DBEAFE", color: "#2563EB", label: "메신저", sub: "텍스트 데이터",                   bytes: storageUsage?.messenger_bytes ?? 0 },
+              { icon: "book-open"  as const, bg: "#D1FAE5", color: "#059669", label: "수영일지", sub: "일지·메모 데이터",                  bytes: storageUsage?.diary_bytes    ?? 0 },
+              { icon: "bell"       as const, bg: "#FCE7F3", color: "#EC4899", label: "공지",   sub: "공지 본문 데이터",                   bytes: storageUsage?.notice_bytes   ?? 0 },
+              { icon: "cpu"        as const, bg: "#F3F4F6", color: "#6B7280", label: "시스템", sub: "기본 계정 데이터",                   bytes: storageUsage?.system_bytes   ?? 0 },
+            ]).map(item => (
+              <View key={item.label} style={s.usageRow}>
+                <View style={[s.usageIcon, { backgroundColor: item.bg }]}>
+                  <Feather name={item.icon} size={16} color={item.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.usageLabel}>{item.label}</Text>
+                  <Text style={s.usageSub}>{item.sub}</Text>
+                </View>
+                <Text style={s.usageBytes}>{fmtBytes(item.bytes)}</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.usageLabel}>사진</Text>
-                <Text style={s.usageSub}>{mediaUsage?.photo_count || 0}개</Text>
-              </View>
-              <Text style={s.usageBytes}>{fmtBytes(mediaUsage?.photo_bytes || 0)}</Text>
-            </View>
-            <View style={s.usageRow}>
-              <View style={[s.usageIcon, { backgroundColor: "#EDE9FE" }]}>
-                <Feather name="video" size={16} color="#7C3AED" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.usageLabel}>영상</Text>
-                <Text style={s.usageSub}>{mediaUsage?.video_count || 0}개</Text>
-              </View>
-              <Text style={s.usageBytes}>{fmtBytes(mediaUsage?.video_bytes || 0)}</Text>
-            </View>
-            <View style={[s.usageTotal, { borderColor: themeColor + "30", backgroundColor: themeColor + "08" }]}>
-              <Text style={[s.usageTotalLabel, { color: themeColor }]}>총 사용량</Text>
-              <Text style={[s.usageTotalBytes, { color: themeColor }]}>{fmtBytes(mediaUsage?.total_bytes || 0)}</Text>
-            </View>
-            <Text style={s.usageMonthText}>이번 달 업로드: {fmtBytes(mediaUsage?.month_bytes || 0)}</Text>
+            ))}
+
+            <Text style={[s.usageMonthText, { marginTop: 2 }]}>
+              업로드한 파일과 메신저, 일지 등 계정이 사용하는 전체 저장공간입니다.
+            </Text>
           </View>
         </View>
 
@@ -575,10 +608,17 @@ const s = StyleSheet.create({
   usageLabel:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
   usageSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   usageBytes:   { fontSize: 14, fontFamily: "Inter_700Bold", color: "#374151" },
-  usageTotal:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12, borderRadius: 12, borderWidth: 1 },
-  usageTotalLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  usageTotalBytes: { fontSize: 16, fontFamily: "Inter_700Bold" },
   usageMonthText:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center" },
+
+  storageSummary:   { padding: 14, borderRadius: 14, borderWidth: 1 },
+  storageUsedLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 2 },
+  storageUsedBytes: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  storageQuotaLabel:{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginBottom: 2 },
+  storageQuotaBytes:{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  gaugeWrap:    { height: 10, backgroundColor: "#E5E7EB", borderRadius: 5, overflow: "hidden" },
+  gaugeBar:     { height: 10, borderRadius: 5 },
+  gaugePct:     { fontSize: 12, fontFamily: "Inter_700Bold" },
+  gaugeRemain:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 
   actionBtn:    { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderRadius: 16, borderWidth: 1.5 },
   actionBtnText:{ flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },

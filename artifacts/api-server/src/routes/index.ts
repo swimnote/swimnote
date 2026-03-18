@@ -28,6 +28,7 @@ import holidaysRouter from "./holidays.js";
 import absencesRouter from "./absences.js";
 import extraClassesRouter from "./extra-classes.js";
 import settlementRouter from "./settlement.js";
+import storageRouter from "./storage.js";
 
 const router: IRouter = Router();
 
@@ -60,5 +61,6 @@ router.use("/", holidaysRouter);
 router.use("/", absencesRouter);
 router.use("/", extraClassesRouter);
 router.use("/", settlementRouter);
+router.use("/", storageRouter);
 
 export default router;

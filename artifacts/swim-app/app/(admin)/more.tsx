@@ -21,6 +21,28 @@ const C = Colors.light;
 const TABS = ["설정 메뉴", "활동 로그"] as const;
 type Tab = typeof TABS[number];
 
+function fmtBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+interface StaffStorage {
+  id: string; name: string; role: string;
+  photo_bytes: number; video_bytes: number;
+  messenger_bytes: number; diary_bytes: number;
+  notice_bytes: number; system_bytes: number; total_bytes: number;
+}
+interface AdminStorage {
+  photo_bytes: number; video_bytes: number;
+  messenger_bytes: number; diary_bytes: number;
+  notice_bytes: number; system_bytes: number;
+  total_bytes: number; quota_bytes: number;
+  staff: StaffStorage[];
+}
+
 interface ActivityLog {
   id: string; target_name: string; action_type: string; target_type: string;
   before_value: string | null; after_value: string | null;
@@ -52,6 +74,11 @@ export default function MoreScreen() {
 
   const hasMultipleRoles = (adminUser?.roles?.length ?? 0) >= 2;
 
+  /* ─ 저장공간 ─ */
+  const [adminStorage, setAdminStorage] = useState<AdminStorage | null>(null);
+  const [storageLoading, setStorageLoading] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<StaffStorage | null>(null);
+
   async function handleSwitchRole(role: string) {
     setSwitching(true);
     try {
@@ -67,6 +94,17 @@ export default function MoreScreen() {
   const [logsPage, setLogsPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const loadStorage = useCallback(async () => {
+    setStorageLoading(true);
+    try {
+      const res = await apiRequest(token, "/admin/storage");
+      if (res.ok) setAdminStorage(await res.json());
+    } catch (e) { console.error(e); }
+    finally { setStorageLoading(false); }
+  }, [token]);
+
+  useEffect(() => { loadStorage(); }, [loadStorage]);
 
   const loadLogs = useCallback(async (page = 0) => {
     if (logsLoading) return;
@@ -193,6 +231,99 @@ export default function MoreScreen() {
               </View>
             </View>
           ))}
+
+          {/* ── 저장공간 관리 ── */}
+          <View>
+            <Text style={s.groupTitle}>저장공간 관리</Text>
+            <View style={[s.stCard, { backgroundColor: C.card }]}>
+              {storageLoading ? (
+                <ActivityIndicator color={themeColor} style={{ marginVertical: 24 }} />
+              ) : (() => {
+                const st = adminStorage;
+                const used  = st?.total_bytes ?? 0;
+                const quota = st?.quota_bytes ?? 5 * 1024 ** 3;
+                const pct   = quota > 0 ? Math.min(100, (used / quota) * 100) : 0;
+                const gaugeColor = pct >= 90 ? "#DC2626" : pct >= 70 ? "#F59E0B" : themeColor;
+                return (
+                  <>
+                    {/* 총합 요약 카드 */}
+                    <View style={[s.stSummary, { borderColor: gaugeColor + "30", backgroundColor: gaugeColor + "07" }]}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
+                        <View>
+                          <Text style={[s.stUsedLabel, { color: gaugeColor }]}>수영장 전체 사용량</Text>
+                          <Text style={[s.stUsedBytes, { color: gaugeColor }]}>{fmtBytes(used)}</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={s.stQuotaLabel}>제공 용량</Text>
+                          <Text style={s.stQuotaBytes}>{fmtBytes(quota)}</Text>
+                        </View>
+                      </View>
+                      <View style={s.stGaugeWrap}>
+                        <View style={[s.stGaugeBar, { width: `${pct}%` as any, backgroundColor: gaugeColor }]} />
+                      </View>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+                        <Text style={[s.stGaugePct, { color: gaugeColor }]}>{pct.toFixed(1)}% 사용</Text>
+                        <Text style={s.stGaugeRemain}>남은 용량 {fmtBytes(Math.max(0, quota - used))}</Text>
+                      </View>
+                    </View>
+
+                    {/* 카테고리별 총합 */}
+                    <View style={s.stSection}>
+                      <Text style={s.stSectionTitle}>카테고리별 총합</Text>
+                      {([
+                        { icon: "image"          as const, bg: "#FEF3C7", color: "#F59E0B", label: "사진",    bytes: st?.photo_bytes    ?? 0 },
+                        { icon: "video"          as const, bg: "#EDE9FE", color: "#7C3AED", label: "영상",    bytes: st?.video_bytes    ?? 0 },
+                        { icon: "message-square" as const, bg: "#DBEAFE", color: "#2563EB", label: "메신저", bytes: st?.messenger_bytes ?? 0 },
+                        { icon: "book-open"      as const, bg: "#D1FAE5", color: "#059669", label: "수영일지", bytes: st?.diary_bytes   ?? 0 },
+                        { icon: "bell"           as const, bg: "#FCE7F3", color: "#EC4899", label: "공지",    bytes: st?.notice_bytes   ?? 0 },
+                        { icon: "cpu"            as const, bg: "#F3F4F6", color: "#6B7280", label: "시스템",  bytes: st?.system_bytes   ?? 0 },
+                      ]).map(item => (
+                        <View key={item.label} style={s.stCatRow}>
+                          <View style={[s.stCatIcon, { backgroundColor: item.bg }]}>
+                            <Feather name={item.icon} size={14} color={item.color} />
+                          </View>
+                          <Text style={s.stCatLabel}>{item.label}</Text>
+                          <Text style={[s.stCatBytes, { color: item.color }]}>{fmtBytes(item.bytes)}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* 선생님별 사용량 리스트 */}
+                    {(st?.staff?.length ?? 0) > 0 && (
+                      <View style={s.stSection}>
+                        <Text style={s.stSectionTitle}>계정별 사용량</Text>
+                        {st!.staff.map((staff, idx) => {
+                          const staffPct = quota > 0 ? Math.min(100, (staff.total_bytes / quota) * 100) : 0;
+                          return (
+                            <Pressable
+                              key={staff.id}
+                              style={[s.stStaffRow, idx < st!.staff.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}
+                              onPress={() => setSelectedStaff(staff)}
+                            >
+                              <View style={[s.stStaffAvatar, { backgroundColor: themeColor + "20" }]}>
+                                <Text style={[s.stStaffAvatarText, { color: themeColor }]}>{staff.name[0]}</Text>
+                              </View>
+                              <View style={{ flex: 1, gap: 4 }}>
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                                  <Text style={s.stStaffName}>{staff.name}</Text>
+                                  <Text style={s.stStaffBytes}>{fmtBytes(staff.total_bytes)}</Text>
+                                </View>
+                                <View style={s.stMiniGaugeWrap}>
+                                  <View style={[s.stMiniGaugeBar, { width: `${staffPct}%` as any, backgroundColor: themeColor + "99" }]} />
+                                </View>
+                                <Text style={s.stStaffPct}>전체 대비 {staffPct.toFixed(1)}%</Text>
+                              </View>
+                              <Feather name="chevron-right" size={14} color={C.textMuted} style={{ marginLeft: 8 }} />
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
+            </View>
+          </View>
         </ScrollView>
       ) : (
         /* 활동 로그 탭 */
@@ -272,6 +403,50 @@ export default function MoreScreen() {
           }}
         />
       )}
+
+      {/* 계정별 저장공간 상세 모달 */}
+      <Modal visible={!!selectedStaff} transparent animationType="slide" onRequestClose={() => setSelectedStaff(null)}>
+        <Pressable style={sm.overlay} onPress={() => setSelectedStaff(null)}>
+          <Pressable style={sm.sheet} onPress={e => e.stopPropagation()}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <View>
+                <Text style={[sm.title, { marginBottom: 2 }]}>{selectedStaff?.name}</Text>
+                <Text style={sm.sub}>{selectedStaff?.role === "pool_admin" ? "관리자" : "선생님"} · 저장공간 상세</Text>
+              </View>
+              <Pressable onPress={() => setSelectedStaff(null)} hitSlop={8}>
+                <Feather name="x" size={22} color={C.text} />
+              </Pressable>
+            </View>
+            <View style={{ gap: 10 }}>
+              {([
+                { icon: "image"          as const, bg: "#FEF3C7", color: "#F59E0B", label: "사진",    bytes: selectedStaff?.photo_bytes    ?? 0 },
+                { icon: "video"          as const, bg: "#EDE9FE", color: "#7C3AED", label: "영상",    bytes: selectedStaff?.video_bytes    ?? 0 },
+                { icon: "message-square" as const, bg: "#DBEAFE", color: "#2563EB", label: "메신저",  bytes: selectedStaff?.messenger_bytes ?? 0 },
+                { icon: "book-open"      as const, bg: "#D1FAE5", color: "#059669", label: "수영일지", bytes: selectedStaff?.diary_bytes    ?? 0 },
+                { icon: "bell"           as const, bg: "#FCE7F3", color: "#EC4899", label: "공지",    bytes: selectedStaff?.notice_bytes   ?? 0 },
+                { icon: "cpu"            as const, bg: "#F3F4F6", color: "#6B7280", label: "시스템",  bytes: selectedStaff?.system_bytes   ?? 0 },
+              ]).map(item => (
+                <View key={item.label} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={[s.stCatIcon, { backgroundColor: item.bg }]}>
+                    <Feather name={item.icon} size={14} color={item.color} />
+                  </View>
+                  <Text style={[s.stCatLabel, { flex: 1 }]}>{item.label}</Text>
+                  <Text style={[s.stCatBytes, { color: item.color }]}>{fmtBytes(item.bytes)}</Text>
+                </View>
+              ))}
+              <View style={[s.stSummary, { borderColor: themeColor + "30", backgroundColor: themeColor + "08", marginTop: 4 }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: themeColor }}>합계</Text>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: themeColor }}>{fmtBytes(selectedStaff?.total_bytes ?? 0)}</Text>
+                </View>
+              </View>
+            </View>
+            <Pressable style={sm.closeBtn} onPress={() => setSelectedStaff(null)}>
+              <Text style={sm.closeBtnText}>닫기</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* 역할 전환 모달 */}
       <Modal visible={switchModalVisible} transparent animationType="fade" onRequestClose={() => setSwitchModalVisible(false)}>
@@ -354,6 +529,33 @@ const s = StyleSheet.create({
 
   empty: { alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: "Inter_400Regular", color: C.textMuted },
+
+  stCard: { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2, padding: 16, gap: 16 },
+  stSummary: { padding: 14, borderRadius: 14, borderWidth: 1 },
+  stUsedLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 2 },
+  stUsedBytes: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  stQuotaLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginBottom: 2 },
+  stQuotaBytes: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  stGaugeWrap: { height: 10, backgroundColor: "#E5E7EB", borderRadius: 5, overflow: "hidden" },
+  stGaugeBar: { height: 10, borderRadius: 5 },
+  stGaugePct: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  stGaugeRemain: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
+
+  stSection: { gap: 8 },
+  stSectionTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 2 },
+  stCatRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
+  stCatIcon: { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  stCatLabel: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: C.text },
+  stCatBytes: { fontSize: 14, fontFamily: "Inter_700Bold" },
+
+  stStaffRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
+  stStaffAvatar: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  stStaffAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  stStaffName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  stStaffBytes: { fontSize: 14, fontFamily: "Inter_700Bold", color: C.text },
+  stMiniGaugeWrap: { height: 5, backgroundColor: "#E5E7EB", borderRadius: 3, overflow: "hidden" },
+  stMiniGaugeBar: { height: 5, borderRadius: 3 },
+  stStaffPct: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
 
   logCard: { borderRadius: 16, padding: 14, gap: 8, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   logHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
