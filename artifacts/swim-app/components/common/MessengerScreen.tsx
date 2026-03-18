@@ -329,12 +329,12 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
       });
       if (r.ok) {
         const data = await r.json();
-        setMessages(prev => [...prev, data.message]);
+        // inverted list: newest at index 0 (bottom)
+        setMessages(prev => [data.message, ...prev]);
         setShowTransferModal(false);
         setSelectedStudent(null);
         setTransferTarget(null);
         setTransferNotes("");
-        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
       }
     } finally {
       setTransferring(false);
