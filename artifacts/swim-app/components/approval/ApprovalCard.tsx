@@ -2,7 +2,7 @@
  * ApprovalCard — 승인/거절/대기 카드 공통 컴포넌트
  *
  * 학부모 승인 · 선생님 승인 · 수영장 승인 모두 이 컴포넌트로 통일.
- * 카드 높이/간격/버튼은 항상 동일.
+ * 버튼 구조: [보기] 항상 표시 + [승인] 대기 상태에만 표시
  */
 import { Feather } from "@expo/vector-icons";
 import React from "react";
@@ -15,43 +15,33 @@ import { STATUS_COLORS, StatusKey } from "@/components/common/constants";
 const C = Colors.light;
 
 export interface ApprovalCardMeta {
-  /** 카드 고유 ID */
   id: string;
-  /** 이름(표시용) */
   name: string;
-  /** 부제목 라인 1 (전화번호 등) */
   sub1?: string;
-  /** 부제목 라인 2 (이메일/직위 등) */
   sub2?: string;
-  /** 요청 날짜 문자열 */
   requestedAt?: string;
-  /** 상태 키 */
   statusKey: StatusKey;
-  /** 왼쪽 테두리 색상 오버라이드 */
   accentColor?: string;
-  /** 아바타 이니셜 대신 아이콘을 쓸 때 */
   avatarIcon?: React.ComponentProps<typeof Feather>["name"];
-  /** 아바타 이니셜 */
   avatarInitial?: string;
-  /** 거절 사유 */
   rejectionReason?: string;
-  /** 승인/거절 버튼 노출 여부 */
+  /** 승인 버튼 노출 여부 (대기 상태일 때 true) */
   showActions?: boolean;
-  /** 처리 중 여부 */
   processing?: boolean;
 }
 
 interface ApprovalCardProps {
   meta: ApprovalCardMeta;
-  /** 카드 내부 추가 콘텐츠 (자녀 정보 등) */
   extra?: React.ReactNode;
   onApprove?: () => void;
-  onReject?: () => void;
+  /** 보기 팝업 열기 */
+  onView?: () => void;
 }
 
-export function ApprovalCard({ meta, extra, onApprove, onReject }: ApprovalCardProps) {
+export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardProps) {
   const cfg = STATUS_COLORS[meta.statusKey] ?? STATUS_COLORS.pending;
   const accent = meta.accentColor ?? cfg.color;
+  const hasActions = meta.showActions || !!onView;
 
   return (
     <View style={[s.card, { backgroundColor: C.card, borderLeftColor: accent }]}>
@@ -82,10 +72,10 @@ export function ApprovalCard({ meta, extra, onApprove, onReject }: ApprovalCardP
         </View>
       </View>
 
-      {/* 추가 정보 (자녀 정보, 서류 상태 등) */}
+      {/* 추가 정보 */}
       {extra ? <View style={[s.extra, { borderTopColor: C.border }]}>{extra}</View> : null}
 
-      {/* 거절 사유 */}
+      {/* 거절/비활성 사유 */}
       {meta.rejectionReason ? (
         <View style={[s.rejectNote, { backgroundColor: "#FEE2E2", borderTopColor: C.border }]}>
           <Feather name="alert-circle" size={12} color={C.error} />
@@ -95,37 +85,36 @@ export function ApprovalCard({ meta, extra, onApprove, onReject }: ApprovalCardP
         </View>
       ) : null}
 
-      {/* 승인/거절 버튼 */}
-      {meta.showActions ? (
+      {/* 버튼 영역: [보기] 항상 + [승인] 대기 상태 */}
+      {hasActions ? (
         <View style={[s.actions, { borderTopColor: C.border }]}>
-          <Pressable
-            style={({ pressed }) => [s.rejectBtn, { borderColor: C.error, opacity: pressed ? 0.8 : 1 }]}
-            onPress={onReject}
-            disabled={meta.processing}
-          >
-            {meta.processing ? (
-              <ActivityIndicator size="small" color={C.error} />
-            ) : (
-              <>
-                <Feather name="x" size={14} color={C.error} />
-                <Text style={[s.rejectText, { color: C.error }]}>거절</Text>
-              </>
-            )}
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [s.approveBtn, { backgroundColor: C.success, opacity: pressed ? 0.8 : 1 }]}
-            onPress={onApprove}
-            disabled={meta.processing}
-          >
-            {meta.processing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Feather name="check" size={14} color="#fff" />
-                <Text style={s.approveText}>승인</Text>
-              </>
-            )}
-          </Pressable>
+          {onView ? (
+            <Pressable
+              style={({ pressed }) => [s.viewBtn, { borderColor: C.border, opacity: pressed ? 0.75 : 1 }]}
+              onPress={onView}
+              disabled={meta.processing}
+            >
+              <Feather name="eye" size={14} color={C.textSecondary} />
+              <Text style={[s.viewText, { color: C.textSecondary }]}>보기</Text>
+            </Pressable>
+          ) : null}
+
+          {meta.showActions && onApprove ? (
+            <Pressable
+              style={({ pressed }) => [s.approveBtn, { backgroundColor: C.success, opacity: pressed ? 0.8 : 1 }]}
+              onPress={onApprove}
+              disabled={meta.processing}
+            >
+              {meta.processing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Feather name="check" size={14} color="#fff" />
+                  <Text style={s.approveText}>승인</Text>
+                </>
+              )}
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -167,13 +156,11 @@ const s = StyleSheet.create({
     flexShrink: 0,
   },
   badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-
   extra: {
     borderTopWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-
   rejectNote: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -183,7 +170,6 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   rejectNoteText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 16 },
-
   actions: {
     flexDirection: "row",
     gap: 10,
@@ -192,12 +178,12 @@ const s = StyleSheet.create({
     height: 68,
     alignItems: "center",
   },
-  rejectBtn: {
+  viewBtn: {
     flex: 1, height: 44, flexDirection: "row",
     borderWidth: 1.5, borderRadius: 10,
     alignItems: "center", justifyContent: "center", gap: 6,
   },
-  rejectText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  viewText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   approveBtn: {
     flex: 1, height: 44, flexDirection: "row",
     borderRadius: 10,

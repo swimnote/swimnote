@@ -171,6 +171,9 @@ router.post("/parent-login", async (req, res) => {
       if (valid) { matched = acc; break; }
     }
     if (!matched) return err(res, 401, "비밀번호가 올바르지 않습니다.");
+    if (matched.is_active === false) {
+      return err(res, 403, "비활성화된 계정입니다. 수영장 관리자에게 문의하세요.");
+    }
     const token = signToken({ userId: matched.id, role: "parent_account", poolId: matched.swimming_pool_id });
     res.json({
       success: true, token,

@@ -2,7 +2,9 @@
  * 선생님 초대 및 승인 관리
  * POST /admin/teacher-invites         - 관리자: 초대 생성
  * GET  /admin/teacher-invites         - 관리자: 초대 목록
- * PATCH /admin/teacher-invites/:id    - 관리자: 승인/거절/비활성화
+ * GET  /admin/teacher-invites/:id/detail - 관리자: 선생님 상세 정보
+ * PATCH /admin/teacher-invites/:id    - 관리자: 승인/거절/비활성화/부관리자설정
+ * POST /admin/teacher-invites/:id/transfer - 관리자: 수업 인수
  * GET  /public/teacher-invite/:token  - 공개: 초대 토큰 검증
  * POST /public/teacher-invite/join    - 공개: 선생님 초대링크로 가입
  */
@@ -64,7 +66,7 @@ router.get("/admin/teacher-invites", requireAuth, requireRole("pool_admin", "sup
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
       const validStatuses = ["invited", "joinedPendingApproval", "approved", "rejected", "inactive"];
-      let q = `SELECT ti.*, u.email as user_email FROM teacher_invites ti
+      let q = `SELECT ti.*, u.email as user_email, u.roles as user_roles FROM teacher_invites ti
                LEFT JOIN users u ON ti.user_id = u.id
                WHERE ti.swimming_pool_id = '${me.swimming_pool_id}'`;
       if (status && validStatuses.includes(status as string)) {
@@ -81,12 +83,52 @@ router.get("/admin/teacher-invites", requireAuth, requireRole("pool_admin", "sup
   }
 );
 
-// ─── 관리자: 승인/거절/비활성화 ──────────────────────────────────────
+// ─── 관리자: 선생님 상세 정보 ─────────────────────────────────────────
+router.get("/admin/teacher-invites/:id/detail", requireAuth, requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const result = await db.execute(sql`
+        SELECT
+          ti.*,
+          u.email as user_email,
+          u.roles as user_roles,
+          u.is_activated,
+          (SELECT COUNT(DISTINCT cg.id)::int
+           FROM class_groups cg
+           WHERE cg.teacher_user_id = u.id AND cg.is_deleted = false) as class_count,
+          (SELECT COUNT(DISTINCT cm.id)::int
+           FROM class_groups cg
+           JOIN class_members cm ON cm.class_id = cg.id
+           WHERE cg.teacher_user_id = u.id AND cg.is_deleted = false) as member_count
+        FROM teacher_invites ti
+        LEFT JOIN users u ON ti.user_id = u.id
+        WHERE ti.id = ${req.params.id}
+          AND ti.swimming_pool_id = ${me.swimming_pool_id}
+        LIMIT 1
+      `);
+
+      if (!result.rows.length) {
+        res.status(404).json({ success: false, message: "선생님 정보를 찾을 수 없습니다." }); return;
+      }
+
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 관리자: 승인/거절/비활성화/부관리자설정 ──────────────────────────
 router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const { action, rejection_reason, roles } = req.body;
-      const validActions = ["approve", "reject", "deactivate", "reactivate"];
+      const { action, rejection_reason, roles, grant } = req.body;
+      const validActions = ["approve", "reject", "deactivate", "reactivate", "revoke", "set-sub-admin"];
       if (!validActions.includes(action)) {
         res.status(400).json({ success: false, message: "유효하지 않은 action입니다." }); return;
       }
@@ -96,8 +138,9 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
       const existing = await db.execute(sql`
-        SELECT * FROM teacher_invites
-        WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
+        SELECT ti.*, u.roles as user_roles FROM teacher_invites ti
+        LEFT JOIN users u ON ti.user_id = u.id
+        WHERE ti.id = ${req.params.id} AND ti.swimming_pool_id = ${me.swimming_pool_id}
         LIMIT 1
       `);
       if (!existing.rows.length) { res.status(404).json({ success: false, message: "초대 정보를 찾을 수 없습니다." }); return; }
@@ -108,11 +151,9 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         if (invite.invite_status !== "joinedPendingApproval") {
           res.status(409).json({ success: false, message: "승인 대기 상태인 초대만 승인할 수 있습니다." }); return;
         }
-        // users 테이블에서 is_activated true, roles 업데이트
         if (invite.user_id) {
-          const approvedRoles: string[] = Array.isArray(roles) && roles.length > 0
-            ? roles.filter((r: string) => ["pool_admin", "teacher", "sub_admin"].includes(r))
-            : ["teacher"];
+          // 승인 시 기본 teacher 역할만 부여
+          const approvedRoles: string[] = ["teacher"];
           const rolesLiteral = `{${approvedRoles.map((r: string) => `"${r}"`).join(",")}}`;
           await db.execute(sql`UPDATE users SET is_activated = true, roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
@@ -122,29 +163,120 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
           WHERE id = ${req.params.id}
         `);
         res.json({ success: true, message: "선생님이 승인되었습니다." });
+
       } else if (action === "reject") {
         if (invite.user_id) {
           await db.execute(sql`UPDATE users SET is_activated = false, updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
         await db.execute(sql`
           UPDATE teacher_invites
-          SET invite_status = 'rejected', approved_at = NOW(), approved_by = ${req.user!.userId}
+          SET invite_status = 'rejected', approved_at = NOW(), approved_by = ${req.user!.userId},
+              rejection_reason = ${rejection_reason || null}
           WHERE id = ${req.params.id}
         `);
         res.json({ success: true, message: "거절되었습니다." });
-      } else if (action === "deactivate") {
+
+      } else if (action === "deactivate" || action === "revoke") {
         if (invite.user_id) {
           await db.execute(sql`UPDATE users SET is_activated = false, updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
         await db.execute(sql`UPDATE teacher_invites SET invite_status = 'inactive' WHERE id = ${req.params.id}`);
-        res.json({ success: true, message: "비활성화되었습니다." });
+        res.json({ success: true, message: "승인이 해제되었습니다." });
+
       } else if (action === "reactivate") {
         if (invite.user_id) {
           await db.execute(sql`UPDATE users SET is_activated = true, updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
         await db.execute(sql`UPDATE teacher_invites SET invite_status = 'approved' WHERE id = ${req.params.id}`);
         res.json({ success: true, message: "재활성화되었습니다." });
+
+      } else if (action === "set-sub-admin") {
+        if (!invite.user_id) {
+          res.status(400).json({ success: false, message: "사용자 계정이 없습니다." }); return;
+        }
+        // 현재 roles 파싱
+        let currentRoles: string[] = Array.isArray(invite.user_roles)
+          ? invite.user_roles
+          : (invite.user_roles ? [invite.user_roles] : ["teacher"]);
+
+        if (grant) {
+          // 부관리자 지정
+          if (!currentRoles.includes("sub_admin")) {
+            currentRoles = [...currentRoles, "sub_admin"];
+          }
+        } else {
+          // 부관리자 해제
+          currentRoles = currentRoles.filter((r: string) => r !== "sub_admin");
+          if (!currentRoles.includes("teacher")) currentRoles = ["teacher"];
+        }
+
+        const rolesLiteral = `{${currentRoles.map((r: string) => `"${r}"`).join(",")}}`;
+        await db.execute(sql`
+          UPDATE users SET roles = ${rolesLiteral}::TEXT[], updated_at = NOW()
+          WHERE id = ${invite.user_id}
+        `);
+
+        res.json({ success: true, message: grant ? "부관리자로 지정되었습니다." : "부관리자 권한이 해제되었습니다.", roles: currentRoles });
       }
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 관리자: 수업 인수 (담당 반/회원 일괄 이전) ──────────────────────
+router.post("/admin/teacher-invites/:id/transfer", requireAuth, requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { target_user_id, target_teacher_name } = req.body;
+      if (!target_user_id) {
+        res.status(400).json({ success: false, message: "target_user_id가 필요합니다." }); return;
+      }
+
+      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      // 소스 선생님 invite 조회
+      const inviteResult = await db.execute(sql`
+        SELECT ti.*, u.id as source_user_id, u.name as source_name
+        FROM teacher_invites ti
+        LEFT JOIN users u ON ti.user_id = u.id
+        WHERE ti.id = ${req.params.id} AND ti.swimming_pool_id = ${me.swimming_pool_id}
+        LIMIT 1
+      `);
+      if (!inviteResult.rows.length) {
+        res.status(404).json({ success: false, message: "초대 정보를 찾을 수 없습니다." }); return;
+      }
+      const invite = inviteResult.rows[0] as any;
+      const sourceUserId = invite.source_user_id;
+      if (!sourceUserId) {
+        res.status(400).json({ success: false, message: "소스 선생님 계정이 없습니다." }); return;
+      }
+
+      // 대상 선생님 이름 조회
+      const targetResult = await db.execute(sql`
+        SELECT name FROM users WHERE id = ${target_user_id} LIMIT 1
+      `);
+      const targetName = target_teacher_name || (targetResult.rows[0] as any)?.name || "미지정";
+
+      // class_groups 일괄 이전
+      const updateResult = await db.execute(sql`
+        UPDATE class_groups
+        SET teacher_user_id = ${target_user_id},
+            instructor = ${targetName},
+            updated_at = NOW()
+        WHERE teacher_user_id = ${sourceUserId}
+          AND swimming_pool_id = ${me.swimming_pool_id}
+          AND is_deleted = false
+      `);
+
+      res.json({
+        success: true,
+        message: `수업 인수가 완료되었습니다. 담당 수업이 ${targetName} 선생님에게 이전되었습니다.`,
+        transferred_count: (updateResult as any).rowCount ?? 0,
+      });
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: "서버 오류" });
@@ -191,7 +323,6 @@ router.post("/public/teacher-invite/join", async (req, res) => {
       res.status(400).json({ success: false, message: "토큰, 이메일, 비밀번호(6자 이상)는 필수입니다." }); return;
     }
 
-    // 초대 검증
     const inviteResult = await db.execute(sql`
       SELECT ti.*, sp.id as sp_id FROM teacher_invites ti
       JOIN swimming_pools sp ON ti.swimming_pool_id = sp.id
@@ -204,7 +335,6 @@ router.post("/public/teacher-invite/join", async (req, res) => {
 
     const invite = inviteResult.rows[0] as any;
 
-    // 이메일 중복 확인
     const dup = await db.execute(sql`SELECT id FROM users WHERE email = ${email.trim().toLowerCase()} LIMIT 1`);
     if (dup.rows.length) {
       res.status(409).json({ success: false, message: "이미 사용 중인 이메일입니다." }); return;
@@ -213,7 +343,6 @@ router.post("/public/teacher-invite/join", async (req, res) => {
     const passwordHash = await hashPassword(password);
     const userId = genId("user");
 
-    // 사용자 계정 생성 (is_activated=false, 관리자 승인 대기)
     await db.execute(sql`
       INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, created_at, updated_at)
       VALUES (
@@ -223,7 +352,6 @@ router.post("/public/teacher-invite/join", async (req, res) => {
       )
     `);
 
-    // 초대 상태 업데이트
     await db.execute(sql`
       UPDATE teacher_invites
       SET invite_status = 'joinedPendingApproval', user_id = ${userId}, requested_at = NOW()

@@ -152,8 +152,8 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
         child_name: bodyChildName, child_birth_year: bodyChildBirthYear,
       } = req.body;
 
-      if (!["approve", "reject"].includes(action)) {
-        res.status(400).json({ success: false, message: "action은 approve 또는 reject여야 합니다." }); return;
+      if (!["approve", "reject", "revoke"].includes(action)) {
+        res.status(400).json({ success: false, message: "action은 approve, reject, revoke 중 하나여야 합니다." }); return;
       }
 
       const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
@@ -168,6 +168,26 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
       if (!existing.rows.length) { res.status(404).json({ success: false, message: "요청을 찾을 수 없습니다." }); return; }
 
       const request = existing.rows[0] as any;
+
+      // revoke는 승인된 상태에서만 가능
+      if (action === "revoke") {
+        if (request.request_status !== "approved") {
+          res.status(409).json({ success: false, message: "승인된 학부모만 승인 해제할 수 있습니다." }); return;
+        }
+        // parent_accounts is_active = false
+        if (request.parent_account_id) {
+          await db.execute(sql`
+            UPDATE parent_accounts SET is_active = false, updated_at = NOW()
+            WHERE id = ${request.parent_account_id}
+          `);
+        }
+        await db.execute(sql`
+          UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW(), processed_by = ${req.user!.userId}
+          WHERE id = ${req.params.id}
+        `);
+        res.json({ success: true, message: "학부모 승인이 해제되었습니다." }); return;
+      }
+
       if (request.request_status !== "pending") {
         res.status(409).json({ success: false, message: "이미 처리된 요청입니다." }); return;
       }
