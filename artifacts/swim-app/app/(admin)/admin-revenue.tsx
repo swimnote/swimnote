@@ -24,6 +24,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
+import { addTabResetListener } from "@/utils/tabReset";
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
@@ -515,6 +516,11 @@ export default function AdminRevenueScreen() {
   }, [token, poolId, month]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 같은 탭 재탭 시 → 현재 월로 초기화
+  useEffect(() => {
+    return addTabResetListener("admin-revenue", () => setMonth(curMonthStr()));
+  }, []);
 
   function changeMonth(delta: number) {
     const [y, m] = month.split("-").map(Number);

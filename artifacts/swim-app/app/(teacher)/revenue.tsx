@@ -15,6 +15,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
+import { addTabResetListener } from "@/utils/tabReset";
 
 const C = Colors.light;
 
@@ -96,6 +97,11 @@ export default function RevenueScreen() {
   }, [token, poolId, month]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 같은 탭 재탭 시 → 현재 월로 초기화
+  useEffect(() => {
+    return addTabResetListener("revenue", () => setMonth(monthStr()));
+  }, []);
 
   function changeMonth(delta: number) {
     const [y, m] = month.split("-").map(Number);
