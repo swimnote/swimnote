@@ -453,7 +453,10 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
   const canSend = showSendMode === "photo" ? !!photoFile : text.trim().length > 0;
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + TAB_BAR_H }]}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       {/* ── 필터 탭 ── */}
       <View style={styles.filterBar}>
         {FILTER_LABELS.map(f => (
@@ -477,12 +480,13 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
 
       {/* ── 메시지 목록 ── */}
       {loading ? (
-        <View style={styles.center}>
+        <View style={[styles.center, { flex: 1 }]}>
           <ActivityIndicator color={themeColor} />
         </View>
       ) : (
         <FlatList
           ref={listRef}
+          style={{ flex: 1 }}
           data={messages}
           keyExtractor={item => item.id}
           renderItem={renderMessage}
@@ -507,8 +511,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
       )}
 
       {/* ── 전송 영역 ── */}
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={80}>
-        <View style={styles.inputArea}>
+      <View style={[styles.inputArea, { paddingBottom: insets.bottom + (Platform.OS === "android" ? 8 : 4) }]}>
           {/* 대상 지정 표시 */}
           {targetUser && (
             <View style={styles.targetBadge}>
@@ -571,7 +574,6 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
 
       {/* ── 대상 선택 모달 ── */}
       <Modal visible={showTargetModal} transparent animationType="slide">
@@ -715,7 +717,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -795,7 +797,6 @@ const styles = StyleSheet.create({
     borderTopColor: C.border,
     paddingHorizontal: 12,
     paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 4 : 8,
   },
   targetBadge: {
     flexDirection: "row",

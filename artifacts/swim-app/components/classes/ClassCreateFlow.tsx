@@ -9,14 +9,16 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Modal, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Dimensions, KeyboardAvoidingView, Modal, Platform,
+  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
 
 const C = Colors.light;
+const SCREEN_H = Dimensions.get("window").height;
 
 const WEEKDAYS = ["월", "화", "수", "목", "금"] as const;
 const SATURDAY = "토" as const;
@@ -293,8 +295,11 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={fl.overlay}>
-        <View style={[fl.sheet, { paddingBottom: insets.bottom + 20 }]}>
+      <KeyboardAvoidingView
+        style={fl.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View style={[fl.sheet, { height: SCREEN_H * 0.75 }]}>
           {/* 핸들 */}
           <View style={fl.handle} />
 
@@ -304,12 +309,12 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
               <Text style={fl.title}>반 등록</Text>
               <StepDots current={stepIndex(step)} total={totalSteps} />
             </View>
-            <Pressable onPress={onClose}>
+            <Pressable onPress={onClose} hitSlop={8}>
               <Feather name="x" size={22} color={C.textSecondary} />
             </Pressable>
           </View>
 
-          {/* 에러 */}
+          {/* 에러 (고정, 스크롤 밖) */}
           {errorMsg && (
             <View style={fl.errorRow}>
               <Feather name="alert-circle" size={14} color={C.error} />
@@ -317,187 +322,192 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
             </View>
           )}
 
-          {/* ── Step 1: 요일/날짜 선택 ── */}
-          {step === 1 && (
-            <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
-              {/* 1회성 반 토글 */}
-              <Pressable
-                style={[ot.toggleRow, {
-                  backgroundColor: isOneTime ? "#F3E8FF" : C.background,
-                  borderColor: isOneTime ? "#7C3AED" : C.border,
-                }]}
-                onPress={() => {
-                  setIsOneTime(!isOneTime);
-                  setSelectedDays([]);
-                  setSelectedTime(null);
-                  setErrorMsg(null);
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={[ot.toggleLabel, { color: isOneTime ? "#7C3AED" : C.text }]}>1회성 반</Text>
-                  <Text style={[ot.toggleSub, { color: isOneTime ? "#7C3AED" : C.textMuted }]}>
-                    특정 날짜 1회만 운영하는 특별반
-                  </Text>
-                </View>
-                <View style={[ot.toggleSwitch, { backgroundColor: isOneTime ? "#7C3AED" : C.border }]}>
-                  <View style={[ot.toggleKnob, { transform: [{ translateX: isOneTime ? 18 : 0 }] }]} />
-                </View>
-              </Pressable>
-
-              {isOneTime ? (
-                // 1회성: 날짜 입력
-                <>
-                  <Text style={fl.stepTitle}>수업 날짜를 입력하세요</Text>
-                  <Text style={fl.stepSub}>1회만 운영되는 특별 수업입니다</Text>
-                  <View style={[ot.dateBox, { borderColor: oneTimeDate && getDayOfWeek(oneTimeDate) ? C.tint : C.border, backgroundColor: C.background }]}>
-                    <Feather name="calendar" size={18} color={C.tint} style={{ marginRight: 10 }} />
-                    <TextInput
-                      style={[ot.dateInput, { color: C.text }]}
-                      value={oneTimeDate}
-                      onChangeText={handleOneTimeDateChange}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={C.textMuted}
-                      keyboardType="numeric"
-                      maxLength={10}
-                    />
+          {/* ── 스크롤 가능한 컨텐츠 영역 ── */}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 8 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* ── Step 1: 요일/날짜 선택 ── */}
+            {step === 1 && (
+              <>
+                {/* 1회성 반 토글 */}
+                <Pressable
+                  style={[ot.toggleRow, {
+                    backgroundColor: isOneTime ? "#F3E8FF" : C.background,
+                    borderColor: isOneTime ? "#7C3AED" : C.border,
+                  }]}
+                  onPress={() => {
+                    setIsOneTime(!isOneTime);
+                    setSelectedDays([]);
+                    setSelectedTime(null);
+                    setErrorMsg(null);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[ot.toggleLabel, { color: isOneTime ? "#7C3AED" : C.text }]}>1회성 반</Text>
+                    <Text style={[ot.toggleSub, { color: isOneTime ? "#7C3AED" : C.textMuted }]}>
+                      특정 날짜 1회만 운영하는 특별반
+                    </Text>
                   </View>
-                  {oneTimeDate && getDayOfWeek(oneTimeDate) ? (
-                    <View style={[s1.preview, { backgroundColor: "#F3E8FF" }]}>
-                      <Feather name="check-circle" size={14} color="#7C3AED" />
-                      <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#7C3AED" }}>
-                        {oneTimeDate} ({getDayOfWeek(oneTimeDate)}요일)
-                      </Text>
-                    </View>
-                  ) : null}
-                </>
-              ) : (
-                // 일반: 요일 선택
-                <>
-                  <Text style={fl.stepTitle}>수업 요일을 선택하세요</Text>
-                  <Text style={fl.stepSub}>복수 선택 가능합니다</Text>
-                  <View style={s1.grid}>
-                    {ALL_DAYS.map(d => (
-                      <DayButton
-                        key={d}
-                        label={d}
-                        selected={selectedDays.includes(d)}
-                        onPress={() => toggleDay(d)}
+                  <View style={[ot.toggleSwitch, { backgroundColor: isOneTime ? "#7C3AED" : C.border }]}>
+                    <View style={[ot.toggleKnob, { transform: [{ translateX: isOneTime ? 18 : 0 }] }]} />
+                  </View>
+                </Pressable>
+
+                {isOneTime ? (
+                  <>
+                    <Text style={fl.stepTitle}>수업 날짜를 입력하세요</Text>
+                    <Text style={fl.stepSub}>1회만 운영되는 특별 수업입니다</Text>
+                    <View style={[ot.dateBox, { borderColor: oneTimeDate && getDayOfWeek(oneTimeDate) ? C.tint : C.border, backgroundColor: C.background }]}>
+                      <Feather name="calendar" size={18} color={C.tint} style={{ marginRight: 10 }} />
+                      <TextInput
+                        style={[ot.dateInput, { color: C.text }]}
+                        value={oneTimeDate}
+                        onChangeText={handleOneTimeDateChange}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor={C.textMuted}
+                        keyboardType="numeric"
+                        maxLength={10}
                       />
-                    ))}
-                  </View>
-                  {selectedDays.length > 0 && (
-                    <View style={s1.preview}>
-                      <Text style={s1.previewLabel}>선택: </Text>
-                      <Text style={[s1.previewValue, { color: C.tint }]}>
-                        {selectedDays.join("·")}요일
-                      </Text>
                     </View>
-                  )}
-                </>
-              )}
-            </ScrollView>
-          )}
-
-          {/* ── Step 2: 시간 선택 ── */}
-          {step === 2 && (
-            <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
-              <Text style={fl.stepTitle}>수업 시간을 선택하세요</Text>
-              <Text style={fl.stepSub}>
-                {isOneTime
-                  ? `${oneTimeDate} (${getDayOfWeek(oneTimeDate)}요일) 수업`
-                  : selectedDays.includes("토") && selectedDays.some(d => WEEKDAYS.includes(d as any))
-                  ? "평일(13:00-21:00) · 토(08:00-16:00)"
-                  : selectedDays.includes("토")
-                  ? "토요일(08:00-16:00)"
-                  : "평일(13:00-21:00)"}
-              </Text>
-              <View style={s2.grid}>
-                {timeSlots.map(t => (
-                  <TimeButton
-                    key={t}
-                    label={t}
-                    selected={selectedTime === t}
-                    onPress={() => setSelectedTime(t)}
-                  />
-                ))}
-              </View>
-            </ScrollView>
-          )}
-
-          {/* ── Step 3: 선생님 선택 (관리자만) ── */}
-          {step === 3 && isAdmin && (
-            <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0, maxHeight: 320 }}>
-              <Text style={fl.stepTitle}>담당 선생님을 선택하세요</Text>
-              <Text style={fl.stepSub}>
-                {isOneTime ? "1회성 반은 선생님 지정을 권장합니다" : "선택하지 않으면 미지정으로 개설됩니다"}
-              </Text>
-              {teachersLoading ? (
-                <ActivityIndicator color={C.tint} style={{ marginTop: 30 }} />
-              ) : teachers.length === 0 ? (
-                <View style={s3.empty}>
-                  <Feather name="user-x" size={36} color={C.textMuted} />
-                  <Text style={[s3.emptyText, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text>
-                </View>
-              ) : (
-                <>
-                  {!isOneTime && (
-                    <Pressable
-                      style={[tr.row, {
-                        borderColor: selectedTeacher === null ? C.border : C.border,
-                        backgroundColor: selectedTeacher === null ? "#F3F4F6" : C.background,
-                      }]}
-                      onPress={() => setSelectedTeacher(null)}
-                    >
-                      <View style={[tr.avatar, { backgroundColor: C.border }]}>
-                        <Feather name="user-x" size={18} color={C.textMuted} />
+                    {oneTimeDate && getDayOfWeek(oneTimeDate) ? (
+                      <View style={[s1.preview, { backgroundColor: "#F3E8FF" }]}>
+                        <Feather name="check-circle" size={14} color="#7C3AED" />
+                        <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#7C3AED" }}>
+                          {oneTimeDate} ({getDayOfWeek(oneTimeDate)}요일)
+                        </Text>
                       </View>
-                      <Text style={[tr.name, { color: C.textSecondary }]}>미지정</Text>
-                      {selectedTeacher === null && <Feather name="check-circle" size={20} color={C.textSecondary} />}
-                    </Pressable>
-                  )}
-                  {teachers.map(t => (
-                    <TeacherRow
-                      key={t.id}
-                      t={t}
-                      selected={selectedTeacher?.id === t.id}
-                      onPress={() => setSelectedTeacher(t)}
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <Text style={fl.stepTitle}>수업 요일을 선택하세요</Text>
+                    <Text style={fl.stepSub}>복수 선택 가능합니다</Text>
+                    <View style={s1.grid}>
+                      {ALL_DAYS.map(d => (
+                        <DayButton
+                          key={d}
+                          label={d}
+                          selected={selectedDays.includes(d)}
+                          onPress={() => toggleDay(d)}
+                        />
+                      ))}
+                    </View>
+                    {selectedDays.length > 0 && (
+                      <View style={s1.preview}>
+                        <Text style={s1.previewLabel}>선택: </Text>
+                        <Text style={[s1.previewValue, { color: C.tint }]}>
+                          {selectedDays.join("·")}요일
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ── Step 2: 시간 선택 ── */}
+            {step === 2 && (
+              <>
+                <Text style={fl.stepTitle}>수업 시간을 선택하세요</Text>
+                <Text style={fl.stepSub}>
+                  {isOneTime
+                    ? `${oneTimeDate} (${getDayOfWeek(oneTimeDate)}요일) 수업`
+                    : selectedDays.includes("토") && selectedDays.some(d => WEEKDAYS.includes(d as any))
+                    ? "평일(13:00-21:00) · 토(08:00-16:00)"
+                    : selectedDays.includes("토")
+                    ? "토요일(08:00-16:00)"
+                    : "평일(13:00-21:00)"}
+                </Text>
+                <View style={s2.grid}>
+                  {timeSlots.map(t => (
+                    <TimeButton
+                      key={t}
+                      label={t}
+                      selected={selectedTime === t}
+                      onPress={() => setSelectedTime(t)}
                     />
                   ))}
-                </>
-              )}
-            </ScrollView>
-          )}
-
-          {/* ── Step 4: 반 개설 확인 ── */}
-          {step === 4 && (
-            <View style={s4.wrap}>
-              <Text style={fl.stepTitle}>반 개설을 확인하세요</Text>
-              <View style={[s4.card, { borderColor: (isOneTime ? "#7C3AED" : C.tint) + "50" }]}>
-                {/* 반 이름 */}
-                <View style={[s4.nameRow, { backgroundColor: isOneTime ? "#F3E8FF" : C.tintLight }]}>
-                  {isOneTime && (
-                    <View style={[ot.oneTimeBadge, { backgroundColor: "#7C3AED" }]}>
-                      <Text style={{ color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" }}>1회성</Text>
-                    </View>
-                  )}
-                  <Feather name="layers" size={20} color={isOneTime ? "#7C3AED" : C.tint} />
-                  <Text style={[s4.name, { color: isOneTime ? "#7C3AED" : C.tint }]}>{classLabel}</Text>
                 </View>
-                <View style={s4.rows}>
-                  {isOneTime
-                    ? <InfoRow icon="calendar" label="날짜" value={`${oneTimeDate} (${getDayOfWeek(oneTimeDate)}요일)`} />
-                    : <InfoRow icon="calendar" label="요일" value={selectedDays.join("·") + "요일"} />
-                  }
-                  <InfoRow icon="clock" label="시간" value={selectedTime || "—"} />
-                  <InfoRow icon="user" label="선생님" value={teacherName} />
-                  <InfoRow icon="users" label="기본 정원" value={`${defaultCapacity}명`} />
+              </>
+            )}
+
+            {/* ── Step 3: 선생님 선택 (관리자만) ── */}
+            {step === 3 && isAdmin && (
+              <>
+                <Text style={fl.stepTitle}>담당 선생님을 선택하세요</Text>
+                <Text style={fl.stepSub}>
+                  {isOneTime ? "1회성 반은 선생님 지정을 권장합니다" : "선택하지 않으면 미지정으로 개설됩니다"}
+                </Text>
+                {teachersLoading ? (
+                  <ActivityIndicator color={C.tint} style={{ marginTop: 30 }} />
+                ) : teachers.length === 0 ? (
+                  <View style={s3.empty}>
+                    <Feather name="user-x" size={36} color={C.textMuted} />
+                    <Text style={[s3.emptyText, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text>
+                  </View>
+                ) : (
+                  <>
+                    {!isOneTime && (
+                      <Pressable
+                        style={[tr.row, {
+                          borderColor: C.border,
+                          backgroundColor: selectedTeacher === null ? "#F3F4F6" : C.background,
+                        }]}
+                        onPress={() => setSelectedTeacher(null)}
+                      >
+                        <View style={[tr.avatar, { backgroundColor: C.border }]}>
+                          <Feather name="user-x" size={18} color={C.textMuted} />
+                        </View>
+                        <Text style={[tr.name, { color: C.textSecondary }]}>미지정</Text>
+                        {selectedTeacher === null && <Feather name="check-circle" size={20} color={C.textSecondary} />}
+                      </Pressable>
+                    )}
+                    {teachers.map(t => (
+                      <TeacherRow
+                        key={t.id}
+                        t={t}
+                        selected={selectedTeacher?.id === t.id}
+                        onPress={() => setSelectedTeacher(t)}
+                      />
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ── Step 4: 반 개설 확인 ── */}
+            {step === 4 && (
+              <View style={s4.wrap}>
+                <Text style={fl.stepTitle}>반 개설을 확인하세요</Text>
+                <View style={[s4.card, { borderColor: (isOneTime ? "#7C3AED" : C.tint) + "50" }]}>
+                  <View style={[s4.nameRow, { backgroundColor: isOneTime ? "#F3E8FF" : C.tintLight }]}>
+                    {isOneTime && (
+                      <View style={[ot.oneTimeBadge, { backgroundColor: "#7C3AED" }]}>
+                        <Text style={{ color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" }}>1회성</Text>
+                      </View>
+                    )}
+                    <Feather name="layers" size={20} color={isOneTime ? "#7C3AED" : C.tint} />
+                    <Text style={[s4.name, { color: isOneTime ? "#7C3AED" : C.tint }]}>{classLabel}</Text>
+                  </View>
+                  <View style={s4.rows}>
+                    {isOneTime
+                      ? <InfoRow icon="calendar" label="날짜" value={`${oneTimeDate} (${getDayOfWeek(oneTimeDate)}요일)`} />
+                      : <InfoRow icon="calendar" label="요일" value={selectedDays.join("·") + "요일"} />
+                    }
+                    <InfoRow icon="clock" label="시간" value={selectedTime || "—"} />
+                    <InfoRow icon="user" label="선생님" value={teacherName} />
+                    <InfoRow icon="users" label="기본 정원" value={`${defaultCapacity}명`} />
+                  </View>
                 </View>
               </View>
-            </View>
-          )}
+            )}
+          </ScrollView>
 
-          {/* 하단 버튼 */}
-          <View style={fl.btnRow}>
+          {/* ── 하단 버튼 (항상 고정, 스크롤과 분리) ── */}
+          <View style={[fl.btnRow, { paddingBottom: insets.bottom + 8 }]}>
             {step > 1 && (
               <Pressable style={fl.backBtn} onPress={handleBack}>
                 <Feather name="arrow-left" size={18} color={C.textSecondary} />
@@ -529,7 +539,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
             )}
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -551,15 +561,15 @@ const ir = StyleSheet.create({
 
 const fl = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 16 },
+  sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingTop: 16, paddingHorizontal: 24, overflow: "hidden" },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 6 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
   title: { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 6 },
   stepTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 4 },
   stepSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginBottom: 16 },
-  errorRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEE2E2", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  errorRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEE2E2", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginBottom: 8 },
   errorText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.error },
-  btnRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+  btnRow: { flexDirection: "row", gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
   backBtn: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
   nextBtn: { height: 50, borderRadius: 14, paddingHorizontal: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   nextText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
