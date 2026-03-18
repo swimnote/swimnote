@@ -65,11 +65,11 @@ export default function AdminLayout() {
         options={{ title: "메신저", tabBarIcon: ({ color }) => <Feather name="send" size={22} color={color} /> }}
       />
       <Tabs.Screen
-        name="billing"
+        name="admin-revenue"
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
-        options={{ title: "정산", tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} /> }}
+        options={{ title: "매출관리", tabBarIcon: ({ color }) => <Feather name="trending-up" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="more"
@@ -80,6 +80,7 @@ export default function AdminLayout() {
       />
 
       {/* ─── 숨김 화면들 (탭 없이 push/navigate로 접근) ─── */}
+      <Tabs.Screen name="billing"           options={{ href: null }} />
       <Tabs.Screen name="communication"     options={{ href: null }} />
       <Tabs.Screen name="members"           options={{ href: null }} />
       <Tabs.Screen name="community"         options={{ href: null }} />

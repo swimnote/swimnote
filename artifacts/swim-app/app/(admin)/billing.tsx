@@ -102,7 +102,7 @@ export default function BillingScreen() {
 
   return (
     <View style={s.safe}>
-      <PageHeader title="정산" />
+      <PageHeader title="구독관리" />
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}

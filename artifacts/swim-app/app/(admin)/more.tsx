@@ -98,9 +98,9 @@ export default function MoreScreen() {
       ],
     },
     {
-      title: "결제 · 구독",
+      title: "앱 구독",
       items: [
-        { label: "결제 관리",    icon: "credit-card"  as const, color: "#D97706", bg: "#FEF3C7", route: "/(admin)/billing"       },
+        { label: "구독관리",     icon: "credit-card"  as const, color: "#D97706", bg: "#FEF3C7", route: "/(admin)/billing"       },
       ],
     },
     {
