@@ -10,6 +10,7 @@ import {
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import AdminWeekBoard, { ClassGroupItem } from "@/components/admin/AdminWeekBoard";
@@ -50,6 +51,13 @@ export default function ClassesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [nav, setNav] = useState<NavStep>({ step: "main" });
+
+  // 탭 클릭 시 항상 첫 화면으로 초기화
+  useFocusEffect(
+    useCallback(() => {
+      setNav({ step: "main" });
+    }, [])
+  );
   const [classDetail, setClassDetail] = useState<ClassDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailDate, setDetailDate] = useState(todayDateStr());

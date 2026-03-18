@@ -32,10 +32,34 @@ export default function SuperLayout() {
         ) : null,
       }}
     >
-      <Tabs.Screen name="dashboard" options={{ title: "대시보드", tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} /> }} />
-      <Tabs.Screen name="pools" options={{ title: "수영장 승인", tabBarIcon: ({ color }) => <Feather name="map-pin" size={22} color={color} /> }} />
-      <Tabs.Screen name="subscriptions" options={{ title: "구독 관리", tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} /> }} />
-      <Tabs.Screen name="users" options={{ title: "계정 관리", tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} /> }} />
+      <Tabs.Screen
+        name="dashboard"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
+        options={{ title: "대시보드", tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="pools"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
+        options={{ title: "수영장 승인", tabBarIcon: ({ color }) => <Feather name="map-pin" size={22} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="subscriptions"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
+        options={{ title: "구독 관리", tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="users"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
+        options={{ title: "계정 관리", tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} /> }}
+      />
       <Tabs.Screen name="storage-policy" options={{ href: null }} />
     </Tabs>
   );

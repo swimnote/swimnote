@@ -1082,7 +1082,7 @@ const um = StyleSheet.create({
 });
 
 export default function TodayScheduleScreen() {
-  const { token }   = useAuth();
+  const { token, logout } = useAuth();
   const { themeColor } = useBrand();
   const today = todayStr();
 
@@ -1122,10 +1122,20 @@ export default function TodayScheduleScreen() {
     router.push({ pathname: "/(teacher)/diary" } as any);
   }
 
+  const logoutBtn = (
+    <Pressable
+      onPress={logout}
+      style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" }}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+    >
+      <Feather name="log-out" size={18} color="#6B7280" />
+    </Pressable>
+  );
+
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
+        <PoolHeader right={logoutBtn} />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
@@ -1133,7 +1143,7 @@ export default function TodayScheduleScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <PoolHeader />
+      <PoolHeader right={logoutBtn} />
 
       <FlatList
         data={items}

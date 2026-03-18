@@ -6,7 +6,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Pressable,
+  ActivityIndicator, FlatList, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -39,7 +39,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export default function MoreScreen() {
-  const { token, logout, adminUser } = useAuth();
+  const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
@@ -138,15 +138,6 @@ export default function MoreScreen() {
               <Text style={s.profileName}>{adminUser?.name || "관리자"}</Text>
               <Text style={s.profileRole}>수영장 관리자</Text>
             </View>
-            <Pressable style={[s.logoutBtn, { borderColor: "#DC262640" }]} onPress={() => {
-              Alert.alert("로그아웃", "로그아웃 하시겠습니까?", [
-                { text: "취소", style: "cancel" },
-                { text: "로그아웃", style: "destructive", onPress: logout },
-              ]);
-            }}>
-              <Feather name="log-out" size={16} color="#DC2626" />
-              <Text style={s.logoutText}>로그아웃</Text>
-            </Pressable>
           </View>
 
           {/* 설정 그룹 */}
@@ -267,9 +258,6 @@ const s = StyleSheet.create({
   profileInitial: { fontSize: 20, fontFamily: "Inter_700Bold" },
   profileName: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
   profileRole: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  logoutBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
-  logoutText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#DC2626" },
-
   groupTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 8, paddingHorizontal: 4 },
   groupCard: { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   menuRow: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },

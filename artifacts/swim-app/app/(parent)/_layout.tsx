@@ -44,26 +44,44 @@ function ParentTabs() {
     >
       <Tabs.Screen
         name="home"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
         options={{ title: "홈", tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} /> }}
       />
       <Tabs.Screen
         name="diary"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
         options={{ title: "수업피드백", tabBarIcon: ({ color }) => <TabBarIcon name="book-open" color={color} /> }}
       />
       <Tabs.Screen
         name="photos"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
         options={{ title: "앨범", tabBarIcon: ({ color }) => <TabBarIcon name="image" color={color} /> }}
       />
       <Tabs.Screen
         name="attendance-history"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
         options={{ title: "출결", tabBarIcon: ({ color }) => <TabBarIcon name="calendar" color={color} /> }}
       />
       <Tabs.Screen
         name="shopping"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
         options={{ title: "쇼핑", tabBarIcon: ({ color }) => <TabBarIcon name="shopping-bag" color={color} /> }}
       />
       <Tabs.Screen
         name="more"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
         options={{ title: "더보기", tabBarIcon: ({ color }) => <TabBarIcon name="menu" color={color} /> }}
       />
       {/* 숨김 화면들 */}

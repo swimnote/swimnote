@@ -81,7 +81,7 @@ function InfoRow({ icon, text }: { icon: React.ComponentProps<typeof Feather>["n
 }
 
 export default function SuperPoolsScreen() {
-  const { token, logout } = useAuth();
+  const { token } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [pools,      setPools]      = useState<Pool[]>([]);
@@ -169,9 +169,6 @@ export default function SuperPoolsScreen() {
           <Text style={[s.superLabel, { color: PURPLE }]}>슈퍼관리자</Text>
           <Text style={[s.title, { color: C.text }]}>수영장 관리</Text>
         </View>
-        <Pressable style={[s.iconBtn, { backgroundColor: C.card }]} onPress={logout}>
-          <Feather name="log-out" size={18} color={C.textSecondary} />
-        </Pressable>
       </View>
 
       {/* 검색 + 정렬 */}

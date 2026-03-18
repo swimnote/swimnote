@@ -30,7 +30,13 @@ The administrator application features a 6-tab structure (Dashboard, People, Cla
 - `TeacherPickerList.tsx`: 가나다순 선생님 선택 목록 (props: day?, date?, time, teachers, onSelectTeacher, onBack, bottomInset?)
 - `ClassDetailPanel.tsx`: 4탭 반 현황판 (학생/출결/일지/결석)
 
-**Classes Tab** (`(admin)/classes.tsx`): AdminWeekBoard 고정 → 셀 클릭 → TeacherPickerList → 반 목록 → ClassDetailPanel. 반 등록(ClassCreateFlow), 삭제 Modal 포함. NavStep: main→teachers→classes→detail.
+**Classes Tab** (`(admin)/classes.tsx`): AdminWeekBoard 고정 → 셀 클릭 → TeacherPickerList → 반 목록 → ClassDetailPanel. 반 등록(ClassCreateFlow), 삭제 Modal 포함. NavStep: main→teachers→classes→detail. `useFocusEffect`로 탭 포커스 시 NavStep 자동 초기화.
+
+**네비게이션 규칙 통일 (2025-03)**:
+- **탭 리셋**: 4개 모드 레이아웃 모두 `Tabs.Screen`의 `listeners` prop에 `tabPress → e.preventDefault() + navigation.navigate(route.name)` 패턴 적용. 탭 클릭 시 항상 루트 화면으로 이동.
+- **로그아웃 버튼 위치 규칙**: 각 모드 홈 화면 헤더 우측에만 배치. 슈퍼관리자=dashboard, 관리자=dashboard, 선생님=today-schedule(PoolHeader right prop), 학부모=home. pools.tsx/more.tsx(admin)/settings.tsx(teacher)/more.tsx(parent)에서 제거.
+- **팝업 뒤로가기**: ModalSheet의 `onRequestClose`가 Android 하드웨어 뒤로가기를 처리 (팝업 먼저 닫기).
+- **뒤로가기**: SubScreenHeader → `router.back()` 패턴. 탭 간 이동 없음.
 
 **Teachers Tab** (`(admin)/teachers.tsx`): 탭 일간(Daily)/월간(Monthly). 일간=오늘 통계+시간대 목록, 월간=MonthlyCalendar(인라인, 날짜 점 표시) → timeslots → TeacherPickerList → 반 목록 → ClassDetailPanel. 계정 관리 모달(추가·수정·삭제·인증코드) 포함. NavStep: main→[timeslots]→teachers→classes→detail.
 

@@ -31,12 +31,8 @@ function MenuItem({ icon, label, sub, onPress, danger = false }: {
 
 export default function ParentMoreScreen() {
   const insets = useSafeAreaInsets();
-  const { parentAccount, logout } = useAuth();
+  const { parentAccount } = useAuth();
   const { selectedStudent, students } = useParent();
-
-  async function handleFullLogout() {
-    await logout();
-  }
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
@@ -112,8 +108,6 @@ export default function ParentMoreScreen() {
           onPress={() => router.push("/(parent)/notices" as any)}
         />
 
-        <Text style={[s.sectionLabel, { color: C.textMuted }]}>계정</Text>
-        <MenuItem icon="log-out" label="로그아웃" danger onPress={handleFullLogout} />
       </ScrollView>
     </View>
   );

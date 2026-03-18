@@ -54,7 +54,7 @@ const DAY_COLORS: Record<string, string> = {
 };
 
 export default function TeacherSettingsScreen() {
-  const { token, user, logout } = useAuth();
+  const { token, user } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
@@ -347,16 +347,6 @@ export default function TeacherSettingsScreen() {
             <Feather name="chevron-right" size={16} color="#3B82F6" />
           </Pressable>
         )}
-
-        {/* ── 로그아웃 ── */}
-        <Pressable
-          style={[s.actionBtn, { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" }]}
-          onPress={async () => { await logout(); router.replace("/"); }}
-        >
-          <Feather name="log-out" size={18} color="#6B7280" />
-          <Text style={[s.actionBtnText, { color: "#6B7280" }]}>로그아웃</Text>
-          <Feather name="chevron-right" size={16} color="#9CA3AF" />
-        </Pressable>
 
         {/* ── 탈퇴 요청 ── */}
         <Pressable
