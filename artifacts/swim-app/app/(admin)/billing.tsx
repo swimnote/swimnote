@@ -3,7 +3,6 @@
  * 현재 구독 상태 확인, 카드 등록, 플랜 변경
  */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React, { useEffect, useState, useCallback } from "react";
 import {
   ActivityIndicator, Alert, Pressable, RefreshControl,
@@ -11,7 +10,7 @@ import {
 } from "react-native";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { PageHeader } from "@/components/common/PageHeader";
 
 interface Plan { tier: string; name: string; price_per_month: number; member_limit: number; storage_gb: number; }
 interface CardInfo { id: string; card_last4: string; card_brand: string; card_nickname?: string | null; }
@@ -103,7 +102,7 @@ export default function BillingScreen() {
 
   return (
     <View style={s.safe}>
-      <SubScreenHeader title="결제 관리" />
+      <PageHeader title="정산" />
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}

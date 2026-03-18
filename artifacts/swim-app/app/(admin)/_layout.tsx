@@ -41,7 +41,7 @@ export default function AdminLayout() {
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
-        options={{ title: "대시보드", tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} /> }}
+        options={{ title: "홈", tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="people"
@@ -58,18 +58,18 @@ export default function AdminLayout() {
         options={{ title: "수업", tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }}
       />
       <Tabs.Screen
-        name="communication"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
-        options={{ title: "커뮤니케이션", tabBarIcon: ({ color }) => <Feather name="message-square" size={22} color={color} /> }}
-      />
-      <Tabs.Screen
         name="messenger"
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
         options={{ title: "메신저", tabBarIcon: ({ color }) => <Feather name="send" size={22} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="billing"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
+        options={{ title: "정산", tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="more"
@@ -80,6 +80,7 @@ export default function AdminLayout() {
       />
 
       {/* ─── 숨김 화면들 (탭 없이 push/navigate로 접근) ─── */}
+      <Tabs.Screen name="communication"     options={{ href: null }} />
       <Tabs.Screen name="members"           options={{ href: null }} />
       <Tabs.Screen name="community"         options={{ href: null }} />
       <Tabs.Screen name="approvals"         options={{ href: null }} />
@@ -94,7 +95,6 @@ export default function AdminLayout() {
       <Tabs.Screen name="notifications"     options={{ href: null }} />
       <Tabs.Screen name="branches"          options={{ href: null }} />
       <Tabs.Screen name="withdrawn-members" options={{ href: null }} />
-      <Tabs.Screen name="billing"           options={{ href: null }} />
       <Tabs.Screen name="branding"          options={{ href: null }} />
       <Tabs.Screen name="member-detail"     options={{ href: null }} />
       <Tabs.Screen name="teacher-hub"       options={{ href: null }} />

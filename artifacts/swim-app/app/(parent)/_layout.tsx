@@ -42,6 +42,7 @@ function ParentTabs() {
           ) : null,
       }}
     >
+      {/* ─── 5개 메인 탭 ─── */}
       <Tabs.Screen
         name="home"
         listeners={({ navigation, route }) => ({
@@ -71,28 +72,23 @@ function ParentTabs() {
         options={{ title: "출결", tabBarIcon: ({ color }) => <TabBarIcon name="calendar" color={color} /> }}
       />
       <Tabs.Screen
-        name="shopping"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
-        options={{ title: "쇼핑", tabBarIcon: ({ color }) => <TabBarIcon name="shopping-bag" color={color} /> }}
-      />
-      <Tabs.Screen
         name="more"
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
         options={{ title: "더보기", tabBarIcon: ({ color }) => <TabBarIcon name="menu" color={color} /> }}
       />
-      {/* 숨김 화면들 */}
-      <Tabs.Screen name="children" options={{ href: null }} />
-      <Tabs.Screen name="notices" options={{ href: null }} />
+
+      {/* ─── 숨김 화면들 ─── */}
+      <Tabs.Screen name="shopping"      options={{ href: null }} />
+      <Tabs.Screen name="children"      options={{ href: null }} />
+      <Tabs.Screen name="notices"       options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
-      <Tabs.Screen name="attendance" options={{ href: null }} />
+      <Tabs.Screen name="attendance"    options={{ href: null }} />
       <Tabs.Screen name="student-detail" options={{ href: null }} />
       <Tabs.Screen name="notice-detail" options={{ href: null }} />
-      <Tabs.Screen name="swim-diary" options={{ href: null }} />
-      <Tabs.Screen name="level" options={{ href: null }} />
+      <Tabs.Screen name="swim-diary"    options={{ href: null }} />
+      <Tabs.Screen name="level"         options={{ href: null }} />
     </Tabs>
   );
 }

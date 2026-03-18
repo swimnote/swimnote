@@ -336,6 +336,16 @@ export default function TeacherSettingsScreen() {
           </View>
         </View>
 
+        {/* ── 사진·영상 앨범 바로가기 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#FFF7ED", borderColor: "#F97316" }]}
+          onPress={() => router.push("/(teacher)/photos" as any)}
+        >
+          <Feather name="camera" size={18} color="#F97316" />
+          <Text style={[s.actionBtnText, { color: "#F97316" }]}>사진·영상 앨범</Text>
+          <Feather name="chevron-right" size={16} color="#F97316" />
+        </Pressable>
+
         {/* ── 관리자 모드 전환 ── */}
         {isAdmin && (
           <Pressable

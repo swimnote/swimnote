@@ -35,40 +35,20 @@ export default function TeacherLayout() {
           ) : null,
       }}
     >
+      {/* ─── 5개 메인 탭 ─── */}
       <Tabs.Screen
         name="today-schedule"
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
-        options={{ title: "오늘 스케줄", tabBarIcon: ({ color }) => <Feather name="sun" size={22} color={color} /> }}
+        options={{ title: "홈", tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="my-schedule"
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
-        options={{ title: "수업 관리", tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="attendance"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
-        options={{ title: "출결 관리", tabBarIcon: ({ color }) => <Feather name="check-square" size={22} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="diary"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
-        options={{ title: "수영일지", tabBarIcon: ({ color }) => <Feather name="book" size={22} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="photos"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
-        options={{ title: "사진영상", tabBarIcon: ({ color }) => <Feather name="camera" size={22} color={color} /> }}
+        options={{ title: "수업", tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="messenger"
@@ -82,15 +62,20 @@ export default function TeacherLayout() {
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
-        options={{ title: "매출계산기", tabBarIcon: ({ color }) => <Feather name="dollar-sign" size={22} color={color} /> }}
+        options={{ title: "정산", tabBarIcon: ({ color }) => <Feather name="dollar-sign" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="settings"
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
-        options={{ title: "관리설정", tabBarIcon: ({ color }) => <Feather name="settings" size={22} color={color} /> }}
+        options={{ title: "더보기", tabBarIcon: ({ color }) => <Feather name="menu" size={22} color={color} /> }}
       />
+
+      {/* ─── 숨김 화면들 (수업 탭 내에서 router.push로 접근) ─── */}
+      <Tabs.Screen name="attendance"     options={{ href: null }} />
+      <Tabs.Screen name="diary"          options={{ href: null }} />
+      <Tabs.Screen name="photos"         options={{ href: null }} />
       <Tabs.Screen name="student-detail" options={{ href: null }} />
     </Tabs>
   );

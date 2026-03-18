@@ -93,13 +93,6 @@ export default function ParentMoreScreen() {
           sub={selectedStudent ? `${selectedStudent.name}의 레벨 기록` : "자녀를 선택해주세요"}
           onPress={() => router.push("/(parent)/level" as any)}
         />
-        <MenuItem
-          icon="calendar"
-          label="출결"
-          sub={selectedStudent ? `${selectedStudent.name}의 출결 기록` : "자녀를 선택해주세요"}
-          onPress={() => router.push("/(parent)/attendance-history" as any)}
-        />
-
         <Text style={[s.sectionLabel, { color: C.textMuted }]}>수영장 소식</Text>
         <MenuItem
           icon="bell"

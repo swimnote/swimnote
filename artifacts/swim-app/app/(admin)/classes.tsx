@@ -10,7 +10,7 @@ import {
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import AdminWeekBoard, { ClassGroupItem } from "@/components/admin/AdminWeekBoard";
@@ -188,6 +188,10 @@ export default function ClassesScreen() {
         <View style={{ flexDirection: "row", gap: 8 }}>
           {nav.step === "main" && (
             <>
+              <Pressable style={[s.btn, { backgroundColor: "#FEF9C3" }]} onPress={() => router.push("/(admin)/community" as any)}>
+                <Feather name="bell" size={14} color="#CA8A04" />
+                <Text style={[s.btnTxt, { color: "#CA8A04" }]}>공지</Text>
+              </Pressable>
               <Pressable style={[s.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => {}}>
                 <Feather name="rotate-ccw" size={14} color="#7C3AED" />
                 <Text style={[s.btnTxt, { color: "#7C3AED" }]}>보강</Text>

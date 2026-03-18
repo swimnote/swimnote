@@ -32,34 +32,44 @@ export default function SuperLayout() {
         ) : null,
       }}
     >
+      {/* ─── 5개 메인 탭 ─── */}
       <Tabs.Screen
         name="dashboard"
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
-        options={{ title: "대시보드", tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} /> }}
+        options={{ title: "홈", tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="pools"
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
-        options={{ title: "수영장 승인", tabBarIcon: ({ color }) => <Feather name="map-pin" size={22} color={color} /> }}
+        options={{ title: "수영장", tabBarIcon: ({ color }) => <Feather name="map-pin" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="subscriptions"
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
-        options={{ title: "구독 관리", tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} /> }}
+        options={{ title: "구독", tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="users"
         listeners={({ navigation, route }) => ({
           tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
         })}
-        options={{ title: "계정 관리", tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} /> }}
+        options={{ title: "운영", tabBarIcon: ({ color }) => <Feather name="tool" size={22} color={color} /> }}
       />
+      <Tabs.Screen
+        name="more"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
+        })}
+        options={{ title: "더보기", tabBarIcon: ({ color }) => <Feather name="menu" size={22} color={color} /> }}
+      />
+
+      {/* ─── 숨김 화면들 ─── */}
       <Tabs.Screen name="storage-policy" options={{ href: null }} />
     </Tabs>
   );
