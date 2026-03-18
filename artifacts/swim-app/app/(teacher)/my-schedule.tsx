@@ -697,7 +697,7 @@ export default function MyScheduleScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 같은 탭 재탭 시 첫 화면으로 초기화
+  // 같은 탭 재탭 시 주간 첫 화면으로 초기화
   useEffect(() => {
     return addTabResetListener("my-schedule", () => {
       setSelectedGroup(null);
@@ -705,6 +705,7 @@ export default function MyScheduleScreen() {
       setDaySheet(null);
       setSelectionMode(false);
       setSelectedIds(new Set());
+      setViewMode("weekly");
     });
   }, []);
 
