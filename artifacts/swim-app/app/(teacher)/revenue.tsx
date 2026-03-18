@@ -29,7 +29,8 @@ interface StudentSummary {
 }
 interface SettlementSummary {
   total_revenue: number; total_sessions: number; total_makeup_sessions: number;
-  total_trial_sessions: number; total_temp_transfer_sessions: number; month: string;
+  total_trial_sessions: number; total_temp_transfer_sessions: number;
+  withdrawn_count: number; postpone_count: number; month: string;
 }
 
 type SubmitStatus = "미정산" | "저장됨" | "제출완료" | "관리자확인";
@@ -235,8 +236,8 @@ export default function RevenueScreen() {
                   { label: "보강", val: summary?.total_makeup_sessions ?? 0, color: "#7C3AED" },
                   { label: "체험수업", val: summary?.total_trial_sessions ?? 0, color: "#059669" },
                   { label: "이동", val: summary?.total_temp_transfer_sessions ?? 0, color: "#2563EB" },
-                  { label: "연기", val: 0, color: "#D97706" },
-                  { label: "탈퇴", val: students.filter(s => s.is_unregistered).length, color: "#EF4444" },
+                  { label: "연기", val: summary?.postpone_count ?? 0, color: "#D97706" },
+                  { label: "탈퇴", val: summary?.withdrawn_count ?? students.filter(s => s.is_unregistered).length, color: "#EF4444" },
                 ].map(item => (
                   <View key={item.label} style={rv.summaryGridBox}>
                     <Text style={[rv.summaryGridVal, { color: item.color }]}>{item.val}</Text>

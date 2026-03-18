@@ -428,7 +428,8 @@ function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
 ──────────────────────────────────────────────── */
 interface SettlementSummary {
   total_revenue: number; total_sessions: number; total_makeup_sessions: number;
-  total_trial_sessions: number; total_temp_transfer_sessions: number; month: string;
+  total_trial_sessions: number; total_temp_transfer_sessions: number;
+  withdrawn_count: number; postpone_count: number; month: string;
 }
 
 interface TeacherItem {
@@ -441,7 +442,7 @@ type SettlementStatus = "미정산" | "저장됨" | "제출완료" | "관리자�
 interface TeacherReport {
   teacher_id: string;
   teacher_name: string;
-  status: SettlementStatus;
+  status: "draft" | "submitted" | "confirmed" | null;
   total_revenue?: number;
   total_sessions?: number;
   student_count?: number;
@@ -450,6 +451,13 @@ interface TeacherReport {
   transfer_count?: number;
   postpone_count?: number;
   withdrawn_count?: number;
+}
+
+function apiStatusToUI(raw: string | null | undefined): SettlementStatus {
+  if (raw === "submitted")  return "제출완료";
+  if (raw === "confirmed")  return "관리자확인";
+  if (raw === "draft")      return "저장됨";
+  return "미정산";
 }
 
 function curMonthStr() {
@@ -644,7 +652,7 @@ export default function AdminRevenueScreen() {
           ) : (
             teachers.map(t => {
               const report = reports.find(r => r.teacher_id === t.id);
-              const status: SettlementStatus = report?.status ?? "미정산";
+              const status: SettlementStatus = apiStatusToUI(report?.status);
               const statusStyle = STATUS_COLOR[status];
               return (
                 <View key={t.id} style={[s.teacherCard, { backgroundColor: C.card }]}>
