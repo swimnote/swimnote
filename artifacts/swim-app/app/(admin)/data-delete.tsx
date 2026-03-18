@@ -3,6 +3,7 @@
  * 3단계: 선택 → 미리보기 + 비밀번호 → 결과
  */
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator, Pressable, ScrollView,
@@ -97,10 +98,10 @@ export default function DataDeleteScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="원본 데이터 삭제" />
+      <SubScreenHeader title="원본 데이터 삭제" onBack={() => router.back()} />
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: insets.bottom + 120, gap: 16 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

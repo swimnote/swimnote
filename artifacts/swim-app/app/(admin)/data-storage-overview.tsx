@@ -2,6 +2,7 @@
  * 저장공간 현황 — 총 사용량 · 제공 용량 · 남은 용량 · 게이지
  */
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -53,7 +54,7 @@ export default function DataStorageOverviewScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="저장공간 현황" />
+      <SubScreenHeader title="저장공간 현황" onBack={() => router.back()} />
 
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />

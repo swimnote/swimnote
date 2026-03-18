@@ -3,6 +3,7 @@
  * 카테고리 필터 + 무한 스크롤 FlatList
  */
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Pressable,
@@ -67,7 +68,7 @@ export default function DataEventLogsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="이벤트 기록" />
+      <SubScreenHeader title="이벤트 기록" onBack={() => router.back()} />
 
       {/* 카테고리 필터 */}
       <ScrollView
@@ -101,7 +102,7 @@ export default function DataEventLogsScreen() {
             tintColor={themeColor}
           />
         }
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 32, paddingTop: 12, gap: 10 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10 }}
         ListEmptyComponent={
           loading ? (
             <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />

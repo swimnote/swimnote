@@ -2,6 +2,7 @@
  * 계정별 사용량 — 선생님 리스트 + 사용량
  */
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable,
@@ -64,7 +65,7 @@ export default function DataStorageByAccountScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="계정별 사용량" />
+      <SubScreenHeader title="계정별 사용량" onBack={() => router.back()} />
 
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />

@@ -2,6 +2,7 @@
  * 카테고리별 사용량 — 사진 · 영상 · 메신저 · 기록 분류
  */
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -58,7 +59,7 @@ export default function DataStorageByCategoryScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="카테고리별 사용량" />
+      <SubScreenHeader title="카테고리별 사용량" onBack={() => router.back()} />
 
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
