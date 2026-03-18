@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
 
@@ -251,6 +252,7 @@ export default function DashboardScreen() {
   const { adminUser, pool, logout, token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  const scrollRef = useTabScrollReset("dashboard");
 
   const [stats, setStats] = useState<DashStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -318,6 +320,7 @@ export default function DashboardScreen() {
       </Pressable>
 
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, gap: 20 }}
         refreshControl={

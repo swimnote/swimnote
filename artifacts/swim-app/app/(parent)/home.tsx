@@ -10,6 +10,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 import { ModalSheet } from "@/components/common/ModalSheet";
+import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
 
@@ -142,6 +143,7 @@ function ChildSelectorModal({ visible, onClose }: { visible: boolean; onClose: (
 
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
+  const scrollRef = useTabScrollReset("home");
   const { token, parentAccount, logout } = useAuth();
   const { students, selectedStudent, loading: ctxLoading, refresh } = useParent();
   const [feed, setFeed] = useState<FeedItem[]>([]);
@@ -226,6 +228,7 @@ export default function ParentHomeScreen() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}

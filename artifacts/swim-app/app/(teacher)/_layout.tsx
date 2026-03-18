@@ -5,12 +5,28 @@ import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
+import { emitTabReset } from "@/utils/tabReset";
 
 export default function TeacherLayout() {
   const { themeColor } = useBrand();
   const C = Colors.light;
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+
+  function makeTabListener(tabName: string) {
+    return ({ navigation }: { navigation: any; route: any }) => ({
+      tabPress: (e: any) => {
+        e.preventDefault();
+        const state = navigation.getState();
+        const currentRoute = state.routes[state.index]?.name;
+        if (currentRoute === tabName) {
+          emitTabReset(tabName);
+        } else {
+          navigation.navigate(tabName);
+        }
+      },
+    });
+  }
 
   return (
     <Tabs
@@ -38,37 +54,27 @@ export default function TeacherLayout() {
       {/* ─── 5개 메인 탭 ─── */}
       <Tabs.Screen
         name="today-schedule"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("today-schedule")}
         options={{ title: "홈", tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="my-schedule"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("my-schedule")}
         options={{ title: "수업", tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="messenger"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("messenger")}
         options={{ title: "메신저", tabBarIcon: ({ color }) => <Feather name="send" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="revenue"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("revenue")}
         options={{ title: "정산", tabBarIcon: ({ color }) => <Feather name="dollar-sign" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="settings"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("settings")}
         options={{ title: "더보기", tabBarIcon: ({ color }) => <Feather name="menu" size={22} color={color} /> }}
       />
 

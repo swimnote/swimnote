@@ -4,11 +4,27 @@ import { Tabs } from "expo-router";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
+import { emitTabReset } from "@/utils/tabReset";
 
 export default function SuperLayout() {
   const C = Colors.light;
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+
+  function makeTabListener(tabName: string) {
+    return ({ navigation }: { navigation: any; route: any }) => ({
+      tabPress: (e: any) => {
+        e.preventDefault();
+        const state = navigation.getState();
+        const currentRoute = state.routes[state.index]?.name;
+        if (currentRoute === tabName) {
+          emitTabReset(tabName);
+        } else {
+          navigation.navigate(tabName);
+        }
+      },
+    });
+  }
 
   return (
     <Tabs
@@ -35,37 +51,27 @@ export default function SuperLayout() {
       {/* ─── 5개 메인 탭 ─── */}
       <Tabs.Screen
         name="dashboard"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("dashboard")}
         options={{ title: "홈", tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="pools"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("pools")}
         options={{ title: "수영장", tabBarIcon: ({ color }) => <Feather name="map-pin" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="subscriptions"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("subscriptions")}
         options={{ title: "구독", tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="users"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("users")}
         options={{ title: "운영", tabBarIcon: ({ color }) => <Feather name="tool" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="more"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("more")}
         options={{ title: "더보기", tabBarIcon: ({ color }) => <Feather name="menu" size={22} color={color} /> }}
       />
 

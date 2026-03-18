@@ -23,6 +23,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
@@ -470,6 +471,7 @@ export default function AdminRevenueScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  const scrollRef = useTabScrollReset("admin-revenue");
 
   const [month, setMonth]       = useState(curMonthStr());
   const [loading, setLoading]   = useState(true);
@@ -571,6 +573,7 @@ export default function AdminRevenueScreen() {
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
+          ref={scrollRef}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
           contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: pBottom }}
           showsVerticalScrollIndicator={false}

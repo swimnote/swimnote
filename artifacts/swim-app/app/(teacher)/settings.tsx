@@ -21,6 +21,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { PoolHeader } from "@/components/PoolHeader";
+import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
 
@@ -57,6 +58,7 @@ export default function TeacherSettingsScreen() {
   const { token, user } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  const scrollRef = useTabScrollReset("settings");
 
   /* ─ 데이터 ─ */
   const [profile,     setProfile]     = useState<Profile | null>(null);
@@ -224,6 +226,7 @@ export default function TeacherSettingsScreen() {
       <PoolHeader />
 
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}

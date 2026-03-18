@@ -14,6 +14,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
 
@@ -50,6 +51,7 @@ export default function RevenueScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  const scrollRef = useTabScrollReset("revenue");
   const [month, setMonth] = useState(monthStr());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -150,6 +152,7 @@ export default function RevenueScreen() {
   return (
     <SafeAreaView style={rv.safe} edges={["top"]}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}

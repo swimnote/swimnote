@@ -7,6 +7,7 @@ import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
 import { useAuth } from "@/context/AuthContext";
 import { ParentProvider } from "@/context/ParentContext";
+import { emitTabReset } from "@/utils/tabReset";
 
 const C = Colors.light;
 
@@ -18,6 +19,21 @@ function ParentTabs() {
   const { themeColor } = useBrand();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+
+  function makeTabListener(tabName: string) {
+    return ({ navigation }: { navigation: any; route: any }) => ({
+      tabPress: (e: any) => {
+        e.preventDefault();
+        const state = navigation.getState();
+        const currentRoute = state.routes[state.index]?.name;
+        if (currentRoute === tabName) {
+          emitTabReset(tabName);
+        } else {
+          navigation.navigate(tabName);
+        }
+      },
+    });
+  }
 
   return (
     <Tabs
@@ -45,37 +61,27 @@ function ParentTabs() {
       {/* ─── 5개 메인 탭 ─── */}
       <Tabs.Screen
         name="home"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("home")}
         options={{ title: "홈", tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} /> }}
       />
       <Tabs.Screen
         name="diary"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("diary")}
         options={{ title: "수업피드백", tabBarIcon: ({ color }) => <TabBarIcon name="book-open" color={color} /> }}
       />
       <Tabs.Screen
         name="photos"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("photos")}
         options={{ title: "앨범", tabBarIcon: ({ color }) => <TabBarIcon name="image" color={color} /> }}
       />
       <Tabs.Screen
         name="attendance-history"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("attendance-history")}
         options={{ title: "출결", tabBarIcon: ({ color }) => <TabBarIcon name="calendar" color={color} /> }}
       />
       <Tabs.Screen
         name="more"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("more")}
         options={{ title: "더보기", tabBarIcon: ({ color }) => <TabBarIcon name="menu" color={color} /> }}
       />
 

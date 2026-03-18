@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const PURPLE = "#7C3AED";
 
@@ -41,6 +42,7 @@ const TIER_ORDER = [
 export default function SuperDashboardScreen() {
   const { token, logout, user } = useAuth();
   const insets = useSafeAreaInsets();
+  const scrollRef = useTabScrollReset("dashboard");
 
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [pools, setPools] = useState<Pool[]>([]);
@@ -82,6 +84,7 @@ export default function SuperDashboardScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F3FF" }}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={{ paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20), paddingBottom: insets.bottom + 100, paddingHorizontal: 20, gap: 20 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAll(); }} tintColor={PURPLE} />}
         showsVerticalScrollIndicator={false}

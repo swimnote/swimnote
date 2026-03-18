@@ -5,6 +5,7 @@ import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
+import { emitTabReset } from "@/utils/tabReset";
 
 const C = Colors.light;
 
@@ -12,6 +13,21 @@ export default function AdminLayout() {
   const { themeColor } = useBrand();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+
+  function makeTabListener(tabName: string) {
+    return ({ navigation }: { navigation: any; route: any }) => ({
+      tabPress: (e: any) => {
+        e.preventDefault();
+        const state = navigation.getState();
+        const currentRoute = state.routes[state.index]?.name;
+        if (currentRoute === tabName) {
+          emitTabReset(tabName);
+        } else {
+          navigation.navigate(tabName);
+        }
+      },
+    });
+  }
 
   return (
     <Tabs
@@ -35,47 +51,35 @@ export default function AdminLayout() {
         ) : null,
       }}
     >
-      {/* ─── 6개 메인 탭 (탭 클릭 시 항상 루트로 리셋) ─── */}
+      {/* ─── 6개 메인 탭 ─── */}
       <Tabs.Screen
         name="dashboard"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("dashboard")}
         options={{ title: "홈", tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="people"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("people")}
         options={{ title: "사람", tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="classes"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("classes")}
         options={{ title: "수업", tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="messenger"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("messenger")}
         options={{ title: "메신저", tabBarIcon: ({ color }) => <Feather name="send" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="admin-revenue"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("admin-revenue")}
         options={{ title: "매출관리", tabBarIcon: ({ color }) => <Feather name="trending-up" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="more"
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => { e.preventDefault(); navigation.navigate(route.name as never); },
-        })}
+        listeners={makeTabListener("more")}
         options={{ title: "더보기", tabBarIcon: ({ color }) => <Feather name="menu" size={22} color={color} /> }}
       />
 

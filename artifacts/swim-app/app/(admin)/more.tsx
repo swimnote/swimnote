@@ -14,6 +14,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
 const TABS = ["설정 메뉴", "활동 로그"] as const;
@@ -42,6 +43,7 @@ export default function MoreScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  const scrollRef = useTabScrollReset("more");
 
   const [tab, setTab] = useState<Tab>("설정 메뉴");
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -126,6 +128,7 @@ export default function MoreScreen() {
 
       {tab === "설정 메뉴" ? (
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
         >
