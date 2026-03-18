@@ -1124,7 +1124,7 @@ export default function TodayScheduleScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
@@ -1132,7 +1132,7 @@ export default function TodayScheduleScreen() {
   }
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
+    <SafeAreaView style={s.safe} edges={[]}>
       <PoolHeader />
 
       <FlatList

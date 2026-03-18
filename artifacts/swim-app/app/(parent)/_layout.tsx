@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
 import { useAuth } from "@/context/AuthContext";
@@ -15,21 +16,32 @@ function TabBarIcon({ name, color }: { name: any; color: string }) {
 
 function ParentTabs() {
   const { themeColor } = useBrand();
+  const isIOS = Platform.OS === "ios";
+  const isWeb = Platform.OS === "web";
+
   return (
-    <Tabs screenOptions={{
-      tabBarActiveTintColor: themeColor,
-      tabBarInactiveTintColor: C.tabIconDefault,
-      headerShown: false,
-      tabBarStyle: {
-        backgroundColor: "#fff",
-        borderTopWidth: 1,
-        borderTopColor: C.border,
-        elevation: 0,
-        height: Platform.OS === "web" ? 84 : 60,
-        paddingBottom: Platform.OS === "ios" ? 8 : 4,
-      },
-      tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 10 },
-    }}>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: themeColor,
+        tabBarInactiveTintColor: C.tabIconDefault,
+        headerShown: false,
+        tabBarStyle: {
+          position: "absolute",
+          backgroundColor: isIOS ? "transparent" : "#fff",
+          borderTopWidth: isWeb ? 1 : 0,
+          borderTopColor: C.border,
+          elevation: 0,
+          height: isWeb ? 84 : undefined,
+        },
+        tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 11 },
+        tabBarBackground: () =>
+          isIOS ? (
+            <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
+          ) : isWeb ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: "#fff" }]} />
+          ) : null,
+      }}
+    >
       <Tabs.Screen
         name="home"
         options={{ title: "홈", tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} /> }}

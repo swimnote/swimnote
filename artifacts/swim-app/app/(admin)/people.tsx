@@ -9,10 +9,10 @@ import {
   ActivityIndicator, Alert, FlatList, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { PageHeader } from "@/components/common/PageHeader";
 
 const C = Colors.light;
 const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
@@ -30,7 +30,6 @@ const MEMBER_STATUS: Record<string, { label: string; color: string; bg: string }
 export default function PeopleScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
-  const insets = useSafeAreaInsets();
 
   const [tab, setTab]       = useState<PeopleTab>("회원");
   const [members, setMembers]   = useState<any[]>([]);
@@ -91,14 +90,15 @@ export default function PeopleScreen() {
   })();
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Text style={s.headerTitle}>사람</Text>
-        {approvals.length > 0 && (
-          <View style={s.badge}><Text style={s.badgeTxt}>{approvals.length}</Text></View>
-        )}
-      </View>
+    <View style={s.root}>
+      <PageHeader
+        title="사람"
+        rightSlot={
+          approvals.length > 0 ? (
+            <View style={s.badge}><Text style={s.badgeTxt}>{approvals.length}</Text></View>
+          ) : undefined
+        }
+      />
 
       {/* 탭 칩 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}

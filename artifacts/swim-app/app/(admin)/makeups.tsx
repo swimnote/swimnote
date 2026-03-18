@@ -7,12 +7,12 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
+  ActivityIndicator, Alert, FlatList, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { ModalSheet } from "@/components/common/ModalSheet";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useBrand } from "@/context/BrandContext";
 
@@ -32,7 +32,6 @@ const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = 
 export default function MakeupsScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
-  const insets = useSafeAreaInsets();
 
   const [tab, setTab]           = useState<MkTab>("결석자 리스트");
   const [makeups, setMakeups]   = useState<any[]>([]);
@@ -161,58 +160,44 @@ export default function MakeupsScreen() {
         />
       )}
 
-      {/* 반 배정 모달 (담당선생님 스케줄) */}
-      <Modal visible={!!assignModal} animationType="slide" presentationStyle="pageSheet">
-        <View style={[s.modal, { paddingTop: insets.top }]}>
-          <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>{assignModal?.mk?.student_name} 보강반 배정</Text>
-            <Pressable onPress={() => setAssignModal(null)}><Feather name="x" size={22} color={C.text} /></Pressable>
-          </View>
-          <Text style={s.modalSub}>정원 여유 있는 반만 표시됩니다. 레벨 판단은 선생님 몫입니다.</Text>
-          {classLoading ? (
-            <ActivityIndicator style={{ marginTop: 40 }} color={themeColor} />
-          ) : eligibleClasses.length === 0 ? (
-            <View style={s.empty}><Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text></View>
-          ) : (
-            <FlatList
-              data={eligibleClasses}
-              keyExtractor={item => item.id}
-              contentContainerStyle={{ padding: 16, gap: 8 }}
-              renderItem={({ item }) => (
-                <Pressable style={[s.classCard, { borderColor: themeColor }]}
-                  onPress={() => handleAssign(assignModal!.mk, item)}>
-                  <Text style={s.className}>{item.name}</Text>
-                  <Text style={s.classSub}>{item.schedule_days} {item.schedule_time}</Text>
-                  <Text style={s.classSub}>담당: {item.instructor || "미정"}  정원 여유: {item.available_slots === 999 ? "제한없음" : `${item.available_slots}명`}</Text>
-                </Pressable>
-              )}
-            />
-          )}
-        </View>
-      </Modal>
+      {/* 반 배정 모달 */}
+      <ModalSheet
+        visible={!!assignModal}
+        onClose={() => setAssignModal(null)}
+        title={`${assignModal?.mk?.student_name || ""} 보강반 배정`}
+      >
+        <Text style={s.modalSub}>정원 여유 있는 반만 표시됩니다. 레벨 판단은 선생님 몫입니다.</Text>
+        {classLoading ? (
+          <ActivityIndicator style={{ marginTop: 20 }} color={themeColor} />
+        ) : eligibleClasses.length === 0 ? (
+          <View style={s.empty}><Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text></View>
+        ) : (
+          eligibleClasses.map(item => (
+            <Pressable key={item.id} style={[s.classCard, { borderColor: themeColor }]}
+              onPress={() => handleAssign(assignModal!.mk, item)}>
+              <Text style={s.className}>{item.name}</Text>
+              <Text style={s.classSub}>{item.schedule_days} {item.schedule_time}</Text>
+              <Text style={s.classSub}>담당: {item.instructor || "미정"}  정원 여유: {item.available_slots === 999 ? "제한없음" : `${item.available_slots}명`}</Text>
+            </Pressable>
+          ))
+        )}
+      </ModalSheet>
 
       {/* 다른선생님 이동 모달 */}
-      <Modal visible={!!transferModal} animationType="slide" presentationStyle="pageSheet">
-        <View style={[s.modal, { paddingTop: insets.top }]}>
-          <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>{transferModal?.mk?.student_name} 다른선생님 이동</Text>
-            <Pressable onPress={() => setTransferModal(null)}><Feather name="x" size={22} color={C.text} /></Pressable>
-          </View>
-          <Text style={s.modalSub}>이동하면 해당 선생님의 보강 리스트에 추가됩니다.</Text>
-          <FlatList
-            data={teachers.filter(t => t.id !== transferModal?.mk?.original_teacher_id)}
-            keyExtractor={item => item.id}
-            contentContainerStyle={{ padding: 16, gap: 8 }}
-            renderItem={({ item }) => (
-              <Pressable style={[s.classCard, { borderColor: "#6B7280" }]}
-                onPress={() => handleTransfer(transferModal!.mk, item)}>
-                <Text style={s.className}>{item.name}</Text>
-                <Text style={s.classSub}>담당반: {item.class_count}개  회원: {item.student_count}명</Text>
-              </Pressable>
-            )}
-          />
-        </View>
-      </Modal>
+      <ModalSheet
+        visible={!!transferModal}
+        onClose={() => setTransferModal(null)}
+        title={`${transferModal?.mk?.student_name || ""} 다른선생님 이동`}
+      >
+        <Text style={s.modalSub}>이동하면 해당 선생님의 보강 리스트에 추가됩니다.</Text>
+        {teachers.filter(t => t.id !== transferModal?.mk?.original_teacher_id).map(item => (
+          <Pressable key={item.id} style={[s.classCard, { borderColor: "#6B7280" }]}
+            onPress={() => handleTransfer(transferModal!.mk, item)}>
+            <Text style={s.className}>{item.name}</Text>
+            <Text style={s.classSub}>담당반: {item.class_count}개  회원: {item.student_count}명</Text>
+          </Pressable>
+        ))}
+      </ModalSheet>
     </View>
   );
 }

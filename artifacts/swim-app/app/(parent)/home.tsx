@@ -2,13 +2,14 @@ import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, BackHandler, Modal, Platform, Pressable, RefreshControl,
+  ActivityIndicator, BackHandler, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import { ModalSheet } from "@/components/common/ModalSheet";
 
 const C = Colors.light;
 
@@ -114,37 +115,28 @@ function FeedCard({ item }: { item: FeedItem }) {
 function ChildSelectorModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { students, selectedStudent, setSelectedStudentId } = useParent();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={s.modalOverlay} onPress={onClose}>
-        <Pressable style={[s.selectorSheet, { backgroundColor: C.card }]} onPress={() => {}}>
-          <View style={s.sheetHandle} />
-          <Text style={[s.sheetTitle, { color: C.text }]}>자녀 선택</Text>
-          {students.map(student => (
-            <Pressable
-              key={student.id}
-              style={[s.sheetItem, selectedStudent?.id === student.id && { backgroundColor: C.tintLight }]}
-              onPress={() => { setSelectedStudentId(student.id); onClose(); }}
-            >
-              <View style={[s.sheetAvatar, { backgroundColor: C.tintLight }]}>
-                <Text style={[s.sheetAvatarText, { color: C.tint }]}>{student.name[0]}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.sheetItemName, { color: C.text }]}>{student.name}</Text>
-                {student.class_group?.name ? (
-                  <Text style={[s.sheetItemSub, { color: C.textMuted }]}>{student.class_group.name}</Text>
-                ) : null}
-              </View>
-              {selectedStudent?.id === student.id && (
-                <Feather name="check" size={18} color={C.tint} />
-              )}
-            </Pressable>
-          ))}
-          <Pressable onPress={onClose} style={[s.sheetClose, { backgroundColor: C.border }]}>
-            <Text style={[s.sheetCloseTxt, { color: C.textSecondary }]}>닫기</Text>
-          </Pressable>
+    <ModalSheet visible={visible} onClose={onClose} title="자녀 선택">
+      {students.map(student => (
+        <Pressable
+          key={student.id}
+          style={[s.sheetItem, selectedStudent?.id === student.id && { backgroundColor: C.tintLight }]}
+          onPress={() => { setSelectedStudentId(student.id); onClose(); }}
+        >
+          <View style={[s.sheetAvatar, { backgroundColor: C.tintLight }]}>
+            <Text style={[s.sheetAvatarText, { color: C.tint }]}>{student.name[0]}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.sheetItemName, { color: C.text }]}>{student.name}</Text>
+            {student.class_group?.name ? (
+              <Text style={[s.sheetItemSub, { color: C.textMuted }]}>{student.class_group.name}</Text>
+            ) : null}
+          </View>
+          {selectedStudent?.id === student.id && (
+            <Feather name="check" size={18} color={C.tint} />
+          )}
         </Pressable>
-      </Pressable>
-    </Modal>
+      ))}
+    </ModalSheet>
   );
 }
 

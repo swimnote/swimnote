@@ -15,8 +15,15 @@ The administrator application features a 6-tab structure (Dashboard, People, Cla
 
 **UI 통일 공통 컴포넌트**:
 - `components/common/SubScreenHeader.tsx`: 하위 화면 공통 헤더 — back 버튼 + 중앙 타이틀 + subtitle prop + home 버튼(showHome=true) 또는 rightSlot 커스텀 영역. `onBack` prop으로 커스텀 뒤로가기 처리 가능. 자체적으로 safe area insets 처리.
+- `components/common/PageHeader.tsx`: 탭 화면 최상단 헤더 — 큰 제목 + subtitle + action 버튼 또는 rightSlot. 자체 safe area insets 처리.
 - `components/common/ModalSheet.tsx`: 공통 바텀 시트 — 75% 높이, PanResponder 스와이프 닫기, X 버튼, ScrollView 내장, KeyboardAvoidingView 지원.
 - **적용 완료 범위**: admin 하위 화면 전체 (20개+), parent 하위 화면 8개, teacher/student-detail, super/storage-policy, admin/community(PoolHeader left prop 추가). Alert.alert 금지 규칙 유지.
+
+**화면 구조 통일 (2025-03 UI Unification)**:
+- **탭바 통일**: 슈퍼관리자/관리자/선생님/학부모 4개 모드 모두 `position: "absolute"` + iOS BlurView + 탭바 배경 통일.
+- **선생님 레이아웃**: `headerShown: false` 적용, 네이티브 헤더 제거. 선생님 탭 화면 전체 `edges={[]}` (PoolHeader가 safe area 처리). messenger는 `paddingTop: insets.top` 커스텀 헤더 패턴. settings에 로그아웃 버튼 추가.
+- **관리자 탭 헤더 통일**: `(admin)/more.tsx`, `(admin)/people.tsx`, `(admin)/communication.tsx` → PageHeader 적용.
+- **팝업 공통화**: admin branches/makeups/communication, super subscriptions/users, parent home의 form-type Modal → ModalSheet로 교체. 확인 dialog(삭제·승인 등)는 기존 Modal 유지.
 
 **Shared Admin Components**:
 - `AdminWeekBoard.tsx`: 주간 시간표 보드 (셀 클릭 → 탐색)

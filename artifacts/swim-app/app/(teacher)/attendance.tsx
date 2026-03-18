@@ -323,7 +323,7 @@ export default function TeacherAttendanceScreen() {
   /* ════════════════════ 로딩 ════════════════════ */
   if (loading) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
@@ -337,7 +337,7 @@ export default function TeacherAttendanceScreen() {
     const total = groupStudents.length;
 
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <View style={s.subHeader}>
           <Pressable style={s.backBtn} onPress={() => { setSelectedGroup(null); setSaveMsg(""); }}>
@@ -425,7 +425,7 @@ export default function TeacherAttendanceScreen() {
 
   /* ════════════════════ 메인 뷰 ════════════════════ */
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
+    <SafeAreaView style={s.safe} edges={[]}>
       <PoolHeader />
 
       {/* 탭 스위처 */}

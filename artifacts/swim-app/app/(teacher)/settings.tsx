@@ -54,7 +54,7 @@ const DAY_COLORS: Record<string, string> = {
 };
 
 export default function TeacherSettingsScreen() {
-  const { token, user } = useAuth();
+  const { token, user, logout } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
@@ -163,7 +163,7 @@ export default function TeacherSettingsScreen() {
     const labels: Record<string, string> = { active: "정상회원", suspended: "연기회원", withdrawn: "탈퇴회원" };
     const colors: Record<string, string> = { active: "#059669", suspended: "#F59E0B", withdrawn: "#DC2626" };
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <View style={s.subHeader}>
           <Pressable style={s.backBtn} onPress={() => setMemberView(null)}>
@@ -209,7 +209,7 @@ export default function TeacherSettingsScreen() {
   /* ════════ 메인 화면 ════════ */
   if (loading) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
@@ -220,7 +220,7 @@ export default function TeacherSettingsScreen() {
   const maxDay = Math.max(...dayStats.map(d => d.count), 1);
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
+    <SafeAreaView style={s.safe} edges={[]}>
       <PoolHeader />
 
       <ScrollView
@@ -348,12 +348,22 @@ export default function TeacherSettingsScreen() {
           </Pressable>
         )}
 
+        {/* ── 로그아웃 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" }]}
+          onPress={async () => { await logout(); router.replace("/"); }}
+        >
+          <Feather name="log-out" size={18} color="#6B7280" />
+          <Text style={[s.actionBtnText, { color: "#6B7280" }]}>로그아웃</Text>
+          <Feather name="chevron-right" size={16} color="#9CA3AF" />
+        </Pressable>
+
         {/* ── 탈퇴 요청 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]}
           onPress={() => { setResignReason(""); setResignMsg(""); setResignVisible(true); }}
         >
-          <Feather name="log-out" size={18} color="#EF4444" />
+          <Feather name="user-x" size={18} color="#EF4444" />
           <Text style={[s.actionBtnText, { color: "#EF4444" }]}>선생님 권한 탈퇴 요청</Text>
           <Feather name="chevron-right" size={16} color="#EF4444" />
         </Pressable>

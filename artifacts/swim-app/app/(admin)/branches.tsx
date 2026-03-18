@@ -2,13 +2,14 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Animated, Modal, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ModalSheet } from "@/components/common/ModalSheet";
 
 interface Branch {
   id: string;
@@ -263,46 +264,37 @@ export default function BranchesScreen() {
       )}
 
       {/* 등록/수정 모달 */}
-      <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
-        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={[styles.sheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.handle} />
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: C.text }]}>
-                {editTarget ? "지점 수정" : "지점 추가"}
-              </Text>
-              <Pressable onPress={() => setShowModal(false)}>
-                <Feather name="x" size={22} color={C.textSecondary} />
-              </Pressable>
-            </View>
-            {formError ? <Text style={[styles.errorText, { color: C.error }]}>{formError}</Text> : null}
-            {[
-              { key: "name", label: "지점명 *", placeholder: "예: 화정점" },
-              { key: "address", label: "주소", placeholder: "경기도 고양시..." },
-              { key: "phone", label: "전화번호", placeholder: "031-000-0000" },
-              { key: "memo", label: "메모", placeholder: "특이사항" },
-            ].map(({ key, label, placeholder }) => (
-              <View key={key} style={styles.field}>
-                <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>{label}</Text>
-                <TextInput
-                  style={[styles.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
-                  value={form[key as keyof typeof form]}
-                  onChangeText={v => setForm(f => ({ ...f, [key]: v }))}
-                  placeholder={placeholder}
-                  placeholderTextColor={C.textMuted}
-                />
-              </View>
-            ))}
-            <Pressable
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnTxt}>저장하기</Text>}
-            </Pressable>
+      <ModalSheet
+        visible={showModal}
+        onClose={() => setShowModal(false)}
+        title={editTarget ? "지점 수정" : "지점 추가"}
+      >
+        {formError ? <Text style={[styles.errorText, { color: C.error }]}>{formError}</Text> : null}
+        {[
+          { key: "name", label: "지점명 *", placeholder: "예: 화정점" },
+          { key: "address", label: "주소", placeholder: "경기도 고양시..." },
+          { key: "phone", label: "전화번호", placeholder: "031-000-0000" },
+          { key: "memo", label: "메모", placeholder: "특이사항" },
+        ].map(({ key, label, placeholder }) => (
+          <View key={key} style={styles.field}>
+            <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>{label}</Text>
+            <TextInput
+              style={[styles.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
+              value={form[key as keyof typeof form]}
+              onChangeText={v => setForm(f => ({ ...f, [key]: v }))}
+              placeholder={placeholder}
+              placeholderTextColor={C.textMuted}
+            />
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        ))}
+        <Pressable
+          style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+          onPress={handleSave}
+          disabled={saving}
+        >
+          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnTxt}>저장하기</Text>}
+        </Pressable>
+      </ModalSheet>
 
       {/* 지점 상세 모달 */}
       <Modal visible={!!detailTarget} animationType="fade" transparent onRequestClose={() => setDetailTarget(null)}>

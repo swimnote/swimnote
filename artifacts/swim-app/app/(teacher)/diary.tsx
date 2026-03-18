@@ -362,7 +362,7 @@ export default function TeacherDiaryScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
@@ -375,7 +375,7 @@ export default function TeacherDiaryScreen() {
     const myDiaryExists = diarySet.has(group.id);
 
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
 
         {/* 헤더 */}
@@ -696,7 +696,7 @@ export default function TeacherDiaryScreen() {
 
   // ── 메인 시간표 뷰 ──────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
+    <SafeAreaView style={s.safe} edges={[]}>
       <PoolHeader />
       <View style={s.titleRow}>
         <Text style={[s.title, { color: C.text }]}>수업 일지</Text>

@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PoolHeader } from "@/components/PoolHeader";
+import { PageHeader } from "@/components/common/PageHeader";
 
 const C = Colors.light;
 const TABS = ["설정 메뉴", "활동 로그"] as const;
@@ -113,7 +113,7 @@ export default function MoreScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <PoolHeader />
+      <PageHeader title="더보기" />
 
       {/* 탭바 */}
       <View style={s.tabBar}>

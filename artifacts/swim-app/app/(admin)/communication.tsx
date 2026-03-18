@@ -10,10 +10,11 @@ import {
   ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { PageHeader } from "@/components/common/PageHeader";
+import { ModalSheet } from "@/components/common/ModalSheet";
 
 const C = Colors.light;
 const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
@@ -28,7 +29,6 @@ interface Notice {
 export default function CommunicationScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
-  const insets = useSafeAreaInsets();
 
   const [tab, setTab]           = useState<CommTab>("공지사항");
   const [notices, setNotices]   = useState<Notice[]>([]);
@@ -108,17 +108,16 @@ export default function CommunicationScreen() {
   const listData = tab === "공지사항" ? notices : tab === "학부모 요청" ? requests : diaries;
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* 헤더 */}
-      <View style={s.header}>
-        <Text style={s.headerTitle}>커뮤니케이션</Text>
-        {tab === "공지사항" && (
-          <Pressable style={[s.createBtn, { backgroundColor: themeColor }]} onPress={() => setShowCreate(true)}>
-            <Feather name="plus" size={16} color="#fff" />
-            <Text style={s.createBtnTxt}>공지 작성</Text>
-          </Pressable>
-        )}
-      </View>
+    <View style={s.root}>
+      <PageHeader
+        title="커뮤니케이션"
+        action={tab === "공지사항" ? {
+          icon: "plus",
+          label: "공지 작성",
+          onPress: () => setShowCreate(true),
+          color: themeColor,
+        } : undefined}
+      />
 
       {/* 탭 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}
@@ -198,42 +197,33 @@ export default function CommunicationScreen() {
       )}
 
       {/* 공지 작성 모달 */}
-      <Modal visible={showCreate} animationType="slide" presentationStyle="pageSheet">
-        <View style={[s.modal, { paddingTop: insets.top }]}>
-          <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>공지 작성</Text>
-            <Pressable onPress={() => setShowCreate(false)}><Feather name="x" size={22} color={C.text} /></Pressable>
+      <ModalSheet visible={showCreate} onClose={() => setShowCreate(false)} title="공지 작성">
+        <View>
+          <Text style={s.fieldLabel}>공지 유형</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {(["all", "class", "individual"] as const).map(t => (
+              <Pressable key={t} style={[s.typeChip, newType === t && { backgroundColor: themeColor, borderColor: themeColor }]}
+                onPress={() => setNewType(t)}>
+                <Text style={[s.typeChipTxt, newType === t && { color: "#fff" }]}>
+                  {t === "all" ? "전체" : t === "class" ? "반별" : "개별"}
+                </Text>
+              </Pressable>
+            ))}
           </View>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14 }}>
-            {/* 유형 선택 */}
-            <View>
-              <Text style={s.fieldLabel}>공지 유형</Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                {(["all", "class", "individual"] as const).map(t => (
-                  <Pressable key={t} style={[s.typeChip, newType === t && { backgroundColor: themeColor, borderColor: themeColor }]}
-                    onPress={() => setNewType(t)}>
-                    <Text style={[s.typeChipTxt, newType === t && { color: "#fff" }]}>
-                      {t === "all" ? "전체" : t === "class" ? "반별" : "개별"}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-            <View>
-              <Text style={s.fieldLabel}>제목 *</Text>
-              <TextInput style={s.input} value={newTitle} onChangeText={setNewTitle} placeholder="제목을 입력하세요" placeholderTextColor={C.textSecondary} />
-            </View>
-            <View>
-              <Text style={s.fieldLabel}>내용</Text>
-              <TextInput style={[s.input, { height: 120, textAlignVertical: "top" }]} value={newContent} onChangeText={setNewContent}
-                placeholder="내용을 입력하세요" placeholderTextColor={C.textSecondary} multiline />
-            </View>
-            <Pressable style={[s.submitBtn, { backgroundColor: themeColor }]} onPress={createNotice} disabled={creating}>
-              <Text style={s.submitBtnTxt}>{creating ? "등록 중..." : "공지 등록"}</Text>
-            </Pressable>
-          </ScrollView>
         </View>
-      </Modal>
+        <View>
+          <Text style={s.fieldLabel}>제목 *</Text>
+          <TextInput style={s.input} value={newTitle} onChangeText={setNewTitle} placeholder="제목을 입력하세요" placeholderTextColor={C.textSecondary} />
+        </View>
+        <View>
+          <Text style={s.fieldLabel}>내용</Text>
+          <TextInput style={[s.input, { height: 120, textAlignVertical: "top" }]} value={newContent} onChangeText={setNewContent}
+            placeholder="내용을 입력하세요" placeholderTextColor={C.textSecondary} multiline />
+        </View>
+        <Pressable style={[s.submitBtn, { backgroundColor: themeColor }]} onPress={createNotice} disabled={creating}>
+          <Text style={s.submitBtnTxt}>{creating ? "등록 중..." : "공지 등록"}</Text>
+        </Pressable>
+      </ModalSheet>
 
       {/* 공지 삭제 확인 모달 */}
       <Modal visible={!!deleteTarget} transparent animationType="fade">

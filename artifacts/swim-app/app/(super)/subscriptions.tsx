@@ -1,12 +1,13 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView,
+  ActivityIndicator, FlatList, Platform, Pressable, ScrollView,
   StyleSheet, Switch, Text, TextInput, View, RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { ModalSheet } from "@/components/common/ModalSheet";
 
 interface Pool {
   id: string; name: string; owner_name: string; approval_status: string;
@@ -150,58 +151,52 @@ export default function SubscriptionsScreen() {
         />
       )}
 
-      <Modal visible={!!editModal} animationType="slide" transparent onRequestClose={() => setEditModal(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.modalHandle} />
-            <Text style={[styles.modalTitle, { color: C.text }]}>구독 상태 변경</Text>
-            <Text style={[styles.modalSub, { color: C.textSecondary }]}>{editModal?.name}</Text>
+      <ModalSheet visible={!!editModal} onClose={() => setEditModal(null)} title="구독 상태 변경">
+        <Text style={[styles.modalSub, { color: C.textSecondary }]}>{editModal?.name}</Text>
 
-            <Text style={[styles.label, { color: C.textSecondary }]}>구독 상태</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {SUB_OPTIONS.map((s) => {
-                const sc = SUB_CONFIG[s];
-                return (
-                  <Pressable
-                    key={s}
-                    style={[styles.statusOption, { backgroundColor: newStatus === s ? sc.bg : C.background, borderColor: newStatus === s ? sc.color : C.border }]}
-                    onPress={() => setNewStatus(s)}
-                  >
-                    <Feather name={sc.icon} size={14} color={newStatus === s ? sc.color : C.textMuted} />
-                    <Text style={[styles.statusOptionText, { color: newStatus === s ? sc.color : C.textSecondary }]}>{sc.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {[
-              { key: "start", label: "구독 시작일", value: startDate, onChange: setStartDate, placeholder: "2024-01-01" },
-              { key: "end", label: "구독 만료일", value: endDate, onChange: setEndDate, placeholder: "2024-12-31" },
-              { key: "note", label: "메모", value: note, onChange: setNote, placeholder: "처리 사유 등" },
-            ].map(({ key, label, value, onChange, placeholder }) => (
-              <View key={key} style={styles.field}>
-                <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
-                <TextInput
-                  style={[styles.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
-                  value={value}
-                  onChangeText={onChange}
-                  placeholder={placeholder}
-                  placeholderTextColor={C.textMuted}
-                />
-              </View>
-            ))}
-
-            <View style={styles.modalBtns}>
-              <Pressable style={[styles.cancelBtn, { borderColor: C.border }]} onPress={() => setEditModal(null)}>
-                <Text style={[styles.cancelText, { color: C.textSecondary }]}>취소</Text>
+        <Text style={[styles.label, { color: C.textSecondary }]}>구독 상태</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {SUB_OPTIONS.map((s) => {
+            const sc = SUB_CONFIG[s];
+            return (
+              <Pressable
+                key={s}
+                style={[styles.statusOption, { backgroundColor: newStatus === s ? sc.bg : C.background, borderColor: newStatus === s ? sc.color : C.border }]}
+                onPress={() => setNewStatus(s)}
+              >
+                <Feather name={sc.icon} size={14} color={newStatus === s ? sc.color : C.textMuted} />
+                <Text style={[styles.statusOptionText, { color: newStatus === s ? sc.color : C.textSecondary }]}>{sc.label}</Text>
               </Pressable>
-              <Pressable style={[styles.saveBtn, { backgroundColor: "#7C3AED" }]} onPress={handleSave} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>저장</Text>}
-              </Pressable>
-            </View>
+            );
+          })}
+        </ScrollView>
+
+        {[
+          { key: "start", label: "구독 시작일", value: startDate, onChange: setStartDate, placeholder: "2024-01-01" },
+          { key: "end", label: "구독 만료일", value: endDate, onChange: setEndDate, placeholder: "2024-12-31" },
+          { key: "note", label: "메모", value: note, onChange: setNote, placeholder: "처리 사유 등" },
+        ].map(({ key, label, value, onChange, placeholder }) => (
+          <View key={key} style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
+            <TextInput
+              style={[styles.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
+              value={value}
+              onChangeText={onChange}
+              placeholder={placeholder}
+              placeholderTextColor={C.textMuted}
+            />
           </View>
+        ))}
+
+        <View style={styles.modalBtns}>
+          <Pressable style={[styles.cancelBtn, { borderColor: C.border }]} onPress={() => setEditModal(null)}>
+            <Text style={[styles.cancelText, { color: C.textSecondary }]}>취소</Text>
+          </Pressable>
+          <Pressable style={[styles.saveBtn, { backgroundColor: "#7C3AED" }]} onPress={handleSave} disabled={saving}>
+            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>저장</Text>}
+          </Pressable>
         </View>
-      </Modal>
+      </ModalSheet>
     </View>
   );
 }

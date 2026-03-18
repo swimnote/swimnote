@@ -1,12 +1,13 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform,
+  ActivityIndicator, FlatList, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View, RefreshControl, Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { ModalSheet } from "@/components/common/ModalSheet";
 
 type Permissions = {
   canViewPools: boolean;
@@ -245,74 +246,53 @@ export default function UsersScreen() {
       )}
 
       {/* 생성 모달 */}
-      <Modal visible={showCreate} animationType="slide" transparent onRequestClose={() => setShowCreate(false)}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={[styles.modalSheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.modalHandle} />
-              <Text style={[styles.modalTitle, { color: C.text }]}>플랫폼 관리자 계정 생성</Text>
-              <Text style={[styles.modalSubtitle, { color: C.textSecondary }]}>역할: 플랫폼관리자 · 초기 권한을 설정해주세요</Text>
-              {error ? <Text style={[styles.errorText, { color: C.error }]}>{error}</Text> : null}
-
-              {[
-                { key: "name", label: "이름 *", placeholder: "이름" },
-                { key: "email", label: "이메일 *", placeholder: "이메일" },
-                { key: "password", label: "비밀번호 *", placeholder: "6자 이상", secure: true },
-                { key: "phone", label: "연락처", placeholder: "010-0000-0000" },
-              ].map(({ key, label, placeholder, secure }) => (
-                <View key={key} style={[styles.field, { marginTop: 10 }]}>
-                  <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
-                  <TextInput
-                    style={[styles.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
-                    value={form[key as keyof typeof form]}
-                    onChangeText={(v) => setForm(f => ({ ...f, [key]: v }))}
-                    placeholder={placeholder}
-                    placeholderTextColor={C.textMuted}
-                    secureTextEntry={!!secure}
-                    autoCapitalize="none"
-                  />
-                </View>
-              ))}
-
-              <View style={[styles.permSection, { borderColor: C.border }]}>
-                <Text style={[styles.permSectionTitle, { color: C.text }]}>초기 권한 설정</Text>
-                <PermToggle perms={formPerms} setPerms={setFormPerms} />
-              </View>
-
-              <Pressable style={({ pressed }) => [styles.saveBtn, { backgroundColor: "#7C3AED", opacity: pressed ? 0.85 : 1, marginTop: 16 }]} onPress={handleCreate} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>계정 생성하기</Text>}
-              </Pressable>
-            </ScrollView>
+      <ModalSheet visible={showCreate} onClose={() => setShowCreate(false)} title="플랫폼 관리자 계정 생성">
+        <Text style={[styles.modalSubtitle, { color: C.textSecondary }]}>역할: 플랫폼관리자 · 초기 권한을 설정해주세요</Text>
+        {error ? <Text style={[styles.errorText, { color: C.error }]}>{error}</Text> : null}
+        {[
+          { key: "name", label: "이름 *", placeholder: "이름" },
+          { key: "email", label: "이메일 *", placeholder: "이메일" },
+          { key: "password", label: "비밀번호 *", placeholder: "6자 이상", secure: true },
+          { key: "phone", label: "연락처", placeholder: "010-0000-0000" },
+        ].map(({ key, label, placeholder, secure }) => (
+          <View key={key} style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
+            <TextInput
+              style={[styles.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
+              value={form[key as keyof typeof form]}
+              onChangeText={(v) => setForm(f => ({ ...f, [key]: v }))}
+              placeholder={placeholder}
+              placeholderTextColor={C.textMuted}
+              secureTextEntry={!!secure}
+              autoCapitalize="none"
+            />
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        ))}
+        <View style={[styles.permSection, { borderColor: C.border }]}>
+          <Text style={[styles.permSectionTitle, { color: C.text }]}>초기 권한 설정</Text>
+          <PermToggle perms={formPerms} setPerms={setFormPerms} />
+        </View>
+        <Pressable style={({ pressed }) => [styles.saveBtn, { backgroundColor: "#7C3AED", opacity: pressed ? 0.85 : 1 }]} onPress={handleCreate} disabled={saving}>
+          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>계정 생성하기</Text>}
+        </Pressable>
+      </ModalSheet>
 
       {/* 권한 편집 모달 */}
-      <Modal visible={!!editTarget} animationType="slide" transparent onRequestClose={() => setEditTarget(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: C.card, paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.modalHandle} />
-            <Text style={[styles.modalTitle, { color: C.text }]}>권한 편집</Text>
-            {editTarget && (
-              <Text style={[styles.modalSubtitle, { color: C.textSecondary }]}>{editTarget.name} ({editTarget.email})</Text>
-            )}
-            {editError ? <Text style={[styles.errorText, { color: C.error }]}>{editError}</Text> : null}
-
-            <View style={{ marginTop: 12 }}>
-              <PermToggle perms={editPerms} setPerms={setEditPerms} />
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 20 }}>
-              <Pressable style={({ pressed }) => [styles.cancelBtn, { borderColor: C.border, opacity: pressed ? 0.7 : 1 }]} onPress={() => setEditTarget(null)}>
-                <Text style={[styles.cancelBtnText, { color: C.textSecondary }]}>취소</Text>
-              </Pressable>
-              <Pressable style={({ pressed }) => [styles.saveBtn, { flex: 1, backgroundColor: "#3B82F6", opacity: pressed ? 0.85 : 1 }]} onPress={handleSavePermissions} disabled={editSaving}>
-                {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>저장</Text>}
-              </Pressable>
-            </View>
-          </View>
+      <ModalSheet visible={!!editTarget} onClose={() => setEditTarget(null)} title="권한 편집">
+        {editTarget && (
+          <Text style={[styles.modalSubtitle, { color: C.textSecondary }]}>{editTarget.name} ({editTarget.email})</Text>
+        )}
+        {editError ? <Text style={[styles.errorText, { color: C.error }]}>{editError}</Text> : null}
+        <PermToggle perms={editPerms} setPerms={setEditPerms} />
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+          <Pressable style={({ pressed }) => [styles.cancelBtn, { borderColor: C.border, opacity: pressed ? 0.7 : 1 }]} onPress={() => setEditTarget(null)}>
+            <Text style={[styles.cancelBtnText, { color: C.textSecondary }]}>취소</Text>
+          </Pressable>
+          <Pressable style={({ pressed }) => [styles.saveBtn, { flex: 1, backgroundColor: "#3B82F6", opacity: pressed ? 0.85 : 1 }]} onPress={handleSavePermissions} disabled={editSaving}>
+            {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>저장</Text>}
+          </Pressable>
         </View>
-      </Modal>
+      </ModalSheet>
     </View>
   );
 }

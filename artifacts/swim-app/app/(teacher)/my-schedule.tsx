@@ -715,7 +715,7 @@ export default function MyScheduleScreen() {
   // ─ 로딩 ─
   if (loading) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
@@ -729,7 +729,7 @@ export default function MyScheduleScreen() {
     const diarDone = diarySet.has(g.id);
 
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <View style={s.subHeader}>
           <Pressable style={s.backBtn} onPress={() => setSelectedGroup(null)}>
@@ -817,7 +817,7 @@ export default function MyScheduleScreen() {
 
   // ─ 메인 뷰 ─
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
+    <SafeAreaView style={s.safe} edges={[]}>
       <PoolHeader />
 
       {/* 타이틀 + 뷰 토글 + 선택/삭제 버튼 */}

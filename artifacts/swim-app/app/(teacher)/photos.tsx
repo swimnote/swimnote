@@ -167,7 +167,7 @@ export default function TeacherPhotosScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
@@ -177,7 +177,7 @@ export default function TeacherPhotosScreen() {
   // ── 홈: 4버튼 그리드 + 사용량 ────────────────────────────────────────
   if (step === "home") {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={s.titleRow}><Text style={s.title}>사진 & 영상</Text></View>
@@ -236,7 +236,7 @@ export default function TeacherPhotosScreen() {
   // ── 시간표 단계 ──────────────────────────────────────────────
   if (step === "schedule") {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <View style={s.subHeader}>
           <Pressable style={s.backBtn} onPress={() => setStep("home")}>
@@ -267,7 +267,7 @@ export default function TeacherPhotosScreen() {
   // ── 학생 선택 단계 (개인 앨범) ──────────────────────────────
   if (step === "student") {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <View style={s.subHeader}>
           <Pressable style={s.backBtn} onPress={() => setStep("schedule")}>
@@ -300,7 +300,7 @@ export default function TeacherPhotosScreen() {
 
   // ── 업로드 단계 ──────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
+    <SafeAreaView style={s.safe} edges={[]}>
       <PoolHeader />
       <View style={s.subHeader}>
         <Pressable style={s.backBtn} onPress={() => setStep(scope === "private" ? "student" : "schedule")}>
