@@ -6,8 +6,8 @@ import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Image, KeyboardAvoidingView,
-  Modal, Platform, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, FlatList, Image,
+  Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -176,12 +176,13 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
       const r = await apiRequest(token, `/messenger/messages?pool_id=${poolId}&filter=${filter}${cursorParam}`);
       if (r.ok) {
         const data = await r.json();
-        const incoming: Message[] = (data.messages || []).slice().reverse();
+        // inverted FlatList: newest first (index 0 = bottom), oldest last (visual top)
+        const incoming: Message[] = data.messages || [];
         if (reset) {
           setMessages(incoming);
-          setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 50);
         } else {
-          setMessages(prev => [...incoming, ...prev]);
+          // older messages go to the END (visual top in inverted list)
+          setMessages(prev => [...prev, ...incoming]);
         }
         setHasMore(data.hasMore || false);
         setNextCursor(data.nextCursor || null);
@@ -245,10 +246,10 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
       });
       if (r.ok) {
         const data = await r.json();
-        setMessages(prev => [...prev, data.message]);
+        // inverted list: newest at index 0 (bottom)
+        setMessages(prev => [data.message, ...prev]);
         setText("");
         setTargetUser(null);
-        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
       }
     } finally {
       setSending(false);
@@ -301,12 +302,12 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
       });
       if (r.ok) {
         const data = await r.json();
-        setMessages(prev => [...prev, data.message]);
+        // inverted list: newest at index 0 (bottom)
+        setMessages(prev => [data.message, ...prev]);
         setPhotoFile(null);
         setText("");
         setTargetUser(null);
         setShowSendMode("text");
-        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
       }
     } finally {
       setSending(false);
@@ -453,10 +454,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
   const canSend = showSendMode === "photo" ? !!photoFile : text.trim().length > 0;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={styles.container}>
       {/* ── 필터 탭 ── */}
       <View style={styles.filterBar}>
         {FILTER_LABELS.map(f => (
@@ -478,7 +476,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
         )}
       </View>
 
-      {/* ── 메시지 목록 ── */}
+      {/* ── 메시지 목록 (카카오톡식 inverted) ── */}
       {loading ? (
         <View style={[styles.center, { flex: 1 }]}>
           <ActivityIndicator color={themeColor} />
@@ -487,17 +485,12 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
         <FlatList
           ref={listRef}
           style={{ flex: 1 }}
+          inverted
           data={messages}
           keyExtractor={item => item.id}
           renderItem={renderMessage}
           contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); loadMessages(true); }}
-              tintColor={themeColor}
-            />
-          }
+          keyboardShouldPersistTaps="handled"
           onEndReached={() => { if (hasMore && !loadingMore) loadMessages(false); }}
           onEndReachedThreshold={0.3}
           ListFooterComponent={loadingMore ? <ActivityIndicator color={themeColor} style={{ margin: 12 }} /> : null}
@@ -554,11 +547,13 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
               style={styles.textInput}
               value={text}
               onChangeText={setText}
-              placeholder="메시지를 입력하세요..."
+              placeholder="메시지를 입력하세요"
               placeholderTextColor={C.textSecondary}
               multiline
               maxLength={1000}
-              returnKeyType="default"
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
             />
 
             {/* 전송 버튼 */}
@@ -717,7 +712,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
           </Pressable>
         </Pressable>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -742,7 +737,7 @@ const styles = StyleSheet.create({
   albumBtn: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 12 },
   albumBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
-  listContent: { padding: 12, gap: 8, flexGrow: 1, justifyContent: "flex-end" },
+  listContent: { padding: 12, gap: 8 },
   emptyWrap: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyText: { color: C.textSecondary, fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
 

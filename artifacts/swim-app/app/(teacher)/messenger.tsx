@@ -2,7 +2,7 @@
  * (teacher)/messenger.tsx — 선생님 업무 메신저
  */
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import MessengerScreen from "@/components/common/MessengerScreen";
@@ -21,13 +21,16 @@ export default function TeacherMessengerTab() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <MessengerScreen
         poolId={pool.id}
         myUserId={adminUser.id}
         myRole="teacher"
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -2,7 +2,7 @@
  * (admin)/messenger.tsx — 관리자 업무 메신저
  */
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -23,7 +23,10 @@ export default function AdminMessengerTab() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { paddingTop: insets.top }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>업무 메신저</Text>
       </View>
@@ -32,7 +35,7 @@ export default function AdminMessengerTab() {
         myUserId={adminUser.id}
         myRole="pool_admin"
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
