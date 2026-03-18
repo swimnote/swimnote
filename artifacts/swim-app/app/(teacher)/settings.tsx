@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { ROLE_CONFIGS } from "@/constants/auth";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { PoolHeader } from "@/components/PoolHeader";
@@ -55,7 +56,7 @@ const DAY_COLORS: Record<string, string> = {
 };
 
 export default function TeacherSettingsScreen() {
-  const { token, user } = useAuth();
+  const { token, adminUser, switchRole } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("settings");
@@ -86,6 +87,22 @@ export default function TeacherSettingsScreen() {
   const [resignReason,  setResignReason]  = useState("");
   const [resignSaving,  setResignSaving]  = useState(false);
   const [resignMsg,     setResignMsg]     = useState("");
+
+  /* ─ 역할 전환 모달 ─ */
+  const [switchModalVisible, setSwitchModalVisible] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const hasMultipleRoles = (adminUser?.roles?.length ?? 0) >= 2;
+
+  async function handleSwitchRole(role: string) {
+    setSwitching(true);
+    try {
+      await switchRole(role);
+      setSwitchModalVisible(false);
+      const cfg = ROLE_CONFIGS[role];
+      if (cfg) router.replace(cfg.route as any);
+    } catch (e) { console.error(e); }
+    finally { setSwitching(false); }
+  }
 
   /* ════════ 로드 ════════ */
   const load = useCallback(async () => {
@@ -218,7 +235,7 @@ export default function TeacherSettingsScreen() {
     );
   }
 
-  const isAdmin = user?.role === "pool_admin" || (profile?.role === "pool_admin");
+  const isAdmin = adminUser?.role === "pool_admin" || (profile?.role === "pool_admin");
   const maxDay = Math.max(...dayStats.map(d => d.count), 1);
 
   return (
@@ -349,15 +366,15 @@ export default function TeacherSettingsScreen() {
           <Feather name="chevron-right" size={16} color="#F97316" />
         </Pressable>
 
-        {/* ── 관리자 모드 전환 ── */}
-        {isAdmin && (
+        {/* ── 역할 전환 (복수 역할 계정만) ── */}
+        {hasMultipleRoles && (
           <Pressable
-            style={[s.actionBtn, { backgroundColor: "#EFF6FF", borderColor: "#3B82F6" }]}
-            onPress={() => router.replace("/org-role-select")}
+            style={[s.actionBtn, { backgroundColor: "#EFF6FF", borderColor: "#6366F1" }]}
+            onPress={() => setSwitchModalVisible(true)}
           >
-            <Feather name="grid" size={18} color="#3B82F6" />
-            <Text style={[s.actionBtnText, { color: "#3B82F6" }]}>관리자 모드로 전환</Text>
-            <Feather name="chevron-right" size={16} color="#3B82F6" />
+            <Feather name="repeat" size={18} color="#6366F1" />
+            <Text style={[s.actionBtnText, { color: "#6366F1" }]}>역할 전환</Text>
+            <Feather name="chevron-right" size={16} color="#6366F1" />
           </Pressable>
         )}
 
@@ -466,9 +483,66 @@ export default function TeacherSettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ════════ 역할 전환 모달 ════════ */}
+      <Modal visible={switchModalVisible} transparent animationType="fade" onRequestClose={() => setSwitchModalVisible(false)}>
+        <Pressable style={sw.overlay} onPress={() => setSwitchModalVisible(false)}>
+          <Pressable style={sw.sheet} onPress={e => e.stopPropagation()}>
+            <Text style={sw.title}>역할 전환</Text>
+            <Text style={sw.sub}>전환할 역할을 선택하세요</Text>
+            {(adminUser?.roles ?? []).map(role => {
+              const cfg = ROLE_CONFIGS[role];
+              if (!cfg) return null;
+              const isActive = adminUser?.role === role;
+              return (
+                <Pressable
+                  key={role}
+                  style={[sw.roleRow, { borderColor: isActive ? cfg.color : C.border, backgroundColor: isActive ? cfg.color + "0A" : "#fff" }]}
+                  onPress={() => !isActive && handleSwitchRole(role)}
+                  disabled={isActive || switching}
+                >
+                  <View style={[sw.roleIcon, { backgroundColor: cfg.bgColor }]}>
+                    <Feather name={cfg.icon as any} size={20} color={cfg.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[sw.roleLabel, { color: isActive ? cfg.color : "#111827" }]}>{cfg.title}</Text>
+                    <Text style={sw.roleSub}>{cfg.subtitle}</Text>
+                  </View>
+                  {isActive
+                    ? <View style={[sw.activeBadge, { backgroundColor: cfg.color + "20" }]}>
+                        <Text style={[sw.activeBadgeText, { color: cfg.color }]}>현재</Text>
+                      </View>
+                    : switching
+                      ? <ActivityIndicator color={cfg.color} size="small" />
+                      : <Feather name="chevron-right" size={16} color={C.textMuted} />
+                  }
+                </Pressable>
+              );
+            })}
+            <Pressable style={sw.closeBtn} onPress={() => setSwitchModalVisible(false)}>
+              <Text style={sw.closeBtnText}>닫기</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const sw = StyleSheet.create({
+  overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
+  sheet:           { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
+  title:           { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
+  sub:             { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 4 },
+  roleRow:         { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 14 },
+  roleIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  roleLabel:       { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  roleSub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  activeBadge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  activeBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  closeBtn:        { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6" },
+  closeBtnText:    { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+});
 
 const s = StyleSheet.create({
   safe:       { flex: 1, backgroundColor: "#F3F4F6" },

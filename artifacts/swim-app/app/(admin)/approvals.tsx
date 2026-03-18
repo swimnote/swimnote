@@ -289,6 +289,93 @@ const lm = StyleSheet.create({
   btnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
 
+// ── 선생님 승인 역할 선택 모달 ──────────────────────────────────
+interface TeacherRoleSelectModalProps {
+  visible: boolean;
+  teacherName: string;
+  selectedRoles: string[];
+  onToggle: (role: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading: boolean;
+}
+function TeacherRoleSelectModal({ visible, teacherName, selectedRoles, onToggle, onConfirm, onCancel, loading }: TeacherRoleSelectModalProps) {
+  const ROLE_OPTIONS = [
+    { key: "teacher",   label: "선생님",  desc: "수업·출결·일지 관리",        color: "#0891B2" },
+    { key: "sub_admin", label: "부관리자", desc: "수영장 운영 보조 관리",       color: "#6366F1" },
+  ];
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable style={rm.overlay} onPress={onCancel}>
+        <Pressable style={rm.sheet} onPress={e => e.stopPropagation()}>
+          <View style={rm.header}>
+            <Feather name="user-check" size={20} color="#059669" />
+            <Text style={rm.title}>승인 및 권한 설정</Text>
+          </View>
+          <Text style={rm.sub}>
+            <Text style={{ fontFamily: "Inter_600SemiBold", color: C.text }}>{teacherName}</Text>
+            {"님에게 부여할 권한을 선택하세요"}
+          </Text>
+          <View style={rm.optionList}>
+            {ROLE_OPTIONS.map(opt => {
+              const checked = selectedRoles.includes(opt.key);
+              return (
+                <Pressable
+                  key={opt.key}
+                  style={[rm.optionRow, checked && { borderColor: opt.color, backgroundColor: opt.color + "0A" }]}
+                  onPress={() => onToggle(opt.key)}
+                >
+                  <View style={[rm.checkbox, checked && { backgroundColor: opt.color, borderColor: opt.color }]}>
+                    {checked && <Feather name="check" size={12} color="#fff" />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[rm.optLabel, { color: checked ? opt.color : C.text }]}>{opt.label}</Text>
+                    <Text style={rm.optDesc}>{opt.desc}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={rm.btnRow}>
+            <Pressable style={[rm.btn, rm.cancelBtn]} onPress={onCancel}>
+              <Text style={rm.cancelText}>취소</Text>
+            </Pressable>
+            <Pressable
+              style={[rm.btn, rm.confirmBtn, (loading || selectedRoles.length === 0) && { opacity: 0.5 }]}
+              onPress={onConfirm}
+              disabled={loading || selectedRoles.length === 0}
+            >
+              {loading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={rm.confirmText}>승인 완료</Text>
+              }
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const rm = StyleSheet.create({
+  overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
+  sheet:       { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 16 },
+  header:      { flexDirection: "row", alignItems: "center", gap: 8 },
+  title:       { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  sub:         { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, lineHeight: 20 },
+  optionList:  { gap: 10 },
+  optionRow:   { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderColor: C.border, borderRadius: 14, padding: 14 },
+  checkbox:    { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  optLabel:    { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  optDesc:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  btnRow:      { flexDirection: "row", gap: 10, marginTop: 4 },
+  btn:         { flex: 1, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  cancelBtn:   { backgroundColor: "#F3F4F6" },
+  cancelText:  { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  confirmBtn:  { backgroundColor: "#059669" },
+  confirmText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+});
+
 // ── 메인 컴포넌트 ───────────────────────────────────────────────
 export default function ApprovalsScreen() {
   const { token } = useAuth();
@@ -304,6 +391,9 @@ export default function ApprovalsScreen() {
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   // 학생 연결 모달
   const [linkTarget, setLinkTarget] = useState<JoinRequest | null>(null);
+  // 선생님 승인 역할 선택 모달
+  const [roleSelectTarget, setRoleSelectTarget] = useState<TeacherInvite | null>(null);
+  const [approveRoles, setApproveRoles] = useState<string[]>(["teacher"]);
 
   // ── 데이터 로드 ───────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -362,18 +452,35 @@ export default function ApprovalsScreen() {
   }
 
   // ── 선생님 승인/거절 ──────────────────────────────────────────
-  async function handleInviteAction(inviteId: string, action: "approve" | "reject", reason?: string) {
+  async function handleInviteAction(inviteId: string, action: "approve" | "reject", reason?: string, roles?: string[]) {
     setProcessingId(inviteId);
     try {
+      const body: any = { action, rejection_reason: reason };
+      if (action === "approve" && roles) body.roles = roles;
       const res = await apiRequest(token, `/admin/teacher-invites/${inviteId}`, {
         method: "PATCH",
-        body: JSON.stringify({ action, rejection_reason: reason }),
+        body: JSON.stringify(body),
       });
       const d = await res.json();
       if (!res.ok) Alert.alert("오류", d.message || "처리 중 오류 발생");
-      else await load();
+      else {
+        setRoleSelectTarget(null);
+        await load();
+      }
       setRejectTargetId(null);
     } finally { setProcessingId(null); }
+  }
+
+  // ── 역할 선택 모달 토글 ──────────────────────────────────────
+  function toggleApproveRole(role: string) {
+    setApproveRoles(prev =>
+      prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
+    );
+  }
+
+  function openRoleSelect(inv: TeacherInvite) {
+    setApproveRoles(["teacher"]);
+    setRoleSelectTarget(inv);
   }
 
   // ── 필터링 ───────────────────────────────────────────────────
@@ -541,7 +648,7 @@ export default function ApprovalsScreen() {
               return (
                 <ApprovalCard
                   meta={buildTeacherMeta(inv)}
-                  onApprove={() => handleInviteAction(inv.id, "approve")}
+                  onApprove={() => openRoleSelect(inv)}
                   onReject={() => setRejectTargetId(inv.id)}
                 />
               );
@@ -565,6 +672,21 @@ export default function ApprovalsScreen() {
         visible={!!rejectTargetId}
         onClose={() => setRejectTargetId(null)}
         onConfirm={handleRejectConfirm}
+        loading={!!processingId}
+      />
+
+      {/* 선생님 승인 역할 선택 모달 */}
+      <TeacherRoleSelectModal
+        visible={!!roleSelectTarget}
+        teacherName={roleSelectTarget?.name ?? ""}
+        selectedRoles={approveRoles}
+        onToggle={toggleApproveRole}
+        onConfirm={() => {
+          if (roleSelectTarget) {
+            handleInviteAction(roleSelectTarget.id, "approve", undefined, approveRoles);
+          }
+        }}
+        onCancel={() => setRoleSelectTarget(null)}
         loading={!!processingId}
       />
     </>

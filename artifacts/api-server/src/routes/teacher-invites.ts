@@ -85,7 +85,7 @@ router.get("/admin/teacher-invites", requireAuth, requireRole("pool_admin", "sup
 router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const { action, rejection_reason } = req.body;
+      const { action, rejection_reason, roles } = req.body;
       const validActions = ["approve", "reject", "deactivate", "reactivate"];
       if (!validActions.includes(action)) {
         res.status(400).json({ success: false, message: "유효하지 않은 action입니다." }); return;
@@ -108,9 +108,13 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         if (invite.invite_status !== "joinedPendingApproval") {
           res.status(409).json({ success: false, message: "승인 대기 상태인 초대만 승인할 수 있습니다." }); return;
         }
-        // users 테이블에서 is_activated true로 변경
+        // users 테이블에서 is_activated true, roles 업데이트
         if (invite.user_id) {
-          await db.execute(sql`UPDATE users SET is_activated = true, updated_at = NOW() WHERE id = ${invite.user_id}`);
+          const approvedRoles: string[] = Array.isArray(roles) && roles.length > 0
+            ? roles.filter((r: string) => ["pool_admin", "teacher", "sub_admin"].includes(r))
+            : ["teacher"];
+          const rolesLiteral = `{${approvedRoles.map((r: string) => `"${r}"`).join(",")}}`;
+          await db.execute(sql`UPDATE users SET is_activated = true, roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
         await db.execute(sql`
           UPDATE teacher_invites

@@ -19,8 +19,9 @@ export interface AdminUser {
   email: string;
   name: string;
   phone?: string | null;
-  role: "super_admin" | "pool_admin" | "teacher";
+  role: "super_admin" | "pool_admin" | "teacher" | "sub_admin";
   swimming_pool_id?: string | null;
+  roles: string[];
 }
 
 export interface ParentAccount {
@@ -43,11 +44,8 @@ export interface PoolInfo {
   subscription_status: "trial" | "active" | "expired" | "suspended" | "cancelled";
   subscription_start_at?: string | null;
   subscription_end_at?: string | null;
-  /** 브랜딩 — 앱 내부 테마 색상 */
   theme_color?: string | null;
-  /** 브랜딩 — 로고 이미지 URL */
   logo_url?: string | null;
-  /** 브랜딩 — 로고 이모지 (로고 없을 때 대체) */
   logo_emoji?: string | null;
 }
 
@@ -63,6 +61,7 @@ interface AuthContextType {
   parentLogin: (identifier: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshPool: () => Promise<void>;
+  switchRole: (role: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -89,6 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(storedToken);
       if (storedKind === "admin" && storedAdmin) {
         const user: AdminUser = JSON.parse(storedAdmin);
+        if (!user.roles || user.roles.length === 0) {
+          user.roles = [user.role];
+        }
         setAdminUser(user);
         setKind("admin");
         if (user.swimming_pool_id) await fetchPool(storedToken);
@@ -109,6 +111,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function refreshPool() { if (token && kind === "admin") await fetchPool(token); }
+
+  async function switchRole(role: string) {
+    if (!token || !adminUser) return;
+    const res = await fetch(`${API_BASE}/auth/switch-role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ role }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) throw new Error(data.message || "역할 전환에 실패했습니다.");
+    const newToken: string = data.token;
+    const updatedUser: AdminUser = { ...adminUser, role: role as AdminUser["role"] };
+    await AsyncStorage.multiSet([
+      ["auth_token", newToken],
+      ["auth_admin", JSON.stringify(updatedUser)],
+    ]);
+    setToken(newToken);
+    setAdminUser(updatedUser);
+    if (updatedUser.swimming_pool_id) await fetchPool(newToken);
+  }
 
   async function unifiedLogin(identifier: string, password: string) {
     const res = await fetch(`${API_BASE}/auth/unified-login`, {
@@ -132,13 +154,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem("auth_token", data.token);
     setToken(data.token);
     if (data.kind === "admin") {
+      const user: AdminUser = {
+        ...data.user,
+        roles: Array.isArray(data.user.roles) && data.user.roles.length > 0
+          ? data.user.roles
+          : [data.user.role],
+      };
       await AsyncStorage.multiSet([
         ["auth_kind", "admin"],
-        ["auth_admin", JSON.stringify(data.user)],
+        ["auth_admin", JSON.stringify(user)],
       ]);
-      setAdminUser(data.user);
+      setAdminUser(user);
       setKind("admin");
-      if (data.user.swimming_pool_id) await fetchPool(data.token);
+      if (user.swimming_pool_id) await fetchPool(data.token);
     } else if (data.kind === "parent") {
       await AsyncStorage.multiSet([
         ["auth_kind", "parent"],
@@ -156,15 +184,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "로그인에 실패했습니다.");
+    const user: AdminUser = {
+      ...data.user,
+      roles: Array.isArray(data.user.roles) && data.user.roles.length > 0
+        ? data.user.roles
+        : [data.user.role],
+    };
     await AsyncStorage.multiSet([
       ["auth_token", data.token],
       ["auth_kind", "admin"],
-      ["auth_admin", JSON.stringify(data.user)],
+      ["auth_admin", JSON.stringify(user)],
     ]);
     setToken(data.token);
-    setAdminUser(data.user);
+    setAdminUser(user);
     setKind("admin");
-    if (data.user.swimming_pool_id) await fetchPool(data.token);
+    if (user.swimming_pool_id) await fetchPool(data.token);
   }
 
   async function parentLogin(identifier: string, password: string) {
@@ -203,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ kind, adminUser, parentAccount, token, pool, isLoading, unifiedLogin, adminLogin, parentLogin, logout, refreshPool }}>
+    <AuthContext.Provider value={{ kind, adminUser, parentAccount, token, pool, isLoading, unifiedLogin, adminLogin, parentLogin, logout, refreshPool, switchRole }}>
       {children}
     </AuthContext.Provider>
   );

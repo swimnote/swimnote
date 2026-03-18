@@ -45,6 +45,15 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
     bgColor: "#EDE9FE",
     route: "/(super)/pools",
   },
+  sub_admin: {
+    key: "sub_admin",
+    title: "부관리자",
+    subtitle: "수영장 운영 보조 관리",
+    icon: "shield",
+    color: "#6366F1",
+    bgColor: "#EEF2FF",
+    route: "/(admin)/dashboard",
+  },
 };
 
 export const LOGIN_LABELS = {

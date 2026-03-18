@@ -12,7 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 
 export default function OrgRoleSelectScreen() {
-  const { kind, adminUser, parentAccount, pool, logout } = useAuth();
+  const { kind, adminUser, parentAccount, pool, logout, switchRole } = useAuth();
   const insets = useSafeAreaInsets();
   const [orgMenuOpen, setOrgMenuOpen] = useState(false);
 
@@ -20,13 +20,19 @@ export default function OrgRoleSelectScreen() {
     if (!kind) return [];
     if (kind === "parent") return [ROLE_CONFIGS.parent];
     if (kind === "admin") {
+      const roles = adminUser?.roles;
+      if (roles && roles.length > 0) {
+        return roles
+          .map(r => ROLE_CONFIGS[r])
+          .filter(Boolean) as RoleConfig[];
+      }
       const role = adminUser?.role;
       if (role === "super_admin") return [ROLE_CONFIGS.super_admin];
       if (role === "pool_admin") return [ROLE_CONFIGS.pool_admin];
       if (role === "teacher") return [ROLE_CONFIGS.teacher];
     }
     return [];
-  }, [kind, adminUser?.role]);
+  }, [kind, adminUser?.roles, adminUser?.role]);
 
   const orgName =
     pool?.name ||
@@ -35,7 +41,14 @@ export default function OrgRoleSelectScreen() {
 
   const orgInitial = orgName.charAt(0);
 
-  function handleSelectRole(cfg: RoleConfig) {
+  async function handleSelectRole(cfg: RoleConfig) {
+    if (kind === "admin" && adminUser && adminUser.role !== cfg.key) {
+      try {
+        await switchRole(cfg.key);
+      } catch (e) {
+        console.error("switch-role error", e);
+      }
+    }
     router.replace(cfg.route as any);
   }
 

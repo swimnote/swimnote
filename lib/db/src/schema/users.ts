@@ -17,6 +17,7 @@ export const usersTable = pgTable("users", {
   phone_verified: boolean("phone_verified").notNull().default(false),
   created_by: text("created_by"),
   permissions: jsonb("permissions"),
+  roles: text("roles").array().notNull().default([]),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

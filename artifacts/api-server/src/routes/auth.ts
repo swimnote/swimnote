@@ -311,7 +311,9 @@ router.post("/unified-login", async (req, res) => {
       }
       const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
       const { password_hash: _, ...safeUser } = user;
-      res.json({ success: true, token, kind: "admin", user: safeUser }); return;
+      const rolesRow = await db.execute(sql`SELECT roles FROM users WHERE id = ${user.id} LIMIT 1`);
+      const roles: string[] = (rolesRow.rows[0] as any)?.roles ?? [user.role];
+      res.json({ success: true, token, kind: "admin", user: { ...safeUser, roles } }); return;
     }
 
     // 2) parent_accounts 테이블 (login_id 먼저, 없으면 phone)
@@ -354,6 +356,21 @@ router.post("/unified-login", async (req, res) => {
       return;
     }
     res.status(401).json({ success: false, error: "가입된 계정이 없습니다.", error_code: "user_not_found" });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 역할 전환 ─────────────────────────────────────────────────────────
+router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
+  const { role } = req.body;
+  if (!role) return err(res, 400, "전환할 역할을 지정해주세요.");
+  try {
+    const rolesRow = await db.execute(sql`SELECT roles, swimming_pool_id FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const row = rolesRow.rows[0] as any;
+    if (!row) return err(res, 404, "계정을 찾을 수 없습니다.");
+    const userRoles: string[] = row.roles ?? [];
+    if (!userRoles.includes(role)) return err(res, 403, "해당 역할에 대한 권한이 없습니다.");
+    const newToken = signToken({ userId: req.user!.userId, role, poolId: row.swimming_pool_id });
+    res.json({ success: true, token: newToken, role });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
