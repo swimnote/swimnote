@@ -171,7 +171,10 @@ function MonthlyCalendar({ groups, themeColor, onSelectDate }:
   { groups: TeacherClassGroup[]; themeColor: string; onSelectDate: (dateStr: string, cls: TeacherClassGroup[]) => void }) {
 
   const today = todayDateStr();
+  const { token, adminUser } = useAuth();
+  const poolId = (adminUser as any)?.swimming_pool_id || "";
   const [offset, setOffset] = useState(0); // months from now
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
 
   const { year, month, days } = useMemo(() => {
     const now = new Date();
@@ -187,6 +190,18 @@ function MonthlyCalendar({ groups, themeColor, onSelectDate }:
     while (cells.length % 7 !== 0) cells.push(null);
     return { year: y, month: m, days: cells };
   }, [offset]);
+
+  // 휴무일 로드
+  useEffect(() => {
+    if (!poolId) return;
+    const mm = String(month).padStart(2, "0");
+    apiRequest(token, `/holidays?pool_id=${poolId}&month=${year}-${mm}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.holidays) setHolidayDates(new Set(d.holidays.map((h: any) => h.holiday_date)));
+      })
+      .catch(() => {});
+  }, [token, poolId, year, month]);
 
   const CELL_SIZE = Math.floor((SCREEN_W - 32) / 7);
 
@@ -224,27 +239,42 @@ function MonthlyCalendar({ groups, themeColor, onSelectDate }:
         <View key={wi} style={mc.weekRow}>
           {days.slice(wi * 7, wi * 7 + 7).map((dateStr, di) => {
             if (!dateStr) return <View key={di} style={[mc.dayCell, { width: CELL_SIZE }]} />;
-            const isToday = dateStr === today;
-            const cls = classesForDate(groups, dateStr);
-            const dayNum = parseInt(dateStr.split("-")[2]);
-            const isSun = di === 0;
-            const isSat = di === 6;
+            const isToday   = dateStr === today;
+            const isHoliday = holidayDates.has(dateStr);
+            const cls       = classesForDate(groups, dateStr);
+            const dayNum    = parseInt(dateStr.split("-")[2]);
+            const isSun     = di === 0;
+            const isSat     = di === 6;
             return (
-              <Pressable key={dateStr} style={[mc.dayCell, { width: CELL_SIZE }, isToday && { backgroundColor: themeColor + "12" }]}
-                onPress={() => handleDayPress(dateStr)}>
+              <Pressable
+                key={dateStr}
+                style={[
+                  mc.dayCell,
+                  { width: CELL_SIZE },
+                  isToday   && { backgroundColor: themeColor + "12" },
+                  isHoliday && { backgroundColor: "#FEF2F2" },
+                ]}
+                onPress={() => handleDayPress(dateStr)}
+              >
                 <View style={[mc.dayNumWrap, isToday && { backgroundColor: themeColor }]}>
-                  <Text style={[mc.dayNum, isSun && { color: "#EF4444" }, isSat && { color: themeColor },
-                    isToday && { color: "#fff" }]}>
+                  <Text style={[
+                    mc.dayNum,
+                    isSun || isHoliday ? { color: "#EF4444" } : isSat ? { color: themeColor } : {},
+                    isToday && { color: "#fff" },
+                  ]}>
                     {dayNum}
                   </Text>
                 </View>
-                {/* 수업 도트 */}
-                <View style={mc.dotsRow}>
-                  {cls.slice(0, 4).map(g => (
-                    <View key={g.id} style={[mc.dot, { backgroundColor: classColor(g.id) }]} />
-                  ))}
-                  {cls.length > 4 && <Text style={mc.moreText}>+{cls.length - 4}</Text>}
-                </View>
+                {isHoliday ? (
+                  <Text style={mc.holidayTag}>휴무일</Text>
+                ) : (
+                  <View style={mc.dotsRow}>
+                    {cls.slice(0, 4).map(g => (
+                      <View key={g.id} style={[mc.dot, { backgroundColor: classColor(g.id) }]} />
+                    ))}
+                    {cls.length > 4 && <Text style={mc.moreText}>+{cls.length - 4}</Text>}
+                  </View>
+                )}
               </Pressable>
             );
           })}
@@ -270,6 +300,7 @@ const mc = StyleSheet.create({
   dotsRow:        { flexDirection: "row", gap: 2, marginTop: 3, flexWrap: "wrap", justifyContent: "center" },
   dot:            { width: 6, height: 6, borderRadius: 3 },
   moreText:       { fontSize: 8, fontFamily: "Inter_400Regular", color: C.textMuted },
+  holidayTag:     { fontSize: 9, fontFamily: "Inter_700Bold", color: "#EF4444", marginTop: 2 },
 });
 
 // ─── 수업 상세 시트 (Modal) ───────────────────────────────────────
