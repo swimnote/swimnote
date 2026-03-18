@@ -424,17 +424,30 @@ function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
 /* ────────────────────────────────────────────────
    메인 타입
 ──────────────────────────────────────────────── */
-interface PricingItem { type_key: string; type_name: string; monthly_fee: number; sessions_per_month: number; }
-interface StudentSummary {
-  student_id: string; student_name: string; class_type: string;
-  is_trial: boolean; is_unregistered: boolean;
-  regular_sessions: number; makeup_sessions: number; trial_sessions: number;
-  temp_transfer_sessions: number; extra_sessions: number; total_sessions: number;
-  monthly_fee: number; settlement_amount: number;
-}
 interface SettlementSummary {
   total_revenue: number; total_sessions: number; total_makeup_sessions: number;
   total_trial_sessions: number; total_temp_transfer_sessions: number; month: string;
+}
+
+interface TeacherItem {
+  id: string; name: string; class_count?: number; student_count?: number;
+  makeup_waiting?: number; position?: string;
+}
+
+type SettlementStatus = "미정산" | "저장됨" | "제출완료" | "관리자확인";
+
+interface TeacherReport {
+  teacher_id: string;
+  teacher_name: string;
+  status: SettlementStatus;
+  total_revenue?: number;
+  total_sessions?: number;
+  student_count?: number;
+  makeup_count?: number;
+  trial_count?: number;
+  transfer_count?: number;
+  postpone_count?: number;
+  withdrawn_count?: number;
 }
 
 function curMonthStr() {
@@ -446,6 +459,13 @@ function formatWon(n: number) { return n.toLocaleString("ko-KR") + "원"; }
 /* ────────────────────────────────────────────────
    AdminRevenueScreen
 ──────────────────────────────────────────────── */
+const STATUS_COLOR: Record<SettlementStatus, { bg: string; text: string }> = {
+  "미정산":    { bg: "#F3F4F6", text: "#6B7280" },
+  "저장됨":    { bg: "#DBEAFE", text: "#2563EB" },
+  "제출완료":  { bg: "#D1FAE5", text: "#059669" },
+  "관리자확인": { bg: "#EDE9FE", text: "#7C3AED" },
+};
+
 export default function AdminRevenueScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
@@ -455,7 +475,8 @@ export default function AdminRevenueScreen() {
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary]   = useState<SettlementSummary | null>(null);
-  const [students, setStudents] = useState<StudentSummary[]>([]);
+  const [teachers, setTeachers] = useState<TeacherItem[]>([]);
+  const [reports, setReports]   = useState<TeacherReport[]>([]);
   const [extraAmount, setExtraAmount] = useState("");
   const [extraMemo, setExtraMemo]     = useState("");
   const [saving, setSaving]     = useState(false);
@@ -468,11 +489,24 @@ export default function AdminRevenueScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiRequest(token, `/settlement/calculator?pool_id=${poolId}&month=${month}`);
-      if (res.ok) {
-        const data = await res.json();
+      const [calcRes, teacherRes, reportRes] = await Promise.all([
+        apiRequest(token, `/settlement/calculator?pool_id=${poolId}&month=${month}`),
+        apiRequest(token, "/admin/teachers"),
+        apiRequest(token, `/settlement/reports?pool_id=${poolId}&month=${month}`).catch(() => null),
+      ]);
+      if (calcRes.ok) {
+        const data = await calcRes.json();
         setSummary(data.summary);
-        setStudents(data.students || []);
+      }
+      if (teacherRes.ok) {
+        const tData = await teacherRes.json();
+        setTeachers(Array.isArray(tData) ? tData : []);
+      }
+      if (reportRes && reportRes.ok) {
+        const rData = await reportRes.json();
+        setReports(Array.isArray(rData) ? rData : (rData.reports || []));
+      } else {
+        setReports([]);
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
@@ -588,45 +622,87 @@ export default function AdminRevenueScreen() {
             </View>
           )}
 
-          {/* ── 회원별 수업 횟수 ── */}
-          <Text style={[s.sectionTitle, { color: C.text }]}>회원별 수업 횟수</Text>
-          {students.length === 0 ? (
+          {/* ── 선생님별 매출내역 ── */}
+          <View style={s.teacherHeader}>
+            <Text style={[s.sectionTitle, { color: C.text }]}>선생님별 매출내역</Text>
+            <Text style={[s.teacherCount, { color: C.textMuted }]}>{teachers.length}명</Text>
+          </View>
+          {teachers.length === 0 ? (
             <View style={s.emptyBox}>
-              <Feather name="inbox" size={40} color={C.textMuted} />
-              <Text style={[s.emptyTxt, { color: C.textMuted }]}>이번 달 정산 데이터가 없습니다</Text>
+              <Feather name="users" size={40} color={C.textMuted} />
+              <Text style={[s.emptyTxt, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text>
             </View>
           ) : (
-            students.map(st => (
-              <View key={st.student_id} style={[s.studentCard, { backgroundColor: C.card }]}>
-                <View style={s.studentHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.studentName, { color: C.text }]}>{st.student_name}</Text>
-                    <Text style={[s.studentType, { color: C.textMuted }]}>{st.class_type}</Text>
+            teachers.map(t => {
+              const report = reports.find(r => r.teacher_id === t.id);
+              const status: SettlementStatus = report?.status ?? "미정산";
+              const statusStyle = STATUS_COLOR[status];
+              return (
+                <View key={t.id} style={[s.teacherCard, { backgroundColor: C.card }]}>
+                  {/* 카드 상단: 이름 + 상태 */}
+                  <View style={s.teacherCardTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.teacherName, { color: C.text }]}>{t.name}</Text>
+                      {t.position ? <Text style={[s.teacherPos, { color: C.textMuted }]}>{t.position}</Text> : null}
+                    </View>
+                    <View style={[s.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                      <Text style={[s.statusTxt, { color: statusStyle.text }]}>{status}</Text>
+                    </View>
                   </View>
-                  <Text style={[s.studentAmt, { color: themeColor }]}>{formatWon(st.settlement_amount)}</Text>
+
+                  {/* 매출결산액 */}
+                  <Text style={[s.teacherAmt, { color: themeColor }]}>
+                    {report?.total_revenue != null ? formatWon(report.total_revenue) : "—"}
+                  </Text>
+
+                  {/* 통계 그리드 */}
+                  <View style={s.statsGrid}>
+                    <View style={s.statBox}>
+                      <Text style={[s.statBoxVal, { color: C.text }]}>
+                        {report?.total_sessions ?? t.student_count ?? "—"}
+                      </Text>
+                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>수업시간</Text>
+                    </View>
+                    <View style={s.statBox}>
+                      <Text style={[s.statBoxVal, { color: C.text }]}>
+                        {report?.student_count ?? t.student_count ?? "—"}
+                      </Text>
+                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>수업인원</Text>
+                    </View>
+                    <View style={s.statBox}>
+                      <Text style={[s.statBoxVal, { color: "#7C3AED" }]}>
+                        {report?.makeup_count ?? t.makeup_waiting ?? "—"}
+                      </Text>
+                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>보강</Text>
+                    </View>
+                    <View style={s.statBox}>
+                      <Text style={[s.statBoxVal, { color: "#059669" }]}>
+                        {report?.trial_count ?? "—"}
+                      </Text>
+                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>체험</Text>
+                    </View>
+                    <View style={s.statBox}>
+                      <Text style={[s.statBoxVal, { color: "#2563EB" }]}>
+                        {report?.transfer_count ?? "—"}
+                      </Text>
+                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>이동</Text>
+                    </View>
+                    <View style={s.statBox}>
+                      <Text style={[s.statBoxVal, { color: "#D97706" }]}>
+                        {report?.postpone_count ?? "—"}
+                      </Text>
+                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>연기</Text>
+                    </View>
+                    <View style={s.statBox}>
+                      <Text style={[s.statBoxVal, { color: "#EF4444" }]}>
+                        {report?.withdrawn_count ?? "—"}
+                      </Text>
+                      <Text style={[s.statBoxLabel, { color: C.textMuted }]}>탈퇴</Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={s.studentStats}>
-                  {st.regular_sessions > 0 && (
-                    <View style={s.statChip}><Text style={s.statTxt}>정규 {st.regular_sessions}회</Text></View>
-                  )}
-                  {st.makeup_sessions > 0 && (
-                    <View style={[s.statChip, { backgroundColor: "#EDE9FE" }]}>
-                      <Text style={[s.statTxt, { color: "#7C3AED" }]}>보강 {st.makeup_sessions}회</Text>
-                    </View>
-                  )}
-                  {st.trial_sessions > 0 && (
-                    <View style={[s.statChip, { backgroundColor: "#D1FAE5" }]}>
-                      <Text style={[s.statTxt, { color: "#059669" }]}>체험 {st.trial_sessions}회</Text>
-                    </View>
-                  )}
-                  {st.temp_transfer_sessions > 0 && (
-                    <View style={[s.statChip, { backgroundColor: "#DBEAFE" }]}>
-                      <Text style={[s.statTxt, { color: "#2563EB" }]}>임시이동 {st.temp_transfer_sessions}회</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            ))
+              );
+            })
           )}
 
           {/* ── 기타 수기 정산 ── */}
@@ -749,14 +825,19 @@ const s = StyleSheet.create({
   emptyBox: { alignItems: "center", paddingVertical: 40, gap: 8 },
   emptyTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
 
-  studentCard: { borderRadius: 14, padding: 14, gap: 8 },
-  studentHeader: { flexDirection: "row", alignItems: "center" },
-  studentName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  studentType: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
-  studentAmt: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  studentStats: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  statChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#F3F4F6" },
-  statTxt: { fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.light.textSecondary },
+  teacherHeader:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  teacherCount:   { fontSize: 13, fontFamily: "Inter_500Medium" },
+  teacherCard:    { borderRadius: 16, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  teacherCardTop: { flexDirection: "row", alignItems: "flex-start" },
+  teacherName:    { fontSize: 16, fontFamily: "Inter_700Bold" },
+  teacherPos:     { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  teacherAmt:     { fontSize: 22, fontFamily: "Inter_700Bold" },
+  statusBadge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  statusTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  statsGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  statBox:        { minWidth: "20%", flex: 1, backgroundColor: "#F9FAFB", borderRadius: 10, padding: 8, alignItems: "center", gap: 2 },
+  statBoxVal:     { fontSize: 16, fontFamily: "Inter_700Bold" },
+  statBoxLabel:   { fontSize: 10, fontFamily: "Inter_400Regular" },
 
   extraCard: { borderRadius: 14, padding: 14 },
   inputRow: { flexDirection: "row", gap: 8 },

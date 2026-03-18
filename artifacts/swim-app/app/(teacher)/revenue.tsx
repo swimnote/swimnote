@@ -30,6 +30,15 @@ interface SettlementSummary {
   total_trial_sessions: number; total_temp_transfer_sessions: number; month: string;
 }
 
+type SubmitStatus = "미정산" | "저장됨" | "제출완료" | "관리자확인";
+
+const STATUS_COLOR: Record<SubmitStatus, { bg: string; text: string }> = {
+  "미정산":    { bg: "#F3F4F6", text: "#6B7280" },
+  "저장됨":    { bg: "#DBEAFE", text: "#2563EB" },
+  "제출완료":  { bg: "#D1FAE5", text: "#059669" },
+  "관리자확인": { bg: "#EDE9FE", text: "#7C3AED" },
+};
+
 function monthStr(offset = 0) {
   const d = new Date();
   d.setMonth(d.getMonth() + offset);
@@ -50,7 +59,9 @@ export default function RevenueScreen() {
   const [extraAmount, setExtraAmount] = useState("");
   const [extraMemo, setExtraMemo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("미정산");
   const [nextMonthModal, setNextMonthModal] = useState(false);
 
   const poolId = (adminUser as any)?.swimming_pool_id || "";
@@ -58,12 +69,25 @@ export default function RevenueScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiRequest(token, `/settlement/calculator?pool_id=${poolId}&month=${month}`);
-      if (res.ok) {
-        const data = await res.json();
+      const [calcRes, statusRes] = await Promise.all([
+        apiRequest(token, `/settlement/calculator?pool_id=${poolId}&month=${month}`),
+        apiRequest(token, `/settlement/my-status?pool_id=${poolId}&month=${month}`).catch(() => null),
+      ]);
+      if (calcRes.ok) {
+        const data = await calcRes.json();
         setSummary(data.summary);
         setStudents(data.students || []);
         setPricing(data.pricing || []);
+      }
+      if (statusRes && statusRes.ok) {
+        const sd = await statusRes.json();
+        const rawStatus = sd.status;
+        if (rawStatus === "submitted") setSubmitStatus("제출완료");
+        else if (rawStatus === "confirmed") setSubmitStatus("관리자확인");
+        else if (rawStatus === "draft") setSubmitStatus("저장됨");
+        else setSubmitStatus("미정산");
+      } else {
+        setSubmitStatus("미정산");
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
@@ -77,23 +101,44 @@ export default function RevenueScreen() {
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
 
+  async function doSave(status: "draft" | "submitted") {
+    const res = await apiRequest(token, "/settlement/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pool_id: poolId, month, summary, students,
+        extra_manual_amount: parseInt(extraAmount || "0", 10),
+        extra_manual_memo: extraMemo || null,
+        status,
+      }),
+    });
+    return res.json();
+  }
+
   async function handleSave() {
     setSaving(true); setSavedMsg("");
     try {
-      const res = await apiRequest(token, "/settlement/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pool_id: poolId, month, summary, students,
-          extra_manual_amount: parseInt(extraAmount || "0", 10),
-          extra_manual_memo: extraMemo || null,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) { setSavedMsg("정산이 저장되었습니다."); setTimeout(() => setSavedMsg(""), 3000); }
-      else setSavedMsg("저장 실패: " + data.error);
+      const data = await doSave("draft");
+      if (data.success) {
+        setSubmitStatus("저장됨");
+        setSavedMsg("정산이 저장되었습니다.");
+        setTimeout(() => setSavedMsg(""), 3000);
+      } else { setSavedMsg("저장 실패: " + data.error); }
     } catch { setSavedMsg("저장 중 오류"); }
     finally { setSaving(false); }
+  }
+
+  async function handleSubmit() {
+    setSubmitting(true); setSavedMsg("");
+    try {
+      const data = await doSave("submitted");
+      if (data.success !== false) {
+        setSubmitStatus("제출완료");
+        setSavedMsg("정산이 제출되었습니다. 관리자에게 보고됩니다.");
+        setTimeout(() => setSavedMsg(""), 4000);
+      } else { setSavedMsg("제출 실패: " + (data.error || "알 수 없는 오류")); }
+    } catch { setSavedMsg("제출 중 오류"); }
+    finally { setSubmitting(false); }
   }
 
   function getPricingName(key: string) {
@@ -124,6 +169,23 @@ export default function RevenueScreen() {
           <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
         ) : (
           <>
+            {/* ─── 정산 상태 배지 ──────────────────────── */}
+            <View style={rv.statusRow}>
+              <View style={[rv.statusBadge, { backgroundColor: STATUS_COLOR[submitStatus].bg }]}>
+                <Feather
+                  name={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "check-circle" : submitStatus === "저장됨" ? "save" : "clock"}
+                  size={13}
+                  color={STATUS_COLOR[submitStatus].text}
+                />
+                <Text style={[rv.statusTxt, { color: STATUS_COLOR[submitStatus].text }]}>{submitStatus}</Text>
+              </View>
+              <Text style={[rv.statusDesc, { color: C.textMuted }]}>
+                {submitStatus === "제출완료" ? "관리자에게 보고됨" :
+                 submitStatus === "저장됨" ? "임시 저장 상태" :
+                 submitStatus === "관리자확인" ? "관리자가 확인했습니다" : "아직 제출하지 않았습니다"}
+              </Text>
+            </View>
+
             {/* ─── 상단 요약 카드 ─────────────────────── */}
             <View style={[rv.summaryCard, { backgroundColor: themeColor }]}>
               <Text style={rv.summaryLabel}>이번 달 예상 매출</Text>
@@ -146,8 +208,32 @@ export default function RevenueScreen() {
                 <View style={rv.statDivider} />
                 <View style={rv.statItem}>
                   <Text style={rv.statNum}>{summary?.total_temp_transfer_sessions || 0}</Text>
-                  <Text style={rv.statLabel}>임시이동</Text>
+                  <Text style={rv.statLabel}>이동</Text>
                 </View>
+              </View>
+            </View>
+
+            {/* ─── 정산 요약 카드 (상세 통계) ─────────── */}
+            <View style={[rv.card, { backgroundColor: C.card }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <Feather name="bar-chart-2" size={15} color={themeColor} />
+                <Text style={[rv.sectionTitle, { color: C.text }]}>이번 달 정산 요약</Text>
+              </View>
+              <View style={rv.summaryGrid}>
+                {[
+                  { label: "수업인원", val: students.length, color: C.text },
+                  { label: "수업시간", val: summary?.total_sessions ?? 0, color: C.text },
+                  { label: "보강", val: summary?.total_makeup_sessions ?? 0, color: "#7C3AED" },
+                  { label: "체험수업", val: summary?.total_trial_sessions ?? 0, color: "#059669" },
+                  { label: "이동", val: summary?.total_temp_transfer_sessions ?? 0, color: "#2563EB" },
+                  { label: "연기", val: 0, color: "#D97706" },
+                  { label: "탈퇴", val: students.filter(s => s.is_unregistered).length, color: "#EF4444" },
+                ].map(item => (
+                  <View key={item.label} style={rv.summaryGridBox}>
+                    <Text style={[rv.summaryGridVal, { color: item.color }]}>{item.val}</Text>
+                    <Text style={[rv.summaryGridLabel, { color: C.textMuted }]}>{item.label}</Text>
+                  </View>
+                ))}
               </View>
             </View>
 
@@ -230,12 +316,31 @@ export default function RevenueScreen() {
 
             {/* ─── 버튼 ─────────────────────────────────── */}
             <Pressable
-              style={[rv.saveBtn, { backgroundColor: themeColor, opacity: saving ? 0.6 : 1 }]}
-              onPress={handleSave} disabled={saving}
+              style={[rv.saveBtn, { backgroundColor: "#6B7280", opacity: saving ? 0.6 : 1 }]}
+              onPress={handleSave} disabled={saving || submitting}
             >
               {saving ? <ActivityIndicator color="#fff" /> : <>
                 <Feather name="save" size={16} color="#fff" />
-                <Text style={rv.saveBtnText}>이번 달 정산 저장</Text>
+                <Text style={rv.saveBtnText}>임시 저장</Text>
+              </>}
+            </Pressable>
+
+            <Pressable
+              style={[rv.submitBtn, { backgroundColor: submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#D1FAE5" : themeColor, opacity: submitting ? 0.6 : 1 }]}
+              onPress={handleSubmit}
+              disabled={submitting || saving || submitStatus === "관리자확인"}
+            >
+              {submitting ? <ActivityIndicator color={submitStatus === "제출완료" ? "#059669" : "#fff"} /> : <>
+                <Feather
+                  name={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "check-circle" : "send"}
+                  size={16}
+                  color={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#059669" : "#fff"}
+                />
+                <Text style={[rv.submitBtnText, { color: submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#059669" : "#fff" }]}>
+                  {submitStatus === "제출완료" ? "제출완료 (재제출 가능)" :
+                   submitStatus === "관리자확인" ? "관리자 확인 완료" :
+                   "이번 달 정산 제출"}
+                </Text>
               </>}
             </Pressable>
 
@@ -323,8 +428,18 @@ const rv = StyleSheet.create({
   extraSummaryText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   msg:              { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   msgText:          { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
+  statusRow:        { flexDirection: "row", alignItems: "center", gap: 10 },
+  statusBadge:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  statusTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  statusDesc:       { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+  summaryGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  summaryGridBox:   { minWidth: "28%", flex: 1, backgroundColor: "#F9FAFB", borderRadius: 12, padding: 10, alignItems: "center", gap: 2 },
+  summaryGridVal:   { fontSize: 18, fontFamily: "Inter_700Bold" },
+  summaryGridLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
   saveBtn:          { height: 52, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   saveBtnText:      { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  submitBtn:        { height: 52, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  submitBtnText:    { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   nextBtn:          { height: 52, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 2 },
   nextBtnText:      { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   overlay:          { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
