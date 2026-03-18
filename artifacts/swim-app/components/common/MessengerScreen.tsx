@@ -742,7 +742,7 @@ const styles = StyleSheet.create({
   albumBtn: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 12 },
   albumBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
-  listContent: { padding: 12, gap: 8, flexGrow: 1 },
+  listContent: { padding: 12, gap: 8, flexGrow: 1, justifyContent: "flex-end" },
   emptyWrap: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyText: { color: C.textSecondary, fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
 
