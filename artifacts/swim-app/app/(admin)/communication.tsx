@@ -13,7 +13,7 @@ import {
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PageHeader } from "@/components/common/PageHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ModalSheet } from "@/components/common/ModalSheet";
 
 const C = Colors.light;
@@ -109,14 +109,19 @@ export default function CommunicationScreen() {
 
   return (
     <View style={s.root}>
-      <PageHeader
+      <SubScreenHeader
         title="커뮤니케이션"
-        action={tab === "공지사항" ? {
-          icon: "plus",
-          label: "공지 작성",
-          onPress: () => setShowCreate(true),
-          color: themeColor,
-        } : undefined}
+        onBack={() => router.back()}
+        rightSlot={
+          tab === "공지사항" ? (
+            <Pressable
+              onPress={() => setShowCreate(true)}
+              style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#F3F4F6" }}
+            >
+              <Feather name="plus" size={20} color={themeColor} />
+            </Pressable>
+          ) : undefined
+        }
       />
 
       {/* 탭 */}

@@ -9,6 +9,7 @@
  */
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, Image, Platform,
@@ -179,8 +180,16 @@ export default function TeacherPhotosScreen() {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
+        <View style={s.subHeader}>
+          <Pressable style={s.backBtn} onPress={() => router.back()}>
+            <Feather name="arrow-left" size={20} color={C.text} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text style={s.subTitle}>{"사진 & 영상"}</Text>
+          </View>
+        </View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-          <View style={s.titleRow}><Text style={s.title}>사진 & 영상</Text></View>
+          <View style={s.titleRow}><Text style={s.title}>{"사진 & 영상"}</Text></View>
           <View style={s.grid}>
             {(["photo_group", "photo_private", "video_group", "video_private"] as const).map(key => {
               const [mt, sc] = key.split("_") as [MediaType, AlbumScope];
