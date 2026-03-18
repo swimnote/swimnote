@@ -111,7 +111,6 @@ export default function CommunicationScreen() {
     <View style={s.root}>
       <SubScreenHeader
         title="커뮤니케이션"
-        onBack={() => router.back()}
         rightSlot={
           tab === "공지사항" ? (
             <Pressable

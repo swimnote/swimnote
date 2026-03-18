@@ -59,7 +59,7 @@ export default function DataStorageByCategoryScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="카테고리별 사용량" onBack={() => router.back()} />
+      <SubScreenHeader title="카테고리별 사용량" />
 
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />

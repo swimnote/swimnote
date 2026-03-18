@@ -9,7 +9,7 @@
  */
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { useNavigation } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, Image, Platform,
@@ -58,6 +58,7 @@ const API_BASE = process.env.EXPO_PUBLIC_API_URL || "/api";
 export default function TeacherPhotosScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
+  const navigation = useNavigation();
 
   const [groups,     setGroups]     = useState<TeacherClassGroup[]>([]);
   const [students,   setStudents]   = useState<Student[]>([]);
@@ -181,7 +182,7 @@ export default function TeacherPhotosScreen() {
       <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <View style={s.subHeader}>
-          <Pressable style={s.backBtn} onPress={() => router.back()}>
+          <Pressable style={s.backBtn} onPress={() => navigation.goBack()}>
             <Feather name="arrow-left" size={20} color={C.text} />
           </Pressable>
           <View style={{ flex: 1 }}>

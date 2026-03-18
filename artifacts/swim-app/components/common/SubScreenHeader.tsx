@@ -4,10 +4,11 @@
  * - 가운데: 화면 제목
  * - 오른쪽: 홈 버튼 (기본 표시) 또는 커스텀 rightSlot
  *
- * 홈 버튼: 현재 탭 스택의 최상위(탭 첫 화면)로 이동
+ * 뒤로가기: navigation.goBack() — 현재 탭 스택 안에서만 pop (탭 경계 넘지 않음)
+ * 홈 버튼: StackActions.popToTop() — 현재 탭 스택의 root 화면으로 이동
  */
 import { Feather } from "@expo/vector-icons";
-import { router, useNavigation } from "expo-router";
+import { useNavigation } from "expo-router";
 import { StackActions } from "@react-navigation/native";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -39,15 +40,17 @@ export function SubScreenHeader({
     if (onBack) {
       onBack();
     } else {
-      router.back();
+      // navigation.goBack()은 현재 탭 스택 내부에서만 동작 → 탭 경계 넘지 않음
+      navigation.goBack();
     }
   };
 
   const handleHome = () => {
     try {
+      // popToTop()은 현재 탭 스택의 루트까지만 pop → 더보기 첫 화면으로 복귀
       navigation.dispatch(StackActions.popToTop());
     } catch {
-      router.back();
+      navigation.goBack();
     }
   };
 
