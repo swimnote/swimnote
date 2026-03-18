@@ -21,6 +21,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
@@ -78,6 +79,8 @@ export default function ParentPhotosScreen() {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected]     = useState<Set<string>>(new Set());
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+  const [saveErrorMsg,   setSaveErrorMsg]   = useState<string | null>(null);
 
   async function load() {
     try {
@@ -142,8 +145,8 @@ export default function ParentPhotosScreen() {
       const localUri = `${FileSystem.documentDirectory}swim_${photo.id}.jpg`;
       await FileSystem.downloadAsync(photoUri(photo.file_url), localUri, { headers: { Authorization: `Bearer ${token}` } });
       await MediaLibrary.saveToLibraryAsync(localUri);
-      Alert.alert("저장 완료", "갤러리에 저장했습니다.");
-    } catch { Alert.alert("오류", "저장 중 오류가 발생했습니다."); }
+      setSaveSuccessMsg("갤러리에 저장했습니다.");
+    } catch { setSaveErrorMsg("저장 중 오류가 발생했습니다."); }
     finally { setLbSaving(false); }
   }
 
@@ -176,9 +179,9 @@ export default function ParentPhotosScreen() {
         await MediaLibrary.saveToLibraryAsync(localPath);
         saved++;
       }
-      Alert.alert("저장 완료", `${saved}장이 갤러리에 저장됐습니다.`);
+      setSaveSuccessMsg(`${saved}장이 갤러리에 저장됐습니다.`);
       exitSelect();
-    } catch { Alert.alert("오류", `${saved}장 저장 후 오류가 발생했습니다.`); }
+    } catch { setSaveErrorMsg(`${saved}장 저장 후 오류가 발생했습니다.`); }
     finally { setBulkSaving(false); }
   }
 
@@ -359,6 +362,21 @@ export default function ParentPhotosScreen() {
           </Text>
         </View>
       </Modal>
+
+      <ConfirmModal
+        visible={!!saveSuccessMsg}
+        title="저장 완료"
+        message={saveSuccessMsg ?? ""}
+        confirmText="확인"
+        onConfirm={() => setSaveSuccessMsg(null)}
+      />
+      <ConfirmModal
+        visible={!!saveErrorMsg}
+        title="오류"
+        message={saveErrorMsg ?? ""}
+        confirmText="확인"
+        onConfirm={() => setSaveErrorMsg(null)}
+      />
     </View>
   );
 }

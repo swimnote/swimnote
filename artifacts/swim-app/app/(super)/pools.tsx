@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
+  ActivityIndicator, FlatList, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { ScreenLayout }  from "@/components/common/ScreenLayout";
+import { ConfirmModal }  from "@/components/common/ConfirmModal";
 import { FilterChips, FilterChipItem } from "@/components/common/FilterChips";
 import { EmptyState }    from "@/components/common/EmptyState";
 
@@ -94,6 +95,7 @@ export default function SuperPoolsScreen() {
   const [rejectPool, setRejectPool] = useState<Pool | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [detailPool, setDetailPool] = useState<Pool | null>(null);
+  const [approveTarget, setApproveTarget] = useState<Pool | null>(null);
 
   const fetchPools = useCallback(async () => {
     try {
@@ -128,16 +130,16 @@ export default function SuperPoolsScreen() {
     return c;
   }, [pools]);
 
-  async function handleApprove(pool: Pool) {
-    Alert.alert("승인 확인", `${pool.name}을 승인하시겠습니까?\n승인 후 무료 이용(~50명)으로 시작됩니다.`, [
-      { text: "취소", style: "cancel" },
-      { text: "승인", onPress: async () => {
-        setProcessing(pool.id);
-        const res = await apiRequest(token, `/admin/pools/${pool.id}/approve`, { method: "PATCH" });
-        if (res.ok) await fetchPools();
-        setProcessing(null);
-      }},
-    ]);
+  async function doApprove(pool: Pool) {
+    setApproveTarget(null);
+    setProcessing(pool.id);
+    const res = await apiRequest(token, `/admin/pools/${pool.id}/approve`, { method: "PATCH" });
+    if (res.ok) await fetchPools();
+    setProcessing(null);
+  }
+
+  function handleApprove(pool: Pool) {
+    setApproveTarget(pool);
   }
 
   async function handleRejectSubmit() {
@@ -338,6 +340,17 @@ export default function SuperPoolsScreen() {
       <Modal visible={!!detailPool} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDetailPool(null)}>
         {detailPool && <PoolDetailModal pool={detailPool} onClose={() => setDetailPool(null)} />}
       </Modal>
+
+      {/* 승인 확인 모달 */}
+      <ConfirmModal
+        visible={!!approveTarget}
+        title="승인 확인"
+        message={`${approveTarget?.name}을 승인하시겠습니까?\n승인 후 무료 이용(~50명)으로 시작됩니다.`}
+        confirmText="승인"
+        cancelText="취소"
+        onConfirm={() => approveTarget && doApprove(approveTarget)}
+        onCancel={() => setApproveTarget(null)}
+      />
     </>
   );
 }

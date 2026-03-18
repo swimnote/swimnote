@@ -6,6 +6,7 @@ import {
   Modal, Platform, Pressable, RefreshControl, ScrollView,
   Share, StyleSheet, Text, TextInput, View,
 } from "react-native";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -485,8 +486,12 @@ export default function MembersScreen() {
   const [search,         setSearch]         = useState("");
   const [showRegister,   setShowRegister]   = useState(false);
   const [inviteTarget,   setInviteTarget]   = useState<StudentMember | null>(null);
-  const [deletingId,     setDeletingId]     = useState<string | null>(null);
-  const [bulkDeleting,   setBulkDeleting]   = useState(false);
+  const [deletingId,       setDeletingId]       = useState<string | null>(null);
+  const [bulkDeleting,     setBulkDeleting]     = useState(false);
+  const [deleteTarget,     setDeleteTarget]     = useState<{id: string; name: string} | null>(null);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [bulkDeleteFail,   setBulkDeleteFail]   = useState(0);
+  const [infoModal,        setInfoModal]        = useState<string | null>(null);
   const sel = useSelectionMode();
 
   const load = useCallback(async () => {
@@ -502,70 +507,60 @@ export default function MembersScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleDelete(id: string, name: string) {
-    Alert.alert(
-      "회원 삭제",
-      `"${name}" 회원은 운영 목록에서 제거되고 삭제회원으로 보관됩니다.\n학부모 계정은 유지되며 기존 수업 정보는 보존됩니다.\n\n진행하시겠습니까?`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "삭제", style: "destructive", onPress: async () => {
-            setDeletingId(id);
-            try {
-              const res = await apiRequest(token, `/students/${id}`, { method: "DELETE" });
-              if (res.ok) {
-                setStudents(prev => prev.filter(s => s.id !== id));
-              } else {
-                Alert.alert("오류", "삭제에 실패했습니다.");
-              }
-            } catch {
-              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
-            } finally {
-              setDeletingId(null);
-            }
-          },
-        },
-      ]
-    );
+  function handleDelete(id: string, name: string) {
+    setDeleteTarget({ id, name });
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const { id } = deleteTarget;
+    setDeleteTarget(null);
+    setDeletingId(id);
+    try {
+      const res = await apiRequest(token, `/students/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setStudents(prev => prev.filter(s => s.id !== id));
+      } else {
+        setInfoModal("삭제에 실패했습니다.");
+      }
+    } catch {
+      setInfoModal("네트워크 오류가 발생했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function handleBulkDelete() {
+    if (sel.selectedIds.size === 0) return;
+    setBulkDeleteConfirm(true);
+  }
+
+  async function confirmBulkDelete() {
+    setBulkDeleteConfirm(false);
     const ids = Array.from(sel.selectedIds);
-    if (ids.length === 0) return;
     const count = ids.length;
-    Alert.alert(
-      "선택 회원 삭제",
-      `선택한 ${count}명을 삭제 처리합니다.\n삭제된 회원은 운영 목록에서 제거되고 보관 목록에서 확인할 수 있습니다.\n학부모 계정은 유지됩니다.\n\n진행하시겠습니까?`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: `${count}명 삭제`, style: "destructive", onPress: async () => {
-            setBulkDeleting(true);
-            try {
-              console.log(`[admin][deleteStudent] selectedCount=${count}`, ids);
-              const results = await Promise.allSettled(
-                ids.map(id => apiRequest(token, `/students/${id}`, { method: "DELETE" })
-                  .then(r => ({ id, ok: r.ok }))
-                )
-              );
-              const succeeded = results
-                .filter((r): r is PromiseFulfilledResult<{ id: string; ok: boolean }> => r.status === "fulfilled" && r.value.ok)
-                .map(r => r.value.id);
-              const failed = ids.length - succeeded.length;
-              setStudents(prev => prev.filter(s => !succeeded.includes(s.id)));
-              sel.exitSelectionMode();
-              console.log(`[admin][deleteStudent] student soft deleted: ${succeeded.join(", ")}`);
-              if (failed > 0) Alert.alert("일부 실패", `${failed}명 삭제에 실패했습니다.`);
-            } catch (e) {
-              console.error(e);
-              Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
-            } finally {
-              setBulkDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+    setBulkDeleting(true);
+    try {
+      console.log(`[admin][deleteStudent] selectedCount=${count}`, ids);
+      const results = await Promise.allSettled(
+        ids.map(id => apiRequest(token, `/students/${id}`, { method: "DELETE" })
+          .then(r => ({ id, ok: r.ok }))
+        )
+      );
+      const succeeded = results
+        .filter((r): r is PromiseFulfilledResult<{ id: string; ok: boolean }> => r.status === "fulfilled" && r.value.ok)
+        .map(r => r.value.id);
+      const failed = ids.length - succeeded.length;
+      setStudents(prev => prev.filter(s => !succeeded.includes(s.id)));
+      sel.exitSelectionMode();
+      console.log(`[admin][deleteStudent] student soft deleted: ${succeeded.join(", ")}`);
+      if (failed > 0) setBulkDeleteFail(failed);
+    } catch (e) {
+      console.error(e);
+      setInfoModal("삭제 중 오류가 발생했습니다.");
+    } finally {
+      setBulkDeleting(false);
+    }
   }
 
   // 필터 + 검색 적용
@@ -701,6 +696,48 @@ export default function MembersScreen() {
           onClose={() => setInviteTarget(null)}
         />
       )}
+
+      {/* 개별 삭제 확인 */}
+      <ConfirmModal
+        visible={!!deleteTarget}
+        title="회원 삭제"
+        message={`"${deleteTarget?.name}" 회원은 운영 목록에서 제거되고 삭제회원으로 보관됩니다.\n학부모 계정은 유지되며 기존 수업 정보는 보존됩니다.`}
+        confirmText="삭제"
+        cancelText="취소"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* 일괄 삭제 확인 */}
+      <ConfirmModal
+        visible={bulkDeleteConfirm}
+        title="선택 회원 삭제"
+        message={`선택한 ${sel.selectedIds.size}명을 삭제 처리합니다.\n삭제된 회원은 보관 목록에서 확인할 수 있습니다.`}
+        confirmText={`${sel.selectedIds.size}명 삭제`}
+        cancelText="취소"
+        destructive
+        onConfirm={confirmBulkDelete}
+        onCancel={() => setBulkDeleteConfirm(false)}
+      />
+
+      {/* 일부 삭제 실패 */}
+      <ConfirmModal
+        visible={bulkDeleteFail > 0}
+        title="일부 실패"
+        message={`${bulkDeleteFail}명 삭제에 실패했습니다.`}
+        confirmText="확인"
+        onConfirm={() => setBulkDeleteFail(0)}
+      />
+
+      {/* 일반 오류/알림 */}
+      <ConfirmModal
+        visible={!!infoModal}
+        title="알림"
+        message={infoModal ?? ""}
+        confirmText="확인"
+        onConfirm={() => setInfoModal(null)}
+      />
     </>
   );
 }

@@ -3,13 +3,14 @@ import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Image, KeyboardAvoidingView, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ConfirmModal }   from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
@@ -56,6 +57,8 @@ export default function DiaryWriteScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState<"groups" | "content">("groups");
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [limitMsg,   setLimitMsg]   = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -79,7 +82,7 @@ export default function DiaryWriteScreen() {
   }
 
   async function pickImages() {
-    if (images.length >= MAX_IMAGES) { Alert.alert("사진 제한", `최대 ${MAX_IMAGES}장까지 첨부 가능합니다.`); return; }
+    if (images.length >= MAX_IMAGES) { setLimitMsg(`최대 ${MAX_IMAGES}장까지 첨부 가능합니다.`); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true, quality: 0.85,
@@ -116,7 +119,7 @@ export default function DiaryWriteScreen() {
         }
       }
       if (success > 0) {
-        Alert.alert("완료", `${success}개 반에 수업 일지가 등록되었습니다.\n학부모에게 알림이 발송됩니다.`, [{ text: "확인", onPress: () => router.back() }]);
+        setSuccessMsg(`${success}개 반에 수업 일지가 등록되었습니다.\n학부모에게 알림이 발송됩니다.`);
       } else {
         setError(errors[0] || "저장에 실패했습니다.");
       }
@@ -124,8 +127,9 @@ export default function DiaryWriteScreen() {
     finally { setSaving(false); }
   }
 
-  if (step === "groups") {
-    return (
+  return (
+   <>
+    {step === "groups" ? (
       <View style={[styles.root, { backgroundColor: C.background }]}>
         <SubScreenHeader
           title="수영 일지 작성"
@@ -201,11 +205,7 @@ export default function DiaryWriteScreen() {
           </View>
         )}
       </View>
-    );
-  }
-
-  // Step 2: 내용 작성
-  return (
+    ) : (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.root, { backgroundColor: C.background }]}>
         <SubScreenHeader
@@ -286,6 +286,23 @@ export default function DiaryWriteScreen() {
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
+    )}
+
+    <ConfirmModal
+      visible={!!successMsg}
+      title="완료"
+      message={successMsg ?? ""}
+      confirmText="확인"
+      onConfirm={() => { setSuccessMsg(null); router.back(); }}
+    />
+    <ConfirmModal
+      visible={!!limitMsg}
+      title="사진 제한"
+      message={limitMsg ?? ""}
+      confirmText="확인"
+      onConfirm={() => setLimitMsg(null)}
+    />
+   </>
   );
 }
 

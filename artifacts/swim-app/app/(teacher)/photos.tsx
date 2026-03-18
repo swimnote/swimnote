@@ -15,6 +15,7 @@ import {
   ActivityIndicator, Alert, Image, Platform,
   Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
@@ -70,6 +71,8 @@ export default function TeacherPhotosScreen() {
   const [step,      setStep]      = useState<Step>("home");
   const [selGroup,  setSelGroup]  = useState<TeacherClassGroup | null>(null);
   const [selStudent,setSelStudent]= useState<Student | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -151,14 +154,12 @@ export default function TeacherPhotosScreen() {
       const resData = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((resData as any).error || "업로드 실패");
 
-      Alert.alert(
-        "업로드 완료",
+      setSuccessMsg(
         scope === "group"
           ? `${isVideo ? "영상" : `${result.assets.length}장`}이 ${selGroup!.name} ${isVideo ? "영상" : "사진"} 앨범에 추가됐습니다.`
-          : `${isVideo ? "영상" : `${result.assets.length}장`}이 ${selStudent!.name} 개인 ${isVideo ? "영상" : "사진"} 앨범에 추가됐습니다.`,
-        [{ text: "확인", onPress: () => setStep("home") }]
+          : `${isVideo ? "영상" : `${result.assets.length}장`}이 ${selStudent!.name} 개인 ${isVideo ? "영상" : "사진"} 앨범에 추가됐습니다.`
       );
-    } catch (e: any) { Alert.alert("오류", e.message || "업로드 실패"); }
+    } catch (e: any) { setErrorMsg(e.message || "업로드 실패"); }
     finally { setUploading(false); }
   }
 
@@ -349,6 +350,21 @@ export default function TeacherPhotosScreen() {
           }
         </Pressable>
       </View>
+
+      <ConfirmModal
+        visible={!!successMsg}
+        title="업로드 완료"
+        message={successMsg ?? ""}
+        confirmText="확인"
+        onConfirm={() => { setSuccessMsg(null); setStep("home"); }}
+      />
+      <ConfirmModal
+        visible={!!errorMsg}
+        title="오류"
+        message={errorMsg ?? ""}
+        confirmText="확인"
+        onConfirm={() => setErrorMsg(null)}
+      />
     </SafeAreaView>
   );
 }

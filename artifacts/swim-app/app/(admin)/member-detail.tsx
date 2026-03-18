@@ -8,7 +8,7 @@ import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, Pressable, ScrollView,
+  ActivityIndicator, Modal, Pressable, ScrollView,
   Share, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,6 +16,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ConfirmModal }   from "@/components/common/ConfirmModal";
 import {
   StudentMember, WeeklyCount, WEEKLY_BADGE,
   getStudentConnectionStatus, buildInviteMessage,
@@ -62,11 +63,12 @@ function ClassPickerModal({
   onSelect: (ids: string[]) => void; onClose: () => void;
 }) {
   const [picked, setPicked] = useState<string[]>(selectedIds);
+  const [limitErr, setLimitErr] = useState(false);
   const { themeColor } = useBrand();
 
   function toggle(id: string) {
-    if (picked.includes(id)) { setPicked(p => p.filter(x => x !== id)); return; }
-    if (picked.length >= maxSelect) { Alert.alert("선택 초과", `최대 ${maxSelect}개`); return; }
+    if (picked.includes(id)) { setPicked(p => p.filter(x => x !== id)); setLimitErr(false); return; }
+    if (picked.length >= maxSelect) { setLimitErr(true); return; }
     setPicked(p => [...p, id]);
   }
 
@@ -78,7 +80,9 @@ function ClassPickerModal({
             <Text style={cp.title}>반 선택 (최대 {maxSelect}개)</Text>
             <Pressable onPress={onClose}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
           </View>
-          <Text style={cp.sub}>{picked.length}/{maxSelect}개 선택됨</Text>
+          <Text style={[cp.sub, limitErr && { color: "#DC2626" }]}>
+            {limitErr ? `최대 ${maxSelect}개까지 선택 가능합니다` : `${picked.length}/${maxSelect}개 선택됨`}
+          </Text>
           <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
             {groups.length === 0 ? (
               <View style={cp.empty}><Feather name="layers" size={32} color={C.textMuted} /><Text style={{ color: C.textMuted, marginTop: 8 }}>개설된 반이 없습니다</Text></View>
@@ -192,6 +196,8 @@ export default function MemberDetailScreen() {
   const [showPicker, setShowPicker] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<{ value: string; label: string } | null>(null);
+  const [alertInfo, setAlertInfo] = useState<{ title: string; msg: string } | null>(null);
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
 
   // 편집 상태
   const [editName, setEditName] = useState("");
@@ -268,12 +274,12 @@ export default function MemberDetailScreen() {
       if (res.ok) {
         setData(d => d ? { ...d, name: editName, birth_year: editBirth, parent_name: editParentName, parent_phone: editParentPhone, phone: editPhone, memo: editMemo, notes: editNotes } : d);
         setInfoChanged(false);
-        Alert.alert("저장 완료", "기본 정보가 업데이트되었습니다.");
+        setAlertInfo({ title: "저장 완료", msg: "기본 정보가 업데이트되었습니다." });
       } else {
         const e = await res.json();
-        Alert.alert("오류", e.error || "저장에 실패했습니다.");
+        setAlertInfo({ title: "오류", msg: e.error || "저장에 실패했습니다." });
       }
-    } catch { Alert.alert("오류", "네트워크 오류가 발생했습니다."); }
+    } catch { setAlertInfo({ title: "오류", msg: "네트워크 오류가 발생했습니다." }); }
     finally { setSaving(false); }
   }
 
@@ -295,29 +301,29 @@ export default function MemberDetailScreen() {
       });
       if (res.ok) {
         setData(d => d ? { ...d, status } : d);
-        Alert.alert("완료", "상태가 변경되었습니다.");
+        setAlertInfo({ title: "완료", msg: "상태가 변경되었습니다." });
       } else {
         const e = await res.json();
-        Alert.alert("오류", e.error || "변경에 실패했습니다.");
+        setAlertInfo({ title: "오류", msg: e.error || "변경에 실패했습니다." });
       }
-    } catch { Alert.alert("오류", "네트워크 오류"); }
+    } catch { setAlertInfo({ title: "오류", msg: "네트워크 오류" }); }
     finally { setSaving(false); }
   }
 
   // ── 회원 복구 ────────────────────────────────────────────────────────
-  async function restoreMember() {
-    Alert.alert("회원 복구", `${data?.name}님을 재원 상태로 복구하시겠습니까?`, [
-      { text: "취소", style: "cancel" },
-      { text: "복구", onPress: async () => {
-        setSaving(true);
-        try {
-          const res = await apiRequest(token, `/admin/students/${id}/restore`, { method: "POST" });
-          if (res.ok) { setData(d => d ? { ...d, status: "active" } : d); Alert.alert("복구 완료", "회원이 복구되었습니다."); }
-          else { const e = await res.json(); Alert.alert("오류", e.error || "복구에 실패했습니다."); }
-        } catch { Alert.alert("오류", "네트워크 오류"); }
-        finally { setSaving(false); }
-      }},
-    ]);
+  function restoreMember() {
+    setShowRestoreConfirm(true);
+  }
+
+  async function doRestoreMember() {
+    setShowRestoreConfirm(false);
+    setSaving(true);
+    try {
+      const res = await apiRequest(token, `/admin/students/${id}/restore`, { method: "POST" });
+      if (res.ok) { setData(d => d ? { ...d, status: "active" } : d); setAlertInfo({ title: "복구 완료", msg: "회원이 복구되었습니다." }); }
+      else { const e = await res.json(); setAlertInfo({ title: "오류", msg: e.error || "복구에 실패했습니다." }); }
+    } catch { setAlertInfo({ title: "오류", msg: "네트워크 오류" }); }
+    finally { setSaving(false); }
   }
 
   // ── 반 배정 저장 ──────────────────────────────────────────────────────
@@ -330,12 +336,12 @@ export default function MemberDetailScreen() {
         body: JSON.stringify({ assigned_class_ids: assignedIds, weekly_count: weeklyCount }),
       });
       const d = await res.json();
-      if (!res.ok) { Alert.alert("오류", d.message || "저장에 실패했습니다."); return; }
+      if (!res.ok) { setAlertInfo({ title: "오류", msg: d.message || "저장에 실패했습니다." }); return; }
       setData(prev => prev ? { ...prev, ...d } : prev);
       setAssignedIds(d.assigned_class_ids || []);
       setClassChanged(false);
-      Alert.alert("저장 완료", "반 배정이 업데이트되었습니다.");
-    } catch { Alert.alert("오류", "네트워크 오류"); }
+      setAlertInfo({ title: "저장 완료", msg: "반 배정이 업데이트되었습니다." });
+    } catch { setAlertInfo({ title: "오류", msg: "네트워크 오류" }); }
     finally { setSaving(false); }
   }
 
@@ -675,7 +681,7 @@ export default function MemberDetailScreen() {
                     onPress={async () => {
                       const msg = buildInviteMessage({ poolName, studentName: data.name, inviteCode: data.invite_code!, appUrl: "https://swimnote.kr" });
                       await Clipboard.setStringAsync(msg);
-                      Alert.alert("복사 완료", "초대 문자가 클립보드에 복사되었습니다.");
+                      setAlertInfo({ title: "복사 완료", msg: "초대 문자가 클립보드에 복사되었습니다." });
                     }}
                   >
                     <Feather name="copy" size={14} color={themeColor} />
@@ -953,6 +959,23 @@ export default function MemberDetailScreen() {
           onClose={() => setShowPicker(false)}
         />
       )}
+
+      <ConfirmModal
+        visible={!!alertInfo}
+        title={alertInfo?.title ?? ""}
+        message={alertInfo?.msg ?? ""}
+        confirmText="확인"
+        onConfirm={() => setAlertInfo(null)}
+      />
+      <ConfirmModal
+        visible={showRestoreConfirm}
+        title="회원 복구"
+        message={`${data?.name}님을 재원 상태로 복구하시겠습니까?`}
+        confirmText="복구"
+        cancelText="취소"
+        onConfirm={doRestoreMember}
+        onCancel={() => setShowRestoreConfirm(false)}
+      />
     </View>
   );
 }

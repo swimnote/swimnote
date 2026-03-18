@@ -3,13 +3,14 @@ import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Image, Platform,
+  ActivityIndicator, FlatList, Image, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ConfirmModal }   from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
@@ -27,6 +28,9 @@ export default function PhotoUploadScreen() {
   const [images, setImages] = useState<{ uri: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [step, setStep] = useState<"students" | "photos">("students");
+  const [infoMsg,    setInfoMsg]    = useState<{ title: string; msg: string } | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -55,8 +59,8 @@ export default function PhotoUploadScreen() {
   }
 
   async function handleUpload() {
-    if (!selected.size) { Alert.alert("알림", "학생을 선택해주세요."); return; }
-    if (!images.length) { Alert.alert("알림", "사진을 선택해주세요."); return; }
+    if (!selected.size) { setInfoMsg({ title: "알림", msg: "학생을 선택해주세요." }); return; }
+    if (!images.length) { setInfoMsg({ title: "알림", msg: "사진을 선택해주세요." }); return; }
     setUploading(true);
     try {
       const fd = new FormData();
@@ -71,16 +75,18 @@ export default function PhotoUploadScreen() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "업로드 실패");
-      Alert.alert("완료", `${selected.size}명의 사진첩에 ${images.length}장이 업로드되었습니다.`, [{ text: "확인", onPress: () => router.back() }]);
-    } catch (err: any) { Alert.alert("오류", err.message || "업로드 중 오류가 발생했습니다."); }
+      setSuccessMsg(`${selected.size}명의 사진첩에 ${images.length}장이 업로드되었습니다.`);
+    } catch (err: any) { setErrorMsg(err.message || "업로드 중 오류가 발생했습니다."); }
     finally { setUploading(false); }
   }
 
   const filtered = students.filter(s => s.name.includes(search) || s.phone.includes(search));
 
-  if (step === "students") {
-    const allFiltered = filtered.every(s => selected.has(s.id));
-    return (
+  const allFiltered = filtered.every(s => selected.has(s.id));
+
+  return (
+   <>
+    {step === "students" ? (
       <View style={[styles.root, { backgroundColor: C.background }]}>
         <SubScreenHeader
           title="사진 업로드"
@@ -149,11 +155,7 @@ export default function PhotoUploadScreen() {
           </View>
         )}
       </View>
-    );
-  }
-
-  // Step 2: 사진 선택 + 업로드
-  return (
+    ) : (
     <View style={[styles.root, { backgroundColor: C.background }]}>
       <SubScreenHeader
         title="사진 업로드"
@@ -225,6 +227,30 @@ export default function PhotoUploadScreen() {
         )}
       </ScrollView>
     </View>
+    )}
+
+    <ConfirmModal
+      visible={!!infoMsg}
+      title={infoMsg?.title ?? ""}
+      message={infoMsg?.msg ?? ""}
+      confirmText="확인"
+      onConfirm={() => setInfoMsg(null)}
+    />
+    <ConfirmModal
+      visible={!!successMsg}
+      title="완료"
+      message={successMsg ?? ""}
+      confirmText="확인"
+      onConfirm={() => { setSuccessMsg(null); router.back(); }}
+    />
+    <ConfirmModal
+      visible={!!errorMsg}
+      title="오류"
+      message={errorMsg ?? ""}
+      confirmText="확인"
+      onConfirm={() => setErrorMsg(null)}
+    />
+   </>
   );
 }
 

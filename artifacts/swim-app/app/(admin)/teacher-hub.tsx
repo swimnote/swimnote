@@ -7,7 +7,7 @@ import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Platform, Pressable,
+  ActivityIndicator, FlatList, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +15,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ConfirmModal }   from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
 const TABS = ["담당 회원", "출결", "수업일지", "보강"] as const;
@@ -40,9 +41,10 @@ export default function TeacherHubScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string; name?: string }>();
 
-  const [tab, setTab]     = useState<HubTab>("담당 회원");
-  const [data, setData]   = useState<any>(null);
+  const [tab, setTab]         = useState<HubTab>("담당 회원");
+  const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [deleteDiaryId, setDeleteDiaryId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!params.id) return;
@@ -56,17 +58,15 @@ export default function TeacherHubScreen() {
   useEffect(() => { load(); }, [load]);
 
   const deleteDiary = (id: string) => {
-    Alert.alert("수업일지 삭제", "삭제 후 복구할 수 없습니다.", [
-      { text: "취소", style: "cancel" },
-      {
-        text: "삭제", style: "destructive",
-        onPress: async () => {
-          await apiRequest(token, `/class-diaries/${id}`, { method: "DELETE" });
-          load();
-        },
-      },
-    ]);
+    setDeleteDiaryId(id);
   };
+
+  async function confirmDeleteDiary() {
+    if (!deleteDiaryId) return;
+    setDeleteDiaryId(null);
+    await apiRequest(token, `/class-diaries/${deleteDiaryId}`, { method: "DELETE" });
+    load();
+  }
 
   if (loading && !data) return (
     <View style={[s.root, { paddingTop: insets.top, alignItems: "center", justifyContent: "center" }]}>
@@ -171,6 +171,17 @@ export default function TeacherHubScreen() {
             </View>
           );
         }}
+      />
+
+      <ConfirmModal
+        visible={!!deleteDiaryId}
+        title="수업일지 삭제"
+        message="삭제 후 복구할 수 없습니다."
+        confirmText="삭제"
+        cancelText="취소"
+        destructive
+        onConfirm={confirmDeleteDiary}
+        onCancel={() => setDeleteDiaryId(null)}
       />
     </View>
   );

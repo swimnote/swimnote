@@ -14,6 +14,7 @@ import {
   Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -169,6 +170,7 @@ function DailyMemoPage({
   const recSecs = useRef(0);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recDisplay, setRecDisplay] = useState("0:00");
+  const [errMsg, setErrMsg] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -208,7 +210,7 @@ function DailyMemoPage({
         const s = recSecs.current % 60;
         setRecDisplay(`${m}:${String(s).padStart(2, "0")}`);
       }, 1000);
-    } catch (e) { Alert.alert("오류", "녹음을 시작할 수 없습니다."); }
+    } catch (e) { setErrMsg("녹음을 시작할 수 없습니다."); }
   }
   async function stopRecording() {
     if (!recording) return;
@@ -244,7 +246,7 @@ function DailyMemoPage({
           s.unloadAsync(); setSound(null);
         }
       });
-    } catch { Alert.alert("오류", "재생에 실패했습니다."); }
+    } catch { setErrMsg("재생에 실패했습니다."); }
   }
   function deleteAudio() {
     if (sound) { sound.unloadAsync(); setSound(null); }
@@ -271,7 +273,7 @@ function DailyMemoPage({
       const data = await res.json();
       return data.audio_file_url || null;
     } catch {
-      Alert.alert("오류", "음성 업로드에 실패했습니다."); return null;
+      setErrMsg("음성 업로드에 실패했습니다."); return null;
     } finally { setUploadingAudio(false); }
   }
 
@@ -298,7 +300,7 @@ function DailyMemoPage({
         onBack();
       } else {
         const d = await res.json();
-        Alert.alert("오류", d.error || "저장에 실패했습니다.");
+        setErrMsg(d.error || "저장에 실패했습니다.");
       }
     } finally { setSaving(false); }
   }
@@ -315,6 +317,7 @@ function DailyMemoPage({
   }
 
   return (
+   <>
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
       <View style={[dm.header, { paddingTop: 20, borderBottomColor: C.border }]}>
@@ -437,6 +440,14 @@ function DailyMemoPage({
         </Pressable>
       </View>
     </View>
+    <ConfirmModal
+      visible={!!errMsg}
+      title="오류"
+      message={errMsg ?? ""}
+      confirmText="확인"
+      onConfirm={() => setErrMsg(null)}
+    />
+   </>
   );
 }
 
@@ -571,6 +582,7 @@ function MemoSheet({
   const [sound, setSound]     = useState<Audio.Sound | null>(null);
   const [playing, setPlaying] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [memoErrMsg, setMemoErrMsg] = useState<string | null>(null);
   const recSecs = useRef(0);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recDisplay, setRecDisplay] = useState("0:00");
@@ -597,7 +609,7 @@ function MemoSheet({
         const s = recSecs.current % 60;
         setRecDisplay(`${m}:${String(s).padStart(2, "0")}`);
       }, 1000);
-    } catch (e) { Alert.alert("오류", "녹음을 시작할 수 없습니다."); }
+    } catch (e) { setMemoErrMsg("녹음을 시작할 수 없습니다."); }
   }
   async function stopRecording() {
     if (!recording) return;
@@ -618,7 +630,7 @@ function MemoSheet({
       });
       const data = await res.json();
       return data.audio_file_url || null;
-    } catch { Alert.alert("오류", "음성 업로드에 실패했습니다."); return null; }
+    } catch { setMemoErrMsg("음성 업로드에 실패했습니다."); return null; }
     finally { setUploadingAudio(false); }
   }
   async function playAudio() {
@@ -634,7 +646,7 @@ function MemoSheet({
       s.setOnPlaybackStatusUpdate(status => {
         if ((status as any).didJustFinish) { setPlaying(false); s.unloadAsync(); setSound(null); }
       });
-    } catch { Alert.alert("오류", "재생에 실패했습니다."); }
+    } catch { setMemoErrMsg("재생에 실패했습니다."); }
   }
   async function handleSave() {
     if (!item) return;
@@ -659,6 +671,7 @@ function MemoSheet({
 
   if (!item) return null;
   return (
+   <>
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={ms.overlay} onPress={onClose} />
       <View style={ms.sheet}>
@@ -728,6 +741,14 @@ function MemoSheet({
         </Pressable>
       </View>
     </Modal>
+    <ConfirmModal
+      visible={!!memoErrMsg}
+      title="오류"
+      message={memoErrMsg ?? ""}
+      confirmText="확인"
+      onConfirm={() => setMemoErrMsg(null)}
+    />
+   </>
   );
 }
 

@@ -8,7 +8,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, Modal,
+  ActivityIndicator, Dimensions, FlatList, Modal,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,6 +17,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
 import { PoolHeader } from "@/components/PoolHeader";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
 
@@ -654,6 +655,8 @@ export default function MyScheduleScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [deleting,   setDeleting]   = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteFailCount,   setDeleteFailCount]   = useState(0);
 
   // 일간 뷰 서브뷰 (기존 방식 유지)
   const [selectedGroup,  setSelectedGroup]  = useState<TeacherClassGroup | null>(null);
@@ -735,25 +738,25 @@ export default function MyScheduleScreen() {
     });
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (selectedIds.size === 0) return;
-    Alert.alert("반 삭제", `선택한 반 ${selectedIds.size}개를 삭제하시겠습니까?`, [
-      { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: async () => {
-        setDeleting(true);
-        const ids = Array.from(selectedIds);
-        let failed = 0;
-        for (const id of ids) {
-          const res = await apiRequest(token, `/class-groups/${id}`, { method: "DELETE" });
-          if (!res.ok) failed++;
-        }
-        setDeleting(false);
-        setSelectionMode(false);
-        setSelectedIds(new Set());
-        if (failed > 0) Alert.alert("일부 실패", `${failed}개 반 삭제에 실패했습니다.`);
-        load();
-      }},
-    ]);
+    setShowDeleteConfirm(true);
+  }
+
+  async function confirmDelete() {
+    setShowDeleteConfirm(false);
+    setDeleting(true);
+    const ids = Array.from(selectedIds);
+    let failed = 0;
+    for (const id of ids) {
+      const res = await apiRequest(token, `/class-groups/${id}`, { method: "DELETE" });
+      if (!res.ok) failed++;
+    }
+    setDeleting(false);
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+    if (failed > 0) setDeleteFailCount(failed);
+    load();
   }
 
   // ─ 로딩 ─
@@ -1010,6 +1013,27 @@ export default function MyScheduleScreen() {
           onClose={() => setShowCreate(false)}
         />
       )}
+
+      {/* 반 삭제 확인 */}
+      <ConfirmModal
+        visible={showDeleteConfirm}
+        title="반 삭제"
+        message={`선택한 반 ${selectedIds.size}개를 삭제하시겠습니까?`}
+        confirmText="삭제"
+        cancelText="취소"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      {/* 일부 삭제 실패 알림 */}
+      <ConfirmModal
+        visible={deleteFailCount > 0}
+        title="일부 실패"
+        message={`${deleteFailCount}개 반 삭제에 실패했습니다.`}
+        confirmText="확인"
+        onConfirm={() => setDeleteFailCount(0)}
+      />
     </SafeAreaView>
   );
 }
