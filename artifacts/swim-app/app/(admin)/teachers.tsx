@@ -5,6 +5,7 @@
  * 계정 관리 모달 (추가·수정·삭제·인증코드) 보존
  */
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, Dimensions, KeyboardAvoidingView, Modal,
@@ -363,7 +364,7 @@ export default function TeachersScreen() {
           : nav.step === "classes" ? crumbTeacher
           : (classDetail?.class_group.name ?? "반 현황판")
         }
-        onBack={nav.step !== "main" ? goBack : undefined}
+        onBack={nav.step !== "main" ? goBack : () => router.navigate("/(admin)/more" as any)}
         rightSlot={
           <Pressable style={[s.accountsBtn, { backgroundColor: C.tintLight }]} onPress={() => setShowAccounts(true)}>
             <Feather name="users" size={15} color={C.tint} />

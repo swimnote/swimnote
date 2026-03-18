@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable, RefreshControl,
@@ -80,6 +81,7 @@ export default function AdminNotificationsScreen() {
       <SubScreenHeader
         title="알림"
         subtitle={unread > 0 ? `읽지 않은 알림 ${unread}개` : undefined}
+        onBack={() => router.navigate("/(admin)/more" as any)}
         rightSlot={
           unread > 0 ? (
             <Pressable style={[styles.readAllBtn, { borderColor: C.border }]} onPress={markAllRead}>

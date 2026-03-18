@@ -51,7 +51,7 @@ export default function DataManagementScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="데이터 관리" />
+      <SubScreenHeader title="데이터 관리" onBack={() => router.navigate("/(admin)/more" as any)} />
 
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: insets.bottom + 32 }}

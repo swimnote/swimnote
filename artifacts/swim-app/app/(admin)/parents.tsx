@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Animated, KeyboardAvoidingView,
@@ -499,6 +500,7 @@ export default function ParentsScreen() {
     <View style={[s.root, { backgroundColor: C.background }]}>
       <SubScreenHeader
         title="학부모 관리"
+        onBack={() => router.navigate("/(admin)/more" as any)}
         rightSlot={
           <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
             <Pressable

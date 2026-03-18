@@ -5,6 +5,7 @@
  * 선택된 날짜는 다음 달 수업 생성 시 제외
  */
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, RefreshControl,
@@ -97,7 +98,7 @@ export default function HolidaysScreen() {
 
   return (
     <View style={s.safe}>
-      <SubScreenHeader title="휴무일 관리" />
+      <SubScreenHeader title="휴무일 관리" onBack={() => router.navigate("/(admin)/more" as any)} />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }} showsVerticalScrollIndicator={false}>
         {/* 월 선택 */}
         <View style={[s.monthRow, { backgroundColor: C.card }]}>

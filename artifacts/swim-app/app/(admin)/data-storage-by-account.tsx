@@ -65,7 +65,7 @@ export default function DataStorageByAccountScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="계정별 사용량" />
+      <SubScreenHeader title="계정별 사용량" onBack={() => router.navigate("/(admin)/data-management" as any)} />
 
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />

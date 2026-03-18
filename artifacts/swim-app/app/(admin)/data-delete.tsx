@@ -98,7 +98,7 @@ export default function DataDeleteScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="원본 데이터 삭제" />
+      <SubScreenHeader title="원본 데이터 삭제" onBack={() => router.navigate("/(admin)/data-management" as any)} />
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: insets.bottom + 120, gap: 16 }}

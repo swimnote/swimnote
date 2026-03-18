@@ -68,7 +68,7 @@ export default function DataEventLogsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="이벤트 기록" />
+      <SubScreenHeader title="이벤트 기록" onBack={() => router.navigate("/(admin)/data-management" as any)} />
 
       {/* 카테고리 필터 */}
       <ScrollView

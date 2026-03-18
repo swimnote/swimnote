@@ -53,6 +53,7 @@ export default function ParentLevelScreen() {
       <SubScreenHeader
         title="레벨"
         showHome={false}
+        onBack={() => router.navigate("/(parent)/more" as any)}
         rightSlot={
           selectedStudent ? (
             <View style={[s.childChip, { backgroundColor: C.tintLight }]}>

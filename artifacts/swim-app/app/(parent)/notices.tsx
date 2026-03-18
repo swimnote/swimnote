@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Image, Platform, Pressable, RefreshControl,
@@ -77,6 +78,7 @@ export default function ParentNoticesScreen() {
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader
         title="공지사항"
+        onBack={() => router.navigate("/(parent)/more" as any)}
         rightSlot={
           unreadCount > 0 ? (
             <View style={[styles.unreadBadge, { backgroundColor: C.error }]}>

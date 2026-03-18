@@ -111,6 +111,7 @@ export default function CommunicationScreen() {
     <View style={s.root}>
       <SubScreenHeader
         title="커뮤니케이션"
+        onBack={() => router.navigate("/(admin)/more" as any)}
         rightSlot={
           tab === "공지사항" ? (
             <Pressable

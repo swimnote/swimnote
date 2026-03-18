@@ -103,7 +103,7 @@ export default function BillingScreen() {
 
   return (
     <View style={s.safe}>
-      <SubScreenHeader title="구독관리" />
+      <SubScreenHeader title="구독관리" onBack={() => router.navigate("/(admin)/more" as any)} />
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
