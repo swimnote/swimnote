@@ -4,6 +4,7 @@ import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, paren
 import { eq, sql, and } from "drizzle-orm";
 import { requireAuth, requireRole, requirePermission, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
+import { createSystemMessage } from "../utils/messenger-system.js";
 
 const router = Router();
 
@@ -1178,6 +1179,17 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
       await writeActivityLog(poolId, null, null, "makeup_assigned", "makeup", req.params.id,
         "waiting", "assigned", actor.userId, actor.name || "관리자", actor.role,
         `보강반 배정: ${cg.name}`);
+      // 보강 배정 공지 채널 시스템 메시지
+      const mkRow = await db.execute(sql`SELECT student_name, assigned_date FROM makeup_sessions WHERE id = ${req.params.id}`);
+      const mk = mkRow.rows[0] as any;
+      if (mk) {
+        const dateStr = mk.assigned_date ? ` (${mk.assigned_date})` : "";
+        await createSystemMessage({
+          poolId,
+          msgType: "system_makeup",
+          content: `${mk.student_name} 회원 보강 수업이 ${cg.name}반에 배정되었습니다${dateStr}.`,
+        });
+      }
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }

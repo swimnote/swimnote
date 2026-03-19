@@ -1,11 +1,10 @@
 /**
- * messenger.ts — 업무 메신저 API
- * 
- * 기능:
- *   - 텍스트 메시지 (전체/특정 스태프 대상)
- *   - 사진 첨부 메시지
- *   - 회원이전 카드
- * 
+ * messenger.ts — 업무 메신저 API (채널형 2탭 구조)
+ *
+ * 채널:
+ *   talk   — 관리자/선생님 실시간 업무 채팅
+ *   notice — 관리자 공지 + 이동/보강 시스템 자동 메시지
+ *
  * 권한: pool_admin, teacher (같은 pool 내)
  */
 import { Router, type Response } from "express";
@@ -29,13 +28,11 @@ function err(res: Response, status: number, msg: string) {
   return res.status(status).json({ success: false, message: msg, error: msg });
 }
 
-/** 요청자의 pool_id를 확인 */
 async function getPoolId(userId: string): Promise<string | null> {
   const rows = await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
   return (rows.rows[0] as any)?.swimming_pool_id || null;
 }
 
-/** pool_admin/teacher만 해당 pool에 접근 가능 */
 async function checkPoolAccess(userId: string, role: string, poolId: string): Promise<boolean> {
   if (role === "super_admin") return true;
   const userPoolId = await getPoolId(userId);
@@ -43,37 +40,33 @@ async function checkPoolAccess(userId: string, role: string, poolId: string): Pr
 }
 
 // ─── 1. 메시지 목록 조회 ───────────────────────────────────────────────
-// GET /messenger/messages?pool_id=&filter=all|photo|transfer&cursor=&limit=
+// GET /messenger/messages?pool_id=&channel_type=talk|notice&cursor=&limit=
 router.get(
   "/messenger/messages",
   requireAuth,
   requireRole("pool_admin", "teacher", "super_admin"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { pool_id, filter = "all", cursor, limit: limitStr } = req.query as Record<string, string>;
+      const { pool_id, channel_type = "talk", cursor, limit: limitStr } = req.query as Record<string, string>;
       const { userId, role } = req.user!;
-      const limit = Math.min(parseInt(limitStr || "30", 10), 100);
+      const limit = Math.min(parseInt(limitStr || "40", 10), 100);
 
       if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
       if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
-
-      let filterClause = sql``;
-      if (filter === "photo") filterClause = sql` AND wm.msg_type = 'photo'`;
-      if (filter === "transfer") filterClause = sql` AND wm.msg_type = 'member_transfer'`;
 
       let cursorClause = sql``;
       if (cursor) cursorClause = sql` AND wm.created_at < ${cursor}::timestamp`;
 
       const rows = await db.execute(sql`
-        SELECT 
+        SELECT
           wm.id,
           wm.sender_id,
           wm.sender_name,
           wm.sender_role,
           wm.msg_type,
+          wm.channel_type,
+          wm.message_type,
           wm.content,
-          wm.target_id,
-          wm.target_name,
           wm.photo_url,
           wm.member_transfer_id,
           wm.created_at,
@@ -90,7 +83,7 @@ router.get(
         FROM work_messages wm
         LEFT JOIN member_transfers mt ON mt.id = wm.member_transfer_id
         WHERE wm.pool_id = ${pool_id}
-        ${filterClause}
+          AND wm.channel_type = ${channel_type}
         ${cursorClause}
         ORDER BY wm.created_at DESC
         LIMIT ${limit + 1}
@@ -99,7 +92,6 @@ router.get(
       const messages = rows.rows as any[];
       const hasMore = messages.length > limit;
       if (hasMore) messages.pop();
-
       const nextCursor = hasMore ? messages[messages.length - 1]?.created_at : null;
 
       return res.json({ success: true, messages, hasMore, nextCursor });
@@ -110,7 +102,7 @@ router.get(
   }
 );
 
-// ─── 2. 텍스트 메시지 전송 ─────────────────────────────────────────────
+// ─── 2. 대화 채널 텍스트 메시지 전송 (talk, normal) ──────────────────
 // POST /messenger/messages
 router.post(
   "/messenger/messages",
@@ -118,7 +110,7 @@ router.post(
   requireRole("pool_admin", "teacher"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { pool_id, content, target_id, target_name } = req.body;
+      const { pool_id, content } = req.body;
       const { userId, role } = req.user!;
 
       if (!pool_id || !content?.trim()) return err(res, 400, "pool_id와 content가 필요합니다.");
@@ -128,8 +120,10 @@ router.post(
       const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
 
       const rows = await db.execute(sql`
-        INSERT INTO work_messages (pool_id, sender_id, sender_name, sender_role, msg_type, content, target_id, target_name)
-        VALUES (${pool_id}, ${userId}, ${senderName}, ${role}, 'text', ${content.trim()}, ${target_id || null}, ${target_name || null})
+        INSERT INTO work_messages
+          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content)
+        VALUES
+          (${pool_id}, ${userId}, ${senderName}, ${role}, 'text', 'talk', 'normal', ${content.trim()})
         RETURNING *
       `);
 
@@ -141,8 +135,41 @@ router.post(
   }
 );
 
-// ─── 3. 사진 메시지 전송 ───────────────────────────────────────────────
-// POST /messenger/messages/photo (multipart)
+// ─── 3. 공지 채널 공지 작성 (notice, 관리자만) ─────────────────────────
+// POST /messenger/notice
+router.post(
+  "/messenger/notice",
+  requireAuth,
+  requireRole("pool_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { pool_id, content } = req.body;
+      const { userId, role } = req.user!;
+
+      if (!pool_id || !content?.trim()) return err(res, 400, "pool_id와 content가 필요합니다.");
+      if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
+
+      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
+
+      const rows = await db.execute(sql`
+        INSERT INTO work_messages
+          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content)
+        VALUES
+          (${pool_id}, ${userId}, ${senderName}, ${role}, 'text', 'notice', 'notice', ${content.trim()})
+        RETURNING *
+      `);
+
+      return res.status(201).json({ success: true, message: rows.rows[0] });
+    } catch (e: any) {
+      console.error("[messenger/notice POST]", e);
+      return err(res, 500, e.message || "서버 오류");
+    }
+  }
+);
+
+// ─── 4. 사진 메시지 전송 (대화 채널) ──────────────────────────────────
+// POST /messenger/messages/photo
 router.post(
   "/messenger/messages/photo",
   requireAuth,
@@ -150,7 +177,7 @@ router.post(
   upload.single("photo"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { pool_id, content, target_id, target_name } = req.body;
+      const { pool_id, content } = req.body;
       const { userId, role } = req.user!;
       const file = req.file;
 
@@ -176,11 +203,11 @@ router.post(
       const photoApiUrl = `/api/messenger/photo/${msgId}`;
 
       const rows = await db.execute(sql`
-        INSERT INTO work_messages 
-          (id, pool_id, sender_id, sender_name, sender_role, msg_type, content, target_id, target_name, photo_url, photo_key)
-        VALUES 
-          (${msgId}, ${pool_id}, ${userId}, ${senderName}, ${role}, 'photo', ${content?.trim() || null}, 
-           ${target_id || null}, ${target_name || null}, ${photoApiUrl}, ${key})
+        INSERT INTO work_messages
+          (id, pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, photo_url, photo_key)
+        VALUES
+          (${msgId}, ${pool_id}, ${userId}, ${senderName}, ${role}, 'photo', 'talk', 'normal',
+           ${content?.trim() || null}, ${photoApiUrl}, ${key})
         RETURNING *
       `);
 
@@ -192,7 +219,81 @@ router.post(
   }
 );
 
-// ─── 4. 회원이전 카드 생성 ─────────────────────────────────────────────
+// ─── 5. 읽음 상태 조회 ─────────────────────────────────────────────────
+// GET /messenger/read-state?pool_id=&channel_type=notice
+router.get(
+  "/messenger/read-state",
+  requireAuth,
+  requireRole("pool_admin", "teacher", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { pool_id, channel_type = "notice" } = req.query as Record<string, string>;
+      const { userId } = req.user!;
+
+      if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
+
+      const rows = await db.execute(sql`
+        SELECT last_read_at FROM messenger_read_state
+        WHERE pool_id = ${pool_id} AND user_id = ${userId} AND channel_type = ${channel_type}
+      `);
+
+      const lastReadAt = (rows.rows[0] as any)?.last_read_at || null;
+
+      // 읽지 않은 메시지 수 확인
+      let unreadCount = 0;
+      if (lastReadAt) {
+        const cntRows = await db.execute(sql`
+          SELECT count(*)::int AS cnt FROM work_messages
+          WHERE pool_id = ${pool_id} AND channel_type = ${channel_type}
+            AND created_at > ${lastReadAt}::timestamp
+            AND sender_id != ${userId}
+        `);
+        unreadCount = (cntRows.rows[0] as any)?.cnt || 0;
+      } else {
+        const cntRows = await db.execute(sql`
+          SELECT count(*)::int AS cnt FROM work_messages
+          WHERE pool_id = ${pool_id} AND channel_type = ${channel_type}
+        `);
+        unreadCount = (cntRows.rows[0] as any)?.cnt || 0;
+      }
+
+      return res.json({ success: true, lastReadAt, unreadCount });
+    } catch (e: any) {
+      console.error("[messenger/read-state GET]", e);
+      return err(res, 500, e.message || "서버 오류");
+    }
+  }
+);
+
+// ─── 6. 읽음 상태 업데이트 ─────────────────────────────────────────────
+// POST /messenger/read-state
+router.post(
+  "/messenger/read-state",
+  requireAuth,
+  requireRole("pool_admin", "teacher"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { pool_id, channel_type = "notice" } = req.body;
+      const { userId } = req.user!;
+
+      if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
+
+      await db.execute(sql`
+        INSERT INTO messenger_read_state (pool_id, user_id, channel_type, last_read_at)
+        VALUES (${pool_id}, ${userId}, ${channel_type}, now())
+        ON CONFLICT (pool_id, user_id, channel_type)
+        DO UPDATE SET last_read_at = now()
+      `);
+
+      return res.json({ success: true });
+    } catch (e: any) {
+      console.error("[messenger/read-state POST]", e);
+      return err(res, 500, e.message || "서버 오류");
+    }
+  }
+);
+
+// ─── 7. 회원이전 카드 생성 (notice 채널, system_move) ──────────────────
 // POST /messenger/member-transfers
 router.post(
   "/messenger/member-transfers",
@@ -224,21 +325,21 @@ router.post(
       const weeklySessions = (scsRow.rows[0] as any)?.frequency || 0;
 
       const transferRows = await db.execute(sql`
-        INSERT INTO member_transfers 
+        INSERT INTO member_transfers
           (pool_id, student_id, student_name, from_user_id, from_user_name, to_user_id, to_user_name, weekly_sessions, remaining_makeups, notes)
-        VALUES 
+        VALUES
           (${pool_id}, ${student_id}, ${student.name}, ${userId}, ${senderName}, ${to_user_id}, ${toUserName}, ${weeklySessions}, ${remainingMakeups}, ${notes || null})
         RETURNING *
       `);
-
       const transfer = transferRows.rows[0] as any;
 
+      // 공지 채널 system_move 메시지
+      const systemContent = `${student.name} 회원이 ${senderName} 선생님에서 ${toUserName} 선생님으로 이동되었습니다.`;
       const msgRows = await db.execute(sql`
-        INSERT INTO work_messages 
-          (pool_id, sender_id, sender_name, sender_role, msg_type, content, target_id, target_name, member_transfer_id)
-        VALUES 
-          (${pool_id}, ${userId}, ${senderName}, ${role}, 'member_transfer', ${`${student.name} 회원 이전 요청`},
-           ${to_user_id}, ${toUserName}, ${transfer.id})
+        INSERT INTO work_messages
+          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, member_transfer_id)
+        VALUES
+          (${pool_id}, 'system', '시스템', 'system', 'text', 'notice', 'system_move', ${systemContent}, ${transfer.id})
         RETURNING *
       `);
 
@@ -252,7 +353,7 @@ router.post(
   }
 );
 
-// ─── 5. 회원이전 처리 (승인/거절) ─────────────────────────────────────
+// ─── 8. 회원이전 처리 (승인/거절) ─────────────────────────────────────
 // PATCH /messenger/member-transfers/:id
 router.patch(
   "/messenger/member-transfers/:id",
@@ -261,7 +362,7 @@ router.patch(
   async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { action } = req.body; // 'approve' | 'reject'
+      const { action } = req.body;
       const { userId, role } = req.user!;
 
       if (!["approve", "reject"].includes(action)) return err(res, 400, "action은 approve 또는 reject이어야 합니다.");
@@ -273,20 +374,14 @@ router.patch(
       if (!(await checkPoolAccess(userId!, role, tf.pool_id))) return err(res, 403, "권한이 없습니다.");
 
       if (action === "approve") {
-        await db.execute(sql`
-          UPDATE students SET class_group_id = NULL, updated_at = now() WHERE id = ${tf.student_id}
-        `);
+        await db.execute(sql`UPDATE students SET class_group_id = NULL, updated_at = now() WHERE id = ${tf.student_id}`);
         await db.execute(sql`
           UPDATE student_class_schedules SET assigned_class_id = NULL, updated_at = now(), updated_by = ${userId}
           WHERE student_id = ${tf.student_id}
         `);
-        await db.execute(sql`
-          UPDATE member_transfers SET status = 'approved', resolved_at = now(), resolved_by = ${userId} WHERE id = ${id}
-        `);
+        await db.execute(sql`UPDATE member_transfers SET status = 'approved', resolved_at = now(), resolved_by = ${userId} WHERE id = ${id}`);
       } else {
-        await db.execute(sql`
-          UPDATE member_transfers SET status = 'rejected', resolved_at = now(), resolved_by = ${userId} WHERE id = ${id}
-        `);
+        await db.execute(sql`UPDATE member_transfers SET status = 'rejected', resolved_at = now(), resolved_by = ${userId} WHERE id = ${id}`);
       }
 
       const updated = await db.execute(sql`SELECT * FROM member_transfers WHERE id = ${id}`);
@@ -298,7 +393,7 @@ router.patch(
   }
 );
 
-// ─── 6. 스태프 목록 조회 (이전 대상 선택용) ───────────────────────────
+// ─── 9. 스태프 목록 조회 ───────────────────────────────────────────────
 // GET /messenger/staff?pool_id=
 router.get(
   "/messenger/staff",
@@ -329,87 +424,7 @@ router.get(
   }
 );
 
-// ─── 7. 사진 앨범 조회 ─────────────────────────────────────────────────
-// GET /messenger/album?pool_id=&cursor=&limit=
-router.get(
-  "/messenger/album",
-  requireAuth,
-  requireRole("pool_admin", "teacher", "super_admin"),
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const { pool_id, cursor, limit: limitStr } = req.query as Record<string, string>;
-      const { userId, role } = req.user!;
-      const limit = Math.min(parseInt(limitStr || "20", 10), 50);
-
-      if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
-      if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
-
-      let cursorClause = sql``;
-      if (cursor) cursorClause = sql` AND created_at < ${cursor}::timestamp`;
-
-      const rows = await db.execute(sql`
-        SELECT id, sender_name, photo_url, content, created_at
-        FROM work_messages
-        WHERE pool_id = ${pool_id} AND msg_type = 'photo'
-        ${cursorClause}
-        ORDER BY created_at DESC
-        LIMIT ${limit + 1}
-      `);
-
-      const photos = rows.rows as any[];
-      const hasMore = photos.length > limit;
-      if (hasMore) photos.pop();
-      const nextCursor = hasMore ? photos[photos.length - 1]?.created_at : null;
-
-      return res.json({ success: true, photos, hasMore, nextCursor });
-    } catch (e: any) {
-      console.error("[messenger/album GET]", e);
-      return err(res, 500, e.message || "서버 오류");
-    }
-  }
-);
-
-// ─── 8. 이전 가능한 회원 목록 ──────────────────────────────────────────
-// GET /messenger/transferable-students?pool_id=
-router.get(
-  "/messenger/transferable-students",
-  requireAuth,
-  requireRole("pool_admin", "teacher"),
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const { pool_id } = req.query as { pool_id: string };
-      const { userId, role } = req.user!;
-
-      if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
-      if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
-
-      let whereClause = sql`s.swimming_pool_id = ${pool_id} AND s.status = 'active'`;
-      if (role === "teacher") {
-        const cgRows = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId} AND is_deleted = false`);
-        const classIds = cgRows.rows.map((r: any) => r.id);
-        if (classIds.length === 0) return res.json({ success: true, students: [] });
-        whereClause = sql`${whereClause} AND s.class_group_id = ANY(${classIds})`;
-      }
-
-      const rows = await db.execute(sql`
-        SELECT s.id, s.name, s.class_group_id, cg.name AS class_name, scs.frequency AS weekly_sessions
-        FROM students s
-        LEFT JOIN class_groups cg ON cg.id = s.class_group_id
-        LEFT JOIN student_class_schedules scs ON scs.student_id = s.id
-        WHERE ${whereClause}
-        ORDER BY s.name ASC
-        LIMIT 100
-      `);
-
-      return res.json({ success: true, students: rows.rows });
-    } catch (e: any) {
-      console.error("[messenger/transferable-students GET]", e);
-      return err(res, 500, e.message || "서버 오류");
-    }
-  }
-);
-
-// ─── 9. 사진 파일 서빙 ─────────────────────────────────────────────────
+// ─── 10. 사진 파일 서빙 ────────────────────────────────────────────────
 // GET /messenger/photo/:messageId
 router.get(
   "/messenger/photo/:messageId",
@@ -433,7 +448,7 @@ router.get(
       res.setHeader("Content-Type", mime);
       res.setHeader("Cache-Control", "private, max-age=3600");
       const buf = Array.isArray(bytes) ? bytes[0] : bytes;
-      res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any));
+      return void res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any));
     } catch (e: any) {
       console.error("[messenger/photo GET]", e);
       return err(res, 500, e.message || "서버 오류");

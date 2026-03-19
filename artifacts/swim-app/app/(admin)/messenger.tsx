@@ -2,16 +2,18 @@
  * (admin)/messenger.tsx — 관리자 업무 메신저
  */
 import React from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+import { useBrand } from "@/context/BrandContext";
 import MessengerScreen from "@/components/common/MessengerScreen";
 
 const C = Colors.light;
 
 export default function AdminMessengerTab() {
   const { pool, adminUser } = useAuth();
+  const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
   if (!pool?.id || !adminUser?.id) {
@@ -23,32 +25,43 @@ export default function AdminMessengerTab() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>업무 메신저</Text>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={[styles.header, { borderBottomColor: C.border }]}>
+        <Text style={[styles.headerTitle, { color: themeColor }]}>업무 메신저</Text>
       </View>
       <MessengerScreen
         poolId={pool.id}
         myUserId={adminUser.id}
         myRole="pool_admin"
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: C.background },
-  noPoolText: { color: C.textSecondary, fontSize: 14, fontFamily: "Inter_400Regular" },
+  container: {
+    flex: 1,
+    backgroundColor: C.background,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: C.background,
+  },
+  noPoolText: {
+    color: C.textSecondary,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+  },
   header: {
     backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
   },
-  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+  },
 });
