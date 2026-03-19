@@ -1,13 +1,14 @@
 /**
  * (admin)/classes.tsx — 관리자 수업 탭
- * 선생님 my-schedule과 동일한 UI 구조, 조회 전용 권한
+ * 선생님 my-schedule과 동일한 UI 구조
  * - 일간/주간/월간 뷰 토글
- * - 반 클릭 → ClassDetailPanel (조회 전용)
- * - 수강생관리 바텀시트 (readOnly=true)
+ * - 반 클릭 → AdminClassDetailSheet (반배정/미등록/반이동/담당선생님)
+ * - 수강생관리 바텀시트 (배정 기능 활성)
  * - 반 등록 기능 유지
+ * - returnTo=weekly URL 파라미터 지원
  */
 import { Feather } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, Dimensions, Modal, Pressable,
@@ -21,8 +22,8 @@ import { addTabResetListener } from "@/utils/tabReset";
 import { PoolHeader } from "@/components/PoolHeader";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
-import ClassDetailPanel, { ClassDetail } from "@/components/admin/ClassDetailPanel";
 import StudentManagementSheet from "@/components/teacher/StudentManagementSheet";
+import AdminClassDetailSheet from "@/components/admin/AdminClassDetailSheet";
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
@@ -258,48 +259,6 @@ const mc = StyleSheet.create({
   holidayTag:     { fontSize: 9, fontFamily: "Inter_700Bold", color: "#EF4444", marginTop: 2 },
 });
 
-/* ── 반 상세 바텀시트 (조회 전용) ── */
-function ClassDetailSheet({ group, token, onClose }: {
-  group: TeacherClassGroup;
-  token: string | null;
-  onClose: () => void;
-}) {
-  const [detail, setDetail] = useState<ClassDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const date = todayDateStr();
-
-  useEffect(() => {
-    setLoading(true);
-    apiRequest(token, `/admin/class-groups/${group.id}/detail?date=${date}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { setDetail(d); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [group.id]);
-
-  return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={ds.backdrop} onPress={onClose} />
-      <View style={ds.sheet}>
-        <View style={ds.handle} />
-        <ClassDetailPanel
-          detail={detail}
-          loading={loading}
-          date={date}
-          onBack={onClose}
-          bottomInset={40}
-        />
-      </View>
-    </Modal>
-  );
-}
-
-const ds = StyleSheet.create({
-  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet:    { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-              borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "90%", minHeight: "55%" },
-  handle:   { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
-});
-
 /* ── 날짜 시트 (월간 날짜 클릭) ── */
 function DaySheet({ dateStr, dayClasses, themeColor, onSelectClass, onClose }: {
   dateStr: string; dayClasses: TeacherClassGroup[]; themeColor: string;
@@ -309,11 +268,11 @@ function DaySheet({ dateStr, dayClasses, themeColor, onSelectClass, onClose }: {
   const DOW = ["일","월","화","수","목","금","토"][new Date(dateStr + "T00:00:00").getDay()];
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={ds.backdrop} onPress={onClose} />
-      <View style={[ds.sheet, { minHeight: "30%" }]}>
-        <View style={ds.handle} />
-        <View style={ds.sheetHeader}>
-          <Text style={[ds.sheetTitle, { flex: 1 }]}>{y}년 {m}월 {d}일 ({DOW})</Text>
+      <Pressable style={daysh.backdrop} onPress={onClose} />
+      <View style={[daysh.sheet, { minHeight: "30%" }]}>
+        <View style={daysh.handle} />
+        <View style={daysh.sheetHeader}>
+          <Text style={[daysh.sheetTitle, { flex: 1 }]}>{y}년 {m}월 {d}일 ({DOW})</Text>
           <Pressable onPress={onClose} style={{ padding: 4 }}>
             <Feather name="x" size={20} color={C.textSecondary} />
           </Pressable>
@@ -339,17 +298,26 @@ function DaySheet({ dateStr, dayClasses, themeColor, onSelectClass, onClose }: {
 }
 
 const daysh = StyleSheet.create({
-  classRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.card,
-              borderRadius: 12, padding: 12, gap: 10, borderLeftWidth: 4 },
-  dot:      { width: 10, height: 10, borderRadius: 5 },
-  className:{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
-  classSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  backdrop:    { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet:       { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
+                 borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "90%", minHeight: "30%" },
+  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
+                 alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  sheetHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12,
+                 borderBottomWidth: 1, borderBottomColor: C.border },
+  sheetTitle:  { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  classRow:    { flexDirection: "row", alignItems: "center", backgroundColor: C.card,
+                 borderRadius: 12, padding: 12, gap: 10, borderLeftWidth: 4 },
+  dot:         { width: 10, height: 10, borderRadius: 5 },
+  className:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  classSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
 });
 
 /* ══════════════════ 메인 스크린 ══════════════════ */
 export default function ClassesScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
 
   const [viewMode,    setViewMode]    = useState<ViewMode>("weekly");
   const [groups,      setGroups]      = useState<TeacherClassGroup[]>([]);
@@ -402,6 +370,16 @@ export default function ClassesScreen() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // returnTo=weekly: class-assign 화면에서 돌아올 때 주간 뷰로 전환 + 갱신
+  useEffect(() => {
+    if (returnTo === "weekly") {
+      setViewMode("weekly");
+      setDetailGroup(null);
+      setDaySheet(null);
+      load();
+    }
+  }, [returnTo]);
 
   /* ── statusMap (WeeklySchedule 일간 뷰용) ── */
   const statusMap = useMemo(() => {
@@ -530,12 +508,14 @@ export default function ClassesScreen() {
         </ScrollView>
       )}
 
-      {/* 반 상세 시트 */}
+      {/* 반 상세 시트 (관리자 전용: 반배정/미등록/반이동/담당선생님) */}
       {detailGroup && (
-        <ClassDetailSheet
+        <AdminClassDetailSheet
           group={detailGroup}
           token={token}
+          themeColor={themeColor}
           onClose={() => setDetailGroup(null)}
+          onReload={() => { load(); setDetailGroup(null); setViewMode("weekly"); }}
         />
       )}
 
@@ -550,15 +530,20 @@ export default function ClassesScreen() {
         />
       )}
 
-      {/* 수강생관리 바텀시트 (조회 전용) */}
+      {/* 수강생관리 바텀시트 (관리자도 배정 가능) */}
       <StudentManagementSheet
         visible={showManagement}
         token={token}
         groups={groups}
         themeColor={themeColor}
-        readOnly
         onClose={() => setShowManagement(false)}
-        onAssignDone={() => setShowManagement(false)}
+        onAssignDone={() => {
+          setShowManagement(false);
+          setViewMode("weekly");
+          setDetailGroup(null);
+          setDaySheet(null);
+          load();
+        }}
       />
 
       {/* 반 등록 */}

@@ -47,7 +47,7 @@ interface Student {
 export default function ClassAssignScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const { classId } = useLocalSearchParams<{ classId: string }>();
+  const { classId, returnTo } = useLocalSearchParams<{ classId: string; returnTo?: string }>();
 
   const [classInfo, setClassInfo] = useState<ClassGroup | null>(null);
   const [assigned, setAssigned] = useState<Student[]>([]);
@@ -183,7 +183,11 @@ export default function ClassAssignScreen() {
   const capacityOver = classInfo?.capacity != null && assigned.length >= classInfo.capacity;
 
   function goBack() {
-    router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
+    if (returnTo === "admin-classes") {
+      router.navigate("/(admin)/classes?returnTo=weekly" as any);
+    } else {
+      router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
+    }
   }
 
   if (loading) {
