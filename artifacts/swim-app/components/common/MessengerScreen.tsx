@@ -101,15 +101,15 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
       ]);
       if (talkRes.ok) {
         const d = await talkRes.json();
-        setTalkMessages(d.data ?? d ?? []);
+        setTalkMessages(Array.isArray(d.messages) ? d.messages : []);
       }
       if (noticeRes.ok) {
         const d = await noticeRes.json();
-        setNoticeMessages(d.data ?? d ?? []);
+        setNoticeMessages(Array.isArray(d.messages) ? d.messages : []);
       }
       if (readRes.ok) {
         const d = await readRes.json();
-        const cnt = d.data?.unread_count ?? d.unread_count ?? 0;
+        const cnt = d.unreadCount ?? d.unread_count ?? 0;
         setNoticeUnread(cnt > 0);
       }
     } catch (e) {
@@ -161,8 +161,8 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
       });
       if (res.ok) {
         const d = await res.json();
-        const msg: WorkMessage = d.data ?? d;
-        setTalkMessages((prev) => [msg, ...prev]);
+        const msg: WorkMessage = d.message;
+        if (msg) setTalkMessages((prev) => [msg, ...prev]);
       }
       setTalkInput("");
     } catch (e) {
@@ -184,8 +184,8 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
       });
       if (res.ok) {
         const d = await res.json();
-        const msg: WorkMessage = d.data ?? d;
-        setNoticeMessages((prev) => [msg, ...prev]);
+        const msg: WorkMessage = d.message;
+        if (msg) setNoticeMessages((prev) => [msg, ...prev]);
       }
       setNoticeInput("");
     } catch (e) {
