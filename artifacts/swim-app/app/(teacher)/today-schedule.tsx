@@ -1126,6 +1126,7 @@ export default function TodayScheduleScreen() {
   const [schedMemoVisible, setSchedMemoVisible] = useState(false);
   const [overview, setOverview]       = useState<TeacherOverview | null>(null);
   const [unreadMsgVisible, setUnreadMsgVisible] = useState(false);
+  const [notePopupVisible, setNotePopupVisible] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -1160,22 +1161,12 @@ export default function TodayScheduleScreen() {
       onPress: () => router.push("/(teacher)/my-schedule" as any),
     },
     {
-      key: "attendance",
-      label: "출결관리",
-      icon: "check-square",
+      key: "students",
+      label: "회원관리",
+      icon: "users",
       color: "#059669",
       bg: "#D1FAE5",
-      badge: pendingAtt > 0 ? pendingAtt : null,
-      onPress: () => router.push("/(teacher)/attendance" as any),
-    },
-    {
-      key: "diary",
-      label: "수업일지",
-      icon: "book",
-      color: "#D97706",
-      bg: "#FEF3C7",
-      badge: (overview?.pending_diaries_today ?? 0) > 0 ? overview!.pending_diaries_today : null,
-      onPress: () => router.push("/(teacher)/diary" as any),
+      onPress: () => router.push("/(teacher)/students" as any),
     },
     {
       key: "makeups",
@@ -1187,12 +1178,20 @@ export default function TodayScheduleScreen() {
       onPress: () => router.push("/(teacher)/makeups" as any),
     },
     {
+      key: "note",
+      label: "쪽지",
+      icon: "mail",
+      color: "#D97706",
+      bg: "#FEF3C7",
+      badge: (overview?.unread_messages ?? 0) > 0 ? overview!.unread_messages : null,
+      onPress: () => setNotePopupVisible(true),
+    },
+    {
       key: "messenger",
       label: "메신저",
       icon: "message-circle",
       color: "#2563EB",
       bg: "#DBEAFE",
-      badge: (overview?.unread_messages ?? 0) > 0 ? overview!.unread_messages : null,
       onPress: () => router.push("/(teacher)/messenger" as any),
     },
     {
@@ -1204,12 +1203,12 @@ export default function TodayScheduleScreen() {
       onPress: () => router.push("/(teacher)/revenue" as any),
     },
     {
-      key: "photos",
-      label: "사진·영상",
-      icon: "camera",
+      key: "my-info",
+      label: "내정보",
+      icon: "user",
       color: "#DB2777",
       bg: "#FCE7F3",
-      onPress: () => router.push("/(teacher)/photos" as any),
+      onPress: () => router.push("/(teacher)/my-info" as any),
     },
     {
       key: "settings",
@@ -1251,99 +1250,92 @@ export default function TodayScheduleScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />
         }
       >
-        {/* ── 오늘 기준 배너 ── */}
+        {/* ── Row1: 오늘 기준 4 stat 배너 ── */}
         <View style={[h.banner, { backgroundColor: themeColor }]}>
           <View style={h.bannerRow}>
             <View style={{ flex: 1 }}>
               <Text style={h.bannerDate}>{formatDate(today)}</Text>
-              <Text style={h.bannerTitle}>
-                오늘 수업 {loading ? "..." : `${items.length}개`}
-              </Text>
+              <Text style={h.bannerTitle}>오늘의 수업</Text>
             </View>
             {!loading && items.length > 0 && (
               <View style={[h.bannerBadge, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
-                <Feather name="check-circle" size={14} color="#fff" />
+                <Feather name="check-circle" size={13} color="#fff" />
                 <Text style={h.bannerBadgeTxt}>진행 중</Text>
               </View>
             )}
           </View>
           {loading ? (
             <ActivityIndicator color="rgba(255,255,255,0.7)" style={{ marginTop: 8 }} />
-          ) : items.length > 0 ? (
-            <View style={h.bannerStatRow}>
-              <View style={h.bannerStat}>
-                <Feather name="check-square" size={13} color="rgba(255,255,255,0.85)" />
-                <Text style={h.bannerStatTxt}>출결 {attDoneCount}/{items.length}</Text>
-              </View>
-              <View style={h.bannerDivider} />
-              <View style={h.bannerStat}>
-                <Feather name="book" size={13} color="rgba(255,255,255,0.85)" />
-                <Text style={h.bannerStatTxt}>일지 {diaryDoneCount}/{items.length}</Text>
-              </View>
-              {pendingAtt > 0 && (
-                <>
-                  <View style={h.bannerDivider} />
-                  <View style={h.bannerStat}>
-                    <Feather name="alert-circle" size={13} color="#FDE68A" />
-                    <Text style={[h.bannerStatTxt, { color: "#FDE68A" }]}>미완료 {pendingAtt}개</Text>
-                  </View>
-                </>
-              )}
-            </View>
           ) : (
-            <Text style={h.bannerNoClass}>오늘 담당 수업이 없습니다</Text>
+            <View style={h.stat4Row}>
+              <Pressable style={h.stat4Item} onPress={() => router.push("/(teacher)/my-schedule" as any)}>
+                <Text style={h.stat4Num}>{items.length}</Text>
+                <Text style={h.stat4Label}>오늘 수업</Text>
+              </Pressable>
+              <View style={h.bannerDivider} />
+              <Pressable style={h.stat4Item} onPress={() => router.push("/(teacher)/attendance" as any)}>
+                <Text style={h.stat4Num}>{attDoneCount}</Text>
+                <Text style={h.stat4Label}>출결 완료</Text>
+              </Pressable>
+              <View style={h.bannerDivider} />
+              <Pressable style={h.stat4Item} onPress={() => router.push("/(teacher)/diary" as any)}>
+                <Text style={h.stat4Num}>{diaryDoneCount}</Text>
+                <Text style={h.stat4Label}>일지 작성</Text>
+              </Pressable>
+              <View style={h.bannerDivider} />
+              <Pressable style={h.stat4Item} onPress={() => router.push("/(teacher)/my-schedule" as any)}>
+                <Feather name="calendar" size={16} color="rgba(255,255,255,0.9)" />
+                <Text style={h.stat4Label}>주간 스케줄</Text>
+              </Pressable>
+            </View>
           )}
         </View>
 
-        {/* ── 누적 업무 배너 ── */}
-        {((overview?.pending_diaries_past ?? 0) > 0 ||
-          (overview?.unread_messages ?? 0) > 0 ||
-          (overview?.makeup_count ?? 0) > 0) && (
-          <View style={[h.accumBanner, { backgroundColor: C.card }]}>
-            <View style={h.accumHeader}>
-              <Feather name="inbox" size={14} color="#EF4444" />
-              <Text style={[h.accumTitle, { color: "#EF4444" }]}>누적 업무</Text>
-            </View>
-            <View style={h.accumRow}>
-              {(overview?.pending_diaries_past ?? 0) > 0 && (
-                <Pressable
-                  style={h.accumItem}
-                  onPress={() => router.push("/(teacher)/diary" as any)}
-                >
-                  <View style={[h.accumIcon, { backgroundColor: "#FEF3C7" }]}>
-                    <Feather name="edit" size={15} color="#D97706" />
-                  </View>
-                  <Text style={[h.accumCount, { color: "#D97706" }]}>{overview!.pending_diaries_past}</Text>
-                  <Text style={h.accumLabel}>미작성 일지</Text>
-                </Pressable>
-              )}
-              {(overview?.unread_messages ?? 0) > 0 && (
-                <Pressable
-                  style={h.accumItem}
-                  onPress={() => setUnreadMsgVisible(true)}
-                >
-                  <View style={[h.accumIcon, { backgroundColor: "#DBEAFE" }]}>
-                    <Feather name="mail" size={15} color="#2563EB" />
-                  </View>
-                  <Text style={[h.accumCount, { color: "#2563EB" }]}>{overview!.unread_messages}</Text>
-                  <Text style={h.accumLabel}>안읽은 쪽지</Text>
-                </Pressable>
-              )}
-              {(overview?.makeup_count ?? 0) > 0 && (
-                <Pressable
-                  style={h.accumItem}
-                  onPress={() => router.push("/(teacher)/makeups" as any)}
-                >
-                  <View style={[h.accumIcon, { backgroundColor: "#EDE9FE" }]}>
-                    <Feather name="refresh-cw" size={15} color="#7C3AED" />
-                  </View>
-                  <Text style={[h.accumCount, { color: "#7C3AED" }]}>{overview!.makeup_count}</Text>
-                  <Text style={h.accumLabel}>보강 대기</Text>
-                </Pressable>
-              )}
-            </View>
+        {/* ── Row2: 누적 업무 4개 (항상 표시) ── */}
+        <View style={[h.accumBanner, { backgroundColor: C.card }]}>
+          <View style={h.accumHeader}>
+            <Feather name="inbox" size={14} color="#6B7280" />
+            <Text style={h.accumTitle}>누적 업무 현황</Text>
           </View>
-        )}
+          <View style={h.accumRow}>
+            <Pressable style={h.accumItem} onPress={() => router.push("/(teacher)/diary" as any)}>
+              <View style={[h.accumIcon, { backgroundColor: "#FEF3C7" }]}>
+                <Feather name="edit" size={15} color="#D97706" />
+              </View>
+              <Text style={[h.accumCount, { color: (overview?.pending_diaries_past ?? 0) > 0 ? "#D97706" : C.textMuted }]}>
+                {loading ? "-" : (overview?.pending_diaries_past ?? 0)}
+              </Text>
+              <Text style={h.accumLabel}>미작성 일지</Text>
+            </Pressable>
+            <Pressable style={h.accumItem} onPress={() => router.push("/(teacher)/makeups" as any)}>
+              <View style={[h.accumIcon, { backgroundColor: "#EDE9FE" }]}>
+                <Feather name="refresh-cw" size={15} color="#7C3AED" />
+              </View>
+              <Text style={[h.accumCount, { color: (overview?.makeup_count ?? 0) > 0 ? "#7C3AED" : C.textMuted }]}>
+                {loading ? "-" : (overview?.makeup_count ?? 0)}
+              </Text>
+              <Text style={h.accumLabel}>보강 대기</Text>
+            </Pressable>
+            <Pressable style={h.accumItem} onPress={() => router.push("/(teacher)/attendance" as any)}>
+              <View style={[h.accumIcon, { backgroundColor: "#FEE2E2" }]}>
+                <Feather name="user-check" size={15} color="#DC2626" />
+              </View>
+              <Text style={[h.accumCount, { color: pendingAtt > 0 ? "#DC2626" : C.textMuted }]}>
+                {loading ? "-" : pendingAtt}
+              </Text>
+              <Text style={h.accumLabel}>출석 미체크</Text>
+            </Pressable>
+            <Pressable style={h.accumItem} onPress={() => setNotePopupVisible(true)}>
+              <View style={[h.accumIcon, { backgroundColor: "#FEF3C7" }]}>
+                <Feather name="mail" size={15} color="#D97706" />
+              </View>
+              <Text style={[h.accumCount, { color: (overview?.unread_messages ?? 0) > 0 ? "#D97706" : C.textMuted }]}>
+                {loading ? "-" : (overview?.unread_messages ?? 0)}
+              </Text>
+              <Text style={h.accumLabel}>안 읽은 쪽지</Text>
+            </Pressable>
+          </View>
+        </View>
 
         {/* ── 8아이콘 그리드 ── */}
         <View style={[h.gridCard, { backgroundColor: C.card }]}>
@@ -1396,6 +1388,15 @@ export default function TodayScheduleScreen() {
         onClose={() => setUnreadMsgVisible(false)}
         onOpenDiary={handleOpenDiaryFromMsg}
       />
+
+      {/* 쪽지 팝업 */}
+      <UnreadMessagesModal
+        visible={notePopupVisible}
+        token={token}
+        themeColor={themeColor}
+        onClose={() => setNotePopupVisible(false)}
+        onOpenDiary={handleOpenDiaryFromMsg}
+      />
     </SafeAreaView>
   );
 }
@@ -1418,17 +1419,22 @@ const h = StyleSheet.create({
   bannerStatRow:  { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6 },
   bannerStat:   { flexDirection: "row", alignItems: "center", gap: 4 },
   bannerStatTxt:{ fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.9)" },
-  bannerDivider:{ width: 1, height: 12, backgroundColor: "rgba(255,255,255,0.3)" },
+  bannerDivider:{ width: 1, height: 28, backgroundColor: "rgba(255,255,255,0.3)" },
   bannerNoClass:{ fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)", marginTop: 4 },
+  /* Row1 stat4 */
+  stat4Row:     { flexDirection: "row", alignItems: "center", marginTop: 10 },
+  stat4Item:    { flex: 1, alignItems: "center", gap: 4, paddingVertical: 4 },
+  stat4Num:     { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff" },
+  stat4Label:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.82)" },
   /* 누적 업무 배너 */
   accumBanner:  { borderRadius: 16, padding: 14, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   accumHeader:  { flexDirection: "row", alignItems: "center", gap: 5 },
-  accumTitle:   { fontSize: 13, fontFamily: "Inter_700Bold" },
-  accumRow:     { flexDirection: "row", gap: 10 },
+  accumTitle:   { fontSize: 13, fontFamily: "Inter_700Bold", color: "#6B7280" },
+  accumRow:     { flexDirection: "row", gap: 6 },
   accumItem:    { flex: 1, alignItems: "center", gap: 4, paddingVertical: 8 },
   accumIcon:    { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   accumCount:   { fontSize: 18, fontFamily: "Inter_700Bold" },
-  accumLabel:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center" },
+  accumLabel:   { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center" },
   /* 8아이콘 그리드 */
   gridCard:     { borderRadius: 20, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   grid:         { flexDirection: "row", flexWrap: "wrap" },

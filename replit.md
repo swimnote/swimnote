@@ -19,6 +19,16 @@ The administrator application features a 6-tab structure (Dashboard, People, Cla
 - `components/common/ModalSheet.tsx`: 공통 바텀 시트 — 75% 높이, PanResponder 스와이프 닫기, X 버튼, ScrollView 내장, KeyboardAvoidingView 지원.
 - **적용 완료 범위**: admin 하위 화면 전체 (20개+), parent 하위 화면 8개, teacher/student-detail, super/storage-policy, admin/community(PoolHeader left prop 추가). Alert.alert 금지 규칙 유지.
 
+**선생님 모드 OS 허브형 홈 (2026-03 개편)**:
+- `today-schedule.tsx`: OS 허브형 홈 완성. Row1(4-stat배너: 오늘수업/출결완료/일지작성/주간스케줄), Row2(4-누적업무: 미작성일지/보강대기/출석미체크/안읽은쪽지, 항상표시), Row3(스케줄메모 진입). 8아이콘: 수업관리/회원관리/보강관리/쪽지(popup)/메신저/정산/내정보/설정.
+- `my-info.tsx`: 내정보 분리 신규화면 (프로필/내반통계/회원현황/권한정보/모드전환/탈퇴요청)
+- `students.tsx`: 회원관리 신규화면 (정상/연기/탈퇴 탭 필터, 검색, 학생상세 이동)
+- `makeups.tsx`: 보강관리 재편 (보강대기/보강현황 탭, 보강지정→주간스케줄 플로우)
+- `settings.tsx`: 내정보 코드 제거, 설정위주 재편 (저장공간/알림/앱설정/피드백/사진영상)
+- `my-schedule.tsx`: 액션칩 통일 — ClassDetailSheet(주간)와 일간 서브헤더를 동일 레이아웃으로 통일 (flex:1, paddingVertical:9, gap:8). 기타수업 버튼 ClassDetailSheet에도 추가.
+- `_layout.tsx`: my-info, students hidden screen 등록 완료
+- **Alert.alert 금지 → ConfirmModal** 규칙 유지
+
 **화면 구조 통일 (2025-03 UI Unification)**:
 - **탭바 통일**: 슈퍼관리자/관리자/선생님/학부모 4개 모드 모두 `position: "absolute"` + iOS BlurView + 탭바 배경 통일.
 - **선생님 레이아웃**: `headerShown: false` 적용, 네이티브 헤더 제거. 선생님 탭 화면 전체 `edges={[]}` (PoolHeader가 safe area 처리). messenger는 `paddingTop: insets.top` 커스텀 헤더 패턴. settings에 로그아웃 버튼 추가.
