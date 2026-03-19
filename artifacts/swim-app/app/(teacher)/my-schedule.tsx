@@ -5,7 +5,7 @@
  * 상단 우측: 선택 / 삭제 버튼
  */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Dimensions, FlatList, Modal,
@@ -653,6 +653,9 @@ export default function MyScheduleScreen() {
   const { themeColor } = useBrand();
   const selfTeacher = adminUser ? { id: adminUser.id, name: adminUser.name || "나" } : undefined;
 
+  // 반배정·출결 등 서브작업 완료 후 복귀 파라미터 감지
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+
   const [viewMode,      setViewMode]      = useState<ViewMode>("daily");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
@@ -728,6 +731,16 @@ export default function MyScheduleScreen() {
       setViewMode("weekly");
     });
   }, []);
+
+  // 반배정·출결 완료 후 복귀 시 주간 뷰로 전환 + 시트 닫기
+  useEffect(() => {
+    if (returnTo === "weekly") {
+      setViewMode("weekly");
+      setDetailGroup(null);
+      setSelectedGroup(null);
+      setDaySheet(null);
+    }
+  }, [returnTo]);
 
   // 상태맵
   const statusMap: Record<string, SlotStatus> = {};

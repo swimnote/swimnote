@@ -6,7 +6,7 @@
  *  [보강 관리]  보강 대기 목록 → 보강 지정 모달 / 결석소멸 모달
  */
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
@@ -233,13 +233,21 @@ export default function TeacherAttendanceScreen() {
       const hasAbsent = checkedStudents.some(st => attState[st.id] === "absent");
       setAttTodayMap(prev => ({ ...prev, [selectedGroup!.id]: checkedCnt }));
       if (hasAbsent) setTimeout(() => loadMakeups(), 400);
+      const fromMySchedule = !!params.classGroupId;
       if (goBack) {
-        // 적용 버튼: 저장 즉시 이전 화면으로
         setSaveMsg("저장되었습니다.");
-        setTimeout(() => { setSaveMsg(""); setSelectedGroup(null); }, 600);
+        setTimeout(() => {
+          setSaveMsg("");
+          if (fromMySchedule) router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
+          else setSelectedGroup(null);
+        }, 600);
       } else {
         setSaveMsg("출결이 저장되었습니다.");
-        setTimeout(() => { setSaveMsg(""); setSelectedGroup(null); }, 1200);
+        setTimeout(() => {
+          setSaveMsg("");
+          if (fromMySchedule) router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
+          else setSelectedGroup(null);
+        }, 1200);
       }
     } catch { setSaveMsg("저장에 실패했습니다."); }
     finally { setSaving(false); }
@@ -350,7 +358,13 @@ export default function TeacherAttendanceScreen() {
       <SafeAreaView style={s.safe} edges={[]}>
         <PoolHeader />
         <View style={s.subHeader}>
-          <Pressable style={s.backBtn} onPress={() => { setSelectedGroup(null); setSaveMsg(""); }}>
+          <Pressable style={s.backBtn} onPress={() => {
+            if (params.classGroupId) {
+              router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
+            } else {
+              setSelectedGroup(null); setSaveMsg("");
+            }
+          }}>
             <Feather name="arrow-left" size={20} color={C.text} />
           </Pressable>
           <View style={{ flex: 1 }}>

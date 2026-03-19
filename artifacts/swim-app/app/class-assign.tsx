@@ -182,11 +182,15 @@ export default function ClassAssignScreen() {
     : `${assigned.length}명`;
   const capacityOver = classInfo?.capacity != null && assigned.length >= classInfo.capacity;
 
+  function goBack() {
+    router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
+  }
+
   if (loading) {
     return (
       <View style={[s.root, { backgroundColor: C.background }]}>
         <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
-          <Pressable onPress={() => router.back()} style={s.backBtn}>
+          <Pressable onPress={goBack} style={s.backBtn}>
             <Feather name="arrow-left" size={20} color={C.text} />
           </Pressable>
           <Text style={[s.title, { color: C.text }]}>반배정 변경</Text>
@@ -201,7 +205,7 @@ export default function ClassAssignScreen() {
     <View style={[s.root, { backgroundColor: C.background }]}>
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
-        <Pressable onPress={() => router.back()} style={s.backBtn}>
+        <Pressable onPress={goBack} style={s.backBtn}>
           <Feather name="arrow-left" size={20} color={C.text} />
         </Pressable>
         <Text style={[s.title, { color: C.text }]}>반배정 변경</Text>
@@ -325,7 +329,7 @@ export default function ClassAssignScreen() {
       <View style={[s.doneWrap, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable
           style={[s.doneBtn, { backgroundColor: hasChanges ? C.tint : C.border }]}
-          onPress={() => router.back()}
+          onPress={goBack}
         >
           <Feather name="check" size={18} color={hasChanges ? "#fff" : C.textMuted} />
           <Text style={[s.doneTxt, { color: hasChanges ? "#fff" : C.textMuted }]}>
