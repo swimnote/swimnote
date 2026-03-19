@@ -62,7 +62,7 @@ export default function ClassAssignScreen() {
       if (cgRes.ok) setClassInfo(await cgRes.json());
       if (stuRes.ok) {
         const allStu: Student[] = await stuRes.json();
-        const active = allStu.filter(s => s.status !== "withdrawn" && s.status !== "deleted");
+        const active = allStu.filter(s => s.status === "active");
         setAllStudents(active);
         const inClass = active.filter(s => {
           const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];

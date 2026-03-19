@@ -103,7 +103,8 @@ function RootNav() {
   useEffect(() => {
     if (isLoading || !kind || !didRoute.current) return;
     const APP_ROOTS = ["(admin)", "(super)", "(teacher)", "(parent)",
-      "org-role-select", "pool-apply", "pending", "rejected", "subscription-expired"];
+      "org-role-select", "pool-apply", "pending", "rejected", "subscription-expired",
+      "class-assign"];
     if (segments.length === 0 || !APP_ROOTS.includes(segments[0] as string)) {
       router.replace("/org-role-select");
     }
@@ -163,6 +164,7 @@ function RootNav() {
       <Stack.Screen name="(super)" />
       <Stack.Screen name="(teacher)" />
       <Stack.Screen name="(parent)" />
+      <Stack.Screen name="class-assign" />
     </Stack>
   );
 }
