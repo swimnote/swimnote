@@ -6,6 +6,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { createSystemMessage } from "../utils/messenger-system.js";
 
 const router = Router();
 
@@ -323,6 +324,84 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
     }).where(eq(studentsTable.id, req.params.id));
 
     return res.json({ success: true, remaining_classes: newIds.length });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
+});
+
+// ── POST /:id/move-class — 반 이동 (기존 반 제거 + 현재 반 추가) ──
+router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
+  const { from_class_id, to_class_id } = req.body as { from_class_id: string; to_class_id: string };
+  if (!from_class_id || !to_class_id) return err(res, 400, "from_class_id, to_class_id 모두 필요");
+  if (from_class_id === to_class_id) return err(res, 400, "출발반과 도착반이 같습니다");
+
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+
+    const [existing] = await db.select().from(studentsTable)
+      .where(eq(studentsTable.id, req.params.id)).limit(1);
+    if (!existing) return err(res, 404, "학생 없음");
+    if (poolId && existing.swimming_pool_id !== poolId) return err(res, 403, "접근 권한 없음");
+
+    // 선생님은 도착반(to_class_id)이 본인 담당 반이어야 함
+    if (req.user!.role === "teacher") {
+      const [toCls] = await db.select({ teacher_user_id: classGroupsTable.teacher_user_id, name: classGroupsTable.name })
+        .from(classGroupsTable).where(eq(classGroupsTable.id, to_class_id)).limit(1);
+      if (!toCls || toCls.teacher_user_id !== req.user!.userId) {
+        return err(res, 403, "본인이 담당하는 반으로만 이동할 수 있습니다.");
+      }
+    }
+
+    const currentIds: string[] = Array.isArray(existing.assigned_class_ids)
+      ? existing.assigned_class_ids
+      : (typeof existing.assigned_class_ids === "string"
+          ? JSON.parse(existing.assigned_class_ids || "[]") : []);
+
+    if (!currentIds.includes(from_class_id)) return err(res, 400, "학생이 출발반에 배정되어 있지 않습니다");
+    if (currentIds.includes(to_class_id)) return err(res, 400, "이미 현재 반에 배정되어 있습니다");
+
+    // 제거 후 추가
+    const newIds = currentIds.filter((id: string) => id !== from_class_id).concat(to_class_id);
+
+    // schedule_labels 재계산
+    const clsRows = await Promise.all(newIds.map(async (id: string) => {
+      const [cg] = await db.select({
+        id: classGroupsTable.id,
+        name: classGroupsTable.name,
+        schedule_days: classGroupsTable.schedule_days,
+        schedule_time: classGroupsTable.schedule_time,
+      }).from(classGroupsTable).where(eq(classGroupsTable.id, id)).limit(1);
+      return cg || null;
+    }));
+    const validRows = clsRows.filter(Boolean) as any[];
+    const labels = validRows.map((c: any) => {
+      const days = c.schedule_days.split(",").map((d: string) => d.trim());
+      const hour = c.schedule_time.split(":")[0];
+      return days.map((d: string) => `${d}${hour}`).join("·");
+    }).join("·");
+
+    await db.update(studentsTable).set({
+      assigned_class_ids: newIds as any,
+      class_group_id: newIds[0] || null,
+      schedule_labels: labels || null,
+      status: "active",
+      updated_at: new Date(),
+    }).where(eq(studentsTable.id, req.params.id));
+
+    // 출발반/도착반 이름 조회 (메신저 메시지용)
+    const [fromCls] = await db.select({ name: classGroupsTable.name })
+      .from(classGroupsTable).where(eq(classGroupsTable.id, from_class_id)).limit(1);
+    const [toCls] = await db.select({ name: classGroupsTable.name })
+      .from(classGroupsTable).where(eq(classGroupsTable.id, to_class_id)).limit(1);
+
+    // 메신저 공지 자동 메시지
+    if (poolId && fromCls && toCls) {
+      await createSystemMessage({
+        poolId,
+        msgType: "system_move",
+        content: `${existing.name} 회원이 ${fromCls.name}에서 ${toCls.name}으로 이동되었습니다.`,
+      });
+    }
+
+    return res.json({ success: true, assigned_class_ids: newIds });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
 

@@ -1082,15 +1082,16 @@ export default function MyScheduleScreen() {
         />
       )}
 
-      {/* 반이동 (현재 반에서 제거) 모달 */}
+      {/* 반이동 (현재 반으로 데려오기) 모달 */}
       {removeClassGroup && (
-        <RemoveFromClassModal
+        <MoveToClassModal
           token={token}
           classGroup={removeClassGroup}
+          classGroups={groups}
           students={students}
           themeColor={themeColor}
           onClose={() => setRemoveClassGroup(null)}
-          onRemoved={() => { setRemoveClassGroup(null); load(); }}
+          onMoved={() => { setRemoveClassGroup(null); load(); }}
         />
       )}
     </SafeAreaView>
@@ -1290,147 +1291,228 @@ const um = StyleSheet.create({
   emptyTxt:   { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
 });
 
-// ─── 반이동 Modal (현재 반에서 학생 제거) ─────────────────────────
-function RemoveFromClassModal({ token, classGroup, students, themeColor, onClose, onRemoved }: {
+// ─── 반이동 Modal (기존 반에서 제거 → 현재 반으로 추가) ──────────
+function MoveToClassModal({ token, classGroup, classGroups, students, themeColor, onClose, onMoved }: {
   token: string | null;
-  classGroup: TeacherClassGroup;
+  classGroup: TeacherClassGroup;         // 도착 반 (현재 반)
+  classGroups: TeacherClassGroup[];      // 선생님 담당 전체 반 목록
   students: StudentItem[];
   themeColor: string;
   onClose: () => void;
-  onRemoved: () => void;
+  onMoved: () => void;
 }) {
-  const [removing, setRemoving] = useState<string | null>(null);
-  const [confirmItem, setConfirmItem] = useState<StudentItem | null>(null);
+  // step: list → (pick-class if weekly≥2) → confirm
+  const [step, setStep] = useState<"list" | "pick-class" | "confirm">("list");
   const [q, setQ] = useState("");
+  const [selected, setSelected] = useState<StudentItem | null>(null);
+  const [fromClassId, setFromClassId] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
 
-  // 현재 반 학생만 필터 (assigned_class_ids 또는 class_group_id 기준)
-  const classStudents = students.filter(st =>
-    (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(classGroup.id))
-    || st.class_group_id === classGroup.id
-  ).sort((a, b) => a.name.localeCompare(b.name));
+  // 선생님 담당 반 IDs 집합
+  const teacherClassIds = new Set(classGroups.map(g => g.id));
 
-  const filtered = classStudents.filter(st =>
-    !q || st.name.includes(q)
-  );
+  // 이동 대상 학생 목록: 선생님 담당 반에 배정돼 있고, 현재 반(classGroup.id)에는 없는 학생
+  const eligible = students.filter(st => {
+    const ids: string[] = Array.isArray(st.assigned_class_ids)
+      ? st.assigned_class_ids
+      : (st.class_group_id ? [st.class_group_id] : []);
+    const inCurrentClass = ids.includes(classGroup.id);
+    if (inCurrentClass) return false;
+    return ids.some(id => teacherClassIds.has(id));
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
-  async function doRemove(student: StudentItem) {
-    setRemoving(student.id);
-    await apiRequest(token, `/students/${student.id}/remove-from-class`, {
-      method: "POST",
-      body: JSON.stringify({ class_group_id: classGroup.id }),
-    });
-    setRemoving(null);
-    onRemoved();
+  const filtered = eligible.filter(st => !q || st.name.includes(q));
+
+  // 학생의 담당 반 목록 (현재 반 제외, 선생님 반만)
+  function teacherClassesOf(st: StudentItem): TeacherClassGroup[] {
+    const ids: string[] = Array.isArray(st.assigned_class_ids)
+      ? st.assigned_class_ids
+      : (st.class_group_id ? [st.class_group_id] : []);
+    return classGroups.filter(g => ids.includes(g.id) && g.id !== classGroup.id);
   }
+
+  // 반 이름 포맷
+  function clsLabel(g: TeacherClassGroup) {
+    const days = g.schedule_days.split(",").map(d => d.trim()).join("·");
+    const [h, m] = g.schedule_time.split(":");
+    return `${days} ${h}:${m}반`;
+  }
+
+  function handleSelectStudent(st: StudentItem) {
+    setSelected(st);
+    const fromCls = teacherClassesOf(st);
+    if (fromCls.length === 1) {
+      // 주 1회: 바로 확인 팝업
+      setFromClassId(fromCls[0].id);
+      setStep("confirm");
+    } else {
+      // 주 2회+: 어떤 반에서 제거할지 선택
+      setFromClassId(null);
+      setStep("pick-class");
+    }
+  }
+
+  async function doMove() {
+    if (!selected || !fromClassId) return;
+    setMoving(true);
+    await apiRequest(token, `/students/${selected.id}/move-class`, {
+      method: "POST",
+      body: JSON.stringify({ from_class_id: fromClassId, to_class_id: classGroup.id }),
+    });
+    setMoving(false);
+    onMoved();
+  }
+
+  // 확인 문구
+  const fromCls = classGroups.find(g => g.id === fromClassId);
+  const confirmMsg = selected && fromCls
+    ? `${selected.name} 회원을 ${clsLabel(fromCls)}에서 ${clsLabel(classGroup)}으로 이동하시겠습니까?\n\n이동 시 선택한 기존 반에서만 해당 학생이 제거됩니다.`
+    : "";
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={rm.backdrop} onPress={onClose} />
       <View style={rm.sheet}>
         <View style={rm.handle} />
-        <View style={rm.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={rm.title}>반이동 — {classGroup.name}</Text>
-            <Text style={rm.sub}>선택한 학생을 현재 반에서 제거합니다</Text>
-          </View>
-          <Pressable onPress={onClose} style={{ padding: 4 }}>
-            <Feather name="x" size={20} color={C.textSecondary} />
-          </Pressable>
-        </View>
 
-        <View style={rm.searchBar}>
-          <Feather name="search" size={14} color={C.textMuted} />
-          <TextInput
-            style={rm.searchInput}
-            value={q}
-            onChangeText={setQ}
-            placeholder="이름 검색"
-            placeholderTextColor={C.textMuted}
-          />
-          {!!q && <Pressable onPress={() => setQ("")}><Feather name="x" size={14} color={C.textMuted} /></Pressable>}
-        </View>
-
-        <ScrollView style={rm.list} showsVerticalScrollIndicator={false}>
-          {filtered.length === 0 ? (
-            <View style={rm.empty}>
-              <Feather name="users" size={28} color={C.textMuted} />
-              <Text style={rm.emptyTxt}>이 반에 배정된 학생이 없습니다</Text>
-            </View>
-          ) : filtered.map(item => {
-            const classCount = Array.isArray(item.assigned_class_ids)
-              ? item.assigned_class_ids.length : 1;
-            return (
-              <View key={item.id} style={rm.row}>
-                <View style={{ flex: 1 }}>
-                  <Text style={rm.name}>{item.name}</Text>
-                  {item.birth_year && (
-                    <Text style={rm.phone}>{item.birth_year}년생</Text>
-                  )}
-                  <Text style={[rm.classBadge,
-                    classCount <= 1 ? { color: "#DC2626" } : { color: "#6B7280" }
-                  ]}>
-                    {classCount <= 1 ? "제거 후 완전 미배정" : `총 ${classCount}개 반 중 이 반만 제거`}
-                  </Text>
-                </View>
-                <Pressable
-                  style={rm.removeBtn}
-                  onPress={() => setConfirmItem(item)}
-                  disabled={removing === item.id}
-                >
-                  {removing === item.id
-                    ? <ActivityIndicator size="small" color="#E11D48" />
-                    : <Text style={rm.removeTxt}>제거</Text>
-                  }
-                </Pressable>
+        {/* ── STEP: 학생 목록 ── */}
+        {step === "list" && (
+          <>
+            <View style={rm.header}>
+              <View style={{ flex: 1 }}>
+                <Text style={rm.title}>반이동 — {clsLabel(classGroup)}</Text>
+                <Text style={rm.sub}>선택한 학생을 현재 반으로 이동합니다</Text>
               </View>
-            );
-          })}
-          <View style={{ height: 40 }} />
-        </ScrollView>
+              <Pressable onPress={onClose} style={{ padding: 4 }}>
+                <Feather name="x" size={20} color={C.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={rm.searchBar}>
+              <Feather name="search" size={14} color={C.textMuted} />
+              <TextInput
+                style={rm.searchInput}
+                value={q}
+                onChangeText={setQ}
+                placeholder="이름 검색"
+                placeholderTextColor={C.textMuted}
+              />
+              {!!q && (
+                <Pressable onPress={() => setQ("")}>
+                  <Feather name="x" size={14} color={C.textMuted} />
+                </Pressable>
+              )}
+            </View>
+
+            <ScrollView style={rm.list} showsVerticalScrollIndicator={false}>
+              {filtered.length === 0 ? (
+                <View style={rm.empty}>
+                  <Feather name="users" size={28} color={C.textMuted} />
+                  <Text style={rm.emptyTxt}>이동 가능한 학생이 없습니다</Text>
+                </View>
+              ) : filtered.map(item => {
+                const weekly = item.weekly_count ?? 1;
+                const fromClses = teacherClassesOf(item);
+                const classSummary = fromClses.map(clsLabel).join(" / ");
+                return (
+                  <View key={item.id} style={rm.row}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={rm.name}>{item.name}</Text>
+                      <Text style={rm.weeklyBadge}>주 {weekly}회</Text>
+                      <Text style={rm.classSub} numberOfLines={2}>
+                        현재 반: {classSummary || "—"}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={[rm.moveBtn, { borderColor: themeColor }]}
+                      onPress={() => handleSelectStudent(item)}
+                    >
+                      <Text style={[rm.moveTxt, { color: themeColor }]}>이동</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </>
+        )}
+
+        {/* ── STEP: 어떤 반에서 제거할지 선택 ── */}
+        {step === "pick-class" && selected && (
+          <>
+            <View style={rm.header}>
+              <Pressable onPress={() => { setStep("list"); setSelected(null); }} style={{ padding: 4, marginRight: 8 }}>
+                <Feather name="arrow-left" size={20} color={C.textSecondary} />
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <Text style={rm.title}>어떤 반에서 제거할까요?</Text>
+                <Text style={rm.sub}>{selected.name} · 주 {selected.weekly_count ?? 1}회</Text>
+              </View>
+            </View>
+
+            <ScrollView style={rm.list} showsVerticalScrollIndicator={false}>
+              {teacherClassesOf(selected).map(g => (
+                <Pressable
+                  key={g.id}
+                  style={rm.pickRow}
+                  onPress={() => { setFromClassId(g.id); setStep("confirm"); }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={rm.pickName}>{clsLabel(g)}</Text>
+                    <Text style={rm.pickSub}>이 반에서 {selected.name} 회원만 제거됩니다</Text>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={C.textMuted} />
+                </Pressable>
+              ))}
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </>
+        )}
       </View>
 
+      {/* 최종 확인 ConfirmModal */}
       <ConfirmModal
-        visible={!!confirmItem}
+        visible={step === "confirm" && !!selected && !!fromClassId}
         title="반이동 확인"
-        message={`${confirmItem?.name}을(를) ${classGroup.name}에서 제거하시겠습니까?\n${
-          (Array.isArray(confirmItem?.assigned_class_ids) && confirmItem!.assigned_class_ids.length <= 1)
-            ? "제거 후 완전 미배정 상태가 됩니다."
-            : "다른 반 배정은 유지됩니다."
-        }`}
-        confirmText="제거"
+        message={confirmMsg}
+        confirmText="이동"
         cancelText="취소"
-        destructive
-        onConfirm={() => { const s = confirmItem!; setConfirmItem(null); doRemove(s); }}
-        onCancel={() => setConfirmItem(null)}
+        onConfirm={() => { setStep("list"); doMove(); }}
+        onCancel={() => setStep(selected && teacherClassesOf(selected).length > 1 ? "pick-class" : "list")}
       />
     </Modal>
   );
 }
 
 const rm = StyleSheet.create({
-  backdrop:   { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet:      { position: "absolute", bottom: 0, left: 0, right: 0,
-                backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-                maxHeight: "75%", paddingBottom: 32 },
-  handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
-                alignSelf: "center", marginTop: 10, marginBottom: 4 },
-  header:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
-  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  sub:        { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
-  searchBar:  { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
-                marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8,
-                backgroundColor: "#F3F4F6", borderRadius: 10 },
-  searchInput:{ flex: 1, fontSize: 14, color: C.text, fontFamily: "Inter_400Regular" },
-  list:       { flexShrink: 1 },
-  row:        { flexDirection: "row", alignItems: "center", gap: 12,
-                paddingHorizontal: 16, paddingVertical: 12,
-                borderTopWidth: 1, borderTopColor: "#F3F4F6" },
-  name:       { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
-  phone:      { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  classBadge: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
-  removeBtn:  { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
-                borderWidth: 1.5, borderColor: "#E11D48", minWidth: 52, alignItems: "center" },
-  removeTxt:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#E11D48" },
-  empty:      { alignItems: "center", paddingVertical: 40, gap: 8 },
-  emptyTxt:   { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
+  backdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet:       { position: "absolute", bottom: 0, left: 0, right: 0,
+                 backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                 maxHeight: "80%", paddingBottom: 32 },
+  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
+                 alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  header:      { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
+  title:       { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  sub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  searchBar:   { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
+                 marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8,
+                 backgroundColor: "#F3F4F6", borderRadius: 10 },
+  searchInput: { flex: 1, fontSize: 14, color: C.text, fontFamily: "Inter_400Regular" },
+  list:        { flexShrink: 1 },
+  row:         { flexDirection: "row", alignItems: "center", gap: 12,
+                 paddingHorizontal: 16, paddingVertical: 12,
+                 borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  name:        { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
+  weeklyBadge: { fontSize: 12, fontFamily: "Inter_700Bold", color: C.tint, marginTop: 2 },
+  classSub:    { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  moveBtn:     { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                 borderWidth: 1.5, minWidth: 52, alignItems: "center" },
+  moveTxt:     { fontSize: 13, fontFamily: "Inter_700Bold" },
+  pickRow:     { flexDirection: "row", alignItems: "center", gap: 12,
+                 paddingHorizontal: 16, paddingVertical: 16,
+                 borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  pickName:    { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
+  pickSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  empty:       { alignItems: "center", paddingVertical: 40, gap: 8 },
+  emptyTxt:    { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
 });
