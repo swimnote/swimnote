@@ -20,6 +20,7 @@ import { PoolHeader } from "@/components/PoolHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
+import StudentManagementSheet from "@/components/teacher/StudentManagementSheet";
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
@@ -690,6 +691,9 @@ export default function MyScheduleScreen() {
   // 반이동 (현재 반에서 제거) 모달
   const [removeClassGroup, setRemoveClassGroup] = useState<TeacherClassGroup | null>(null);
 
+  // 수강생관리 바텀시트
+  const [showManagement, setShowManagement] = useState(false);
+
   // pool_id
   const poolId = (adminUser as any)?.swimming_pool_id || "";
 
@@ -943,6 +947,11 @@ export default function MyScheduleScreen() {
                   <Feather name="check-square" size={13} color={C.textSecondary} />
                   <Text style={[s.selBtnText, { color: C.textSecondary }]}>선택</Text>
                 </Pressable>
+                <Pressable style={[s.mgmtBtn, { borderColor: themeColor }]}
+                  onPress={() => setShowManagement(true)}>
+                  <Feather name="users" size={13} color={themeColor} />
+                  <Text style={[s.mgmtBtnText, { color: themeColor }]}>수강생관리</Text>
+                </Pressable>
                 <Pressable style={[s.createBtn, { backgroundColor: themeColor }]}
                   onPress={() => setShowCreate(true)}>
                   <Feather name="plus" size={14} color="#fff" />
@@ -1052,6 +1061,23 @@ export default function MyScheduleScreen() {
         />
       )}
 
+      {/* 수강생관리 바텀시트 */}
+      <StudentManagementSheet
+        visible={showManagement}
+        token={token}
+        groups={groups}
+        themeColor={themeColor}
+        onClose={() => setShowManagement(false)}
+        onAssignDone={() => {
+          setShowManagement(false);
+          setViewMode("weekly");
+          setDetailGroup(null);
+          setSelectedGroup(null);
+          setDaySheet(null);
+          load();
+        }}
+      />
+
       {/* 반 등록 Flow */}
       {showCreate && (
         <ClassCreateFlow
@@ -1125,11 +1151,14 @@ const s = StyleSheet.create({
   titleRow:     { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   title:        { fontSize: 20, fontFamily: "Inter_700Bold", color: "#111827" },
   titleSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  rightBtns:    { flexDirection: "row", gap: 6, alignItems: "center" },
-  selBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10,
+  rightBtns:    { flexDirection: "row", gap: 4, alignItems: "center" },
+  selBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8,
                   paddingVertical: 7, borderRadius: 10 },
   selBtnText:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  createBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12,
+  mgmtBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8,
+                  paddingVertical: 7, borderRadius: 10, borderWidth: 1.5, backgroundColor: "#fff" },
+  mgmtBtnText:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  createBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10,
                   paddingVertical: 8, borderRadius: 10 },
   createBtnText:{ color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
