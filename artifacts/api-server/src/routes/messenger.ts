@@ -69,6 +69,7 @@ router.get(
           wm.content,
           wm.photo_url,
           wm.member_transfer_id,
+          wm.extra_data,
           wm.created_at,
           mt.student_id,
           mt.student_name,
@@ -110,7 +111,7 @@ router.post(
   requireRole("pool_admin", "teacher"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { pool_id, content } = req.body;
+      const { pool_id, content, target_user_id, target_user_name } = req.body;
       const { userId, role } = req.user!;
 
       if (!pool_id || !content?.trim()) return err(res, 400, "pool_id와 content가 필요합니다.");
@@ -119,11 +120,16 @@ router.post(
       const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
 
+      const msgType = target_user_id ? "directed_message" : "normal";
+      const extraData = target_user_id
+        ? JSON.stringify({ target_user_id, target_user_name: target_user_name || "" })
+        : "{}";
+
       const rows = await db.execute(sql`
         INSERT INTO work_messages
-          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content)
+          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, extra_data)
         VALUES
-          (${pool_id}, ${userId}, ${senderName}, ${role}, 'text', 'talk', 'normal', ${content.trim()})
+          (${pool_id}, ${userId}, ${senderName}, ${role}, 'text', 'talk', ${msgType}, ${content.trim()}, ${extraData}::jsonb)
         RETURNING *
       `);
 
@@ -419,6 +425,175 @@ router.get(
       return res.json({ success: true, staff: rows.rows });
     } catch (e: any) {
       console.error("[messenger/staff GET]", e);
+      return err(res, 500, e.message || "서버 오류");
+    }
+  }
+);
+
+// ─── 11. 내 담당 학생 목록 ─────────────────────────────────────────────
+// GET /messenger/my-students?pool_id=
+router.get(
+  "/messenger/my-students",
+  requireAuth,
+  requireRole("pool_admin", "teacher"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { pool_id } = req.query as { pool_id: string };
+      const { userId, role } = req.user!;
+
+      if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
+      if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
+
+      // 관리자는 해당 풀 전체 활성 학생, 선생님은 자신이 담당한 반의 학생만
+      const teacherFilter = role === "pool_admin" ? sql`true` : sql`cg.teacher_user_id = ${userId}`;
+      const rows = await db.execute(sql`
+        SELECT
+          s.id,
+          s.name,
+          s.parent_phone,
+          s.parent_name,
+          cg.id AS class_group_id,
+          cg.name AS class_name,
+          cg.schedule_days,
+          cg.schedule_time,
+          cg.teacher_user_id,
+          u.name AS teacher_name
+        FROM students s
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND cg.is_deleted = false
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
+        WHERE s.swimming_pool_id = ${pool_id}
+          AND s.status = 'active'
+          AND (${teacherFilter})
+        ORDER BY s.name ASC
+      `);
+
+      return res.json({ success: true, students: rows.rows });
+    } catch (e: any) {
+      console.error("[messenger/my-students GET]", e);
+      return err(res, 500, e.message || "서버 오류");
+    }
+  }
+);
+
+// ─── 12. 회원정보 카드 메시지 전송 ─────────────────────────────────────
+// POST /messenger/send-card
+router.post(
+  "/messenger/send-card",
+  requireAuth,
+  requireRole("pool_admin", "teacher"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { pool_id, student_id } = req.body;
+      const { userId, role } = req.user!;
+
+      if (!pool_id || !student_id) return err(res, 400, "pool_id와 student_id가 필요합니다.");
+      if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
+
+      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
+
+      const studentRow = await db.execute(sql`
+        SELECT
+          s.id, s.name, s.parent_phone, s.parent_name,
+          cg.id AS class_group_id, cg.name AS class_name,
+          cg.schedule_days, cg.schedule_time, cg.teacher_user_id,
+          u.name AS teacher_name
+        FROM students s
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND cg.is_deleted = false
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
+        WHERE s.id = ${student_id}
+          AND s.swimming_pool_id = ${pool_id}
+          AND s.status = 'active'
+        LIMIT 1
+      `);
+
+      const student = studentRow.rows[0] as any;
+      if (!student) return err(res, 404, "학생을 찾을 수 없습니다.");
+
+      const cardData = {
+        student_id: student.id,
+        member_name: student.name,
+        class_name: student.class_name || "미배정",
+        schedule_days: student.schedule_days || "",
+        schedule_time: student.schedule_time || "",
+        parent_phone: student.parent_phone || "",
+        teacher_user_id: student.teacher_user_id || null,
+        teacher_name: student.teacher_name || "",
+      };
+
+      const content = `[회원정보] ${student.name}`;
+      const extraData = JSON.stringify(cardData);
+
+      const rows = await db.execute(sql`
+        INSERT INTO work_messages
+          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, extra_data)
+        VALUES
+          (${pool_id}, ${userId}, ${senderName}, ${role}, 'text', 'talk', 'member_profile_card', ${content}, ${extraData}::jsonb)
+        RETURNING *
+      `);
+
+      return res.status(201).json({ success: true, message: rows.rows[0] });
+    } catch (e: any) {
+      console.error("[messenger/send-card POST]", e);
+      return err(res, 500, e.message || "서버 오류");
+    }
+  }
+);
+
+// ─── 13. 파일 첨부 메시지 전송 ────────────────────────────────────────
+// POST /messenger/send-attachment (multipart/form-data: pool_id, file)
+router.post(
+  "/messenger/send-attachment",
+  requireAuth,
+  requireRole("pool_admin", "teacher"),
+  upload.single("file"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { pool_id } = req.body;
+      const { userId, role } = req.user!;
+      const file = req.file;
+
+      if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
+      if (!file) return err(res, 400, "파일이 필요합니다.");
+      if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
+
+      const poolRow = await db.execute(sql`SELECT name_en, name FROM swimming_pools WHERE id = ${pool_id}`);
+      const pool = poolRow.rows[0] as any;
+      const poolSlug = pool?.name_en || (pool?.name || "pool").toLowerCase().replace(/\s+/g, "-");
+
+      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
+
+      const ext = file.originalname.split(".").pop() || "bin";
+      const key = `${poolSlug}/attachments/${genFilename(ext)}`;
+
+      const client = getClient();
+      const { ok, error: uploadErr } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype } as any);
+      if (!ok) throw new Error(uploadErr?.message || "파일 업로드 실패");
+
+      const domain = process.env.REPLIT_DEV_DOMAIN || "localhost";
+      const fileApiUrl = `https://${domain}/api/messenger/attachment/${key}`;
+
+      const extraData = JSON.stringify({
+        attachment_key: key,
+        attachment_name: file.originalname,
+        attachment_mime: file.mimetype,
+        attachment_size: file.size,
+        attachment_url: fileApiUrl,
+      });
+
+      const content = `[파일] ${file.originalname}`;
+      const rows = await db.execute(sql`
+        INSERT INTO work_messages
+          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, extra_data)
+        VALUES
+          (${pool_id}, ${userId}, ${senderName}, ${role}, 'file', 'talk', 'attachment_file', ${content}, ${extraData}::jsonb)
+        RETURNING *
+      `);
+
+      return res.status(201).json({ success: true, message: rows.rows[0] });
+    } catch (e: any) {
+      console.error("[messenger/send-attachment POST]", e);
       return err(res, 500, e.message || "서버 오류");
     }
   }
