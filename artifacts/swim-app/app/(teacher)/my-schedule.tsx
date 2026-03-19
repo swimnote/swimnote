@@ -16,7 +16,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
-import { PoolHeader } from "@/components/PoolHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
@@ -797,7 +797,7 @@ export default function MyScheduleScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
+        <SubScreenHeader title="수업관리" homePath="/(teacher)/today-schedule" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
@@ -811,15 +811,14 @@ export default function MyScheduleScreen() {
 
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
+        <SubScreenHeader
+          title={g.name}
+          subtitle={`${g.schedule_days} · ${g.schedule_time}`}
+          onBack={() => setSelectedGroup(null)}
+          homePath="/(teacher)/today-schedule"
+        />
         <View style={s.subHeader}>
-          <Pressable style={s.backBtn} onPress={() => setSelectedGroup(null)}>
-            <Feather name="arrow-left" size={20} color={C.text} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={s.subTitle}>{g.name}</Text>
-            <Text style={s.subSub}>{g.schedule_days} · {g.schedule_time}</Text>
-          </View>
+          <View style={{ flex: 1 }} />
           <Pressable style={[s.subActionBtn, { backgroundColor: attDone ? "#D1FAE5" : "#FEE2E2" }]}
             onPress={() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: g.id} } as any)}>
             <Feather name="check-square" size={14} color={attDone ? "#059669" : "#DC2626"} />
@@ -909,7 +908,7 @@ export default function MyScheduleScreen() {
   // ─ 메인 뷰 ─
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <PoolHeader />
+      <SubScreenHeader title="수업관리" homePath="/(teacher)/today-schedule" />
 
       {/* 타이틀 + 뷰 토글 + 선택/삭제 버튼 */}
       <View style={s.titleArea}>

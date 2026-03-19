@@ -10,7 +10,7 @@ import { Audio } from "expo-av";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Modal,
+  ActivityIndicator, Alert, Modal, Platform,
   Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
@@ -19,7 +19,6 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PoolHeader } from "@/components/PoolHeader";
 
 const C = Colors.light;
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
@@ -1102,21 +1101,31 @@ const um = StyleSheet.create({
   itemMeta: { fontSize: 12, fontFamily: "Inter_400Regular" },
 });
 
+/* ══════════════════════════════════════════════════
+   홈 화면 — 8아이콘 OS 허브
+   ═════════════════════════════════════════════════ */
+interface HubIcon {
+  key: string;
+  label: string;
+  icon: string;
+  color: string;
+  bg: string;
+  badge?: number | null;
+  onPress: () => void;
+}
+
 export default function TodayScheduleScreen() {
-  const { token, logout } = useAuth();
+  const { token, logout, adminUser, pool } = useAuth();
   const { themeColor } = useBrand();
+  const insets = useSafeAreaInsets();
   const today = todayStr();
 
   const [items, setItems]             = useState<ScheduleItem[]>([]);
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
-  const [memoItem, setMemoItem]       = useState<ScheduleItem | null>(null);
-  const [memoVisible, setMemoVisible] = useState(false);
   const [schedMemoVisible, setSchedMemoVisible] = useState(false);
   const [overview, setOverview]       = useState<TeacherOverview | null>(null);
   const [unreadMsgVisible, setUnreadMsgVisible] = useState(false);
-  const [absenceItem, setAbsenceItem] = useState<ScheduleItem | null>(null);
-  const [absenceVisible, setAbsenceVisible] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -1134,194 +1143,242 @@ export default function TodayScheduleScreen() {
 
   const attDoneCount   = items.filter(i => i.att_total > 0 && i.att_present === i.att_total).length;
   const diaryDoneCount = items.filter(i => i.diary_done).length;
+  const pendingAtt     = items.length > 0 ? items.length - attDoneCount : 0;
 
-  const handleMemoSaved = (classGroupId: string, updated: Partial<ScheduleItem>) => {
-    setItems(prev => prev.map(i => i.id === classGroupId ? { ...i, ...updated } : i));
-  };
-
-  function handleOpenDiaryFromMsg(diaryId: string) {
-    router.push({ pathname: "/(teacher)/diary" } as any);
+  function handleOpenDiaryFromMsg(_diaryId: string) {
+    router.push("/(teacher)/diary" as any);
   }
 
-  const logoutBtn = (
-    <Pressable
-      onPress={logout}
-      style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" }}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-    >
-      <Feather name="log-out" size={18} color="#6B7280" />
-    </Pressable>
-  );
+  /* ── 8 아이콘 ───────────────────────────────── */
+  const icons: HubIcon[] = [
+    {
+      key: "my-schedule",
+      label: "수업관리",
+      icon: "layers",
+      color: themeColor,
+      bg: themeColor + "18",
+      onPress: () => router.push("/(teacher)/my-schedule" as any),
+    },
+    {
+      key: "attendance",
+      label: "출결관리",
+      icon: "check-square",
+      color: "#059669",
+      bg: "#D1FAE5",
+      badge: pendingAtt > 0 ? pendingAtt : null,
+      onPress: () => router.push("/(teacher)/attendance" as any),
+    },
+    {
+      key: "diary",
+      label: "수업일지",
+      icon: "book",
+      color: "#D97706",
+      bg: "#FEF3C7",
+      badge: (overview?.pending_diaries_today ?? 0) > 0 ? overview!.pending_diaries_today : null,
+      onPress: () => router.push("/(teacher)/diary" as any),
+    },
+    {
+      key: "makeups",
+      label: "보강관리",
+      icon: "refresh-cw",
+      color: "#7C3AED",
+      bg: "#EDE9FE",
+      badge: (overview?.makeup_count ?? 0) > 0 ? overview!.makeup_count : null,
+      onPress: () => router.push("/(teacher)/makeups" as any),
+    },
+    {
+      key: "messenger",
+      label: "메신저",
+      icon: "message-circle",
+      color: "#2563EB",
+      bg: "#DBEAFE",
+      badge: (overview?.unread_messages ?? 0) > 0 ? overview!.unread_messages : null,
+      onPress: () => router.push("/(teacher)/messenger" as any),
+    },
+    {
+      key: "revenue",
+      label: "정산",
+      icon: "dollar-sign",
+      color: "#0891B2",
+      bg: "#CFFAFE",
+      onPress: () => router.push("/(teacher)/revenue" as any),
+    },
+    {
+      key: "photos",
+      label: "사진·영상",
+      icon: "camera",
+      color: "#DB2777",
+      bg: "#FCE7F3",
+      onPress: () => router.push("/(teacher)/photos" as any),
+    },
+    {
+      key: "settings",
+      label: "설정",
+      icon: "settings",
+      color: "#6B7280",
+      bg: "#F3F4F6",
+      onPress: () => router.push("/(teacher)/settings" as any),
+    },
+  ];
 
-  if (loading) {
-    return (
-      <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader right={logoutBtn} />
-        <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
-      </SafeAreaView>
-    );
-  }
+  const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
 
   return (
-    <SafeAreaView style={s.safe} edges={[]}>
-      <PoolHeader right={logoutBtn} />
+    <SafeAreaView style={h.safe} edges={[]}>
+      {/* ── 허브 헤더 ── */}
+      <View style={[h.header, { paddingTop: topPad }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[h.poolName, { color: themeColor }]} numberOfLines={1}>
+            {pool?.name ?? "수영장"}
+          </Text>
+          <Text style={h.greeting} numberOfLines={1}>
+            {adminUser?.name ?? "선생님"} · 선생님 홈
+          </Text>
+        </View>
+        <Pressable
+          onPress={logout}
+          style={h.logoutBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="log-out" size={18} color="#6B7280" />
+        </Pressable>
+      </View>
 
-      <FlatList
-        data={items}
-        keyExtractor={i => i.id}
-        contentContainerStyle={s.list}
+      <ScrollView
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={[h.scroll, { paddingBottom: insets.bottom + 40 }]}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); load(); }}
-            tintColor={themeColor}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />
         }
-
-        ListHeaderComponent={() => (
-          <View>
-            <View style={[s.headerCard, { backgroundColor: themeColor }]}>
-              <Text style={s.headerDate}>{formatDate(today)}</Text>
-              <Text style={s.headerCount}>오늘 수업 {items.length}개</Text>
-              {items.length > 0 ? (
-                <View style={s.headerSummaryRow}>
-                  <View style={s.summaryItem}>
-                    <Feather name="check-square" size={13} color="rgba(255,255,255,0.8)" />
-                    <Text style={s.summaryText}>출결 완료 {attDoneCount}/{items.length}</Text>
+      >
+        {/* ── 오늘 기준 배너 ── */}
+        <View style={[h.banner, { backgroundColor: themeColor }]}>
+          <View style={h.bannerRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={h.bannerDate}>{formatDate(today)}</Text>
+              <Text style={h.bannerTitle}>
+                오늘 수업 {loading ? "..." : `${items.length}개`}
+              </Text>
+            </View>
+            {!loading && items.length > 0 && (
+              <View style={[h.bannerBadge, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
+                <Feather name="check-circle" size={14} color="#fff" />
+                <Text style={h.bannerBadgeTxt}>진행 중</Text>
+              </View>
+            )}
+          </View>
+          {loading ? (
+            <ActivityIndicator color="rgba(255,255,255,0.7)" style={{ marginTop: 8 }} />
+          ) : items.length > 0 ? (
+            <View style={h.bannerStatRow}>
+              <View style={h.bannerStat}>
+                <Feather name="check-square" size={13} color="rgba(255,255,255,0.85)" />
+                <Text style={h.bannerStatTxt}>출결 {attDoneCount}/{items.length}</Text>
+              </View>
+              <View style={h.bannerDivider} />
+              <View style={h.bannerStat}>
+                <Feather name="book" size={13} color="rgba(255,255,255,0.85)" />
+                <Text style={h.bannerStatTxt}>일지 {diaryDoneCount}/{items.length}</Text>
+              </View>
+              {pendingAtt > 0 && (
+                <>
+                  <View style={h.bannerDivider} />
+                  <View style={h.bannerStat}>
+                    <Feather name="alert-circle" size={13} color="#FDE68A" />
+                    <Text style={[h.bannerStatTxt, { color: "#FDE68A" }]}>미완료 {pendingAtt}개</Text>
                   </View>
-                  <View style={s.summaryItem}>
-                    <Feather name="book" size={13} color="rgba(255,255,255,0.8)" />
-                    <Text style={s.summaryText}>일지 작성 {diaryDoneCount}/{items.length}</Text>
-                  </View>
-                </View>
-              ) : (
-                <Text style={s.headerNoClass}>오늘 담당 수업이 없습니다</Text>
+                </>
               )}
             </View>
+          ) : (
+            <Text style={h.bannerNoClass}>오늘 담당 수업이 없습니다</Text>
+          )}
+        </View>
 
-            {/* ──── 오늘 할 일 ──────────────────────── */}
-            <View style={[s.todoCard, { backgroundColor: C.card }]}>
-              <Text style={[s.todoTitle, { color: C.text }]}>오늘 할 일</Text>
-              <View style={s.todoGrid}>
-                {/* 1. 미읽은 쪽지 */}
+        {/* ── 누적 업무 배너 ── */}
+        {((overview?.pending_diaries_past ?? 0) > 0 ||
+          (overview?.unread_messages ?? 0) > 0 ||
+          (overview?.makeup_count ?? 0) > 0) && (
+          <View style={[h.accumBanner, { backgroundColor: C.card }]}>
+            <View style={h.accumHeader}>
+              <Feather name="inbox" size={14} color="#EF4444" />
+              <Text style={[h.accumTitle, { color: "#EF4444" }]}>누적 업무</Text>
+            </View>
+            <View style={h.accumRow}>
+              {(overview?.pending_diaries_past ?? 0) > 0 && (
                 <Pressable
-                  style={[s.todoItem, { borderColor: (overview?.unread_messages ?? 0) > 0 ? "#2563EB30" : C.border,
-                    backgroundColor: (overview?.unread_messages ?? 0) > 0 ? "#EFF6FF" : C.bg }]}
-                  onPress={() => setUnreadMsgVisible(true)}
-                >
-                  <View style={[s.todoIcon, { backgroundColor: "#2563EB20" }]}>
-                    <Feather name="mail" size={18} color="#2563EB" />
-                  </View>
-                  <Text style={[s.todoNum, { color: (overview?.unread_messages ?? 0) > 0 ? "#2563EB" : C.textSecondary }]}>
-                    {overview?.unread_messages ?? "-"}
-                  </Text>
-                  <Text style={[s.todoLabel, { color: C.textSecondary }]}>안읽은 쪽지</Text>
-                  {(overview?.unread_messages ?? 0) > 0 && <View style={[s.todoDot, { backgroundColor: C.error }]} />}
-                </Pressable>
-
-                {/* 2. 오늘 미작성 일지 */}
-                <Pressable
-                  style={[s.todoItem, { borderColor: (overview?.pending_diaries_today ?? 0) > 0 ? "#D9770630" : C.border,
-                    backgroundColor: (overview?.pending_diaries_today ?? 0) > 0 ? "#FFFBEB" : C.bg }]}
+                  style={h.accumItem}
                   onPress={() => router.push("/(teacher)/diary" as any)}
                 >
-                  <View style={[s.todoIcon, { backgroundColor: "#F59E0B20" }]}>
-                    <Feather name="edit" size={18} color="#D97706" />
+                  <View style={[h.accumIcon, { backgroundColor: "#FEF3C7" }]}>
+                    <Feather name="edit" size={15} color="#D97706" />
                   </View>
-                  <Text style={[s.todoNum, { color: (overview?.pending_diaries_today ?? 0) > 0 ? "#D97706" : C.textSecondary }]}>
-                    {overview?.pending_diaries_today ?? "-"}
-                  </Text>
-                  <Text style={[s.todoLabel, { color: C.textSecondary }]}>미작성 일지</Text>
-                  {(overview?.pending_diaries_today ?? 0) > 0 && <View style={[s.todoDot, { backgroundColor: "#D97706" }]} />}
+                  <Text style={[h.accumCount, { color: "#D97706" }]}>{overview!.pending_diaries_past}</Text>
+                  <Text style={h.accumLabel}>미작성 일지</Text>
                 </Pressable>
-
-                {/* 3. 오늘 출결 미완료 */}
+              )}
+              {(overview?.unread_messages ?? 0) > 0 && (
                 <Pressable
-                  style={[s.todoItem, { borderColor: (items.length - attDoneCount) > 0 ? "#05966930" : C.border,
-                    backgroundColor: (items.length - attDoneCount) > 0 && items.length > 0 ? "#F0FDF4" : C.bg }]}
-                  onPress={() => items[0] &&
-                    router.push({ pathname: "/(teacher)/attendance", params: { classGroupId: items[0].id } } as any)
-                  }
+                  style={h.accumItem}
+                  onPress={() => setUnreadMsgVisible(true)}
                 >
-                  <View style={[s.todoIcon, { backgroundColor: "#10B98120" }]}>
-                    <Feather name="check-square" size={18} color="#059669" />
+                  <View style={[h.accumIcon, { backgroundColor: "#DBEAFE" }]}>
+                    <Feather name="mail" size={15} color="#2563EB" />
                   </View>
-                  <Text style={[s.todoNum, { color: items.length > 0 && attDoneCount < items.length ? "#059669" : C.textSecondary }]}>
-                    {items.length > 0 ? `${attDoneCount}/${items.length}` : "-"}
-                  </Text>
-                  <Text style={[s.todoLabel, { color: C.textSecondary }]}>출결 완료</Text>
-                  {items.length > 0 && attDoneCount < items.length && <View style={[s.todoDot, { backgroundColor: "#059669" }]} />}
+                  <Text style={[h.accumCount, { color: "#2563EB" }]}>{overview!.unread_messages}</Text>
+                  <Text style={h.accumLabel}>안읽은 쪽지</Text>
                 </Pressable>
-
-                {/* 4. 보강 대기 */}
+              )}
+              {(overview?.makeup_count ?? 0) > 0 && (
                 <Pressable
-                  style={[s.todoItem, { borderColor: (overview?.makeup_count ?? 0) > 0 ? "#7C3AED30" : C.border,
-                    backgroundColor: (overview?.makeup_count ?? 0) > 0 ? "#F5F3FF" : C.bg }]}
+                  style={h.accumItem}
                   onPress={() => router.push("/(teacher)/makeups" as any)}
                 >
-                  <View style={[s.todoIcon, { backgroundColor: "#7C3AED20" }]}>
-                    <Feather name="refresh-cw" size={18} color="#7C3AED" />
+                  <View style={[h.accumIcon, { backgroundColor: "#EDE9FE" }]}>
+                    <Feather name="refresh-cw" size={15} color="#7C3AED" />
                   </View>
-                  <Text style={[s.todoNum, { color: (overview?.makeup_count ?? 0) > 0 ? "#7C3AED" : C.textSecondary }]}>
-                    {overview?.makeup_count ?? "-"}
-                  </Text>
-                  <Text style={[s.todoLabel, { color: C.textSecondary }]}>보강 대기</Text>
-                  {(overview?.makeup_count ?? 0) > 0 && <View style={[s.todoDot, { backgroundColor: "#7C3AED" }]} />}
+                  <Text style={[h.accumCount, { color: "#7C3AED" }]}>{overview!.makeup_count}</Text>
+                  <Text style={h.accumLabel}>보강 대기</Text>
                 </Pressable>
-              </View>
+              )}
             </View>
-
-            {items.length > 0 && (
-              <Text style={s.sectionTitle}>시간순 수업 목록</Text>
-            )}
           </View>
         )}
 
-        renderItem={({ item }) => (
-          <ScheduleCard
-            item={item}
-            themeColor={themeColor}
-            onMemo={() => { setMemoItem(item); setMemoVisible(true); }}
-            onAttendance={() =>
-              router.push({ pathname: "/(teacher)/attendance", params: { classGroupId: item.id } } as any)
-            }
-            onDiary={() =>
-              router.push({ pathname: "/(teacher)/diary", params: { classGroupId: item.id, className: item.name } } as any)
-            }
-            onAbsence={() => { setAbsenceItem(item); setAbsenceVisible(true); }}
-          />
-        )}
+        {/* ── 8아이콘 그리드 ── */}
+        <View style={[h.gridCard, { backgroundColor: C.card }]}>
+          <View style={h.grid}>
+            {icons.map(ic => (
+              <Pressable key={ic.key} style={h.gridItem} onPress={ic.onPress}>
+                <View style={[h.gridIconWrap, { backgroundColor: ic.bg }]}>
+                  <Feather name={ic.icon as any} size={24} color={ic.color} />
+                  {ic.badge != null && ic.badge > 0 && (
+                    <View style={h.gridBadge}>
+                      <Text style={h.gridBadgeTxt}>{ic.badge > 99 ? "99+" : ic.badge}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={h.gridLabel} numberOfLines={1}>{ic.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
-        ListFooterComponent={() => (
-          <Pressable
-            style={[s.schedCard, { backgroundColor: C.card }]}
-            onPress={() => setSchedMemoVisible(true)}
-          >
-            <View style={[s.schedIcon, { backgroundColor: themeColor + "15" }]}>
-              <Feather name="calendar" size={22} color={themeColor} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.schedTitle}>스케줄 메모</Text>
-              <Text style={s.schedSub}>날짜를 선택해 텍스트·음성 메모를 작성하세요</Text>
-            </View>
-            <Feather name="chevron-right" size={18} color={C.textMuted} />
-          </Pressable>
-        )}
-      />
-
-      {/* 수업별 개인메모 바텀시트 */}
-      <MemoSheet
-        visible={memoVisible}
-        item={memoItem}
-        date={today}
-        token={token}
-        themeColor={themeColor}
-        onClose={() => setMemoVisible(false)}
-        onSaved={(updated) => {
-          if (memoItem) handleMemoSaved(memoItem.id, updated);
-        }}
-      />
+        {/* ── 스케줄 메모 카드 ── */}
+        <Pressable
+          style={[h.schedCard, { backgroundColor: C.card }]}
+          onPress={() => setSchedMemoVisible(true)}
+        >
+          <View style={[h.schedIcon, { backgroundColor: themeColor + "15" }]}>
+            <Feather name="calendar" size={22} color={themeColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[h.schedTitle, { color: C.text }]}>스케줄 메모</Text>
+            <Text style={h.schedSub}>날짜를 선택해 텍스트·음성 메모를 작성하세요</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={C.textMuted} />
+        </Pressable>
+      </ScrollView>
 
       {/* 스케줄 메모 달력 */}
       <ScheduleMemoModal
@@ -1339,45 +1396,52 @@ export default function TodayScheduleScreen() {
         onClose={() => setUnreadMsgVisible(false)}
         onOpenDiary={handleOpenDiaryFromMsg}
       />
-
-      {/* 결근 처리 모달 */}
-      <AbsenceModal
-        visible={absenceVisible}
-        item={absenceItem}
-        date={today}
-        token={token}
-        themeColor={themeColor}
-        onClose={() => setAbsenceVisible(false)}
-        onDone={() => { setAbsenceVisible(false); load(); }}
-      />
     </SafeAreaView>
   );
 }
 
 /* ── StyleSheets ─────────────────────────────────── */
-const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#F3F4F6" },
-  list:        { padding: 12, gap: 10, paddingBottom: 120 },
-  headerCard:  { borderRadius: 18, padding: 20, marginBottom: 4, gap: 6 },
-  headerDate:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)" },
-  headerCount: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#fff" },
-  headerNoClass: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)", marginTop: 4 },
-  headerSummaryRow: { flexDirection: "row", gap: 16, marginTop: 4 },
-  summaryItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-  summaryText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.9)" },
-  sectionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginTop: 4, marginBottom: 2, paddingHorizontal: 4 },
-  todoCard:   { borderRadius: 18, padding: 16, marginTop: 10, gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  todoTitle:  { fontSize: 15, fontFamily: "Inter_700Bold" },
-  todoGrid:   { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  todoItem:   { width: "47%", borderRadius: 14, borderWidth: 1.5, padding: 12, gap: 4, position: "relative" },
-  todoIcon:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  todoNum:    { fontSize: 22, fontFamily: "Inter_700Bold" },
-  todoLabel:  { fontSize: 11, fontFamily: "Inter_400Regular" },
-  todoDot:    { position: "absolute", top: 10, right: 10, width: 8, height: 8, borderRadius: 4 },
-  schedCard:  { flexDirection: "row", alignItems: "center", gap: 14, padding: 18, borderRadius: 18, marginTop: 6 },
-  schedIcon:  { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  schedTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
-  schedSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+const h = StyleSheet.create({
+  safe:         { flex: 1, backgroundColor: "#F3F4F6" },
+  header:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 14, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
+  poolName:     { fontSize: 18, fontFamily: "Inter_700Bold" },
+  greeting:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  logoutBtn:    { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  scroll:       { padding: 14, gap: 12 },
+  /* 오늘 기준 배너 */
+  banner:       { borderRadius: 20, padding: 20, gap: 6 },
+  bannerRow:    { flexDirection: "row", alignItems: "flex-start" },
+  bannerDate:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)" },
+  bannerTitle:  { fontSize: 26, fontFamily: "Inter_700Bold", color: "#fff", marginTop: 2 },
+  bannerBadge:  { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  bannerBadgeTxt: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  bannerStatRow:  { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6 },
+  bannerStat:   { flexDirection: "row", alignItems: "center", gap: 4 },
+  bannerStatTxt:{ fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.9)" },
+  bannerDivider:{ width: 1, height: 12, backgroundColor: "rgba(255,255,255,0.3)" },
+  bannerNoClass:{ fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)", marginTop: 4 },
+  /* 누적 업무 배너 */
+  accumBanner:  { borderRadius: 16, padding: 14, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  accumHeader:  { flexDirection: "row", alignItems: "center", gap: 5 },
+  accumTitle:   { fontSize: 13, fontFamily: "Inter_700Bold" },
+  accumRow:     { flexDirection: "row", gap: 10 },
+  accumItem:    { flex: 1, alignItems: "center", gap: 4, paddingVertical: 8 },
+  accumIcon:    { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  accumCount:   { fontSize: 18, fontFamily: "Inter_700Bold" },
+  accumLabel:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center" },
+  /* 8아이콘 그리드 */
+  gridCard:     { borderRadius: 20, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  grid:         { flexDirection: "row", flexWrap: "wrap" },
+  gridItem:     { width: "25%", alignItems: "center", gap: 6, paddingVertical: 12 },
+  gridIconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", position: "relative" },
+  gridBadge:    { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  gridBadgeTxt: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" },
+  gridLabel:    { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.text, textAlign: "center" },
+  /* 스케줄 메모 */
+  schedCard:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 18, borderRadius: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  schedIcon:    { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  schedTitle:   { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  schedSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
 });
 
 const card = StyleSheet.create({

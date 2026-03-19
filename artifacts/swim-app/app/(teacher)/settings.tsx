@@ -21,7 +21,7 @@ import Colors from "@/constants/colors";
 import { ROLE_CONFIGS } from "@/constants/auth";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PoolHeader } from "@/components/PoolHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
@@ -188,13 +188,7 @@ export default function TeacherSettingsScreen() {
     const colors: Record<string, string> = { active: "#059669", suspended: "#F59E0B", withdrawn: "#DC2626" };
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
-        <View style={s.subHeader}>
-          <Pressable style={s.backBtn} onPress={() => setMemberView(null)}>
-            <Feather name="arrow-left" size={20} color={C.text} />
-          </Pressable>
-          <Text style={[s.subTitle, { color: colors[memberView] }]}>{labels[memberView]}</Text>
-        </View>
+        <SubScreenHeader title={labels[memberView]} onBack={() => setMemberView(null)} homePath="/(teacher)/today-schedule" />
         {memberLoading ? (
           <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
         ) : (
@@ -234,7 +228,7 @@ export default function TeacherSettingsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
+        <SubScreenHeader title="설정" homePath="/(teacher)/today-schedule" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
@@ -245,7 +239,7 @@ export default function TeacherSettingsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <PoolHeader />
+      <SubScreenHeader title="설정" homePath="/(teacher)/today-schedule" />
 
       <ScrollView
         ref={scrollRef}

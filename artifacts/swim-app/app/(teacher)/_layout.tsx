@@ -37,12 +37,7 @@ export default function TeacherLayout() {
         tabBarInactiveTintColor: C.tabIconDefault,
         headerShown: false,
         tabBarStyle: {
-          position: "absolute",
-          backgroundColor: isIOS ? "transparent" : "#fff",
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: C.border,
-          elevation: 0,
-          height: isWeb ? 84 : undefined,
+          display: "none",
         },
         tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 11 },
         tabBarBackground: () =>
@@ -87,6 +82,7 @@ export default function TeacherLayout() {
       <Tabs.Screen name="photos"           options={{ href: null }} />
       <Tabs.Screen name="student-detail"   options={{ href: null }} />
       <Tabs.Screen name="feedback-custom"  options={{ href: null }} />
+      <Tabs.Screen name="makeups"          options={{ href: null }} />
     </Tabs>
     </FeedbackTemplateProvider>
   );

@@ -17,7 +17,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
-import { PoolHeader } from "@/components/PoolHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import {
   useFeedbackTemplates,
@@ -145,24 +145,17 @@ export default function FeedbackCustomScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <PoolHeader />
-
-      {/* 서브헤더 */}
-      <View style={s.subHeader}>
-        <Pressable style={s.backBtn} onPress={() => router.navigate("/(teacher)/settings" as any)}>
-          <Feather name="arrow-left" size={20} color={C.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={s.subTitle}>피드백커스텀</Text>
-        </View>
-        <Pressable
-          style={[s.resetAllBtn]}
-          onPress={() => setResetAllVisible(true)}
-        >
-          <Feather name="refresh-ccw" size={13} color="#EF4444" />
-          <Text style={s.resetAllBtnText}>전체 초기화</Text>
-        </Pressable>
-      </View>
+      <SubScreenHeader
+        title="피드백 커스텀"
+        onBack={() => router.navigate("/(teacher)/settings" as any)}
+        homePath="/(teacher)/today-schedule"
+        rightSlot={
+          <Pressable style={s.resetAllBtn} onPress={() => setResetAllVisible(true)}>
+            <Feather name="refresh-ccw" size={13} color="#EF4444" />
+            <Text style={s.resetAllBtnText}>전체 초기화</Text>
+          </Pressable>
+        }
+      />
 
       {/* 안내 문구 */}
       <View style={[s.descBox, { backgroundColor: themeColor + "0C" }]}>

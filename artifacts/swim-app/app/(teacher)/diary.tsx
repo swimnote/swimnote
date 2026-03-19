@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PoolHeader } from "@/components/PoolHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
 import SentencePicker from "@/components/teacher/SentencePicker";
 
@@ -381,7 +381,7 @@ export default function TeacherDiaryScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
+        <SubScreenHeader title="수업 일지" homePath="/(teacher)/today-schedule" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
@@ -394,17 +394,16 @@ export default function TeacherDiaryScreen() {
 
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
+        <SubScreenHeader
+          title={group.name}
+          subtitle={`${todayStr()} · ${group.schedule_time}`}
+          onBack={() => setSelectedGroup(null)}
+          homePath="/(teacher)/today-schedule"
+        />
 
         {/* 헤더 */}
         <View style={s.subHeader}>
-          <Pressable style={s.backBtn} onPress={() => setSelectedGroup(null)}>
-            <Feather name="arrow-left" size={20} color={C.text} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={s.subTitle}>{group.name}</Text>
-            <Text style={s.subSub}>{todayStr()} · {group.schedule_time}</Text>
-          </View>
+          <View style={{ flex: 1 }} />
           <Pressable
             style={[s.tabBtn, { backgroundColor: subView === "history" ? themeColor : C.background, borderColor: themeColor }]}
             onPress={() => setSubView(v => v === "history" ? "write" : "history")}
@@ -713,7 +712,7 @@ export default function TeacherDiaryScreen() {
                 </View>
               )}
               <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
-                <Pressable style={[s.delBtn, { borderColor: C.border, backgroundColor: C.bg, flex: 1 }]}
+                <Pressable style={[s.delBtn, { borderColor: C.border, backgroundColor: C.background, flex: 1 }]}
                   onPress={() => setDeleteTarget(null)} disabled={deleteLoading}>
                   <Text style={{ color: C.textSecondary, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>취소</Text>
                 </Pressable>
@@ -751,10 +750,7 @@ export default function TeacherDiaryScreen() {
   // ── 메인 시간표 뷰 ──────────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <PoolHeader />
-      <View style={s.titleRow}>
-        <Text style={[s.title, { color: C.text }]}>수업 일지</Text>
-      </View>
+      <SubScreenHeader title="수업 일지" homePath="/(teacher)/today-schedule" />
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}

@@ -22,6 +22,7 @@ interface SubScreenHeaderProps {
   onBack?: () => void;
   showHome?: boolean;
   rightSlot?: React.ReactNode;
+  homePath?: string;
 }
 
 export function SubScreenHeader({
@@ -30,6 +31,7 @@ export function SubScreenHeader({
   onBack,
   showHome = true,
   rightSlot,
+  homePath = "/(admin)/dashboard",
 }: SubScreenHeaderProps) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -42,13 +44,13 @@ export function SubScreenHeader({
       if (navigation.canGoBack()) {
         navigation.goBack();
       } else {
-        router.navigate("/(admin)/dashboard");
+        router.navigate(homePath as any);
       }
     }
   };
 
   const handleHome = () => {
-    router.navigate("/(admin)/dashboard");
+    router.navigate(homePath as any);
   };
 
   return (

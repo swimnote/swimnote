@@ -85,7 +85,7 @@ export default function StudentDetailScreen() {
   if (loading) {
     return (
       <View style={s.safe}>
-        <SubScreenHeader title="회원 정보" showHome={false} />
+        <SubScreenHeader title="회원 정보" homePath="/(teacher)/today-schedule" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </View>
     );
@@ -94,7 +94,7 @@ export default function StudentDetailScreen() {
   if (!student) {
     return (
       <View style={s.safe}>
-        <SubScreenHeader title="회원 정보" showHome={false} />
+        <SubScreenHeader title="회원 정보" homePath="/(teacher)/today-schedule" />
         <View style={s.emptyBox}>
           <Feather name="user-x" size={40} color={C.textMuted} />
           <Text style={s.emptyText}>학생 정보를 불러올 수 없습니다</Text>
@@ -107,7 +107,7 @@ export default function StudentDetailScreen() {
 
   return (
     <View style={s.safe}>
-      <SubScreenHeader title="회원 정보" showHome={false} />
+      <SubScreenHeader title="회원 정보" homePath="/(teacher)/today-schedule" />
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
         {/* 프로필 카드 */}

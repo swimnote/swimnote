@@ -17,7 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PoolHeader } from "@/components/PoolHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
 
 const C = Colors.light;
@@ -79,10 +79,10 @@ export default function TeacherAttendanceScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ classGroupId?: string }>();
+  const params = useLocalSearchParams<{ classGroupId?: string; defaultTab?: string }>();
 
   /* ─ 공통 ─ */
-  const [subTab,         setSubTab]         = useState<SubTab>("attendance");
+  const [subTab,         setSubTab]         = useState<SubTab>((params.defaultTab as SubTab) || "attendance");
   const [groups,         setGroups]         = useState<TeacherClassGroup[]>([]);
   const [students,       setStudents]       = useState<Student[]>([]);
   const [attTodayMap,    setAttTodayMap]    = useState<Record<string, number>>({});
@@ -342,7 +342,7 @@ export default function TeacherAttendanceScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
+        <SubScreenHeader title="출결 관리" homePath="/(teacher)/today-schedule" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
@@ -356,21 +356,20 @@ export default function TeacherAttendanceScreen() {
 
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
-        <View style={s.subHeader}>
-          <Pressable style={s.backBtn} onPress={() => {
+        <SubScreenHeader
+          title={`${group.name} 출결`}
+          subtitle={`${date} · ${group.schedule_time}`}
+          onBack={() => {
             if (params.classGroupId) {
               router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
             } else {
               setSelectedGroup(null); setSaveMsg("");
             }
-          }}>
-            <Feather name="arrow-left" size={20} color={C.text} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={s.subTitle}>{group.name} 출결</Text>
-            <Text style={s.subSub}>{date} · {group.schedule_time}</Text>
-          </View>
+          }}
+          homePath="/(teacher)/today-schedule"
+        />
+        <View style={s.subHeader}>
+          <View style={{ flex: 1 }} />
           <Pressable style={[s.allPresentBtn, { backgroundColor: "#D1FAE5" }]} onPress={markAll}>
             <Feather name="check-circle" size={14} color="#059669" />
             <Text style={[s.allPresentText, { color: "#059669" }]}>모두출석</Text>
@@ -459,7 +458,7 @@ export default function TeacherAttendanceScreen() {
   /* ════════════════════ 메인 뷰 ════════════════════ */
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <PoolHeader />
+      <SubScreenHeader title="출결 관리" homePath="/(teacher)/today-schedule" />
 
       {/* 탭 스위처 */}
       <View style={s.subTabBar}>

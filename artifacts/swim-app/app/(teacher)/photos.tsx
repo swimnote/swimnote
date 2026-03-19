@@ -20,7 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PoolHeader } from "@/components/PoolHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
 
 const C = Colors.light;
@@ -170,7 +170,7 @@ export default function TeacherPhotosScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
+        <SubScreenHeader title="사진 & 영상" homePath="/(teacher)/today-schedule" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
@@ -180,15 +180,7 @@ export default function TeacherPhotosScreen() {
   if (step === "home") {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
-        <View style={s.subHeader}>
-          <Pressable style={s.backBtn} onPress={() => router.navigate("/(teacher)/settings" as any)}>
-            <Feather name="arrow-left" size={20} color={C.text} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={s.subTitle}>{"사진 & 영상"}</Text>
-          </View>
-        </View>
+        <SubScreenHeader title="사진 & 영상" homePath="/(teacher)/today-schedule" />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={s.titleRow}><Text style={s.title}>{"사진 & 영상"}</Text></View>
           <View style={s.grid}>
@@ -247,20 +239,12 @@ export default function TeacherPhotosScreen() {
   if (step === "schedule") {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
-        <View style={s.subHeader}>
-          <Pressable style={s.backBtn} onPress={() => setStep("home")}>
-            <Feather name="arrow-left" size={20} color={C.text} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={s.subTitle}>{cfg.title} {cfg.sub}</Text>
-            <Text style={s.subSub}>수업 반을 선택하세요</Text>
-          </View>
-          <View style={[s.cfgBadge, { backgroundColor: cfg.bg }]}>
-            <Feather name={cfg.icon} size={14} color={cfg.color} />
-            <Text style={[s.cfgBadgeText, { color: cfg.color }]}>{cfg.sub}</Text>
-          </View>
-        </View>
+        <SubScreenHeader
+          title={`${cfg.title} ${cfg.sub}`}
+          subtitle="수업 반을 선택하세요"
+          onBack={() => setStep("home")}
+          homePath="/(teacher)/today-schedule"
+        />
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
           <WeeklySchedule
             classGroups={groups}
@@ -278,16 +262,12 @@ export default function TeacherPhotosScreen() {
   if (step === "student") {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
-        <View style={s.subHeader}>
-          <Pressable style={s.backBtn} onPress={() => setStep("schedule")}>
-            <Feather name="arrow-left" size={20} color={C.text} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={s.subTitle}>{selGroup?.name} · 학생 선택</Text>
-            <Text style={s.subSub}>개인 {cfg.title} 앨범에 업로드할 학생을 선택하세요</Text>
-          </View>
-        </View>
+        <SubScreenHeader
+          title={`${selGroup?.name} · 학생 선택`}
+          subtitle={`개인 ${cfg.title} 앨범에 업로드할 학생을 선택하세요`}
+          onBack={() => setStep("schedule")}
+          homePath="/(teacher)/today-schedule"
+        />
         <ScrollView contentContainerStyle={s.studentList} showsVerticalScrollIndicator={false}>
           {groupStudents.length === 0 ? (
             <View style={s.emptyBox}>
@@ -311,18 +291,12 @@ export default function TeacherPhotosScreen() {
   // ── 업로드 단계 ──────────────────────────────────────────────
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <PoolHeader />
-      <View style={s.subHeader}>
-        <Pressable style={s.backBtn} onPress={() => setStep(scope === "private" ? "student" : "schedule")}>
-          <Feather name="arrow-left" size={20} color={C.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={s.subTitle}>
-            {scope === "group" ? selGroup?.name : selStudent?.name} · {cfg.sub}
-          </Text>
-          <Text style={s.subSub}>{cfg.title} 업로드</Text>
-        </View>
-      </View>
+      <SubScreenHeader
+        title={`${scope === "group" ? selGroup?.name : selStudent?.name} · ${cfg.sub}`}
+        subtitle={`${cfg.title} 업로드`}
+        onBack={() => setStep(scope === "private" ? "student" : "schedule")}
+        homePath="/(teacher)/today-schedule"
+      />
 
       <View style={s.uploadCenter}>
         <View style={[s.uploadIcon, { backgroundColor: cfg.bg }]}>

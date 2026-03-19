@@ -16,6 +16,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { addTabResetListener } from "@/utils/tabReset";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 
@@ -157,7 +158,8 @@ export default function RevenueScreen() {
   const totalRevenue = (summary?.total_revenue || 0) + parseInt(extraAmount || "0", 10);
 
   return (
-    <SafeAreaView style={rv.safe} edges={["top"]}>
+    <SafeAreaView style={rv.safe} edges={[]}>
+      <SubScreenHeader title="정산" homePath="/(teacher)/today-schedule" />
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }}

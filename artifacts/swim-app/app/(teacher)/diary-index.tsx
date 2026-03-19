@@ -18,7 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PoolHeader } from "@/components/PoolHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 const KO_DAYS = ["월", "화", "수", "목", "금", "토"];
@@ -171,16 +171,7 @@ export default function DiaryIndexScreen() {
 
   return (
     <SafeAreaView style={di.safe} edges={[]}>
-      <PoolHeader />
-
-      {/* 헤더 */}
-      <View style={di.header}>
-        <Pressable style={di.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color={C.text} />
-        </Pressable>
-        <Text style={[di.headerTitle, { color: themeColor }]}>수업 일지</Text>
-        <Text style={di.headerSub}>학생에게 노출된 전체 이력</Text>
-      </View>
+      <SubScreenHeader title="수업 일지" subtitle="학생에게 노출된 전체 이력" homePath="/(teacher)/today-schedule" />
 
       {/* 검색창 */}
       <View style={di.searchRow}>
