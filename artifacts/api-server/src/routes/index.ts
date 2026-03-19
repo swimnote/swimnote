@@ -30,6 +30,7 @@ import extraClassesRouter from "./extra-classes.js";
 import settlementRouter from "./settlement.js";
 import storageRouter from "./storage.js";
 import killSwitchRouter from "./kill-switch.js";
+import unregisteredRouter from "./unregistered.js";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use("/", extraClassesRouter);
 router.use("/", settlementRouter);
 router.use("/", storageRouter);
 router.use("/", killSwitchRouter);
+router.use("/", unregisteredRouter);
 
 export default router;
