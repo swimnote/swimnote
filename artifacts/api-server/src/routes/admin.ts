@@ -807,11 +807,14 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
       `)).rows as any[];
 
       const currentMonth = new Date().toISOString().slice(0, 7);
-      const [revenueRow] = (await db.execute(sql`
-        SELECT COALESCE(SUM(total_revenue), 0)::bigint AS monthly_revenue
-        FROM settlement_reports
-        WHERE pool_id = ${poolId} AND settlement_month = ${currentMonth}
-      `)).rows as any[];
+      let revenueRow: any = null;
+      try {
+        [revenueRow] = (await db.execute(sql`
+          SELECT COALESCE(SUM(total_revenue), 0)::bigint AS monthly_revenue
+          FROM settlement_reports
+          WHERE pool_id = ${poolId} AND settlement_month = ${currentMonth}
+        `)).rows as any[];
+      } catch { /* settlement_reports 테이블 미존재 시 0 반환 */ }
 
       // 최근 등록 회원 5명
       const recentMembers = (await db.execute(sql`

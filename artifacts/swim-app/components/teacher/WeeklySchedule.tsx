@@ -39,6 +39,7 @@ interface WeeklyScheduleProps {
   selectionMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
+  hideDayBar?: boolean;
 }
 
 const WEEK_DAYS = ["월", "화", "수", "목", "금", "토", "일"];
@@ -61,6 +62,7 @@ export function WeeklySchedule({
   classGroups, statusMap, onSelectClass, themeColor,
   selectedDay: externalDay, onDayChange,
   selectionMode = false, selectedIds = new Set(), onToggleSelect,
+  hideDayBar = false,
 }: WeeklyScheduleProps) {
   const today = todayKo();
   const [internalDay, setInternalDay] = useState(today);
@@ -82,43 +84,45 @@ export function WeeklySchedule({
 
   return (
     <View style={ws.root}>
-      {/* ── 요일 탭 ── */}
-      <ScrollView
-        ref={dayScrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={ws.dayBar}
-        contentContainerStyle={ws.dayBarContent}
-      >
-        {WEEK_DAYS.map(day => {
-          const isActive  = selectedDay === day;
-          const isToday   = day === today;
-          const cnt       = dayCount[day];
-          return (
-            <Pressable
-              key={day}
-              style={[
-                ws.dayTab,
-                isActive && { backgroundColor: themeColor, borderColor: themeColor },
-                !isActive && isToday && { borderColor: themeColor + "80" },
-              ]}
-              onPress={() => selectDay(day)}
-            >
-              <Text style={[ws.dayTabText, isActive && { color: "#fff" }, !isActive && isToday && { color: themeColor }]}>
-                {day}
-              </Text>
-              {isToday && !isActive && (
-                <View style={[ws.todayDot, { backgroundColor: themeColor }]} />
-              )}
-              {cnt > 0 && (
-                <View style={[ws.dayCntBubble, { backgroundColor: isActive ? "rgba(255,255,255,0.35)" : themeColor + "20" }]}>
-                  <Text style={[ws.dayCntText, { color: isActive ? "#fff" : themeColor }]}>{cnt}</Text>
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {/* ── 요일 탭 (hideDayBar=true 이면 숨김) ── */}
+      {!hideDayBar && (
+        <ScrollView
+          ref={dayScrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={ws.dayBar}
+          contentContainerStyle={ws.dayBarContent}
+        >
+          {WEEK_DAYS.map(day => {
+            const isActive  = selectedDay === day;
+            const isToday   = day === today;
+            const cnt       = dayCount[day];
+            return (
+              <Pressable
+                key={day}
+                style={[
+                  ws.dayTab,
+                  isActive && { backgroundColor: themeColor, borderColor: themeColor },
+                  !isActive && isToday && { borderColor: themeColor + "80" },
+                ]}
+                onPress={() => selectDay(day)}
+              >
+                <Text style={[ws.dayTabText, isActive && { color: "#fff" }, !isActive && isToday && { color: themeColor }]}>
+                  {day}
+                </Text>
+                {isToday && !isActive && (
+                  <View style={[ws.todayDot, { backgroundColor: themeColor }]} />
+                )}
+                {cnt > 0 && (
+                  <View style={[ws.dayCntBubble, { backgroundColor: isActive ? "rgba(255,255,255,0.35)" : themeColor + "20" }]}>
+                    <Text style={[ws.dayCntText, { color: isActive ? "#fff" : themeColor }]}>{cnt}</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {/* ── 날짜 + 클래스 수 헤더 ── */}
       <View style={ws.sectionHeader}>
@@ -235,6 +239,60 @@ export function WeeklySchedule({
         </View>
       )}
     </View>
+  );
+}
+
+// ── 독립형 요일 탭 (스크롤 밖 고정용) ─────────────────────────────
+export interface DayBarProps {
+  classGroups: TeacherClassGroup[];
+  selectedDay: string;
+  onDayChange: (day: string) => void;
+  themeColor: string;
+}
+
+export function DayBar({ classGroups, selectedDay, onDayChange, themeColor }: DayBarProps) {
+  const today = todayKo();
+  const dayCount = WEEK_DAYS.reduce<Record<string, number>>((acc, d) => {
+    acc[d] = getDayClasses(classGroups, d).length;
+    return acc;
+  }, {});
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={ws.dayBar}
+      contentContainerStyle={ws.dayBarContent}
+    >
+      {WEEK_DAYS.map(day => {
+        const isActive = selectedDay === day;
+        const isToday  = day === today;
+        const cnt      = dayCount[day];
+        return (
+          <Pressable
+            key={day}
+            style={[
+              ws.dayTab,
+              isActive && { backgroundColor: themeColor, borderColor: themeColor },
+              !isActive && isToday && { borderColor: themeColor + "80" },
+            ]}
+            onPress={() => onDayChange(day)}
+          >
+            <Text style={[ws.dayTabText, isActive && { color: "#fff" }, !isActive && isToday && { color: themeColor }]}>
+              {day}
+            </Text>
+            {isToday && !isActive && (
+              <View style={[ws.todayDot, { backgroundColor: themeColor }]} />
+            )}
+            {cnt > 0 && (
+              <View style={[ws.dayCntBubble, { backgroundColor: isActive ? "rgba(255,255,255,0.35)" : themeColor + "20" }]}>
+                <Text style={[ws.dayCntText, { color: isActive ? "#fff" : themeColor }]}>{cnt}</Text>
+              </View>
+            )}
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 

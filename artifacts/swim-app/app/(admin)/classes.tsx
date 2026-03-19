@@ -21,7 +21,7 @@ import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
 import { PoolHeader } from "@/components/PoolHeader";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
-import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
+import { WeeklySchedule, DayBar, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
 import StudentManagementSheet from "@/components/teacher/StudentManagementSheet";
 import AdminClassDetailSheet from "@/components/admin/AdminClassDetailSheet";
 
@@ -320,6 +320,7 @@ export default function ClassesScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
 
   const [viewMode,    setViewMode]    = useState<ViewMode>("weekly");
+  const [selectedDay, setSelectedDay] = useState(() => KO_DAY_ARR[new Date().getDay()]);
   const [groups,      setGroups]      = useState<TeacherClassGroup[]>([]);
   const [attMap,      setAttMap]      = useState<Record<string, number>>({});
   const [diarySet,    setDiarySet]    = useState<Set<string>>(new Set());
@@ -460,25 +461,37 @@ export default function ClassesScreen() {
 
       {/* ── 일간 뷰 ── */}
       {viewMode === "daily" && (
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
-          <WeeklySchedule
+        <>
+          {/* 요일 탭 — 스크롤 밖에 고정 */}
+          <DayBar
             classGroups={groups}
-            statusMap={statusMap}
-            onSelectClass={setDetailGroup}
+            selectedDay={selectedDay}
+            onDayChange={setSelectedDay}
             themeColor={themeColor}
-            selectionMode={false}
-            selectedIds={new Set()}
-            onToggleSelect={() => {}}
           />
-          {groups.length === 0 && (
-            <View style={s.emptyBox}>
-              <Feather name="layers" size={40} color={C.textMuted} />
-              <Text style={s.emptyTitle}>등록된 반이 없습니다</Text>
-              <Text style={s.emptySub}>상단 '반 등록'을 눌러 첫 번째 반을 만들어보세요</Text>
-            </View>
-          )}
-        </ScrollView>
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+            <WeeklySchedule
+              classGroups={groups}
+              statusMap={statusMap}
+              onSelectClass={setDetailGroup}
+              themeColor={themeColor}
+              selectedDay={selectedDay}
+              onDayChange={setSelectedDay}
+              hideDayBar
+              selectionMode={false}
+              selectedIds={new Set()}
+              onToggleSelect={() => {}}
+            />
+            {groups.length === 0 && (
+              <View style={s.emptyBox}>
+                <Feather name="layers" size={40} color={C.textMuted} />
+                <Text style={s.emptyTitle}>등록된 반이 없습니다</Text>
+                <Text style={s.emptySub}>상단 '반 등록'을 눌러 첫 번째 반을 만들어보세요</Text>
+              </View>
+            )}
+          </ScrollView>
+        </>
       )}
 
       {/* ── 주간 뷰 ── */}
