@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import React, { useEffect, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -33,6 +34,8 @@ export default function NoticesScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
   const C = Colors.light;
+  const { create } = useLocalSearchParams<{ create?: string }>();
+  const autoOpenedRef = useRef(false);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -55,6 +58,13 @@ export default function NoticesScreen() {
   }
 
   useEffect(() => { fetchNotices(); }, []);
+
+  useEffect(() => {
+    if (create === "true" && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      setShowModal(true);
+    }
+  }, [create]);
 
   async function fetchReadStats(id: string) {
     if (readStats[id]) return;

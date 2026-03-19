@@ -305,7 +305,7 @@ export default function DashboardScreen() {
     { label: "회원 등록",  icon: "user-plus"    as const, color: themeColor,  bg: themeColor + "18",  route: "/(admin)/members"    as const },
     { label: "이번 달 매출", icon: "trending-up" as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/admin-revenue" as const, value: stats ? formatWon(stats.monthly_revenue ?? 0) : "—" },
     { label: "반 관리",   icon: "layers"        as const, color: "#7C3AED",   bg: "#F3E8FF",           route: "/(admin)/classes"    as const },
-    { label: "공지 작성",  icon: "edit-3"       as const, color: "#D97706",   bg: "#FEF3C7",           route: "/(admin)/community"  as const },
+    { label: "공지 작성",  icon: "edit-3"       as const, color: "#D97706",   bg: "#FEF3C7",           route: "/(admin)/notices"    as const, params: { create: "true" } },
     { label: "저장공간 현황", icon: "hard-drive" as const, color: "#0D9488", bg: "#CCFBF1", route: "/(admin)/data-storage-overview" as const, value: storagePct !== null ? `${storagePct}% 사용 중` : "—" },
     { label: "선생님 관리", icon: "user-check"   as const, color: "#EC4899",   bg: "#FCE7F3",           route: "/(admin)/teachers"   as const },
   ];
@@ -386,7 +386,7 @@ export default function DashboardScreen() {
                   <Pressable
                     key={a.label}
                     style={({ pressed }) => [s.actionCard, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
-                    onPress={() => router.push(a.route as any)}
+                    onPress={() => router.push((a as any).params ? { pathname: a.route as any, params: (a as any).params } : a.route as any)}
                   >
                     <View style={[s.actionIcon, { backgroundColor: a.bg }]}>
                       <Feather name={a.icon} size={22} color={a.color} />
