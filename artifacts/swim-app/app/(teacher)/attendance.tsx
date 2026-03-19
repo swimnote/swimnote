@@ -217,7 +217,7 @@ export default function TeacherAttendanceScreen() {
     } catch { }
   }
 
-  async function doSaveAll() {
+  async function doSaveAll(goBack = false) {
     setSaving(true); setSaveMsg("");
     try {
       const checkedStudents = groupStudents.filter(st => attState[st.id]);
@@ -229,12 +229,18 @@ export default function TeacherAttendanceScreen() {
           })
         )
       );
-      const checkedCnt = checkedStudents.length; // 체크된 학생 수 (present + absent)
+      const checkedCnt = checkedStudents.length;
       const hasAbsent = checkedStudents.some(st => attState[st.id] === "absent");
       setAttTodayMap(prev => ({ ...prev, [selectedGroup!.id]: checkedCnt }));
-      setSaveMsg("출결이 저장되었습니다.");
-      if (hasAbsent) setTimeout(() => loadMakeups(), 600);
-      setTimeout(() => { setSaveMsg(""); setSelectedGroup(null); }, 1200);
+      if (hasAbsent) setTimeout(() => loadMakeups(), 400);
+      if (goBack) {
+        // 적용 버튼: 저장 즉시 이전 화면으로
+        setSaveMsg("저장되었습니다.");
+        setTimeout(() => { setSaveMsg(""); setSelectedGroup(null); }, 600);
+      } else {
+        setSaveMsg("출결이 저장되었습니다.");
+        setTimeout(() => { setSaveMsg(""); setSelectedGroup(null); }, 1200);
+      }
     } catch { setSaveMsg("저장에 실패했습니다."); }
     finally { setSaving(false); }
   }
@@ -245,7 +251,11 @@ export default function TeacherAttendanceScreen() {
       setSaveMsg(`미체크 ${unchecked.length}명 있음 — 다시 한번 누르면 저장`);
       return;
     }
-    doSaveAll();
+    doSaveAll(false);
+  }
+
+  function handleApply() {
+    doSaveAll(true);
   }
 
   /* ════════════════════ 보강 지정 함수 ════════════════════ */
@@ -350,6 +360,15 @@ export default function TeacherAttendanceScreen() {
           <Pressable style={[s.allPresentBtn, { backgroundColor: "#D1FAE5" }]} onPress={markAll}>
             <Feather name="check-circle" size={14} color="#059669" />
             <Text style={[s.allPresentText, { color: "#059669" }]}>모두출석</Text>
+          </Pressable>
+          <Pressable
+            style={[s.applyBtn, { backgroundColor: themeColor, opacity: saving ? 0.6 : 1 }]}
+            onPress={handleApply}
+            disabled={saving}
+          >
+            {saving
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={s.applyBtnText}>적용</Text>}
           </Pressable>
         </View>
 
@@ -662,8 +681,10 @@ const s = StyleSheet.create({
   subTitle:    { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
   subSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
 
-  allPresentBtn:  { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
-  allPresentText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  allPresentBtn:  { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  allPresentText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  applyBtn:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, alignItems: "center", justifyContent: "center", minWidth: 52 },
+  applyBtnText:   { color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" },
 
   attSummary:         { flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
   attSummaryText:     { flex: 1, fontSize: 13, fontFamily: "Inter_700Bold" },
