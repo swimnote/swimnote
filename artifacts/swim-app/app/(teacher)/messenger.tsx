@@ -1,8 +1,9 @@
 /**
  * (teacher)/messenger.tsx — 선생님 업무 메신저
+ * paddingBottom = TAB_BAR_H + insets.bottom → 탭바 위에 컨텐츠 배치
  */
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -10,6 +11,7 @@ import { useBrand } from "@/context/BrandContext";
 import MessengerScreen from "@/components/common/MessengerScreen";
 
 const C = Colors.light;
+const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
 
 export default function TeacherMessengerTab() {
   const { pool, adminUser } = useAuth();
@@ -25,7 +27,15 @@ export default function TeacherMessengerTab() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + TAB_BAR_H,
+        },
+      ]}
+    >
       <View style={[styles.header, { borderBottomColor: C.border }]}>
         <Text style={[styles.headerTitle, { color: themeColor }]}>업무 메신저</Text>
       </View>
