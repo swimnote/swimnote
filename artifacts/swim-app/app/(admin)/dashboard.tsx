@@ -23,7 +23,14 @@ interface DashStats {
   deleted_members: number; new_this_week: number; today_present: number;
   pending_requests: number; total_classes: number; diary_done_today: number;
   total_teachers: number; expiring_soon: number; pending_makeups: number;
+  monthly_revenue: number;
   recent_members: any[]; activity_logs: any[];
+}
+
+function formatWon(n: number) {
+  if (n >= 100_000_000) return (n / 100_000_000).toFixed(1).replace(/\.0$/, "") + "억원";
+  if (n >= 10_000) return Math.floor(n / 10_000) + "만원";
+  return n.toLocaleString("ko-KR") + "원";
 }
 
 interface SearchResult {
@@ -286,7 +293,7 @@ export default function DashboardScreen() {
 
   const quickActions = [
     { label: "회원 등록",  icon: "user-plus"    as const, color: themeColor,  bg: themeColor + "18",  route: "/(admin)/members"    as const },
-    { label: "출결 체크",  icon: "check-square" as const, color: "#059669",   bg: "#D1FAE5",           route: "/(admin)/attendance" as const },
+    { label: "이번 달 매출", icon: "trending-up" as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/admin-revenue" as const, value: stats ? formatWon(stats.monthly_revenue ?? 0) : "—" },
     { label: "반 관리",   icon: "layers"        as const, color: "#7C3AED",   bg: "#F3E8FF",           route: "/(admin)/classes"    as const },
     { label: "공지 작성",  icon: "edit-3"       as const, color: "#D97706",   bg: "#FEF3C7",           route: "/(admin)/community"  as const },
     { label: "승인 관리",  icon: "check-circle" as const, color: "#0D9488",   bg: "#CCFBF1",           route: "/(admin)/approvals"  as const },
@@ -375,6 +382,9 @@ export default function DashboardScreen() {
                       <Feather name={a.icon} size={22} color={a.color} />
                     </View>
                     <Text style={s.actionLabel}>{a.label}</Text>
+                    {(a as any).value !== undefined && (
+                      <Text style={[s.actionLabel, { color: (a as any).color, fontFamily: "Inter_700Bold", fontSize: 13, marginTop: 1 }]}>{(a as any).value}</Text>
+                    )}
                   </Pressable>
                 ))}
               </View>

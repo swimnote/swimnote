@@ -806,6 +806,13 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         WHERE swimming_pool_id = ${poolId} AND status IN ('waiting', 'transferred')
       `)).rows as any[];
 
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const [revenueRow] = (await db.execute(sql`
+        SELECT COALESCE(SUM(total_revenue), 0)::bigint AS monthly_revenue
+        FROM settlement_reports
+        WHERE pool_id = ${poolId} AND settlement_month = ${currentMonth}
+      `)).rows as any[];
+
       // 최근 등록 회원 5명
       const recentMembers = (await db.execute(sql`
         SELECT id, name, status, class_group_id, created_at,
@@ -833,10 +840,11 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         total_classes:   diaryRow?.total_classes ?? 0,
         diary_done_today: diaryRow?.diary_done_today ?? 0,
         total_teachers:  teacherRow?.total_teachers ?? 0,
-        pending_makeups: makeupRow?.pending_makeups ?? 0,
-        expiring_soon:   0,
-        recent_members:  recentMembers,
-        activity_logs:   activityLogs,
+        pending_makeups:  makeupRow?.pending_makeups ?? 0,
+        monthly_revenue:  Number(revenueRow?.monthly_revenue ?? 0),
+        expiring_soon:    0,
+        recent_members:   recentMembers,
+        activity_logs:    activityLogs,
       });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
