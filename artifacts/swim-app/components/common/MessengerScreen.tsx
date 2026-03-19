@@ -29,6 +29,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
@@ -175,6 +176,17 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
+  /* ── 탭 이탈 시에만 지정 대상 초기화 ── */
+  useFocusEffect(
+    useCallback(() => {
+      // 화면 진입 시 — 아무것도 하지 않음 (targetUser 유지)
+      return () => {
+        // 화면 이탈 시 (다른 하단 탭으로 이동) — 초기화
+        setTargetUser(null);
+      };
+    }, [])
+  );
+
   /* ── 공지 읽음 처리 ── */
   const markNoticeRead = useCallback(async () => {
     if (!token) return;
@@ -221,7 +233,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
         if (d.message) setTalkMessages((prev) => [d.message, ...prev]);
       }
       setTalkInput("");
-      setTargetUser(null);
+      // targetUser는 여기서 초기화하지 않음 — X 버튼 또는 탭 이탈 시에만 초기화
     } catch (e) {
       console.error("[messenger] sendTalk error", e);
     } finally {
