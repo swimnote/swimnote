@@ -1,395 +1,611 @@
 /**
  * (admin)/classes.tsx — 관리자 수업 탭
- * 주간 시간표 고정 → 셀 클릭 → 선생님 선택 → 반 목록 → 반 현황판
- * 반 등록(ClassCreateFlow) 포함
+ * 선생님 my-schedule과 동일한 UI 구조, 조회 전용 권한
+ * - 일간/주간/월간 뷰 토글
+ * - 반 클릭 → ClassDetailPanel (조회 전용)
+ * - 수강생관리 바텀시트 (readOnly=true)
+ * - 반 등록 기능 유지
  */
 import { Feather } from "@expo/vector-icons";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Modal, Platform, Pressable,
+  ActivityIndicator, Dimensions, Modal, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
-import AdminWeekBoard, { ClassGroupItem } from "@/components/admin/AdminWeekBoard";
-import TeacherPickerList, { TeacherForPicker } from "@/components/admin/TeacherPickerList";
-import ClassDetailPanel, { ClassDetail } from "@/components/admin/ClassDetailPanel";
+import { PoolHeader } from "@/components/PoolHeader";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
+import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
+import ClassDetailPanel, { ClassDetail } from "@/components/admin/ClassDetailPanel";
+import StudentManagementSheet from "@/components/teacher/StudentManagementSheet";
 
 const C = Colors.light;
-const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
+const SCREEN_W = Dimensions.get("window").width;
+const KO_DAY_ARR = ["일", "월", "화", "수", "목", "금", "토"];
+const TIMETABLE_COLS = ["월", "화", "수", "목", "금", "토", "일"];
+const WEEKDAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+const COL_W = 64;
+const TIME_W = 40;
+const ROW_H = 56;
+
+type ViewMode = "daily" | "weekly" | "monthly";
 
 function todayDateStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-function parseStartTime(t: string) { return t.split(/[-~]/)[0].trim(); }
-
-interface Teacher {
-  id: string; name: string; phone: string; position: string; is_activated: boolean;
+function parseHour(t: string): number { return parseInt(t.split(/[:-]/)[0]) || 0; }
+function getKoDay(dateStr: string): string {
+  return KO_DAY_ARR[new Date(dateStr + "T12:00:00Z").getUTCDay()];
 }
-interface AttRecord { student_id: string; status: string; class_group_id: string; }
-interface DiaryRec { id: string; class_group_id: string; }
+function classesForDate(groups: TeacherClassGroup[], dateStr: string) {
+  const koDay = getKoDay(dateStr);
+  return groups.filter(g => g.schedule_days.split(",").map(d => d.trim()).includes(koDay))
+    .sort((a, b) => parseHour(a.schedule_time) - parseHour(b.schedule_time));
+}
+function getHourRange(groups: TeacherClassGroup[]): number[] {
+  if (!groups.length) return Array.from({ length: 8 }, (_, i) => i + 9);
+  const hours = groups.map(g => parseHour(g.schedule_time));
+  const minH = Math.max(6, Math.min(...hours));
+  const maxH = Math.min(22, Math.max(...hours));
+  return Array.from({ length: maxH - minH + 1 }, (_, i) => i + minH);
+}
 
-type NavStep =
-  | { step: "main" }
-  | { step: "teachers"; day: string; time: string }
-  | { step: "classes"; day: string; time: string; teacherId: string }
-  | { step: "detail"; day: string; time: string; teacherId: string; classId: string };
+const COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
+function classColor(id: string, alpha = 1) {
+  let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
+  const base = COLORS[Math.abs(h) % COLORS.length];
+  if (alpha === 1) return base;
+  return base + Math.round(alpha * 255).toString(16).padStart(2, "0");
+}
 
-export default function ClassesScreen() {
-  const insets = useSafeAreaInsets();
-  const { token } = useAuth();
-
-  const [classGroups, setClassGroups] = useState<ClassGroupItem[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [attendanceMap, setAttendanceMap] = useState<Record<string, AttRecord[]>>({});
-  const [diarySet, setDiarySet] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const [nav, setNav] = useState<NavStep>({ step: "main" });
-
-  // 탭 포커스 시 첫 화면으로 초기화
-  useFocusEffect(
-    useCallback(() => {
-      setNav({ step: "main" });
-    }, [])
-  );
-
-  // 같은 탭 재탭 시 첫 화면으로 초기화
-  useEffect(() => {
-    return addTabResetListener("classes", () => setNav({ step: "main" }));
-  }, []);
-
-  const [classDetail, setClassDetail] = useState<ClassDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailDate, setDetailDate] = useState(todayDateStr());
-
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
-
-  // ── 데이터 로드
-  const loadAll = useCallback(async () => {
-    try {
-      const today = todayDateStr();
-      const [cgRes, tRes, attRes, diaryRes] = await Promise.all([
-        apiRequest(token, "/class-groups"),
-        apiRequest(token, "/teachers"),
-        apiRequest(token, `/attendance?date=${today}`),
-        apiRequest(token, `/diary?date=${today}`),
-      ]);
-      if (cgRes.ok) setClassGroups((await cgRes.json()).filter((g: any) => !g.is_deleted));
-      if (tRes.ok) setTeachers(await tRes.json());
-      if (attRes.ok) {
-        const data: AttRecord[] = await attRes.json();
-        const map: Record<string, AttRecord[]> = {};
-        data.forEach(a => { if (!map[a.class_group_id]) map[a.class_group_id] = []; map[a.class_group_id].push(a); });
-        setAttendanceMap(map);
-      }
-      if (diaryRes.ok) {
-        const data: DiaryRec[] = await diaryRes.json();
-        setDiarySet(new Set(data.map(d => d.class_group_id)));
-      }
-    } finally { setLoading(false); setRefreshing(false); }
-  }, [token]);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
-
-  async function fetchClassDetail(classId: string) {
-    setDetailLoading(true);
-    const today = todayDateStr();
-    setDetailDate(today);
-    try {
-      const res = await apiRequest(token, `/admin/class-groups/${classId}/detail?date=${today}`);
-      if (res.ok) setClassDetail(await res.json());
-    } finally { setDetailLoading(false); }
-  }
-
-  // ── 탐색 핸들러
-  function onCellPress(day: string, time: string) { setNav({ step: "teachers", day, time }); }
-
-  function onSelectTeacher(teacherId: string) {
-    if (nav.step !== "teachers") return;
-    setNav({ step: "classes", day: nav.day, time: nav.time, teacherId });
-  }
-
-  function onSelectClass(classId: string) {
-    if (nav.step !== "classes") return;
-    setClassDetail(null);
-    setNav({ step: "detail", day: nav.day, time: nav.time, teacherId: nav.teacherId, classId });
-    fetchClassDetail(classId);
-  }
-
-  function goBack() {
-    if (nav.step === "detail") { const { day, time, teacherId } = nav; setNav({ step: "classes", day, time, teacherId }); }
-    else if (nav.step === "classes") { const { day, time } = nav; setNav({ step: "teachers", day, time }); }
-    else if (nav.step === "teachers") { setNav({ step: "main" }); }
-  }
-
-  // ── 선생님 목록 for picker
-  const teachersForPicker = useMemo((): TeacherForPicker[] => {
-    if (nav.step !== "teachers") return [];
-    const { day, time } = nav;
-    const slotGroups = classGroups.filter(g =>
-      g.schedule_days.split(",").map(d => d.trim()).includes(day) &&
-      parseStartTime(g.schedule_time) === time
-    );
-    const ids = [...new Set(slotGroups.map(g => g.teacher_user_id).filter(Boolean))] as string[];
-    return ids.map(id => {
-      const t = teachers.find(x => x.id === id);
-      if (!t) return null;
-      const tgs = slotGroups.filter(g => g.teacher_user_id === id);
-      return {
-        id: t.id, name: t.name, position: t.position, classCount: tgs.length,
-        uncheckedAtt: tgs.filter(g => (attendanceMap[g.id]?.length ?? 0) < g.student_count).length,
-        unwrittenDiary: tgs.filter(g => !diarySet.has(g.id)).length,
-      };
-    }).filter(Boolean) as TeacherForPicker[];
-  }, [nav, classGroups, teachers, attendanceMap, diarySet]);
-
-  // ── 반 목록 for list view
-  const classesForList = useMemo(() => {
-    if (nav.step !== "classes") return [];
-    const { day, time, teacherId } = nav;
-    return classGroups.filter(g =>
-      g.schedule_days.split(",").map(d => d.trim()).includes(day) &&
-      parseStartTime(g.schedule_time) === time &&
-      g.teacher_user_id === teacherId
-    );
-  }, [nav, classGroups]);
-
-  // ── 반 삭제
-  async function confirmDeleteClass() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    const res = await apiRequest(token, `/class-groups/${deleteTarget.id}`, { method: "DELETE" });
-    setDeleting(false); setDeleteTarget(null);
-    if (res.ok) { setClassGroups(prev => prev.filter(g => g.id !== deleteTarget.id)); setNav({ step: "main" }); }
-  }
-
-  const crumbTeacher = (nav.step === "classes" || nav.step === "detail")
-    ? teachers.find(t => t.id === (nav as any).teacherId)?.name ?? "선생님" : "";
-
-  const headerTitle = nav.step === "main" ? "수업"
-    : nav.step === "teachers" ? `${nav.day}요일 ${nav.time}`
-    : nav.step === "classes" ? crumbTeacher
-    : (classDetail?.class_group.name ?? "반 현황판");
+/* ── 주간 시간표 (read-only, 선택모드 없음) ── */
+function WeeklyTimetable({ groups, onSelectClass }: {
+  groups: TeacherClassGroup[];
+  onSelectClass: (g: TeacherClassGroup) => void;
+}) {
+  const hours = useMemo(() => getHourRange(groups), [groups]);
+  const cellClasses = useMemo(() => {
+    const map: Record<string, TeacherClassGroup[]> = {};
+    TIMETABLE_COLS.forEach(day => {
+      hours.forEach(h => {
+        const key = `${day}-${h}`;
+        map[key] = groups.filter(g => {
+          const days = g.schedule_days.split(",").map(d => d.trim());
+          return days.includes(day) && parseHour(g.schedule_time) === h;
+        });
+      });
+    });
+    return map;
+  }, [groups, hours]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.background }}>
-      {/* 헤더 */}
-      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-          {nav.step !== "main" && (
-            <Pressable onPress={goBack} hitSlop={8}>
-              <Feather name="arrow-left" size={20} color={C.tint} />
-            </Pressable>
-          )}
-          <Text style={[s.title, { color: C.text }]} numberOfLines={1}>{headerTitle}</Text>
-        </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {nav.step === "main" && (
-            <>
-              <Pressable style={[s.btn, { backgroundColor: "#FEF9C3" }]} onPress={() => router.push("/(admin)/community" as any)}>
-                <Feather name="bell" size={14} color="#CA8A04" />
-                <Text style={[s.btnTxt, { color: "#CA8A04" }]}>공지</Text>
-              </Pressable>
-              <Pressable style={[s.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => {}}>
-                <Feather name="rotate-ccw" size={14} color="#7C3AED" />
-                <Text style={[s.btnTxt, { color: "#7C3AED" }]}>보강</Text>
-              </Pressable>
-              <Pressable style={[s.btn, { backgroundColor: C.tint }]} onPress={() => setShowCreate(true)}>
-                <Feather name="plus" size={14} color="#fff" />
-                <Text style={[s.btnTxt, { color: "#fff" }]}>반 등록</Text>
-              </Pressable>
-            </>
-          )}
-          {nav.step === "detail" && classDetail && (
-            <Pressable style={[s.btn, { backgroundColor: "#FEE2E2" }]}
-              onPress={() => setDeleteTarget({ id: classDetail.class_group.id, name: classDetail.class_group.name })}>
-              <Feather name="trash-2" size={14} color="#EF4444" />
-              <Text style={[s.btnTxt, { color: "#EF4444" }]}>삭제</Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
-
-      {/* 브레드크럼 */}
-      {nav.step !== "main" && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          style={[s.breadcrumb, { borderBottomColor: C.border }]}
-          contentContainerStyle={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 20, paddingVertical: 8 }}>
-          <Pressable onPress={() => setNav({ step: "main" })}><Text style={[s.crumb, { color: C.tint }]}>주간보드</Text></Pressable>
-          {(nav.step === "teachers" || nav.step === "classes" || nav.step === "detail") && (
-            <>
-              <Feather name="chevron-right" size={12} color={C.textMuted} />
-              <Pressable onPress={() => nav.step !== "teachers" && setNav({ step: "teachers", day: (nav as any).day, time: (nav as any).time })}>
-                <Text style={[s.crumb, { color: nav.step === "teachers" ? C.text : C.tint, fontWeight: nav.step === "teachers" ? "700" : "500" }]}>
-                  {(nav as any).day}요일 {(nav as any).time}
-                </Text>
-              </Pressable>
-            </>
-          )}
-          {(nav.step === "classes" || nav.step === "detail") && (
-            <>
-              <Feather name="chevron-right" size={12} color={C.textMuted} />
-              <Pressable onPress={() => nav.step !== "classes" && setNav({ step: "classes", day: (nav as any).day, time: (nav as any).time, teacherId: (nav as any).teacherId })}>
-                <Text style={[s.crumb, { color: nav.step === "classes" ? C.text : C.tint, fontWeight: nav.step === "classes" ? "700" : "500" }]}>{crumbTeacher}</Text>
-              </Pressable>
-            </>
-          )}
-          {nav.step === "detail" && classDetail && (
-            <>
-              <Feather name="chevron-right" size={12} color={C.textMuted} />
-              <Text style={[s.crumb, { color: C.text, fontWeight: "700" }]}>{classDetail.class_group.name}</Text>
-            </>
-          )}
-        </ScrollView>
-      )}
-
-      {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
-      ) : (
-        <>
-          {/* ── 주간 보드 */}
-          {nav.step === "main" && (
-            <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAll(); }} />}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_H + 20 }}>
-              <View style={[s.hintRow, { backgroundColor: C.tintLight }]}>
-                <Feather name="info" size={13} color={C.tint} />
-                <Text style={[s.hintTxt, { color: C.tint }]}>요일·시간 셀을 눌러 선생님·반을 탐색하세요</Text>
-              </View>
-              <AdminWeekBoard classGroups={classGroups} onCellPress={onCellPress} />
-              {classGroups.length === 0 && (
-                <View style={s.emptyBox}>
-                  <Feather name="layers" size={48} color={C.textMuted} />
-                  <Text style={[s.emptyTitle, { color: C.textMuted }]}>등록된 반이 없습니다</Text>
-                  <Text style={[s.emptySub, { color: C.textMuted }]}>상단 '반 등록'을 눌러 첫 번째 반을 만들어보세요</Text>
-                </View>
-              )}
-            </ScrollView>
-          )}
-
-          {/* ── 선생님 선택 */}
-          {nav.step === "teachers" && (
-            <TeacherPickerList day={nav.day} time={nav.time} teachers={teachersForPicker}
-              onSelectTeacher={onSelectTeacher} onBack={goBack} bottomInset={insets.bottom + TAB_BAR_H + 20} />
-          )}
-
-          {/* ── 반 목록 */}
-          {nav.step === "classes" && (
-            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + TAB_BAR_H + 20, gap: 8 }} showsVerticalScrollIndicator={false}>
-              <Text style={[s.sectionHead, { color: C.text }]}>반 선택</Text>
-              <Text style={[s.sectionSub, { color: C.textMuted }]}>{nav.day}요일 {nav.time} · {crumbTeacher}</Text>
-              {classesForList.length === 0 ? (
-                <View style={s.emptyBox}>
-                  <Feather name="layers" size={36} color={C.textMuted} />
-                  <Text style={[s.emptyTitle, { color: C.textMuted }]}>해당 시간에 반이 없습니다</Text>
-                </View>
-              ) : classesForList.map(g => {
-                const att = attendanceMap[g.id] || [];
-                const present = att.filter(a => a.status === "present").length;
-                const absent = att.filter(a => a.status === "absent").length;
-                const hasDiary = diarySet.has(g.id);
-                return (
-                  <Pressable key={g.id} style={[s.classRow, { backgroundColor: C.card }]} onPress={() => onSelectClass(g.id)}>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                        <Text style={[s.className, { color: C.text }]}>{g.name}</Text>
-                        <View style={[s.diaryBadge, { backgroundColor: hasDiary ? "#D1FAE5" : "#FEF3C7" }]}>
-                          <Text style={[s.diaryBadgeTxt, { color: hasDiary ? "#059669" : "#D97706" }]}>{hasDiary ? "일지 완료" : "일지 미작성"}</Text>
-                        </View>
-                      </View>
-                      <View style={{ flexDirection: "row", gap: 12 }}>
-                        <Text style={[s.classStat, { color: C.textSecondary }]}>학생 {g.student_count}명</Text>
-                        <Text style={[s.classStat, { color: "#059669" }]}>출석 {present}</Text>
-                        <Text style={[s.classStat, { color: "#EF4444" }]}>결석 {absent}</Text>
-                      </View>
-                    </View>
-                    <Feather name="chevron-right" size={18} color={C.textMuted} />
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          )}
-
-          {/* ── 반 현황판 */}
-          {nav.step === "detail" && (
-            <ClassDetailPanel detail={classDetail} loading={detailLoading} date={detailDate}
-              onBack={goBack} bottomInset={insets.bottom + TAB_BAR_H + 20} />
-          )}
-        </>
-      )}
-
-      {/* 반 등록 모달 */}
-      {showCreate && (
-        <ClassCreateFlow token={token} role="pool_admin"
-          onSuccess={(newGroup) => {
-            setClassGroups(prev => [newGroup, ...prev]);
-            setShowCreate(false);
-            // 개설 직후 해당 반 현황판 자동 오픈
-            const day = (newGroup.schedule_days || "").split(",")[0]?.trim() || "";
-            const time = newGroup.schedule_time || "";
-            const teacherId = newGroup.teacher_user_id || "";
-            setClassDetail(null);
-            setNav({ step: "detail", day, time, teacherId, classId: newGroup.id });
-            fetchClassDetail(newGroup.id);
-          }}
-          onClose={() => setShowCreate(false)} />
-      )}
-
-      {/* 삭제 확인 모달 */}
-      <Modal visible={!!deleteTarget} animationType="fade" transparent presentationStyle="overFullScreen">
-        <View style={s.overlay}>
-          <View style={[s.confirmCard, { backgroundColor: C.card }]}>
-            <Text style={[s.confirmTitle, { color: C.text }]}>반 삭제</Text>
-            <Text style={[s.confirmMsg, { color: C.textSecondary }]}>
-              {deleteTarget?.name}을 삭제하면{"\n"}소속 학생은 미배정 상태로 변경됩니다.
-            </Text>
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-              <Pressable style={[s.confirmBtn, { borderColor: C.border, borderWidth: 1.5 }]} onPress={() => setDeleteTarget(null)}>
-                <Text style={[s.confirmBtnTxt, { color: C.textSecondary }]}>취소</Text>
-              </Pressable>
-              <Pressable style={[s.confirmBtn, { backgroundColor: "#EF4444" }]} onPress={confirmDeleteClass} disabled={deleting}>
-                {deleting ? <ActivityIndicator size={16} color="#fff" /> : <Text style={[s.confirmBtnTxt, { color: "#fff" }]}>삭제</Text>}
-              </Pressable>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={wt.outer}>
+      <View>
+        <View style={wt.headerRow}>
+          <View style={[wt.timeCell, wt.header]} />
+          {TIMETABLE_COLS.map(day => (
+            <View key={day} style={[wt.dayHeader, { width: COL_W }]}>
+              <Text style={wt.dayHeaderText}>{day}</Text>
             </View>
-          </View>
+          ))}
         </View>
-      </Modal>
+        {hours.map(h => (
+          <View key={h} style={[wt.row, { height: ROW_H }]}>
+            <View style={wt.timeCell}>
+              <Text style={wt.timeText}>{h}:00</Text>
+            </View>
+            {TIMETABLE_COLS.map(day => {
+              const cls = cellClasses[`${day}-${h}`] ?? [];
+              return (
+                <View key={day} style={[wt.cell, { width: COL_W }]}>
+                  {cls.map(g => (
+                    <Pressable
+                      key={g.id}
+                      style={[wt.classCard, { backgroundColor: classColor(g.id) }]}
+                      onPress={() => onSelectClass(g)}
+                    >
+                      <Text style={wt.cardName} numberOfLines={2}>{g.name}</Text>
+                      <Text style={wt.cardTime} numberOfLines={1}>{g.schedule_time}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+const wt = StyleSheet.create({
+  outer:        { flex: 1 },
+  headerRow:    { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
+  header:       { backgroundColor: "#F9FAFB" },
+  dayHeader:    { height: 36, alignItems: "center", justifyContent: "center",
+                  borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#F9FAFB" },
+  dayHeaderText:{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text },
+  row:          { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  timeCell:     { width: TIME_W, alignItems: "center", justifyContent: "flex-start",
+                  paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border },
+  timeText:     { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
+  cell:         { borderLeftWidth: 1, borderLeftColor: "#F3F4F6", padding: 2, gap: 2 },
+  classCard:    { flex: 1, borderRadius: 6, padding: 4, minHeight: 48, justifyContent: "center" },
+  cardName:     { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#fff", lineHeight: 12 },
+  cardTime:     { fontSize: 8, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)", marginTop: 2 },
+});
+
+/* ── 월간 달력 ── */
+function MonthlyCalendar({ groups, themeColor, onSelectDate }: {
+  groups: TeacherClassGroup[];
+  themeColor: string;
+  onSelectDate: (dateStr: string, cls: TeacherClassGroup[]) => void;
+}) {
+  const today = todayDateStr();
+  const { token, adminUser } = useAuth();
+  const poolId = (adminUser as any)?.swimming_pool_id || "";
+  const [offset, setOffset] = useState(0);
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
+
+  const { year, month, days } = useMemo(() => {
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const firstDay = new Date(y, m - 1, 1).getDay();
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const cells: (string | null)[] = Array(firstDay).fill(null);
+    for (let i = 1; i <= daysInMonth; i++) {
+      cells.push(`${y}-${String(m).padStart(2,"0")}-${String(i).padStart(2,"0")}`);
+    }
+    while (cells.length % 7 !== 0) cells.push(null);
+    return { year: y, month: m, days: cells };
+  }, [offset]);
+
+  useEffect(() => {
+    if (!poolId) return;
+    const mm = String(month).padStart(2, "0");
+    apiRequest(token, `/holidays?pool_id=${poolId}&month=${year}-${mm}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.holidays) setHolidayDates(new Set(d.holidays.map((h: any) => h.holiday_date))); })
+      .catch(() => {});
+  }, [token, poolId, year, month]);
+
+  const CELL_SIZE = Math.floor((SCREEN_W - 32) / 7);
+
+  return (
+    <View style={mc.root}>
+      <View style={mc.monthNav}>
+        <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}>
+          <Feather name="chevron-left" size={20} color={C.text} />
+        </Pressable>
+        <Text style={mc.monthTitle}>{year}년 {month}월</Text>
+        <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}>
+          <Feather name="chevron-right" size={20} color={C.text} />
+        </Pressable>
+      </View>
+      <View style={mc.weekRow}>
+        {WEEKDAY_NAMES.map((wd, i) => (
+          <View key={wd} style={[mc.weekHeader, { width: CELL_SIZE }]}>
+            <Text style={[mc.weekHeaderText, i === 0 && { color: "#EF4444" }, i === 6 && { color: themeColor }]}>{wd}</Text>
+          </View>
+        ))}
+      </View>
+      {Array.from({ length: Math.ceil(days.length / 7) }, (_, wi) => (
+        <View key={wi} style={mc.weekRow}>
+          {days.slice(wi * 7, wi * 7 + 7).map((dateStr, di) => {
+            if (!dateStr) return <View key={di} style={[mc.dayCell, { width: CELL_SIZE }]} />;
+            const isToday   = dateStr === today;
+            const isHoliday = holidayDates.has(dateStr);
+            const cls       = classesForDate(groups, dateStr);
+            const dayNum    = parseInt(dateStr.split("-")[2]);
+            const isSun     = di === 0;
+            const isSat     = di === 6;
+            return (
+              <Pressable
+                key={dateStr}
+                style={[mc.dayCell, { width: CELL_SIZE },
+                  isToday && { backgroundColor: themeColor + "12" },
+                  isHoliday && { backgroundColor: "#FEF2F2" },
+                ]}
+                onPress={() => onSelectDate(dateStr, cls)}
+              >
+                <View style={[mc.dayNumWrap, isToday && { backgroundColor: themeColor }]}>
+                  <Text style={[mc.dayNum,
+                    (isSun || isHoliday) ? { color: "#EF4444" } : isSat ? { color: themeColor } : {},
+                    isToday && { color: "#fff" },
+                  ]}>{dayNum}</Text>
+                </View>
+                {isHoliday ? (
+                  <Text style={mc.holidayTag}>휴무일</Text>
+                ) : (
+                  <View style={mc.dotsRow}>
+                    {cls.slice(0, 4).map(g => (
+                      <View key={g.id} style={[mc.dot, { backgroundColor: classColor(g.id) }]} />
+                    ))}
+                    {cls.length > 4 && <Text style={mc.moreText}>+{cls.length - 4}</Text>}
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }
 
+const mc = StyleSheet.create({
+  root:           { paddingHorizontal: 16, paddingBottom: 8 },
+  monthNav:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
+  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  monthTitle:     { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  weekRow:        { flexDirection: "row" },
+  weekHeader:     { height: 28, alignItems: "center", justifyContent: "center" },
+  weekHeaderText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  dayCell:        { height: 64, alignItems: "center", paddingTop: 6, borderRadius: 8 },
+  dayNumWrap:     { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  dayNum:         { fontSize: 13, fontFamily: "Inter_500Medium", color: C.text },
+  dotsRow:        { flexDirection: "row", gap: 2, marginTop: 3, flexWrap: "wrap", justifyContent: "center" },
+  dot:            { width: 6, height: 6, borderRadius: 3 },
+  moreText:       { fontSize: 8, fontFamily: "Inter_400Regular", color: C.textMuted },
+  holidayTag:     { fontSize: 9, fontFamily: "Inter_700Bold", color: "#EF4444", marginTop: 2 },
+});
+
+/* ── 반 상세 바텀시트 (조회 전용) ── */
+function ClassDetailSheet({ group, token, onClose }: {
+  group: TeacherClassGroup;
+  token: string | null;
+  onClose: () => void;
+}) {
+  const [detail, setDetail] = useState<ClassDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const date = todayDateStr();
+
+  useEffect(() => {
+    setLoading(true);
+    apiRequest(token, `/admin/class-groups/${group.id}/detail?date=${date}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setDetail(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [group.id]);
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={ds.backdrop} onPress={onClose} />
+      <View style={ds.sheet}>
+        <View style={ds.handle} />
+        <ClassDetailPanel
+          detail={detail}
+          loading={loading}
+          date={date}
+          onBack={onClose}
+          bottomInset={40}
+        />
+      </View>
+    </Modal>
+  );
+}
+
+const ds = StyleSheet.create({
+  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet:    { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
+              borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "90%", minHeight: "55%" },
+  handle:   { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
+});
+
+/* ── 날짜 시트 (월간 날짜 클릭) ── */
+function DaySheet({ dateStr, dayClasses, themeColor, onSelectClass, onClose }: {
+  dateStr: string; dayClasses: TeacherClassGroup[]; themeColor: string;
+  onSelectClass: (g: TeacherClassGroup) => void; onClose: () => void;
+}) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const DOW = ["일","월","화","수","목","금","토"][new Date(dateStr + "T00:00:00").getDay()];
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={ds.backdrop} onPress={onClose} />
+      <View style={[ds.sheet, { minHeight: "30%" }]}>
+        <View style={ds.handle} />
+        <View style={ds.sheetHeader}>
+          <Text style={[ds.sheetTitle, { flex: 1 }]}>{y}년 {m}월 {d}일 ({DOW})</Text>
+          <Pressable onPress={onClose} style={{ padding: 4 }}>
+            <Feather name="x" size={20} color={C.textSecondary} />
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+          {dayClasses.length === 0 ? (
+            <Text style={{ color: C.textMuted, textAlign: "center", marginTop: 20 }}>이 날 수업이 없습니다</Text>
+          ) : dayClasses.map(g => (
+            <Pressable key={g.id} style={[daysh.classRow, { borderLeftColor: classColor(g.id) }]}
+              onPress={() => { onClose(); setTimeout(() => onSelectClass(g), 100); }}>
+              <View style={[daysh.dot, { backgroundColor: classColor(g.id) }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={daysh.className}>{g.name}</Text>
+                <Text style={daysh.classSub}>{g.schedule_time} · {g.student_count}명</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={C.textMuted} />
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const daysh = StyleSheet.create({
+  classRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.card,
+              borderRadius: 12, padding: 12, gap: 10, borderLeftWidth: 4 },
+  dot:      { width: 10, height: 10, borderRadius: 5 },
+  className:{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  classSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+});
+
+/* ══════════════════ 메인 스크린 ══════════════════ */
+export default function ClassesScreen() {
+  const { token } = useAuth();
+  const { themeColor } = useBrand();
+
+  const [viewMode,    setViewMode]    = useState<ViewMode>("weekly");
+  const [groups,      setGroups]      = useState<TeacherClassGroup[]>([]);
+  const [attMap,      setAttMap]      = useState<Record<string, number>>({});
+  const [diarySet,    setDiarySet]    = useState<Set<string>>(new Set());
+  const [loading,     setLoading]     = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
+
+  const [showCreate,      setShowCreate]      = useState(false);
+  const [showManagement,  setShowManagement]  = useState(false);
+
+  // 반 상세 시트
+  const [detailGroup,  setDetailGroup]  = useState<TeacherClassGroup | null>(null);
+  // 날짜 시트 (월간 → 날짜 클릭)
+  const [daySheet,     setDaySheet]     = useState<{ dateStr: string; cls: TeacherClassGroup[] } | null>(null);
+
+  // 탭 포커스 시 초기화
+  useFocusEffect(useCallback(() => {
+    setDetailGroup(null); setDaySheet(null);
+  }, []));
+
+  useEffect(() => {
+    return addTabResetListener("classes", () => {
+      setDetailGroup(null); setDaySheet(null); setViewMode("weekly");
+    });
+  }, []);
+
+  /* ── 데이터 로드 ── */
+  const load = useCallback(async () => {
+    const today = todayDateStr();
+    try {
+      const [cgRes, attRes, dRes] = await Promise.all([
+        apiRequest(token, "/class-groups"),
+        apiRequest(token, `/attendance?date=${today}`),
+        apiRequest(token, `/diary?date=${today}`),
+      ]);
+      if (cgRes.ok)  setGroups(await cgRes.json());
+      if (attRes.ok) {
+        const arr: any[] = await attRes.json();
+        const map: Record<string, number> = {};
+        arr.forEach(a => { const cid = a.class_group_id || a.class_id; if (cid) map[cid] = (map[cid] || 0) + 1; });
+        setAttMap(map);
+      }
+      if (dRes.ok) {
+        const arr: any[] = await dRes.json();
+        setDiarySet(new Set(arr.map((d: any) => d.class_group_id).filter(Boolean)));
+      }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); setRefreshing(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  /* ── statusMap (WeeklySchedule 일간 뷰용) ── */
+  const statusMap = useMemo(() => {
+    const map: Record<string, SlotStatus> = {};
+    groups.forEach(g => {
+      map[g.id] = {
+        attChecked: attMap[g.id] || 0,
+        diaryDone:  diarySet.has(g.id),
+        hasPhotos:  false,
+      };
+    });
+    return map;
+  }, [groups, attMap, diarySet]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={s.safe} edges={[]}>
+        <PoolHeader />
+        <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={s.safe} edges={[]}>
+      <PoolHeader />
+
+      {/* 타이틀 + 버튼 */}
+      <View style={s.titleArea}>
+        <View style={s.titleRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.title}>수업</Text>
+            <Text style={s.titleSub}>
+              {new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
+            </Text>
+          </View>
+
+          <View style={s.rightBtns}>
+            <Pressable style={[s.iconBtn, { backgroundColor: "#FEF9C3" }]}
+              onPress={() => router.push("/(admin)/community" as any)}>
+              <Feather name="bell" size={13} color="#CA8A04" />
+              <Text style={[s.iconBtnText, { color: "#CA8A04" }]}>공지</Text>
+            </Pressable>
+            <Pressable style={[s.iconBtn, { backgroundColor: "#EDE9FE" }]}
+              onPress={() => router.push("/(admin)/makeups" as any)}>
+              <Feather name="rotate-ccw" size={13} color="#7C3AED" />
+              <Text style={[s.iconBtnText, { color: "#7C3AED" }]}>보강</Text>
+            </Pressable>
+            <Pressable style={[s.mgmtBtn, { borderColor: themeColor }]}
+              onPress={() => setShowManagement(true)}>
+              <Feather name="users" size={13} color={themeColor} />
+              <Text style={[s.mgmtBtnText, { color: themeColor }]}>수강생관리</Text>
+            </Pressable>
+            <Pressable style={[s.createBtn, { backgroundColor: themeColor }]}
+              onPress={() => setShowCreate(true)}>
+              <Feather name="plus" size={14} color="#fff" />
+              <Text style={s.createBtnText}>반 등록</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* 뷰 모드 토글 */}
+        <View style={s.controlRow}>
+          <View style={s.viewToggle}>
+            {(["daily","weekly","monthly"] as ViewMode[]).map(mode => {
+              const labels = { daily: "일간", weekly: "주간", monthly: "월간" };
+              const isActive = viewMode === mode;
+              return (
+                <Pressable key={mode} style={[s.toggleBtn, isActive && { backgroundColor: themeColor, borderColor: themeColor }]}
+                  onPress={() => setViewMode(mode)}>
+                  <Text style={[s.toggleText, isActive && { color: "#fff" }]}>{labels[mode]}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+
+      {/* ── 일간 뷰 ── */}
+      {viewMode === "daily" && (
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+          <WeeklySchedule
+            classGroups={groups}
+            statusMap={statusMap}
+            onSelectClass={setDetailGroup}
+            themeColor={themeColor}
+            selectionMode={false}
+            selectedIds={new Set()}
+            onToggleSelect={() => {}}
+          />
+          {groups.length === 0 && (
+            <View style={s.emptyBox}>
+              <Feather name="layers" size={40} color={C.textMuted} />
+              <Text style={s.emptyTitle}>등록된 반이 없습니다</Text>
+              <Text style={s.emptySub}>상단 '반 등록'을 눌러 첫 번째 반을 만들어보세요</Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
+
+      {/* ── 주간 뷰 ── */}
+      {viewMode === "weekly" && (
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+          <WeeklyTimetable groups={groups} onSelectClass={setDetailGroup} />
+          {groups.length === 0 && (
+            <View style={s.emptyBox}>
+              <Feather name="layers" size={40} color={C.textMuted} />
+              <Text style={s.emptyTitle}>등록된 반이 없습니다</Text>
+              <Text style={s.emptySub}>상단 '반 등록'을 눌러 첫 번째 반을 만들어보세요</Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
+
+      {/* ── 월간 뷰 ── */}
+      {viewMode === "monthly" && (
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+          <MonthlyCalendar
+            groups={groups}
+            themeColor={themeColor}
+            onSelectDate={(dateStr, cls) => setDaySheet({ dateStr, cls })}
+          />
+        </ScrollView>
+      )}
+
+      {/* 반 상세 시트 */}
+      {detailGroup && (
+        <ClassDetailSheet
+          group={detailGroup}
+          token={token}
+          onClose={() => setDetailGroup(null)}
+        />
+      )}
+
+      {/* 날짜 시트 */}
+      {daySheet && (
+        <DaySheet
+          dateStr={daySheet.dateStr}
+          dayClasses={daySheet.cls}
+          themeColor={themeColor}
+          onSelectClass={(g) => { setDaySheet(null); setTimeout(() => setDetailGroup(g), 100); }}
+          onClose={() => setDaySheet(null)}
+        />
+      )}
+
+      {/* 수강생관리 바텀시트 (조회 전용) */}
+      <StudentManagementSheet
+        visible={showManagement}
+        token={token}
+        groups={groups}
+        themeColor={themeColor}
+        readOnly
+        onClose={() => setShowManagement(false)}
+        onAssignDone={() => setShowManagement(false)}
+      />
+
+      {/* 반 등록 */}
+      {showCreate && (
+        <ClassCreateFlow
+          token={token}
+          role="pool_admin"
+          onSuccess={(newGroup) => {
+            setGroups(prev => [...prev, newGroup as TeacherClassGroup]);
+            setShowCreate(false);
+            setTimeout(() => setDetailGroup(newGroup as TeacherClassGroup), 300);
+          }}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
+    </SafeAreaView>
+  );
+}
+
 const s = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 10 },
-  title: { fontSize: 22, fontFamily: "Inter_700Bold", flex: 1 },
-  btn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
-  btnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  breadcrumb: { borderBottomWidth: 1 },
-  crumb: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  hintRow: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginVertical: 10, padding: 10, borderRadius: 10 },
-  hintTxt: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
-  sectionHead: { fontSize: 17, fontFamily: "Inter_700Bold", marginBottom: 2 },
-  sectionSub: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 8 },
-  classRow: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 1 },
-  className: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  classStat: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  diaryBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  diaryBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  emptyBox: { alignItems: "center", paddingVertical: 60, gap: 10 },
-  emptyTitle: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  emptySub: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center" },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" },
-  confirmCard: { borderRadius: 20, padding: 24, gap: 8, width: "80%", maxWidth: 320 },
-  confirmTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
-  confirmMsg: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
-  confirmBtn: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  confirmBtnTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  safe:         { flex: 1, backgroundColor: "#F3F4F6" },
+
+  titleArea:    { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border,
+                  paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
+  titleRow:     { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  title:        { fontSize: 20, fontFamily: "Inter_700Bold", color: "#111827" },
+  titleSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+
+  rightBtns:    { flexDirection: "row", gap: 4, alignItems: "center" },
+  iconBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8,
+                  paddingVertical: 7, borderRadius: 10 },
+  iconBtnText:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  mgmtBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8,
+                  paddingVertical: 7, borderRadius: 10, borderWidth: 1.5, backgroundColor: "#fff" },
+  mgmtBtnText:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  createBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10,
+                  paddingVertical: 8, borderRadius: 10 },
+  createBtnText:{ color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+
+  controlRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                  paddingHorizontal: 16, paddingVertical: 8 },
+  viewToggle:   { flexDirection: "row", gap: 6 },
+  toggleBtn:    { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20,
+                  borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
+  toggleText:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+
+  emptyBox:     { alignItems: "center", paddingVertical: 60, gap: 10 },
+  emptyTitle:   { fontSize: 14, fontFamily: "Inter_500Medium", color: C.textMuted },
+  emptySub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" },
 });

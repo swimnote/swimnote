@@ -112,12 +112,13 @@ interface Props {
   token: string | null;
   groups: TeacherClassGroup[];
   themeColor: string;
+  readOnly?: boolean;
   onClose: () => void;
   onAssignDone: () => void;
 }
 
 export default function StudentManagementSheet({
-  visible, token, groups, themeColor, onClose, onAssignDone,
+  visible, token, groups, themeColor, readOnly = false, onClose, onAssignDone,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -293,6 +294,12 @@ export default function StudentManagementSheet({
         keyExtractor={i => i.id}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={readOnly ? (
+          <View style={[st.readOnlyBanner, { marginTop: 8 }]}>
+            <Feather name="eye" size={12} color="#6B7280" />
+            <Text style={st.readOnlyText}>조회 전용 — 배정 기능은 선생님 계정에서 사용하세요</Text>
+          </View>
+        ) : null}
         renderItem={({ item }) => {
           const weekly = item.weekly_count ?? null;
           const assigned = Array.isArray(item.assigned_class_ids) ? item.assigned_class_ids.length : 0;
@@ -330,12 +337,14 @@ export default function StudentManagementSheet({
                   )}
                 </View>
               </View>
-              <Pressable
-                style={[st.actionBtn, { backgroundColor: themeColor }]}
-                onPress={() => startAssignStudent(item)}
-              >
-                <Text style={st.actionBtnText}>반배정</Text>
-              </Pressable>
+              {!readOnly && (
+                <Pressable
+                  style={[st.actionBtn, { backgroundColor: themeColor }]}
+                  onPress={() => startAssignStudent(item)}
+                >
+                  <Text style={st.actionBtnText}>반배정</Text>
+                </Pressable>
+              )}
             </View>
           );
         }}
@@ -362,6 +371,12 @@ export default function StudentManagementSheet({
         keyExtractor={i => i.id}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={readOnly ? (
+          <View style={[st.readOnlyBanner, { marginTop: 8 }]}>
+            <Feather name="eye" size={12} color="#6B7280" />
+            <Text style={st.readOnlyText}>조회 전용 — 배정 기능은 선생님 계정에서 사용하세요</Text>
+          </View>
+        ) : null}
         renderItem={({ item }) => {
           const absDate = item.absence_date;
           const [y, m, d] = absDate.split("-").map(Number);
@@ -383,12 +398,14 @@ export default function StudentManagementSheet({
                   <Text style={st.rowSub}>결석일 {y}.{m}.{d}({DOW})</Text>
                 </View>
               </View>
-              <Pressable
-                style={[st.actionBtn, { backgroundColor: "#F59E0B" }]}
-                onPress={() => startAssignMakeup(item)}
-              >
-                <Text style={st.actionBtnText}>보강배정</Text>
-              </Pressable>
+              {!readOnly && (
+                <Pressable
+                  style={[st.actionBtn, { backgroundColor: "#F59E0B" }]}
+                  onPress={() => startAssignMakeup(item)}
+                >
+                  <Text style={st.actionBtnText}>보강배정</Text>
+                </Pressable>
+              )}
             </View>
           );
         }}
@@ -727,4 +744,11 @@ const st = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   confirmBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  readOnlyBanner: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "#F3F4F6", borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6, marginBottom: 4,
+  },
+  readOnlyText: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", flex: 1 },
 });
