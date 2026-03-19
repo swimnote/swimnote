@@ -1045,7 +1045,13 @@ export default function MyScheduleScreen() {
           token={token}
           role="teacher"
           selfTeacher={selfTeacher}
-          onSuccess={(newGroup) => { setGroups(prev => [...prev, newGroup as TeacherClassGroup]); setShowCreate(false); }}
+          onSuccess={(newGroup) => {
+            const g = newGroup as TeacherClassGroup;
+            setGroups(prev => [...prev, g]);
+            setShowCreate(false);
+            // 개설 직후 해당 반 상세 시트 자동 오픈
+            setTimeout(() => setDetailGroup(g), 300);
+          }}
           onClose={() => setShowCreate(false)}
         />
       )}

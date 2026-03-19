@@ -330,7 +330,17 @@ export default function ClassesScreen() {
       {/* 반 등록 모달 */}
       {showCreate && (
         <ClassCreateFlow token={token} role="pool_admin"
-          onSuccess={(newGroup) => { setClassGroups(prev => [newGroup, ...prev]); setShowCreate(false); }}
+          onSuccess={(newGroup) => {
+            setClassGroups(prev => [newGroup, ...prev]);
+            setShowCreate(false);
+            // 개설 직후 해당 반 현황판 자동 오픈
+            const day = (newGroup.schedule_days || "").split(",")[0]?.trim() || "";
+            const time = newGroup.schedule_time || "";
+            const teacherId = newGroup.teacher_user_id || "";
+            setClassDetail(null);
+            setNav({ step: "detail", day, time, teacherId, classId: newGroup.id });
+            fetchClassDetail(newGroup.id);
+          }}
           onClose={() => setShowCreate(false)} />
       )}
 
