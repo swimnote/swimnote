@@ -18,7 +18,7 @@ import {
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PageHeader } from "@/components/common/PageHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { addTabResetListener } from "@/utils/tabReset";
 
 const C = Colors.light;
@@ -127,7 +127,7 @@ export default function PeopleHubScreen() {
 
   return (
     <View style={s.root}>
-      <PageHeader
+      <SubScreenHeader
         title="인원관리"
         subtitle="회원, 학부모, 선생님, 승인 상태를 관리합니다"
         rightSlot={

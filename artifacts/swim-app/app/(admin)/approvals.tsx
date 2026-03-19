@@ -960,7 +960,7 @@ export default function ApprovalsScreen() {
   // ── 공통 헤더 ─────────────────────────────────────────────────
   const header = (
     <>
-      <SubScreenHeader title="승인 관리" onBack={() => router.navigate("/(admin)/more" as any)} />
+      <SubScreenHeader title="승인 관리" />
       <MainTabs<MainTab>
         tabs={[
           { key: "parents",  label: "학부모 승인", badge: pendingParentsCnt  },

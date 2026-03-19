@@ -364,7 +364,7 @@ export default function TeachersScreen() {
           : nav.step === "classes" ? crumbTeacher
           : (classDetail?.class_group.name ?? "반 현황판")
         }
-        onBack={nav.step !== "main" ? goBack : () => router.navigate("/(admin)/more" as any)}
+        onBack={nav.step !== "main" ? goBack : undefined}
         rightSlot={
           <Pressable style={[s.accountsBtn, { backgroundColor: C.tintLight }]} onPress={() => setShowAccounts(true)}>
             <Feather name="users" size={15} color={C.tint} />

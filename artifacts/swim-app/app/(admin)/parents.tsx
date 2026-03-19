@@ -500,7 +500,7 @@ export default function ParentsScreen() {
     <View style={[s.root, { backgroundColor: C.background }]}>
       <SubScreenHeader
         title="학부모 관리"
-        onBack={() => router.navigate("/(admin)/more" as any)}
+        onBack={undefined}
         rightSlot={
           <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
             <Pressable

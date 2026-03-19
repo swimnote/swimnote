@@ -124,7 +124,7 @@ export default function BrandingScreen() {
     <View style={styles.safe}>
       <SubScreenHeader
         title="브랜드 설정"
-        onBack={() => router.navigate("/(admin)/more" as any)}
+        onBack={undefined}
         rightSlot={
           <TouchableOpacity onPress={handleReset} hitSlop={8}>
             <Text style={[styles.resetBtn, { color: selectedColor }]}>초기화</Text>

@@ -81,7 +81,7 @@ export default function AdminNotificationsScreen() {
       <SubScreenHeader
         title="알림"
         subtitle={unread > 0 ? `읽지 않은 알림 ${unread}개` : undefined}
-        onBack={() => router.navigate("/(admin)/more" as any)}
+        onBack={undefined}
         rightSlot={
           unread > 0 ? (
             <Pressable style={[styles.readAllBtn, { borderColor: C.border }]} onPress={markAllRead}>

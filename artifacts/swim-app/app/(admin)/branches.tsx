@@ -145,7 +145,7 @@ export default function BranchesScreen() {
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader
         title="지점 관리"
-        onBack={() => router.navigate("/(admin)/more" as any)}
+        onBack={undefined}
         rightSlot={
           <Pressable
             style={[styles.editModeBtn, { backgroundColor: editMode ? C.tint : C.card, borderColor: C.border }]}

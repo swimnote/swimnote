@@ -76,7 +76,7 @@ export default function WithdrawnMembersScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="보관 회원 관리" onBack={() => router.navigate("/(admin)/more" as any)} />
+      <SubScreenHeader title="보관 회원 관리" />
 
       {/* 탭 */}
       <View style={styles.tabRow}>

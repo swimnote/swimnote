@@ -2,14 +2,13 @@
  * SubScreenHeader — 하위 화면 공통 헤더
  * - 왼쪽: 뒤로가기 버튼 (항상 표시)
  * - 가운데: 화면 제목
- * - 오른쪽: 홈 버튼 (기본 표시) 또는 커스텀 rightSlot
+ * - 오른쪽: 홈 버튼 + rightSlot (동시에 표시 가능)
  *
- * 뒤로가기: navigation.goBack() — 현재 탭 스택 안에서만 pop (탭 경계 넘지 않음)
- * 홈 버튼: StackActions.popToTop() — 현재 탭 스택의 root 화면으로 이동
+ * 뒤로가기: navigation.goBack() — 바로 직전 화면으로
+ * 홈 버튼: router.navigate("/(admin)/dashboard") — 관리자 홈으로 즉시 이동
  */
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "expo-router";
-import { StackActions } from "@react-navigation/native";
+import { router, useNavigation } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -40,18 +39,16 @@ export function SubScreenHeader({
     if (onBack) {
       onBack();
     } else {
-      // navigation.goBack()은 현재 탭 스택 내부에서만 동작 → 탭 경계 넘지 않음
-      navigation.goBack();
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        router.navigate("/(admin)/dashboard");
+      }
     }
   };
 
   const handleHome = () => {
-    try {
-      // popToTop()은 현재 탭 스택의 루트까지만 pop → 더보기 첫 화면으로 복귀
-      navigation.dispatch(StackActions.popToTop());
-    } catch {
-      navigation.goBack();
-    }
+    router.navigate("/(admin)/dashboard");
   };
 
   return (
@@ -67,13 +64,13 @@ export function SubScreenHeader({
 
       <View style={s.right}>
         {rightSlot ?? null}
-        {showHome && !rightSlot ? (
+        {showHome ? (
           <Pressable onPress={handleHome} style={s.btn} hitSlop={10}>
             <Feather name="home" size={20} color={C.textSecondary} />
           </Pressable>
-        ) : !rightSlot ? (
-          <View style={s.placeholder} />
-        ) : null}
+        ) : (
+          !rightSlot ? <View style={s.placeholder} /> : null
+        )}
       </View>
     </View>
   );

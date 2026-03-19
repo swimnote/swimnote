@@ -19,7 +19,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
-import { PoolHeader } from "@/components/PoolHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule, DayBar, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
 import StudentManagementSheet from "@/components/teacher/StudentManagementSheet";
@@ -398,7 +398,7 @@ export default function ClassesScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <PoolHeader />
+        <SubScreenHeader title="수업관리" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
@@ -406,7 +406,7 @@ export default function ClassesScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <PoolHeader />
+      <SubScreenHeader title="수업관리" />
 
       {/* 타이틀 + 버튼 */}
       <View style={s.titleArea}>

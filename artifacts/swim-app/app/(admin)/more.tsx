@@ -14,7 +14,7 @@ import Colors from "@/constants/colors";
 import { ROLE_CONFIGS } from "@/constants/auth";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PageHeader } from "@/components/common/PageHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
@@ -133,7 +133,7 @@ export default function MoreScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <PageHeader title="더보기" />
+      <SubScreenHeader title="더보기" />
 
       {/* 탭바 */}
       <View style={s.tabBar}>

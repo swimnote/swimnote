@@ -326,7 +326,7 @@ export default function DashboardScreen() {
     }
   }
 
-  const iconCellW = (SCREEN_W - 32 - 3 * 12) / 4; // 4열 기준
+  const iconCellW = (SCREEN_W - 32 - 3 * 16) / 4; // 4열 기준 (gap:16, px:16)
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F6FA" }}>
@@ -485,22 +485,22 @@ const s = StyleSheet.create({
   sectionLabel:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 10 },
   sectionLabel2: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 12 },
 
-  bannerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  bannerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   bannerCard: {
     width: "47.5%",
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 14,
+    padding: 10,
     shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  bannerIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  bannerValue: { fontSize: 22, fontFamily: "Inter_700Bold", marginBottom: 2 },
-  bannerLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
-  bannerSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 1 },
+  bannerIcon:  { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center", marginBottom: 6 },
+  bannerValue: { fontSize: 19, fontFamily: "Inter_700Bold", marginBottom: 1 },
+  bannerLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text },
+  bannerSub:   { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 1 },
 
   alertCard: {
     flexDirection: "row",
@@ -514,7 +514,7 @@ const s = StyleSheet.create({
   },
   alertTxt: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.text },
 
-  iconGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  iconGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 16 },
   iconCell:  { alignItems: "center", gap: 8 },
   iconBox: {
     width: "100%",

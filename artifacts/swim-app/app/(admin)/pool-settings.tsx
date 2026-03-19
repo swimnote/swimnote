@@ -142,7 +142,7 @@ export default function PoolSettingsScreen() {
     <KeyboardAvoidingView style={[styles.root, { backgroundColor: C.background }]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <SubScreenHeader
         title="수영장 설정"
-        onBack={() => router.navigate("/(admin)/more" as any)}
+        onBack={undefined}
         rightSlot={
           <Pressable
             style={[styles.saveBtn, { backgroundColor: C.tint, opacity: saving ? 0.6 : 1 }]}

@@ -1,44 +1,31 @@
 /**
  * (admin)/messenger.tsx — 관리자 업무 메신저
- * paddingBottom = TAB_BAR_H + insets.bottom → 탭바 위에 컨텐츠 배치
  */
 import React from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
-import { useBrand } from "@/context/BrandContext";
 import MessengerScreen from "@/components/common/MessengerScreen";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
-const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
 
 export default function AdminMessengerTab() {
   const { pool, adminUser } = useAuth();
-  const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
   if (!pool?.id || !adminUser?.id) {
     return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
+      <View style={[styles.center]}>
         <Text style={styles.noPoolText}>수영장 정보를 불러오는 중...</Text>
       </View>
     );
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          paddingTop: insets.top,
-          paddingBottom: insets.bottom + TAB_BAR_H,
-        },
-      ]}
-    >
-      <View style={[styles.header, { borderBottomColor: C.border }]}>
-        <Text style={[styles.headerTitle, { color: themeColor }]}>업무 메신저</Text>
-      </View>
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      <SubScreenHeader title="메신저" />
       <MessengerScreen
         poolId={pool.id}
         myUserId={adminUser.id}
@@ -63,15 +50,5 @@ const styles = StyleSheet.create({
     color: C.textSecondary,
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-  },
-  header: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
   },
 });

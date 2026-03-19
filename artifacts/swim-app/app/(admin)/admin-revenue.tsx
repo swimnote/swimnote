@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PageHeader } from "@/components/common/PageHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { addTabResetListener } from "@/utils/tabReset";
 
@@ -558,7 +558,7 @@ export default function AdminRevenueScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <PageHeader title="매출관리" />
+      <SubScreenHeader title="매출관리" />
 
       {/* ── 월 선택 + 휴무일 지정 바 ── */}
       <View style={[s.topBar, { borderBottomColor: C.border }]}>

@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { PoolHeader } from "@/components/PoolHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 const TABS = ["공지사항", "학부모 요청"] as const;
@@ -88,13 +88,9 @@ export default function CommunityScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <PoolHeader
-        left={
-          <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
-            <Feather name="arrow-left" size={22} color="#374151" />
-          </Pressable>
-        }
-        right={
+      <SubScreenHeader
+        title="공지/알림"
+        rightSlot={
           tab === "공지사항" ? (
             <Pressable
               style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: themeColor, alignItems: "center", justifyContent: "center" }}
@@ -102,7 +98,7 @@ export default function CommunityScreen() {
             >
               <Feather name="plus" size={18} color="#fff" />
             </Pressable>
-          ) : null
+          ) : undefined
         }
       />
 
