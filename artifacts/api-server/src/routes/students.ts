@@ -62,10 +62,13 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId && req.user!.role !== "super_admin") return err(res, 403, "소속된 수영장이 없습니다.");
 
+    // pool_all=true: 반배정 목적으로 선생님도 pool 전체 학생 조회 가능
+    const poolAll = req.query.pool_all === "true";
+
     let students: any[];
 
-    if (req.user!.role === "teacher") {
-      // teacher: 본인이 담당하는 반에 배정된 학생만 반환 (삭제된 반 제외)
+    if (req.user!.role === "teacher" && !poolAll) {
+      // teacher (일반): 본인이 담당하는 반에 배정된 학생만 반환 (삭제된 반 제외)
       const teacherClasses = await db.select({ id: classGroupsTable.id })
         .from(classGroupsTable)
         .where(and(
@@ -91,6 +94,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
           )`
         ));
     } else {
+      // admin / super_admin / teacher(pool_all=true): 해당 수영장의 모든 학생 반환
       students = await db.select().from(studentsTable)
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),

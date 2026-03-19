@@ -1,21 +1,23 @@
 /**
  * class-assign.tsx — 반배정 변경 화면 (Admin + Teacher 공유)
  * 진입: ?classId=xxx
- * - 현재 소속 회원 목록 표시 + 해제
- * - 미배정 회원 기본 목록 표시 + 이름 검색 필터
- * - 추가/해제 즉시 저장
+ *
+ * 배정 대상: 현재 반에 없는 학생 중 assigned_class_ids.length < weekly_count (또는 미설정)
+ * 주횟수 미설정 학생 → 주횟수 선택 팝업 먼저 표시
+ * 배정 후 남은 횟수 있으면 리스트 유지, 다 채우면 제거
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, Platform,
+  ActivityIndicator, Modal, Platform,
   Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
 
@@ -33,10 +35,13 @@ interface Student {
   id: string;
   name: string;
   birth_year?: number | null;
+  parent_phone?: string | null;
+  parent_name?: string | null;
   class_group_id?: string | null;
   assigned_class_ids?: string[];
   schedule_labels?: string | null;
   status?: string;
+  weekly_count?: number | null;
 }
 
 export default function ClassAssignScreen() {
@@ -52,16 +57,25 @@ export default function ClassAssignScreen() {
   const [saving, setSaving] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
+  // 주횟수 선택 팝업
+  const [weeklyPicker, setWeeklyPicker] = useState<Student | null>(null);
+  // 배정 확인 팝업
+  const [confirmAssign, setConfirmAssign] = useState<{ student: Student; weekly: number } | null>(null);
+  // 해제 확인 팝업
+  const [confirmRemove, setConfirmRemove] = useState<Student | null>(null);
+
   const load = useCallback(async () => {
     if (!classId) return;
     try {
+      // pool_all=true: 선생님도 pool 전체 학생을 조회 (반배정 목적)
       const [cgRes, stuRes] = await Promise.all([
         apiRequest(token, `/class-groups/${classId}`),
-        apiRequest(token, "/students"),
+        apiRequest(token, "/students?pool_all=true"),
       ]);
       if (cgRes.ok) setClassInfo(await cgRes.json());
       if (stuRes.ok) {
         const allStu: Student[] = await stuRes.json();
+        // active 상태만 (정상회원)
         const active = allStu.filter(s => s.status === "active");
         setAllStudents(active);
         const inClass = active.filter(s => {
@@ -76,80 +90,87 @@ export default function ClassAssignScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 배정 가능: 이 반에 없는 학생 전체 → 검색어 있으면 필터
+  // ── 배정 가능 학생 필터 ─────────────────────────────────────────
+  // 조건: 현재 반에 없음 AND (weekly_count 미설정 OR assigned < weekly_count)
   const assignable = allStudents.filter(s => {
     const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
-    const inThisClass = s.class_group_id === classId || ids.includes(classId);
-    if (inThisClass) return false;
-    if (search.trim()) return s.name.includes(search.trim());
+    // 현재 반에 이미 있으면 제외 (중복 방지)
+    if (ids.includes(classId!) || s.class_group_id === classId) return false;
+    // weekly_count가 설정된 경우: 아직 다 채우지 않은 학생만
+    if (s.weekly_count && s.weekly_count > 0) {
+      return ids.length < s.weekly_count;
+    }
+    // weekly_count 미설정이면 배정 대상 포함
     return true;
+  }).filter(s => {
+    if (!search.trim()) return true;
+    const q = search.trim();
+    return s.name.includes(q) || (s.parent_phone || "").includes(q);
   });
 
-  async function handleAssign(student: Student) {
+  // ── 추가 버튼 클릭 ──────────────────────────────────────────────
+  function handlePressAdd(student: Student) {
     if (!classId) return;
-    const currentIds: string[] = Array.isArray(student.assigned_class_ids)
-      ? student.assigned_class_ids : [];
-    if (currentIds.includes(classId)) return;
+    const ids: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
+    if (ids.includes(classId)) return; // 중복 방지
 
-    if (classInfo?.capacity != null && assigned.length >= classInfo.capacity) {
-      Alert.alert("정원 초과", `이 반의 정원(${classInfo.capacity}명)이 꽉 찼습니다.`);
-      return;
+    // 주횟수 미설정이면 먼저 선택
+    if (!student.weekly_count || student.weekly_count < 1) {
+      setWeeklyPicker(student);
+    } else {
+      setConfirmAssign({ student, weekly: student.weekly_count });
     }
+  }
+
+  // 주횟수 선택 후
+  function handleWeeklySelected(weekly: number) {
+    if (!weeklyPicker) return;
+    setConfirmAssign({ student: weeklyPicker, weekly });
+    setWeeklyPicker(null);
+  }
+
+  // 실제 배정 처리
+  async function doAssign(student: Student, weeklyCount: number) {
+    if (!classId) return;
+    const capacityOver = classInfo?.capacity != null && assigned.length >= classInfo.capacity;
+    if (capacityOver) return;
 
     setSaving(student.id);
     try {
+      const currentIds: string[] = Array.isArray(student.assigned_class_ids)
+        ? student.assigned_class_ids : [];
       const newIds = [...currentIds, classId];
+      const res = await apiRequest(token, `/students/${student.id}/assign`, {
+        method: "PATCH",
+        body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: weeklyCount }),
+      });
+      if (!res.ok) return;
+      const updated: Student = await res.json();
+      // 상태 갱신
+      setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
+      setAssigned(prev => [...prev, { ...student, ...updated }]);
+    } catch (e) { console.error(e); }
+    finally { setSaving(null); }
+  }
+
+  // 해제 처리
+  async function doRemove(student: Student) {
+    if (!classId) return;
+    setSaving(student.id);
+    try {
+      const currentIds: string[] = Array.isArray(student.assigned_class_ids)
+        ? student.assigned_class_ids : [];
+      const newIds = currentIds.filter(id => id !== classId);
       const res = await apiRequest(token, `/students/${student.id}/assign`, {
         method: "PATCH",
         body: JSON.stringify({ assigned_class_ids: newIds }),
       });
-      if (!res.ok) {
-        const d = await res.json();
-        Alert.alert("오류", d.message || d.error || "배정 중 오류가 발생했습니다.");
-        return;
-      }
+      if (!res.ok) return;
       const updated: Student = await res.json();
       setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
-      setAssigned(prev => [...prev, { ...student, ...updated }]);
-    } catch {
-      Alert.alert("오류", "네트워크 오류가 발생했습니다.");
-    } finally { setSaving(null); }
-  }
-
-  async function handleRemove(student: Student) {
-    if (!classId) return;
-    Alert.alert(
-      "배정 해제",
-      `"${student.name}"을(를) 이 반에서 해제하시겠습니까?\n학생 정보와 출결 기록은 보존됩니다.`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "해제", style: "destructive",
-          onPress: async () => {
-            setSaving(student.id);
-            try {
-              const currentIds: string[] = Array.isArray(student.assigned_class_ids)
-                ? student.assigned_class_ids : [];
-              const newIds = currentIds.filter(id => id !== classId);
-              const res = await apiRequest(token, `/students/${student.id}/assign`, {
-                method: "PATCH",
-                body: JSON.stringify({ assigned_class_ids: newIds }),
-              });
-              if (!res.ok) {
-                const d = await res.json();
-                Alert.alert("오류", d.message || d.error || "해제 중 오류가 발생했습니다.");
-                return;
-              }
-              const updated: Student = await res.json();
-              setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
-              setAssigned(prev => prev.filter(s => s.id !== student.id));
-            } catch {
-              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
-            } finally { setSaving(null); }
-          },
-        },
-      ]
-    );
+      setAssigned(prev => prev.filter(s => s.id !== student.id));
+    } catch (e) { console.error(e); }
+    finally { setSaving(null); }
   }
 
   const days = classInfo?.schedule_days.split(",").map(d => d.trim()).join("·") || "";
@@ -237,9 +258,10 @@ export default function ClassAssignScreen() {
               <StudentRow
                 key={item.id}
                 student={item}
+                classId={classId!}
                 action="remove"
                 loading={saving === item.id}
-                onPress={() => handleRemove(item)}
+                onPress={() => setConfirmRemove(item)}
               />
             ))}
           </View>
@@ -250,7 +272,7 @@ export default function ClassAssignScreen() {
 
         {/* 섹션 2: 회원 추가 */}
         <View style={s.sectionHeader}>
-          <Text style={[s.sectionTitle, { color: C.text }]}>회원 추가</Text>
+          <Text style={[s.sectionTitle, { color: C.text }]}>배정 가능 회원</Text>
           <Text style={[s.sectionCount, { color: C.textMuted }]}>{assignable.length}명</Text>
         </View>
 
@@ -261,7 +283,7 @@ export default function ClassAssignScreen() {
             style={[s.searchInput, { color: C.text }]}
             value={search}
             onChangeText={setSearch}
-            placeholder="이름 검색..."
+            placeholder="이름 또는 전화번호 검색..."
             placeholderTextColor={C.textMuted}
           />
           {search.length > 0 && (
@@ -271,7 +293,6 @@ export default function ClassAssignScreen() {
           )}
         </View>
 
-        {/* 미배정 목록 */}
         {assignable.length === 0 ? (
           <View style={s.emptyRow}>
             <Text style={[s.emptyText, { color: C.textMuted }]}>
@@ -286,30 +307,112 @@ export default function ClassAssignScreen() {
               <StudentRow
                 key={item.id}
                 student={item}
+                classId={classId!}
                 action="add"
                 loading={saving === item.id}
-                onPress={() => handleAssign(item)}
+                onPress={() => handlePressAdd(item)}
                 disabled={capacityOver}
               />
             ))}
           </View>
         )}
       </ScrollView>
+
+      {/* ── 주횟수 선택 팝업 ── */}
+      {weeklyPicker && (
+        <WeeklyPickerModal
+          studentName={weeklyPicker.name}
+          onSelect={handleWeeklySelected}
+          onCancel={() => setWeeklyPicker(null)}
+        />
+      )}
+
+      {/* ── 배정 확인 팝업 ── */}
+      <ConfirmModal
+        visible={!!confirmAssign}
+        title="반배정 확인"
+        message={
+          confirmAssign
+            ? `${confirmAssign.student.name} 회원을 이 반에 배정하시겠습니까?${
+                confirmAssign.weekly > 1
+                  ? `\n주 ${confirmAssign.weekly}회 설정 — 남은 ${confirmAssign.weekly - ((Array.isArray(confirmAssign.student.assigned_class_ids) ? confirmAssign.student.assigned_class_ids.length : 0) + 1)}회 배정 후 목록에서 제외됩니다.`
+                  : ""
+              }`
+            : ""
+        }
+        confirmText="배정"
+        cancelText="취소"
+        onConfirm={() => {
+          const ca = confirmAssign!;
+          setConfirmAssign(null);
+          doAssign(ca.student, ca.weekly);
+        }}
+        onCancel={() => setConfirmAssign(null)}
+      />
+
+      {/* ── 해제 확인 팝업 ── */}
+      <ConfirmModal
+        visible={!!confirmRemove}
+        title="배정 해제"
+        message={confirmRemove ? `"${confirmRemove.name}"을(를) 이 반에서 해제하시겠습니까?\n학생 정보와 출결 기록은 보존됩니다.` : ""}
+        confirmText="해제"
+        cancelText="취소"
+        destructive
+        onConfirm={() => { const s = confirmRemove!; setConfirmRemove(null); doRemove(s); }}
+        onCancel={() => setConfirmRemove(null)}
+      />
     </View>
   );
 }
 
+// ── 주횟수 선택 모달 ─────────────────────────────────────────────
+function WeeklyPickerModal({
+  studentName, onSelect, onCancel,
+}: { studentName: string; onSelect: (n: number) => void; onCancel: () => void }) {
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
+      <Pressable style={wp.backdrop} onPress={onCancel} />
+      <View style={wp.card}>
+        <Text style={wp.title}>주 몇 회 수업인가요?</Text>
+        <Text style={wp.sub}>{studentName} 회원의 주 수업 횟수를 선택하세요</Text>
+        <View style={wp.btnRow}>
+          {[1, 2, 3].map(n => (
+            <Pressable key={n} style={wp.optBtn} onPress={() => onSelect(n)}>
+              <Text style={wp.optNum}>주 {n}회</Text>
+              <Text style={wp.optSub}>{n}개 반 배정</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Pressable style={wp.cancelBtn} onPress={onCancel}>
+          <Text style={wp.cancelTxt}>취소</Text>
+        </Pressable>
+      </View>
+    </Modal>
+  );
+}
+
+// ── 학생 카드 ────────────────────────────────────────────────────
 function StudentRow({
-  student, action, loading, onPress, disabled,
+  student, classId, action, loading, onPress, disabled,
 }: {
   student: Student;
+  classId: string;
   action: "add" | "remove";
   loading: boolean;
   onPress: () => void;
   disabled?: boolean;
 }) {
   const isAdd = action === "add";
-  const currentClass = student.schedule_labels || null;
+  const ids: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
+  const assignedCount = ids.length;
+  const weekly = student.weekly_count;
+
+  const progressLabel = weekly
+    ? `${assignedCount} / ${weekly}반 배정`
+    : assignedCount > 0
+      ? `${assignedCount}개 반 배정 중 · 주횟수 미설정`
+      : "미배정 · 주횟수 미설정";
+
   return (
     <View style={[r.row, { backgroundColor: C.card, borderColor: C.border }]}>
       <View style={[r.avatar, { backgroundColor: C.tintLight }]}>
@@ -317,14 +420,14 @@ function StudentRow({
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={[r.name, { color: C.text }]}>{student.name}</Text>
-        {student.birth_year && (
-          <Text style={[r.sub, { color: C.textMuted }]}>{student.birth_year}년생</Text>
+        {student.parent_phone && (
+          <Text style={[r.sub, { color: C.textMuted }]}>{student.parent_phone}</Text>
         )}
-        {currentClass ? (
-          <Text style={[r.sub, { color: C.textMuted }]}>현재 반: {currentClass}</Text>
-        ) : !student.class_group_id ? (
-          <Text style={[r.sub, { color: C.textMuted }]}>미배정</Text>
-        ) : null}
+        <Text style={[r.progress, {
+          color: weekly && assignedCount >= weekly ? C.tint : C.textMuted,
+        }]}>
+          {progressLabel}
+        </Text>
       </View>
       <Pressable
         style={[
@@ -391,17 +494,39 @@ const s = StyleSheet.create({
 const r = StyleSheet.create({
   row: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    borderRadius: 12, padding: 12,
-    borderWidth: 1,
+    borderRadius: 12, padding: 12, borderWidth: 1,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
   avatar: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
   name: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   sub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  progress: { fontSize: 11, fontFamily: "Inter_500Medium" },
   btn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
   },
   btnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+});
+
+const wp = StyleSheet.create({
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  card: {
+    position: "absolute", left: 24, right: 24,
+    top: "35%",
+    backgroundColor: "#fff", borderRadius: 20,
+    padding: 24, gap: 16,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12,
+  },
+  title: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text, textAlign: "center" },
+  sub: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center", marginTop: -8 },
+  btnRow: { flexDirection: "row", gap: 10 },
+  optBtn: {
+    flex: 1, borderRadius: 14, borderWidth: 1.5, borderColor: C.tint,
+    paddingVertical: 14, alignItems: "center", gap: 4,
+  },
+  optNum: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.tint },
+  optSub: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
+  cancelBtn: { alignItems: "center", paddingVertical: 8 },
+  cancelTxt: { fontSize: 14, fontFamily: "Inter_500Medium", color: C.textMuted },
 });
