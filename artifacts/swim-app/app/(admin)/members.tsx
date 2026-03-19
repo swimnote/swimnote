@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
@@ -478,11 +478,14 @@ export default function MembersScreen() {
   const { token, pool } = useAuth();
   const { themeColor }  = useBrand();
   const insets          = useSafeAreaInsets();
+  const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
 
   const [students,       setStudents]       = useState<StudentMember[]>([]);
   const [loading,        setLoading]        = useState(true);
   const [refreshing,     setRefreshing]     = useState(false);
-  const [filter,         setFilter]         = useState<StudentFilterKey>("all");
+  const [filter,         setFilter]         = useState<StudentFilterKey>(
+    (filterParam as StudentFilterKey) ?? "all"
+  );
   const [search,         setSearch]         = useState("");
   const [showRegister,   setShowRegister]   = useState(false);
   const [inviteTarget,   setInviteTarget]   = useState<StudentMember | null>(null);

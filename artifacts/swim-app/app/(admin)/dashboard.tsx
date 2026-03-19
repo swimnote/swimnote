@@ -273,7 +273,7 @@ export default function DashboardScreen() {
 
   const kpiCards = stats ? [
     { label: "전체 회원",  value: stats.total_members,    icon: "users"       as const, color: themeColor,  bg: themeColor + "18", route: "/(admin)/members" as const },
-    { label: "미배정 회원", value: stats.unassigned,        icon: "user-x"       as const, color: "#7C3AED",  bg: "#F3E8FF",          route: "/(admin)/members" as const },
+    { label: "미배정 회원", value: stats.unassigned,        icon: "user-x"       as const, color: "#7C3AED",  bg: "#F3E8FF",          route: "/(admin)/members" as const, params: { filter: "unassigned" } },
     { label: "이번 주 신규", value: stats.new_this_week,  icon: "user-plus"   as const, color: "#7C3AED",  bg: "#F3E8FF",          route: "/(admin)/members" as const },
     { label: "보강 미처리", value: stats.pending_makeups ?? 0, icon: "rotate-ccw" as const, color: "#DC2626", bg: "#FEE2E2",       route: "/(admin)/makeups" as const },
   ] : [];
@@ -334,7 +334,7 @@ export default function DashboardScreen() {
             {/* KPI 카드 2x2 */}
             <View style={s.kpiGrid}>
               {kpiCards.map((k) => (
-                <Pressable key={k.label} style={[s.kpiCard, { backgroundColor: C.card }]} onPress={() => router.push(k.route as any)}>
+                <Pressable key={k.label} style={[s.kpiCard, { backgroundColor: C.card }]} onPress={() => router.push((k as any).params ? { pathname: k.route as any, params: (k as any).params } : k.route as any)}>
                   <View style={[s.kpiIcon, { backgroundColor: k.bg }]}>
                     <Feather name={k.icon} size={20} color={k.color} />
                   </View>
