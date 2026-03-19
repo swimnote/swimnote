@@ -59,8 +59,6 @@ export default function ClassAssignScreen() {
 
   // 주횟수 선택 팝업
   const [weeklyPicker, setWeeklyPicker] = useState<Student | null>(null);
-  // 배정 확인 팝업
-  const [confirmAssign, setConfirmAssign] = useState<{ student: Student; weekly: number } | null>(null);
   // 해제 확인 팝업
   const [confirmRemove, setConfirmRemove] = useState<Student | null>(null);
 
@@ -118,15 +116,17 @@ export default function ClassAssignScreen() {
     if (!student.weekly_count || student.weekly_count < 1) {
       setWeeklyPicker(student);
     } else {
-      setConfirmAssign({ student, weekly: student.weekly_count });
+      // 주횟수 이미 설정 → 바로 배정
+      doAssign(student, student.weekly_count);
     }
   }
 
-  // 주횟수 선택 후
+  // 주횟수 선택 후 → 바로 배정
   function handleWeeklySelected(weekly: number) {
     if (!weeklyPicker) return;
-    setConfirmAssign({ student: weeklyPicker, weekly });
+    const student = weeklyPicker;
     setWeeklyPicker(null);
+    doAssign(student, weekly);
   }
 
   // 실제 배정 처리
@@ -326,29 +326,6 @@ export default function ClassAssignScreen() {
           onCancel={() => setWeeklyPicker(null)}
         />
       )}
-
-      {/* ── 배정 확인 팝업 ── */}
-      <ConfirmModal
-        visible={!!confirmAssign}
-        title="반배정 확인"
-        message={
-          confirmAssign
-            ? `${confirmAssign.student.name} 회원을 이 반에 배정하시겠습니까?${
-                confirmAssign.weekly > 1
-                  ? `\n주 ${confirmAssign.weekly}회 설정 — 남은 ${confirmAssign.weekly - ((Array.isArray(confirmAssign.student.assigned_class_ids) ? confirmAssign.student.assigned_class_ids.length : 0) + 1)}회 배정 후 목록에서 제외됩니다.`
-                  : ""
-              }`
-            : ""
-        }
-        confirmText="배정"
-        cancelText="취소"
-        onConfirm={() => {
-          const ca = confirmAssign!;
-          setConfirmAssign(null);
-          doAssign(ca.student, ca.weekly);
-        }}
-        onCancel={() => setConfirmAssign(null)}
-      />
 
       {/* ── 해제 확인 팝업 ── */}
       <ConfirmModal
