@@ -304,11 +304,20 @@ export default function AttendanceScreen() {
     if (!selectedClass) return;
     setSavingId(studentId);
     try {
+      const prevStatus = dailyAtt[studentId] ?? null;
       await apiRequest(token, "/attendance", {
         method: "POST",
         body: JSON.stringify({ student_id: studentId, class_group_id: selectedClass, date: baseDate, status }),
       });
       setDailyAtt(prev => ({ ...prev, [studentId]: status }));
+      // 결석 처리 → 보강대기 즉시 갱신
+      if (status === "absent" && prevStatus !== "absent") {
+        fetchMakeup();
+      }
+      // 결석 취소 → 보강대기에서 제거됨 → 즉시 갱신
+      if (status !== "absent" && prevStatus === "absent") {
+        fetchMakeup();
+      }
     } finally { setSavingId(null); }
   }
 

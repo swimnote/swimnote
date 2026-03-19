@@ -444,28 +444,6 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            {/* ── 오늘 수업 현황 ── */}
-            {stats && (
-              <View style={s.statCard}>
-                <Text style={s.sectionLabel2}>오늘 수업 현황</Text>
-                <View style={s.statRow}>
-                  {[
-                    { num: stats.total_classes,    label: "전체 반",    color: "#7C3AED" },
-                    { num: stats.diary_done_today,  label: "일지 완료",  color: "#059669" },
-                    { num: stats.total_teachers,    label: "선생님",     color: themeColor },
-                    { num: stats.today_present,     label: "오늘 출석",  color: "#EA580C" },
-                  ].map((item, i, arr) => (
-                    <React.Fragment key={item.label}>
-                      <View style={s.statItem}>
-                        <Text style={[s.statNum, { color: item.color }]}>{item.num}</Text>
-                        <Text style={s.statName}>{item.label}</Text>
-                      </View>
-                      {i < arr.length - 1 && <View style={s.statDivider} />}
-                    </React.Fragment>
-                  ))}
-                </View>
-              </View>
-            )}
           </>
         )}
       </ScrollView>

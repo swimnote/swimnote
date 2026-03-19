@@ -1,8 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
 import { emitTabReset } from "@/utils/tabReset";
@@ -11,8 +9,6 @@ const C = Colors.light;
 
 export default function AdminLayout() {
   const { themeColor } = useBrand();
-  const isIOS = Platform.OS === "ios";
-  const isWeb = Platform.OS === "web";
 
   function makeTabListener(tabName: string) {
     return ({ navigation }: { navigation: any; route: any }) => ({
@@ -35,20 +31,7 @@ export default function AdminLayout() {
         tabBarActiveTintColor: themeColor,
         tabBarInactiveTintColor: C.tabIconDefault,
         headerShown: false,
-        tabBarStyle: {
-          position: "absolute",
-          backgroundColor: isIOS ? "transparent" : "#fff",
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: C.border,
-          elevation: 0,
-          height: isWeb ? 84 : undefined,
-        },
-        tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 11 },
-        tabBarBackground: () => isIOS ? (
-          <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
-        ) : isWeb ? (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: "#fff" }]} />
-        ) : null,
+        tabBarStyle: { display: "none" },
       }}
     >
       {/* ─── 6개 메인 탭 ─── */}
