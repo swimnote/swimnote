@@ -800,6 +800,12 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         FROM users WHERE swimming_pool_id = ${poolId} AND role = 'teacher'
       `)).rows as any[];
 
+      const [makeupRow] = (await db.execute(sql`
+        SELECT COUNT(*)::int AS pending_makeups
+        FROM makeup_sessions
+        WHERE swimming_pool_id = ${poolId} AND status IN ('waiting', 'transferred')
+      `)).rows as any[];
+
       // 최근 등록 회원 5명
       const recentMembers = (await db.execute(sql`
         SELECT id, name, status, class_group_id, created_at,
@@ -827,6 +833,7 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         total_classes:   diaryRow?.total_classes ?? 0,
         diary_done_today: diaryRow?.diary_done_today ?? 0,
         total_teachers:  teacherRow?.total_teachers ?? 0,
+        pending_makeups: makeupRow?.pending_makeups ?? 0,
         expiring_soon:   0,
         recent_members:  recentMembers,
         activity_logs:   activityLogs,

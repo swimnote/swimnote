@@ -22,7 +22,7 @@ interface DashStats {
   total_members: number; unassigned: number; withdrawn: number;
   deleted_members: number; new_this_week: number; today_present: number;
   pending_requests: number; total_classes: number; diary_done_today: number;
-  total_teachers: number; expiring_soon: number;
+  total_teachers: number; expiring_soon: number; pending_makeups: number;
   recent_members: any[]; activity_logs: any[];
 }
 
@@ -275,12 +275,12 @@ export default function DashboardScreen() {
     { label: "전체 회원",  value: stats.total_members,    icon: "users"       as const, color: themeColor,  bg: themeColor + "18", route: "/(admin)/members" as const },
     { label: "오늘 출석",  value: stats.today_present,    icon: "check-circle" as const, color: "#059669", bg: "#D1FAE5",          route: "/(admin)/attendance" as const },
     { label: "이번 주 신규", value: stats.new_this_week,  icon: "user-plus"   as const, color: "#7C3AED",  bg: "#F3E8FF",          route: "/(admin)/members" as const },
-    { label: "미배정 회원", value: stats.unassigned,       icon: "alert-circle" as const, color: "#DC2626", bg: "#FEE2E2",         route: "/(admin)/members" as const },
+    { label: "보강 미처리", value: stats.pending_makeups ?? 0, icon: "rotate-ccw" as const, color: "#DC2626", bg: "#FEE2E2",       route: "/(admin)/makeups" as const },
   ] : [];
 
   const tasks = stats ? [
     stats.pending_requests > 0  && { key: "pending",  label: `승인 대기 ${stats.pending_requests}건`, icon: "clock" as const, color: "#D97706", bg: "#FEF3C7", route: "/(admin)/approvals" as const },
-    stats.unassigned > 0        && { key: "unassign", label: `미배정 회원 ${stats.unassigned}명`,     icon: "alert-circle" as const, color: "#DC2626", bg: "#FEE2E2", route: "/(admin)/members" as const },
+    (stats.pending_makeups ?? 0) > 0 && { key: "makeup",   label: `보강 미처리 ${stats.pending_makeups}건`, icon: "rotate-ccw" as const, color: "#DC2626", bg: "#FEE2E2", route: "/(admin)/makeups" as const },
     stats.expiring_soon > 0     && { key: "expiring", label: `만료 임박 ${stats.expiring_soon}명`,    icon: "calendar" as const, color: "#EA580C",  bg: "#FFF7ED", route: "/(admin)/members" as const },
   ].filter(Boolean) as any[] : [];
 
