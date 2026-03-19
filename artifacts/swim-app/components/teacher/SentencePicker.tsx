@@ -10,6 +10,7 @@
  */
 import React, { useCallback, useMemo, useState } from "react";
 import {
+  Dimensions,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -22,8 +23,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { Feather } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
+
+const SCREEN_H = Dimensions.get("window").height;
 
 const C = Colors.light;
 const PRIMARY = C.tint;
@@ -225,7 +229,7 @@ export default function SentencePicker({ visible, customTemplates = [], onClose,
 
           {/* 카테고리 탭 (검색 중에는 숨김) */}
           {!isSearching && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabBar} contentContainerStyle={s.tabBarContent}>
+            <View style={s.tabBar}>
               {TABS.map(tab => (
                 <TouchableOpacity
                   key={tab.key}
@@ -236,7 +240,7 @@ export default function SentencePicker({ visible, customTemplates = [], onClose,
                   <Text style={[s.tabText, activeTab === tab.key && { color: "#fff" }]}>{tab.label}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
           )}
 
           {isSearching && (
@@ -334,8 +338,9 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "92%",
-    paddingBottom: Platform.OS === "ios" ? 20 : 8,
+    minHeight: SCREEN_H * 0.72,
+    maxHeight: SCREEN_H * 0.92,
+    paddingBottom: Platform.OS === "ios" ? 20 : 10,
   },
   handle: {
     width: 36, height: 4, borderRadius: 2, backgroundColor: C.border,
@@ -352,7 +357,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 16, marginBottom: 10,
     backgroundColor: C.background, borderRadius: 10, borderWidth: 1, borderColor: C.border,
-    paddingHorizontal: 10, paddingVertical: 8,
+    paddingHorizontal: 10, paddingVertical: 9,
   },
   searchInput: {
     flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text,
@@ -363,27 +368,36 @@ const s = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8,
   },
 
-  /* 카테고리 탭 */
-  tabBar: { maxHeight: 44, marginBottom: 6 },
-  tabBarContent: { paddingHorizontal: 16, gap: 8, alignItems: "center" },
+  /* 카테고리 탭 — 4개 균등 배치 */
+  tabBar: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 10,
+  },
   tabBtn: {
-    paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 9,
+    borderRadius: 12,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  tabText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
 
-  /* 문장 목록 */
-  sentenceList: { maxHeight: 200 },
-  sentenceListContent: { paddingHorizontal: 16, paddingBottom: 4, gap: 2 },
+  /* 문장 목록 — 6개 동시 표시 (각 행 ≈ 44px → 6×44 = 264 + gap) */
+  sentenceList: { maxHeight: 274 },
+  sentenceListContent: { paddingHorizontal: 16, paddingBottom: 4, gap: 4 },
   sentenceItem: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingVertical: 10, paddingHorizontal: 12,
-    backgroundColor: C.background, borderRadius: 8, borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.background, borderRadius: 10, borderWidth: 1, borderColor: C.border,
+    minHeight: 44,
   },
-  sentenceText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.text },
+  sentenceText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.text, lineHeight: 19 },
   levelBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   levelBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 24, gap: 8 },
+  emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
   emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
 
   /* 미리보기 */
@@ -399,7 +413,7 @@ const s = StyleSheet.create({
   },
   previewLabel: { fontSize: 11, color: C.textSecondary, fontFamily: "Inter_500Medium" },
   previewCount: { fontSize: 11, color: PRIMARY, fontFamily: "Inter_600SemiBold" },
-  previewScroll: { maxHeight: 90, paddingHorizontal: 12, paddingVertical: 8 },
+  previewScroll: { maxHeight: 88, paddingHorizontal: 12, paddingVertical: 8 },
   previewEmpty: { fontSize: 12, color: C.textMuted, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 8 },
   previewLine: { fontSize: 12, color: C.text, fontFamily: "Inter_400Regular", lineHeight: 20 },
   previewActions: {
@@ -408,7 +422,7 @@ const s = StyleSheet.create({
   },
   previewBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 5,
+    paddingHorizontal: 10, paddingVertical: 6,
     backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: C.border,
   },
   previewBtnDisabled: { opacity: 0.4 },
@@ -419,13 +433,13 @@ const s = StyleSheet.create({
     flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4,
   },
   cancelBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: C.border,
+    flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1.5, borderColor: C.border,
     alignItems: "center", justifyContent: "center",
   },
   cancelBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
   insertBtn: {
     flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    paddingVertical: 12, borderRadius: 12, backgroundColor: PRIMARY,
+    paddingVertical: 13, borderRadius: 12, backgroundColor: PRIMARY,
   },
   insertBtnDisabled: { backgroundColor: C.border },
   insertBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
