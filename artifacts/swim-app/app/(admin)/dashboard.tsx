@@ -1,31 +1,25 @@
 /**
- * 관리자 대시보드 — 통합 운영 허브
- * 실 DB 데이터 기반 (GET /admin/dashboard-stats + 검색)
+ * 관리자 홈 — 아이콘 기반 운영 OS 허브
+ * 배너(4개 핵심 지표) + 메인 아이콘 8개(4×2 그리드)
+ * 메신저 외 7개 아이콘은 3열 그리드 팝업을 거쳐 페이지 이동
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Keyboard, Modal, Platform,
-  Pressable, RefreshControl, ScrollView, StyleSheet, Text,
-  TextInput, TouchableOpacity, View,
+  ActivityIndicator, Dimensions, Modal, Platform, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
+import { IconPopup, type PopupItem } from "@/components/admin/IconPopup";
 
 const C = Colors.light;
-
-interface DashStats {
-  total_members: number; unassigned: number; withdrawn: number;
-  deleted_members: number; new_this_week: number; today_present: number;
-  pending_requests: number; total_classes: number; diary_done_today: number;
-  total_teachers: number; expiring_soon: number; pending_makeups: number;
-  monthly_revenue: number;
-  recent_members: any[]; activity_logs: any[];
-}
+const SCREEN_W = Dimensions.get("window").width;
+const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
 
 function formatWon(n: number) {
   if (n >= 100_000_000) return (n / 100_000_000).toFixed(1).replace(/\.0$/, "") + "억원";
@@ -33,12 +27,7 @@ function formatWon(n: number) {
   return n.toLocaleString("ko-KR") + "원";
 }
 
-interface SearchResult {
-  students: any[]; teachers: any[]; classes: any[];
-  notices: any[]; parents: any[];
-}
-
-const STATUS_COLOR: Record<string, { label: string; color: string; bg: string }> = {
+const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
   trial:     { label: "체험 중",  color: "#7C3AED", bg: "#F3E8FF" },
   active:    { label: "구독 중",  color: "#059669", bg: "#D1FAE5" },
   expired:   { label: "만료됨",   color: "#6B7280", bg: "#F3F4F6" },
@@ -46,62 +35,14 @@ const STATUS_COLOR: Record<string, { label: string; color: string; bg: string }>
   cancelled: { label: "해지됨",   color: "#DC2626", bg: "#FEE2E2" },
 };
 
-function ActionLogItem({ log }: { log: any }) {
-  const icons: Record<string, string> = {
-    update: "edit-2", create: "plus-circle", delete: "trash-2",
-    restore: "rotate-ccw", assign: "link",
-  };
-  const colors: Record<string, string> = {
-    update: "#2563EB", create: "#059669", delete: "#DC2626",
-    restore: "#7C3AED", assign: "#D97706",
-  };
-  const icon = icons[log.action_type] || "activity";
-  const color = colors[log.action_type] || C.textSecondary;
-  const dt = new Date(log.created_at);
-  const timeStr = `${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
-
-  return (
-    <View style={al.row}>
-      <View style={[al.icon, { backgroundColor: color + "15" }]}>
-        <Feather name={icon as any} size={14} color={color} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={al.name} numberOfLines={1}>{log.target_name}</Text>
-        <Text style={al.action} numberOfLines={1}>
-          {log.action_type === "update" ? "정보 수정" :
-           log.action_type === "create" ? "신규 등록" :
-           log.action_type === "delete" ? "삭제" :
-           log.action_type === "restore" ? "복구" : log.action_type}
-          {log.after_value ? `: ${log.after_value}` : ""}
-        </Text>
-      </View>
-      <View style={{ alignItems: "flex-end" }}>
-        <Text style={al.time}>{timeStr}</Text>
-        <Text style={[al.actor, { color }]}>{log.actor_role === "pool_admin" ? "관리자" : log.actor_name}</Text>
-      </View>
-    </View>
-  );
-}
-
-const al = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
-  icon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
-  action: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
-  time: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
-  actor: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 1 },
-});
-
-// ── 검색 모달 ──────────────────────────────────────────────────────────────
+// ── 검색 모달 (기존 로직 유지) ──────────────────────────────────────────────
 function SearchModal({ visible, onClose, token }: { visible: boolean; onClose: () => void; token: string | null }) {
   const [q, setQ] = useState("");
-  const [result, setResult] = useState<SearchResult | null>(null);
+  const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const debounce = useRef<any>(null);
 
-  useEffect(() => {
-    if (!visible) { setQ(""); setResult(null); }
-  }, [visible]);
+  useEffect(() => { if (!visible) { setQ(""); setResult(null); } }, [visible]);
 
   function handleChange(text: string) {
     setQ(text);
@@ -112,13 +53,12 @@ function SearchModal({ visible, onClose, token }: { visible: boolean; onClose: (
       try {
         const res = await apiRequest(token, `/admin/search?q=${encodeURIComponent(text)}`);
         if (res.ok) setResult(await res.json());
-      } catch { }
-      finally { setLoading(false); }
+      } finally { setLoading(false); }
     }, 300);
   }
 
-  const totalCount = result
-    ? (result.students.length + result.teachers.length + result.classes.length + result.notices.length + result.parents.length)
+  const total = result
+    ? (result.students?.length ?? 0) + (result.teachers?.length ?? 0) + (result.classes?.length ?? 0) + (result.notices?.length ?? 0)
     : 0;
 
   return (
@@ -127,15 +67,8 @@ function SearchModal({ visible, onClose, token }: { visible: boolean; onClose: (
         <View style={sm.header}>
           <View style={sm.searchBar}>
             <Feather name="search" size={18} color={C.textMuted} />
-            <TextInput
-              style={sm.input}
-              placeholder="회원, 반, 선생님, 공지 검색..."
-              placeholderTextColor={C.textMuted}
-              value={q}
-              onChangeText={handleChange}
-              autoFocus
-              returnKeyType="search"
-            />
+            <TextInput style={sm.input} placeholder="회원, 반, 선생님, 공지 검색..." placeholderTextColor={C.textMuted}
+              value={q} onChangeText={handleChange} autoFocus returnKeyType="search" />
             {q.length > 0 && (
               <Pressable onPress={() => { setQ(""); setResult(null); }}>
                 <Feather name="x-circle" size={16} color={C.textMuted} />
@@ -146,80 +79,57 @@ function SearchModal({ visible, onClose, token }: { visible: boolean; onClose: (
             <Text style={{ color: C.tint, fontSize: 15, fontFamily: "Inter_600SemiBold" }}>취소</Text>
           </Pressable>
         </View>
-
         {loading ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
         ) : result ? (
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 }}>
-            {totalCount === 0 ? (
-              <View style={sm.empty}>
-                <Feather name="search" size={40} color={C.textMuted} />
-                <Text style={sm.emptyText}>검색 결과가 없습니다</Text>
-              </View>
+            {total === 0 ? (
+              <View style={sm.empty}><Feather name="search" size={40} color={C.textMuted} /><Text style={sm.emptyText}>검색 결과가 없습니다</Text></View>
             ) : (
               <>
-                {result.students.length > 0 && (
+                {(result.students ?? []).length > 0 && (
                   <View>
                     <Text style={sm.sectionLabel}>회원 ({result.students.length})</Text>
-                    {result.students.map((s) => (
+                    {result.students.map((s: any) => (
                       <Pressable key={s.id} style={sm.row} onPress={() => { onClose(); router.push({ pathname: "/(admin)/member-detail", params: { id: s.id } }); }}>
-                        <View style={[sm.avatar, { backgroundColor: C.tint + "20" }]}>
-                          <Text style={[sm.avatarText, { color: C.tint }]}>{s.name[0]}</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={sm.rowTitle}>{s.name}</Text>
-                          <Text style={sm.rowSub}>{s.class_name || "미배정"} · {s.birth_year ? `${s.birth_year}년생` : ""}</Text>
-                        </View>
+                        <View style={[sm.avatar, { backgroundColor: C.tint + "20" }]}><Text style={[sm.avatarText, { color: C.tint }]}>{s.name[0]}</Text></View>
+                        <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{s.name}</Text><Text style={sm.rowSub}>{s.class_name || "미배정"}</Text></View>
                         <Feather name="chevron-right" size={16} color={C.textMuted} />
                       </Pressable>
                     ))}
                   </View>
                 )}
-                {result.classes.length > 0 && (
+                {(result.classes ?? []).length > 0 && (
                   <View>
                     <Text style={sm.sectionLabel}>반 ({result.classes.length})</Text>
-                    {result.classes.map((c) => (
+                    {result.classes.map((c: any) => (
                       <Pressable key={c.id} style={sm.row} onPress={() => { onClose(); router.push("/(admin)/classes"); }}>
-                        <View style={[sm.avatar, { backgroundColor: "#7C3AED20" }]}>
-                          <Feather name="layers" size={16} color="#7C3AED" />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={sm.rowTitle}>{c.name}</Text>
-                          <Text style={sm.rowSub}>{c.schedule_days} · {c.schedule_time}</Text>
-                        </View>
+                        <View style={[sm.avatar, { backgroundColor: "#7C3AED20" }]}><Feather name="layers" size={16} color="#7C3AED" /></View>
+                        <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{c.name}</Text><Text style={sm.rowSub}>{c.schedule_days}</Text></View>
                         <Feather name="chevron-right" size={16} color={C.textMuted} />
                       </Pressable>
                     ))}
                   </View>
                 )}
-                {result.notices.length > 0 && (
+                {(result.notices ?? []).length > 0 && (
                   <View>
                     <Text style={sm.sectionLabel}>공지 ({result.notices.length})</Text>
-                    {result.notices.map((n) => (
+                    {result.notices.map((n: any) => (
                       <Pressable key={n.id} style={sm.row} onPress={() => { onClose(); router.push("/(admin)/community"); }}>
-                        <View style={[sm.avatar, { backgroundColor: "#D9770620" }]}>
-                          <Feather name="bell" size={16} color="#D97706" />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={sm.rowTitle}>{n.title}</Text>
-                        </View>
+                        <View style={[sm.avatar, { backgroundColor: "#D9770620" }]}><Feather name="bell" size={16} color="#D97706" /></View>
+                        <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{n.title}</Text></View>
                         <Feather name="chevron-right" size={16} color={C.textMuted} />
                       </Pressable>
                     ))}
                   </View>
                 )}
-                {result.teachers.length > 0 && (
+                {(result.teachers ?? []).length > 0 && (
                   <View>
                     <Text style={sm.sectionLabel}>선생님 ({result.teachers.length})</Text>
-                    {result.teachers.map((t) => (
+                    {result.teachers.map((t: any) => (
                       <View key={t.id} style={sm.row}>
-                        <View style={[sm.avatar, { backgroundColor: "#05966920" }]}>
-                          <Feather name="user" size={16} color="#059669" />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={sm.rowTitle}>{t.name}</Text>
-                          <Text style={sm.rowSub}>{t.phone || "연락처 없음"}</Text>
-                        </View>
+                        <View style={[sm.avatar, { backgroundColor: "#05966920" }]}><Feather name="user" size={16} color="#059669" /></View>
+                        <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{t.name}</Text><Text style={sm.rowSub}>{t.phone || "연락처 없음"}</Text></View>
                       </View>
                     ))}
                   </View>
@@ -228,10 +138,7 @@ function SearchModal({ visible, onClose, token }: { visible: boolean; onClose: (
             )}
           </ScrollView>
         ) : (
-          <View style={sm.empty}>
-            <Feather name="search" size={50} color={C.border} />
-            <Text style={sm.emptyText}>이름, 반 이름, 공지 제목으로 검색</Text>
-          </View>
+          <View style={sm.empty}><Feather name="search" size={50} color={C.border} /><Text style={sm.emptyText}>이름, 반 이름, 공지 제목으로 검색</Text></View>
         )}
       </View>
     </Modal>
@@ -244,7 +151,7 @@ const sm = StyleSheet.create({
   searchBar: { flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: C.border },
   input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text },
   closeBtn: { paddingHorizontal: 4 },
-  sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textMuted, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#F9FAFB", textTransform: "uppercase", letterSpacing: 0.5 },
+  sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textMuted, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#F9FAFB" },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },
   avatar: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
@@ -254,18 +161,103 @@ const sm = StyleSheet.create({
   emptyText: { fontSize: 15, fontFamily: "Inter_400Regular", color: C.textMuted },
 });
 
-// ── 메인 대시보드 ───────────────────────────────────────────────────────────
+// ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
+type PopupKey = "인원관리" | "수업관리" | "보강관리" | "매출관리" | "데이터관리" | "운영설정" | "플랫폼설정";
+
+function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
+  const pending  = stats?.pending_requests ?? 0;
+  const makeups  = stats?.pending_makeups ?? 0;
+
+  switch (key) {
+    case "인원관리": return [
+      { icon: "users",       label: "회원관리",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/members") },
+      { icon: "user",        label: "학부모관리",  color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/parents") },
+      { icon: "user-check",  label: "선생님관리",  color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/people-teachers") },
+      { icon: "user-x",      label: "미배정관리",  color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/people-pending") },
+      { icon: "check-circle",label: "승인관리",   color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/approvals"), badge: pending },
+      { icon: "mail",        label: "초대관리",   color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/people-pending") },
+    ];
+    case "수업관리": return [
+      { icon: "calendar",    label: "수업스케줄",  color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/classes") },
+      { icon: "layers",      label: "반관리",     color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/class-management") },
+      { icon: "clipboard",   label: "출결관리",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/attendance") },
+      { icon: "book",        label: "수업일지",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/diary-write") },
+      { icon: "users",       label: "수강생관리",  color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/members") },
+      { icon: "shuffle",     label: "반이동",     color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/class-management") },
+    ];
+    case "보강관리": return [
+      { icon: "clock",       label: "보강대기",   color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/makeups"), badge: makeups },
+      { icon: "plus-circle", label: "보강배정",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/makeups") },
+      { icon: "bar-chart-2", label: "보강현황",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/makeups") },
+      { icon: "settings",    label: "보강정책",   color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/pool-settings") },
+    ];
+    case "매출관리": return [
+      { icon: "trending-up", label: "월별매출",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "credit-card", label: "결제현황",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/billing") },
+      { icon: "alert-circle",label: "미납관리",   color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/billing") },
+      { icon: "check-square",label: "정산확인",   color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "activity",    label: "수업발생",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "calendar",    label: "휴무일관리",  color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/holidays") },
+    ];
+    case "데이터관리": return [
+      { icon: "hard-drive",  label: "저장공간현황", color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/data-storage-overview") },
+      { icon: "user",        label: "계정별사용량", color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/data-storage-by-account") },
+      { icon: "pie-chart",   label: "카테고리별\n사용량", color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/data-storage-by-category") },
+      { icon: "trash-2",     label: "원본데이터\n삭제", color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/data-delete") },
+      { icon: "list",        label: "이벤트기록",  color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/data-event-logs") },
+      { icon: "database",    label: "데이터관리",  color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/data-management") },
+    ];
+    case "운영설정": return [
+      { icon: "settings",    label: "수업운영설정", color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "refresh-cw",  label: "보강정책설정", color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "shield",      label: "권한설정",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/more") },
+      { icon: "bell",        label: "알림설정",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/notifications") },
+      { icon: "award",       label: "레벨/테스트\n설정", color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "message-circle", label: "피드백\n기본설정", color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/pool-settings") },
+    ];
+    case "플랫폼설정": return [
+      { icon: "credit-card", label: "구독관리",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/billing") },
+      { icon: "tag",         label: "화이트라벨",  color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/branding") },
+      { icon: "image",       label: "워터마크",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/branding") },
+      { icon: "star",        label: "로고/브랜드", color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/branding") },
+      { icon: "smartphone",  label: "앱기본설정",  color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/more") },
+      { icon: "link",        label: "연결서비스",  color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/more") },
+    ];
+    default: return [];
+  }
+}
+
+// ── 메인 홈 아이콘 정의 ──────────────────────────────────────────────────────
+const MAIN_ICONS: Array<{
+  key: PopupKey | "메신저";
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  color: string;
+  bg: string;
+}> = [
+  { key: "인원관리",  label: "인원관리",  icon: "users",        color: "#2563EB", bg: "#EFF6FF" },
+  { key: "수업관리",  label: "수업관리",  icon: "calendar",     color: "#7C3AED", bg: "#F5F3FF" },
+  { key: "보강관리",  label: "보강관리",  icon: "rotate-ccw",   color: "#DC2626", bg: "#FEF2F2" },
+  { key: "메신저",    label: "메신저",    icon: "message-circle",color: "#059669", bg: "#ECFDF5" },
+  { key: "매출관리",  label: "매출관리",  icon: "trending-up",  color: "#D97706", bg: "#FFFBEB" },
+  { key: "데이터관리",label: "데이터관리",icon: "hard-drive",   color: "#0891B2", bg: "#ECFEFF" },
+  { key: "운영설정",  label: "운영설정",  icon: "settings",     color: "#EA580C", bg: "#FFF7ED" },
+  { key: "플랫폼설정",label: "플랫폼설정",icon: "smartphone",   color: "#6B7280", bg: "#F9FAFB" },
+];
+
+// ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 export default function DashboardScreen() {
   const { adminUser, pool, logout, token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("dashboard");
 
-  const [stats, setStats] = useState<DashStats | null>(null);
+  const [stats, setStats] = useState<any>(null);
+  const [storagePct, setStoragePct] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [storagePct, setStoragePct] = useState<number | null>(null);
+  const [activePopup, setActivePopup] = useState<PopupKey | null>(null);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -277,270 +269,296 @@ export default function DashboardScreen() {
       if (storageRes?.ok) {
         const s = await storageRes.json();
         const quota = s.quota_bytes ?? 5 * 1024 ** 3;
-        const pct = quota > 0 ? Math.min(100, (s.total_bytes / quota) * 100) : 0;
-        setStoragePct(Math.round(pct * 10) / 10);
+        setStoragePct(quota > 0 ? Math.min(100, Math.round((s.total_bytes / quota) * 1000) / 10) : 0);
       }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); setRefreshing(false); }
+    } finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
-  const sub = STATUS_COLOR[pool?.subscription_status || "trial"];
+  const sub = STATUS_BADGE[pool?.subscription_status || "trial"];
 
-  const kpiCards = stats ? [
-    { label: "전체 회원",  value: stats.total_members,    icon: "users"       as const, color: themeColor,  bg: themeColor + "18", route: "/(admin)/members" as const, params: { filter: "all" } },
-    { label: "미배정 회원", value: stats.unassigned,        icon: "user-x"       as const, color: "#7C3AED",  bg: "#F3E8FF",          route: "/(admin)/members" as const, params: { filter: "unassigned" } },
-    { label: "학부모 승인 대기", value: stats.pending_requests, icon: "clock" as const, color: "#D97706", bg: "#FEF3C7",           route: "/(admin)/approvals" as const },
-    { label: "보강 미처리", value: stats.pending_makeups ?? 0, icon: "rotate-ccw" as const, color: "#DC2626", bg: "#FEE2E2",       route: "/(admin)/makeups" as const },
-  ] : [];
-
-  const tasks = stats ? [
-    stats.pending_requests > 0  && { key: "pending",  label: `승인 대기 ${stats.pending_requests}건`, icon: "clock" as const, color: "#D97706", bg: "#FEF3C7", route: "/(admin)/approvals" as const },
-    (stats.pending_makeups ?? 0) > 0 && { key: "makeup",   label: `보강 미처리 ${stats.pending_makeups}건`, icon: "rotate-ccw" as const, color: "#DC2626", bg: "#FEE2E2", route: "/(admin)/makeups" as const },
-    stats.expiring_soon > 0     && { key: "expiring", label: `만료 임박 ${stats.expiring_soon}명`,    icon: "calendar" as const, color: "#EA580C",  bg: "#FFF7ED", route: "/(admin)/members" as const },
-  ].filter(Boolean) as any[] : [];
-
-  const quickActions = [
-    { label: "회원 등록",  icon: "user-plus"    as const, color: themeColor,  bg: themeColor + "18",  route: "/(admin)/members"    as const },
-    { label: "이번 달 매출", icon: "trending-up" as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/admin-revenue" as const, value: stats ? formatWon(stats.monthly_revenue ?? 0) : "—" },
-    { label: "반 관리",   icon: "layers"        as const, color: "#7C3AED",   bg: "#F3E8FF",           route: "/(admin)/classes"    as const },
-    { label: "공지 작성",  icon: "edit-3"       as const, color: "#D97706",   bg: "#FEF3C7",           route: "/(admin)/notices"    as const, params: { create: "true" } },
-    { label: "저장공간 현황", icon: "hard-drive" as const, color: "#0D9488", bg: "#CCFBF1", route: "/(admin)/data-storage-overview" as const, value: storagePct !== null ? `${storagePct}% 사용 중` : "—" },
-    { label: "선생님 관리", icon: "user-check"   as const, color: "#EC4899",   bg: "#FCE7F3",           route: "/(admin)/teachers"   as const },
+  // 4개 배너 KPI
+  const bannerItems = [
+    {
+      label: "데이터 사용량",
+      value: storagePct !== null ? `${storagePct}%` : "—",
+      sub: "전체 저장공간",
+      icon: "hard-drive" as const,
+      color: "#0891B2",
+      bg: "#ECFEFF",
+      onPress: () => router.push("/(admin)/data-storage-overview"),
+    },
+    {
+      label: "이번 달 매출",
+      value: stats ? formatWon(stats.monthly_revenue ?? 0) : "—",
+      sub: "월 누적 매출",
+      icon: "trending-up" as const,
+      color: "#059669",
+      bg: "#ECFDF5",
+      onPress: () => router.push("/(admin)/admin-revenue"),
+    },
+    {
+      label: "전체 회원",
+      value: stats ? String(stats.total_members) : "—",
+      sub: "등록 회원 수",
+      icon: "users" as const,
+      color: themeColor,
+      bg: themeColor + "18",
+      onPress: () => router.push("/(admin)/members"),
+    },
+    {
+      label: "미처리 보강",
+      value: stats ? String(stats.pending_makeups ?? 0) : "—",
+      sub: "처리 필요",
+      icon: "rotate-ccw" as const,
+      color: "#DC2626",
+      bg: "#FEF2F2",
+      onPress: () => router.push("/(admin)/makeups"),
+    },
   ];
 
+  function handleIconPress(key: PopupKey | "메신저") {
+    if (key === "메신저") {
+      router.push("/(admin)/messenger");
+    } else {
+      setActivePopup(key);
+    }
+  }
+
+  const iconCellW = (SCREEN_W - 32 - 3 * 12) / 4; // 4열 기준
+
   return (
-    <View style={{ flex: 1, backgroundColor: "#F3F4F6" }}>
-      {/* 상단 헤더 */}
-      <View style={[s.topBar, { paddingTop: insets.top + 12 }]}>
-        <View>
-          <Text style={s.poolName}>{pool?.name || "수영장"}</Text>
+    <View style={{ flex: 1, backgroundColor: "#F5F6FA" }}>
+      {/* ── 상단 헤더 ── */}
+      <View style={[s.topBar, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 14) }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.poolName} numberOfLines={1}>{pool?.name || "수영장"}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
             <Text style={s.greet}>안녕하세요, {adminUser?.name}님</Text>
             {sub && (
               <View style={[s.subBadge, { backgroundColor: sub.bg }]}>
-                <Text style={[s.subBadgeText, { color: sub.color }]}>{sub.label}</Text>
+                <Text style={[s.subBadgeTxt, { color: sub.color }]}>{sub.label}</Text>
               </View>
             )}
           </View>
         </View>
-        <Pressable onPress={logout} style={s.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Pressable onPress={() => setShowSearch(true)} style={s.headerBtn} hitSlop={8}>
+          <Feather name="search" size={20} color={C.textSecondary} />
+        </Pressable>
+        <Pressable onPress={logout} style={s.headerBtn} hitSlop={8}>
           <Feather name="log-out" size={18} color={C.textSecondary} />
         </Pressable>
       </View>
 
-      {/* 검색창 */}
-      <Pressable style={s.searchBox} onPress={() => setShowSearch(true)}>
-        <Feather name="search" size={17} color={C.textMuted} />
-        <Text style={s.searchPlaceholder}>회원, 반, 선생님, 공지 검색...</Text>
-      </Pressable>
-
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, gap: 20 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: TAB_BAR_H + 24, paddingTop: 16, gap: 20 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStats(); }} tintColor={themeColor} />
         }
       >
         {loading ? (
-          <ActivityIndicator color={themeColor} size="large" style={{ marginTop: 30 }} />
+          <ActivityIndicator color={themeColor} size="large" style={{ marginTop: 40 }} />
         ) : (
           <>
-            {/* KPI 카드 2x2 */}
-            <View style={s.kpiGrid}>
-              {kpiCards.map((k) => (
-                <Pressable key={k.label} style={[s.kpiCard, { backgroundColor: C.card }]} onPress={() => router.push((k as any).params ? { pathname: k.route as any, params: (k as any).params } : k.route as any)}>
-                  <View style={[s.kpiIcon, { backgroundColor: k.bg }]}>
-                    <Feather name={k.icon} size={20} color={k.color} />
-                  </View>
-                  <Text style={[s.kpiValue, { color: k.color }]}>{k.value}</Text>
-                  <Text style={s.kpiLabel}>{k.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* 미완료 과제 (있을 때만) */}
-            {tasks.length > 0 && (
-              <View style={[s.card, { backgroundColor: C.card }]}>
-                <View style={s.cardHeader}>
-                  <Feather name="alert-triangle" size={16} color="#D97706" />
-                  <Text style={s.cardTitle}>처리 필요 항목</Text>
-                </View>
-                {tasks.map((t: any) => (
-                  <Pressable key={t.key} style={[s.taskRow, { backgroundColor: t.bg }]} onPress={() => router.push(t.route as any)}>
-                    <Feather name={t.icon} size={15} color={t.color} />
-                    <Text style={[s.taskLabel, { color: t.color }]}>{t.label}</Text>
-                    <Feather name="chevron-right" size={15} color={t.color} style={{ marginLeft: "auto" }} />
-                  </Pressable>
-                ))}
-              </View>
-            )}
-
-            {/* 빠른 액션 2열 그리드 */}
+            {/* ── 배너: 4개 KPI 2×2 그리드 ── */}
             <View>
-              <Text style={s.sectionTitle}>빠른 액션</Text>
-              <View style={s.actionGrid}>
-                {quickActions.map((a) => (
+              <Text style={s.sectionLabel}>운영 현황</Text>
+              <View style={s.bannerGrid}>
+                {bannerItems.map(b => (
                   <Pressable
-                    key={a.label}
-                    style={({ pressed }) => [s.actionCard, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
-                    onPress={() => router.push((a as any).params ? { pathname: a.route as any, params: (a as any).params } : a.route as any)}
+                    key={b.label}
+                    style={({ pressed }) => [s.bannerCard, { opacity: pressed ? 0.85 : 1 }]}
+                    onPress={b.onPress}
                   >
-                    <View style={[s.actionIcon, { backgroundColor: a.bg }]}>
-                      <Feather name={a.icon} size={22} color={a.color} />
+                    <View style={[s.bannerIcon, { backgroundColor: b.bg }]}>
+                      <Feather name={b.icon} size={18} color={b.color} />
                     </View>
-                    <Text style={s.actionLabel}>{a.label}</Text>
-                    {(a as any).value !== undefined && (
-                      <Text style={[s.actionLabel, { color: (a as any).color, fontFamily: "Inter_700Bold", fontSize: 13, marginTop: 1 }]}>{(a as any).value}</Text>
-                    )}
+                    <Text style={[s.bannerValue, { color: b.color }]}>{b.value}</Text>
+                    <Text style={s.bannerLabel}>{b.label}</Text>
+                    <Text style={s.bannerSub}>{b.sub}</Text>
                   </Pressable>
                 ))}
               </View>
             </View>
 
-            {/* 수업 현황 요약 */}
-            {stats && (
-              <View style={[s.card, { backgroundColor: C.card }]}>
-                <Text style={s.cardTitle}>오늘 수업 현황</Text>
-                <View style={s.statRow}>
-                  <View style={s.statItem}>
-                    <Text style={[s.statNum, { color: "#7C3AED" }]}>{stats.total_classes}</Text>
-                    <Text style={s.statName}>전체 반</Text>
-                  </View>
-                  <View style={s.statDivider} />
-                  <View style={s.statItem}>
-                    <Text style={[s.statNum, { color: "#059669" }]}>{stats.diary_done_today}</Text>
-                    <Text style={s.statName}>일지 완료</Text>
-                  </View>
-                  <View style={s.statDivider} />
-                  <View style={s.statItem}>
-                    <Text style={[s.statNum, { color: themeColor }]}>{stats.total_teachers}</Text>
-                    <Text style={s.statName}>선생님</Text>
-                  </View>
-                  <View style={s.statDivider} />
-                  <View style={s.statItem}>
-                    <Text style={[s.statNum, { color: "#EA580C" }]}>{stats.today_present}</Text>
-                    <Text style={s.statName}>오늘 출석</Text>
-                  </View>
+            {/* ── 처리 필요 알림 ── */}
+            {stats && (stats.pending_requests > 0 || (stats.pending_makeups ?? 0) > 0) && (
+              <View style={s.alertCard}>
+                <Feather name="alert-triangle" size={15} color="#D97706" />
+                <View style={{ flex: 1, gap: 4 }}>
+                  {stats.pending_requests > 0 && (
+                    <Pressable onPress={() => router.push("/(admin)/approvals")}>
+                      <Text style={s.alertTxt}>
+                        승인 대기 <Text style={{ fontWeight: "700", color: "#D97706" }}>{stats.pending_requests}건</Text> — 탭하여 처리
+                      </Text>
+                    </Pressable>
+                  )}
+                  {(stats.pending_makeups ?? 0) > 0 && (
+                    <Pressable onPress={() => router.push("/(admin)/makeups")}>
+                      <Text style={s.alertTxt}>
+                        보강 미처리 <Text style={{ fontWeight: "700", color: "#DC2626" }}>{stats.pending_makeups}건</Text> — 탭하여 처리
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
               </View>
             )}
 
-            {/* 최근 등록 회원 */}
-            {stats && stats.recent_members.length > 0 && (
-              <View style={[s.card, { backgroundColor: C.card }]}>
-                <View style={[s.cardHeader, { marginBottom: 2 }]}>
-                  <Text style={s.cardTitle}>최근 등록 회원</Text>
-                  <Pressable onPress={() => router.push("/(admin)/members")}>
-                    <Text style={[s.cardMore, { color: themeColor }]}>전체 보기</Text>
-                  </Pressable>
-                </View>
-                {stats.recent_members.map((m) => (
+            {/* ── 메인 아이콘 8개 (4×2 그리드) ── */}
+            <View>
+              <Text style={s.sectionLabel}>관리 메뉴</Text>
+              <View style={s.iconGrid}>
+                {MAIN_ICONS.map(item => (
                   <Pressable
-                    key={m.id}
-                    style={s.memberRow}
-                    onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: m.id } })}
+                    key={item.key}
+                    style={({ pressed }) => [s.iconCell, { width: iconCellW, opacity: pressed ? 0.7 : 1 }]}
+                    onPress={() => handleIconPress(item.key)}
                   >
-                    <View style={[s.memberAvatar, { backgroundColor: themeColor + "20" }]}>
-                      <Text style={[s.memberInitial, { color: themeColor }]}>{m.name[0]}</Text>
+                    <View style={[s.iconBox, { backgroundColor: item.bg }]}>
+                      <Feather name={item.icon} size={26} color={item.color} />
+                      {/* 메신저 예외: 직접 이동 표시 */}
+                      {item.key === "메신저" && (
+                        <View style={[s.directBadge, { backgroundColor: item.color }]}>
+                          <Feather name="arrow-right" size={8} color="#fff" />
+                        </View>
+                      )}
+                      {/* 보강 대기 배지 */}
+                      {item.key === "보강관리" && (stats?.pending_makeups ?? 0) > 0 && (
+                        <View style={s.notiBadge}>
+                          <Text style={s.notiBadgeTxt}>{stats.pending_makeups}</Text>
+                        </View>
+                      )}
+                      {/* 승인 대기 배지 */}
+                      {item.key === "인원관리" && (stats?.pending_requests ?? 0) > 0 && (
+                        <View style={s.notiBadge}>
+                          <Text style={s.notiBadgeTxt}>{stats.pending_requests}</Text>
+                        </View>
+                      )}
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.memberName}>{m.name}</Text>
-                      <Text style={s.memberSub}>{m.class_name || "미배정"}</Text>
-                    </View>
-                    <Text style={s.memberDate}>
-                      {m.created_at ? new Date(m.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }) : ""}
-                    </Text>
+                    <Text style={s.iconLabel}>{item.label}</Text>
                   </Pressable>
                 ))}
               </View>
-            )}
+            </View>
 
-            {/* 최근 활동 로그 */}
-            {stats && stats.activity_logs.length > 0 && (
-              <View style={[s.card, { backgroundColor: C.card }]}>
-                <View style={[s.cardHeader, { marginBottom: 2 }]}>
-                  <Text style={s.cardTitle}>최근 변경 이력</Text>
-                  <Pressable onPress={() => router.push("/(admin)/more")}>
-                    <Text style={[s.cardMore, { color: themeColor }]}>전체 보기</Text>
-                  </Pressable>
+            {/* ── 오늘 수업 현황 ── */}
+            {stats && (
+              <View style={s.statCard}>
+                <Text style={s.sectionLabel2}>오늘 수업 현황</Text>
+                <View style={s.statRow}>
+                  {[
+                    { num: stats.total_classes,    label: "전체 반",    color: "#7C3AED" },
+                    { num: stats.diary_done_today,  label: "일지 완료",  color: "#059669" },
+                    { num: stats.total_teachers,    label: "선생님",     color: themeColor },
+                    { num: stats.today_present,     label: "오늘 출석",  color: "#EA580C" },
+                  ].map((item, i, arr) => (
+                    <React.Fragment key={item.label}>
+                      <View style={s.statItem}>
+                        <Text style={[s.statNum, { color: item.color }]}>{item.num}</Text>
+                        <Text style={s.statName}>{item.label}</Text>
+                      </View>
+                      {i < arr.length - 1 && <View style={s.statDivider} />}
+                    </React.Fragment>
+                  ))}
                 </View>
-                {stats.activity_logs.slice(0, 5).map((log, i) => (
-                  <ActionLogItem key={log.id || i} log={log} />
-                ))}
-              </View>
-            )}
-
-            {/* 수영장 기본 정보 */}
-            {pool && (
-              <View style={[s.card, { backgroundColor: C.card }]}>
-                <Text style={s.cardTitle}>수영장 정보</Text>
-                {[
-                  { icon: "map-pin" as const, value: pool.address },
-                  { icon: "phone"   as const, value: pool.phone },
-                  { icon: "user"    as const, value: `${pool.owner_name} 대표` },
-                ].map(({ icon, value }) => value && (
-                  <View key={icon} style={s.poolRow}>
-                    <Feather name={icon} size={13} color={C.textMuted} />
-                    <Text style={s.poolText}>{value}</Text>
-                  </View>
-                ))}
               </View>
             )}
           </>
         )}
       </ScrollView>
 
+      {/* ── 검색 모달 ── */}
       <SearchModal visible={showSearch} onClose={() => setShowSearch(false)} token={token} />
+
+      {/* ── 팝업들 (7개, 메신저 제외) ── */}
+      {(["인원관리", "수업관리", "보강관리", "매출관리", "데이터관리", "운영설정", "플랫폼설정"] as PopupKey[]).map(key => (
+        <IconPopup
+          key={key}
+          visible={activePopup === key}
+          title={key}
+          items={buildPopupItems(key, stats)}
+          onClose={() => setActivePopup(null)}
+        />
+      ))}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  topBar: { backgroundColor: "#fff", paddingHorizontal: 20, paddingBottom: 12, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: C.border },
-  poolName: { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
-  greet: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  subBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  subBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  logoutBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", marginTop: 4 },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", marginHorizontal: 16, marginTop: 12, marginBottom: 4, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 14, borderWidth: 1, borderColor: C.border },
-  searchPlaceholder: { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted },
+  topBar: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  poolName:    { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
+  greet:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  subBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+  subBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  headerBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
 
-  kpiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 8 },
-  kpiCard: { flex: 1, minWidth: "45%", borderRadius: 16, padding: 16, gap: 6, shadowColor: "#00000018", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 3 },
-  kpiIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  kpiValue: { fontSize: 28, fontFamily: "Inter_700Bold" },
-  kpiLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  sectionLabel:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 10 },
+  sectionLabel2: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 12 },
 
-  card: { borderRadius: 18, padding: 16, shadowColor: "#00000015", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2, gap: 8 },
-  cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
-  cardTitle: { fontSize: 15, fontFamily: "Inter_700Bold", color: C.text },
-  cardMore: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  bannerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  bannerCard: {
+    width: "47.5%",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  bannerIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  bannerValue: { fontSize: 22, fontFamily: "Inter_700Bold", marginBottom: 2 },
+  bannerLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
+  bannerSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 1 },
 
-  taskRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12 },
-  taskLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  alertCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "#FFFBEB",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  alertTxt: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.text },
 
-  sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 10 },
-  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  actionCard: { flex: 1, minWidth: "30%", borderRadius: 14, padding: 14, alignItems: "center", gap: 8, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
-  actionIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  actionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text, textAlign: "center" },
+  iconGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  iconCell:  { alignItems: "center", gap: 8 },
+  iconBox: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  iconLabel:   { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.text, textAlign: "center" },
+  directBadge: { position: "absolute", bottom: 4, right: 4, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  notiBadge:   { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center", paddingHorizontal: 4, borderWidth: 1.5, borderColor: "#F5F6FA" },
+  notiBadgeTxt:{ color: "#fff", fontSize: 9, fontWeight: "700" },
 
-  statRow: { flexDirection: "row", alignItems: "center" },
-  statItem: { flex: 1, alignItems: "center", paddingVertical: 8 },
-  statNum: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  statCard: { backgroundColor: "#fff", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  statRow:  { flexDirection: "row", alignItems: "center" },
+  statItem: { flex: 1, alignItems: "center", paddingVertical: 4 },
+  statNum:  { fontSize: 22, fontFamily: "Inter_700Bold" },
   statName: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  statDivider: { width: 1, height: 40, backgroundColor: C.border },
-
-  memberRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.border },
-  memberAvatar: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  memberInitial: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  memberName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
-  memberSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
-  memberDate: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
-
-  poolRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
-  poolText: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  statDivider: { width: 1, height: 36, backgroundColor: C.border },
 });
