@@ -3,10 +3,11 @@
  *
  * 규칙: width / height / padding / margin 은 절대 변하지 않음.
  * 선택 상태에서는 배경색 · 글자색 · 테두리색만 바뀜.
+ * 칩은 항상 한 줄 가로 스크롤 — 줄 바꿈 없음.
  */
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
@@ -28,7 +29,12 @@ interface FilterChipsProps<T extends string> {
 
 export function FilterChips<T extends string>({ chips, active, onChange }: FilterChipsProps<T>) {
   return (
-    <View style={s.row}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={s.scroll}
+      contentContainerStyle={s.row}
+    >
       {chips.map(chip => {
         const isActive = chip.key === active;
         const color  = chip.activeColor ?? C.tint;
@@ -62,18 +68,19 @@ export function FilterChips<T extends string>({ chips, active, onChange }: Filte
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
+  scroll: {
+    backgroundColor: C.background,
+  },
   row: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: C.background,
   },
   /* ★ width/height/padding/margin 고정 — 선택 상태에 무관하게 절대 불변 */
   chip: {
