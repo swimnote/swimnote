@@ -274,7 +274,7 @@ export default function DashboardScreen() {
   const kpiCards = stats ? [
     { label: "전체 회원",  value: stats.total_members,    icon: "users"       as const, color: themeColor,  bg: themeColor + "18", route: "/(admin)/members" as const, params: { filter: "all" } },
     { label: "미배정 회원", value: stats.unassigned,        icon: "user-x"       as const, color: "#7C3AED",  bg: "#F3E8FF",          route: "/(admin)/members" as const, params: { filter: "unassigned" } },
-    { label: "이번 주 신규", value: stats.new_this_week,  icon: "user-plus"   as const, color: "#7C3AED",  bg: "#F3E8FF",          route: "/(admin)/members" as const },
+    { label: "학부모 승인 대기", value: stats.pending_requests, icon: "clock" as const, color: "#D97706", bg: "#FEF3C7",           route: "/(admin)/approvals" as const },
     { label: "보강 미처리", value: stats.pending_makeups ?? 0, icon: "rotate-ccw" as const, color: "#DC2626", bg: "#FEE2E2",       route: "/(admin)/makeups" as const },
   ] : [];
 
