@@ -265,6 +265,67 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── POST /:id/remove-from-class — 특정 반에서 제거 (선생님 전용) ────
+router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
+  const { class_group_id } = req.body as { class_group_id: string };
+  if (!class_group_id) return err(res, 400, "class_group_id 필요");
+
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    const [existing] = await db.select().from(studentsTable)
+      .where(eq(studentsTable.id, req.params.id)).limit(1);
+    if (!existing) return err(res, 404, "학생 없음");
+    if (poolId && existing.swimming_pool_id !== poolId) return err(res, 403, "접근 권한 없음");
+
+    // 선생님은 본인 담당 반만 제거 가능
+    if (req.user!.role === "teacher") {
+      const [cls] = await db.select({ teacher_user_id: classGroupsTable.teacher_user_id })
+        .from(classGroupsTable)
+        .where(eq(classGroupsTable.id, class_group_id))
+        .limit(1);
+      if (!cls || cls.teacher_user_id !== req.user!.userId) {
+        return err(res, 403, "본인이 담당하는 반에서만 제거할 수 있습니다.");
+      }
+    }
+
+    const currentIds: string[] = Array.isArray(existing.assigned_class_ids)
+      ? existing.assigned_class_ids
+      : (typeof existing.assigned_class_ids === "string"
+          ? JSON.parse(existing.assigned_class_ids || "[]") : []);
+
+    const newIds = currentIds.filter((id: string) => id !== class_group_id);
+
+    // class_group_id 필드 업데이트 (제거된 게 primary면 다음 것으로)
+    const newPrimaryId = newIds[0] || null;
+
+    // schedule_labels 재계산
+    let labels = "";
+    if (newIds.length > 0) {
+      const classes = await Promise.all(newIds.map(async (id: string) => {
+        const [cg] = await db.select({
+          schedule_days: classGroupsTable.schedule_days,
+          schedule_time: classGroupsTable.schedule_time,
+        }).from(classGroupsTable).where(eq(classGroupsTable.id, id)).limit(1);
+        return cg || null;
+      }));
+      labels = classes.filter(Boolean).map((c: any) => {
+        const days = c.schedule_days.split(",").map((d: string) => d.trim());
+        const hour = c.schedule_time.split(":")[0];
+        return days.map((d: string) => `${d}${hour}`).join("·");
+      }).join("·");
+    }
+
+    await db.update(studentsTable).set({
+      assigned_class_ids: newIds as any,
+      class_group_id: newPrimaryId,
+      schedule_labels: labels || null,
+      updated_at: new Date(),
+    }).where(eq(studentsTable.id, req.params.id));
+
+    return res.json({ success: true, remaining_classes: newIds.length });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
+});
+
 // ── PATCH /:id/assign — 반 배정 (관리자 + 선생님 허용) ─────────────
 router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
   const { assigned_class_ids, weekly_count } = req.body;

@@ -306,9 +306,10 @@ const mc = StyleSheet.create({
 });
 
 // ─── 수업 상세 시트 (Modal) ───────────────────────────────────────
-function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClose, onOpenUnreg }:
+function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClose, onOpenUnreg, onOpenRemove }:
   { group: TeacherClassGroup; students: StudentItem[]; attMap: Record<string,number>;
-    diarySet: Set<string>; themeColor: string; onClose: () => void; onOpenUnreg?: () => void }) {
+    diarySet: Set<string>; themeColor: string; onClose: () => void;
+    onOpenUnreg?: () => void; onOpenRemove?: () => void }) {
 
   const groupStudents = students.filter(st =>
     (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
@@ -362,6 +363,11 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
             onPress={() => { onClose(); setTimeout(() => onOpenUnreg?.(), 200); }}>
             <Feather name="user-plus" size={14} color="#059669" />
             <Text style={[ds.actionText, { color: "#059669" }]}>미등록</Text>
+          </Pressable>
+          <Pressable style={[ds.actionBtn, { backgroundColor: "#FFF1F2" }]}
+            onPress={() => { onClose(); setTimeout(() => onOpenRemove?.(), 200); }}>
+            <Feather name="log-out" size={14} color="#E11D48" />
+            <Text style={[ds.actionText, { color: "#E11D48" }]}>반이동</Text>
           </Pressable>
         </View>
 
@@ -678,6 +684,9 @@ export default function MyScheduleScreen() {
   // 미등록회원 가져오기 모달 (classGroupId 전달)
   const [unregClassId, setUnregClassId] = useState<string | null>(null);
 
+  // 반이동 (현재 반에서 제거) 모달
+  const [removeClassGroup, setRemoveClassGroup] = useState<TeacherClassGroup | null>(null);
+
   // pool_id
   const poolId = (adminUser as any)?.swimming_pool_id || "";
 
@@ -818,6 +827,11 @@ export default function MyScheduleScreen() {
             onPress={() => setUnregClassId(g.id)}>
             <Feather name="user-plus" size={14} color="#059669" />
             <Text style={[s.subActionText, { color: "#059669" }]}>미등록</Text>
+          </Pressable>
+          <Pressable style={[s.subActionBtn, { backgroundColor: "#FFF1F2" }]}
+            onPress={() => setRemoveClassGroup(g)}>
+            <Feather name="log-out" size={14} color="#E11D48" />
+            <Text style={[s.subActionText, { color: "#E11D48" }]}>반이동</Text>
           </Pressable>
         </View>
 
@@ -1010,6 +1024,7 @@ export default function MyScheduleScreen() {
           themeColor={themeColor}
           onClose={() => setDetailGroup(null)}
           onOpenUnreg={() => { setDetailGroup(null); setUnregClassId(detailGroup.id); }}
+          onOpenRemove={() => { setDetailGroup(null); setRemoveClassGroup(detailGroup); }}
         />
       )}
 
@@ -1064,6 +1079,18 @@ export default function MyScheduleScreen() {
           themeColor={themeColor}
           onClose={() => setUnregClassId(null)}
           onAssigned={() => { setUnregClassId(null); load(); }}
+        />
+      )}
+
+      {/* 반이동 (현재 반에서 제거) 모달 */}
+      {removeClassGroup && (
+        <RemoveFromClassModal
+          token={token}
+          classGroup={removeClassGroup}
+          students={students}
+          themeColor={themeColor}
+          onClose={() => setRemoveClassGroup(null)}
+          onRemoved={() => { setRemoveClassGroup(null); load(); }}
         />
       )}
     </SafeAreaView>
@@ -1259,6 +1286,151 @@ const um = StyleSheet.create({
   invTag:     { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
   assignBtn:  { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, minWidth: 60, alignItems: "center" },
   assignTxt:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+  empty:      { alignItems: "center", paddingVertical: 40, gap: 8 },
+  emptyTxt:   { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
+});
+
+// ─── 반이동 Modal (현재 반에서 학생 제거) ─────────────────────────
+function RemoveFromClassModal({ token, classGroup, students, themeColor, onClose, onRemoved }: {
+  token: string | null;
+  classGroup: TeacherClassGroup;
+  students: StudentItem[];
+  themeColor: string;
+  onClose: () => void;
+  onRemoved: () => void;
+}) {
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [confirmItem, setConfirmItem] = useState<StudentItem | null>(null);
+  const [q, setQ] = useState("");
+
+  // 현재 반 학생만 필터 (assigned_class_ids 또는 class_group_id 기준)
+  const classStudents = students.filter(st =>
+    (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(classGroup.id))
+    || st.class_group_id === classGroup.id
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
+  const filtered = classStudents.filter(st =>
+    !q || st.name.includes(q)
+  );
+
+  async function doRemove(student: StudentItem) {
+    setRemoving(student.id);
+    await apiRequest(token, `/students/${student.id}/remove-from-class`, {
+      method: "POST",
+      body: JSON.stringify({ class_group_id: classGroup.id }),
+    });
+    setRemoving(null);
+    onRemoved();
+  }
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={rm.backdrop} onPress={onClose} />
+      <View style={rm.sheet}>
+        <View style={rm.handle} />
+        <View style={rm.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={rm.title}>반이동 — {classGroup.name}</Text>
+            <Text style={rm.sub}>선택한 학생을 현재 반에서 제거합니다</Text>
+          </View>
+          <Pressable onPress={onClose} style={{ padding: 4 }}>
+            <Feather name="x" size={20} color={C.textSecondary} />
+          </Pressable>
+        </View>
+
+        <View style={rm.searchBar}>
+          <Feather name="search" size={14} color={C.textMuted} />
+          <TextInput
+            style={rm.searchInput}
+            value={q}
+            onChangeText={setQ}
+            placeholder="이름 검색"
+            placeholderTextColor={C.textMuted}
+          />
+          {!!q && <Pressable onPress={() => setQ("")}><Feather name="x" size={14} color={C.textMuted} /></Pressable>}
+        </View>
+
+        <ScrollView style={rm.list} showsVerticalScrollIndicator={false}>
+          {filtered.length === 0 ? (
+            <View style={rm.empty}>
+              <Feather name="users" size={28} color={C.textMuted} />
+              <Text style={rm.emptyTxt}>이 반에 배정된 학생이 없습니다</Text>
+            </View>
+          ) : filtered.map(item => {
+            const classCount = Array.isArray(item.assigned_class_ids)
+              ? item.assigned_class_ids.length : 1;
+            return (
+              <View key={item.id} style={rm.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={rm.name}>{item.name}</Text>
+                  {item.birth_year && (
+                    <Text style={rm.phone}>{item.birth_year}년생</Text>
+                  )}
+                  <Text style={[rm.classBadge,
+                    classCount <= 1 ? { color: "#DC2626" } : { color: "#6B7280" }
+                  ]}>
+                    {classCount <= 1 ? "제거 후 완전 미배정" : `총 ${classCount}개 반 중 이 반만 제거`}
+                  </Text>
+                </View>
+                <Pressable
+                  style={rm.removeBtn}
+                  onPress={() => setConfirmItem(item)}
+                  disabled={removing === item.id}
+                >
+                  {removing === item.id
+                    ? <ActivityIndicator size="small" color="#E11D48" />
+                    : <Text style={rm.removeTxt}>제거</Text>
+                  }
+                </Pressable>
+              </View>
+            );
+          })}
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
+
+      <ConfirmModal
+        visible={!!confirmItem}
+        title="반이동 확인"
+        message={`${confirmItem?.name}을(를) ${classGroup.name}에서 제거하시겠습니까?\n${
+          (Array.isArray(confirmItem?.assigned_class_ids) && confirmItem!.assigned_class_ids.length <= 1)
+            ? "제거 후 완전 미배정 상태가 됩니다."
+            : "다른 반 배정은 유지됩니다."
+        }`}
+        confirmText="제거"
+        cancelText="취소"
+        destructive
+        onConfirm={() => { const s = confirmItem!; setConfirmItem(null); doRemove(s); }}
+        onCancel={() => setConfirmItem(null)}
+      />
+    </Modal>
+  );
+}
+
+const rm = StyleSheet.create({
+  backdrop:   { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet:      { position: "absolute", bottom: 0, left: 0, right: 0,
+                backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                maxHeight: "75%", paddingBottom: 32 },
+  handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
+                alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  header:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
+  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  sub:        { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  searchBar:  { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
+                marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8,
+                backgroundColor: "#F3F4F6", borderRadius: 10 },
+  searchInput:{ flex: 1, fontSize: 14, color: C.text, fontFamily: "Inter_400Regular" },
+  list:       { flexShrink: 1 },
+  row:        { flexDirection: "row", alignItems: "center", gap: 12,
+                paddingHorizontal: 16, paddingVertical: 12,
+                borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  name:       { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
+  phone:      { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  classBadge: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
+  removeBtn:  { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                borderWidth: 1.5, borderColor: "#E11D48", minWidth: 52, alignItems: "center" },
+  removeTxt:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#E11D48" },
   empty:      { alignItems: "center", paddingVertical: 40, gap: 8 },
   emptyTxt:   { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
 });
