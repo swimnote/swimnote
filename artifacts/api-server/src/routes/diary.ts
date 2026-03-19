@@ -134,6 +134,106 @@ router.post("/diary/upload",
 // 2. 공통 일지 CRUD
 // ════════════════════════════════════════════════════════════════════════
 
+// ── GET /diaries/index — 학생 기준 통합 일지 이력 인덱스 ─────────────────
+// 쿼리: student_name(선택), day(요일 한글 ex:월), time(시간 ex:14:00)
+router.get("/diaries/index",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const { student_name, day, time } = req.query as Record<string, string>;
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+
+      // 선생님은 자신이 담당하는 반만
+      let classFilter = sql`true`;
+      if (role === "teacher") {
+        const cgRows = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId} AND swimming_pool_id = ${poolId} AND is_deleted = false`);
+        const ids = (cgRows.rows as any[]).map(r => `'${r.id}'`);
+        if (ids.length === 0) return res.json([]);
+        classFilter = sql.raw(`cd.class_group_id IN (${ids.join(",")})`);
+      }
+
+      // 요일 필터
+      const dayFilter = day ? sql`AND cg.schedule_days ILIKE ${"%" + day + "%"}` : sql``;
+      // 시간 필터 (앞 5자 비교: '14:00')
+      const timeFilter = time ? sql`AND LEFT(cg.schedule_time, 5) = ${time}` : sql``;
+
+      // 학생 이름 필터
+      const nameSearchCommon = student_name
+        ? sql`AND EXISTS (SELECT 1 FROM students s WHERE s.class_group_id = cd.class_group_id AND s.status NOT IN ('withdrawn','deleted') AND s.name ILIKE ${"%" + student_name + "%"})`
+        : sql``;
+      const nameSearchNote = student_name ? sql`AND s.name ILIKE ${"%" + student_name + "%"}` : sql``;
+
+      // ① 반 공통 일지
+      const commonRows = await db.execute(sql`
+        SELECT
+          cd.id AS diary_id,
+          cd.lesson_date,
+          cg.name AS class_name,
+          cg.schedule_days,
+          cg.schedule_time,
+          cd.common_content AS content,
+          cd.teacher_name,
+          cd.created_at,
+          'class_common' AS entry_type,
+          NULL::text AS student_id,
+          NULL::text AS student_name,
+          NULL::text AS note_content,
+          cd.id AS source_diary_id,
+          NULL::text AS source_note_id
+        FROM class_diaries cd
+        LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.swimming_pool_id = ${poolId}
+          AND cd.is_deleted = false
+          AND (${classFilter})
+          ${dayFilter}
+          ${timeFilter}
+          ${nameSearchCommon}
+        ORDER BY cd.lesson_date DESC, cd.created_at DESC
+        LIMIT 200
+      `);
+
+      // ② 학생별 추가 일지 (student_note)
+      const noteRows = await db.execute(sql`
+        SELECT
+          cd.id AS diary_id,
+          cd.lesson_date,
+          cg.name AS class_name,
+          cg.schedule_days,
+          cg.schedule_time,
+          cdn.note_content AS content,
+          cd.teacher_name,
+          cdn.created_at,
+          'student_note' AS entry_type,
+          s.id AS student_id,
+          s.name AS student_name,
+          cdn.note_content,
+          cd.id AS source_diary_id,
+          cdn.id AS source_note_id
+        FROM class_diary_student_notes cdn
+        JOIN class_diaries cd ON cd.id = cdn.diary_id
+        LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        LEFT JOIN students s ON s.id = cdn.student_id
+        WHERE cd.swimming_pool_id = ${poolId}
+          AND cdn.is_deleted = false
+          AND cd.is_deleted = false
+          AND (${classFilter})
+          ${dayFilter}
+          ${timeFilter}
+          ${nameSearchNote}
+        ORDER BY cd.lesson_date DESC, cdn.created_at DESC
+        LIMIT 200
+      `);
+
+      const entries = [...(commonRows.rows as any[]), ...(noteRows.rows as any[])]
+        .sort((a, b) => new Date(b.lesson_date).getTime() - new Date(a.lesson_date).getTime() || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return res.json({ success: true, entries });
+    } catch (e) { console.error("[diaries/index]", e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
 // ── GET /diaries ─────────────────────────────────────────────────────────
 // 쿼리: class_group_id, lesson_date, include_deleted(admin only)
 router.get("/diaries",

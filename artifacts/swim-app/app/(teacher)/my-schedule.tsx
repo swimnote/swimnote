@@ -913,18 +913,25 @@ export default function MyScheduleScreen() {
           </View>
         </View>
 
-        {/* 뷰 모드 토글 */}
-        <View style={s.viewToggle}>
-          {(["daily","weekly","monthly"] as ViewMode[]).map(mode => {
-            const labels = { daily: "일간", weekly: "주간", monthly: "월간" };
-            const isActive = viewMode === mode;
-            return (
-              <Pressable key={mode} style={[s.toggleBtn, isActive && { backgroundColor: themeColor, borderColor: themeColor }]}
-                onPress={() => { setViewMode(mode); setSelectionMode(false); setSelectedIds(new Set()); }}>
-                <Text style={[s.toggleText, isActive && { color: "#fff" }]}>{labels[mode]}</Text>
-              </Pressable>
-            );
-          })}
+        {/* 뷰 모드 토글 + 수업 일지 버튼 */}
+        <View style={s.controlRow}>
+          <View style={s.viewToggle}>
+            {(["daily","weekly","monthly"] as ViewMode[]).map(mode => {
+              const labels = { daily: "일간", weekly: "주간", monthly: "월간" };
+              const isActive = viewMode === mode;
+              return (
+                <Pressable key={mode} style={[s.toggleBtn, isActive && { backgroundColor: themeColor, borderColor: themeColor }]}
+                  onPress={() => { setViewMode(mode); setSelectionMode(false); setSelectedIds(new Set()); }}>
+                  <Text style={[s.toggleText, isActive && { color: "#fff" }]}>{labels[mode]}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable style={[s.diaryIndexBtn, { borderColor: themeColor + "55", backgroundColor: themeColor + "12" }]}
+            onPress={() => router.push("/(teacher)/diary-index" as any)}>
+            <Feather name="book-open" size={13} color={themeColor} />
+            <Text style={[s.diaryIndexBtnText, { color: themeColor }]}>수업 일지</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -1054,10 +1061,14 @@ const s = StyleSheet.create({
                   paddingVertical: 8, borderRadius: 10 },
   createBtnText:{ color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
+  controlRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8 },
   viewToggle:   { flexDirection: "row", gap: 6 },
   toggleBtn:    { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20,
                   borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
   toggleText:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  diaryIndexBtn: { flexDirection: "row", alignItems: "center", gap: 5,
+                   paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5 },
+  diaryIndexBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
   subHeader:    { flexDirection: "row", alignItems: "center", gap: 10, padding: 12,
                   backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },

@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, KeyboardAvoidingView,
   Modal, Platform, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, View,
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -17,6 +17,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { PoolHeader } from "@/components/PoolHeader";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
+import SentencePicker, { SentenceTemplate } from "@/components/teacher/SentencePicker";
 
 const C = Colors.light;
 
@@ -188,6 +189,26 @@ export default function TeacherDiaryScreen() {
   const [addNoteStudent, setAddNoteStudent] = useState<StudentOption | null>(null);
   const [noteInput,      setNoteInput]      = useState("");
   const [saving,         setSaving]         = useState(false);
+
+  // ── 문장 불러오기 ─────────────────────────────────────────────────
+  const [showPickerFor, setShowPickerFor] = useState<"common" | "note" | null>(null);
+  const commonCursorRef = useRef<number>(0);
+  const noteCursorRef   = useRef<number>(0);
+  const customTemplates: SentenceTemplate[] = templates
+    .filter(t => t.template_text?.trim())
+    .map(t => ({ id: t.id, level: "custom" as const, template_text: t.template_text }));
+
+  function insertAtCursor(
+    current: string,
+    insert: string,
+    cursorPos: number,
+    setter: (v: string) => void
+  ) {
+    const before = current.slice(0, cursorPos);
+    const after  = current.slice(cursorPos);
+    const glue   = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
+    setter(before + glue + insert + after);
+  }
 
   // ── 기록 목록 상태 ────────────────────────────────────────────────────
   const [diaries,      setDiaries]      = useState<DiaryEntry[]>([]);
@@ -449,13 +470,24 @@ export default function TeacherDiaryScreen() {
                   style={[s.textarea, { borderColor: C.border, color: C.text }]}
                   value={commonContent}
                   onChangeText={setCommonContent}
+                  onSelectionChange={e => { commonCursorRef.current = e.nativeEvent.selection.start; }}
                   placeholder="오늘 수업 내용을 입력하세요.\n(모든 학생 학부모에게 공통으로 노출됩니다)"
                   placeholderTextColor={C.textMuted}
                   multiline
                   numberOfLines={6}
                   textAlignVertical="top"
                 />
-                <Text style={s.charCount}>{commonContent.length}자</Text>
+                <View style={s.textareaFooter}>
+                  <Text style={s.charCount}>{commonContent.length}자</Text>
+                  <TouchableOpacity
+                    style={s.sentencePickBtn}
+                    onPress={() => setShowPickerFor("common")}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="book-open" size={13} color={C.tint} />
+                    <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* 학생별 추가 일지 카드 */}
@@ -518,6 +550,7 @@ export default function TeacherDiaryScreen() {
                       style={[s.noteTextarea, { borderColor: "#8B5CF6", color: C.text }]}
                       value={noteInput}
                       onChangeText={setNoteInput}
+                      onSelectionChange={e => { noteCursorRef.current = e.nativeEvent.selection.start; }}
                       placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
                       placeholderTextColor={C.textMuted}
                       multiline
@@ -525,6 +558,14 @@ export default function TeacherDiaryScreen() {
                       textAlignVertical="top"
                       autoFocus
                     />
+                    <TouchableOpacity
+                      style={[s.sentencePickBtn, { alignSelf: "flex-start", marginTop: 6 }]}
+                      onPress={() => setShowPickerFor("note")}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="book-open" size={13} color="#8B5CF6" />
+                      <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>문장 불러오기</Text>
+                    </TouchableOpacity>
                     <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                       <Pressable style={[s.noteBtn, { borderColor: C.border }]} onPress={() => { setAddNoteStudent(null); setNoteInput(""); }}>
                         <Text style={{ color: C.textSecondary, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>취소</Text>
@@ -690,6 +731,23 @@ export default function TeacherDiaryScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* 문장 불러오기 바텀시트 */}
+        <SentencePicker
+          visible={showPickerFor !== null}
+          customTemplates={customTemplates}
+          onClose={() => setShowPickerFor(null)}
+          onInsert={text => {
+            if (showPickerFor === "common") {
+              insertAtCursor(commonContent, text, commonCursorRef.current, setCommonContent);
+              commonCursorRef.current = commonCursorRef.current + text.length;
+            } else if (showPickerFor === "note") {
+              insertAtCursor(noteInput, text, noteCursorRef.current, setNoteInput);
+              noteCursorRef.current = noteCursorRef.current + text.length;
+            }
+            setShowPickerFor(null);
+          }}
+        />
       </SafeAreaView>
     );
   }
@@ -744,7 +802,10 @@ const s = StyleSheet.create({
   templateCategory: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
   textarea:     { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: "#fff" },
-  charCount:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "right" },
+  textareaFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
+  charCount:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: C.tintLight, backgroundColor: "#F0F5FF" },
+  sentencePickBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.tint },
 
   sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   studentChip:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 8 },

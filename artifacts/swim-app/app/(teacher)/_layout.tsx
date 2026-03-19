@@ -81,6 +81,7 @@ export default function TeacherLayout() {
       {/* ─── 숨김 화면들 (수업 탭 내에서 router.push로 접근) ─── */}
       <Tabs.Screen name="attendance"     options={{ href: null }} />
       <Tabs.Screen name="diary"          options={{ href: null }} />
+      <Tabs.Screen name="diary-index"    options={{ href: null }} />
       <Tabs.Screen name="photos"         options={{ href: null }} />
       <Tabs.Screen name="student-detail" options={{ href: null }} />
     </Tabs>
