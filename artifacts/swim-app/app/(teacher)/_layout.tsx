@@ -6,6 +6,7 @@ import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
 import { emitTabReset } from "@/utils/tabReset";
+import { FeedbackTemplateProvider } from "@/context/FeedbackTemplateContext";
 
 export default function TeacherLayout() {
   const { themeColor } = useBrand();
@@ -29,6 +30,7 @@ export default function TeacherLayout() {
   }
 
   return (
+    <FeedbackTemplateProvider>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: themeColor,
@@ -79,11 +81,13 @@ export default function TeacherLayout() {
       />
 
       {/* ─── 숨김 화면들 (수업 탭 내에서 router.push로 접근) ─── */}
-      <Tabs.Screen name="attendance"     options={{ href: null }} />
-      <Tabs.Screen name="diary"          options={{ href: null }} />
-      <Tabs.Screen name="diary-index"    options={{ href: null }} />
-      <Tabs.Screen name="photos"         options={{ href: null }} />
-      <Tabs.Screen name="student-detail" options={{ href: null }} />
+      <Tabs.Screen name="attendance"       options={{ href: null }} />
+      <Tabs.Screen name="diary"            options={{ href: null }} />
+      <Tabs.Screen name="diary-index"      options={{ href: null }} />
+      <Tabs.Screen name="photos"           options={{ href: null }} />
+      <Tabs.Screen name="student-detail"   options={{ href: null }} />
+      <Tabs.Screen name="feedback-custom"  options={{ href: null }} />
     </Tabs>
+    </FeedbackTemplateProvider>
   );
 }

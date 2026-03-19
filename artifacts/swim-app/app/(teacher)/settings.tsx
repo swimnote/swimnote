@@ -389,6 +389,16 @@ export default function TeacherSettingsScreen() {
           </View>
         </View>
 
+        {/* ── 피드백커스텀 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#EFF6FF", borderColor: "#93C5FD" }]}
+          onPress={() => router.push("/(teacher)/feedback-custom" as any)}
+        >
+          <Feather name="edit-3" size={18} color="#3B82F6" />
+          <Text style={[s.actionBtnText, { color: "#3B82F6" }]}>피드백커스텀</Text>
+          <Feather name="chevron-right" size={16} color="#3B82F6" />
+        </Pressable>
+
         {/* ── 사진·영상 앨범 바로가기 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#FFF7ED", borderColor: "#F97316" }]}

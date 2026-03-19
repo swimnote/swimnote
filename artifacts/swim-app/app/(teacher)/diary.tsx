@@ -17,7 +17,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { PoolHeader } from "@/components/PoolHeader";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
-import SentencePicker, { SentenceTemplate } from "@/components/teacher/SentencePicker";
+import SentencePicker from "@/components/teacher/SentencePicker";
 
 const C = Colors.light;
 
@@ -194,9 +194,6 @@ export default function TeacherDiaryScreen() {
   const [showPickerFor, setShowPickerFor] = useState<"common" | "note" | null>(null);
   const commonCursorRef = useRef<number>(0);
   const noteCursorRef   = useRef<number>(0);
-  const customTemplates: SentenceTemplate[] = templates
-    .filter(t => t.template_text?.trim())
-    .map(t => ({ id: t.id, level: "custom" as const, template_text: t.template_text }));
 
   function insertAtCursor(
     current: string,
@@ -735,7 +732,6 @@ export default function TeacherDiaryScreen() {
         {/* 문장 불러오기 바텀시트 */}
         <SentencePicker
           visible={showPickerFor !== null}
-          customTemplates={customTemplates}
           onClose={() => setShowPickerFor(null)}
           onInsert={text => {
             if (showPickerFor === "common") {

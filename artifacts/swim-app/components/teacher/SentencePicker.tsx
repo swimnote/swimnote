@@ -2,6 +2,7 @@
  * SentencePicker.tsx — 문장 불러오기 바텀시트
  *
  * 기능:
+ * - FeedbackTemplateContext에서 templates/labels 읽기 (즉시 반영)
  * - 초급/중급/상급/커스텀 카테고리 탭
  * - 전체 통합 검색 (카테고리 경계 무시)
  * - 미리보기 영역 (쌓기 방식)
@@ -26,119 +27,64 @@ import {
 
 import { Feather } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
+import { useFeedbackTemplates, SentenceLevel, FeedbackTemplate } from "@/context/FeedbackTemplateContext";
 
 const SCREEN_H = Dimensions.get("window").height;
 
 const C = Colors.light;
 const PRIMARY = C.tint;
 
-export type SentenceLevel = "beginner" | "intermediate" | "advanced" | "custom";
-
-export interface SentenceTemplate {
-  id: string;
-  level: SentenceLevel;
-  template_text: string;
-}
-
-/* ─── 기본 내장 문장 세트 ─────────────────────────────────────────── */
-const BUILT_IN: SentenceTemplate[] = [
-  // 초급 (beginner)
-  { id: "b01", level: "beginner", template_text: "물에 대한 적응력이 빠르게 늘고 있습니다." },
-  { id: "b02", level: "beginner", template_text: "킥 동작을 차분하게 연습했습니다." },
-  { id: "b03", level: "beginner", template_text: "호흡 연습이 잘 이루어졌습니다." },
-  { id: "b04", level: "beginner", template_text: "발차기 자세가 점점 안정되고 있습니다." },
-  { id: "b05", level: "beginner", template_text: "물 속에서 눈을 뜨는 연습을 했습니다." },
-  { id: "b06", level: "beginner", template_text: "벽 잡고 킥 연습을 반복했습니다." },
-  { id: "b07", level: "beginner", template_text: "물 위에서 몸의 균형을 잡는 연습을 했습니다." },
-  { id: "b08", level: "beginner", template_text: "배영 자세의 기초를 연습했습니다." },
-  { id: "b09", level: "beginner", template_text: "자유형 팔 동작 기초를 배웠습니다." },
-  { id: "b10", level: "beginner", template_text: "수업 중 적극적으로 참여해 주었습니다." },
-  { id: "b11", level: "beginner", template_text: "물을 무서워하지 않고 잘 따라와 주었습니다." },
-  { id: "b12", level: "beginner", template_text: "오늘은 물 익히기와 호흡에 집중했습니다." },
-  { id: "b13", level: "beginner", template_text: "누워 뜨기 자세가 점점 안정적으로 변하고 있습니다." },
-  { id: "b14", level: "beginner", template_text: "입수 자세를 익히는 연습을 했습니다." },
-  { id: "b15", level: "beginner", template_text: "다음 수업에서는 자유형 기초를 이어갈 예정입니다." },
-
-  // 중급 (intermediate)
-  { id: "i01", level: "intermediate", template_text: "자유형 25m를 안정적으로 수영했습니다." },
-  { id: "i02", level: "intermediate", template_text: "호흡 타이밍을 맞추는 연습에 집중했습니다." },
-  { id: "i03", level: "intermediate", template_text: "배영 50m 구간 연습을 진행했습니다." },
-  { id: "i04", level: "intermediate", template_text: "평영 킥 동작의 정확도를 높였습니다." },
-  { id: "i05", level: "intermediate", template_text: "턴 동작 연습을 시작했습니다." },
-  { id: "i06", level: "intermediate", template_text: "팔과 발 동작의 타이밍을 맞추는 훈련을 했습니다." },
-  { id: "i07", level: "intermediate", template_text: "지구력 향상을 위해 100m 인터벌 훈련을 했습니다." },
-  { id: "i08", level: "intermediate", template_text: "자유형 풀링 동작을 집중 교정했습니다." },
-  { id: "i09", level: "intermediate", template_text: "배영 팔 동작의 궤적을 교정했습니다." },
-  { id: "i10", level: "intermediate", template_text: "평영 글라이드 동작이 많이 향상되었습니다." },
-  { id: "i11", level: "intermediate", template_text: "오늘은 접영 기초 동작을 처음 연습했습니다." },
-  { id: "i12", level: "intermediate", template_text: "수업 집중도가 매우 높았습니다." },
-  { id: "i13", level: "intermediate", template_text: "체력이 꾸준히 향상되고 있습니다." },
-  { id: "i14", level: "intermediate", template_text: "다음 수업에서는 평영 완성도를 높일 예정입니다." },
-  { id: "i15", level: "intermediate", template_text: "앞으로도 꾸준한 연습을 부탁드립니다." },
-
-  // 상급 (advanced)
-  { id: "a01", level: "advanced", template_text: "접영 200m 인터벌 훈련을 완료했습니다." },
-  { id: "a02", level: "advanced", template_text: "개인혼영 순서로 400m 완주를 목표로 했습니다." },
-  { id: "a03", level: "advanced", template_text: "출발 반응 속도와 다이빙 각도를 교정했습니다." },
-  { id: "a04", level: "advanced", template_text: "턴 후 유선형 자세를 집중 훈련했습니다." },
-  { id: "a05", level: "advanced", template_text: "페이스 조절 능력이 크게 향상되었습니다." },
-  { id: "a06", level: "advanced", template_text: "자유형 스트로크 효율을 높이는 드릴을 진행했습니다." },
-  { id: "a07", level: "advanced", template_text: "평영 킥 타이밍을 정밀하게 교정했습니다." },
-  { id: "a08", level: "advanced", template_text: "접영 리듬과 호흡 타이밍이 안정되었습니다." },
-  { id: "a09", level: "advanced", template_text: "목표 기록에 근접한 훌륭한 수영을 보여줬습니다." },
-  { id: "a10", level: "advanced", template_text: "대회를 대비한 페이스 분배 연습을 했습니다." },
-  { id: "a11", level: "advanced", template_text: "탄력 훈련으로 전반적 스피드를 향상시켰습니다." },
-  { id: "a12", level: "advanced", template_text: "고강도 훈련에도 집중력을 잃지 않았습니다." },
-  { id: "a13", level: "advanced", template_text: "체계적인 훈련 계획에 잘 따라오고 있습니다." },
-  { id: "a14", level: "advanced", template_text: "유연성 강화 운동을 병행했습니다." },
-  { id: "a15", level: "advanced", template_text: "다음 목표를 설정하고 전략적으로 준비 중입니다." },
-];
-
-/* ─── 탭 정의 ─────────────────────────────────────────────────────── */
-const TABS: { key: SentenceLevel; label: string }[] = [
-  { key: "beginner",     label: "초급" },
-  { key: "intermediate", label: "중급" },
-  { key: "advanced",     label: "상급" },
-  { key: "custom",       label: "커스텀" },
-];
+export type { SentenceLevel };
+export type SentenceTemplate = FeedbackTemplate;
 
 /* ─── Props ──────────────────────────────────────────────────────── */
 interface Props {
   visible: boolean;
-  customTemplates?: SentenceTemplate[];
   onClose: () => void;
   onInsert: (text: string) => void;
 }
 
+const LEVEL_COLORS: Record<SentenceLevel, string> = {
+  beginner:     "#10B981",
+  intermediate: "#3B82F6",
+  advanced:     "#8B5CF6",
+  custom:       "#F59E0B",
+};
+
 /* ════════════════════════════════════════════════════════════════
    메인 컴포넌트
    ════════════════════════════════════════════════════════════════ */
-export default function SentencePicker({ visible, customTemplates = [], onClose, onInsert }: Props) {
+export default function SentencePicker({ visible, onClose, onInsert }: Props) {
+  const { templates, labels } = useFeedbackTemplates();
+
   const [activeTab, setActiveTab] = useState<SentenceLevel>("beginner");
   const [searchQuery, setSearchQuery] = useState("");
   const [preview, setPreview] = useState<string[]>([]);
 
-  const allSentences = useMemo<SentenceTemplate[]>(() => {
-    return [...BUILT_IN, ...customTemplates];
-  }, [customTemplates]);
+  const TABS: { key: SentenceLevel; label: string }[] = [
+    { key: "beginner",     label: labels.beginner },
+    { key: "intermediate", label: labels.intermediate },
+    { key: "advanced",     label: labels.advanced },
+    { key: "custom",       label: labels.custom },
+  ];
 
   /* 표시할 문장 목록 */
-  const displayList = useMemo<SentenceTemplate[]>(() => {
+  const displayList = useMemo<FeedbackTemplate[]>(() => {
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      return allSentences.filter(s => s.template_text.toLowerCase().includes(q));
+      return templates.filter(s => s.template_text.toLowerCase().includes(q));
     }
-    return allSentences.filter(s => s.level === activeTab);
-  }, [allSentences, searchQuery, activeTab]);
+    return templates.filter(s => s.level === activeTab);
+  }, [templates, searchQuery, activeTab]);
 
   const isSearching = searchQuery.trim().length > 0;
 
   function levelLabel(level: SentenceLevel): string {
-    return { beginner: "초급", intermediate: "중급", advanced: "상급", custom: "커스텀" }[level] || level;
+    return labels[level] || level;
   }
 
   function levelColor(level: SentenceLevel): string {
-    return { beginner: "#10B981", intermediate: "#3B82F6", advanced: "#8B5CF6", custom: "#F59E0B" }[level] || C.textSecondary;
+    return LEVEL_COLORS[level] || C.textSecondary;
   }
 
   const addToPreview = useCallback((text: string) => {
@@ -169,7 +115,7 @@ export default function SentencePicker({ visible, customTemplates = [], onClose,
     onClose();
   }, [onClose]);
 
-  const renderSentenceItem = useCallback(({ item }: { item: SentenceTemplate }) => (
+  const renderSentenceItem = useCallback(({ item }: { item: FeedbackTemplate }) => (
     <TouchableOpacity
       style={s.sentenceItem}
       onPress={() => addToPreview(item.template_text)}
@@ -183,7 +129,7 @@ export default function SentencePicker({ visible, customTemplates = [], onClose,
       )}
       <Feather name="plus" size={16} color={PRIMARY} style={{ marginLeft: 6 }} />
     </TouchableOpacity>
-  ), [isSearching, addToPreview]);
+  ), [isSearching, addToPreview, labels]);
 
   return (
     <Modal
@@ -262,7 +208,7 @@ export default function SentencePicker({ visible, customTemplates = [], onClose,
               <View style={s.emptyBox}>
                 <Feather name="inbox" size={28} color={C.textMuted} />
                 <Text style={s.emptyText}>
-                  {isSearching ? "검색 결과가 없습니다." : "문장이 없습니다."}
+                  {isSearching ? "검색 결과가 없습니다." : "문장이 없습니다.\n피드백커스텀에서 추가해 보세요."}
                 </Text>
               </View>
             }
@@ -352,7 +298,6 @@ const s = StyleSheet.create({
   },
   title: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
 
-  /* 검색 */
   searchRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 16, marginBottom: 10,
@@ -368,7 +313,6 @@ const s = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8,
   },
 
-  /* 카테고리 탭 — 4개 균등 배치 */
   tabBar: {
     flexDirection: "row",
     paddingHorizontal: 16,
@@ -385,7 +329,6 @@ const s = StyleSheet.create({
   },
   tabText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
 
-  /* 문장 목록 — 6개 동시 표시 (각 행 ≈ 44px → 6×44 = 264 + gap) */
   sentenceList: { maxHeight: 274 },
   sentenceListContent: { paddingHorizontal: 16, paddingBottom: 4, gap: 4 },
   sentenceItem: {
@@ -398,9 +341,8 @@ const s = StyleSheet.create({
   levelBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   levelBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
-  emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
+  emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
 
-  /* 미리보기 */
   previewBox: {
     marginHorizontal: 16, marginTop: 10,
     borderWidth: 1.5, borderColor: C.tintLight, borderRadius: 12,
@@ -428,7 +370,6 @@ const s = StyleSheet.create({
   previewBtnDisabled: { opacity: 0.4 },
   previewBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
 
-  /* 하단 버튼 */
   footer: {
     flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4,
   },
