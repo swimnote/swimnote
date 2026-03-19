@@ -61,6 +61,8 @@ export default function ClassAssignScreen() {
   const [weeklyPicker, setWeeklyPicker] = useState<Student | null>(null);
   // 해제 확인 팝업
   const [confirmRemove, setConfirmRemove] = useState<Student | null>(null);
+  // 변경 여부 (배정완료 버튼 강조용)
+  const [hasChanges, setHasChanges] = useState(false);
 
   const load = useCallback(async () => {
     if (!classId) return;
@@ -146,9 +148,9 @@ export default function ClassAssignScreen() {
       });
       if (!res.ok) return;
       const updated: Student = await res.json();
-      // 상태 갱신
       setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
       setAssigned(prev => [...prev, { ...student, ...updated }]);
+      setHasChanges(true);
     } catch (e) { console.error(e); }
     finally { setSaving(null); }
   }
@@ -169,6 +171,7 @@ export default function ClassAssignScreen() {
       const updated: Student = await res.json();
       setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
       setAssigned(prev => prev.filter(s => s.id !== student.id));
+      setHasChanges(true);
     } catch (e) { console.error(e); }
     finally { setSaving(null); }
   }
@@ -207,7 +210,7 @@ export default function ClassAssignScreen() {
 
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
         showsVerticalScrollIndicator={false}
       >
@@ -317,6 +320,19 @@ export default function ClassAssignScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── 배정완료 고정 버튼 ── */}
+      <View style={[s.doneWrap, { paddingBottom: insets.bottom + 12 }]}>
+        <Pressable
+          style={[s.doneBtn, { backgroundColor: hasChanges ? C.tint : C.border }]}
+          onPress={() => router.back()}
+        >
+          <Feather name="check" size={18} color={hasChanges ? "#fff" : C.textMuted} />
+          <Text style={[s.doneTxt, { color: hasChanges ? "#fff" : C.textMuted }]}>
+            {hasChanges ? `배정 완료 — ${assigned.length}명 확정` : "변경 없음 · 돌아가기"}
+          </Text>
+        </Pressable>
+      </View>
 
       {/* ── 주횟수 선택 팝업 ── */}
       {weeklyPicker && (
@@ -466,6 +482,17 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: Platform.OS === "ios" ? 12 : 8,
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  doneWrap: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 16, paddingTop: 12,
+    backgroundColor: C.background,
+    borderTopWidth: 1, borderTopColor: C.border,
+  },
+  doneBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    borderRadius: 14, paddingVertical: 15,
+  },
+  doneTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });
 
 const r = StyleSheet.create({
