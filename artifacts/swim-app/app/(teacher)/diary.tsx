@@ -524,7 +524,14 @@ export default function TeacherDiaryScreen() {
                 ))}
 
                 {/* 학생 선택 목록 */}
-                {classStudents.length > 0 && (
+                {classStudents.length === 0 ? (
+                  <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
+                    <Feather name="users" size={16} color={C.textMuted} />
+                    <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>
+                      이 수업에 배정된 학생이 없습니다
+                    </Text>
+                  </View>
+                ) : (
                   <View style={{ gap: 6 }}>
                     <Text style={[s.sectionLabel, { color: C.textSecondary }]}>학생 선택</Text>
                     {classStudents
@@ -812,6 +819,9 @@ const s = StyleSheet.create({
   charCount:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: C.tintLight, backgroundColor: "#F0F5FF" },
   sentencePickBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.tint },
+
+  emptyStudents: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+  emptyStudentsText: { fontSize: 13, fontFamily: "Inter_400Regular" },
 
   sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   studentChip:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 8 },
