@@ -656,6 +656,29 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── PATCH /:id/weekly-count — 주 수업 횟수 변경 (선생님도 가능) ────
+router.patch("/:id/weekly-count", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
+  try {
+    const { weekly_count } = req.body;
+    const wc = Number(weekly_count);
+    if (!wc || wc < 1 || wc > 10) return err(res, 400, "weekly_count는 1~10 사이여야 합니다.");
+
+    const poolId = await getPoolId(req.user!.userId);
+    const [existing] = await db.select().from(studentsTable)
+      .where(eq(studentsTable.id, req.params.id)).limit(1);
+    if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
+    if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
+      return err(res, 403, "접근 권한이 없습니다.");
+    }
+
+    await db.update(studentsTable)
+      .set({ weekly_count: wc, updated_at: new Date() })
+      .where(eq(studentsTable.id, req.params.id));
+
+    res.json({ success: true, weekly_count: wc });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
 // ── DELETE /:id — 운영목록에서 제거 (soft delete, 기록 보존) ────────
 router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {

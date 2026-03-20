@@ -14,7 +14,7 @@ import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, ScrollView,
+  ActivityIndicator, Modal, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
@@ -70,6 +70,8 @@ export default function StudentDetailScreen() {
   const [attStat, setAttStat] = useState<AttendanceStat | null>(null);
   const [loading, setLoading] = useState(true);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showWeeklyPicker, setShowWeeklyPicker] = useState(false);
+  const [weeklyChanging, setWeeklyChanging] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -93,6 +95,22 @@ export default function StudentDetailScreen() {
   }, [id, token]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function handleWeeklyChange(newCount: number) {
+    if (!id || !student) return;
+    setWeeklyChanging(true);
+    setShowWeeklyPicker(false);
+    try {
+      const r = await apiRequest(token, `/students/${id}/weekly-count`, {
+        method: "PATCH",
+        body: JSON.stringify({ weekly_count: newCount }),
+      });
+      if (r.ok) {
+        setStudent(prev => prev ? { ...prev, weekly_count: newCount } : prev);
+      }
+    } catch (e) { console.error(e); }
+    finally { setWeeklyChanging(false); }
+  }
 
   if (loading) {
     return (
@@ -145,10 +163,26 @@ export default function StudentDetailScreen() {
               <View style={[s.statusBadge, { backgroundColor: primaryBadge.bg }]}>
                 <Text style={[s.statusText, { color: primaryBadge.color }]}>{primaryBadge.label}</Text>
               </View>
-              {weeklyBadge && (
-                <View style={[s.statusBadge, { backgroundColor: weeklyBadge.bg }]}>
-                  <Text style={[s.statusText, { color: weeklyBadge.color }]}>{weeklyBadge.label}</Text>
+              {weeklyChanging ? (
+                <View style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#F3F4F6" }]}>
+                  <ActivityIndicator size={10} color="#9CA3AF" />
                 </View>
+              ) : weeklyBadge ? (
+                <Pressable
+                  style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: weeklyBadge.bg }]}
+                  onPress={() => setShowWeeklyPicker(true)}
+                >
+                  <Text style={[s.statusText, { color: weeklyBadge.color }]}>{weeklyBadge.label}</Text>
+                  <Feather name="edit-2" size={9} color={weeklyBadge.color} style={{ marginLeft: 3 }} />
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB", borderStyle: "dashed" }]}
+                  onPress={() => setShowWeeklyPicker(true)}
+                >
+                  <Feather name="plus" size={10} color="#6B7280" />
+                  <Text style={[s.statusText, { color: "#6B7280", marginLeft: 3 }]}>주 횟수</Text>
+                </Pressable>
               )}
               {pendingBadge && (
                 <View style={[s.statusBadge, { backgroundColor: pendingBadge.bg }]}>
@@ -295,6 +329,37 @@ export default function StudentDetailScreen() {
         onClose={() => setShowStatusModal(false)}
         onChanged={() => load()}
       />
+
+      {/* ── 주 횟수 선택 모달 ──────────────────────────────── */}
+      <Modal visible={showWeeklyPicker} transparent animationType="fade" onRequestClose={() => setShowWeeklyPicker(false)}>
+        <Pressable style={s.pickerOverlay} onPress={() => setShowWeeklyPicker(false)}>
+          <View style={[s.pickerSheet, { backgroundColor: C.card }]}>
+            <Text style={s.pickerTitle}>주 수업 횟수 변경</Text>
+            <Text style={s.pickerSub}>{student.name} 회원의 주 수업 횟수</Text>
+            <View style={s.pickerOptions}>
+              {[1, 2, 3].map(count => {
+                const badge = WEEKLY_BADGE[count as 1 | 2 | 3];
+                const isCurrent = (student.weekly_count || 1) === count;
+                return (
+                  <Pressable
+                    key={count}
+                    style={[s.pickerOption, { borderColor: isCurrent ? badge.color : C.border, backgroundColor: isCurrent ? badge.bg : C.background }]}
+                    onPress={() => handleWeeklyChange(count)}
+                  >
+                    <Text style={[s.pickerOptionText, { color: isCurrent ? badge.color : C.text }]}>
+                      주 {count}회
+                    </Text>
+                    {isCurrent && <Feather name="check" size={16} color={badge.color} />}
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable style={s.pickerCancel} onPress={() => setShowWeeklyPicker(false)}>
+              <Text style={s.pickerCancelText}>취소</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -337,6 +402,19 @@ const s = StyleSheet.create({
   studentSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
   statusBadge:    { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   statusText:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  weeklyBadgeBtn: { flexDirection: "row", alignItems: "center" },
+
+  pickerOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 32 },
+  pickerSheet:    { width: "100%", borderRadius: 20, padding: 24, gap: 16 },
+  pickerTitle:    { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827", textAlign: "center" },
+  pickerSub:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center", marginTop: -8 },
+  pickerOptions:  { flexDirection: "row", gap: 10 },
+  pickerOption:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+                    paddingVertical: 14, borderRadius: 14, borderWidth: 2 },
+  pickerOptionText: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  pickerCancel:   { alignItems: "center", paddingVertical: 12, borderRadius: 12,
+                    borderWidth: 1.5, borderColor: "#E5E7EB" },
+  pickerCancelText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
 
   section:        { gap: 8 },
   sectionTitle:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, paddingLeft: 4 },
