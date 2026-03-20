@@ -22,7 +22,7 @@ const ROLE_HOME_MAP: Record<string, string> = {
   platform_admin: "/(super)/dashboard",
   pool_admin: "/(admin)/dashboard",
   sub_admin: "/(admin)/dashboard",
-  teacher: "/(teacher)/home",
+  teacher: "/(teacher)/today-schedule",
   parent: "/(parent)/home",
   parent_account: "/(parent)/home",
 };
