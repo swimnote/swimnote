@@ -18,24 +18,26 @@ import { FilterChips, FilterChipItem } from "@/components/common/FilterChips";
 import { EmptyState }    from "@/components/common/EmptyState";
 import {
   StudentMember, StudentFilterKey, WeeklyCount,
-  WEEKLY_BADGE, getStudentAssignmentStatus, getStudentConnectionStatus,
+  WEEKLY_BADGE,
   applyStudentFilter, searchStudents, buildInviteMessage,
   isValidPhone, isValidBirthYear, normalizePhone,
 } from "@/utils/studentUtils";
+import { MemberCard } from "@/components/common/MemberCard";
 import { useSelectionMode } from "@/hooks/useSelectionMode";
 import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 
 const C = Colors.light;
 
 const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
-  { key: "all",          label: "전체",      icon: "list" },
-  { key: "unassigned",   label: "미배정",    icon: "alert-circle",  activeColor: "#DC2626", activeBg: "#FEE2E2" },
-  { key: "mismatch",     label: "배정불일치", icon: "alert-triangle", activeColor: "#D97706", activeBg: "#FEF3C7" },
-  { key: "pending_link", label: "연결대기",  icon: "clock",          activeColor: "#EA580C", activeBg: "#FFF7ED" },
-  { key: "weekly_1",     label: "주1회",     icon: "sun",            activeColor: WEEKLY_BADGE[1].color, activeBg: WEEKLY_BADGE[1].bg },
-  { key: "weekly_2",     label: "주2회",     icon: "wind",           activeColor: WEEKLY_BADGE[2].color, activeBg: WEEKLY_BADGE[2].bg },
-  { key: "weekly_3",     label: "주3회",     icon: "zap",            activeColor: WEEKLY_BADGE[3].color, activeBg: WEEKLY_BADGE[3].bg },
-  { key: "linked",       label: "연결완료",  icon: "check-circle",   activeColor: "#059669", activeBg: "#D1FAE5" },
+  { key: "all",          label: "전체",   icon: "list" },
+  { key: "normal",       label: "정상",   icon: "check-circle",  activeColor: "#059669", activeBg: "#D1FAE5" },
+  { key: "unassigned",   label: "미배정", icon: "alert-circle",  activeColor: "#DC2626", activeBg: "#FEE2E2" },
+  { key: "weekly_1",     label: "주1회",  icon: "sun",           activeColor: WEEKLY_BADGE[1].color, activeBg: WEEKLY_BADGE[1].bg },
+  { key: "weekly_2",     label: "주2회",  icon: "wind",          activeColor: WEEKLY_BADGE[2].color, activeBg: WEEKLY_BADGE[2].bg },
+  { key: "weekly_3",     label: "주3회",  icon: "zap",           activeColor: WEEKLY_BADGE[3].color, activeBg: WEEKLY_BADGE[3].bg },
+  { key: "unlinked",     label: "미연결", icon: "user-x",        activeColor: "#EA580C", activeBg: "#FFF7ED" },
+  { key: "suspended",    label: "휴원",   icon: "pause-circle",  activeColor: "#B45309", activeBg: "#FEF3C7" },
+  { key: "withdrawn",    label: "퇴원",   icon: "log-out",       activeColor: "#6B7280", activeBg: "#F3F4F6" },
 ];
 
 // ── 초대문구 보기 모달 ───────────────────────────────────────────
@@ -320,159 +322,6 @@ const reg = StyleSheet.create({
   saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
 });
 
-// ── 회원 카드 ────────────────────────────────────────────────────
-function StudentCard({ student, themeColor, onPressInvite, onPressDelete, isDeleting, selectionMode, isSelected, onToggle }: {
-  student: StudentMember;
-  themeColor: string;
-  onPressInvite: () => void;
-  onPressDelete: () => void;
-  isDeleting?: boolean;
-  selectionMode?: boolean;
-  isSelected?: boolean;
-  onToggle?: () => void;
-}) {
-  const assignStatus = getStudentAssignmentStatus(student);
-  const connStatus   = getStudentConnectionStatus(student);
-  const wc = (student.weekly_count || 1) as WeeklyCount;
-  const badge = WEEKLY_BADGE[wc] || WEEKLY_BADGE[1];
-
-  // 담당 선생님 이름 (assignedClasses 에서 추출)
-  const instructors = (student.assignedClasses || [])
-    .map((c: any) => c.instructor)
-    .filter((v: any): v is string => !!v);
-  const instructorLabel = [...new Set(instructors)].join(", ");
-
-  // 등록 경로
-  const isParentRequested = student.registration_path === "parent_requested";
-
-  return (
-    <Pressable
-      style={[sc.card, { backgroundColor: C.card }, isSelected && { borderWidth: 2, borderColor: themeColor }]}
-      onPress={selectionMode ? onToggle : () => router.push({ pathname: "/(admin)/member-detail", params: { id: student.id } } as any)}
-    >
-      {/* 상단: 아바타 + 이름 + 배지들 */}
-      <View style={sc.top}>
-        {selectionMode && (
-          <Pressable onPress={onToggle} style={sc.checkWrap}>
-            <View style={[sc.checkbox, isSelected && { backgroundColor: themeColor, borderColor: themeColor }]}>
-              {isSelected && <Feather name="check" size={12} color="#fff" />}
-            </View>
-          </Pressable>
-        )}
-        <View style={[sc.avatar, { backgroundColor: themeColor + "20" }]}>
-          <Text style={[sc.avatarText, { color: themeColor }]}>{student.name[0]}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <View style={sc.nameRow}>
-            <Text style={sc.name}>{student.name}</Text>
-            {/* 주N회 배지 */}
-            <View style={[sc.badge, { backgroundColor: badge.bg }]}>
-              <Text style={[sc.badgeText, { color: badge.color }]}>{badge.label}</Text>
-            </View>
-            {/* 등록경로 배지 */}
-            {isParentRequested && (
-              <View style={[sc.badge, { backgroundColor: "#EDE9FE" }]}>
-                <Text style={[sc.badgeText, { color: "#7C3AED" }]}>학부모 요청</Text>
-              </View>
-            )}
-          </View>
-          {/* 수업 라벨 */}
-          {student.schedule_labels ? (
-            <Text style={sc.label}>{student.schedule_labels}</Text>
-          ) : (
-            <Text style={[sc.label, { color: C.textMuted }]}>수업 미배정</Text>
-          )}
-          {/* 담당 선생님 */}
-          {instructorLabel ? (
-            <Text style={sc.teacherInfo}>선생님: {instructorLabel}</Text>
-          ) : null}
-          {/* 보호자 정보 */}
-          {(student.parent_name || student.parent_phone) ? (
-            <Text style={sc.parentInfo}>
-              보호자: {student.parent_name || ""}{student.parent_phone ? ` · ${student.parent_phone}` : ""}
-            </Text>
-          ) : null}
-        </View>
-        {/* 우측 상태 배지 */}
-        <View style={sc.badges}>
-          {assignStatus === "unassigned" && (
-            <View style={[sc.statusBadge, { backgroundColor: "#FEE2E2" }]}>
-              <Text style={[sc.statusText, { color: "#DC2626" }]}>미배정</Text>
-            </View>
-          )}
-          {assignStatus === "mismatch" && (
-            <View style={[sc.statusBadge, { backgroundColor: "#FEF3C7" }]}>
-              <Text style={[sc.statusText, { color: "#D97706" }]}>불일치</Text>
-            </View>
-          )}
-          {connStatus === "linked" && (
-            <View style={[sc.statusBadge, { backgroundColor: "#D1FAE5" }]}>
-              <Feather name="check-circle" size={10} color="#059669" />
-              <Text style={[sc.statusText, { color: "#059669" }]}>연결</Text>
-            </View>
-          )}
-          {connStatus === "pending" && (
-            <View style={[sc.statusBadge, { backgroundColor: "#FFF7ED" }]}>
-              <Feather name="clock" size={10} color="#EA580C" />
-              <Text style={[sc.statusText, { color: "#EA580C" }]}>대기</Text>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* 하단 버튼 (선택모드 아닐 때만) */}
-      {!selectionMode && (
-        <View style={sc.bottom}>
-          <Pressable
-            style={[sc.actionBtn, { backgroundColor: themeColor + "15" }]}
-            onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: student.id } } as any)}
-          >
-            <Feather name="user" size={13} color={themeColor} />
-            <Text style={[sc.actionText, { color: themeColor }]}>회원 상세</Text>
-          </Pressable>
-          {student.invite_code && connStatus !== "linked" && (
-            <Pressable style={[sc.actionBtn, { backgroundColor: "#EDE9FE" }]} onPress={onPressInvite}>
-              <Feather name="send" size={13} color="#7C3AED" />
-              <Text style={[sc.actionText, { color: "#7C3AED" }]}>초대 문자</Text>
-            </Pressable>
-          )}
-          <Pressable
-            style={[sc.actionBtn, { backgroundColor: "#FEE2E2", marginLeft: "auto" }, isDeleting && { opacity: 0.5 }]}
-            onPress={() => !isDeleting && onPressDelete()}
-            disabled={isDeleting}
-          >
-            {isDeleting
-              ? <ActivityIndicator size={13} color={C.error} />
-              : <Feather name="trash-2" size={13} color={C.error} />
-            }
-          </Pressable>
-        </View>
-      )}
-    </Pressable>
-  );
-}
-const sc = StyleSheet.create({
-  card: { borderRadius: 16, padding: 14, gap: 12, marginHorizontal: 16, borderWidth: 1.5, borderColor: "transparent" },
-  top: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  checkWrap: { justifyContent: "center", paddingRight: 2, paddingTop: 2 },
-  checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: C.border, backgroundColor: C.background, alignItems: "center", justifyContent: "center" },
-  avatar: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  name: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
-  badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  label: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151", marginTop: 2 },
-  teacherInfo: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  parentInfo: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  badges: { gap: 4, alignItems: "flex-end" },
-  statusBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
-  statusText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  bottom: { flexDirection: "row", gap: 8 },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 10 },
-  actionText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-});
-
 // ── 메인 화면 ────────────────────────────────────────────────────
 export default function MembersScreen() {
   const { token, pool } = useAuth();
@@ -656,16 +505,28 @@ export default function MembersScreen() {
             />
           }
           renderItem={({ item }) => (
-            <StudentCard
-              student={item}
-              themeColor={themeColor}
-              onPressInvite={() => setInviteTarget(item)}
-              onPressDelete={() => handleDelete(item.id, item.name)}
-              isDeleting={deletingId === item.id}
-              selectionMode={sel.selectionMode}
-              isSelected={sel.isSelected(item.id)}
-              onToggle={() => sel.toggleItem(item.id)}
-            />
+            <View style={{ marginHorizontal: 16 }}>
+              <MemberCard
+                student={item}
+                themeColor={themeColor}
+                onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id } } as any)}
+                showInvite={!!(item.invite_code && !item.parent_user_id)}
+                onPressInvite={() => setInviteTarget(item)}
+                selectionMode={sel.selectionMode}
+                isSelected={sel.isSelected(item.id)}
+                onToggle={() => sel.toggleItem(item.id)}
+                actions={[
+                  {
+                    label: "삭제",
+                    icon: "trash-2",
+                    color: C.error,
+                    bg: "#FEE2E2",
+                    onPress: () => handleDelete(item.id, item.name),
+                    loading: deletingId === item.id,
+                  },
+                ]}
+              />
+            </View>
           )}
         />
         <SelectionActionBar

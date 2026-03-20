@@ -1,9 +1,11 @@
 /**
  * 학생 회원 관련 공통 유틸 함수
+ *
+ * 대표 상태: 정상 / 미배정 / 휴원 / 퇴원 (회원 1명당 하나)
+ * 주횟수 태그: 주1 / 주2 / 주3+ (정상 회원에게만 유효, 3회 이상은 주3으로 묶음)
  */
 
 export type RegistrationPath = "admin_created" | "parent_requested";
-export type StudentStatus = "active" | "pending_parent_link";
 export type WeeklyCount = 1 | 2 | 3;
 
 export interface StudentMember {
@@ -17,7 +19,7 @@ export interface StudentMember {
   parent_phone?: string | null;
   parent_user_id?: string | null;
   registration_path: RegistrationPath;
-  status: StudentStatus | string;
+  status: string;
   weekly_count?: number | null;
   assigned_class_ids?: string[] | null;
   schedule_labels?: string | null;
@@ -27,7 +29,9 @@ export interface StudentMember {
   class_group_name?: string | null;
   created_at: string;
   updated_at: string;
-  // enriched fields
+  withdrawn_at?: string | null;
+  archived_reason?: string | null;
+  // enriched
   assignedClasses?: AssignedClassInfo[];
 }
 
@@ -39,23 +43,113 @@ export interface AssignedClassInfo {
   instructor?: string | null;
 }
 
-/** 주1/주2/주3 배지 색상 */
-export const WEEKLY_BADGE = {
+// ── 대표 상태 ────────────────────────────────────────────────────
+
+export type PrimaryStatus = "normal" | "unassigned" | "suspended" | "withdrawn";
+
+/**
+ * 주횟수 배지 (3회 이상은 주3회+로 표시)
+ */
+export const WEEKLY_BADGE: Record<1 | 2 | 3, { bg: string; color: string; label: string }> = {
   1: { bg: "#DBEAFE", color: "#1D4ED8", label: "주1회" },
   2: { bg: "#D1FAE5", color: "#059669", label: "주2회" },
-  3: { bg: "#EDE9FE", color: "#7C3AED", label: "주3회" },
+  3: { bg: "#EDE9FE", color: "#7C3AED", label: "주3회+" },
 } as const;
 
-/** 학생 배정 상태 계산 */
+/** 주횟수 — 3 이상은 3으로 cap */
+export function getEffectiveWeekly(s: StudentMember): 1 | 2 | 3 {
+  const wc = typeof s.weekly_count === "number" ? s.weekly_count : 1;
+  return Math.min(Math.max(wc, 1), 3) as 1 | 2 | 3;
+}
+
+/**
+ * 대표 상태 계산
+ * - suspended → 휴원
+ * - withdrawn → 퇴원
+ * - active/pending_parent_link: assigned >= weekly_count → 정상, 아니면 미배정
+ */
+export function getPrimaryStatus(s: StudentMember): PrimaryStatus {
+  const st = s.status;
+  if (st === "suspended") return "suspended";
+  if (st === "withdrawn") return "withdrawn";
+  const ids = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
+  const wc = typeof s.weekly_count === "number" && s.weekly_count > 0 ? s.weekly_count : 1;
+  if (ids.length > 0 && ids.length >= wc) return "normal";
+  return "unassigned";
+}
+
+export const PRIMARY_STATUS_BADGE: Record<PrimaryStatus, { label: string; color: string; bg: string }> = {
+  normal:     { label: "정상",  color: "#059669", bg: "#D1FAE5" },
+  unassigned: { label: "미배정", color: "#DC2626", bg: "#FEE2E2" },
+  suspended:  { label: "휴원",  color: "#B45309", bg: "#FEF3C7" },
+  withdrawn:  { label: "퇴원",  color: "#6B7280", bg: "#F3F4F6" },
+};
+
+// ── 필터 ─────────────────────────────────────────────────────────
+
+/** 필터 타입 — 전체/정상/미배정/주1/주2/주3/미연결/휴원/퇴원 */
+export type StudentFilterKey =
+  | "all"
+  | "normal"
+  | "unassigned"
+  | "weekly_1"
+  | "weekly_2"
+  | "weekly_3"
+  | "unlinked"
+  | "suspended"
+  | "withdrawn";
+
+/**
+ * 필터 적용
+ * - 정상 = 대표상태 normal
+ * - 미배정 = 대표상태 unassigned
+ * - 주1/2/3 = 정상이면서 해당 주횟수 (3회 이상은 주3에 포함)
+ * - 미연결 = parent_user_id 없음 (주 상태 무관)
+ * - 휴원/퇴원 = 해당 대표 상태
+ */
+export function applyStudentFilter(students: StudentMember[], filter: StudentFilterKey): StudentMember[] {
+  if (filter === "all") return students;
+  return students.filter(s => {
+    const ps = getPrimaryStatus(s);
+    const wc = getEffectiveWeekly(s);
+    switch (filter) {
+      case "normal":     return ps === "normal";
+      case "unassigned": return ps === "unassigned";
+      case "weekly_1":   return ps === "normal" && wc === 1;
+      case "weekly_2":   return ps === "normal" && wc === 2;
+      case "weekly_3":   return ps === "normal" && wc >= 3;
+      case "unlinked":   return !s.parent_user_id;
+      case "suspended":  return ps === "suspended";
+      case "withdrawn":  return ps === "withdrawn";
+      default:           return true;
+    }
+  });
+}
+
+/** 검색 적용 (이름, 보호자이름, 전화번호) */
+export function searchStudents(students: StudentMember[], query: string): StudentMember[] {
+  if (!query.trim()) return students;
+  const q = query.toLowerCase().trim();
+  return students.filter(s =>
+    s.name.toLowerCase().includes(q) ||
+    (s.parent_name || "").toLowerCase().includes(q) ||
+    (s.parent_phone || "").includes(q) ||
+    (s.phone || "").includes(q)
+  );
+}
+
+// ── 하위 호환 (기존 코드에서 직접 참조하는 함수들) ───────────────
+
+/** @deprecated getPrimaryStatus 사용 권장 */
 export function getStudentAssignmentStatus(s: StudentMember): "unassigned" | "mismatch" | "ok" {
-  const ids = s.assigned_class_ids || [];
+  const ids = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
   const wc = s.weekly_count || 1;
   if (ids.length === 0) return "unassigned";
   if (ids.length !== wc) return "mismatch";
   return "ok";
 }
 
-/** 학부모 연결 상태 */
+/** @deprecated parent_user_id 유무로 직접 판단 권장 */
 export function getStudentConnectionStatus(s: StudentMember): "linked" | "pending" | "none" {
   if (s.parent_user_id) return "linked";
   if (s.status === "pending_parent_link") return "pending";
@@ -98,46 +192,4 @@ export function isValidBirthYear(year: string): boolean {
   const y = parseInt(year);
   const current = new Date().getFullYear();
   return !isNaN(y) && y >= 2000 && y <= current;
-}
-
-/** 필터 타입 */
-export type StudentFilterKey =
-  | "all"
-  | "unassigned"
-  | "pending_link"
-  | "mismatch"
-  | "weekly_1"
-  | "weekly_2"
-  | "weekly_3"
-  | "linked";
-
-/** 필터 적용 */
-export function applyStudentFilter(students: StudentMember[], filter: StudentFilterKey): StudentMember[] {
-  if (filter === "all") return students;
-  return students.filter(s => {
-    const assignStatus = getStudentAssignmentStatus(s);
-    const connStatus = getStudentConnectionStatus(s);
-    switch (filter) {
-      case "unassigned":   return assignStatus === "unassigned";
-      case "mismatch":     return assignStatus === "mismatch";
-      case "pending_link": return connStatus === "pending";
-      case "linked":       return connStatus === "linked";
-      case "weekly_1":     return (s.weekly_count || 1) === 1;
-      case "weekly_2":     return s.weekly_count === 2;
-      case "weekly_3":     return s.weekly_count === 3;
-      default:             return true;
-    }
-  });
-}
-
-/** 검색 적용 (이름, 보호자이름, 전화번호) */
-export function searchStudents(students: StudentMember[], query: string): StudentMember[] {
-  if (!query.trim()) return students;
-  const q = query.toLowerCase().trim();
-  return students.filter(s =>
-    s.name.toLowerCase().includes(q) ||
-    (s.parent_name || "").toLowerCase().includes(q) ||
-    (s.parent_phone || "").includes(q) ||
-    (s.phone || "").includes(q)
-  );
 }

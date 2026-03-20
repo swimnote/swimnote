@@ -84,7 +84,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       students = await db.select().from(studentsTable)
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),
-          sql`status NOT IN ('withdrawn', 'deleted')`,
+          sql`status NOT IN ('archived', 'deleted')`,
           sql`(
             class_group_id = ANY(ARRAY[${sql.raw(classIdsLiteral)}])
             OR EXISTS (
@@ -95,10 +95,11 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         ));
     } else {
       // admin / super_admin / teacher(pool_all=true): 해당 수영장의 모든 학생 반환
+      // archived/deleted 제외, suspended/withdrawn 포함 (회원 목록에서 필터로 구분)
       students = await db.select().from(studentsTable)
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),
-          sql`status NOT IN ('withdrawn', 'deleted')`
+          sql`status NOT IN ('archived', 'deleted')`
         ));
     }
 
