@@ -158,18 +158,23 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         if (invite.invite_status !== "joinedPendingApproval") {
           res.status(409).json({ success: false, message: "승인 대기 상태인 초대만 승인할 수 있습니다." }); return;
         }
+        // roles 선택: "teacher" (일반) 또는 "sub_admin" (부관리자)
+        // 부관리자: ["teacher","sub_admin"], 일반: ["teacher"]
+        // 결제·정산·킬스위치·최고관리자 권한은 절대 부여 금지
+        const selectedRole = (req.body.selected_role === "sub_admin") ? "sub_admin" : "teacher";
+        const approvedRoles: string[] = selectedRole === "sub_admin" ? ["teacher", "sub_admin"] : ["teacher"];
         if (invite.user_id) {
-          const approvedRoles: string[] = ["teacher"];
           const rolesLiteral = `{${approvedRoles.map((r: string) => `"${r}"`).join(",")}}`;
           await db.execute(sql`UPDATE users SET is_activated = true, roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
         await db.execute(sql`
           UPDATE teacher_invites
-          SET invite_status = 'approved', approved_at = NOW(), approved_by = ${actorId}
+          SET invite_status = 'approved', approved_at = NOW(), approved_by = ${actorId},
+              approved_role = ${selectedRole}
           WHERE id = ${req.params.id}
         `);
-        logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.teacher_name, description: `선생님 승인 — ${invite.teacher_name}` }).catch(console.error);
-        res.json({ success: true, message: "선생님이 승인되었습니다." });
+        logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.name, description: `선생님 승인 (${selectedRole === "sub_admin" ? "부관리자" : "일반"}) — ${invite.name}` }).catch(console.error);
+        res.json({ success: true, message: "선생님이 승인되었습니다.", roles: approvedRoles });
 
       } else if (action === "reject") {
         if (invite.user_id) {
@@ -177,10 +182,12 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         }
         await db.execute(sql`
           UPDATE teacher_invites
-          SET invite_status = 'rejected', approved_at = NOW(), approved_by = ${actorId},
+          SET invite_status = 'rejected',
+              rejected_at = NOW(), rejected_by = ${actorId},
               rejection_reason = ${rejection_reason || null}
           WHERE id = ${req.params.id}
         `);
+        logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.name, description: `선생님 거절 — ${invite.name} (사유: ${rejection_reason || "없음"})` }).catch(console.error);
         res.json({ success: true, message: "거절되었습니다." });
 
       } else if (action === "deactivate" || action === "revoke") {

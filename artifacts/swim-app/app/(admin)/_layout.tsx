@@ -86,8 +86,9 @@ export default function AdminLayout() {
       <Tabs.Screen name="withdrawn-members" options={{ href: null }} />
       <Tabs.Screen name="branding"          options={{ href: null }} />
       <Tabs.Screen name="member-detail"     options={{ href: null }} />
-      <Tabs.Screen name="teacher-hub"       options={{ href: null }} />
-      <Tabs.Screen name="people-teachers"   options={{ href: null }} />
+      <Tabs.Screen name="teacher-hub"            options={{ href: null }} />
+      <Tabs.Screen name="people-teachers"       options={{ href: null }} />
+      <Tabs.Screen name="teacher-pending-detail" options={{ href: null }} />
       <Tabs.Screen name="people-pending"    options={{ href: null }} />
       <Tabs.Screen name="makeups"                    options={{ href: null }} />
       <Tabs.Screen name="holidays"                   options={{ href: null }} />

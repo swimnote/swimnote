@@ -1774,7 +1774,7 @@ router.get("/teacher-hub/:teacherId", requireAuth, requireRole("super_admin","po
   }
 );
 
-// GET /admin/teachers — 선생님 목록 + 운영 현황 요약
+// GET /admin/teachers — 선생님 목록 + 운영 현황 요약 (invite 상태 포함)
 router.get("/teachers", requireAuth, requireRole("super_admin","pool_admin"),
   async (req: AuthRequest, res) => {
     try {
@@ -1783,13 +1783,23 @@ router.get("/teachers", requireAuth, requireRole("super_admin","pool_admin"),
       const today = new Date().toISOString().split("T")[0];
       const teachers = (await db.execute(sql.raw(`
         SELECT
-          u.id, u.name, u.email, u.phone,
+          u.id, u.name, u.email, u.phone, u.is_activated, u.roles,
+          ti.id AS invite_id,
+          ti.invite_status,
+          ti.rejection_reason,
+          ti.approved_at,
+          ti.created_at AS joined_at,
+          COALESCE(
+            (u.roles @> ARRAY['sub_admin']::text[]),
+            false
+          ) AS is_sub_admin,
           COUNT(DISTINCT cg.id)::int AS class_count,
           COUNT(DISTINCT s.id)::int AS student_count,
           COUNT(DISTINCT a.id) FILTER (WHERE a.date = '${today}')::int AS today_att,
           COUNT(DISTINCT cd.id) FILTER (WHERE cd.lesson_date = '${today}' AND cd.is_deleted = false)::int AS today_diary,
           COUNT(DISTINCT mk.id) FILTER (WHERE mk.status IN ('waiting','transferred'))::int AS makeup_waiting
         FROM users u
+        LEFT JOIN teacher_invites ti ON ti.user_id = u.id AND ti.swimming_pool_id = '${poolId}'
         LEFT JOIN class_groups cg ON cg.teacher_user_id = u.id AND cg.swimming_pool_id = '${poolId}' AND cg.is_deleted = false
         LEFT JOIN students s ON s.class_group_id = cg.id AND s.status NOT IN ('withdrawn','deleted')
         LEFT JOIN attendance a ON a.class_group_id = cg.id
@@ -1797,7 +1807,7 @@ router.get("/teachers", requireAuth, requireRole("super_admin","pool_admin"),
         LEFT JOIN makeup_sessions mk ON mk.swimming_pool_id = '${poolId}'
           AND (mk.original_teacher_id = u.id OR mk.assigned_teacher_id = u.id OR mk.transferred_to_teacher_id = u.id)
         WHERE u.swimming_pool_id = '${poolId}' AND u.role = 'teacher'
-        GROUP BY u.id
+        GROUP BY u.id, ti.id
         ORDER BY u.name
       `))).rows;
       res.json(teachers);
