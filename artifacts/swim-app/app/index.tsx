@@ -11,7 +11,6 @@ import Colors from "@/constants/colors";
 import { DEMO_ACCOUNTS, LOGIN_LABELS } from "@/constants/auth";
 import { useAuth } from "@/context/AuthContext";
 import { QuickLoginCard } from "@/components/auth/QuickLoginCard";
-import { AuthEntryLinks } from "@/components/auth/AuthEntryLinks";
 
 const C = Colors.light;
 
@@ -61,11 +60,7 @@ export default function LoginScreen() {
       if (e.error_code === "wrong_password") {
         const nextCount = failCount + 1;
         setFailCount(nextCount);
-        if (nextCount >= 3) {
-          router.push({ pathname: "/forgot-password", params: { identifier: finalId } } as any);
-          return;
-        }
-        setError("비밀번호가 일치하지 않습니다.");
+        setError("아이디 또는 비밀번호가 올바르지 않습니다.");
         return;
       }
       setError(e.message || "아이디 또는 비밀번호를 확인해주세요.");
@@ -74,27 +69,6 @@ export default function LoginScreen() {
     }
   }
 
-  function handleIdentifierChange(v: string) {
-    setIdentifier(v);
-    setError("");
-    setFailCount(0);
-  }
-
-  const entryLinks = [
-    {
-      icon: "user-plus",
-      label: "처음 이용하시나요?",
-      action: "회원가입",
-      onPress: () => router.push("/signup-role" as any),
-    },
-    {
-      icon: "heart",
-      label: "학부모이신가요?",
-      action: "학부모 로그인",
-      onPress: () => router.push("/parent-login" as any),
-    },
-  ];
-
   return (
     <KeyboardAvoidingView
       style={[styles.root, { backgroundColor: C.background }]}
@@ -102,17 +76,11 @@ export default function LoginScreen() {
       keyboardVerticalOffset={0}
     >
       <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          {
-            paddingTop: insets.top + (Platform.OS === "web" ? 60 : 48),
-            paddingBottom: insets.bottom + 40,
-          },
-        ]}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 60 : 48), paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 로고 영역 ── */}
+        {/* ── 로고 ── */}
         <View style={styles.logoArea}>
           <View style={[styles.logoBox, { backgroundColor: C.tint }]}>
             <Feather name="droplet" size={34} color="#fff" />
@@ -120,7 +88,7 @@ export default function LoginScreen() {
           <Text style={[styles.appName, { color: C.text }]}>{LOGIN_LABELS.appName}</Text>
           <Text style={[styles.appSub, { color: C.textSecondary }]}>{LOGIN_LABELS.appSub}</Text>
           <Text style={[styles.appDesc, { color: C.textMuted }]}>
-            운영자, 선생님, 학부모가 하나의 앱에서 연결됩니다
+            수영장 · 선생님 · 학부모가 하나로 연결됩니다
           </Text>
         </View>
 
@@ -128,7 +96,6 @@ export default function LoginScreen() {
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <Text style={[styles.cardTitle, { color: C.text }]}>로그인</Text>
 
-          {/* 아이디 */}
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디</Text>
             <View style={[styles.inputRow, { borderColor: identifier ? C.tint : C.border, backgroundColor: C.background }]}>
@@ -136,8 +103,8 @@ export default function LoginScreen() {
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={identifier}
-                onChangeText={handleIdentifierChange}
-                placeholder="이메일 또는 전화번호"
+                onChangeText={v => { setIdentifier(v); setError(""); setFailCount(0); }}
+                placeholder="아이디 또는 전화번호"
                 placeholderTextColor={C.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -148,7 +115,6 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* 비밀번호 */}
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호</Text>
             <View style={[styles.inputRow, { borderColor: password ? C.tint : C.border, backgroundColor: C.background }]}>
@@ -171,7 +137,6 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* 에러 메시지 */}
           {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
               <Feather name="alert-circle" size={14} color={C.error} />
@@ -179,23 +144,8 @@ export default function LoginScreen() {
             </View>
           )}
 
-          {/* 비밀번호 찾기 버튼 (2회 이상 틀렸을 때) */}
-          {failCount >= 2 && (
-            <Pressable
-              style={({ pressed }) => [styles.forgotBtn, { opacity: pressed ? 0.7 : 1 }]}
-              onPress={() => router.push({ pathname: "/forgot-password", params: { identifier } } as any)}
-            >
-              <Feather name="key" size={13} color={C.tint} />
-              <Text style={[styles.forgotText, { color: C.tint }]}>비밀번호를 잊으셨나요?</Text>
-            </Pressable>
-          )}
-
-          {/* 로그인 버튼 */}
           <Pressable
-            style={({ pressed }) => [
-              styles.loginBtn,
-              { backgroundColor: C.tint, opacity: pressed || loading ? 0.85 : 1 },
-            ]}
+            style={({ pressed }) => [styles.loginBtn, { backgroundColor: C.tint, opacity: pressed || loading ? 0.85 : 1 }]}
             onPress={() => handleLogin()}
             disabled={loading}
           >
@@ -208,6 +158,15 @@ export default function LoginScreen() {
                 </View>
               )
             }
+          </Pressable>
+
+          {/* ── 비밀번호 찾기 (항상 노출) ── */}
+          <Pressable
+            style={({ pressed }) => [styles.forgotBtn, { opacity: pressed ? 0.7 : 1 }]}
+            onPress={() => router.push({ pathname: "/forgot-password", params: { identifier } } as any)}
+          >
+            <Feather name="key" size={13} color={C.textMuted} />
+            <Text style={[styles.forgotText, { color: C.textMuted }]}>비밀번호를 잊으셨나요?</Text>
           </Pressable>
         </View>
 
@@ -238,8 +197,17 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        {/* ── 하단 진입 링크 ── */}
-        <AuthEntryLinks links={entryLinks} />
+        {/* ── 회원가입 ── */}
+        <View style={styles.signupRow}>
+          <Text style={[styles.signupLabel, { color: C.textSecondary }]}>아직 계정이 없으신가요?</Text>
+          <Pressable
+            style={({ pressed }) => [styles.signupBtn, { opacity: pressed ? 0.7 : 1 }]}
+            onPress={() => router.push("/signup-role" as any)}
+          >
+            <Text style={[styles.signupBtnText, { color: C.tint }]}>회원가입</Text>
+            <Feather name="arrow-right" size={14} color={C.tint} />
+          </Pressable>
+        </View>
       </ScrollView>
 
       {/* ── 계정 없음 모달 ── */}
@@ -268,10 +236,7 @@ export default function LoginScreen() {
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.modalBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => {
-                  setShowNotFoundModal(false);
-                  router.push("/signup-role" as any);
-                }}
+                onPress={() => { setShowNotFoundModal(false); router.push("/signup-role" as any); }}
               >
                 <Text style={[styles.modalBtnText, { color: "#fff" }]}>회원가입하기</Text>
               </Pressable>
@@ -285,74 +250,37 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    gap: 20,
-  },
-
-  /* 로고 */
+  container: { flexGrow: 1, paddingHorizontal: 20, gap: 20 },
   logoArea: { alignItems: "center", gap: 8, paddingBottom: 4 },
-  logoBox: {
-    width: 72, height: 72, borderRadius: 22,
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#1A5CFF", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25, shadowRadius: 12, elevation: 6,
-  },
-  appName:  { fontSize: 26, fontFamily: "Inter_700Bold", marginTop: 4 },
-  appSub:   { fontSize: 14, fontFamily: "Inter_500Medium" },
-  appDesc:  { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 2 },
-
-  /* 로그인 카드 */
-  card: {
-    borderRadius: 20, padding: 22, gap: 14,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 12, elevation: 4,
-  },
+  logoBox: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", shadowColor: "#1A5CFF", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },
+  appName: { fontSize: 26, fontFamily: "Inter_700Bold", marginTop: 4 },
+  appSub: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  appDesc: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 2 },
+  card: { borderRadius: 20, padding: 22, gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 },
   cardTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 2 },
-  field:  { gap: 6 },
+  field: { gap: 6 },
   fieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  inputRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52,
-  },
+  inputRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52 },
   input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
-  errBox: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    padding: 12, borderRadius: 12,
-  },
+  errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   errText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
-  forgotBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    alignSelf: "center", paddingVertical: 4,
-  },
-  forgotText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   loginBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
   loginBtnInner: { flexDirection: "row", alignItems: "center", gap: 8 },
   loginBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
-
-  /* 테스트 계정 */
+  forgotBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingVertical: 4 },
+  forgotText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   demoSection: { gap: 12 },
   demoHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   demoDivider: { flex: 1, height: 1 },
   demoTitle: { fontSize: 11, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.6 },
   demoGrid: { gap: 8 },
-
-  /* 계정 없음 모달 */
-  modalOverlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.45)",
-    alignItems: "center", justifyContent: "center",
-  },
-  modalCard: {
-    width: 300, borderRadius: 22, padding: 24,
-    alignItems: "center", gap: 12,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15, shadowRadius: 24, elevation: 10,
-  },
-  modalIconWrap: {
-    width: 56, height: 56, borderRadius: 16,
-    alignItems: "center", justifyContent: "center", marginBottom: 4,
-  },
+  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  signupLabel: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  signupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },
+  signupBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
+  modalCard: { width: 300, borderRadius: 22, padding: 24, alignItems: "center", gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 10 },
+  modalIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   modalTitle: { fontSize: 17, fontFamily: "Inter_700Bold", textAlign: "center" },
   modalDesc: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
   modalBtns: { flexDirection: "row", gap: 10, marginTop: 6, width: "100%" },

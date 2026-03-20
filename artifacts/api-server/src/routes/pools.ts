@@ -16,6 +16,23 @@ function getClient() {
   return _client;
 }
 
+// ── 수영장 이름 검색 (공개 API — 학부모 가입 시 사용) ──────────────────
+router.get("/search", async (req, res) => {
+  const q = (req.query.q as string || "").trim();
+  if (!q || q.length < 1) { res.json([]); return; }
+  try {
+    const rows = await db.execute(sql`
+      SELECT id, name, address, phone
+      FROM swimming_pools
+      WHERE approval_status = 'approved'
+        AND (name ILIKE ${"%" + q + "%"} OR address ILIKE ${"%" + q + "%"})
+      ORDER BY name
+      LIMIT 20
+    `);
+    res.json(rows.rows);
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
+});
+
 // ── 수영장 등록 신청 (기본 정보만 입력, JSON) ─────────────────────────
 router.post("/apply", requireAuth,
   async (req: AuthRequest, res) => {

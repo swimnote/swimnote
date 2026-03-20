@@ -1166,7 +1166,7 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
-      const { name, phone, birth_year, parent_name, parent_phone, memo } = req.body;
+      const { name, phone, birth_year, parent_name, parent_phone, parent_phone2, memo } = req.body;
 
       const [student] = (await db.execute(sql`SELECT * FROM students WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`)).rows as any[];
       if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
@@ -1180,6 +1180,7 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
       if (birth_year && String(birth_year) !== String(student.birth_year)) changes.push(`출생년: ${student.birth_year}→${birth_year}`);
       if (parent_name && parent_name !== student.parent_name) changes.push(`보호자: ${student.parent_name}→${parent_name}`);
       if (parent_phone && parent_phone !== student.parent_phone) changes.push(`보호자연락처 변경`);
+      if (parent_phone2 !== undefined && parent_phone2 !== student.parent_phone2) changes.push(`보호자연락처2 변경`);
 
       await db.execute(sql`
         UPDATE students SET
@@ -1188,6 +1189,7 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
           birth_year = COALESCE(${birth_year ?? null}, birth_year),
           parent_name = COALESCE(${parent_name ?? null}, parent_name),
           parent_phone = COALESCE(${parent_phone ?? null}, parent_phone),
+          parent_phone2 = COALESCE(${parent_phone2 ?? null}, parent_phone2),
           memo = COALESCE(${memo ?? null}, memo),
           updated_at = NOW()
         WHERE id = ${req.params.id}

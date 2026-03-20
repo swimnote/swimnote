@@ -71,10 +71,10 @@ export default function ParentSignupScreen() {
         ))}
       </View>
 
-      <Pressable style={({ pressed }) => [styles.loginLink, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.push("/parent-login" as any)}>
+      <Pressable style={({ pressed }) => [styles.loginLink, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.replace("/" as any)}>
         <Text style={[styles.loginLinkText, { color: C.textSecondary }]}>
           이미 계정이 있으신가요?{" "}
-          <Text style={{ color: C.tint, fontFamily: "Inter_600SemiBold" }}>학부모 로그인</Text>
+          <Text style={{ color: C.tint, fontFamily: "Inter_600SemiBold" }}>로그인하기</Text>
         </Text>
       </Pressable>
     </ScrollView>

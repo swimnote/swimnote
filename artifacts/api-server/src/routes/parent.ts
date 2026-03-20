@@ -109,6 +109,40 @@ router.get("/students/:id", requireAuth, requireParent, async (req: AuthRequest,
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ─── 학부모 전체 출결 (연결된 모든 자녀의 출결 통합) ──────────────────────
+router.get("/attendance", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const pa = await db.execute(sql`SELECT id FROM parent_accounts WHERE id = ${req.user!.userId} LIMIT 1`);
+    if (!pa.rows.length) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
+
+    const linkedStudents = await db.execute(sql`
+      SELECT ps.student_id, s.name as student_name
+      FROM parent_students ps
+      JOIN students s ON s.id = ps.student_id
+      WHERE ps.parent_id = ${req.user!.userId} AND ps.status = 'approved'
+    `);
+    const studentIds = (linkedStudents.rows as any[]).map(r => r.student_id);
+    const studentNames = Object.fromEntries((linkedStudents.rows as any[]).map(r => [r.student_id, r.student_name]));
+
+    if (!studentIds.length) { res.json([]); return; }
+
+    const records: any[] = [];
+    for (const sid of studentIds) {
+      const rows = await db.execute(sql`
+        SELECT id, student_id as member_id, date, status
+        FROM attendance
+        WHERE student_id = ${sid}
+        ORDER BY date DESC
+      `);
+      for (const r of rows.rows as any[]) {
+        records.push({ ...r, member_name: studentNames[sid] || "" });
+      }
+    }
+    records.sort((a, b) => b.date.localeCompare(a.date));
+    res.json(records);
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
 router.get("/students/:id/attendance", requireAuth, requireParent, async (req: AuthRequest, res) => {
   const { month } = req.query;
   try {
@@ -537,6 +571,96 @@ router.get("/students/:id/feed", requireAuth, requireParent, async (req: AuthReq
     feed.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     res.json(feed.slice(0, 20));
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ─── 학부모 호칭(닉네임) 수정 ─────────────────────────────────────────────
+router.put("/nickname", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  const { nickname } = req.body;
+  if (!nickname?.trim()) { res.status(400).json({ error: "호칭을 입력해주세요." }); return; }
+  try {
+    await db.execute(sql`UPDATE parent_accounts SET nickname = ${nickname.trim()}, updated_at = now() WHERE id = ${req.user!.userId}`);
+    res.json({ success: true, nickname: nickname.trim() });
+  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// ─── 학부모 온보딩: 수영장 연결 + 자녀 자동 연결 ─────────────────────────
+// POST /parent/onboard-pool
+// body: { swimming_pool_id }
+// 처리: 내 phone과 일치하는 student(parent_phone/parent_phone2) 검색
+//       - 일치 → parent_students 생성(approved) + 학부모 swimming_pool_id 업데이트
+//       - 불일치 → student_registration_requests 생성(pending)
+router.post("/onboard-pool", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  const { swimming_pool_id } = req.body;
+  if (!swimming_pool_id) { res.status(400).json({ error: "수영장을 선택해주세요." }); return; }
+  try {
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
+
+    // 수영장 존재 확인
+    const [pool] = await db.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name })
+      .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
+    if (!pool) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
+
+    const myPhone = pa.phone;
+
+    // 이미 이 수영장에 연결되어 있으면 스킵
+    if (pa.swimming_pool_id && pa.swimming_pool_id !== swimming_pool_id) {
+      // 다른 수영장 → 거부 (현재 MVP에서 다수 수영장 미지원)
+    }
+
+    // 해당 수영장에서 phone 일치하는 학생 검색
+    const matchRows = await db.execute(sql`
+      SELECT id, name FROM students
+      WHERE swimming_pool_id = ${swimming_pool_id}
+        AND (parent_phone = ${myPhone} OR parent_phone2 = ${myPhone})
+        AND deleted_at IS NULL
+    `);
+    const matchedStudents = matchRows.rows as Array<{ id: string; name: string }>;
+
+    // 이미 연결된 student 제외
+    const existingLinks = await db.execute(sql`
+      SELECT student_id FROM parent_students WHERE parent_id = ${pa.id}
+    `);
+    const linkedStudentIds = new Set((existingLinks.rows as any[]).map(r => r.student_id));
+
+    let autoApproved = false;
+    const linkedStudentNames: string[] = [];
+
+    if (matchedStudents.length > 0) {
+      // 자동 승인: 연결되지 않은 학생들 연결
+      for (const student of matchedStudents) {
+        if (linkedStudentIds.has(student.id)) continue;
+        const linkId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await db.execute(sql`
+          INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
+          VALUES (${linkId}, ${pa.id}, ${student.id}, ${swimming_pool_id}, 'approved', now(), now())
+          ON CONFLICT DO NOTHING
+        `);
+        linkedStudentNames.push(student.name);
+      }
+      autoApproved = true;
+    } else {
+      // 수동 승인 요청
+      const reqId = `srr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO student_registration_requests (id, swimming_pool_id, parent_id, child_names, status, created_at)
+        VALUES (${reqId}, ${swimming_pool_id}, ${pa.id}, ${"[]"}, 'pending', now())
+        ON CONFLICT DO NOTHING
+      `);
+    }
+
+    // 학부모 계정의 swimming_pool_id 업데이트 (없으면)
+    if (!pa.swimming_pool_id) {
+      await db.execute(sql`UPDATE parent_accounts SET swimming_pool_id = ${swimming_pool_id}, updated_at = now() WHERE id = ${pa.id}`);
+    }
+
+    res.json({
+      success: true,
+      auto_approved: autoApproved,
+      pool_name: pool.name,
+      linked_students: linkedStudentNames,
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
 // ─── 수영정보 (수영장 기본 정보 + 안내 콘텐츠) ─────────────────────────────

@@ -16,35 +16,33 @@ import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandCon
 SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
+// 역할 키 → 홈 경로 매핑
+const ROLE_HOME_MAP: Record<string, string> = {
+  super_admin: "/(super)/dashboard",
+  platform_admin: "/(super)/dashboard",
+  pool_admin: "/(admin)/dashboard",
+  sub_admin: "/(admin)/dashboard",
+  teacher: "/(teacher)/home",
+  parent: "/(parent)/home",
+  parent_account: "/(parent)/home",
+};
+
 function BrandSync() {
   const { kind, adminUser, parentAccount, pool } = useAuth();
   const { setBrand, resetBrand } = useBrand();
 
   useEffect(() => {
-    if (!kind) {
-      resetBrand();
-      return;
-    }
+    if (!kind) { resetBrand(); return; }
     if (kind === "admin") {
-      if (adminUser?.role === "super_admin") {
+      if (adminUser?.role === "super_admin" || adminUser?.role === "platform_admin") {
         setBrand({ poolName: null, themeColor: DEFAULT_THEME_COLOR, logoUrl: null, logoEmoji: null });
         return;
       }
       if (pool) {
-        setBrand({
-          poolName:   pool.name,
-          themeColor: pool.theme_color || DEFAULT_THEME_COLOR,
-          logoUrl:    pool.logo_url    || null,
-          logoEmoji:  pool.logo_emoji  || null,
-        });
+        setBrand({ poolName: pool.name, themeColor: pool.theme_color || DEFAULT_THEME_COLOR, logoUrl: pool.logo_url || null, logoEmoji: pool.logo_emoji || null });
       }
     } else if (kind === "parent" && parentAccount) {
-      setBrand({
-        poolName:   parentAccount.pool_name || null,
-        themeColor: DEFAULT_THEME_COLOR,
-        logoUrl:    null,
-        logoEmoji:  null,
-      });
+      setBrand({ poolName: parentAccount.pool_name || null, themeColor: DEFAULT_THEME_COLOR, logoUrl: null, logoEmoji: null });
     }
   }, [kind, adminUser?.role, pool?.id, pool?.theme_color, parentAccount?.swimming_pool_id]);
 
@@ -56,9 +54,7 @@ function PushTokenSync() {
   const registered = useRef(false);
 
   useEffect(() => {
-    if (!token || registered.current) return;
-    if (Platform.OS === "web") return;
-
+    if (!token || registered.current || Platform.OS === "web") return;
     async function registerToken() {
       try {
         const { status: existing } = await Notifications.getPermissionsAsync();
@@ -72,10 +68,7 @@ function PushTokenSync() {
         if (!tokenData?.data) return;
         await apiRequest(token, "/push-token", {
           method: "POST",
-          body: JSON.stringify({
-            token: tokenData.data,
-            parent_account_id: kind === "parent" && parentAccount ? parentAccount.id : null,
-          }),
+          body: JSON.stringify({ token: tokenData.data, parent_account_id: kind === "parent" && parentAccount ? parentAccount.id : null }),
         });
         registered.current = true;
       } catch (_) {}
@@ -87,24 +80,25 @@ function PushTokenSync() {
 }
 
 /**
- * 인증 상태에 따른 라우팅:
- * - 세션 없음 → "/" (로그인 ID 화면)
- * - 세션 있음 → "/org-role-select" (조직+역할 선택 화면)
- *
- * 역할 선택 후 앱 내부 이동은 org-role-select에서 직접 router.replace()로 처리한다.
- * 이 effect는 kind 또는 isLoading이 바뀔 때만 재실행되므로, 앱 내부 탐색 중에는 재실행되지 않는다.
+ * 앱 시작 라우팅 로직:
+ * 1. 세션 없음 → /index (로그인)
+ * 2. 세션 있음 + last_used_role 유효 → 해당 홈 바로
+ * 3. 세션 있음 + last_used_role 없거나 무효 → /org-role-select
+ * 4. admin이 pool 없거나 pool 상태 이슈 → 적절한 화면
  */
 function RootNav() {
-  const { kind, isLoading, adminUser, pool } = useAuth();
+  const { kind, isLoading, adminUser, pool, lastUsedRole, checkRolePermission } = useAuth();
   const segments = useSegments();
   const didRoute = useRef(false);
 
-  // 뒤로가기(브라우저 히스토리 등)로 로그인 화면에 도달했을 때 재리다이렉트
+  // 뒤로가기로 로그인 화면 도달 시 재리다이렉트
   useEffect(() => {
     if (isLoading || !kind || !didRoute.current) return;
-    const APP_ROOTS = ["(admin)", "(super)", "(teacher)", "(parent)",
+    const APP_ROOTS = [
+      "(admin)", "(super)", "(teacher)", "(parent)",
       "org-role-select", "pool-apply", "pending", "rejected", "subscription-expired",
-      "class-assign"];
+      "class-assign", "parent-onboard-pool", "parent-onboard-child", "parent-onboard-nickname",
+    ];
     if (segments.length === 0 || !APP_ROOTS.includes(segments[0] as string)) {
       router.replace("/org-role-select");
     }
@@ -121,26 +115,47 @@ function RootNav() {
 
     if (didRoute.current) return;
 
-    if (kind === "admin") {
-      const role = adminUser?.role;
-      if (role === "pool_admin") {
-        if (!adminUser?.swimming_pool_id) {
-          didRoute.current = true;
-          router.replace("/pool-apply");
-          return;
-        }
-        if (!pool) return;
-        if (pool.approval_status === "pending") { router.replace("/pending"); return; }
-        if (pool.approval_status === "rejected") { router.replace("/rejected"); return; }
-        if (["expired", "suspended", "cancelled"].includes(pool.subscription_status)) {
-          router.replace("/subscription-expired"); return;
+    async function doRoute() {
+      // pool_admin 특수 체크
+      if (kind === "admin") {
+        const role = adminUser?.role;
+        if (role === "pool_admin") {
+          if (!adminUser?.swimming_pool_id) {
+            didRoute.current = true;
+            router.replace("/pool-apply");
+            return;
+          }
+          if (!pool) return; // pool 로딩 대기
+          if (pool.approval_status === "pending") { didRoute.current = true; router.replace("/pending"); return; }
+          if (pool.approval_status === "rejected") { didRoute.current = true; router.replace("/rejected"); return; }
+          if (["expired", "suspended", "cancelled"].includes(pool.subscription_status)) {
+            didRoute.current = true; router.replace("/subscription-expired"); return;
+          }
         }
       }
+
+      // last_used_role 기반 자동 진입
+      const targetRole = lastUsedRole;
+      if (targetRole) {
+        // 권한 유효성 검증
+        const valid = await checkRolePermission(targetRole);
+        if (valid) {
+          const homePath = ROLE_HOME_MAP[targetRole];
+          if (homePath) {
+            didRoute.current = true;
+            router.replace(homePath as any);
+            return;
+          }
+        }
+      }
+
+      // last_used_role 없거나 무효 → 역할 선택 화면
+      didRoute.current = true;
+      router.replace("/org-role-select");
     }
 
-    didRoute.current = true;
-    router.replace("/org-role-select");
-  }, [kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status]);
+    doRoute();
+  }, [kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status, lastUsedRole]);
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#ffffff" } }}>
@@ -156,6 +171,9 @@ function RootNav() {
       <Stack.Screen name="teacher-signup" />
       <Stack.Screen name="parent-signup" />
       <Stack.Screen name="parent-code-signup" />
+      <Stack.Screen name="parent-onboard-pool" />
+      <Stack.Screen name="parent-onboard-child" />
+      <Stack.Screen name="parent-onboard-nickname" />
       <Stack.Screen name="forgot-password" />
       <Stack.Screen name="pending" />
       <Stack.Screen name="rejected" />

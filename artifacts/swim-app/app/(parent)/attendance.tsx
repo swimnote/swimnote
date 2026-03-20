@@ -1,123 +1,112 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, View, RefreshControl,
+  ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
-interface AttRecord { id: string; member_id: string; member_name: string; date: string; status: "present" | "absent" | "late"; class_id: string; }
-interface Member { id: string; name: string; class_id?: string | null; class_name?: string | null; }
+interface AttRecord {
+  id: string;
+  member_id: string;
+  member_name: string;
+  date: string;
+  status: "present" | "absent" | "late" | "makeup";
+}
 
-const STATUS_CONFIG = {
-  present: { label: "출석", color: Colors.light.present, bg: "#D1FAE5", icon: "check-circle" as const },
-  absent: { label: "결석", color: Colors.light.absent, bg: "#FEE2E2", icon: "x-circle" as const },
-  late: { label: "지각", color: Colors.light.late, bg: "#FEF3C7", icon: "clock" as const },
+const C = Colors.light;
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  present: { label: "출석",  color: "#059669", bg: "#D1FAE5", icon: "check-circle" },
+  absent:  { label: "결석",  color: "#DC2626", bg: "#FEE2E2", icon: "x-circle" },
+  late:    { label: "지각",  color: "#D97706", bg: "#FEF3C7", icon: "clock" },
+  makeup:  { label: "보강",  color: "#7C3AED", bg: "#EDE9FE", icon: "refresh-cw" },
 };
 
+type ListItem =
+  | { type: "divider"; month: string }
+  | { type: "record"; data: AttRecord };
+
+function groupByMonth(records: AttRecord[]): ListItem[] {
+  const items: ListItem[] = [];
+  let lastMonth = "";
+  for (const r of records) {
+    const d = new Date(r.date);
+    const monthKey = `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+    if (monthKey !== lastMonth) {
+      items.push({ type: "divider", month: monthKey });
+      lastMonth = monthKey;
+    }
+    items.push({ type: "record", data: r });
+  }
+  return items;
+}
+
 export default function ParentAttendanceScreen() {
-  const { token, user, pool, logout } = useAuth();
-  const insets = useSafeAreaInsets();
-  const C = Colors.light;
-  const [members, setMembers] = useState<Member[]>([]);
-  const [selectedMember, setSelectedMember] = useState<string | null>(null);
+  const { token, parentAccount } = useAuth();
   const [records, setRecords] = useState<AttRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => { fetchMembers(); }, []);
-  useEffect(() => { if (selectedMember) fetchAttendance(selectedMember); }, [selectedMember]);
+  useEffect(() => { load(); }, []);
 
-  async function fetchMembers() {
+  async function load() {
     try {
-      const res = await apiRequest(token, "/members");
+      const res = await apiRequest(token, "/parent/attendance");
       const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
-      setMembers(list);
-      if (list.length > 0) setSelectedMember(list[0].id);
-    } finally { setLoading(false); setRefreshing(false); }
+      const sorted = Array.isArray(data)
+        ? [...data].sort((a, b) => b.date.localeCompare(a.date))
+        : [];
+      setRecords(sorted);
+    } catch { setRecords([]); }
+    finally { setLoading(false); setRefreshing(false); }
   }
 
-  async function fetchAttendance(memberId: string) {
-    try {
-      const res = await apiRequest(token, `/attendance?member_id=${memberId}`);
-      const data = await res.json();
-      setRecords(Array.isArray(data) ? data.sort((a: AttRecord, b: AttRecord) => b.date.localeCompare(a.date)) : []);
-    } catch (err) { console.error(err); }
-  }
+  const listData = groupByMonth(records);
 
   const presentCount = records.filter(r => r.status === "present").length;
-  const absentCount = records.filter(r => r.status === "absent").length;
-  const lateCount = records.filter(r => r.status === "late").length;
+  const absentCount  = records.filter(r => r.status === "absent").length;
+  const lateCount    = records.filter(r => r.status === "late").length;
+  const makeupCount  = records.filter(r => r.status === "makeup").length;
   const total = records.length;
-  const rate = total > 0 ? Math.round((presentCount / total) * 100) : 0;
+  const rate  = total > 0 ? Math.round((presentCount / total) * 100) : 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader
-        title={pool?.name || "수영장"}
-        subtitle={`안녕하세요, ${user?.name}님`}
-        rightSlot={
-          <Pressable onPress={logout} style={[styles.logoutBtn, { backgroundColor: C.card }]}>
-            <Feather name="log-out" size={18} color={C.textSecondary} />
-          </Pressable>
-        }
-      />
-
-      {members.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 8 }}>
-          {members.map((m) => (
-            <Pressable
-              key={m.id}
-              style={[styles.memberTab, { backgroundColor: selectedMember === m.id ? C.tint : C.card, borderColor: selectedMember === m.id ? C.tint : C.border }]}
-              onPress={() => setSelectedMember(m.id)}
-            >
-              <Text style={[styles.memberTabText, { color: selectedMember === m.id ? "#fff" : C.textSecondary }]}>{m.name}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
+      <ParentScreenHeader title="출결 기록" />
 
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
-      ) : members.length === 0 ? (
-        <View style={styles.empty}>
-          <Feather name="user-x" size={48} color={C.textMuted} />
-          <Text style={[styles.emptyTitle, { color: C.text }]}>자녀 정보 없음</Text>
-          <Text style={[styles.emptyText, { color: C.textSecondary }]}>수영장 관리자에게 문의하세요</Text>
-        </View>
       ) : (
         <FlatList
-          data={records}
-          keyExtractor={(item) => item.id}
+          data={listData}
+          keyExtractor={(item, i) => item.type === "divider" ? `div_${item.month}` : `rec_${item.data.id}`}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); selectedMember && fetchAttendance(selectedMember); setRefreshing(false); }} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           ListHeaderComponent={
-            <View style={styles.listHeader}>
-              <View style={[styles.statsCard, { backgroundColor: C.card, shadowColor: C.shadow }]}>
-                <View style={styles.rateBox}>
+            total > 0 ? (
+              <View style={[styles.statsCard, { backgroundColor: C.card }]}>
+                <View style={styles.rateCol}>
                   <Text style={[styles.rateNum, { color: C.tint }]}>{rate}%</Text>
                   <Text style={[styles.rateLabel, { color: C.textSecondary }]}>출석률</Text>
                 </View>
-                <View style={styles.statsRight}>
-                  {[
-                    { label: "출석", value: presentCount, color: C.present },
-                    { label: "결석", value: absentCount, color: C.absent },
-                    { label: "지각", value: lateCount, color: C.late },
-                  ].map(({ label, value, color }) => (
-                    <View key={label} style={styles.statItem}>
-                      <Text style={[styles.statNum, { color }]}>{value}</Text>
-                      <Text style={[styles.statLabel, { color: C.textMuted }]}>{label}</Text>
-                    </View>
-                  ))}
-                </View>
+                <View style={[styles.divider, { backgroundColor: C.border }]} />
+                {[
+                  { label: "출석", value: presentCount, color: "#059669" },
+                  { label: "결석", value: absentCount,  color: "#DC2626" },
+                  { label: "지각", value: lateCount,    color: "#D97706" },
+                  { label: "보강", value: makeupCount,  color: "#7C3AED" },
+                ].map(s => (
+                  <View key={s.label} style={styles.statItem}>
+                    <Text style={[styles.statNum, { color: s.color }]}>{s.value}</Text>
+                    <Text style={[styles.statLabel, { color: C.textMuted }]}>{s.label}</Text>
+                  </View>
+                ))}
               </View>
-              <Text style={[styles.sectionTitle, { color: C.text }]}>출결 기록</Text>
-            </View>
+            ) : null
           }
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 8 }}
+          contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Feather name="calendar" size={40} color={C.textMuted} />
@@ -125,17 +114,27 @@ export default function ParentAttendanceScreen() {
             </View>
           }
           renderItem={({ item }) => {
-            const sc = STATUS_CONFIG[item.status];
+            if (item.type === "divider") {
+              return (
+                <View style={styles.monthDivider}>
+                  <Text style={[styles.monthText, { color: C.textMuted }]}>{item.month}</Text>
+                  <View style={[styles.monthLine, { backgroundColor: C.border }]} />
+                </View>
+              );
+            }
+            const sc = STATUS_CONFIG[item.data.status] || STATUS_CONFIG.present;
+            const d  = new Date(item.data.date);
+            const dateStr = d.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
             return (
-              <View style={[styles.recordCard, { backgroundColor: C.card, shadowColor: C.shadow }]}>
+              <View style={[styles.recordRow, { backgroundColor: C.card }]}>
                 <View style={[styles.recordIcon, { backgroundColor: sc.bg }]}>
-                  <Feather name={sc.icon} size={18} color={sc.color} />
+                  <Feather name={sc.icon as any} size={18} color={sc.color} />
                 </View>
                 <View style={styles.recordInfo}>
-                  <Text style={[styles.recordDate, { color: C.text }]}>
-                    {new Date(item.date).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
-                  </Text>
-                  <Text style={[styles.recordMember, { color: C.textSecondary }]}>{item.member_name}</Text>
+                  <Text style={[styles.recordDate, { color: C.text }]}>{dateStr}</Text>
+                  {!!item.data.member_name && (
+                    <Text style={[styles.recordMember, { color: C.textMuted }]}>{item.data.member_name}</Text>
+                  )}
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
                   <Text style={[styles.statusText, { color: sc.color }]}>{sc.label}</Text>
@@ -150,30 +149,25 @@ export default function ParentAttendanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingHorizontal: 20, paddingBottom: 12 },
-  poolName: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  subtitle: { fontSize: 14, fontFamily: "Inter_400Regular", marginTop: 2 },
-  logoutBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  memberTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
-  memberTabText: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  listHeader: { gap: 16, marginBottom: 8 },
-  statsCard: { borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", gap: 16, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3 },
-  rateBox: { alignItems: "center" },
-  rateNum: { fontSize: 36, fontFamily: "Inter_700Bold" },
-  rateLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  statsRight: { flex: 1, flexDirection: "row", justifyContent: "space-around" },
-  statItem: { alignItems: "center" },
-  statNum: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  statLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  sectionTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
-  recordCard: { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 12, gap: 12, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
-  recordIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  listContent: { paddingHorizontal: 20, paddingBottom: 120, gap: 6, paddingTop: 16 },
+  statsCard: { flexDirection: "row", alignItems: "center", borderRadius: 18, padding: 18, gap: 16, marginBottom: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
+  rateCol: { alignItems: "center", minWidth: 58 },
+  rateNum: { fontSize: 32, fontFamily: "Inter_700Bold" },
+  rateLabel: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  divider: { width: 1, height: 40 },
+  statItem: { alignItems: "center", flex: 1 },
+  statNum: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  monthDivider: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12 },
+  monthText: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5 },
+  monthLine: { flex: 1, height: 1 },
+  recordRow: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, padding: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
+  recordIcon: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   recordInfo: { flex: 1 },
   recordDate: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  recordMember: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  recordMember: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   statusText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 });

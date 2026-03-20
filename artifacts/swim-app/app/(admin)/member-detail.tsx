@@ -205,6 +205,7 @@ export default function MemberDetailScreen() {
   const [editBirth, setEditBirth] = useState("");
   const [editParentName, setEditParentName] = useState("");
   const [editParentPhone, setEditParentPhone] = useState("");
+  const [editParentPhone2, setEditParentPhone2] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editMemo, setEditMemo] = useState("");
   const [editNotes, setEditNotes] = useState("");
@@ -229,6 +230,7 @@ export default function MemberDetailScreen() {
         setEditBirth(d.birth_year || "");
         setEditParentName(d.parent_name || "");
         setEditParentPhone(d.parent_phone || "");
+        setEditParentPhone2((d as any).parent_phone2 || "");
         setEditPhone(d.phone || "");
         setEditMemo(d.memo || "");
         setEditNotes(d.notes || "");
@@ -268,12 +270,12 @@ export default function MemberDetailScreen() {
         method: "PATCH",
         body: JSON.stringify({
           name: editName, birth_year: editBirth, parent_name: editParentName,
-          parent_phone: editParentPhone, phone: editPhone,
+          parent_phone: editParentPhone, parent_phone2: editParentPhone2, phone: editPhone,
           memo: editMemo, notes: editNotes,
         }),
       });
       if (res.ok) {
-        setData(d => d ? { ...d, name: editName, birth_year: editBirth, parent_name: editParentName, parent_phone: editParentPhone, phone: editPhone, memo: editMemo, notes: editNotes } : d);
+        setData(d => d ? { ...d, name: editName, birth_year: editBirth, parent_name: editParentName, parent_phone: editParentPhone, phone: editPhone, memo: editMemo, notes: editNotes } as any : d);
         setInfoChanged(false);
         setAlertInfo({ title: "저장 완료", msg: "기본 정보가 업데이트되었습니다." });
       } else {
@@ -387,6 +389,7 @@ export default function MemberDetailScreen() {
             <EditField label="연락처" value={editPhone} onChangeText={v => { setEditPhone(v); setInfoChanged(true); }} keyboardType="phone-pad" />
             <EditField label="보호자 이름" value={editParentName} onChangeText={v => { setEditParentName(v); setInfoChanged(true); }} />
             <EditField label="보호자 연락처" value={editParentPhone} onChangeText={v => { setEditParentPhone(v); setInfoChanged(true); }} keyboardType="phone-pad" />
+            <EditField label="보호자 연락처2" value={editParentPhone2} onChangeText={v => { setEditParentPhone2(v); setInfoChanged(true); }} keyboardType="phone-pad" placeholder="선택 입력" />
 
             <Pressable
               style={[s.saveBtn, { backgroundColor: infoChanged ? themeColor : "#9CA3AF" }]}
@@ -695,6 +698,7 @@ export default function MemberDetailScreen() {
             {[
               { icon: "user" as const, label: "보호자 이름", value: data.parent_name || "미입력" },
               { icon: "phone" as const, label: "연락처", value: data.parent_phone || "미입력" },
+              { icon: "phone" as const, label: "연락처2", value: (data as any).parent_phone2 || "미입력" },
             ].map(({ icon, label, value }) => (
               <View key={label} style={s.infoRow}>
                 <Feather name={icon} size={13} color={C.textMuted} />

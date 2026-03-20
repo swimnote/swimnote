@@ -277,88 +277,128 @@ router.post("/check-id", async (req, res) => {
   }
 });
 
-// ── 통합 로그인 (error_code 포함) ──────────────────────────────────────
+// ── 통합 로그인 v2 — available_accounts 배열 반환 ──────────────────────
 router.post("/unified-login", async (req, res) => {
   const { identifier, password } = req.body;
   if (!identifier || !password) return err(res, 400, "아이디와 비밀번호를 입력해주세요.");
+  const id = identifier.trim();
   try {
-    // 1) users 테이블
+    const available_accounts: any[] = [];
+    let wrongPwCount = 0;
+
+    // ── 1) users 테이블 (이메일 매칭) ────────────────────────────────
     const [user] = await db.select().from(usersTable)
-      .where(eq(usersTable.email, identifier.trim().toLowerCase())).limit(1);
+      .where(eq(usersTable.email, id.toLowerCase())).limit(1);
 
     if (user) {
       const valid = await comparePassword(password, user.password_hash);
       if (!valid) {
-        res.status(401).json({ success: false, error: "비밀번호가 일치하지 않습니다.", error_code: "wrong_password" }); return;
-      }
-      if (user.role === "teacher") {
-        const rawRows = await db.execute(sql`SELECT is_activated FROM users WHERE id = ${user.id} LIMIT 1`);
-        const isActivated = (rawRows.rows[0] as any)?.is_activated ?? true;
-        if (!isActivated) {
-          // 자체 가입 신청(대기중)인지 먼저 확인
-          const pendingInvite = await db.execute(sql`
-            SELECT id FROM teacher_invites
-            WHERE user_id = ${user.id} AND invite_status = 'joinedPendingApproval'
-            LIMIT 1
-          `);
-          if (pendingInvite.rows.length > 0) {
-            res.status(403).json({
-              success: false,
-              message: "관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다.",
-              error: "pending_teacher_approval",
-              error_code: "pending_teacher_approval",
-            }); return;
+        wrongPwCount++;
+      } else {
+        // teacher 활성화 체크
+        if (user.role === "teacher") {
+          const rawRows = await db.execute(sql`SELECT is_activated FROM users WHERE id = ${user.id} LIMIT 1`);
+          const isActivated = (rawRows.rows[0] as any)?.is_activated ?? true;
+          if (!isActivated) {
+            const pendingInvite = await db.execute(sql`
+              SELECT id FROM teacher_invites
+              WHERE user_id = ${user.id} AND invite_status = 'joinedPendingApproval' LIMIT 1
+            `);
+            if (pendingInvite.rows.length > 0) {
+              res.status(403).json({ success: false, error: "관리자 승인 대기 중입니다.", error_code: "pending_teacher_approval" }); return;
+            }
+            res.status(403).json({ success: false, error: "계정이 아직 활성화되지 않았습니다.", error_code: "needs_activation", needs_activation: true, teacher_id: user.id }); return;
           }
-          res.status(403).json({ success: false, error: "계정이 아직 활성화되지 않았습니다.", error_code: "needs_activation", needs_activation: true, teacher_id: user.id }); return;
         }
+        const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
+        const { password_hash: _, ...safeUser } = user;
+        const rolesRow = await db.execute(sql`SELECT roles FROM users WHERE id = ${user.id} LIMIT 1`);
+        const roles: string[] = (rolesRow.rows[0] as any)?.roles ?? [user.role];
+        available_accounts.push({ kind: "admin", token, user: { ...safeUser, roles } });
       }
-      const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
-      const { password_hash: _, ...safeUser } = user;
-      const rolesRow = await db.execute(sql`SELECT roles FROM users WHERE id = ${user.id} LIMIT 1`);
-      const roles: string[] = (rolesRow.rows[0] as any)?.roles ?? [user.role];
-      res.json({ success: true, token, kind: "admin", user: { ...safeUser, roles } }); return;
     }
 
-    // 2) parent_accounts 테이블 (login_id 먼저, 없으면 phone)
-    const parentByLoginId = await db.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${identifier.trim()} LIMIT 1`);
+    // ── 2) parent_accounts 테이블 (login_id → phone) ──────────────
+    const parentByLoginId = await db.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
     let parentRow: any = parentByLoginId.rows[0] ?? null;
     if (!parentRow) {
       const [byPhone] = await db.select().from(parentAccountsTable)
-        .where(eq(parentAccountsTable.phone, identifier.trim())).limit(1);
+        .where(eq(parentAccountsTable.phone, id)).limit(1);
       parentRow = byPhone ?? null;
     }
 
     if (parentRow) {
       const valid = await comparePassword(password, parentRow.pin_hash);
       if (!valid) {
-        res.status(401).json({ success: false, error: "비밀번호가 일치하지 않습니다.", error_code: "wrong_password" }); return;
+        wrongPwCount++;
+      } else {
+        let poolName: string | null = null;
+        try {
+          const [pool] = await db.select({ name: swimmingPoolsTable.name })
+            .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, parentRow.swimming_pool_id)).limit(1);
+          poolName = pool?.name ?? null;
+        } catch {}
+        const token = signToken({ userId: parentRow.id, role: "parent_account", poolId: parentRow.swimming_pool_id });
+        available_accounts.push({
+          kind: "parent",
+          token,
+          parent: { id: parentRow.id, name: parentRow.name, nickname: parentRow.nickname || null, phone: parentRow.phone, login_id: parentRow.login_id, swimming_pool_id: parentRow.swimming_pool_id, pool_name: poolName },
+        });
       }
-      let poolName: string | null = null;
-      try {
-        const [pool] = await db.select({ name: swimmingPoolsTable.name })
-          .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, parentRow.swimming_pool_id)).limit(1);
-        poolName = pool?.name ?? null;
-      } catch {}
-      const token = signToken({ userId: parentRow.id, role: "parent_account", poolId: parentRow.swimming_pool_id });
-      res.json({ success: true, token, kind: "parent", parent: { id: parentRow.id, name: parentRow.name, phone: parentRow.phone, login_id: parentRow.login_id, swimming_pool_id: parentRow.swimming_pool_id, pool_name: poolName } }); return;
     }
 
-    // 계정 없음 — pending 요청 확인
-    const pendingReq = await db.execute(sql`
-      SELECT id FROM parent_pool_requests
-      WHERE (login_id = ${identifier.trim()} OR phone = ${identifier.trim()})
-        AND request_status = 'pending'
-      LIMIT 1
-    `);
-    if ((pendingReq.rows as any[]).length > 0) {
-      res.status(403).json({
-        success: false,
-        error: "가입 요청이 승인 대기 중입니다. 수영장 관리자 승인 후 로그인 가능합니다.",
-        error_code: "pending_pool_request",
-      });
-      return;
+    // ── 3) 결과 처리 ─────────────────────────────────────────────────
+    if (available_accounts.length === 0) {
+      if (wrongPwCount > 0) {
+        res.status(401).json({ success: false, error: "비밀번호가 일치하지 않습니다.", error_code: "wrong_password" }); return;
+      }
+      // pending 요청 확인
+      const pendingReq = await db.execute(sql`
+        SELECT id FROM parent_pool_requests
+        WHERE (login_id = ${id} OR phone = ${id}) AND request_status = 'pending' LIMIT 1
+      `);
+      if ((pendingReq.rows as any[]).length > 0) {
+        res.status(403).json({ success: false, error: "가입 요청이 승인 대기 중입니다.", error_code: "pending_pool_request" }); return;
+      }
+      res.status(401).json({ success: false, error: "가입된 계정이 없습니다.", error_code: "user_not_found" }); return;
     }
-    res.status(401).json({ success: false, error: "가입된 계정이 없습니다.", error_code: "user_not_found" });
+
+    // 단일 계정 → 기존 호환성 유지 (kind + token + user/parent)
+    const first = available_accounts[0];
+    res.json({
+      success: true,
+      available_accounts,
+      // 하위 호환 필드
+      token: first.token,
+      kind: first.kind,
+      user: first.kind === "admin" ? first.user : undefined,
+      parent: first.kind === "parent" ? first.parent : undefined,
+    });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 역할 권한 유효성 확인 ─────────────────────────────────────────────
+router.post("/check-role-permission", requireAuth, async (req: AuthRequest, res) => {
+  const { role } = req.body;
+  if (!role) return err(res, 400, "role을 지정해주세요.");
+  try {
+    const userId = req.user!.userId;
+    if (role === "teacher") {
+      // teacher_invites에서 approved 상태 확인
+      const rows = await db.execute(sql`
+        SELECT invite_status FROM teacher_invites WHERE user_id = ${userId} LIMIT 1
+      `);
+      const row = rows.rows[0] as any;
+      if (!row) {
+        // teacher_invites에 없으면 users.is_activated 확인
+        const userRow = await db.execute(sql`SELECT is_activated FROM users WHERE id = ${userId} LIMIT 1`);
+        const activated = (userRow.rows[0] as any)?.is_activated ?? false;
+        res.json({ valid: activated }); return;
+      }
+      res.json({ valid: row.invite_status === "approved" }); return;
+    }
+    // 기타 역할은 계정 존재 = 유효
+    res.json({ valid: true });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 

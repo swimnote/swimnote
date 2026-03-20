@@ -19,7 +19,7 @@ export interface AdminUser {
   email: string;
   name: string;
   phone?: string | null;
-  role: "super_admin" | "pool_admin" | "teacher" | "sub_admin";
+  role: "super_admin" | "pool_admin" | "teacher" | "sub_admin" | "platform_admin";
   swimming_pool_id?: string | null;
   roles: string[];
 }
@@ -27,9 +27,11 @@ export interface AdminUser {
 export interface ParentAccount {
   id: string;
   name: string;
+  nickname?: string | null;
   phone: string;
   swimming_pool_id: string;
   pool_name?: string | null;
+  login_id?: string | null;
 }
 
 export interface PoolInfo {
@@ -49,6 +51,13 @@ export interface PoolInfo {
   logo_emoji?: string | null;
 }
 
+export interface AccountEntry {
+  kind: SessionKind;
+  token: string;
+  user?: AdminUser;
+  parent?: ParentAccount;
+}
+
 interface AuthContextType {
   kind: SessionKind | null;
   adminUser: AdminUser | null;
@@ -56,12 +65,22 @@ interface AuthContextType {
   token: string | null;
   pool: PoolInfo | null;
   isLoading: boolean;
-  unifiedLogin: (identifier: string, password: string) => Promise<void>;
+  allAccounts: AccountEntry[];
+  lastUsedRole: string | null;
+  lastUsedTenant: string | null;
+  lastSelectedStudent: string | null;
+  unifiedLogin: (identifier: string, password: string) => Promise<{ available_accounts: AccountEntry[] }>;
   adminLogin: (email: string, password: string) => Promise<void>;
   parentLogin: (identifier: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshPool: () => Promise<void>;
   switchRole: (role: string) => Promise<void>;
+  activateAccount: (entry: AccountEntry) => Promise<void>;
+  setLastUsedRole: (role: string) => Promise<void>;
+  setLastUsedTenant: (tenantId: string) => Promise<void>;
+  setLastSelectedStudent: (studentId: string) => Promise<void>;
+  updateParentNickname: (nickname: string) => void;
+  checkRolePermission: (roleKey: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -73,24 +92,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [allAccounts, setAllAccounts] = useState<AccountEntry[]>([]);
+  const [lastUsedRole, setLastUsedRoleState] = useState<string | null>(null);
+  const [lastUsedTenant, setLastUsedTenantState] = useState<string | null>(null);
+  const [lastSelectedStudent, setLastSelectedStudentState] = useState<string | null>(null);
 
   useEffect(() => { loadStored(); }, []);
 
   async function loadStored() {
     try {
-      const [storedToken, storedKind, storedAdmin, storedParent] = await Promise.all([
+      const [
+        storedToken, storedKind, storedAdmin, storedParent,
+        storedAccounts, storedLastRole, storedLastTenant, storedLastStudent,
+      ] = await Promise.all([
         AsyncStorage.getItem("auth_token"),
         AsyncStorage.getItem("auth_kind"),
         AsyncStorage.getItem("auth_admin"),
         AsyncStorage.getItem("auth_parent"),
+        AsyncStorage.getItem("auth_all_accounts"),
+        AsyncStorage.getItem("last_used_role"),
+        AsyncStorage.getItem("last_used_tenant"),
+        AsyncStorage.getItem("last_selected_student"),
       ]);
+
+      if (storedLastRole) setLastUsedRoleState(storedLastRole);
+      if (storedLastTenant) setLastUsedTenantState(storedLastTenant);
+      if (storedLastStudent) setLastSelectedStudentState(storedLastStudent);
+
+      if (storedAccounts) {
+        try {
+          const accounts: AccountEntry[] = JSON.parse(storedAccounts);
+          setAllAccounts(accounts);
+        } catch {}
+      }
+
       if (!storedToken || !storedKind) return;
       setToken(storedToken);
       if (storedKind === "admin" && storedAdmin) {
         const user: AdminUser = JSON.parse(storedAdmin);
-        if (!user.roles || user.roles.length === 0) {
-          user.roles = [user.role];
-        }
+        if (!user.roles || user.roles.length === 0) user.roles = [user.role];
         setAdminUser(user);
         setKind("admin");
         if (user.swimming_pool_id) await fetchPool(storedToken);
@@ -112,6 +152,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function refreshPool() { if (token && kind === "admin") await fetchPool(token); }
 
+  async function setLastUsedRole(role: string) {
+    setLastUsedRoleState(role);
+    await AsyncStorage.setItem("last_used_role", role);
+  }
+
+  async function setLastUsedTenant(tenantId: string) {
+    setLastUsedTenantState(tenantId);
+    await AsyncStorage.setItem("last_used_tenant", tenantId);
+  }
+
+  async function setLastSelectedStudent(studentId: string) {
+    setLastSelectedStudentState(studentId);
+    await AsyncStorage.setItem("last_selected_student", studentId);
+  }
+
+  function updateParentNickname(nickname: string) {
+    setParentAccount(prev => prev ? { ...prev, nickname } : prev);
+  }
+
+  // 역할 권한 유효성 검증 (서버 확인)
+  async function checkRolePermission(roleKey: string): Promise<boolean> {
+    if (!token) return false;
+    try {
+      if (roleKey === "teacher") {
+        // teacher: teacher_invites에서 approved 상태 확인
+        const res = await fetch(`${API_BASE}/auth/check-role-permission`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ role: roleKey }),
+        });
+        if (!res.ok) return false;
+        const data = await safeJson(res);
+        return data.valid === true;
+      }
+      if (roleKey === "parent") {
+        // parent: 항상 유효 (계정 존재 = 유효)
+        return !!parentAccount;
+      }
+      // admin/pool_admin/super_admin: token 유효하면 OK
+      return true;
+    } catch {
+      return true; // 네트워크 오류 시 허용 (오프라인)
+    }
+  }
+
+  // 특정 계정(AccountEntry)을 활성 세션으로 설정
+  async function activateAccount(entry: AccountEntry) {
+    const { kind: k, token: t, user, parent } = entry;
+    await AsyncStorage.setItem("auth_token", t);
+    await AsyncStorage.setItem("auth_kind", k);
+    setToken(t);
+    setKind(k);
+    if (k === "admin" && user) {
+      const u = { ...user, roles: user.roles?.length ? user.roles : [user.role] };
+      await AsyncStorage.setItem("auth_admin", JSON.stringify(u));
+      setAdminUser(u);
+      if (u.swimming_pool_id) await fetchPool(t);
+    } else if (k === "parent" && parent) {
+      await AsyncStorage.setItem("auth_parent", JSON.stringify(parent));
+      setParentAccount(parent);
+    }
+  }
+
   async function switchRole(role: string) {
     if (!token || !adminUser) return;
     const res = await fetch(`${API_BASE}/auth/switch-role`, {
@@ -132,7 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (updatedUser.swimming_pool_id) await fetchPool(newToken);
   }
 
-  async function unifiedLogin(identifier: string, password: string) {
+  async function unifiedLogin(identifier: string, password: string): Promise<{ available_accounts: AccountEntry[] }> {
     const res = await fetch(`${API_BASE}/auth/unified-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -142,39 +245,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!res.ok) {
       if (data.needs_activation || data.error_code === "needs_activation") {
         throw Object.assign(new Error(data.error || "계정 활성화가 필요합니다."), {
-          needs_activation: true,
-          error_code: "needs_activation",
-          teacher_id: data.teacher_id,
+          needs_activation: true, error_code: "needs_activation", teacher_id: data.teacher_id,
         });
       }
       throw Object.assign(new Error(data.error || "로그인에 실패했습니다."), {
         error_code: data.error_code || "unknown",
       });
     }
-    await AsyncStorage.setItem("auth_token", data.token);
-    setToken(data.token);
-    if (data.kind === "admin") {
-      const user: AdminUser = {
-        ...data.user,
-        roles: Array.isArray(data.user.roles) && data.user.roles.length > 0
-          ? data.user.roles
-          : [data.user.role],
-      };
-      await AsyncStorage.multiSet([
-        ["auth_kind", "admin"],
-        ["auth_admin", JSON.stringify(user)],
-      ]);
-      setAdminUser(user);
-      setKind("admin");
-      if (user.swimming_pool_id) await fetchPool(data.token);
-    } else if (data.kind === "parent") {
-      await AsyncStorage.multiSet([
-        ["auth_kind", "parent"],
-        ["auth_parent", JSON.stringify(data.parent)],
-      ]);
-      setParentAccount(data.parent);
-      setKind("parent");
+
+    const accounts: AccountEntry[] = data.available_accounts || [];
+
+    // 전체 계정 목록 저장
+    await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts));
+    setAllAccounts(accounts);
+
+    // 단일 계정이거나 하위 호환 처리 — 우선 첫 번째 계정으로 활성화
+    if (accounts.length > 0) {
+      await activateAccount(accounts[0]);
+    } else {
+      // 구형 응답 호환
+      if (data.kind === "admin" && data.user) {
+        const entry: AccountEntry = { kind: "admin", token: data.token, user: { ...data.user, roles: data.user.roles || [data.user.role] } };
+        await activateAccount(entry);
+        accounts.push(entry);
+      } else if (data.kind === "parent" && data.parent) {
+        const entry: AccountEntry = { kind: "parent", token: data.token, parent: data.parent };
+        await activateAccount(entry);
+        accounts.push(entry);
+      }
     }
+
+    return { available_accounts: accounts };
   }
 
   async function adminLogin(email: string, password: string) {
@@ -184,16 +285,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "로그인에 실패했습니다.");
-    const user: AdminUser = {
-      ...data.user,
-      roles: Array.isArray(data.user.roles) && data.user.roles.length > 0
-        ? data.user.roles
-        : [data.user.role],
-    };
+    const user: AdminUser = { ...data.user, roles: Array.isArray(data.user.roles) && data.user.roles.length > 0 ? data.user.roles : [data.user.role] };
     await AsyncStorage.multiSet([
-      ["auth_token", data.token],
-      ["auth_kind", "admin"],
-      ["auth_admin", JSON.stringify(user)],
+      ["auth_token", data.token], ["auth_kind", "admin"], ["auth_admin", JSON.stringify(user)],
     ]);
     setToken(data.token);
     setAdminUser(user);
@@ -207,13 +301,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ identifier, password }),
     });
     const data = await safeJson(res);
-    if (!res.ok) throw Object.assign(new Error(data.error || "로그인에 실패했습니다."), {
-      error_code: data.error_code || "unknown",
-    });
+    if (!res.ok) throw Object.assign(new Error(data.error || "로그인에 실패했습니다."), { error_code: data.error_code || "unknown" });
     await AsyncStorage.multiSet([
-      ["auth_token", data.token],
-      ["auth_kind", "parent"],
-      ["auth_parent", JSON.stringify(data.parent)],
+      ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
     ]);
     setToken(data.token);
     setParentAccount(data.parent);
@@ -222,22 +312,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     await AsyncStorage.multiRemove([
-      "auth_token",
-      "auth_kind",
-      "auth_admin",
-      "auth_parent",
-      "parent_selected_student_id",
-      "brand_data",
+      "auth_token", "auth_kind", "auth_admin", "auth_parent",
+      "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
+      "parent_selected_student_id", "brand_data",
     ]);
     setToken(null);
     setKind(null);
     setAdminUser(null);
     setParentAccount(null);
     setPool(null);
+    setAllAccounts([]);
+    setLastUsedRoleState(null);
+    setLastUsedTenantState(null);
+    setLastSelectedStudentState(null);
   }
 
   return (
-    <AuthContext.Provider value={{ kind, adminUser, parentAccount, token, pool, isLoading, unifiedLogin, adminLogin, parentLogin, logout, refreshPool, switchRole }}>
+    <AuthContext.Provider value={{
+      kind, adminUser, parentAccount, token, pool, isLoading,
+      allAccounts, lastUsedRole, lastUsedTenant, lastSelectedStudent,
+      unifiedLogin, adminLogin, parentLogin, logout, refreshPool, switchRole,
+      activateAccount, setLastUsedRole, setLastUsedTenant, setLastSelectedStudent,
+      updateParentNickname, checkRolePermission,
+    }}>
       {children}
     </AuthContext.Provider>
   );

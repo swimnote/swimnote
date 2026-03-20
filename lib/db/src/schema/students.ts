@@ -18,6 +18,7 @@ export const studentsTable = pgTable("students", {
   registration_path: text("registration_path").notNull().default("admin_created"),
   parent_name: text("parent_name"),
   parent_phone: text("parent_phone"),
+  parent_phone2: text("parent_phone2"),
   parent_user_id: text("parent_user_id"),
   weekly_count: integer("weekly_count").default(1),
   schedule_labels: text("schedule_labels"),
