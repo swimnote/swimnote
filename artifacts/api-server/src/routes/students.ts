@@ -271,9 +271,15 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
 });
 
 // ── POST /:id/remove-from-class — 특정 반에서 제거 (선생님 전용) ────
+// new_status: 'pending'|'suspended'|'withdrawn' 전달 시 상태변경 + 전체 반 해제
 router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { class_group_id } = req.body as { class_group_id: string };
+  const { class_group_id, new_status } = req.body as { class_group_id: string; new_status?: string };
   if (!class_group_id) return err(res, 400, "class_group_id 필요");
+
+  const validNewStatuses = ["pending", "suspended", "withdrawn"];
+  if (new_status && !validNewStatuses.includes(new_status)) {
+    return err(res, 400, "new_status는 pending, suspended, withdrawn 중 하나여야 합니다.");
+  }
 
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -293,17 +299,42 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       }
     }
 
+    // 마지막 반 이름 저장
+    let lastClassName: string | null = (existing as any).last_class_group_name || null;
+    if (!lastClassName && class_group_id) {
+      const [cgRow] = await db.select({ name: classGroupsTable.name })
+        .from(classGroupsTable).where(eq(classGroupsTable.id, class_group_id)).limit(1);
+      lastClassName = cgRow?.name || null;
+    }
+
     const currentIds: string[] = Array.isArray(existing.assigned_class_ids)
       ? existing.assigned_class_ids
       : (typeof existing.assigned_class_ids === "string"
           ? JSON.parse(existing.assigned_class_ids || "[]") : []);
 
-    const newIds = currentIds.filter((id: string) => id !== class_group_id);
+    if (new_status) {
+      // 상태 변경 시: 전체 반 배정 해제
+      const extraFields: any = {
+        assigned_class_ids: [] as any,
+        class_group_id: null,
+        schedule_labels: null,
+        status: new_status,
+        last_class_group_name: lastClassName,
+        updated_at: new Date(),
+      };
+      if (new_status === "withdrawn") {
+        extraFields.withdrawn_at = new Date();
+      } else if (new_status === "pending" || new_status === "suspended") {
+        extraFields.archived_reason = new_status === "suspended" ? "suspended" : "pending";
+      }
+      await db.update(studentsTable).set(extraFields).where(eq(studentsTable.id, req.params.id));
+      return res.json({ success: true, new_status, remaining_classes: 0 });
+    }
 
-    // class_group_id 필드 업데이트 (제거된 게 primary면 다음 것으로)
+    // 기존 동작: 특정 반만 제거
+    const newIds = currentIds.filter((id: string) => id !== class_group_id);
     const newPrimaryId = newIds[0] || null;
 
-    // schedule_labels 재계산
     let labels = "";
     if (newIds.length > 0) {
       const classes = await Promise.all(newIds.map(async (id: string) => {

@@ -82,8 +82,12 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       ORDER BY is_default DESC, created_at DESC LIMIT 1
     `)).rows as any[];
 
+    // 과금 카운트: active + unregistered + pending + suspended + withdrawn 포함
+    // archived(기록보존) / deleted(영구삭제) 는 과금 제외
     const cntResult = await db.execute(sql`
-      SELECT COUNT(*) AS cnt FROM students WHERE swimming_pool_id = ${poolId} AND status = 'active'
+      SELECT COUNT(*) AS cnt FROM students
+      WHERE swimming_pool_id = ${poolId}
+        AND status NOT IN ('archived', 'deleted')
     `);
     const memberCount = Number((cntResult.rows[0] as any)?.cnt ?? 0);
 

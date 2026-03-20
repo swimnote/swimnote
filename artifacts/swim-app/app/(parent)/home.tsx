@@ -234,7 +234,25 @@ export default function ParentHomeScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
       >
         {/* 자녀 선택 카드 */}
-        {selectedStudent ? (
+        {selectedStudent && (selectedStudent as any).access_blocked ? (
+          // 접근 차단된 학생 — 관리자가 최종퇴원처리 또는 아카이브로 이동한 경우
+          <View style={[s.childCard, { backgroundColor: "#F3F4F6", gap: 10 }]}>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" }}>
+              <Feather name="lock" size={20} color="#DC2626" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" }}>{selectedStudent.name}</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 4, lineHeight: 18 }}>
+                {`수영장에서 회원 정보를 비공개로 설정했습니다.\n자세한 내용은 수영장에 문의해 주세요.`}
+              </Text>
+            </View>
+            {students.length > 1 && (
+              <Pressable onPress={() => setSelectorVisible(true)}>
+                <Feather name="repeat" size={18} color="#6B7280" />
+              </Pressable>
+            )}
+          </View>
+        ) : selectedStudent ? (
           <Pressable
             style={[s.childCard, { backgroundColor: C.tint }]}
             onPress={() => students.length > 1 && setSelectorVisible(true)}
@@ -273,17 +291,21 @@ export default function ParentHomeScreen() {
         {/* 바로가기 메뉴 */}
         <View style={s.section}>
           <Text style={[s.sectionTitle, { color: C.text }]}>바로가기</Text>
-          {selectedStudent ? (
+          {selectedStudent && !(selectedStudent as any).access_blocked ? (
             <QuickMenu studentId={selectedStudent.id} />
           ) : (
-            <Text style={[s.emptyHint, { color: C.textMuted }]}>자녀 연결 후 이용 가능합니다</Text>
+            <Text style={[s.emptyHint, { color: C.textMuted }]}>
+              {selectedStudent ? "수영장에서 정보를 비공개로 설정하여 이용할 수 없습니다" : "자녀 연결 후 이용 가능합니다"}
+            </Text>
           )}
         </View>
 
         {/* 최근 업데이트 피드 */}
         <View style={s.section}>
           <Text style={[s.sectionTitle, { color: C.text }]}>최근 업데이트</Text>
-          {feedLoading ? (
+          {(selectedStudent as any)?.access_blocked ? (
+            <Text style={[s.emptyHint, { color: C.textMuted }]}>수영장에서 정보를 비공개로 설정하여 이용할 수 없습니다</Text>
+          ) : feedLoading ? (
             <ActivityIndicator color={C.tint} style={{ marginTop: 20 }} />
           ) : feed.length === 0 ? (
             <View style={[s.emptyFeed, { backgroundColor: C.card }]}>

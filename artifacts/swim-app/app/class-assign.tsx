@@ -17,8 +17,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
-import { ConfirmModal } from "@/components/common/ConfirmModal";
-
 const C = Colors.light;
 
 interface ClassGroup {
@@ -59,8 +57,8 @@ export default function ClassAssignScreen() {
 
   // 주횟수 선택 팝업
   const [weeklyPicker, setWeeklyPicker] = useState<Student | null>(null);
-  // 해제 확인 팝업
-  const [confirmRemove, setConfirmRemove] = useState<Student | null>(null);
+  // 상태 선택 팝업 (해제 시 대기/연기/퇴원)
+  const [statusSelectTarget, setStatusSelectTarget] = useState<Student | null>(null);
   // 변경 여부 (배정완료 버튼 강조용)
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -155,22 +153,24 @@ export default function ClassAssignScreen() {
     finally { setSaving(null); }
   }
 
-  // 해제 처리
-  async function doRemove(student: Student) {
+  // 해제 처리 — new_status 지정 시 상태 변경 + 전체 반 해제
+  async function doRemove(student: Student, new_status?: "pending" | "suspended" | "withdrawn") {
     if (!classId) return;
     setSaving(student.id);
     try {
-      const currentIds: string[] = Array.isArray(student.assigned_class_ids)
-        ? student.assigned_class_ids : [];
-      const newIds = currentIds.filter(id => id !== classId);
-      const res = await apiRequest(token, `/students/${student.id}/assign`, {
-        method: "PATCH",
-        body: JSON.stringify({ assigned_class_ids: newIds }),
+      const body: any = { class_group_id: classId };
+      if (new_status) body.new_status = new_status;
+      const res = await apiRequest(token, `/students/${student.id}/remove-from-class`, {
+        method: "POST",
+        body: JSON.stringify(body),
       });
       if (!res.ok) return;
-      const updated: Student = await res.json();
-      setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
+      // 상태 변경 시: 학생이 대기자 명단으로 이동 (assigned 목록에서 제거)
       setAssigned(prev => prev.filter(s => s.id !== student.id));
+      setAllStudents(prev => new_status
+        ? prev.filter(s => s.id !== student.id)
+        : prev.map(s => s.id === student.id ? { ...s, assigned_class_ids: (s.assigned_class_ids || []).filter(id => id !== classId) } : s)
+      );
       setHasChanges(true);
     } catch (e) { console.error(e); }
     finally { setSaving(null); }
@@ -272,7 +272,7 @@ export default function ClassAssignScreen() {
                 classId={classId!}
                 action="remove"
                 loading={saving === item.id}
-                onPress={() => setConfirmRemove(item)}
+                onPress={() => setStatusSelectTarget(item)}
               />
             ))}
           </View>
@@ -351,18 +351,79 @@ export default function ClassAssignScreen() {
         />
       )}
 
-      {/* ── 해제 확인 팝업 ── */}
-      <ConfirmModal
-        visible={!!confirmRemove}
-        title="배정 해제"
-        message={confirmRemove ? `"${confirmRemove.name}"을(를) 이 반에서 해제하시겠습니까?\n학생 정보와 출결 기록은 보존됩니다.` : ""}
-        confirmText="해제"
-        cancelText="취소"
-        destructive
-        onConfirm={() => { const s = confirmRemove!; setConfirmRemove(null); doRemove(s); }}
-        onCancel={() => setConfirmRemove(null)}
-      />
+      {/* ── 상태 선택 팝업 (반 제거 시) ── */}
+      {statusSelectTarget && (
+        <RemoveStatusModal
+          studentName={statusSelectTarget.name}
+          onSelect={(st) => {
+            const target = statusSelectTarget;
+            setStatusSelectTarget(null);
+            doRemove(target, st);
+          }}
+          onCancel={() => setStatusSelectTarget(null)}
+        />
+      )}
     </View>
+  );
+}
+
+// ── 반 제거 시 상태 선택 모달 ────────────────────────────────────
+function RemoveStatusModal({
+  studentName, onSelect, onCancel,
+}: {
+  studentName: string;
+  onSelect: (status: "pending" | "suspended" | "withdrawn") => void;
+  onCancel: () => void;
+}) {
+  const C = Colors.light;
+  const options: { key: "pending" | "suspended" | "withdrawn"; label: string; sub: string; color: string; bg: string }[] = [
+    { key: "pending",   label: "대기",  sub: "재등록 대기, 출결/일지 보존", color: "#1D4ED8", bg: "#EFF6FF" },
+    { key: "suspended", label: "연기",  sub: "일시적 중단, 기록 보존",       color: "#92400E", bg: "#FFFBEB" },
+    { key: "withdrawn", label: "퇴원",  sub: "수강 종료, 관리자 최종 처리", color: "#991B1B", bg: "#FEF2F2" },
+  ];
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }} onPress={onCancel} />
+      <View style={{
+        position: "absolute", bottom: 0, left: 0, right: 0,
+        backgroundColor: C.background, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+        padding: 24, paddingBottom: 36,
+      }}>
+        <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 4 }}>
+          반 배정 해제 — 상태 선택
+        </Text>
+        <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted, marginBottom: 20 }}>
+          {`"${studentName}"을(를) 반에서 제거합니다. 이동할 상태를 선택하세요.`}
+        </Text>
+        <View style={{ gap: 10 }}>
+          {options.map(opt => (
+            <Pressable
+              key={opt.key}
+              onPress={() => onSelect(opt.key)}
+              style={{
+                flexDirection: "row", alignItems: "center", gap: 14,
+                backgroundColor: opt.bg, borderRadius: 14, padding: 14, borderWidth: 1.5,
+                borderColor: opt.color + "40",
+              }}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: opt.color + "18", alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: 18 }}>
+                  {opt.key === "pending" ? "⏳" : opt.key === "suspended" ? "⏸️" : "🚪"}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: opt.color }}>{opt.label}</Text>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 }}>{opt.sub}</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={opt.color} />
+            </Pressable>
+          ))}
+        </View>
+        <Pressable onPress={onCancel} style={{ alignItems: "center", marginTop: 18 }}>
+          <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: C.textMuted }}>취소</Text>
+        </Pressable>
+      </View>
+    </Modal>
   );
 }
 

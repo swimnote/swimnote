@@ -31,13 +31,25 @@ router.get("/students", requireAuth, requireParent, async (req: AuthRequest, res
     const students = await Promise.all(links.map(async (link) => {
       const [s] = await db.select().from(studentsTable).where(eq(studentsTable.id, link.student_id)).limit(1);
       if (!s) return null;
+      // 아카이브 또는 최종퇴원(access_blocked): 학부모 접근 차단
+      if ((s as any).status === "archived" || (s as any).archived_reason === "access_blocked") {
+        // pool 이름 조회 (차단 메시지 표시용)
+        const [pool] = await db.select({ name: swimmingPoolsTable.name })
+          .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, (s as any).swimming_pool_id)).limit(1);
+        return {
+          id: s.id, name: (s as any).name,
+          access_blocked: true,
+          pool_name: pool?.name || "이 수영장",
+          status: (s as any).status,
+        };
+      }
       let class_group: { name: string; schedule_days: string; schedule_time: string } | null = null;
       if (s.class_group_id) {
         const [grp] = await db.select({ name: classGroupsTable.name, schedule_days: classGroupsTable.schedule_days, schedule_time: classGroupsTable.schedule_time })
           .from(classGroupsTable).where(eq(classGroupsTable.id, s.class_group_id)).limit(1);
         if (grp) class_group = grp;
       }
-      return { ...s, class_group };
+      return { ...s, class_group, access_blocked: false };
     }));
     res.json(students.filter(Boolean));
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
