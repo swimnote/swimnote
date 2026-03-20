@@ -21,6 +21,7 @@ import { ConfirmModal } from "@/components/common/ConfirmModal";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
 import StudentManagementSheet from "@/components/teacher/StudentManagementSheet";
+import { WEEKLY_BADGE } from "@/utils/studentUtils";
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
@@ -385,20 +386,29 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
               <Feather name="users" size={28} color={C.textMuted} />
               <Text style={ds.emptyText}>배정된 학생이 없습니다</Text>
             </View>
-          ) : groupStudents.map(st => (
-            <Pressable key={st.id} style={ds.studentRow} onPress={() => handleStudentPress(st)}>
-              <View style={[ds.avatar, { backgroundColor: themeColor + "18" }]}>
-                <Text style={[ds.avatarText, { color: themeColor }]}>{st.name[0]}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={ds.studentName}>{st.name}</Text>
-                {st.birth_year && (
-                  <Text style={ds.studentSub}>{st.birth_year}년생</Text>
-                )}
-              </View>
-              <Feather name="chevron-right" size={16} color={C.textMuted} />
-            </Pressable>
-          ))}
+          ) : groupStudents.map(st => {
+            const wc = Math.min(st.weekly_count || 1, 3) as 1 | 2 | 3;
+            const wb = WEEKLY_BADGE[wc];
+            return (
+              <Pressable key={st.id} style={ds.studentRow} onPress={() => handleStudentPress(st)}>
+                <View style={[ds.avatar, { backgroundColor: themeColor + "18" }]}>
+                  <Text style={[ds.avatarText, { color: themeColor }]}>{st.name[0]}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <Text style={ds.studentName}>{st.name}</Text>
+                    <View style={[ds.weeklyBadge, { backgroundColor: wb.bg }]}>
+                      <Text style={[ds.weeklyBadgeText, { color: wb.color }]}>{wb.label}</Text>
+                    </View>
+                  </View>
+                  {st.birth_year && (
+                    <Text style={ds.studentSub}>{st.birth_year}년생</Text>
+                  )}
+                </View>
+                <Feather name="chevron-right" size={16} color={C.textMuted} />
+              </Pressable>
+            );
+          })}
           <View style={{ height: 20 }} />
         </ScrollView>
       </View>
@@ -430,6 +440,8 @@ const ds = StyleSheet.create({
   avatarText:   { fontSize: 14, fontFamily: "Inter_700Bold" },
   studentName:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
   studentSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  weeklyBadge:  { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  weeklyBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   empty:        { alignItems: "center", paddingVertical: 32, gap: 8 },
   emptyText:    { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
 });
@@ -880,32 +892,41 @@ export default function MyScheduleScreen() {
             </View>
           }
           ListHeaderComponent={<Text style={s.listHeader}>학생 {groupStudents.length}명</Text>}
-          renderItem={({ item }) => (
-            <Pressable style={[s.studentRow, { backgroundColor: C.card }]}
-              onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id} } as any)}>
-              <View style={[s.avatar, { backgroundColor: themeColor + "18" }]}>
-                <Text style={[s.avatarText, { color: themeColor }]}>{item.name[0]}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.studentName}>{item.name}</Text>
-                {item.birth_year && (
-                  <Text style={s.studentSub}>{item.birth_year}년생 · {item.schedule_labels || ""}</Text>
-                )}
-              </View>
-              {item.parent_user_id ? (
-                <View style={[s.connBadge, { backgroundColor: "#D1FAE5" }]}>
-                  <Feather name="check-circle" size={10} color="#059669" />
-                  <Text style={[s.connText, { color: "#059669" }]}>연결</Text>
+          renderItem={({ item }) => {
+            const wc = Math.min(item.weekly_count || 1, 3) as 1 | 2 | 3;
+            const wb = WEEKLY_BADGE[wc];
+            return (
+              <Pressable style={[s.studentRow, { backgroundColor: C.card }]}
+                onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id} } as any)}>
+                <View style={[s.avatar, { backgroundColor: themeColor + "18" }]}>
+                  <Text style={[s.avatarText, { color: themeColor }]}>{item.name[0]}</Text>
                 </View>
-              ) : item.status === "pending_parent_link" ? (
-                <View style={[s.connBadge, { backgroundColor: "#FFF7ED" }]}>
-                  <Feather name="clock" size={10} color="#EA580C" />
-                  <Text style={[s.connText, { color: "#EA580C" }]}>대기</Text>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <Text style={s.studentName}>{item.name}</Text>
+                    <View style={[s.weeklyBadge, { backgroundColor: wb.bg }]}>
+                      <Text style={[s.weeklyBadgeText, { color: wb.color }]}>{wb.label}</Text>
+                    </View>
+                  </View>
+                  {item.birth_year && (
+                    <Text style={s.studentSub}>{item.birth_year}년생 · {item.schedule_labels || ""}</Text>
+                  )}
                 </View>
-              ) : null}
-              <Feather name="chevron-right" size={16} color={C.textMuted} />
-            </Pressable>
-          )}
+                {item.parent_user_id ? (
+                  <View style={[s.connBadge, { backgroundColor: "#D1FAE5" }]}>
+                    <Feather name="check-circle" size={10} color="#059669" />
+                    <Text style={[s.connText, { color: "#059669" }]}>연결</Text>
+                  </View>
+                ) : item.status === "pending_parent_link" ? (
+                  <View style={[s.connBadge, { backgroundColor: "#FFF7ED" }]}>
+                    <Feather name="clock" size={10} color="#EA580C" />
+                    <Text style={[s.connText, { color: "#EA580C" }]}>대기</Text>
+                  </View>
+                ) : null}
+                <Feather name="chevron-right" size={16} color={C.textMuted} />
+              </Pressable>
+            );
+          }}
         />
       </SafeAreaView>
     );
@@ -1209,6 +1230,8 @@ const s = StyleSheet.create({
   avatarText:   { fontSize: 15, fontFamily: "Inter_700Bold" },
   studentName:  { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
   studentSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  weeklyBadge:  { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  weeklyBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   connBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7,
                   paddingVertical: 3, borderRadius: 8 },
   connText:     { fontSize: 10, fontFamily: "Inter_600SemiBold" },
