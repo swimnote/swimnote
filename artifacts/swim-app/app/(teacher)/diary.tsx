@@ -1,7 +1,9 @@
 /**
- * (teacher)/diary.tsx — 수영일지 v2
+ * (teacher)/diary.tsx — 수영일지 v3
  *
- * 구조: WeeklySchedule → 반 선택 → 작성(공통일지 + 학생별추가) / 기록(수정/삭제)
+ * 구조: WeeklySchedule → 반 선택 → write(작성) / history(지난 일지 목록) / edit(수정)
+ * - "지난 일지" 카드 탭 → 전체 수정 화면 진입
+ * - 공통 일지 + 학생별 추가 일지 모두 수정 가능
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -24,11 +26,13 @@ const C = Colors.light;
 interface DiaryTemplate { id: string; category: string; level?: string | null; template_text: string; }
 interface StudentOption  { id: string; name: string; birth_year?: string | null; }
 interface StudentNote    { student_id: string; student_name: string; note_content: string; }
+interface ExistingNote   { id: string; student_id: string; student_name: string; note_content: string; _deleted?: boolean; _modified?: boolean; }
 interface DiaryEntry {
   id: string; class_group_id: string; lesson_date: string;
   common_content: string; teacher_name: string; teacher_id?: string;
   is_edited: boolean; is_deleted: boolean;
-  note_count?: number; class_name?: string;
+  note_count?: number; class_name?: string; schedule_time?: string;
+  student_notes?: ExistingNote[];
 }
 interface AuditLog {
   id: string; target_type: string; action_type: string;
@@ -36,7 +40,7 @@ interface AuditLog {
   actor_name: string; actor_role: string; created_at: string;
 }
 
-type SubView = "write" | "history";
+type SubView = "write" | "history" | "edit";
 
 function todayStr() {
   const d = new Date();
@@ -103,66 +107,6 @@ function AuditModal({ diaryId, token, onClose }: { diaryId: string; token: strin
   );
 }
 
-// ── 수정 모달 ─────────────────────────────────────────────────────────────
-function EditModal({ diary, token, onDone, onClose }: {
-  diary: DiaryEntry; token: string;
-  onDone: () => void; onClose: () => void;
-}) {
-  const [content, setContent] = useState(diary.common_content);
-  const [saving, setSaving] = useState(false);
-  const [editErr, setEditErr] = useState<string | null>(null);
-
-  async function handleSave() {
-    if (!content.trim()) { setEditErr("내용을 입력해주세요."); return; }
-    setEditErr(null);
-    setSaving(true);
-    try {
-      const r = await apiRequest(token, `/diaries/${diary.id}`, { method: "PUT", body: JSON.stringify({ common_content: content }) });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
-      onDone();
-    } catch (e: any) { setEditErr(e.message || "수정 중 오류가 발생했습니다."); }
-    finally { setSaving(false); }
-  }
-
-  return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView style={a.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <View style={[a.sheet, { backgroundColor: C.card }]}>
-          <View style={a.sheetHeader}>
-            <Text style={[a.sheetTitle, { color: C.text }]}>일지 수정</Text>
-            <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
-          </View>
-          <View style={{ padding: 16, gap: 12 }}>
-            <Text style={[a.logTarget, { color: C.textSecondary }]}>{diary.lesson_date} 수업 내용</Text>
-            <TextInput
-              style={[a.editInput, { borderColor: editErr ? C.error : C.border, color: C.text, backgroundColor: C.background }]}
-              value={content}
-              onChangeText={t => { setContent(t); if (editErr) setEditErr(null); }}
-              multiline
-              placeholder="수업 내용을 입력하세요"
-              placeholderTextColor={C.textMuted}
-            />
-            {editErr && (
-              <View style={[s.inlineError, { backgroundColor: "#FEE2E2" }]}>
-                <Feather name="alert-circle" size={13} color={C.error} />
-                <Text style={[s.inlineErrorText, { color: C.error }]}>{editErr}</Text>
-              </View>
-            )}
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={[a.cancelBtn, { borderColor: C.border }]} onPress={onClose}>
-                <Text style={{ color: C.textSecondary, fontFamily: "Inter_600SemiBold" }}>취소</Text>
-              </Pressable>
-              <Pressable style={[a.saveBtn, { backgroundColor: C.tint, flex: 2, opacity: saving ? 0.7 : 1 }]} onPress={handleSave} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontFamily: "Inter_700Bold" }}>저장</Text>}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
 // ════════════════════════════════════════════════════════════════════════
 // 메인 화면
 // ════════════════════════════════════════════════════════════════════════
@@ -171,7 +115,6 @@ export default function TeacherDiaryScreen() {
   const { themeColor } = useBrand();
   const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string }>();
 
-  // 파라미터로 넘어온 날짜가 있으면 그 날짜로, 없으면 오늘 날짜
   const targetDate = (params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/))
     ? params.lessonDate : todayStr();
 
@@ -181,9 +124,7 @@ export default function TeacherDiaryScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(
-    null
-  );
+  const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(null);
   const [subView,       setSubView]       = useState<SubView>("write");
 
   // ── 작성 폼 상태 ─────────────────────────────────────────────────────
@@ -195,31 +136,30 @@ export default function TeacherDiaryScreen() {
   const [addNoteStudent, setAddNoteStudent] = useState<StudentOption | null>(null);
   const [noteInput,      setNoteInput]      = useState("");
   const [saving,         setSaving]         = useState(false);
-
-  // ── 문장 불러오기 ─────────────────────────────────────────────────
-  const [showPickerFor, setShowPickerFor] = useState<"common" | "note" | null>(null);
+  const [showPickerFor,  setShowPickerFor]  = useState<"common" | "note" | "editCommon" | "editNote" | null>(null);
   const commonCursorRef = useRef<number>(0);
   const noteCursorRef   = useRef<number>(0);
-
-  function insertAtCursor(
-    current: string,
-    insert: string,
-    cursorPos: number,
-    setter: (v: string) => void
-  ) {
-    const before = current.slice(0, cursorPos);
-    const after  = current.slice(cursorPos);
-    const glue   = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
-    setter(before + glue + insert + after);
-  }
 
   // ── 기록 목록 상태 ────────────────────────────────────────────────────
   const [diaries,      setDiaries]      = useState<DiaryEntry[]>([]);
   const [diaryLoading, setDiaryLoading] = useState(false);
-  const [editTarget,   setEditTarget]   = useState<DiaryEntry | null>(null);
   const [auditTarget,  setAuditTarget]  = useState<string | null>(null);
 
-  // ── 인라인 메시지 (Alert 대체) ────────────────────────────────────────
+  // ── 수정 뷰 상태 ─────────────────────────────────────────────────────
+  const [editDiary,      setEditDiary]      = useState<DiaryEntry | null>(null);
+  const [editContent,    setEditContent]    = useState("");
+  const [editNotes,      setEditNotes]      = useState<ExistingNote[]>([]);
+  const [editNewNotes,   setEditNewNotes]   = useState<StudentNote[]>([]);
+  const [editAddStudent, setEditAddStudent] = useState<StudentOption | null>(null);
+  const [editAddInput,   setEditAddInput]   = useState("");
+  const [editSaving,     setEditSaving]     = useState(false);
+  const [editError,      setEditError]      = useState<string | null>(null);
+  const [editLoading,    setEditLoading]    = useState(false);
+  const [editPickerFor,  setEditPickerFor]  = useState<"common" | "note" | null>(null);
+  const editCursorRef    = useRef<number>(0);
+  const editNoteCursorRef = useRef<number>(0);
+
+  // ── 삭제 확인 ─────────────────────────────────────────────────────────
   const [saveMsg,         setSaveMsg]         = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [formError,       setFormError]       = useState<string | null>(null);
   const [deleteTarget,    setDeleteTarget]    = useState<DiaryEntry | null>(null);
@@ -263,8 +203,6 @@ export default function TeacherDiaryScreen() {
     setCommonContent("");
     setStudentNotes([]);
     setShowTemplates(false);
-
-    // 템플릿 + 학생 목록 + 기록 병렬 로드
     loadTemplates();
     loadClassStudents(group.id);
     loadDiaries(group.id);
@@ -299,15 +237,13 @@ export default function TeacherDiaryScreen() {
     finally { setDiaryLoading(false); }
   }
 
-  // ── 템플릿 선택 ───────────────────────────────────────────────────────
-  function applyTemplate(tmpl: DiaryTemplate) {
-    setCommonContent(prev =>
-      prev.trim() ? `${prev.trim()}\n${tmpl.template_text}` : tmpl.template_text
-    );
-    setShowTemplates(false);
+  function insertAtCursor(current: string, insert: string, cursorPos: number, setter: (v: string) => void) {
+    const before = current.slice(0, cursorPos);
+    const after  = current.slice(cursorPos);
+    const glue   = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
+    setter(before + glue + insert + after);
   }
 
-  // ── 학생 개별 일지 추가/삭제 ─────────────────────────────────────────
   function handleAddNote() {
     if (!addNoteStudent || !noteInput.trim()) return;
     setStudentNotes(prev => {
@@ -327,7 +263,7 @@ export default function TeacherDiaryScreen() {
     setStudentNotes(prev => prev.filter(n => n.student_id !== studentId));
   }
 
-  // ── 저장 ─────────────────────────────────────────────────────────────
+  // ── 신규 일지 저장 ───────────────────────────────────────────────────
   async function handleSave() {
     if (!selectedGroup) return;
     if (!commonContent.trim()) { setFormError("공통 일지 내용을 입력해주세요."); return; }
@@ -347,44 +283,133 @@ export default function TeacherDiaryScreen() {
       if (!r.ok) throw new Error(data?.error || "저장 실패");
       setDiarySet(prev => new Set([...prev, selectedGroup.id]));
       setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
-      // 미작성 목록에서 진입한 경우 저장 후 해당 화면으로 복귀
       const cameFromUnwritten = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/));
       setTimeout(() => {
         setSaveMsg(null);
-        if (cameFromUnwritten) {
-          router.back();
-        } else {
-          setSelectedGroup(null);
-        }
+        if (cameFromUnwritten) router.back();
+        else setSelectedGroup(null);
       }, 2000);
     } catch (e: any) { setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." }); }
     finally { setSaving(false); }
   }
 
   // ── 삭제 ─────────────────────────────────────────────────────────────
-  function handleDelete(diary: DiaryEntry) {
-    setDeleteTarget(diary);
-    setDeleteError(null);
-  }
+  function handleDelete(diary: DiaryEntry) { setDeleteTarget(diary); setDeleteError(null); }
 
   async function confirmDelete() {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !selectedGroup) return;
     setDeleteLoading(true);
     try {
       const r = await apiRequest(token, `/diaries/${deleteTarget.id}`, { method: "DELETE" });
       if (r.ok) {
         setDiaries(prev => prev.filter(d => d.id !== deleteTarget.id));
-        if (selectedGroup) setDiarySet(prev => {
-          const next = new Set(prev);
-          next.delete(selectedGroup.id);
-          return next;
-        });
+        setDiarySet(prev => { const next = new Set(prev); next.delete(selectedGroup.id); return next; });
         setDeleteTarget(null);
       } else {
         const d = await r.json();
         setDeleteError(d.error || "삭제 실패");
       }
     } finally { setDeleteLoading(false); }
+  }
+
+  // ── 수정 뷰 열기 ─────────────────────────────────────────────────────
+  async function openEditDiary(item: DiaryEntry) {
+    setEditDiary(item);
+    setEditContent(item.common_content || "");
+    setEditNotes([]);
+    setEditNewNotes([]);
+    setEditAddStudent(null);
+    setEditAddInput("");
+    setEditError(null);
+    setSubView("edit");
+    setEditLoading(true);
+
+    try {
+      const r = await apiRequest(token, `/diaries/${item.id}`);
+      if (!r.ok) throw new Error("불러오기 실패");
+      const data = await r.json();
+      setEditDiary(data);
+      setEditContent(data.common_content || "");
+      setEditNotes(Array.isArray(data.student_notes) ? data.student_notes.map((n: any) => ({ ...n })) : []);
+    } catch (e: any) {
+      setEditError(e.message || "불러오기 오류");
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  // ── 수정 저장 ─────────────────────────────────────────────────────────
+  async function handleEditSave() {
+    if (!editDiary || !selectedGroup) return;
+    if (!editContent.trim()) { setEditError("일지 본문을 입력해주세요."); return; }
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      // 1. 공통 일지 수정
+      const r = await apiRequest(token, `/diaries/${editDiary.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ common_content: editContent.trim() }),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || "수정 실패"); }
+
+      // 2. 삭제 표시된 기존 노트 제거
+      for (const note of editNotes) {
+        if (note._deleted) {
+          await apiRequest(token, `/diaries/student-notes/${note.id}`, { method: "DELETE" });
+        }
+      }
+
+      // 3. 수정된 기존 노트 업데이트
+      for (const note of editNotes) {
+        if (!note._deleted && note._modified) {
+          await apiRequest(token, `/diaries/student-notes/${note.id}`, {
+            method: "PUT",
+            body: JSON.stringify({ note_content: note.note_content }),
+          });
+        }
+      }
+
+      // 4. 새로 추가된 노트 저장
+      for (const note of editNewNotes) {
+        await apiRequest(token, `/diaries/${editDiary.id}/student-notes`, {
+          method: "POST",
+          body: JSON.stringify({ student_id: note.student_id, note_content: note.note_content }),
+        });
+      }
+
+      // 수정 완료 → 기록 목록으로
+      setSubView("history");
+      setEditDiary(null);
+      await loadDiaries(selectedGroup.id);
+    } catch (e: any) {
+      setEditError(e.message || "저장 중 오류가 발생했습니다.");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  // ── 수정 뷰: 학생별 노트 관리 ────────────────────────────────────────
+  function handleEditAddNote() {
+    if (!editAddStudent || !editAddInput.trim()) return;
+    setEditNewNotes(prev => [...prev, {
+      student_id: editAddStudent!.id,
+      student_name: editAddStudent!.name,
+      note_content: editAddInput.trim(),
+    }]);
+    setEditAddStudent(null);
+    setEditAddInput("");
+  }
+
+  function markNoteDeleted(noteId: string) {
+    setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, _deleted: true } : n));
+  }
+
+  function updateNoteContent(noteId: string, content: string) {
+    setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, note_content: content, _modified: true } : n));
+  }
+
+  function removeNewNote(idx: number) {
+    setEditNewNotes(prev => prev.filter((_, i) => i !== idx));
   }
 
   const statusMap: Record<string, SlotStatus> = {};
@@ -406,6 +431,239 @@ export default function TeacherDiaryScreen() {
     const group = selectedGroup;
     const myDiaryExists = diarySet.has(group.id);
 
+    // ── 수정 뷰 ─────────────────────────────────────────────────────
+    if (subView === "edit") {
+      const activeNotes = editNotes.filter(n => !n._deleted);
+      const usedStudentIds = new Set([
+        ...activeNotes.map(n => n.student_id),
+        ...editNewNotes.map(n => n.student_id),
+      ]);
+
+      return (
+        <SafeAreaView style={s.safe} edges={[]}>
+          <SubScreenHeader
+            title="일지 수정"
+            subtitle={editDiary ? `${editDiary.lesson_date} · ${group.schedule_time}` : ""}
+            onBack={() => { setSubView("history"); setEditDiary(null); }}
+            homePath="/(teacher)/today-schedule"
+          />
+
+          {editLoading ? (
+            <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
+          ) : (
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+              <ScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+                {/* 일지 정보 헤더 카드 */}
+                <View style={[s.infoCard, { backgroundColor: themeColor + "12", borderColor: themeColor + "30" }]}>
+                  <View style={s.infoCardRow}>
+                    <Feather name="layers" size={14} color={themeColor} />
+                    <Text style={[s.infoCardText, { color: themeColor }]}>{group.name}</Text>
+                  </View>
+                  <View style={s.infoCardRow}>
+                    <Feather name="calendar" size={14} color={themeColor} />
+                    <Text style={[s.infoCardText, { color: themeColor }]}>
+                      {editDiary?.lesson_date} · {group.schedule_time}
+                    </Text>
+                  </View>
+                  <View style={s.infoCardRow}>
+                    <Feather name="user" size={14} color={themeColor} />
+                    <Text style={[s.infoCardText, { color: themeColor }]}>
+                      {editDiary?.teacher_name} 선생님
+                    </Text>
+                  </View>
+                </View>
+
+                {/* 공통 일지 카드 */}
+                <View style={[s.card, { backgroundColor: C.card }]}>
+                  <View style={s.cardHeader}>
+                    <View style={[s.cardIcon, { backgroundColor: themeColor + "20" }]}>
+                      <Feather name="book-open" size={15} color={themeColor} />
+                    </View>
+                    <Text style={[s.cardTitle, { color: C.text }]}>반 공통 일지</Text>
+                    <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
+                  </View>
+                  <TextInput
+                    style={[s.textarea, { borderColor: C.border, color: C.text }]}
+                    value={editContent}
+                    onChangeText={t => { setEditContent(t); if (editError) setEditError(null); }}
+                    onSelectionChange={e => { editCursorRef.current = e.nativeEvent.selection.start; }}
+                    placeholder="수업 내용을 입력하세요"
+                    placeholderTextColor={C.textMuted}
+                    multiline
+                    numberOfLines={6}
+                    textAlignVertical="top"
+                  />
+                  <View style={s.textareaFooter}>
+                    <Text style={s.charCount}>{editContent.length}자</Text>
+                    <TouchableOpacity
+                      style={s.sentencePickBtn}
+                      onPress={() => setEditPickerFor("common")}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="book-open" size={13} color={C.tint} />
+                      <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* 학생별 추가 일지 카드 */}
+                <View style={[s.card, { backgroundColor: C.card }]}>
+                  <View style={s.cardHeader}>
+                    <View style={[s.cardIcon, { backgroundColor: "#8B5CF620" }]}>
+                      <Feather name="users" size={15} color="#8B5CF6" />
+                    </View>
+                    <Text style={[s.cardTitle, { color: C.text }]}>학생별 추가 일지</Text>
+                    <Text style={s.cardSub}>개별 코멘트 수정</Text>
+                  </View>
+
+                  {/* 기존 노트 목록 */}
+                  {activeNotes.map(note => (
+                    <View key={note.id} style={[s.editNoteItem, { backgroundColor: "#F5F3FF", borderColor: "#C4B5FD" }]}>
+                      <View style={s.editNoteHeader}>
+                        <Text style={s.noteName}>{note.student_name}</Text>
+                        <Pressable onPress={() => markNoteDeleted(note.id)}>
+                          <Feather name="trash-2" size={15} color={C.error} />
+                        </Pressable>
+                      </View>
+                      <TextInput
+                        style={[s.noteTextarea, { borderColor: "#C4B5FD", color: C.text }]}
+                        value={note.note_content}
+                        onChangeText={t => updateNoteContent(note.id, t)}
+                        onSelectionChange={e => { editNoteCursorRef.current = e.nativeEvent.selection.start; }}
+                        multiline
+                        numberOfLines={3}
+                        textAlignVertical="top"
+                        placeholder="개별 코멘트를 입력하세요"
+                        placeholderTextColor={C.textMuted}
+                      />
+                    </View>
+                  ))}
+
+                  {/* 새로 추가된 노트 */}
+                  {editNewNotes.map((note, idx) => (
+                    <View key={idx} style={[s.editNoteItem, { backgroundColor: "#ECFDF5", borderColor: "#6EE7B7" }]}>
+                      <View style={s.editNoteHeader}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <View style={[s.statusBadge, { backgroundColor: "#D1FAE5" }]}>
+                            <Text style={[s.statusBadgeText, { color: "#059669" }]}>신규</Text>
+                          </View>
+                          <Text style={[s.noteName, { color: "#059669" }]}>{note.student_name}</Text>
+                        </View>
+                        <Pressable onPress={() => removeNewNote(idx)}>
+                          <Feather name="x-circle" size={15} color={C.error} />
+                        </Pressable>
+                      </View>
+                      <Text style={[s.noteContent, { color: C.text }]}>{note.note_content}</Text>
+                    </View>
+                  ))}
+
+                  {/* 학생 추가 선택 */}
+                  {classStudents.length === 0 ? (
+                    <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
+                      <Feather name="users" size={16} color={C.textMuted} />
+                      <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>이 수업에 배정된 학생이 없습니다</Text>
+                    </View>
+                  ) : (
+                    <>
+                      {/* 추가할 학생 선택 칩 */}
+                      {classStudents.filter(st => !usedStudentIds.has(st.id)).length > 0 && (
+                        <View style={{ gap: 6 }}>
+                          <Text style={[s.sectionLabel, { color: C.textSecondary }]}>학생 추가</Text>
+                          {classStudents.filter(st => !usedStudentIds.has(st.id)).map(st => (
+                            <Pressable
+                              key={st.id}
+                              style={[s.studentChip, { backgroundColor: C.background, borderColor: C.border },
+                                editAddStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}
+                              onPress={() => {
+                                if (editAddStudent?.id === st.id) { setEditAddStudent(null); setEditAddInput(""); }
+                                else { setEditAddStudent(st); setEditAddInput(""); }
+                              }}
+                            >
+                              <Text style={[s.studentChipText, { color: editAddStudent?.id === st.id ? "#8B5CF6" : C.text }]}>
+                                {st.name}
+                              </Text>
+                              <Feather name="plus-circle" size={15} color={editAddStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* 선택된 학생 노트 입력 */}
+                      {editAddStudent && (
+                        <View style={[s.noteInput, { backgroundColor: "#F5F3FF", borderColor: "#8B5CF6" }]}>
+                          <Text style={[s.noteName, { color: "#8B5CF6", marginBottom: 6 }]}>{editAddStudent.name} 추가 일지</Text>
+                          <TextInput
+                            style={[s.noteTextarea, { borderColor: "#8B5CF6", color: C.text }]}
+                            value={editAddInput}
+                            onChangeText={setEditAddInput}
+                            placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
+                            placeholderTextColor={C.textMuted}
+                            multiline
+                            numberOfLines={3}
+                            textAlignVertical="top"
+                            autoFocus
+                          />
+                          <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                            <Pressable style={[s.noteBtn, { borderColor: C.border }]} onPress={() => { setEditAddStudent(null); setEditAddInput(""); }}>
+                              <Text style={{ color: C.textSecondary, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>취소</Text>
+                            </Pressable>
+                            <Pressable style={[s.noteBtn, { backgroundColor: "#8B5CF6", borderColor: "#8B5CF6", flex: 1 }]} onPress={handleEditAddNote} disabled={!editAddInput.trim()}>
+                              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>추가</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </View>
+
+                <View style={{ height: 100 }} />
+              </ScrollView>
+
+              {/* 저장 버튼 */}
+              <View style={s.footer}>
+                {editError && (
+                  <View style={[s.inlineError, { backgroundColor: "#FEE2E2" }]}>
+                    <Feather name="alert-circle" size={13} color={C.error} />
+                    <Text style={[s.inlineErrorText, { color: C.error }]}>{editError}</Text>
+                  </View>
+                )}
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={() => { setSubView("history"); setEditDiary(null); }}>
+                    <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>취소</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[s.saveBtn, { backgroundColor: themeColor, opacity: editSaving ? 0.5 : 1, flex: 2 }]}
+                    onPress={handleEditSave}
+                    disabled={editSaving}
+                  >
+                    {editSaving
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <><Feather name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>
+                    }
+                  </Pressable>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          )}
+
+          {/* 문장 불러오기 */}
+          <SentencePicker
+            visible={editPickerFor !== null}
+            onClose={() => setEditPickerFor(null)}
+            onInsert={text => {
+              if (editPickerFor === "common") {
+                insertAtCursor(editContent, text, editCursorRef.current, setEditContent);
+                editCursorRef.current = editCursorRef.current + text.length;
+              }
+              setEditPickerFor(null);
+            }}
+          />
+        </SafeAreaView>
+      );
+    }
+
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader
@@ -415,7 +673,7 @@ export default function TeacherDiaryScreen() {
           homePath="/(teacher)/today-schedule"
         />
 
-        {/* 헤더 */}
+        {/* 탭 헤더 */}
         <View style={s.subHeader}>
           <View style={{ flex: 1 }} />
           <Pressable
@@ -432,7 +690,6 @@ export default function TeacherDiaryScreen() {
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
             <ScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-              {/* 오늘 이미 작성된 경우 안내 */}
               {myDiaryExists && (
                 <View style={[s.infoBox, { backgroundColor: "#FEF3C7" }]}>
                   <Feather name="alert-circle" size={13} color="#D97706" />
@@ -450,27 +707,23 @@ export default function TeacherDiaryScreen() {
                   <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
                 </View>
 
-                {/* 템플릿 선택 버튼 */}
                 {templates.length > 0 && (
-                  <Pressable
-                    style={[s.templateBtn, { borderColor: themeColor }]}
-                    onPress={() => setShowTemplates(v => !v)}
-                  >
+                  <Pressable style={[s.templateBtn, { borderColor: themeColor }]} onPress={() => setShowTemplates(v => !v)}>
                     <Feather name="zap" size={13} color={themeColor} />
                     <Text style={[s.templateBtnText, { color: themeColor }]}>템플릿 선택</Text>
                     <Feather name={showTemplates ? "chevron-up" : "chevron-down"} size={13} color={themeColor} />
                   </Pressable>
                 )}
 
-                {/* 템플릿 목록 */}
                 {showTemplates && (
                   <View style={s.templateList}>
                     {templates.map(t => (
-                      <Pressable key={t.id} style={[s.templateItem, { backgroundColor: C.background }]} onPress={() => applyTemplate(t)}>
+                      <Pressable key={t.id} style={[s.templateItem, { backgroundColor: C.background }]} onPress={() => {
+                        setCommonContent(prev => prev.trim() ? `${prev.trim()}\n${t.template_text}` : t.template_text);
+                        setShowTemplates(false);
+                      }}>
                         <Text style={[s.templateText, { color: C.text }]} numberOfLines={2}>{t.template_text}</Text>
-                        {t.category !== "general" && (
-                          <Text style={[s.templateCategory, { color: themeColor }]}>{t.category}</Text>
-                        )}
+                        {t.category !== "general" && <Text style={[s.templateCategory, { color: themeColor }]}>{t.category}</Text>}
                       </Pressable>
                     ))}
                   </View>
@@ -489,11 +742,7 @@ export default function TeacherDiaryScreen() {
                 />
                 <View style={s.textareaFooter}>
                   <Text style={s.charCount}>{commonContent.length}자</Text>
-                  <TouchableOpacity
-                    style={s.sentencePickBtn}
-                    onPress={() => setShowPickerFor("common")}
-                    activeOpacity={0.7}
-                  >
+                  <TouchableOpacity style={s.sentencePickBtn} onPress={() => setShowPickerFor("common")} activeOpacity={0.7}>
                     <Feather name="book-open" size={13} color={C.tint} />
                     <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
                   </TouchableOpacity>
@@ -510,7 +759,6 @@ export default function TeacherDiaryScreen() {
                   <Text style={s.cardSub}>필요한 학생만 선택</Text>
                 </View>
 
-                {/* 작성된 학생 노트 */}
                 {studentNotes.map(note => (
                   <View key={note.student_id} style={[s.noteItem, { backgroundColor: "#F5F3FF" }]}>
                     <View style={{ flex: 1 }}>
@@ -523,43 +771,33 @@ export default function TeacherDiaryScreen() {
                   </View>
                 ))}
 
-                {/* 학생 선택 목록 */}
                 {classStudents.length === 0 ? (
                   <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
                     <Feather name="users" size={16} color={C.textMuted} />
-                    <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>
-                      이 수업에 배정된 학생이 없습니다
-                    </Text>
+                    <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>이 수업에 배정된 학생이 없습니다</Text>
                   </View>
                 ) : (
                   <View style={{ gap: 6 }}>
                     <Text style={[s.sectionLabel, { color: C.textSecondary }]}>학생 선택</Text>
-                    {classStudents
-                      .filter(st => !studentNotes.some(n => n.student_id === st.id))
-                      .map(st => (
-                        <Pressable
-                          key={st.id}
-                          style={[s.studentChip, { backgroundColor: C.background, borderColor: C.border },
-                            addNoteStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}
-                          onPress={() => {
-                            if (addNoteStudent?.id === st.id) {
-                              setAddNoteStudent(null); setNoteInput("");
-                            } else {
-                              setAddNoteStudent(st); setNoteInput("");
-                            }
-                          }}
-                        >
-                          <Text style={[s.studentChipText, { color: addNoteStudent?.id === st.id ? "#8B5CF6" : C.text }]}>
-                            {st.name}
-                          </Text>
-                          <Feather name="plus-circle" size={15} color={addNoteStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
-                        </Pressable>
-                      ))
-                    }
+                    {classStudents.filter(st => !studentNotes.some(n => n.student_id === st.id)).map(st => (
+                      <Pressable
+                        key={st.id}
+                        style={[s.studentChip, { backgroundColor: C.background, borderColor: C.border },
+                          addNoteStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}
+                        onPress={() => {
+                          if (addNoteStudent?.id === st.id) { setAddNoteStudent(null); setNoteInput(""); }
+                          else { setAddNoteStudent(st); setNoteInput(""); }
+                        }}
+                      >
+                        <Text style={[s.studentChipText, { color: addNoteStudent?.id === st.id ? "#8B5CF6" : C.text }]}>
+                          {st.name}
+                        </Text>
+                        <Feather name="plus-circle" size={15} color={addNoteStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
+                      </Pressable>
+                    ))}
                   </View>
                 )}
 
-                {/* 선택된 학생 노트 입력 */}
                 {addNoteStudent && (
                   <View style={[s.noteInput, { backgroundColor: "#F5F3FF", borderColor: "#8B5CF6" }]}>
                     <Text style={[s.noteName, { color: "#8B5CF6", marginBottom: 6 }]}>{addNoteStudent.name} 추가 일지</Text>
@@ -575,11 +813,7 @@ export default function TeacherDiaryScreen() {
                       textAlignVertical="top"
                       autoFocus
                     />
-                    <TouchableOpacity
-                      style={[s.sentencePickBtn, { alignSelf: "flex-start", marginTop: 6 }]}
-                      onPress={() => setShowPickerFor("note")}
-                      activeOpacity={0.7}
-                    >
+                    <TouchableOpacity style={[s.sentencePickBtn, { alignSelf: "flex-start", marginTop: 6 }]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
                       <Feather name="book-open" size={13} color="#8B5CF6" />
                       <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>문장 불러오기</Text>
                     </TouchableOpacity>
@@ -600,14 +834,12 @@ export default function TeacherDiaryScreen() {
 
             {/* 저장 버튼 */}
             <View style={s.footer}>
-              {/* 인라인 유효성 오류 */}
               {formError && (
                 <View style={[s.inlineError, { backgroundColor: "#FEE2E2" }]}>
                   <Feather name="alert-circle" size={13} color={C.error} />
                   <Text style={[s.inlineErrorText, { color: C.error }]}>{formError}</Text>
                 </View>
               )}
-              {/* 저장 성공/실패 메시지 */}
               {saveMsg && (
                 <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#D1FAE5" : "#FEE2E2" }]}>
                   <Feather name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
@@ -656,10 +888,14 @@ export default function TeacherDiaryScreen() {
                   const isMine = item.teacher_id === user?.id;
                   return (
                     <Pressable
-                      style={({ pressed }) => [s.diaryCard, { backgroundColor: C.card, opacity: pressed ? 0.88 : 1 }]}
-                      onPress={() => isMine ? setEditTarget(item) : null}
+                      style={({ pressed }) => [
+                        s.diaryCard,
+                        { backgroundColor: C.card, opacity: pressed && isMine ? 0.88 : 1 },
+                        isMine && s.diaryCardEditable,
+                      ]}
+                      onPress={() => { if (isMine) openEditDiary(item); }}
                     >
-                      {/* 상태 배지 */}
+                      {/* 배지 행 */}
                       <View style={s.badgeRow}>
                         {item.is_edited && (
                           <View style={[s.statusBadge, { backgroundColor: "#FEF3C7" }]}>
@@ -685,9 +921,11 @@ export default function TeacherDiaryScreen() {
                           <Text style={[s.diaryCardDate, { color: C.text }]}>{item.lesson_date}</Text>
                           <Text style={[s.diaryTeacher, { color: C.textMuted }]}>{item.teacher_name} 선생님</Text>
                         </View>
-                        {/* 삭제 버튼 (본인 일지만) */}
                         {isMine && (
-                          <Pressable style={[s.iconBtn, { backgroundColor: "#FEF2F2" }]} onPress={() => handleDelete(item)}>
+                          <Pressable
+                            style={[s.iconBtn, { backgroundColor: "#FEF2F2" }]}
+                            onPress={e => { e.stopPropagation?.(); handleDelete(item); }}
+                          >
                             <Feather name="trash-2" size={13} color={C.error} />
                           </Pressable>
                         )}
@@ -702,16 +940,6 @@ export default function TeacherDiaryScreen() {
               />
             )}
           </>
-        )}
-
-        {/* 수정 모달 */}
-        {editTarget && (
-          <EditModal
-            diary={editTarget}
-            token={token}
-            onDone={() => { setEditTarget(null); loadDiaries(group.id); }}
-            onClose={() => setEditTarget(null)}
-          />
         )}
 
         {/* 감사기록 모달 */}
@@ -753,7 +981,7 @@ export default function TeacherDiaryScreen() {
           </View>
         </Modal>
 
-        {/* 문장 불러오기 바텀시트 */}
+        {/* 문장 불러오기 */}
         <SentencePicker
           visible={showPickerFor !== null}
           onClose={() => setShowPickerFor(null)}
@@ -801,6 +1029,10 @@ const s = StyleSheet.create({
   tabBtn:       { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   tabBtnText:   { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
+  infoCard:     { borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 8 },
+  infoCardRow:  { flexDirection: "row", alignItems: "center", gap: 8 },
+  infoCardText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+
   form:         { padding: 14, gap: 14, paddingBottom: 80 },
   infoBox:      { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   infoText:     { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
@@ -831,6 +1063,8 @@ const s = StyleSheet.create({
   studentChip:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 8 },
   studentChipText: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
   noteItem:     { flexDirection: "row", alignItems: "center", borderRadius: 10, padding: 10, gap: 8 },
+  editNoteItem: { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
+  editNoteHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   noteName:     { fontSize: 12, fontFamily: "Inter_700Bold", color: "#7C3AED" },
   noteContent:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 18 },
   noteInput:    { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
@@ -845,7 +1079,8 @@ const s = StyleSheet.create({
 
   diaryList:    { padding: 12, gap: 10, paddingBottom: 120 },
   diaryCard:    { borderRadius: 14, padding: 14, gap: 8 },
-  badgeRow:     { flexDirection: "row", gap: 6 },
+  diaryCardEditable: { borderWidth: 1.5, borderColor: "#DBEAFE" },
+  badgeRow:     { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   statusBadge:  { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
   statusBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   diaryCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
@@ -868,7 +1103,6 @@ const s = StyleSheet.create({
   delBtn:       { height: 48, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
 });
 
-// ── 감사기록/수정 모달 스타일 ────────────────────────────────────────────
 const a = StyleSheet.create({
   overlay:  { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet:    { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "85%", minHeight: "50%" },
@@ -883,7 +1117,4 @@ const a = StyleSheet.create({
   logContent: { borderRadius: 8, borderWidth: 1, padding: 10, gap: 4 },
   logContentLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   logContentText:  { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
-  editInput: { borderWidth: 1.5, borderRadius: 12, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, minHeight: 160, textAlignVertical: "top" },
-  cancelBtn: { flex: 1, height: 46, borderRadius: 12, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  saveBtn:   { height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", flex: 2 },
 });
