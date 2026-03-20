@@ -243,7 +243,7 @@ export default function ParentHomeScreen() {
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" }}>{selectedStudent.name}</Text>
               <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 4, lineHeight: 18 }}>
-                {`수영장에서 회원 정보를 비공개로 설정했습니다.\n자세한 내용은 수영장에 문의해 주세요.`}
+                {`아쉽게도 ${(selectedStudent as any).pool_name || "이 수영장"}의 정보를 이용할 수 없습니다.\n수영장 등록 후 다시 이용해 주세요.`}
               </Text>
             </View>
             {students.length > 1 && (

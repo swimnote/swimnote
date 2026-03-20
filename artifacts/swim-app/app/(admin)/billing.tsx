@@ -19,7 +19,7 @@ interface SubInfo { tier: string; status: string; next_billing_at?: string | nul
 interface HistoryItem { id: string; amount: number; status: string; description?: string | null; paid_at?: string | null; type?: string; }
 
 const PLAN_COLOR: Record<string, string> = {
-  free: "#6B7280", paid_100: "#3B82F6", paid_300: "#7C3AED",
+  free: "#6B7280", paid_100: "#3B82F6", paid_200: "#7C3AED",
   paid_500: "#EC4899", paid_1000: "#F97316", paid_enterprise: "#D97706",
 };
 
@@ -120,7 +120,7 @@ export default function BillingScreen() {
                 <Text style={s.planName}>{status?.plan_name ?? "무료 이용"}</Text>
                 <Text style={s.planMeta}>
                   {status?.price_per_month ? `₩${status.price_per_month.toLocaleString()}/월` : "무료"}
-                  {"  ·  "}최대 {status?.member_limit ?? 50}명
+                  {"  ·  "}최대 {status?.member_limit ?? 30}명
                 </Text>
               </View>
               <View style={[s.statusBadge, status?.status === "active" ? s.badgeGreen : s.badgeGray]}>
