@@ -17,9 +17,11 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal }   from "@/components/common/ConfirmModal";
+import { MemberStatusChangeModal } from "@/components/common/MemberStatusChangeModal";
 import {
   StudentMember, WeeklyCount, WEEKLY_BADGE,
   getStudentConnectionStatus, buildInviteMessage,
+  getPrimaryStatus, PRIMARY_STATUS_BADGE, getMemberPendingBadge,
 } from "@/utils/studentUtils";
 
 const C = Colors.light;
@@ -50,8 +52,8 @@ interface ActivityLog {
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   active:    { label: "재원",   color: "#059669", bg: "#D1FAE5" },
   inactive:  { label: "휴원",   color: "#D97706", bg: "#FEF3C7" },
-  suspended: { label: "정지",   color: "#DC2626", bg: "#FEE2E2" },
-  withdrawn: { label: "탈퇴",   color: "#6B7280", bg: "#F3F4F6" },
+  suspended: { label: "휴원",   color: "#D97706", bg: "#FEF3C7" },
+  withdrawn: { label: "퇴원",   color: "#DC2626", bg: "#FEE2E2" },
   deleted:   { label: "삭제됨", color: "#9CA3AF", bg: "#F9FAFB" },
 };
 
@@ -195,7 +197,6 @@ export default function MemberDetailScreen() {
   const [saving, setSaving] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState<{ value: string; label: string } | null>(null);
   const [alertInfo, setAlertInfo] = useState<{ title: string; msg: string } | null>(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
 
@@ -280,33 +281,6 @@ export default function MemberDetailScreen() {
         setAlertInfo({ title: "오류", msg: e.error || "저장에 실패했습니다." });
       }
     } catch { setAlertInfo({ title: "오류", msg: "네트워크 오류가 발생했습니다." }); }
-    finally { setSaving(false); }
-  }
-
-  // ── 상태 변경 ────────────────────────────────────────────────────────
-  function showStatusPicker() {
-    setShowStatusModal(true);
-  }
-
-  async function confirmStatusChange(status: string, label: string) {
-    setPendingStatus({ value: status, label });
-  }
-
-  async function doStatusChange(status: string) {
-    setSaving(true);
-    try {
-      const res = await apiRequest(token, `/admin/students/${id}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) {
-        setData(d => d ? { ...d, status } : d);
-        setAlertInfo({ title: "완료", msg: "상태가 변경되었습니다." });
-      } else {
-        const e = await res.json();
-        setAlertInfo({ title: "오류", msg: e.error || "변경에 실패했습니다." });
-      }
-    } catch { setAlertInfo({ title: "오류", msg: "네트워크 오류" }); }
     finally { setSaving(false); }
   }
 
@@ -429,11 +403,24 @@ export default function MemberDetailScreen() {
           <View style={[s.section]}>
             <Text style={s.sectionTitle}>상태 관리</Text>
             <View style={s.statusRow}>
-              <View style={[s.statusBadgeLg, { backgroundColor: statusMeta.bg }]}>
-                <Text style={[s.statusBadgeLgText, { color: statusMeta.color }]}>현재: {statusMeta.label}</Text>
+              <View style={{ gap: 4 }}>
+                <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                  <View style={[s.statusBadgeLg, { backgroundColor: statusMeta.bg }]}>
+                    <Text style={[s.statusBadgeLgText, { color: statusMeta.color }]}>현재: {statusMeta.label}</Text>
+                  </View>
+                  {(() => {
+                    const pending = getMemberPendingBadge(data as any);
+                    if (!pending) return null;
+                    return (
+                      <View style={[s.statusBadgeLg, { backgroundColor: pending.bg }]}>
+                        <Text style={[s.statusBadgeLgText, { color: pending.color }]}>{pending.label}</Text>
+                      </View>
+                    );
+                  })()}
+                </View>
               </View>
               {!isArchived ? (
-                <Pressable style={s.changeStatusBtn} onPress={showStatusPicker} disabled={saving}>
+                <Pressable style={s.changeStatusBtn} onPress={() => setShowStatusModal(true)} disabled={saving}>
                   <Feather name="edit-2" size={14} color={themeColor} />
                   <Text style={[s.changeStatusText, { color: themeColor }]}>상태 변경</Text>
                 </Pressable>
@@ -904,50 +891,19 @@ export default function MemberDetailScreen() {
         </ScrollView>
       )}
 
-      {/* ═══ 상태 변경 모달 ═══ */}
-      <Modal visible={showStatusModal} transparent animationType="fade">
-        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}
-          onPress={() => { setShowStatusModal(false); setPendingStatus(null); }}>
-          <Pressable onPress={() => {}} style={{ backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 }}>
-            <Text style={{ fontSize: 17, fontWeight: "700", color: C.text, marginBottom: 16, textAlign: "center" }}>상태 변경</Text>
-            {pendingStatus ? (
-              <View style={{ gap: 12 }}>
-                <Text style={{ textAlign: "center", color: C.textSecondary, fontSize: 14 }}>
-                  {data?.name}님을 "{pendingStatus.label}"(으)로 변경하시겠습니까?
-                </Text>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center" }}
-                    onPress={() => setPendingStatus(null)}>
-                    <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
-                  </Pressable>
-                  <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: pendingStatus.value === "withdrawn" ? "#DC2626" : themeColor, alignItems: "center" }}
-                    onPress={() => { doStatusChange(pendingStatus.value); setShowStatusModal(false); setPendingStatus(null); }}>
-                    <Text style={{ fontWeight: "700", color: "#fff" }}>확인</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              <View style={{ gap: 8 }}>
-                {[{ label: "재원", value: "active", color: "#059669", bg: "#D1FAE5" },
-                  { label: "휴원", value: "inactive", color: "#D97706", bg: "#FEF3C7" },
-                  { label: "정지", value: "suspended", color: "#DC2626", bg: "#FEE2E2" },
-                  { label: "탈퇴 처리", value: "withdrawn", color: "#7C3AED", bg: "#F3E8FF" }
-                ].map(opt => (
-                  <Pressable key={opt.value} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, backgroundColor: opt.bg }}
-                    onPress={() => setPendingStatus(opt)}>
-                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: opt.color }} />
-                    <Text style={{ fontSize: 15, fontWeight: "600", color: opt.color }}>{opt.label}</Text>
-                  </Pressable>
-                ))}
-                <Pressable style={{ paddingVertical: 14, alignItems: "center" }}
-                  onPress={() => { setShowStatusModal(false); setPendingStatus(null); }}>
-                  <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
-                </Pressable>
-              </View>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {/* ═══ 상태 변경 모달 (공통 컴포넌트) ═══ */}
+      {data && (
+        <MemberStatusChangeModal
+          visible={showStatusModal}
+          studentId={id!}
+          studentName={data.name}
+          currentStatus={data.status}
+          pendingStatusChange={(data as any).pending_status_change}
+          pendingEffectiveMode={(data as any).pending_effective_mode}
+          onClose={() => setShowStatusModal(false)}
+          onChanged={() => { load(); }}
+        />
+      )}
 
       {/* 반 선택 모달 */}
       {showPicker && (
