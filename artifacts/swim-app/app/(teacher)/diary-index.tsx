@@ -122,11 +122,11 @@ export default function DiaryIndexScreen() {
     load(searchText, activeDay, time);
   }, [searchText, activeDay, load]);
 
-  /* ── 항목 클릭 → diary.tsx ── */
+  /* ── 항목 클릭 → diary.tsx 수정 뷰 ── */
   const handlePress = useCallback((entry: DiaryIndexEntry) => {
     router.push({
       pathname: "/(teacher)/diary",
-      params: { classGroupId: undefined, className: entry.class_name },
+      params: { editDiaryId: entry.source_diary_id },
     } as any);
   }, []);
 

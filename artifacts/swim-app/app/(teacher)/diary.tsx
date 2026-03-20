@@ -113,7 +113,7 @@ function AuditModal({ diaryId, token, onClose }: { diaryId: string; token: strin
 export default function TeacherDiaryScreen() {
   const { token, adminUser: user } = useAuth();
   const { themeColor } = useBrand();
-  const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string }>();
+  const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string; editDiaryId?: string }>();
 
   const targetDate = (params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/))
     ? params.lessonDate : todayStr();
@@ -186,7 +186,28 @@ export default function TeacherDiaryScreen() {
         const arr: any[] = await dRes.json();
         setDiarySet(new Set(arr.map((d: any) => d.class_group_id).filter(Boolean)));
       }
-      if (params.classGroupId) {
+      if (params.editDiaryId) {
+        // diary-index에서 진입 시 바로 해당 일지 수정 뷰 열기
+        try {
+          const dr = await apiRequest(token, `/diaries/${params.editDiaryId}`);
+          if (dr.ok) {
+            const diaryData = await dr.json();
+            const group = groupsList.find(g => g.id === diaryData.class_group_id);
+            if (group) {
+              setSelectedGroup(group);
+              setEditDiary(diaryData);
+              setEditContent(diaryData.common_content || "");
+              setEditNotes(Array.isArray(diaryData.student_notes) ? diaryData.student_notes.map((n: any) => ({ ...n })) : []);
+              setEditNewNotes([]);
+              setEditAddStudent(null);
+              setEditAddInput("");
+              setEditError(null);
+              setSubView("edit");
+              loadClassStudents(group.id);
+            }
+          }
+        } catch {}
+      } else if (params.classGroupId) {
         const found = groupsList.find(g => g.id === params.classGroupId);
         if (found) openGroup(found);
       }
@@ -377,10 +398,14 @@ export default function TeacherDiaryScreen() {
         });
       }
 
-      // 수정 완료 → 기록 목록으로
-      setSubView("history");
-      setEditDiary(null);
-      await loadDiaries(selectedGroup.id);
+      // 수정 완료 → 이전 화면으로
+      if (params.editDiaryId) {
+        router.back();
+      } else {
+        setSubView("history");
+        setEditDiary(null);
+        await loadDiaries(selectedGroup.id);
+      }
     } catch (e: any) {
       setEditError(e.message || "저장 중 오류가 발생했습니다.");
     } finally {
@@ -444,7 +469,10 @@ export default function TeacherDiaryScreen() {
           <SubScreenHeader
             title="일지 수정"
             subtitle={editDiary ? `${editDiary.lesson_date} · ${group.schedule_time}` : ""}
-            onBack={() => { setSubView("history"); setEditDiary(null); }}
+            onBack={() => {
+              if (params.editDiaryId) router.back();
+              else { setSubView("history"); setEditDiary(null); }
+            }}
             homePath="/(teacher)/today-schedule"
           />
 
@@ -630,7 +658,10 @@ export default function TeacherDiaryScreen() {
                   </View>
                 )}
                 <View style={{ flexDirection: "row", gap: 10 }}>
-                  <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={() => { setSubView("history"); setEditDiary(null); }}>
+                  <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={() => {
+                    if (params.editDiaryId) router.back();
+                    else { setSubView("history"); setEditDiary(null); }
+                  }}>
                     <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>취소</Text>
                   </Pressable>
                   <Pressable
