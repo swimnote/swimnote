@@ -655,7 +655,10 @@ export default function TeacherDiaryScreen() {
                 renderItem={({ item }) => {
                   const isMine = item.teacher_id === user?.id;
                   return (
-                    <View style={[s.diaryCard, { backgroundColor: C.card }]}>
+                    <Pressable
+                      style={({ pressed }) => [s.diaryCard, { backgroundColor: C.card, opacity: pressed ? 0.88 : 1 }]}
+                      onPress={() => isMine ? setEditTarget(item) : null}
+                    >
                       {/* 상태 배지 */}
                       <View style={s.badgeRow}>
                         {item.is_edited && (
@@ -669,6 +672,12 @@ export default function TeacherDiaryScreen() {
                             <Text style={[s.statusBadgeText, { color: "#7C3AED" }]}>개별 {item.note_count}명</Text>
                           </View>
                         )}
+                        {isMine && (
+                          <View style={[s.statusBadge, { backgroundColor: "#EFF6FF", marginLeft: "auto" }]}>
+                            <Feather name="edit-2" size={10} color="#3B82F6" />
+                            <Text style={[s.statusBadgeText, { color: "#3B82F6" }]}>탭하여 수정</Text>
+                          </View>
+                        )}
                       </View>
 
                       <View style={s.diaryCardHeader}>
@@ -676,23 +685,18 @@ export default function TeacherDiaryScreen() {
                           <Text style={[s.diaryCardDate, { color: C.text }]}>{item.lesson_date}</Text>
                           <Text style={[s.diaryTeacher, { color: C.textMuted }]}>{item.teacher_name} 선생님</Text>
                         </View>
-                        {/* 수정/삭제 버튼 (본인 일지만) */}
+                        {/* 삭제 버튼 (본인 일지만) */}
                         {isMine && (
-                          <View style={{ flexDirection: "row", gap: 8 }}>
-                            <Pressable style={[s.iconBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => setEditTarget(item)}>
-                              <Feather name="edit-2" size={13} color="#3B82F6" />
-                            </Pressable>
-                            <Pressable style={[s.iconBtn, { backgroundColor: "#FEF2F2" }]} onPress={() => handleDelete(item)}>
-                              <Feather name="trash-2" size={13} color={C.error} />
-                            </Pressable>
-                          </View>
+                          <Pressable style={[s.iconBtn, { backgroundColor: "#FEF2F2" }]} onPress={() => handleDelete(item)}>
+                            <Feather name="trash-2" size={13} color={C.error} />
+                          </Pressable>
                         )}
                       </View>
 
                       <Text style={[s.diaryContent, { color: C.textSecondary }]} numberOfLines={3}>
                         {item.common_content}
                       </Text>
-                    </View>
+                    </Pressable>
                   );
                 }}
               />
