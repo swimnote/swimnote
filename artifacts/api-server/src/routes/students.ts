@@ -396,6 +396,49 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
 
+// ── POST /:id/apply-pending-now — 예정 상태 즉시 적용 ─────────────
+// pending_status_change 를 즉시 적용: 상태 변경 + 반 배정 해제 + pending 초기화
+router.post("/:id/apply-pending-now", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    const [existing] = await db.select().from(studentsTable)
+      .where(eq(studentsTable.id, req.params.id)).limit(1);
+    if (!existing) return err(res, 404, "학생 없음");
+    if (poolId && existing.swimming_pool_id !== poolId) return err(res, 403, "접근 권한 없음");
+
+    const newStatus = (existing as any).pending_status_change as string | null;
+    if (!newStatus) return err(res, 400, "예정된 상태 변경이 없습니다.");
+
+    // 마지막 반 이름 저장 (이미 있으면 유지)
+    let lastClassName: string | null = (existing as any).last_class_group_name || null;
+    if (!lastClassName && (existing as any).class_group_id) {
+      const [cgRow] = await db.select({ name: classGroupsTable.name })
+        .from(classGroupsTable).where(eq(classGroupsTable.id, (existing as any).class_group_id)).limit(1);
+      lastClassName = cgRow?.name || null;
+    }
+
+    const updateData: any = {
+      status: newStatus,
+      class_group_id: null,
+      assigned_class_ids: [] as any,
+      schedule_labels: null,
+      last_class_group_name: lastClassName,
+      pending_status_change: null,
+      pending_effective_mode: null,
+      pending_effective_month: null,
+      archived_reason: newStatus,
+      updated_at: new Date(),
+    };
+
+    if (newStatus === "withdrawn") {
+      updateData.withdrawn_at = new Date();
+    }
+
+    await db.update(studentsTable).set(updateData).where(eq(studentsTable.id, req.params.id));
+    return res.json({ success: true, new_status: newStatus });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
+});
+
 // ── POST /:id/move-class — 반 이동 (기존 반 제거 + 현재 반 추가) ──
 router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
   const { from_class_id, to_class_id } = req.body as { from_class_id: string; to_class_id: string };

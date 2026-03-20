@@ -516,66 +516,80 @@ router.post("/teacher/makeups/:id/extinguish", requireAuth,
   }
 );
 
-// ── 내 회원 목록 (상태별) ──────────────────────────────────────
-// status: active | pending | suspended | withdrawn | all
-// 대기자명단(pending/suspended/withdrawn/all): 해당 pool 전체에서 조회
-// active: 기존대로 선생님 담당 반 학생만
+// ── 내 회원 목록 ──────────────────────────────────────────────
+// tab: all | unassigned | suspend_pending | withdraw_pending
+// 전체 탭에는 내 풀의 모든 활성 회원 + 예정 회원 표시
 router.get("/teacher/me/members", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { status = "active" } = req.query as any;
+      const { tab = "all" } = req.query as any;
 
-      // 선생님의 pool_id 조회
       const [userRow] = await db.execute(sql`
         SELECT swimming_pool_id FROM users WHERE id = ${userId}
       `).then(r => r.rows as any[]);
       const poolId = userRow?.swimming_pool_id;
-
-      // active: 기존 — 선생님 담당 반의 학생만
-      if (status === "active") {
-        const rows = await db.execute(sql`
-          SELECT DISTINCT s.id, s.name, s.status, s.deleted_at, s.archived_reason,
-            s.birth_year, s.phone, s.parent_user_id,
-            cg.name AS class_name, s.updated_at
-          FROM students s
-          LEFT JOIN class_groups cg ON s.class_group_id = cg.id
-          WHERE (
-            cg.teacher_user_id = ${userId}
-            OR EXISTS (
-              SELECT 1 FROM class_groups cg2 WHERE cg2.teacher_user_id = ${userId}
-              AND s.assigned_class_ids @> to_jsonb(cg2.id::text)
-            )
-          )
-          AND s.status = 'active'
-          ORDER BY s.name ASC
-        `);
-        return res.json(rows.rows);
-      }
-
-      // pending / suspended / withdrawn / all: pool 전체에서 해당 상태 조회
       if (!poolId) { return res.json([]); }
 
-      let statusFilter: any;
-      if (status === "all") {
-        statusFilter = sql`s.status IN ('pending', 'suspended', 'withdrawn')`;
-      } else if (["pending", "suspended", "withdrawn"].includes(status)) {
-        statusFilter = sql`s.status = ${status}`;
+      const COLS = sql`
+        s.id, s.name, s.status, s.birth_year, s.phone, s.parent_name,
+        s.parent_user_id, s.weekly_count, s.class_group_id,
+        s.assigned_class_ids, s.schedule_labels, s.last_class_group_name,
+        s.pending_status_change, s.pending_effective_mode, s.pending_effective_month,
+        s.updated_at, s.withdrawn_at, s.archived_reason,
+        cg.name AS class_group_name
+      `;
+
+      let rows;
+
+      if (tab === "unassigned") {
+        // 미배정: active이지만 반 배정 없는 회원
+        rows = await db.execute(sql`
+          SELECT ${COLS}
+          FROM students s
+          LEFT JOIN class_groups cg ON s.class_group_id = cg.id
+          WHERE s.swimming_pool_id = ${poolId}
+            AND s.status = 'active'
+            AND s.deleted_at IS NULL
+            AND s.class_group_id IS NULL
+            AND (s.assigned_class_ids IS NULL OR jsonb_array_length(s.assigned_class_ids) = 0)
+          ORDER BY s.name ASC
+        `);
+      } else if (tab === "suspend_pending") {
+        // 연기예정: pending_status_change = 'suspended'
+        rows = await db.execute(sql`
+          SELECT ${COLS}
+          FROM students s
+          LEFT JOIN class_groups cg ON s.class_group_id = cg.id
+          WHERE s.swimming_pool_id = ${poolId}
+            AND s.pending_status_change = 'suspended'
+            AND s.deleted_at IS NULL
+          ORDER BY s.name ASC
+        `);
+      } else if (tab === "withdraw_pending") {
+        // 퇴원예정: pending_status_change = 'withdrawn'
+        rows = await db.execute(sql`
+          SELECT ${COLS}
+          FROM students s
+          LEFT JOIN class_groups cg ON s.class_group_id = cg.id
+          WHERE s.swimming_pool_id = ${poolId}
+            AND s.pending_status_change = 'withdrawn'
+            AND s.deleted_at IS NULL
+          ORDER BY s.name ASC
+        `);
       } else {
-        statusFilter = sql`s.status = 'active'`;
+        // 전체: active 상태이거나 pending_status_change 있는 회원
+        rows = await db.execute(sql`
+          SELECT ${COLS}
+          FROM students s
+          LEFT JOIN class_groups cg ON s.class_group_id = cg.id
+          WHERE s.swimming_pool_id = ${poolId}
+            AND s.deleted_at IS NULL
+            AND (s.status = 'active' OR s.pending_status_change IS NOT NULL)
+          ORDER BY s.name ASC
+        `);
       }
 
-      const rows = await db.execute(sql`
-        SELECT DISTINCT s.id, s.name, s.status, s.deleted_at, s.withdrawn_at,
-          s.archived_reason, s.birth_year, s.phone, s.parent_user_id,
-          s.last_class_group_name,
-          cg.name AS class_name, s.updated_at
-        FROM students s
-        LEFT JOIN class_groups cg ON s.class_group_id = cg.id
-        WHERE s.swimming_pool_id = ${poolId}
-          AND ${statusFilter}
-        ORDER BY s.updated_at DESC
-      `);
       res.json(rows.rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
