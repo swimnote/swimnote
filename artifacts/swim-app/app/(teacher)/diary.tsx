@@ -111,7 +111,7 @@ function AuditModal({ diaryId, token, onClose }: { diaryId: string; token: strin
 // 메인 화면
 // ════════════════════════════════════════════════════════════════════════
 export default function TeacherDiaryScreen() {
-  const { token, user } = useAuth();
+  const { token, adminUser: user } = useAuth();
   const { themeColor } = useBrand();
   const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string }>();
 
