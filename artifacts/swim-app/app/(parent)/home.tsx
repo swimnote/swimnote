@@ -1,12 +1,13 @@
 /**
- * 학부모 홈 — Stack 기반, 탭바 없음
+ * 학부모 홈 — Stack 기반
  *
  * 구조:
- *   A. 헤더 (수영장이름 · 알림/쪽지 아이콘)
- *   B. 자녀 탭 (1명: 탭 없이 표시 / 2명+: 가로 탭)
- *   C. 정보바 (자녀이름 · 반이름 · 수업시간)
- *   D. 3×2 아이콘 그리드
- *   E. 최신소식 피드
+ *   A. 상단 헤더 (수영장이름 · 알림 · 톱니바퀴)
+ *   B. 자녀 탭 (2명+: 가로 스크롤 탭)
+ *   C. 정보카드 (자녀이름 · 반 · 수업시간)
+ *   D. 3×2 기능 아이콘 그리드
+ *      수업일지 / 출결 / 앨범 / 공지 / 쪽지 / 수영정보
+ *   E. 최신소식 피드 (공지 + 수업일지)
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -25,7 +26,7 @@ const { width: SW } = Dimensions.get("window");
 const ICON_COL = 3;
 const ICON_W = Math.floor((SW - 40 - 16) / ICON_COL);
 
-// ─── 타입 ──────────────────────────────────────────────────────────────────
+// ─── 타입 ─────────────────────────────────────────────────────────────────
 interface UnreadCounts { unread_notices: number; unread_messages: number; }
 interface NewsItem {
   kind: "notice" | "diary";
@@ -45,14 +46,13 @@ interface NewsItem {
 // ─── 날짜 포맷 ────────────────────────────────────────────────────────────
 function fmtDate(d: string) {
   const dt = new Date(d.includes("T") ? d : d + "T00:00:00");
-  return dt.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+  return dt.toLocaleDateString("ko-KR", { month: "short", day: "numeric", weekday: "short" });
 }
 
 // ─── 수업일정 텍스트 ──────────────────────────────────────────────────────
 function getScheduleText(classGroup: any) {
   if (!classGroup?.schedule_days || !classGroup?.schedule_time) return null;
-  const days = classGroup.schedule_days.replace(/,/g, "·");
-  return `${days} ${classGroup.schedule_time}`;
+  return `${classGroup.schedule_days.replace(/,/g, "·")} ${classGroup.schedule_time}`;
 }
 
 // ─── 아이콘 셀 ────────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ function IconCell({
 }) {
   return (
     <Pressable
-      style={({ pressed }) => [s.iconCell, { opacity: pressed ? 0.75 : 1, width: ICON_W }]}
+      style={({ pressed }) => [s.iconCell, { opacity: pressed ? 0.72 : 1, width: ICON_W }]}
       onPress={onPress}
     >
       <View style={s.iconWrap}>
@@ -82,11 +82,12 @@ function IconCell({
   );
 }
 
-// ─── 최신소식 카드 ────────────────────────────────────────────────────────
+// ─── 뉴스 카드 ────────────────────────────────────────────────────────────
 function NewsCard({ item, onPress }: { item: NewsItem; onPress: () => void }) {
   const isNotice = item.kind === "notice";
   const accentColor = isNotice ? "#1D4ED8" : "#059669";
   const accentBg    = isNotice ? "#EFF6FF" : "#ECFDF5";
+
   return (
     <Pressable
       style={({ pressed }) => [s.newsCard, { backgroundColor: C.card, opacity: pressed ? 0.88 : 1 }]}
@@ -96,7 +97,9 @@ function NewsCard({ item, onPress }: { item: NewsItem; onPress: () => void }) {
         <View style={[s.newsTag, { backgroundColor: accentBg }]}>
           <Feather name={isNotice ? "bell" : "book-open"} size={11} color={accentColor} />
           <Text style={[s.newsTagTxt, { color: accentColor }]}>
-            {isNotice ? (item.notice_type === "class" ? "우리반 공지" : "전체 공지") : "수업일지"}
+            {isNotice
+              ? (item.notice_type === "class" ? "우리반 공지" : "전체 공지")
+              : "수업일지"}
           </Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -106,20 +109,23 @@ function NewsCard({ item, onPress }: { item: NewsItem; onPress: () => void }) {
           </Text>
         </View>
       </View>
+
       <Text style={[s.newsTitle, { color: C.text }]} numberOfLines={1}>
-        {isNotice ? item.title : `${item.teacher_name} 선생님`}
+        {isNotice ? item.title : `${item.teacher_name} 선생님 수업일지`}
       </Text>
       <Text style={[s.newsBody, { color: C.textSecondary }]} numberOfLines={2}>
         {isNotice ? item.content : item.common_content}
       </Text>
+
       {!isNotice && item.student_note ? (
         <View style={s.noteBox}>
           <Feather name="user" size={11} color="#7C3AED" />
           <Text style={[s.noteTxt, { color: "#5B21B6" }]} numberOfLines={1}>{item.student_note}</Text>
         </View>
       ) : null}
+
       <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-        <Text style={[s.moreLink, { color: C.tint }]}>자세히 →</Text>
+        <Text style={[s.moreLink, { color: accentColor }]}>자세히 보기 →</Text>
       </View>
     </Pressable>
   );
@@ -129,7 +135,7 @@ function NewsCard({ item, onPress }: { item: NewsItem; onPress: () => void }) {
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
-  const { token, parentAccount, logout } = useAuth();
+  const { token, parentAccount } = useAuth();
   const { students, selectedStudent, setSelectedStudentId, loading: ctxLoading, refresh } = useParent();
 
   const [unread, setUnread] = useState<UnreadCounts>({ unread_notices: 0, unread_messages: 0 });
@@ -137,7 +143,7 @@ export default function ParentHomeScreen() {
   const [newsLoading, setNewsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // 안드로이드 뒤로가기 — 홈에서는 막기
+  // 안드로이드 뒤로가기 막기 (홈에서)
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== "web") {
       const sub = BackHandler.addEventListener("hardwareBackPress", () => true);
@@ -145,19 +151,14 @@ export default function ParentHomeScreen() {
     }
   }, []));
 
-  // 학생 변경 시 데이터 로드
   useEffect(() => {
     const sid = selectedStudent?.id;
-    const blocked = (selectedStudent as any)?.access_blocked;
-    if (sid && !blocked) loadAll(sid);
+    if (sid) loadAll(sid);
     else { setNews([]); setUnread({ unread_notices: 0, unread_messages: 0 }); }
   }, [selectedStudent?.id]);
 
-  // 포커스 복귀 시 배지 갱신
   useFocusEffect(useCallback(() => {
-    if (selectedStudent?.id && !(selectedStudent as any)?.access_blocked) {
-      loadCounts(selectedStudent.id);
-    }
+    if (selectedStudent?.id) loadCounts(selectedStudent.id);
   }, [selectedStudent?.id]));
 
   async function loadAll(sid: string) {
@@ -188,24 +189,25 @@ export default function ParentHomeScreen() {
   }
 
   function handleNewsPress(item: NewsItem) {
-    if (item.kind === "notice") {
-      router.push("/(parent)/notices" as any);
-    } else {
-      router.push("/(parent)/diary" as any);
-    }
+    router.push(item.kind === "notice" ? "/(parent)/notices" as any : "/(parent)/diary" as any);
   }
 
-  // 아이콘 그리드 정의
+  // 기능 아이콘 6개: 수업일지, 출결, 앨범, 공지, 쪽지, 수영정보
   const icons = [
-    { icon: "bell",     label: "공지사항",   badge: unread.unread_notices, color: "#1D4ED8", bg: "#EFF6FF", path: "/(parent)/notices" },
-    { icon: "book-open",label: "수업일지",   badge: null,                  color: "#059669", bg: "#ECFDF5", path: "/(parent)/diary" },
-    { icon: "image",    label: "앨범",       badge: null,                  color: "#D97706", bg: "#FFF7ED", path: "/(parent)/photos" },
-    { icon: "calendar", label: "수업일정표", badge: null,                  color: "#7C3AED", bg: "#F5F3FF", path: "/(parent)/attendance-history" },
-    { icon: "award",    label: "교육프로그램",badge: null,                 color: "#0EA5E9", bg: "#F0F9FF", path: "/(parent)/program" },
-    { icon: "settings", label: "설정",       badge: null,                  color: "#6B7280", bg: "#F3F4F6", path: "/(parent)/more" },
+    { icon: "book-open", label: "수업일지", badge: null,
+      color: "#059669", bg: "#ECFDF5", path: "/(parent)/diary" },
+    { icon: "calendar",  label: "출결",     badge: null,
+      color: "#7C3AED", bg: "#F5F3FF", path: "/(parent)/attendance-history" },
+    { icon: "image",     label: "앨범",     badge: null,
+      color: "#D97706", bg: "#FFF7ED", path: "/(parent)/photos" },
+    { icon: "bell",      label: "공지",     badge: unread.unread_notices,
+      color: "#1D4ED8", bg: "#EFF6FF", path: "/(parent)/notices" },
+    { icon: "mail",      label: "쪽지",     badge: unread.unread_messages,
+      color: "#0EA5E9", bg: "#F0F9FF", path: "/(parent)/messages" },
+    { icon: "droplet",   label: "수영정보", badge: null,
+      color: "#1A5CFF", bg: "#EFF6FF", path: "/(parent)/swim-info" },
   ] as const;
 
-  const blocked = (selectedStudent as any)?.access_blocked;
   const scheduleText = selectedStudent ? getScheduleText(selectedStudent.class_group) : null;
 
   if (ctxLoading) {
@@ -218,7 +220,8 @@ export default function ParentHomeScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      {/* ─── A. 최상단 헤더 ─── */}
+
+      {/* ─── A. 상단 헤더 ─── */}
       <View style={[s.topHeader, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
         <View style={{ flex: 1 }}>
           <Text style={[s.poolName, { color: C.textMuted }]} numberOfLines={1}>
@@ -226,24 +229,19 @@ export default function ParentHomeScreen() {
           </Text>
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
-          {/* 쪽지 */}
-          <Pressable
-            style={[s.headerBtn, { backgroundColor: C.card }]}
-            onPress={() => router.push("/(parent)/messages" as any)}
-          >
-            <Feather name="mail" size={20} color={C.textSecondary} />
-            {unread.unread_messages > 0 && (
-              <View style={[s.headerBadge, { backgroundColor: "#EF4444" }]}>
-                <Text style={s.headerBadgeTxt}>{unread.unread_messages}</Text>
-              </View>
-            )}
-          </Pressable>
           {/* 알림 */}
           <Pressable
             style={[s.headerBtn, { backgroundColor: C.card }]}
             onPress={() => router.push("/(parent)/notifications" as any)}
           >
-            <Feather name="bell" size={20} color={C.textSecondary} />
+            <Feather name="bell" size={19} color={C.textSecondary} />
+          </Pressable>
+          {/* 설정 (톱니바퀴) */}
+          <Pressable
+            style={[s.headerBtn, { backgroundColor: C.card }]}
+            onPress={() => router.push("/(parent)/more" as any)}
+          >
+            <Feather name="settings" size={19} color={C.textSecondary} />
           </Pressable>
         </View>
       </View>
@@ -258,7 +256,6 @@ export default function ParentHomeScreen() {
         >
           {students.map(st => {
             const isSelected = selectedStudent?.id === st.id;
-            const stBlocked = (st as any).access_blocked;
             return (
               <Pressable
                 key={st.id}
@@ -270,13 +267,9 @@ export default function ParentHomeScreen() {
                 ]}
                 onPress={() => setSelectedStudentId(st.id)}
               >
-                <Text style={[
-                  s.childTabTxt,
-                  { color: isSelected ? "#fff" : C.text },
-                ]}>
+                <Text style={[s.childTabTxt, { color: isSelected ? "#fff" : C.text }]}>
                   {st.name}
                 </Text>
-                {stBlocked && <Feather name="lock" size={10} color={isSelected ? "rgba(255,255,255,0.7)" : C.textMuted} />}
               </Pressable>
             );
           })}
@@ -289,39 +282,26 @@ export default function ParentHomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       >
-        {/* ─── C. 정보바 (자녀 이름 · 반 · 시간) ─── */}
+        {/* ─── C. 정보카드 ─── */}
         {selectedStudent ? (
-          <View style={[s.infoCard, { backgroundColor: C.tint }]}>
+          <Pressable
+            style={[s.infoCard, { backgroundColor: C.tint }]}
+            onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: selectedStudent.id } })}
+          >
             <View style={s.infoLeft}>
-              <View style={[s.infoAvatar]}>
+              <View style={s.infoAvatar}>
                 <Text style={s.infoAvatarTxt}>{selectedStudent.name[0]}</Text>
               </View>
-              <View style={{ gap: 2 }}>
+              <View style={{ gap: 3 }}>
                 <Text style={s.infoName}>{selectedStudent.name}</Text>
-                {blocked ? (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Feather name="lock" size={12} color="rgba(255,255,255,0.75)" />
-                    <Text style={s.infoSub}>비공개 처리됨</Text>
-                  </View>
-                ) : (
-                  <>
-                    {selectedStudent.class_group?.name ? (
-                      <Text style={s.infoSub}>{selectedStudent.class_group.name}</Text>
-                    ) : <Text style={s.infoSub}>반 배정 전</Text>}
-                    {scheduleText && (
-                      <Text style={s.infoSchedule}>{scheduleText}</Text>
-                    )}
-                  </>
-                )}
+                {selectedStudent.class_group?.name
+                  ? <Text style={s.infoSub}>{selectedStudent.class_group.name}</Text>
+                  : <Text style={s.infoSub}>반 배정 전</Text>}
+                {scheduleText && <Text style={s.infoSchedule}>{scheduleText}</Text>}
               </View>
             </View>
-            <Pressable
-              style={s.infoEditBtn}
-              onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: selectedStudent.id } })}
-            >
-              <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.8)" />
-            </Pressable>
-          </View>
+            <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
+          </Pressable>
         ) : (
           <Pressable
             style={[s.noChildCard, { backgroundColor: C.card }]}
@@ -333,7 +313,7 @@ export default function ParentHomeScreen() {
           </Pressable>
         )}
 
-        {/* ─── D. 3×2 아이콘 그리드 ─── */}
+        {/* ─── D. 기능 아이콘 그리드 (3×2) ─── */}
         <View style={s.section}>
           <View style={s.iconGrid}>
             {icons.map(ic => (
@@ -355,16 +335,12 @@ export default function ParentHomeScreen() {
           <View style={s.sectionHeader}>
             <Text style={[s.sectionTitle, { color: C.text }]}>최신소식</Text>
             <Pressable onPress={() => router.push("/(parent)/notices" as any)}>
-              <Text style={[s.sectionMore, { color: C.tint }]}>더보기</Text>
+              <Text style={[s.sectionMore, { color: C.tint }]}>공지 전체보기</Text>
             </Pressable>
           </View>
 
-          {blocked ? (
-            <View style={[s.emptyBox, { backgroundColor: C.card }]}>
-              <Text style={[s.emptyTxt, { color: C.textMuted }]}>수영장에서 정보를 비공개로 설정했습니다</Text>
-            </View>
-          ) : newsLoading ? (
-            <ActivityIndicator color={C.tint} style={{ marginVertical: 24 }} />
+          {newsLoading ? (
+            <ActivityIndicator color={C.tint} style={{ marginVertical: 28 }} />
           ) : !selectedStudent ? (
             <View style={[s.emptyBox, { backgroundColor: C.card }]}>
               <Text style={s.emptyEmoji}>👶</Text>
@@ -373,13 +349,19 @@ export default function ParentHomeScreen() {
           ) : news.length === 0 ? (
             <View style={[s.emptyBox, { backgroundColor: C.card }]}>
               <Text style={s.emptyEmoji}>📋</Text>
-              <Text style={[s.emptyTitle, { color: C.text }]}>아직 소식이 없습니다</Text>
-              <Text style={[s.emptyBody, { color: C.textSecondary }]}>공지사항이나 수업일지가{"\n"}등록되면 여기서 확인할 수 있어요</Text>
+              <Text style={[s.emptyTitle, { color: C.text }]}>등록된 소식이 없습니다</Text>
+              <Text style={[s.emptyBody, { color: C.textSecondary }]}>
+                공지사항이나 수업일지가{"\n"}등록되면 여기에 표시됩니다
+              </Text>
             </View>
           ) : (
             <View style={{ gap: 10 }}>
               {news.map(item => (
-                <NewsCard key={`${item.kind}_${item.id}`} item={item} onPress={() => handleNewsPress(item)} />
+                <NewsCard
+                  key={`${item.kind}_${item.id}`}
+                  item={item}
+                  onPress={() => handleNewsPress(item)}
+                />
               ))}
             </View>
           )}
@@ -392,7 +374,6 @@ export default function ParentHomeScreen() {
 const s = StyleSheet.create({
   root: { flex: 1 },
 
-  // 헤더
   topHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 20, paddingBottom: 10,
@@ -400,28 +381,19 @@ const s = StyleSheet.create({
   poolName: { fontSize: 14, fontFamily: "Inter_500Medium" },
   headerBtn: {
     width: 40, height: 40, borderRadius: 12,
-    alignItems: "center", justifyContent: "center", position: "relative",
+    alignItems: "center", justifyContent: "center",
   },
-  headerBadge: {
-    position: "absolute", top: -4, right: -4,
-    minWidth: 16, height: 16, borderRadius: 8,
-    alignItems: "center", justifyContent: "center", paddingHorizontal: 3,
-  },
-  headerBadgeTxt: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" },
 
-  // 자녀 탭
   childTab: {
-    flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5,
   },
   childTabTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
-  // 정보 카드
   infoCard: {
     marginHorizontal: 20, marginVertical: 10, borderRadius: 20, padding: 18,
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
-  infoLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
+  infoLeft: { flexDirection: "row", alignItems: "center", gap: 14, flex: 1 },
   infoAvatar: {
     width: 52, height: 52, borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.25)",
@@ -431,7 +403,6 @@ const s = StyleSheet.create({
   infoName: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
   infoSub: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.85)" },
   infoSchedule: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" },
-  infoEditBtn: { padding: 6 },
 
   noChildCard: {
     marginHorizontal: 20, marginVertical: 10, borderRadius: 16, padding: 18,
@@ -439,13 +410,11 @@ const s = StyleSheet.create({
   },
   noChildTxt: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
 
-  // 섹션
   section: { paddingHorizontal: 20, paddingTop: 16, gap: 12 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   sectionMore: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
-  // 아이콘 그리드
   iconGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   iconCell: { alignItems: "center", gap: 8, paddingVertical: 14 },
   iconWrap: { position: "relative" },
@@ -459,7 +428,6 @@ const s = StyleSheet.create({
   badgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#fff" },
   iconLabel: { fontSize: 12, fontFamily: "Inter_500Medium", textAlign: "center" },
 
-  // 최신소식 카드
   newsCard: {
     borderRadius: 16, padding: 14, gap: 7,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
@@ -476,10 +444,8 @@ const s = StyleSheet.create({
   noteTxt: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
   moreLink: { fontSize: 12, fontFamily: "Inter_500Medium" },
 
-  // 빈 상태
   emptyBox: { borderRadius: 16, padding: 32, alignItems: "center", gap: 8 },
-  emptyEmoji: { fontSize: 44 },
+  emptyEmoji: { fontSize: 40 },
   emptyTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   emptyBody: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
-  emptyTxt: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
 });

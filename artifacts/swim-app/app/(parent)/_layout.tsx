@@ -27,6 +27,7 @@ function ParentStack() {
       <Stack.Screen name="student-detail" />
       <Stack.Screen name="notice-detail" />
       <Stack.Screen name="swim-diary" />
+      <Stack.Screen name="swim-info" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="shopping" />
     </Stack>

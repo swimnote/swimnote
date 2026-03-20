@@ -537,5 +537,34 @@ router.get("/students/:id/feed", requireAuth, requireParent, async (req: AuthReq
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ─── 수영정보 (수영장 기본 정보 + 안내 콘텐츠) ─────────────────────────────
+router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [pa] = await db.select({ swimming_pool_id: parentAccountsTable.swimming_pool_id })
+      .from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
+
+    const [pool] = await db.select({
+      id: swimmingPoolsTable.id,
+      name: swimmingPoolsTable.name,
+      address: swimmingPoolsTable.address,
+      phone: swimmingPoolsTable.phone,
+    }).from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, pa.swimming_pool_id)).limit(1);
+
+    if (!pool) { res.status(404).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    res.json({
+      pool_name: pool.name,
+      address: pool.address,
+      phone: pool.phone,
+      introduction: null,
+      tuition_info: null,
+      level_test_info: null,
+      event_info: null,
+      equipment_info: null,
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
 export default router;
 
