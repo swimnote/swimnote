@@ -1,7 +1,14 @@
 /**
  * (teacher)/student-detail.tsx
- * 선생님이 회원 상세 정보 조회하는 화면
- * 내반 탭에서 학생 이름 클릭 시 진입
+ * 선생님 모드 — 공통 회원 프로필 화면
+ *
+ * 모든 진입 경로에서 동일한 화면 사용:
+ * 회원관리 탭 / 반배정 / 출결 / 수업관리 / 보강관리 등
+ *
+ * 기능:
+ * - 기본정보 / 수업정보 / 출결 현황 섹션
+ * - 상태 배지 (대표 상태 + 예약 상태)
+ * - 상태 변경 버튼 → MemberStatusChangeModal 공통 팝업
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -14,42 +21,44 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { MemberStatusChangeModal } from "@/components/common/MemberStatusChangeModal";
+import {
+  getPrimaryStatus, PRIMARY_STATUS_BADGE, getMemberPendingBadge,
+  getEffectiveWeekly, WEEKLY_BADGE,
+  type StudentMember,
+} from "@/utils/studentUtils";
 
 const C = Colors.light;
 
 const KO_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
-interface AssignedClass {
-  id: string; name: string; schedule_days: string; schedule_time: string;
-  student_count: number; level?: string | null;
-}
-
-interface Student {
-  id: string; name: string; birth_year?: string | null; gender?: string | null;
-  phone?: string | null; address?: string | null; status?: string;
-  parent_user_id?: string | null; weekly_count?: number;
-  schedule_labels?: string | null;
-  assignedClasses?: AssignedClass[];
+interface StudentDetail extends StudentMember {
+  phone?: string | null;
+  address?: string | null;
+  gender?: string | null;
+  assignedClasses?: {
+    id: string; name: string; schedule_days: string; schedule_time: string;
+    student_count?: number; level?: string | null;
+  }[];
 }
 
 interface AttendanceStat {
-  total: number; present: number; absent: number;
+  total: number; present: number; absent: number; late: number;
 }
 
 function getBirthAge(birthYear?: string | null): string {
   if (!birthYear) return "";
-  const age = new Date().getFullYear() - parseInt(birthYear) + 1;
+  const y = parseInt(birthYear);
+  if (isNaN(y)) return birthYear;
+  const age = new Date().getFullYear() - y + 1;
   return `${birthYear}년생 (${age}세)`;
 }
 
-function getStatusLabel(status?: string): { text: string; color: string; bg: string } {
-  const map: Record<string, { text: string; color: string; bg: string }> = {
-    active:              { text: "정상",     color: "#059669", bg: "#D1FAE5" },
-    pending_parent_link: { text: "연결 대기", color: "#EA580C", bg: "#FFF7ED" },
-    withdrawn:           { text: "탈퇴",     color: "#DC2626", bg: "#FEE2E2" },
-    suspended:           { text: "일시정지", color: "#D97706", bg: "#FEF3C7" },
-  };
-  return map[status ?? ""] ?? { text: status ?? "등록", color: "#6B7280", bg: "#F3F4F6" };
+function colorFromId(id: string, fallback: string): string {
+  const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16"];
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
+  return COLORS[Math.abs(h) % COLORS.length];
 }
 
 export default function StudentDetailScreen() {
@@ -57,24 +66,27 @@ export default function StudentDetailScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
 
-  const [student,  setStudent]  = useState<Student | null>(null);
-  const [attStat,  setAttStat]  = useState<AttendanceStat | null>(null);
-  const [loading,  setLoading]  = useState(true);
+  const [student, setStudent] = useState<StudentDetail | null>(null);
+  const [attStat, setAttStat] = useState<AttendanceStat | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showStatusModal, setShowStatusModal] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
+    setLoading(true);
     try {
       const [stRes, attRes] = await Promise.all([
         apiRequest(token, `/students/${id}`),
         apiRequest(token, `/students/${id}/attendance`),
       ]);
-      if (stRes.ok)  setStudent(await stRes.json());
+      if (stRes.ok) setStudent(await stRes.json());
       if (attRes.ok) {
         const arr: any[] = await attRes.json();
-        const total   = arr.length;
+        const total = arr.length;
         const present = arr.filter(a => a.status === "present").length;
-        const absent  = total - present;
-        setAttStat({ total, present, absent });
+        const absent = arr.filter(a => a.status === "absent").length;
+        const late = arr.filter(a => a.status === "late").length;
+        setAttStat({ total, present, absent, late });
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -97,36 +109,94 @@ export default function StudentDetailScreen() {
         <SubScreenHeader title="회원 정보" homePath="/(teacher)/today-schedule" />
         <View style={s.emptyBox}>
           <Feather name="user-x" size={40} color={C.textMuted} />
-          <Text style={s.emptyText}>학생 정보를 불러올 수 없습니다</Text>
+          <Text style={s.emptyText}>회원 정보를 불러올 수 없습니다</Text>
         </View>
       </View>
     );
   }
 
-  const statusBadge = getStatusLabel(student.status);
+  const ps = getPrimaryStatus(student as any);
+  const primaryBadge = PRIMARY_STATUS_BADGE[ps];
+  const pendingBadge = getMemberPendingBadge(student as any);
+  const wc = student.weekly_count ? getEffectiveWeekly(student as any) : null;
+  const weeklyBadge = wc ? WEEKLY_BADGE[wc] : null;
 
   return (
     <View style={s.safe}>
-      <SubScreenHeader title="회원 정보" homePath="/(teacher)/today-schedule" />
+      <SubScreenHeader title={student.name} homePath="/(teacher)/today-schedule" />
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
-        {/* 프로필 카드 */}
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+        contentContainerStyle={s.content}>
+
+        {/* ── 프로필 헤더 카드 ────────────────────────────────── */}
         <View style={s.profileCard}>
-          <View style={[s.avatarLarge, { backgroundColor: themeColor + "18" }]}>
+          <View style={[s.avatarWrap, { backgroundColor: themeColor + "18" }]}>
             <Text style={[s.avatarText, { color: themeColor }]}>{student.name[0]}</Text>
           </View>
-          <View style={s.profileInfo}>
+
+          <View style={{ flex: 1 }}>
             <Text style={s.studentName}>{student.name}</Text>
             {student.birth_year && (
               <Text style={s.studentSub}>{getBirthAge(student.birth_year)}</Text>
             )}
-          </View>
-          <View style={[s.statusBadge, { backgroundColor: statusBadge.bg }]}>
-            <Text style={[s.statusText, { color: statusBadge.color }]}>{statusBadge.text}</Text>
+
+            {/* 상태 배지들 */}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              <View style={[s.statusBadge, { backgroundColor: primaryBadge.bg }]}>
+                <Text style={[s.statusText, { color: primaryBadge.color }]}>{primaryBadge.label}</Text>
+              </View>
+              {weeklyBadge && (
+                <View style={[s.statusBadge, { backgroundColor: weeklyBadge.bg }]}>
+                  <Text style={[s.statusText, { color: weeklyBadge.color }]}>{weeklyBadge.label}</Text>
+                </View>
+              )}
+              {pendingBadge && (
+                <View style={[s.statusBadge, { backgroundColor: pendingBadge.bg }]}>
+                  <Text style={[s.statusText, { color: pendingBadge.color }]}>{pendingBadge.label}</Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
 
-        {/* 기본 정보 */}
+        {/* ── 상태 관리 카드 ─────────────────────────────────── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>상태 관리</Text>
+          <View style={s.card}>
+            <View style={s.statusRow}>
+              <View style={{ gap: 4 }}>
+                <Text style={s.statusRowLabel}>현재 상태</Text>
+                <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                  <View style={[s.statusBadgeLg, { backgroundColor: primaryBadge.bg }]}>
+                    <Text style={[s.statusBadgeLgText, { color: primaryBadge.color }]}>{primaryBadge.label}</Text>
+                  </View>
+                  {pendingBadge && (
+                    <View style={[s.statusBadgeLg, { backgroundColor: pendingBadge.bg }]}>
+                      <Text style={[s.statusBadgeLgText, { color: pendingBadge.color }]}>{pendingBadge.label}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              <Pressable style={[s.changeBtn, { borderColor: themeColor }]}
+                onPress={() => setShowStatusModal(true)}>
+                <Feather name="edit-2" size={14} color={themeColor} />
+                <Text style={[s.changeBtnText, { color: themeColor }]}>상태 변경</Text>
+              </Pressable>
+            </View>
+
+            <View style={s.divider} />
+
+            <InfoRow icon="calendar" label="등록일"
+              value={student.created_at ? new Date(student.created_at).toLocaleDateString("ko-KR") : "-"} />
+            <InfoRow icon="map-pin" label="등록 경로"
+              value={student.registration_path === "admin_created" ? "관리자 직접" : "학부모 요청"} />
+            <InfoRow icon="link" label="학부모 연결"
+              value={student.parent_user_id ? "연결됨" : student.status === "pending_parent_link" ? "대기 중" : "미연결"}
+              valueColor={student.parent_user_id ? "#059669" : student.status === "pending_parent_link" ? "#EA580C" : "#6B7280"} />
+          </View>
+        </View>
+
+        {/* ── 기본 정보 ──────────────────────────────────────── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>기본 정보</Text>
           <View style={s.card}>
@@ -135,18 +205,61 @@ export default function StudentDetailScreen() {
               <InfoRow icon="calendar" label="생년" value={getBirthAge(student.birth_year)} />
             )}
             {student.gender && (
-              <InfoRow icon="users" label="성별" value={student.gender === "male" ? "남" : student.gender === "female" ? "여" : student.gender} />
+              <InfoRow icon="users" label="성별"
+                value={student.gender === "male" ? "남" : student.gender === "female" ? "여" : student.gender} />
             )}
-            <InfoRow
-              icon="link"
-              label="학부모 연결"
-              value={student.parent_user_id ? "연결됨" : student.status === "pending_parent_link" ? "대기 중" : "미연결"}
-              valueColor={student.parent_user_id ? "#059669" : student.status === "pending_parent_link" ? "#EA580C" : "#6B7280"}
-            />
+            {student.parent_name && (
+              <InfoRow icon="user" label="보호자" value={student.parent_name} />
+            )}
+            {student.parent_phone && (
+              <InfoRow icon="phone" label="보호자 연락처" value={student.parent_phone} />
+            )}
           </View>
         </View>
 
-        {/* 출결 통계 */}
+        {/* ── 수강 반 ──────────────────────────────────────── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>수강 반</Text>
+          {(!student.assignedClasses || student.assignedClasses.length === 0) ? (
+            <View style={[s.card, s.emptyCard]}>
+              <Feather name="layers" size={24} color={C.textMuted} />
+              <Text style={s.emptyCardText}>배정된 반이 없습니다</Text>
+            </View>
+          ) : (
+            <View style={s.card}>
+              {student.assignedClasses.map((cls, i) => {
+                const days = cls.schedule_days.split(",").map(d => {
+                  const n = parseInt(d.trim());
+                  return isNaN(n) ? d.trim() : (KO_DAYS[n] ?? d.trim());
+                }).join("·");
+                return (
+                  <View key={cls.id}>
+                    {i > 0 && <View style={s.divider} />}
+                    <View style={s.classRow}>
+                      <View style={[s.colorBar, { backgroundColor: colorFromId(cls.id, themeColor) }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.className}>{cls.name}</Text>
+                        <Text style={s.classMeta}>
+                          {days} · {cls.schedule_time}{cls.level ? ` · ${cls.level}` : ""}
+                        </Text>
+                      </View>
+                      <Pressable
+                        style={[s.goBtn, { borderColor: themeColor + "40" }]}
+                        onPress={() => router.push({
+                          pathname: "/(teacher)/attendance",
+                          params: { classGroupId: cls.id },
+                        } as any)}>
+                        <Text style={[s.goBtnText, { color: themeColor }]}>출결</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* ── 출결 현황 ─────────────────────────────────────── */}
         {attStat && attStat.total > 0 && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>출결 현황</Text>
@@ -157,57 +270,42 @@ export default function StudentDetailScreen() {
               <View style={s.attDivider} />
               <AttBox label="결석" value={attStat.absent} color="#DC2626" />
               <View style={s.attDivider} />
+              <AttBox label="지각" value={attStat.late} color="#D97706" />
+              <View style={s.attDivider} />
               <AttBox
                 label="출석률"
-                value={`${Math.round((attStat.present / attStat.total) * 100)}%`}
-                color={attStat.present / attStat.total >= 0.8 ? "#059669" : "#D97706"}
+                value={attStat.total > 0 ? `${Math.round((attStat.present / attStat.total) * 100)}%` : "-"}
+                color={attStat.total > 0 && (attStat.present / attStat.total) >= 0.8 ? "#059669" : "#D97706"}
               />
             </View>
           </View>
         )}
 
-        {/* 배정된 반 */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>수강 반</Text>
-          {(!student.assignedClasses || student.assignedClasses.length === 0) ? (
-            <View style={[s.card, s.emptyCard]}>
-              <Feather name="layers" size={24} color={C.textMuted} />
-              <Text style={s.emptyCardText}>배정된 반이 없습니다</Text>
-            </View>
-          ) : (
-            <View style={s.card}>
-              {student.assignedClasses.map((cls, i) => (
-                <View key={cls.id}>
-                  {i > 0 && <View style={s.divider} />}
-                  <View style={s.classRow}>
-                    <View style={[s.colorBar, { backgroundColor: colorFromId(cls.id, themeColor) }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.className}>{cls.name}</Text>
-                      <Text style={s.classMeta}>
-                        {cls.schedule_days.split(",").join("·")} · {cls.schedule_time}
-                        {cls.level ? ` · ${cls.level}` : ""}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={[s.goBtn, { borderColor: themeColor + "40" }]}
-                      onPress={() => router.push({ pathname: "/(teacher)/attendance", params: { classGroupId: cls.id } } as any)}
-                    >
-                      <Text style={[s.goBtnText, { color: themeColor }]}>출결</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* ── 상태 변경 모달 ──────────────────────────────────── */}
+      <MemberStatusChangeModal
+        visible={showStatusModal}
+        studentId={id!}
+        studentName={student.name}
+        currentStatus={student.status}
+        pendingStatusChange={student.pending_status_change}
+        pendingEffectiveMode={student.pending_effective_mode}
+        onClose={() => setShowStatusModal(false)}
+        onChanged={() => load()}
+      />
     </View>
   );
 }
 
-function InfoRow({ icon, label, value, valueColor }: { icon: any; label: string; value: string; valueColor?: string }) {
+// ── 서브 컴포넌트 ──────────────────────────────────────────────────────
+
+function InfoRow({
+  icon, label, value, valueColor,
+}: {
+  icon: any; label: string; value: string; valueColor?: string;
+}) {
   return (
     <View style={s.infoRow}>
       <Feather name={icon} size={14} color={C.textMuted} style={{ marginTop: 1 }} />
@@ -226,62 +324,57 @@ function AttBox({ label, value, color }: { label: string; value: string | number
   );
 }
 
-function colorFromId(id: string, fallback: string): string {
-  const COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
-  return COLORS[Math.abs(h) % COLORS.length];
-}
-
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F3F4F6" },
-  header:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                  paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#fff",
-                  borderBottomWidth: 1, borderBottomColor: C.border },
-  backBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6",
-                  alignItems: "center", justifyContent: "center" },
-  headerTitle:  { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
+  safe:           { flex: 1, backgroundColor: C.background },
+  content:        { padding: 16, gap: 16 },
 
-  content:      { padding: 16, gap: 16 },
+  profileCard:    { backgroundColor: C.card, borderRadius: 16, padding: 16,
+                    flexDirection: "row", alignItems: "flex-start", gap: 14,
+                    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  avatarWrap:     { width: 60, height: 60, borderRadius: 18, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  avatarText:     { fontSize: 24, fontFamily: "Inter_700Bold" },
+  studentName:    { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
+  studentSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  statusBadge:    { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  statusText:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
-  profileCard:  { backgroundColor: "#fff", borderRadius: 16, padding: 16,
-                  flexDirection: "row", alignItems: "center", gap: 14,
-                  shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  avatarLarge:  { width: 60, height: 60, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  avatarText:   { fontSize: 24, fontFamily: "Inter_700Bold" },
-  profileInfo:  { flex: 1 },
-  studentName:  { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
-  studentSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
-  statusBadge:  { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  statusText:   { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  section:        { gap: 8 },
+  sectionTitle:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, paddingLeft: 4 },
+  card:           { backgroundColor: C.card, borderRadius: 16, overflow: "hidden",
+                    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
 
-  section:      { gap: 8 },
-  sectionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, paddingLeft: 4 },
-  card:         { backgroundColor: "#fff", borderRadius: 16, overflow: "hidden",
-                  shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  statusRow:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                    paddingHorizontal: 16, paddingVertical: 14 },
+  statusRowLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginBottom: 4 },
+  statusBadgeLg:  { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  statusBadgeLgText:{ fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  changeBtn:      { flexDirection: "row", alignItems: "center", gap: 5,
+                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
+  changeBtnText:  { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
-  infoRow:      { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12,
-                  borderBottomWidth: 1, borderBottomColor: "#F9FAFB" },
-  infoLabel:    { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, width: 70 },
-  infoValue:    { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: C.text, textAlign: "right" },
+  infoRow:        { flexDirection: "row", alignItems: "center", gap: 8,
+                    paddingHorizontal: 16, paddingVertical: 12,
+                    borderBottomWidth: 1, borderBottomColor: "#F9FAFB" },
+  infoLabel:      { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, width: 80 },
+  infoValue:      { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: C.text, textAlign: "right" },
 
-  attRow:       { flexDirection: "row", padding: 16 },
-  attBox:       { flex: 1, alignItems: "center", gap: 4 },
-  attValue:     { fontSize: 20, fontFamily: "Inter_700Bold" },
-  attLabel:     { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  attDivider:   { width: 1, backgroundColor: C.border, marginVertical: 4 },
+  divider:        { height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 14 },
 
-  classRow:     { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
-  colorBar:     { width: 4, height: 40, borderRadius: 2 },
-  className:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
-  classMeta:    { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  divider:      { height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 14 },
-  goBtn:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5 },
-  goBtnText:    { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  classRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
+  colorBar:       { width: 4, height: 40, borderRadius: 2 },
+  className:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  classMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  goBtn:          { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5 },
+  goBtnText:      { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
-  emptyCard:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 24 },
-  emptyCardText:{ fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
+  attRow:         { flexDirection: "row", padding: 16 },
+  attBox:         { flex: 1, alignItems: "center", gap: 4 },
+  attValue:       { fontSize: 18, fontFamily: "Inter_700Bold" },
+  attLabel:       { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  attDivider:     { width: 1, backgroundColor: C.border, marginVertical: 4 },
 
-  emptyBox:     { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
+  emptyCard:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 24 },
+  emptyCardText:  { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
+  emptyBox:       { alignItems: "center", paddingTop: 80, gap: 10 },
+  emptyText:      { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
 });

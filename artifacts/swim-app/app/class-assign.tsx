@@ -325,6 +325,7 @@ export default function ClassAssignScreen() {
                 key={item.id}
                 student={toStudentMember(item)}
                 showTeacher={false}
+                onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id } } as any)}
                 actions={[
                   {
                     label: "해제",

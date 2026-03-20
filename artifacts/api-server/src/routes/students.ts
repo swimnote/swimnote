@@ -439,7 +439,75 @@ router.post("/:id/apply-pending-now", requireAuth, requireRole("super_admin", "p
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
 
-// ── POST /:id/move-class — 반 이동 (기존 반 제거 + 현재 반 추가) ──
+// ── POST /:id/change-status — 선생님/관리자용 상태 변경 ─────────────────
+// new_status: "active" | "unassigned" | "suspended" | "withdrawn"
+// effective_mode: "immediate"(기본) | "next_month" (suspended/withdrawn 전용)
+router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
+  const { new_status, effective_mode = "immediate" } = req.body as {
+    new_status: string;
+    effective_mode?: "immediate" | "next_month";
+  };
+  const valid = ["active", "unassigned", "suspended", "withdrawn"];
+  if (!new_status || !valid.includes(new_status)) return err(res, 400, "new_status 값이 올바르지 않습니다.");
+
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    const [existing] = await db.select().from(studentsTable)
+      .where(eq(studentsTable.id, req.params.id)).limit(1);
+    if (!existing) return err(res, 404, "학생 없음");
+    if (poolId && existing.swimming_pool_id !== poolId) return err(res, 403, "접근 권한 없음");
+
+    // 다음 달 예약 (suspended/withdrawn 만)
+    if (effective_mode === "next_month" && (new_status === "suspended" || new_status === "withdrawn")) {
+      const now = new Date();
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const nextMonthStr = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
+      await db.update(studentsTable).set({
+        pending_status_change: new_status,
+        pending_effective_mode: "next_month",
+        pending_effective_month: nextMonthStr,
+        updated_at: new Date(),
+      } as any).where(eq(studentsTable.id, req.params.id));
+      const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+      return res.json({ success: true, pending_status_change: new_status, pending_effective_mode: "next_month", pending_effective_month: nextMonthStr, student: updated });
+    }
+
+    // 즉시 변경
+    const update: any = {
+      pending_status_change: null,
+      pending_effective_mode: null,
+      pending_effective_month: null,
+      updated_at: new Date(),
+    };
+
+    if (new_status === "active") {
+      // 정상 복귀: 상태만 active로, 반 배정은 유지
+      update.status = "active";
+      update.archived_reason = null;
+    } else if (new_status === "unassigned") {
+      // 미배정: 반 배정 전체 해제, 상태는 active 유지
+      update.status = "active";
+      update.assigned_class_ids = [] as any;
+      update.class_group_id = null;
+      update.schedule_labels = null;
+    } else if (new_status === "suspended" || new_status === "withdrawn") {
+      // 즉시 휴원/퇴원: 반 배정 해제 + 상태 변경
+      update.status = new_status;
+      update.assigned_class_ids = [] as any;
+      update.class_group_id = null;
+      update.schedule_labels = null;
+      update.archived_reason = new_status;
+      if (new_status === "withdrawn") {
+        update.withdrawn_at = new Date();
+      }
+    }
+
+    await db.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+    const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    return res.json({ success: true, new_status, student: updated });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
+});
+
 router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
   const { from_class_id, to_class_id } = req.body as { from_class_id: string; to_class_id: string };
   if (!from_class_id || !to_class_id) return err(res, 400, "from_class_id, to_class_id 모두 필요");

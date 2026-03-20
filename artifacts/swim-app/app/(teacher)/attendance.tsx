@@ -420,7 +420,9 @@ export default function TeacherAttendanceScreen() {
                     color: cur === "present" ? "#059669" : cur === "absent" ? "#DC2626" : themeColor
                   }]}>{item.name[0]}</Text>
                 </View>
-                <Text style={s.attName}>{item.name}</Text>
+                <Pressable style={{ flex: 1 }} onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id } } as any)}>
+                  <Text style={s.attName}>{item.name}</Text>
+                </Pressable>
                 <View style={s.attBtns}>
                   <Pressable
                     style={[s.attBtn, { backgroundColor: cur === "present" ? "#059669" : "#F3F4F6", borderColor: cur === "present" ? "#059669" : "#E5E7EB" }]}
