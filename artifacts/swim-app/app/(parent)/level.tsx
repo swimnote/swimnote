@@ -1,13 +1,12 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, Pressable, RefreshControl,
+  ActivityIndicator, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
@@ -50,17 +49,9 @@ export default function ParentLevelScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader
-        title="레벨"
-        showHome={false}
-        onBack={() => router.navigate("/(parent)/more" as any)}
-        rightSlot={
-          selectedStudent ? (
-            <View style={[s.childChip, { backgroundColor: C.tintLight }]}>
-              <Text style={[s.childChipTxt, { color: C.tint }]}>{selectedStudent.name}</Text>
-            </View>
-          ) : undefined
-        }
+      <ParentScreenHeader
+        title="레벨 기록"
+        subtitle={selectedStudent?.name}
       />
 
       {loading ? (

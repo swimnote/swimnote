@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { parentAccountsTable, parentStudentsTable, studentsTable, attendanceTable, noticesTable, classGroupsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
+import { hashPassword, comparePassword } from "../lib/auth.js";
 
 const router = Router();
 
@@ -20,6 +21,35 @@ router.get("/me", requireAuth, requireParent, async (req: AuthRequest, res) => {
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
     const [pool] = await db.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name }).from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, pa.swimming_pool_id)).limit(1);
     res.json({ id: pa.id, name: pa.name, phone: pa.phone, swimming_pool_id: pa.swimming_pool_id, pool_name: pool?.name || null });
+  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+router.put("/me", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  const { name, phone, current_password, new_password } = req.body;
+  if (!name?.trim()) { res.status(400).json({ error: "이름을 입력해주세요." }); return; }
+  try {
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
+
+    let newHash: string | undefined;
+    if (new_password) {
+      if (!current_password) { res.status(400).json({ error: "현재 비밀번호를 입력해주세요." }); return; }
+      const valid = await comparePassword(current_password, pa.pin_hash);
+      if (!valid) { res.status(400).json({ error: "현재 비밀번호가 올바르지 않습니다." }); return; }
+      if (new_password.length < 4) { res.status(400).json({ error: "새 비밀번호는 4자 이상이어야 합니다." }); return; }
+      newHash = await hashPassword(new_password);
+    }
+
+    await db.update(parentAccountsTable)
+      .set({
+        name: name.trim(),
+        phone: phone?.trim() || pa.phone,
+        ...(newHash ? { pin_hash: newHash } : {}),
+        updated_at: new Date(),
+      })
+      .where(eq(parentAccountsTable.id, pa.id));
+
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 

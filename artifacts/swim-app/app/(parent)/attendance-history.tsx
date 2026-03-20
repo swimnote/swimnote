@@ -2,11 +2,12 @@ import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, RefreshControl,
+  ActivityIndicator, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
@@ -79,9 +80,10 @@ export default function AttendanceHistoryScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Text style={[styles.headerTitle, { color: C.text }]}>{name} 출결 기록</Text>
-      </View>
+      <ParentScreenHeader
+        title="출결 기록"
+        subtitle={name || undefined}
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

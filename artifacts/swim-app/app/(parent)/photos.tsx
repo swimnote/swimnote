@@ -13,15 +13,16 @@
 import { Feather } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, Image, Modal,
+  ActivityIndicator, Dimensions, FlatList, Image, Modal,
   Platform, Pressable, RefreshControl, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
@@ -62,7 +63,6 @@ function fmtDate(d?: string | null) {
 export default function ParentPhotosScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const { id: paramId, name: paramName } = useLocalSearchParams<{ id: string; name: string }>();
   const { selectedStudent } = useParent();
   const studentId = paramId || selectedStudent?.id;
@@ -188,16 +188,9 @@ export default function ParentPhotosScreen() {
   // ── 렌더 ────────────────────────────────────────────────────────
   return (
     <View style={[st.root, { backgroundColor: C.background }]}>
-      {/* 헤더 */}
-      <View style={[st.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <Pressable onPress={() => navigation.goBack()} style={st.backBtn}>
-          <Feather name="chevron-left" size={24} color={C.text} />
-        </Pressable>
-        <Text style={[st.headerTitle, { color: C.text }]}>
-          {studentName ? `${studentName} 사진첩` : "사진첩"}
-        </Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <ParentScreenHeader
+        title={studentName ? `${studentName} 사진첩` : "사진첩"}
+      />
 
       {/* 탭 */}
       <View style={[st.tabBar, { borderBottomColor: C.border }]}>

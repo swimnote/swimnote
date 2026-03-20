@@ -1,165 +1,241 @@
+/**
+ * 학부모 자녀 연결/추가 화면
+ * - 현재 연결된 자녀 목록 (클릭 → 자녀 프로필)
+ * - 새 자녀 연결 요청 입력 영역
+ * - ParentScreenHeader (홈 버튼 → 학부모 홈)
+ */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Pressable, RefreshControl,
+  ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
-
-interface ClassGroup {
-  name: string;
-  schedule_days: string;
-  schedule_time: string;
-}
-
-interface Student {
-  id: string;
-  name: string;
-  birth_date?: string | null;
-  phone?: string | null;
-  class_group?: ClassGroup | null;
-}
+import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
+const CHILD_COLORS = [C.tint, "#059669", "#7C3AED", "#D97706", "#0EA5E9"];
 
 const DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
-
-function parseScheduleChips(days: string, time: string): string[] {
+function parseScheduleText(days: string, time: string): string {
   let parts: string[] = [];
-  if (days.includes(",")) {
-    parts = days.split(",").map(d => d.trim()).filter(Boolean);
-  } else {
-    parts = days.split("").filter(d => DAY_ORDER.includes(d));
-  }
+  if (days.includes(",")) parts = days.split(",").map(d => d.trim()).filter(Boolean);
+  else parts = days.split("").filter(d => DAY_ORDER.includes(d));
   parts.sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b));
-  return parts.slice(0, 7).map(d => `${d} ${time}`);
+  return parts.map(d => `${d} ${time}`).join("  ");
 }
 
-function ScheduleChips({ class_group }: { class_group: ClassGroup | null | undefined }) {
-  if (!class_group || !class_group.schedule_days || !class_group.schedule_time) {
-    return <Text style={styles.noGroup}>수업 그룹 미배정</Text>;
-  }
-  const chips = parseScheduleChips(class_group.schedule_days, class_group.schedule_time);
-  return (
-    <View style={styles.chipsRow}>
-      {chips.map((chip, i) => (
-        <View key={i} style={[styles.chip, { backgroundColor: C.tintLight }]}>
-          <Text style={[styles.chipText, { color: C.tint }]}>{chip}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
+interface StudentRequest { id: string; child_name: string; status: string; created_at: string; memo?: string | null; }
 
 export default function ChildrenScreen() {
-  const { token, parentAccount, logout } = useAuth();
+  const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { students, refresh } = useParent();
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [requests, setRequests] = useState<StudentRequest[]>([]);
+  const [childName, setChildName] = useState("");
+  const [memo, setMemo] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitConfirm, setSubmitConfirm] = useState(false);
+  const [submitDone, setSubmitDone] = useState(false);
 
-  useEffect(() => { fetchStudents(); }, []);
+  useEffect(() => { fetchRequests(); }, []);
 
-  async function fetchStudents() {
+  async function fetchRequests() {
     try {
-      const res = await apiRequest(token, "/parent/students");
-      const data = await res.json();
-      setStudents(Array.isArray(data) ? data : []);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); setRefreshing(false); }
+      const res = await apiRequest(token, "/parent/student-requests");
+      if (res.ok) setRequests(await res.json());
+    } catch {}
   }
 
-  const avatarColors = [C.tint, C.success, "#7C3AED", C.warning];
+  async function onRefresh() {
+    setRefreshing(true);
+    await Promise.all([refresh(), fetchRequests()]);
+    setRefreshing(false);
+  }
+
+  async function submitRequest() {
+    if (!childName.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await apiRequest(token, "/parent/student-requests", {
+        method: "POST",
+        body: JSON.stringify({ child_name: childName.trim(), memo: memo.trim() || null }),
+      });
+      if (res.ok) {
+        setChildName(""); setMemo("");
+        await fetchRequests();
+        setSubmitDone(true);
+      }
+    } finally { setSubmitting(false); }
+  }
+
+  function statusLabel(s: string) {
+    return { pending: "검토 중", approved: "승인됨", rejected: "거절됨" }[s] ?? s;
+  }
+  function statusColor(s: string) {
+    return { pending: "#D97706", approved: "#059669", rejected: "#DC2626" }[s] ?? C.textMuted;
+  }
 
   return (
-    <View style={[styles.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader
-        title={parentAccount?.pool_name || "수영장"}
-        subtitle={`${parentAccount?.name}님, 안녕하세요`}
-        rightSlot={
-          <Pressable onPress={logout} style={[styles.logoutBtn, { backgroundColor: C.card }]}>
-            <Feather name="log-out" size={18} color={C.textSecondary} />
-          </Pressable>
-        }
-      />
+    <View style={[s.root, { backgroundColor: C.background }]}>
+      <ParentScreenHeader title="자녀 연결/추가" />
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 12, paddingTop: 8 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStudents(); }} />}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 14, paddingTop: 8 }}
       >
-        {loading ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
-        ) : students.length === 0 ? (
-          <View style={styles.empty}>
-            <Feather name="user-x" size={52} color={C.textMuted} />
-            <Text style={[styles.emptyTitle, { color: C.text }]}>연결된 자녀가 없습니다</Text>
-            <Text style={[styles.emptySub, { color: C.textSecondary }]}>수영장 관리자에게 학생 연결을 요청하세요</Text>
+        {/* ─ 현재 연결된 자녀 ─ */}
+        <Text style={[s.sectionTitle, { color: C.text }]}>연결된 자녀</Text>
+
+        {students.length === 0 ? (
+          <View style={[s.emptyBox, { backgroundColor: C.card }]}>
+            <Feather name="user-x" size={36} color={C.textMuted} />
+            <Text style={[s.emptyTxt, { color: C.textSecondary }]}>아직 연결된 자녀가 없습니다</Text>
           </View>
         ) : (
-          <>
-            <Text style={[styles.sectionTitle, { color: C.textSecondary }]}>자녀 {students.length}명</Text>
-            {students.map((s, i) => {
-              const color = avatarColors[i % avatarColors.length];
-              return (
-                <Pressable
-                  key={s.id}
-                  style={({ pressed }) => [styles.card, { backgroundColor: C.card, opacity: pressed ? 0.92 : 1, shadowColor: C.shadow }]}
-                  onPress={() => router.push({ pathname: "/(parent)/student-detail", params: { id: s.id, name: s.name } })}
-                >
-                  <View style={styles.cardTop}>
-                    <View style={[styles.avatar, { backgroundColor: color + "22" }]}>
-                      <Text style={[styles.avatarText, { color }]}>{s.name[0]}</Text>
-                    </View>
-                    <View style={styles.nameBlock}>
-                      <Text style={[styles.name, { color: C.text }]}>{s.name}</Text>
-                      {s.birth_date ? (
-                        <Text style={[styles.birth, { color: C.textMuted }]}>{s.birth_date}</Text>
-                      ) : null}
-                    </View>
-                    <Feather name="chevron-right" size={20} color={C.textMuted} />
-                  </View>
+          students.map((st, i) => {
+            const color = CHILD_COLORS[i % CHILD_COLORS.length];
+            return (
+              <Pressable
+                key={st.id}
+                style={({ pressed }) => [s.childCard, { backgroundColor: C.card, opacity: pressed ? 0.9 : 1 }]}
+                onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: st.id } })}
+              >
+                <View style={[s.childAvatar, { backgroundColor: color + "22" }]}>
+                  <Text style={[s.childAvatarTxt, { color }]}>{st.name[0]}</Text>
+                </View>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text style={[s.childName, { color: C.text }]}>{st.name}</Text>
+                  {st.class_group?.name
+                    ? <Text style={[s.childClass, { color: C.textSecondary }]}>
+                        {st.class_group.name}
+                        {st.class_group.schedule_days && st.class_group.schedule_time
+                          ? ` · ${parseScheduleText(st.class_group.schedule_days, st.class_group.schedule_time)}`
+                          : ""}
+                      </Text>
+                    : <Text style={[s.childClass, { color: C.textMuted }]}>반 배정 전</Text>
+                  }
+                </View>
+                <Feather name="chevron-right" size={18} color={C.textMuted} />
+              </Pressable>
+            );
+          })
+        )}
 
-                  <ScheduleChips class_group={s.class_group} />
-                </Pressable>
-              );
-            })}
+        {/* ─ 신청 현황 ─ */}
+        {requests.length > 0 && (
+          <>
+            <Text style={[s.sectionTitle, { color: C.text }]}>신청 현황</Text>
+            {requests.map(req => (
+              <View key={req.id} style={[s.reqCard, { backgroundColor: C.card }]}>
+                <View style={[s.reqAvatar, { backgroundColor: C.tintLight }]}>
+                  <Feather name="user" size={18} color={C.tint} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[s.childName, { color: C.text }]}>{req.child_name}</Text>
+                  {req.memo ? <Text style={[s.childClass, { color: C.textMuted }]}>{req.memo}</Text> : null}
+                </View>
+                <View style={[s.reqStatus, { backgroundColor: statusColor(req.status) + "22" }]}>
+                  <Text style={[s.reqStatusTxt, { color: statusColor(req.status) }]}>{statusLabel(req.status)}</Text>
+                </View>
+              </View>
+            ))}
           </>
         )}
+
+        {/* ─ 새 자녀 연결 요청 ─ */}
+        <Text style={[s.sectionTitle, { color: C.text }]}>새 자녀 연결 요청</Text>
+        <View style={[s.formCard, { backgroundColor: C.card }]}>
+          <Text style={[s.formLabel, { color: C.textSecondary }]}>자녀 이름 *</Text>
+          <TextInput
+            style={[s.input, { backgroundColor: "#F3F4F6", color: C.text }]}
+            placeholder="자녀 이름을 입력하세요"
+            placeholderTextColor={C.textMuted}
+            value={childName}
+            onChangeText={setChildName}
+          />
+          <Text style={[s.formLabel, { color: C.textSecondary }]}>전달 메모 (선택)</Text>
+          <TextInput
+            style={[s.input, s.inputMulti, { backgroundColor: "#F3F4F6", color: C.text }]}
+            placeholder="관리자에게 전달할 내용이 있으면 입력하세요"
+            placeholderTextColor={C.textMuted}
+            value={memo}
+            onChangeText={setMemo}
+            multiline
+            numberOfLines={3}
+          />
+          <Text style={[s.formNote, { color: C.textMuted }]}>
+            * 요청 후 수영장 관리자가 확인하면 연결됩니다
+          </Text>
+          <Pressable
+            style={[s.submitBtn, { backgroundColor: C.tint, opacity: !childName.trim() || submitting ? 0.5 : 1 }]}
+            disabled={!childName.trim() || submitting}
+            onPress={() => setSubmitConfirm(true)}
+          >
+            <Text style={s.submitBtnTxt}>{submitting ? "신청 중..." : "연결 요청 보내기"}</Text>
+          </Pressable>
+        </View>
       </ScrollView>
+
+      <ConfirmModal
+        visible={submitConfirm}
+        title="자녀 연결 요청"
+        message={`'${childName}' 이름으로 연결을 요청합니다.\n관리자가 확인 후 연결됩니다.`}
+        confirmText="요청"
+        onConfirm={async () => { setSubmitConfirm(false); await submitRequest(); }}
+        onCancel={() => setSubmitConfirm(false)}
+      />
+      <ConfirmModal
+        visible={submitDone}
+        title="신청 완료"
+        message="연결 요청이 접수되었습니다.\n관리자가 확인 후 연결해드립니다."
+        confirmText="확인"
+        onConfirm={() => setSubmitDone(false)}
+        onCancel={() => setSubmitDone(false)}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
-    paddingHorizontal: 20, paddingBottom: 16,
+  sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginTop: 4 },
+
+  emptyBox: { borderRadius: 16, padding: 28, alignItems: "center", gap: 8 },
+  emptyTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
+
+  childCard: {
+    borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center", gap: 12,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
-  poolName: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  greeting: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
-  logoutBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  sectionTitle: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  card: {
-    borderRadius: 16, padding: 16, gap: 12,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3,
+  childAvatar: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  childAvatarTxt: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  childName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  childClass: { fontSize: 12, fontFamily: "Inter_400Regular" },
+
+  reqCard: {
+    borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 12,
   },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatar: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  nameBlock: { flex: 1, gap: 3 },
-  name: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
-  birth: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  chipText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  noGroup: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  empty: { alignItems: "center", justifyContent: "center", paddingTop: 100, gap: 12 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  emptySub: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  reqAvatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  reqStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  reqStatusTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
+  formCard: { borderRadius: 16, padding: 16, gap: 10 },
+  formLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  formNote: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  input: {
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 14, fontFamily: "Inter_400Regular",
+  },
+  inputMulti: { minHeight: 72, textAlignVertical: "top" },
+  submitBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 4 },
+  submitBtnTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

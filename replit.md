@@ -52,7 +52,7 @@ The administrator application features a 6-tab structure (Dashboard, People, Cla
 **탭 구조 재정리 (2025-03)**:
 - **선생님 (5탭)**: 홈(today-schedule) / 수업(my-schedule) / 메신저(messenger) / 정산(revenue) / 더보기(settings). 출결·일지·사진영상 탭 → href:null. my-schedule 내 반 카드에서 attendance/diary로 router.push 접근. settings(더보기)에 사진영상 앨범 바로가기 버튼 추가.
 - **관리자 (6탭)**: 홈(dashboard) / 사람(people) / 수업(classes) / 메신저(messenger) / 정산(billing) / 더보기(more). 커뮤니케이션 탭 → href:null. billing이 정산 메인 탭으로 승격 (SubScreenHeader→PageHeader). classes 수업 탭에 공지 바로가기 버튼 추가(community.tsx 연결).
-- **학부모 (5탭)**: 홈(home) / 수업피드백(diary) / 앨범(photos) / 출결(attendance-history) / 더보기(more). 쇼핑 탭 → href:null. more.tsx에서 출결 중복 메뉴 제거.
+- **학부모 (Stack 네비게이션, 2026-03 전면 재구성)**: 하단 탭바 제거 → Stack 기반. `home.tsx`가 메인 진입점 (자녀탭+정보카드+3×2아이콘그리드+뉴스피드). `ParentScreenHeader` 공통 헤더 — 항상 `/(parent)/home`으로, 관리자 경로 차단. 신규 화면: `messages.tsx`(쪽지 전체페이지), `parent-profile.tsx`(이름/전화/비밀번호), `child-profile.tsx`(자녀정보+바로가기). 재구성: `more.tsx`(프로필카드+자녀목록), `children.tsx`(자녀연결+신청현황), `diary.tsx`(MessageModal제거→messages이동). API: `PUT /parent/me`(이름/전화/비번변경) 추가.
 - **슈퍼관리자 (5탭)**: 홈(dashboard) / 수영장(pools) / 구독(subscriptions) / 운영(users) / 더보기(more). 탭 이름 변경(수영장 승인→수영장, 구독 관리→구독, 계정 관리→운영). 신규 `(super)/more.tsx` 생성(저장소 정책·플랫폼 정보 링크).
 
 **Teachers Tab** (`(admin)/teachers.tsx`): 탭 일간(Daily)/월간(Monthly). 일간=오늘 통계+시간대 목록, 월간=MonthlyCalendar(인라인, 날짜 점 표시) → timeslots → TeacherPickerList → 반 목록 → ClassDetailPanel. 계정 관리 모달(추가·수정·삭제·인증코드) 포함. NavStep: main→[timeslots]→teachers→classes→detail.

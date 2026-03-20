@@ -1,39 +1,29 @@
 /**
- * 학부모 공지사항 화면
+ * 학부모 공지사항
  * - 전체공지 / 우리반공지 태그 분리
- * - 상세 진입 시에만 읽음 처리
- * - 안읽은 수 배지
+ * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
 import { Feather } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, Pressable, RefreshControl,
+  ActivityIndicator, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
-import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
 
 interface Notice {
-  id: string;
-  title: string;
-  content: string;
-  author_name: string;
-  is_pinned: boolean;
-  is_read: boolean;
-  created_at: string;
-  notice_type?: string;
+  id: string; title: string; content: string; author_name: string;
+  is_pinned: boolean; is_read: boolean; created_at: string; notice_type?: string;
 }
-
 type FilterKey = "all" | "general" | "class";
 
 function fmtDate(d: string) {
-  const dt = new Date(d);
-  return dt.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+  return new Date(d).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
 }
 
 function TypeBadge({ type }: { type?: string }) {
@@ -53,7 +43,6 @@ const tb = StyleSheet.create({
 
 export default function ParentNoticesScreen() {
   const { token } = useAuth();
-  const { selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,26 +67,17 @@ export default function ParentNoticesScreen() {
   }
 
   function toggleExpand(n: Notice) {
-    if (expanded === n.id) {
-      setExpanded(null);
-    } else {
-      setExpanded(n.id);
-      markRead(n);
-    }
+    if (expanded === n.id) { setExpanded(null); }
+    else { setExpanded(n.id); markRead(n); }
   }
 
-  const filtered = notices.filter(n => {
-    if (filter === "all") return true;
-    return n.notice_type === filter;
-  });
-
+  const filtered = notices.filter(n => filter === "all" || n.notice_type === filter);
   const unreadCount = notices.filter(n => !n.is_read).length;
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader
+      <ParentScreenHeader
         title={unreadCount > 0 ? `공지사항 (${unreadCount})` : "공지사항"}
-        onBack={() => {}}
       />
 
       {/* 필터 칩 */}
@@ -123,7 +103,7 @@ export default function ParentNoticesScreen() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await fetchNotices(); setRefreshing(false); }} />}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 10, paddingTop: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 10, paddingTop: 8 }}
         >
           {filtered.length === 0 ? (
             <View style={[s.emptyBox, { backgroundColor: C.card }]}>
@@ -138,7 +118,6 @@ export default function ParentNoticesScreen() {
                 style={[s.card, { backgroundColor: C.card }, !n.is_read && s.cardUnread]}
                 onPress={() => toggleExpand(n)}
               >
-                {/* 상단 */}
                 <View style={s.cardTop}>
                   <TypeBadge type={n.notice_type} />
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -146,25 +125,14 @@ export default function ParentNoticesScreen() {
                     {n.is_pinned && <Feather name="bookmark" size={13} color={C.tint} />}
                   </View>
                 </View>
-
-                {/* 제목 */}
                 <Text style={[s.title, { color: C.text }]}>{n.title}</Text>
-
-                {/* 본문 (펼침) */}
-                {isExpanded ? (
-                  <Text style={[s.content, { color: C.textSecondary }]}>{n.content}</Text>
-                ) : (
-                  <Text style={[s.contentPreview, { color: C.textSecondary }]} numberOfLines={2}>{n.content}</Text>
-                )}
-
-                {/* 하단 */}
+                {isExpanded
+                  ? <Text style={[s.content, { color: C.textSecondary }]}>{n.content}</Text>
+                  : <Text style={[s.contentPreview, { color: C.textSecondary }]} numberOfLines={2}>{n.content}</Text>
+                }
                 <View style={s.cardBottom}>
-                  <Text style={[s.meta, { color: C.textMuted }]}>
-                    {n.author_name} · {fmtDate(n.created_at)}
-                  </Text>
-                  <Text style={[s.expandHint, { color: C.tint }]}>
-                    {isExpanded ? "접기" : "펼치기"}
-                  </Text>
+                  <Text style={[s.meta, { color: C.textMuted }]}>{n.author_name} · {fmtDate(n.created_at)}</Text>
+                  <Text style={[s.expandHint, { color: C.tint }]}>{isExpanded ? "접기" : "펼치기"}</Text>
                 </View>
               </Pressable>
             );
@@ -177,7 +145,6 @@ export default function ParentNoticesScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-
   filterRow: {
     flexDirection: "row", gap: 8, paddingHorizontal: 20,
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F3F4F6",
@@ -187,7 +154,6 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff",
   },
   chipTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
-
   card: {
     borderRadius: 16, padding: 14, gap: 8,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
@@ -202,7 +168,6 @@ const s = StyleSheet.create({
   cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
   meta: { fontSize: 12, fontFamily: "Inter_400Regular" },
   expandHint: { fontSize: 12, fontFamily: "Inter_500Medium" },
-
   emptyBox: { borderRadius: 16, padding: 40, alignItems: "center", gap: 8, marginTop: 20 },
   emptyEmoji: { fontSize: 44 },
   emptyTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },

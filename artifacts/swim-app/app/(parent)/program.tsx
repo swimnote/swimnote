@@ -1,27 +1,24 @@
 /**
- * 학부모 교육 프로그램 화면
- * - 수영장당 1개 문서 (관리자 작성, 학부모 읽기 전용)
+ * 학부모 교육 프로그램
+ * - 수영장 교육 프로그램 (관리자 작성, 학부모 읽기 전용)
  * - 미작성 시 "준비 중" 안내
+ * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
-import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
 
 interface Program {
-  id: string;
-  title: string;
-  content: string;
-  author_name: string;
-  updated_at: string;
+  id: string; title: string; content: string;
+  author_name: string; updated_at: string;
 }
 
 function fmtDate(d: string) {
@@ -30,7 +27,6 @@ function fmtDate(d: string) {
 
 export default function ParentProgramScreen() {
   const { token } = useAuth();
-  const { selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
   const [program, setProgram] = useState<Program | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,10 +35,7 @@ export default function ParentProgramScreen() {
     (async () => {
       try {
         const r = await apiRequest(token, "/parent/program");
-        if (r.ok) {
-          const data = await r.json();
-          setProgram(data);
-        }
+        if (r.ok) { const data = await r.json(); setProgram(data); }
       } catch {}
       finally { setLoading(false); }
     })();
@@ -50,17 +43,16 @@ export default function ParentProgramScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader title="교육 프로그램" onBack={() => {}} />
+      <ParentScreenHeader title="교육 프로그램" />
 
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
       ) : program ? (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 60, gap: 16 }}
+          contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 16 }}
         >
           <View style={[s.card, { backgroundColor: C.card }]}>
-            {/* 아이콘 헤더 */}
             <View style={s.cardTop}>
               <View style={[s.iconBox, { backgroundColor: "#F0F9FF" }]}>
                 <Feather name="award" size={24} color="#0EA5E9" />
@@ -72,9 +64,7 @@ export default function ParentProgramScreen() {
                 </Text>
               </View>
             </View>
-
             <View style={[s.divider, { backgroundColor: C.border }]} />
-
             <Text style={[s.content, { color: C.text }]}>{program.content}</Text>
           </View>
         </ScrollView>
@@ -95,7 +85,6 @@ export default function ParentProgramScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-
   card: {
     borderRadius: 20, padding: 20, gap: 16,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
@@ -107,7 +96,6 @@ const s = StyleSheet.create({
   cardMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
   divider: { height: 1 },
   content: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 24 },
-
   emptyWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 16 },
   emptyIcon: { width: 88, height: 88, borderRadius: 28, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
