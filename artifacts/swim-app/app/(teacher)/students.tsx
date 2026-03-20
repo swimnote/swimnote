@@ -11,8 +11,8 @@
  * 연기예정/퇴원예정 카드 → 처리 팝업 → 이달 말 유지 / 오늘 즉시 적용
  */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
   RefreshControl, StyleSheet, Text, TextInput, View,
@@ -114,6 +114,13 @@ export default function WaitingListScreen() {
     setSearch("");
     load(tab);
   }, [tab, load]);
+
+  // 화면 포커스 복귀 시 자동 새로고침 (student-detail 에서 주 횟수 변경 후 반영)
+  const isMountedRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!isMountedRef.current) { isMountedRef.current = true; return; }
+    load(tab);
+  }, [load, tab]));
 
   // 즉시 적용
   async function applyNow() {

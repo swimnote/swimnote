@@ -116,8 +116,8 @@ export function UnifiedMemberCard({
               <Text style={[s.badgeTxt, { color: psBadge.color }]}>{psBadge.label}</Text>
             </View>
 
-            {/* 주횟수 배지 (정상 회원만) */}
-            {ps === "normal" && (
+            {/* 주횟수 배지 (휴원·퇴원 제외 모든 회원) */}
+            {ps !== "suspended" && ps !== "withdrawn" && (
               <View style={[s.badge, { backgroundColor: wcBadge.bg }]}>
                 <Text style={[s.badgeTxt, { color: wcBadge.color }]}>{wcBadge.label}</Text>
               </View>

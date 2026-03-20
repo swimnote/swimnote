@@ -5,7 +5,7 @@
  * 상단 우측: 선택 / 삭제 버튼
  */
 import { Feather } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Dimensions, FlatList, Modal,
@@ -741,6 +741,15 @@ export default function MyScheduleScreen() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 화면 포커스 복귀 시 학생 데이터 새로고침 (student-detail 에서 주 횟수 변경 후 반영)
+  const msIsMountedRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!msIsMountedRef.current) { msIsMountedRef.current = true; return; }
+    apiRequest(token, "/students").then(r => r.ok && r.json()).then(data => {
+      if (Array.isArray(data)) setStudents(data);
+    }).catch(() => {});
+  }, [token]));
 
   // 같은 탭 재탭 시 주간 첫 화면으로 초기화
   useEffect(() => {
