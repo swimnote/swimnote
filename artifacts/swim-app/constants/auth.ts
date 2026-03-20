@@ -107,10 +107,8 @@ export const ROLE_SELECT_LABELS = {
 };
 
 export const DEMO_ACCOUNTS = [
-  { id: "1", pw: "1", label: "플랫폼 관리자", roleKey: "super_admin", color: "#7C3AED" },
-  { id: "2", pw: "2", label: "토이키즈 관리자", roleKey: "pool_admin", color: "#1A5CFF" },
-  { id: "3", pw: "3", label: "토이키즈 선생님", roleKey: "teacher", color: "#0891B2" },
-  { id: "4", pw: "4", label: "서태웅 학부모", roleKey: "parent", color: "#059669" },
-  { id: "5", pw: "5", label: "아쿠아스타 관리자", roleKey: "pool_admin", color: "#1A5CFF" },
-  { id: "6", pw: "6", label: "아쿠아스타 선생님", roleKey: "teacher", color: "#0891B2" },
+  { id: "1", pw: "111111", label: "슈퍼관리자", roleKey: "super_admin", color: "#7C3AED" },
+  { id: "2", pw: "222222", label: "토이키즈 관리자", roleKey: "pool_admin", color: "#1A5CFF" },
+  { id: "3", pw: "333333", label: "토이키즈 선생님", roleKey: "teacher", color: "#0891B2" },
+  { id: "4", pw: "444444", label: "서태웅 학부모", roleKey: "parent", color: "#059669" },
 ] as const;

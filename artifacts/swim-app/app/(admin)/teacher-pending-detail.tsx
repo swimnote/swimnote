@@ -1,10 +1,10 @@
 /**
- * 선생님 승인 상세페이지
+ * 선생님 승인관리 상세페이지
  * 경로: /(admin)/teacher-pending-detail?inviteId=...
  *
- * - pending 상태 선생님 정보 표시 + 권한 선택 + 승인/거절
- * - 이미 approved → teacher-hub로 리다이렉트
- * - 404 → 오류 안내 후 목록 복귀
+ * - pending(joinedPendingApproval): 승인 / 거절
+ * - rejected: 거절 사유 보기 / 다시 승인
+ * - approved: teacher-hub로 자동 리다이렉트
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
@@ -22,7 +22,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 const C = Colors.light;
 
 interface TeacherDetail {
-  id: string;                     // teacher_invites.id
+  id: string;
   user_id?: string;
   name: string;
   phone?: string;
@@ -30,9 +30,12 @@ interface TeacherDetail {
   invite_status: string;
   approved_role?: string;
   approved_at?: string;
+  approved_by?: string;
   rejected_at?: string;
+  rejected_by?: string;
   rejection_reason?: string;
   created_at?: string;
+  requested_at?: string;
   user_email?: string;
   is_activated?: boolean;
   class_count?: number;
@@ -68,33 +71,44 @@ const REJECT_PRESETS = [
   "직접 입력",
 ];
 
-const STATUS_LABEL: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  joinedPendingApproval: { label: "승인 대기",  color: "#D97706", bg: "#FEF3C7", icon: "clock"         },
-  approved:             { label: "승인됨",     color: "#059669", bg: "#D1FAE5", icon: "check-circle"   },
-  rejected:             { label: "거절됨",     color: "#DC2626", bg: "#FEE2E2", icon: "x-circle"       },
-  inactive:             { label: "비활성",     color: "#6B7280", bg: "#F3F4F6", icon: "slash"          },
-  invited:              { label: "초대됨",     color: "#0891B2", bg: "#ECFEFF", icon: "mail"           },
+const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  joinedPendingApproval: { label: "승인 대기",  color: "#D97706", bg: "#FEF3C7", icon: "clock"       },
+  approved:              { label: "승인됨",     color: "#059669", bg: "#D1FAE5", icon: "check-circle" },
+  rejected:              { label: "거절됨",     color: "#DC2626", bg: "#FEE2E2", icon: "x-circle"     },
+  inactive:              { label: "비활성",     color: "#6B7280", bg: "#F3F4F6", icon: "slash"        },
+  invited:               { label: "초대됨",     color: "#0891B2", bg: "#ECFEFF", icon: "mail"         },
 };
 
+function fmtDate(dt?: string | null) {
+  if (!dt) return null;
+  try {
+    return new Date(dt).toLocaleString("ko-KR", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch { return dt; }
+}
+
 export default function TeacherPendingDetailScreen() {
-  const { token }       = useAuth();
-  const { themeColor }  = useBrand();
-  const insets          = useSafeAreaInsets();
+  const { token }      = useAuth();
+  const { themeColor } = useBrand();
+  const insets         = useSafeAreaInsets();
   const { inviteId, teacherName } = useLocalSearchParams<{ inviteId: string; teacherName?: string }>();
 
-  const [data,          setData]          = useState<TeacherDetail | null>(null);
-  const [loading,       setLoading]       = useState(true);
-  const [notFound,      setNotFound]      = useState(false);
-  const [selectedRole,  setSelectedRole]  = useState<SelectedRole>("teacher");
-  const [approving,     setApproving]     = useState(false);
-  const [approveError,  setApproveError]  = useState("");
-  const [rejecting,     setRejecting]     = useState(false);
+  const [data,         setData]         = useState<TeacherDetail | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [notFound,     setNotFound]     = useState(false);
+  const [selectedRole, setSelectedRole] = useState<SelectedRole>("teacher");
 
-  // 거절 모달
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectPreset,    setRejectPreset]    = useState<string>("");
-  const [rejectCustom,    setRejectCustom]    = useState("");
-  const [rejectError,     setRejectError]     = useState("");
+  const [approving,    setApproving]    = useState(false);
+  const [approveError, setApproveError] = useState("");
+  const [rejecting,    setRejecting]    = useState(false);
+
+  const [showRejectModal,    setShowRejectModal]    = useState(false);
+  const [showRejectReasonModal, setShowRejectReasonModal] = useState(false);
+  const [rejectPreset,       setRejectPreset]       = useState("");
+  const [rejectCustom,       setRejectCustom]       = useState("");
+  const [rejectError,        setRejectError]        = useState("");
 
   const finalRejectReason = rejectPreset === "직접 입력" ? rejectCustom.trim() : rejectPreset;
 
@@ -107,12 +121,24 @@ export default function TeacherPendingDetailScreen() {
       if (res.status === 404) { setNotFound(true); return; }
       const json = await res.json();
       const detail: TeacherDetail = json.data ?? json;
+
       // 이미 approved → teacher-hub로 리다이렉트
       if (detail.invite_status === "approved" && detail.user_id) {
-        router.replace({ pathname: "/(admin)/teacher-hub", params: { id: detail.user_id, name: detail.name } } as any);
+        router.replace({
+          pathname: "/(admin)/teacher-hub",
+          params: { id: detail.user_id, name: detail.name },
+        } as any);
         return;
       }
+
       setData(detail);
+
+      // 기본 권한: rejected이면 마지막 지정 권한 유지, 없으면 teacher
+      if (detail.invite_status === "rejected" && detail.approved_role === "sub_admin") {
+        setSelectedRole("sub_admin");
+      } else {
+        setSelectedRole("teacher");
+      }
     } catch { setNotFound(true); }
     finally { setLoading(false); }
   }
@@ -129,7 +155,10 @@ export default function TeacherPendingDetailScreen() {
       const json = await res.json();
       if (!res.ok) { setApproveError(json.message || "승인에 실패했습니다."); return; }
       if (data.user_id) {
-        router.replace({ pathname: "/(admin)/teacher-hub", params: { id: data.user_id, name: data.name } } as any);
+        router.replace({
+          pathname: "/(admin)/teacher-hub",
+          params: { id: data.user_id, name: data.name },
+        } as any);
       } else {
         router.back();
       }
@@ -153,7 +182,7 @@ export default function TeacherPendingDetailScreen() {
     finally { setRejecting(false); }
   }
 
-  // ── 로딩 ──
+  // ── 로딩 ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <View style={[s.root, { paddingTop: insets.top }]}>
@@ -163,14 +192,14 @@ export default function TeacherPendingDetailScreen() {
     );
   }
 
-  // ── 404 ──
+  // ── 404 ───────────────────────────────────────────────────────────────
   if (notFound || !data) {
     return (
       <View style={[s.root, { paddingTop: insets.top }]}>
         <SubScreenHeader title="선생님 승인 처리" onBack={() => router.back()} />
         <View style={s.errorState}>
           <Feather name="alert-circle" size={48} color={C.textMuted} />
-          <Text style={s.errorTitle}>선생님 정보를 찾을 수 없습니다</Text>
+          <Text style={s.errorTitle}>존재하지 않는 선생님입니다</Text>
           <Text style={s.errorDesc}>이미 처리됐거나 존재하지 않는 요청입니다.</Text>
           <Pressable
             style={({ pressed }) => [s.backBtn, { backgroundColor: themeColor, opacity: pressed ? 0.85 : 1 }]}
@@ -183,13 +212,15 @@ export default function TeacherPendingDetailScreen() {
     );
   }
 
-  const statusInfo = STATUS_LABEL[data.invite_status] ?? STATUS_LABEL.invited;
+  const statusInfo = STATUS_META[data.invite_status] ?? STATUS_META.invited;
   const isPending  = data.invite_status === "joinedPendingApproval";
   const isRejected = data.invite_status === "rejected";
+  const canSelectRole = isPending || isRejected;
 
-  const joinedDate = data.created_at
-    ? new Date(data.created_at).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })
-    : "알 수 없음";
+  const joinedDate   = fmtDate(data.created_at)   || "알 수 없음";
+  const requestedDate = fmtDate(data.requested_at) || joinedDate;
+  const rejectedDate = fmtDate(data.rejected_at);
+  const approvedDate = fmtDate(data.approved_at);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -201,38 +232,45 @@ export default function TeacherPendingDetailScreen() {
         <View style={[s.statusBanner, { backgroundColor: statusInfo.bg }]}>
           <Feather name={statusInfo.icon as any} size={20} color={statusInfo.color} />
           <Text style={[s.statusBannerTxt, { color: statusInfo.color }]}>{statusInfo.label}</Text>
-          {isPending && <Text style={[s.statusBannerSub, { color: statusInfo.color }]}>승인 또는 거절 처리가 필요합니다</Text>}
-          {isRejected && !!data.rejection_reason && (
-            <Text style={[s.statusBannerSub, { color: statusInfo.color }]}>사유: {data.rejection_reason}</Text>
+          {isPending && (
+            <Text style={[s.statusBannerSub, { color: statusInfo.color }]}>
+              승인 또는 거절 처리가 필요합니다
+            </Text>
+          )}
+          {isRejected && (
+            <Text style={[s.statusBannerSub, { color: statusInfo.color }]}>
+              거절된 계정입니다. 재승인하거나 이력을 확인하세요.
+            </Text>
           )}
         </View>
 
         {/* ── 기본 정보 ── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>선생님 기본정보</Text>
-          <InfoRow icon="user"       label="이름"   value={data.name} />
-          {!!data.phone && <InfoRow icon="phone"      label="전화번호" value={data.phone} />}
-          {!!data.user_email && <InfoRow icon="mail"  label="이메일"  value={data.user_email} />}
-          {!!data.position && <InfoRow icon="briefcase" label="직책"  value={data.position} />}
-          <InfoRow icon="calendar"   label="가입일시" value={joinedDate} />
-          {!!data.approved_at && data.invite_status === "approved" && (
-            <InfoRow icon="check-circle" label="승인일시" value={new Date(data.approved_at).toLocaleDateString("ko-KR")} />
-          )}
+          <InfoRow icon="user"       label="이름"     value={data.name} />
+          {!!data.phone       && <InfoRow icon="phone"    label="전화번호"  value={data.phone} />}
+          {!!data.user_email  && <InfoRow icon="mail"     label="이메일"   value={data.user_email} />}
+          {!!data.position    && <InfoRow icon="briefcase" label="직책"    value={data.position} />}
+          <InfoRow icon="calendar"   label="가입일시"   value={joinedDate} />
+          <InfoRow icon="send"       label="요청일시"   value={requestedDate} />
+          <InfoRow icon="info"       label="현재 상태"  value={statusInfo.label} />
         </View>
 
-        {/* ── 소속 정보 ── */}
+        {/* ── 소속 통계 ── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>소속 통계</Text>
           <View style={s.statsGrid}>
-            <StatBox label="담당반" value={data.class_count ?? 0} icon="layers" color="#1A5CFF" />
-            <StatBox label="담당 회원" value={data.member_count ?? 0} icon="users" color="#10B981" />
+            <StatBox label="담당반"   value={data.class_count  ?? 0} icon="layers" color="#1A5CFF" />
+            <StatBox label="담당 회원" value={data.member_count ?? 0} icon="users"  color="#10B981" />
           </View>
         </View>
 
-        {/* ── 권한 선택 (pending 상태에서만) ── */}
-        {isPending && (
+        {/* ── 권한 선택 (pending 또는 rejected 상태) ── */}
+        {canSelectRole && (
           <View style={s.section}>
-            <Text style={s.sectionTitle}>권한 선택 <Text style={s.required}>*필수</Text></Text>
+            <Text style={s.sectionTitle}>
+              권한 선택 <Text style={s.required}>*필수</Text>
+            </Text>
             <Text style={s.sectionDesc}>승인 시 부여할 권한을 선택해주세요.</Text>
             {ROLE_OPTIONS.map(opt => (
               <Pressable
@@ -247,13 +285,12 @@ export default function TeacherPendingDetailScreen() {
                   <Feather name={opt.icon as any} size={20} color={opt.color} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[s.roleLabel, selectedRole === opt.key && { color: opt.color }]}>{opt.label}</Text>
+                  <Text style={[s.roleLabel, selectedRole === opt.key && { color: opt.color }]}>
+                    {opt.label}
+                  </Text>
                   <Text style={s.roleDesc}>{opt.desc}</Text>
                 </View>
-                <View style={[
-                  s.radioOuter,
-                  selectedRole === opt.key && { borderColor: opt.color },
-                ]}>
+                <View style={[s.radioOuter, selectedRole === opt.key && { borderColor: opt.color }]}>
                   {selectedRole === opt.key && (
                     <View style={[s.radioInner, { backgroundColor: opt.color }]} />
                   )}
@@ -271,27 +308,6 @@ export default function TeacherPendingDetailScreen() {
           </View>
         )}
 
-        {/* ── 이미 승인된 경우 권한 표시 ── */}
-        {!isPending && data.invite_status === "approved" && (
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>부여된 권한</Text>
-            <View style={[s.approvedRoleBadge, {
-              backgroundColor: data.approved_role === "sub_admin" ? "#EDE9FE" : "#EFF4FF"
-            }]}>
-              <Feather
-                name={data.approved_role === "sub_admin" ? "shield" : "user"}
-                size={14}
-                color={data.approved_role === "sub_admin" ? "#7C3AED" : "#1A5CFF"}
-              />
-              <Text style={[s.approvedRoleTxt, {
-                color: data.approved_role === "sub_admin" ? "#7C3AED" : "#1A5CFF"
-              }]}>
-                {data.approved_role === "sub_admin" ? "부관리자" : "일반선생님"}
-              </Text>
-            </View>
-          </View>
-        )}
-
         {/* ── 승인 오류 메시지 ── */}
         {!!approveError && (
           <View style={[s.warnBox, { backgroundColor: "#FEE2E2" }]}>
@@ -300,12 +316,17 @@ export default function TeacherPendingDetailScreen() {
           </View>
         )}
 
-        {/* ── 액션 버튼 ── */}
+        {/* ── 버튼: pending 상태 ── */}
         {isPending && (
           <View style={s.actionRow}>
             <Pressable
               style={({ pressed }) => [s.rejectBtn, { opacity: pressed ? 0.85 : 1 }]}
-              onPress={() => { setRejectPreset(""); setRejectCustom(""); setRejectError(""); setShowRejectModal(true); }}
+              onPress={() => {
+                setRejectPreset("");
+                setRejectCustom("");
+                setRejectError("");
+                setShowRejectModal(true);
+              }}
               disabled={approving}
             >
               <Feather name="x-circle" size={16} color="#DC2626" />
@@ -330,19 +351,81 @@ export default function TeacherPendingDetailScreen() {
             </Pressable>
           </View>
         )}
+
+        {/* ── 버튼: rejected 상태 ── */}
+        {isRejected && (
+          <View style={s.actionRow}>
+            <Pressable
+              style={({ pressed }) => [s.rejectReasonBtn, { opacity: pressed ? 0.85 : 1 }]}
+              onPress={() => setShowRejectReasonModal(true)}
+              disabled={approving}
+            >
+              <Feather name="file-text" size={16} color="#6B7280" />
+              <Text style={s.rejectReasonBtnTxt}>거절 사유 보기</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [s.approveBtn, { backgroundColor: themeColor, opacity: pressed || approving ? 0.85 : 1, flex: 1 }]}
+              onPress={handleApprove}
+              disabled={approving}
+            >
+              {approving
+                ? <ActivityIndicator color="#fff" size="small" />
+                : (
+                  <>
+                    <Feather name="refresh-cw" size={16} color="#fff" />
+                    <Text style={s.approveBtnTxt}>
+                      {selectedRole === "sub_admin" ? "부관리자로 재승인" : "선생님으로 재승인"}
+                    </Text>
+                  </>
+                )
+              }
+            </Pressable>
+          </View>
+        )}
+
+        {/* ── 처리 이력 ── */}
+        {(rejectedDate || approvedDate) && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>처리 이력</Text>
+            <View style={s.historyList}>
+              {approvedDate && (
+                <View style={s.historyItem}>
+                  <View style={[s.historyDot, { backgroundColor: "#059669" }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.historyDate}>{approvedDate}</Text>
+                    <Text style={s.historyDesc}>
+                      승인: {data.approved_role === "sub_admin" ? "부관리자" : "일반선생님"} 권한 부여
+                    </Text>
+                  </View>
+                </View>
+              )}
+              {rejectedDate && (
+                <View style={s.historyItem}>
+                  <View style={[s.historyDot, { backgroundColor: "#DC2626" }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.historyDate}>{rejectedDate}</Text>
+                    <Text style={s.historyDesc}>
+                      거절{data.rejection_reason ? `: ${data.rejection_reason}` : ""}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              <View style={s.historyItem}>
+                <View style={[s.historyDot, { backgroundColor: "#6B7280" }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.historyDate}>{requestedDate}</Text>
+                  <Text style={s.historyDesc}>가입 요청</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
       </ScrollView>
 
       {/* ── 거절 모달 ── */}
-      <Modal
-        visible={showRejectModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowRejectModal(false)}
-      >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
+      <Modal visible={showRejectModal} transparent animationType="slide" onRequestClose={() => setShowRejectModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <Pressable style={s.modalOverlay} onPress={() => setShowRejectModal(false)}>
             <Pressable style={[s.modalSheet, { paddingBottom: insets.bottom + 24 }]} onPress={e => e.stopPropagation()}>
               <View style={s.modalHandle} />
@@ -407,6 +490,32 @@ export default function TeacherPendingDetailScreen() {
           </Pressable>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ── 거절 사유 보기 모달 ── */}
+      <Modal visible={showRejectReasonModal} transparent animationType="fade" onRequestClose={() => setShowRejectReasonModal(false)}>
+        <Pressable style={s.modalOverlay} onPress={() => setShowRejectReasonModal(false)}>
+          <Pressable style={[s.reasonSheet, { paddingBottom: insets.bottom + 24 }]} onPress={e => e.stopPropagation()}>
+            <View style={[s.reasonIconWrap, { backgroundColor: "#FEE2E2" }]}>
+              <Feather name="x-circle" size={28} color="#DC2626" />
+            </View>
+            <Text style={s.reasonTitle}>거절 사유</Text>
+            {rejectedDate && (
+              <Text style={s.reasonDate}>{rejectedDate}</Text>
+            )}
+            <View style={[s.reasonBox, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
+              <Text style={s.reasonTxt}>
+                {data.rejection_reason || "사유가 기록되지 않았습니다."}
+              </Text>
+            </View>
+            <Pressable
+              style={({ pressed }) => [s.reasonCloseBtn, { backgroundColor: C.border, opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => setShowRejectReasonModal(false)}
+            >
+              <Text style={[s.reasonCloseTxt, { color: C.text }]}>닫기</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -436,69 +545,83 @@ function StatBox({ label, value, icon, color }: { label: string; value: number; 
 }
 
 const s = StyleSheet.create({
-  root:            { flex: 1, backgroundColor: C.background },
-  scroll:          { padding: 16, gap: 16, paddingBottom: 48 },
+  root:              { flex: 1, backgroundColor: C.background },
+  scroll:            { padding: 16, gap: 16, paddingBottom: 48 },
 
-  statusBanner:    { borderRadius: 14, padding: 14, gap: 4 },
-  statusBannerTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  statusBannerSub: { fontSize: 12, fontFamily: "Inter_400Regular", opacity: 0.85 },
+  statusBanner:      { borderRadius: 14, padding: 14, gap: 4 },
+  statusBannerTxt:   { fontSize: 16, fontFamily: "Inter_700Bold" },
+  statusBannerSub:   { fontSize: 12, fontFamily: "Inter_400Regular", opacity: 0.85 },
 
-  section:         { backgroundColor: C.card, borderRadius: 16, padding: 16, gap: 10 },
-  sectionTitle:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
-  sectionDesc:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
-  required:        { color: "#DC2626", fontFamily: "Inter_500Medium" },
+  section:           { backgroundColor: C.card, borderRadius: 16, padding: 16, gap: 10 },
+  sectionTitle:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
+  sectionDesc:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
+  required:          { color: "#DC2626", fontFamily: "Inter_500Medium" },
 
-  infoRow:         { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  infoLabel:       { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, width: 72 },
-  infoValue:       { fontSize: 13, fontFamily: "Inter_400Regular", color: C.text, flex: 1 },
+  infoRow:           { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  infoLabel:         { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, width: 72 },
+  infoValue:         { fontSize: 13, fontFamily: "Inter_400Regular", color: C.text, flex: 1 },
 
-  statsGrid:       { flexDirection: "row", gap: 10 },
-  statBox:         { flex: 1, borderRadius: 12, padding: 14, alignItems: "center", gap: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  statIconBox:     { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  statValue:       { fontSize: 24, fontFamily: "Inter_700Bold" },
-  statLabel:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  statsGrid:         { flexDirection: "row", gap: 10 },
+  statBox:           { flex: 1, borderRadius: 12, padding: 14, alignItems: "center", gap: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  statIconBox:       { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  statValue:         { fontSize: 24, fontFamily: "Inter_700Bold" },
+  statLabel:         { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
 
-  roleCard:        { flexDirection: "row", alignItems: "flex-start", gap: 12, backgroundColor: "#F9FAFB", borderRadius: 14, padding: 14, borderWidth: 1.5, borderColor: C.border },
-  roleIconBox:     { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  roleLabel:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 2 },
-  roleDesc:        { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, lineHeight: 16 },
-  radioOuter:      { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: C.border, alignItems: "center", justifyContent: "center", marginTop: 2 },
-  radioInner:      { width: 10, height: 10, borderRadius: 5 },
+  roleCard:          { flexDirection: "row", alignItems: "flex-start", gap: 12, backgroundColor: "#F9FAFB", borderRadius: 14, padding: 14, borderWidth: 1.5, borderColor: C.border },
+  roleIconBox:       { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  roleLabel:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 2 },
+  roleDesc:          { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, lineHeight: 16 },
+  radioOuter:        { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: C.border, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  radioInner:        { width: 10, height: 10, borderRadius: 5 },
 
-  warnBox:         { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 10, padding: 10 },
-  warnTxt:         { fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", flex: 1, lineHeight: 18 },
+  warnBox:           { flexDirection: "row", alignItems: "flex-start", gap: 8, borderRadius: 10, padding: 10 },
+  warnTxt:           { fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", flex: 1, lineHeight: 18 },
 
-  approvedRoleBadge: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
-  approvedRoleTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  actionRow:         { flexDirection: "row", gap: 10, marginTop: 4 },
+  rejectBtn:         { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#DC2626", backgroundColor: "#FFF5F5" },
+  rejectBtnTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#DC2626" },
+  rejectReasonBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#F9FAFB" },
+  rejectReasonBtnTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  approveBtn:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
+  approveBtnTxt:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
-  actionRow:       { flexDirection: "row", gap: 10, marginTop: 4 },
-  rejectBtn:       { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#DC2626", backgroundColor: "#FFF5F5" },
-  rejectBtnTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#DC2626" },
-  approveBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
-  approveBtnTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  historyList:       { gap: 12 },
+  historyItem:       { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  historyDot:        { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
+  historyDate:       { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, marginBottom: 2 },
+  historyDesc:       { fontSize: 13, fontFamily: "Inter_400Regular", color: C.text },
 
-  errorState:      { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
-  errorTitle:      { fontSize: 17, fontFamily: "Inter_600SemiBold", color: C.text },
-  errorDesc:       { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center" },
-  backBtn:         { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12, marginTop: 8 },
-  backBtnTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  errorState:        { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
+  errorTitle:        { fontSize: 17, fontFamily: "Inter_600SemiBold", color: C.text },
+  errorDesc:         { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center" },
+  backBtn:           { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12, marginTop: 8 },
+  backBtnTxt:        { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
-  modalOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  modalSheet:      { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 12 },
-  modalHandle:     { width: 40, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
-  modalTitle:      { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  modalDesc:       { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  presetList:      { gap: 8 },
-  presetItem:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background },
-  presetRadio:     { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: C.border, alignItems: "center", justifyContent: "center" },
-  presetRadioInner:{ width: 8, height: 8, borderRadius: 4 },
-  presetTxt:       { fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, flex: 1 },
-  customInput:     { borderWidth: 1.5, borderRadius: 12, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, minHeight: 80, textAlignVertical: "top" },
-  errorRow:        { flexDirection: "row", alignItems: "center", gap: 6 },
-  errorTxt:        { fontSize: 12, fontFamily: "Inter_400Regular", color: "#DC2626" },
-  modalActions:    { flexDirection: "row", gap: 10, marginTop: 4 },
-  modalCancelBtn:  { flex: 1, height: 48, borderRadius: 12, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  modalCancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  modalRejectBtn:  { flex: 2, height: 48, borderRadius: 12, backgroundColor: "#DC2626", alignItems: "center", justifyContent: "center" },
-  modalRejectTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  modalOverlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  modalSheet:        { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 12 },
+  modalHandle:       { width: 40, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  modalTitle:        { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  modalDesc:         { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  presetList:        { gap: 8 },
+  presetItem:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background },
+  presetRadio:       { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  presetRadioInner:  { width: 8, height: 8, borderRadius: 4 },
+  presetTxt:         { fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, flex: 1 },
+  customInput:       { borderWidth: 1.5, borderRadius: 12, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, minHeight: 80, textAlignVertical: "top" },
+  errorRow:          { flexDirection: "row", alignItems: "center", gap: 6 },
+  errorTxt:          { fontSize: 12, fontFamily: "Inter_400Regular", color: "#DC2626", flex: 1 },
+  modalActions:      { flexDirection: "row", gap: 10, marginTop: 4 },
+  modalCancelBtn:    { flex: 1, height: 50, borderRadius: 12, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  modalCancelTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  modalRejectBtn:    { flex: 1, height: 50, borderRadius: 12, backgroundColor: "#DC2626", alignItems: "center", justifyContent: "center" },
+  modalRejectTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+
+  reasonSheet:       { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14, alignItems: "center" },
+  reasonIconWrap:    { width: 60, height: 60, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  reasonTitle:       { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
+  reasonDate:        { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
+  reasonBox:         { width: "100%", borderRadius: 12, borderWidth: 1, padding: 16 },
+  reasonTxt:         { fontSize: 14, fontFamily: "Inter_400Regular", color: "#991B1B", lineHeight: 22 },
+  reasonCloseBtn:    { width: "100%", height: 50, borderRadius: 12, alignItems: "center", justifyContent: "center", marginTop: 4 },
+  reasonCloseTxt:    { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

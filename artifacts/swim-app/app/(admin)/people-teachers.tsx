@@ -1,7 +1,8 @@
 /**
  * 선생님관리 전용 화면
- * - 미승인(joinedPendingApproval) → teacher-pending-detail
- * - 승인됨(approved / is_activated) → teacher-hub
+ * - pending(joinedPendingApproval) → teacher-pending-detail (승인관리 상세)
+ * - rejected → teacher-pending-detail (승인관리 상세, 재승인 가능)
+ * - approved → teacher-hub (일반 상세)
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -40,16 +41,20 @@ interface Teacher {
   makeup_waiting?: number;
 }
 
-/** 선생님 상태 판단 (invite_status 우선) */
-function isPending(t: Teacher): boolean {
-  if (t.invite_status === "joinedPendingApproval") return true;
-  if (t.invite_status === "approved") return false;
-  return !t.is_activated;
+/** invite_status로 상태 판단 */
+function getApprovalStatus(t: Teacher): "pending" | "rejected" | "approved" {
+  if (t.invite_status === "joinedPendingApproval") return "pending";
+  if (t.invite_status === "rejected") return "rejected";
+  if (t.invite_status === "approved") return "approved";
+  // fallback: is_activated 기준
+  return t.is_activated ? "approved" : "pending";
 }
 
-function isSubAdmin(t: Teacher): boolean {
-  return !!t.is_sub_admin;
-}
+function isPending(t: Teacher) { return getApprovalStatus(t) === "pending"; }
+function isRejected(t: Teacher) { return getApprovalStatus(t) === "rejected"; }
+function isApproved(t: Teacher) { return getApprovalStatus(t) === "approved"; }
+function isSubAdmin(t: Teacher) { return !!t.is_sub_admin; }
+function needsApprovalPage(t: Teacher) { return isPending(t) || isRejected(t); }
 
 export default function PeopleTeachersScreen() {
   const { token } = useAuth();
@@ -78,17 +83,23 @@ export default function PeopleTeachersScreen() {
       t.phone?.includes(q) || t.email?.toLowerCase().includes(q.toLowerCase());
     if (!matchQ) return false;
     if (filter === "전체") return true;
-    if (filter === "승인됨") return !isPending(t);
-    if (filter === "미승인") return isPending(t);
-    if (filter === "부관리자") return isSubAdmin(t);
+    if (filter === "승인됨") return isApproved(t);
+    if (filter === "미승인") return isPending(t) || isRejected(t);
+    if (filter === "부관리자") return isApproved(t) && isSubAdmin(t);
     return true;
   });
 
   function onPress(t: Teacher) {
-    if (isPending(t) && t.invite_id) {
-      router.push({ pathname: "/(admin)/teacher-pending-detail", params: { inviteId: t.invite_id, teacherName: t.name } } as any);
+    if (needsApprovalPage(t) && t.invite_id) {
+      router.push({
+        pathname: "/(admin)/teacher-pending-detail",
+        params: { inviteId: t.invite_id, teacherName: t.name },
+      } as any);
     } else {
-      router.push({ pathname: "/(admin)/teacher-hub", params: { id: t.id, name: t.name } } as any);
+      router.push({
+        pathname: "/(admin)/teacher-hub",
+        params: { id: t.id, name: t.name },
+      } as any);
     }
   }
 
@@ -138,12 +149,12 @@ export default function PeopleTeachersScreen() {
             <View style={s.empty}>
               <Feather name="users" size={36} color={C.textMuted} />
               <Text style={s.emptyTxt}>
-                {filter === "미승인" ? "승인 대기 선생님이 없습니다" : "선생님이 없습니다"}
+                {filter === "미승인" ? "승인 대기 또는 거절된 선생님이 없습니다" : "선생님이 없습니다"}
               </Text>
             </View>
           }
           renderItem={({ item }) => {
-            const pending = isPending(item);
+            const status = getApprovalStatus(item);
             const subAdmin = isSubAdmin(item);
             return (
               <Pressable
@@ -155,20 +166,27 @@ export default function PeopleTeachersScreen() {
                     <View style={s.nameRow}>
                       <Text style={s.name}>{item.name}</Text>
 
-                      {/* 권한 뱃지 */}
-                      {subAdmin && (
+                      {/* 부관리자 뱃지 */}
+                      {subAdmin && status === "approved" && (
                         <View style={s.subAdminBadge}>
                           <Text style={s.subAdminBadgeTxt}>부관리자</Text>
                         </View>
                       )}
 
                       {/* 상태 뱃지 */}
-                      {pending ? (
+                      {status === "pending" && (
                         <View style={s.pendingBadge}>
                           <Feather name="clock" size={10} color="#D97706" />
                           <Text style={s.pendingBadgeTxt}>승인 대기</Text>
                         </View>
-                      ) : (
+                      )}
+                      {status === "rejected" && (
+                        <View style={s.rejectedBadge}>
+                          <Feather name="x-circle" size={10} color="#DC2626" />
+                          <Text style={s.rejectedBadgeTxt}>거절됨</Text>
+                        </View>
+                      )}
+                      {status === "approved" && (
                         <View style={s.activeBadge}>
                           <Feather name="check" size={10} color="#059669" />
                           <Text style={s.activeBadgeTxt}>승인됨</Text>
@@ -185,10 +203,16 @@ export default function PeopleTeachersScreen() {
                         <StatChip label={`보강대기 ${item.makeup_waiting}`} warn />
                       )}
                     </View>
-                    {pending && (
-                      <View style={s.pendingHint}>
+                    {status === "pending" && (
+                      <View style={s.hintRow}>
                         <Feather name="arrow-right" size={11} color={C.tint} />
-                        <Text style={[s.pendingHintTxt, { color: C.tint }]}>탭하여 승인/거절 처리</Text>
+                        <Text style={[s.hintTxt, { color: C.tint }]}>탭하여 승인/거절 처리</Text>
+                      </View>
+                    )}
+                    {status === "rejected" && (
+                      <View style={s.hintRow}>
+                        <Feather name="arrow-right" size={11} color="#DC2626" />
+                        <Text style={[s.hintTxt, { color: "#DC2626" }]}>탭하여 재승인 또는 이력 확인</Text>
                       </View>
                     )}
                   </View>
@@ -212,31 +236,33 @@ function StatChip({ label, warn }: { label: string; warn?: boolean }) {
 }
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: C.background },
-  searchBar:     { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#F3F4F6", borderRadius: 10 },
-  searchInput:   { flex: 1, fontSize: 14, color: C.text },
-  filterRow:     { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 8, flexWrap: "wrap" },
-  chip:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
-  chipTxt:       { fontSize: 13, fontWeight: "600", color: C.textSecondary },
-  card:          { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 8, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  row:           { flexDirection: "row", alignItems: "center" },
-  nameRow:       { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 },
-  name:          { fontSize: 15, fontWeight: "700", color: C.text },
-  sub:           { fontSize: 12, color: C.textSecondary, marginTop: 2 },
-  sub2:          { fontSize: 11, color: C.textMuted, marginTop: 1 },
-  statsRow:      { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
-  statChip:      { backgroundColor: "#F3F4F6", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  statChipTxt:   { fontSize: 11, color: C.textSecondary },
-  warnChip:      { backgroundColor: "#FEE2E2" },
-  warnChipTxt:   { color: "#DC2626" },
-  pendingBadge:  { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEF3C7", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  pendingBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#D97706" },
-  activeBadge:   { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#D1FAE5", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  activeBadgeTxt:{ fontSize: 11, fontWeight: "600", color: "#059669" },
-  subAdminBadge: { backgroundColor: "#EDE9FE", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  root:             { flex: 1, backgroundColor: C.background },
+  searchBar:        { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#F3F4F6", borderRadius: 10 },
+  searchInput:      { flex: 1, fontSize: 14, color: C.text },
+  filterRow:        { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 8, flexWrap: "wrap" },
+  chip:             { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
+  chipTxt:          { fontSize: 13, fontWeight: "600", color: C.textSecondary },
+  card:             { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 8, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  row:              { flexDirection: "row", alignItems: "center" },
+  nameRow:          { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 },
+  name:             { fontSize: 15, fontWeight: "700", color: C.text },
+  sub:              { fontSize: 12, color: C.textSecondary, marginTop: 2 },
+  sub2:             { fontSize: 11, color: C.textMuted, marginTop: 1 },
+  statsRow:         { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  statChip:         { backgroundColor: "#F3F4F6", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  statChipTxt:      { fontSize: 11, color: C.textSecondary },
+  warnChip:         { backgroundColor: "#FEE2E2" },
+  warnChipTxt:      { color: "#DC2626" },
+  pendingBadge:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEF3C7", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  pendingBadgeTxt:  { fontSize: 11, fontWeight: "600", color: "#D97706" },
+  rejectedBadge:    { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEE2E2", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  rejectedBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#DC2626" },
+  activeBadge:      { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#D1FAE5", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  activeBadgeTxt:   { fontSize: 11, fontWeight: "600", color: "#059669" },
+  subAdminBadge:    { backgroundColor: "#EDE9FE", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   subAdminBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#7C3AED" },
-  pendingHint:   { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
-  pendingHintTxt:{ fontSize: 11, fontWeight: "500" },
-  empty:         { paddingVertical: 60, alignItems: "center", gap: 10 },
-  emptyTxt:      { color: C.textSecondary, fontSize: 14 },
+  hintRow:          { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
+  hintTxt:          { fontSize: 11, fontWeight: "500" },
+  empty:            { paddingVertical: 60, alignItems: "center", gap: 10 },
+  emptyTxt:         { color: C.textSecondary, fontSize: 14 },
 });

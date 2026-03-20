@@ -155,8 +155,9 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
       const invite = existing.rows[0] as any;
 
       if (action === "approve") {
-        if (invite.invite_status !== "joinedPendingApproval") {
-          res.status(409).json({ success: false, message: "승인 대기 상태인 초대만 승인할 수 있습니다." }); return;
+        const approvableStatuses = ["joinedPendingApproval", "rejected", "inactive"];
+        if (!approvableStatuses.includes(invite.invite_status)) {
+          res.status(409).json({ success: false, message: "승인 처리 가능한 상태가 아닙니다." }); return;
         }
         // roles 선택: "teacher" (일반) 또는 "sub_admin" (부관리자)
         // 부관리자: ["teacher","sub_admin"], 일반: ["teacher"]
@@ -177,6 +178,10 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         res.json({ success: true, message: "선생님이 승인되었습니다.", roles: approvedRoles });
 
       } else if (action === "reject") {
+        const rejectableStatuses = ["joinedPendingApproval", "invited", "inactive"];
+        if (!rejectableStatuses.includes(invite.invite_status)) {
+          res.status(409).json({ success: false, message: "현재 상태에서는 거절할 수 없습니다." }); return;
+        }
         if (invite.user_id) {
           await db.execute(sql`UPDATE users SET is_activated = false, updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
