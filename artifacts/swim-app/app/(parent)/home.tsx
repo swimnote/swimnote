@@ -1,9 +1,17 @@
+/**
+ * 학부모 홈 — 아이콘 중심 + 최신소식 피드형
+ *
+ * 구조:
+ *   A. 상단 헤더 (자녀 이름 드롭다운 | 알림 | 쪽지)
+ *   B. 3×2 아이콘 그리드 (공지·일지·앨범·일정·프로그램·설정)
+ *   C. 최신소식 피드 (공지 + 수업일지 최대 10개)
+ */
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, BackHandler, Platform, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, BackHandler, Dimensions, Platform, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -13,106 +21,46 @@ import { ModalSheet } from "@/components/common/ModalSheet";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
+const { width: SW } = Dimensions.get("window");
+const ICON_COL = 3;
+const ICON_W = Math.floor((SW - 40 - 16) / ICON_COL);
 
-interface FeedItem {
-  type: "diary" | "photo";
+// ─── 타입 정의 ────────────────────────────────────────────────
+interface UnreadCounts {
+  unread_notices: number;
+  unread_messages: number;
+}
+interface NewsItem {
+  kind: "notice" | "diary";
   id: string;
-  date: string;
-  teacher_name: string | null;
-  content: string | null;
+  // notice
+  title?: string;
+  content?: string;
+  notice_type?: string;
+  is_read?: boolean;
+  is_pinned?: boolean;
+  author_name?: string;
+  // diary
+  lesson_date?: string;
+  common_content?: string;
+  teacher_name?: string;
   student_note?: string | null;
   created_at: string;
-  album_type?: string;
 }
 
-interface StudentLevel {
-  level: string;
-}
-
+// ─── 날짜 포맷 ────────────────────────────────────────────────
 function fmtDate(d: string) {
   const dt = new Date(d.includes("T") ? d : d + "T00:00:00");
   return dt.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
 }
-
-function QuickMenu({ studentId }: { studentId: string }) {
-  const items = [
-    { icon: "book-open" as const, label: "수업피드백", tab: "diary" },
-    { icon: "image" as const, label: "앨범", tab: "photos" },
-    { icon: "calendar" as const, label: "출결", tab: "attendance-history" },
-    { icon: "award" as const, label: "레벨", tab: "level" },
-    { icon: "bell" as const, label: "공지", tab: "notices" },
-  ];
-  return (
-    <View style={s.quickGrid}>
-      {items.map(item => (
-        <Pressable
-          key={item.tab}
-          style={({ pressed }) => [s.quickItem, { opacity: pressed ? 0.7 : 1 }]}
-          onPress={() => router.push(`/(parent)/${item.tab}` as any)}
-        >
-          <View style={[s.quickIcon, { backgroundColor: C.tintLight }]}>
-            <Feather name={item.icon} size={22} color={C.tint} />
-          </View>
-          <Text style={[s.quickLabel, { color: C.text }]}>{item.label}</Text>
-        </Pressable>
-      ))}
-    </View>
-  );
+function fmtShort(d: string) {
+  const dt = new Date(d.includes("T") ? d : d + "T00:00:00");
+  const mm = dt.getMonth() + 1;
+  const dd = dt.getDate();
+  return `${mm}/${dd}`;
 }
 
-function FeedCard({ item }: { item: FeedItem }) {
-  const [expanded, setExpanded] = useState(false);
-  const preview = item.content ? (item.content.length > 60 ? item.content.slice(0, 60) + "…" : item.content) : null;
-  const needExpand = (item.content?.length ?? 0) > 60;
-
-  return (
-    <View style={[s.feedCard, { backgroundColor: C.card }]}>
-      <View style={s.feedTop}>
-        <View style={[s.feedTypeBadge, { backgroundColor: item.type === "diary" ? "#EFF6FF" : "#FFF7ED" }]}>
-          <Feather name={item.type === "diary" ? "book" : "image"} size={12} color={item.type === "diary" ? "#2563EB" : "#D97706"} />
-          <Text style={[s.feedTypeTxt, { color: item.type === "diary" ? "#2563EB" : "#D97706" }]}>
-            {item.type === "diary" ? "수업피드백" : item.album_type === "private" ? "개인앨범" : "전체앨범"}
-          </Text>
-        </View>
-        <Text style={[s.feedDate, { color: C.textMuted }]}>{fmtDate(item.date)}</Text>
-      </View>
-
-      {item.teacher_name ? (
-        <Text style={[s.feedTeacher, { color: C.text }]}>{item.teacher_name} 선생님</Text>
-      ) : null}
-
-      {item.content ? (
-        <Pressable onPress={needExpand ? () => setExpanded(e => !e) : undefined}>
-          <Text style={[s.feedContent, { color: C.textSecondary }]}>
-            {expanded ? item.content : preview}
-          </Text>
-          {needExpand && (
-            <Text style={[s.feedMore, { color: C.tint }]}>{expanded ? "접기" : "더보기"}</Text>
-          )}
-        </Pressable>
-      ) : null}
-
-      {item.student_note ? (
-        <View style={[s.noteBox, { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" }]}>
-          <Feather name="user" size={11} color="#7C3AED" />
-          <Text style={[s.noteText, { color: "#5B21B6" }]}>{item.student_note}</Text>
-        </View>
-      ) : null}
-
-      <Pressable
-        style={s.feedDetailBtn}
-        onPress={() => item.type === "diary"
-          ? router.push("/(parent)/diary" as any)
-          : router.push("/(parent)/photos" as any)
-        }
-      >
-        <Text style={[s.feedDetailTxt, { color: C.tint }]}>자세히 보기</Text>
-        <Feather name="chevron-right" size={14} color={C.tint} />
-      </Pressable>
-    </View>
-  );
-}
-
+// ─── 자녀 선택 모달 ───────────────────────────────────────────
 function ChildSelectorModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { students, selectedStudent, setSelectedStudentId } = useParent();
   return (
@@ -141,74 +89,209 @@ function ChildSelectorModal({ visible, onClose }: { visible: boolean; onClose: (
   );
 }
 
+// ─── 아이콘 셀 ────────────────────────────────────────────────
+interface IconCellProps {
+  icon: any;
+  label: string;
+  badge?: number | "N" | null;
+  color: string;
+  bg: string;
+  onPress: () => void;
+}
+function IconCell({ icon, label, badge, color, bg, onPress }: IconCellProps) {
+  return (
+    <Pressable
+      style={({ pressed }) => [s.iconCell, { opacity: pressed ? 0.75 : 1, width: ICON_W }]}
+      onPress={onPress}
+    >
+      <View style={s.iconWrap}>
+        <View style={[s.iconBg, { backgroundColor: bg }]}>
+          <Feather name={icon} size={26} color={color} />
+        </View>
+        {badge !== null && badge !== undefined && (
+          <View style={s.badgeWrap}>
+            <Text style={s.badgeTxt}>{typeof badge === "number" ? (badge > 99 ? "99+" : String(badge)) : badge}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={[s.iconLabel, { color: C.text }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// ─── 최신소식 카드 ────────────────────────────────────────────
+function NewsCard({ item, onPress }: { item: NewsItem; onPress: () => void }) {
+  const isNotice = item.kind === "notice";
+  const accentColor = isNotice ? "#1D4ED8" : "#059669";
+  const accentBg    = isNotice ? "#EFF6FF" : "#ECFDF5";
+
+  return (
+    <Pressable
+      style={({ pressed }) => [s.newsCard, { backgroundColor: C.card, opacity: pressed ? 0.88 : 1 }]}
+      onPress={onPress}
+    >
+      {/* 상단 줄: 태그 + 날짜 */}
+      <View style={s.newsTop}>
+        <View style={[s.newsTag, { backgroundColor: accentBg }]}>
+          <Feather name={isNotice ? "bell" : "book-open"} size={11} color={accentColor} />
+          <Text style={[s.newsTagTxt, { color: accentColor }]}>
+            {isNotice
+              ? (item.notice_type === "class" ? "우리반 공지" : "전체 공지")
+              : "수업일지"}
+          </Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {isNotice && !item.is_read && <View style={[s.unreadDot, { backgroundColor: C.tint }]} />}
+          <Text style={[s.newsDate, { color: C.textMuted }]}>
+            {isNotice ? fmtDate(item.created_at) : fmtDate(item.lesson_date || item.created_at)}
+          </Text>
+        </View>
+      </View>
+
+      {/* 제목 / 선생님 */}
+      {isNotice
+        ? <Text style={[s.newsTitle, { color: C.text }]} numberOfLines={1}>{item.title}</Text>
+        : <Text style={[s.newsTitle, { color: C.text }]}>{item.teacher_name} 선생님</Text>}
+
+      {/* 본문 미리보기 */}
+      <Text style={[s.newsBody, { color: C.textSecondary }]} numberOfLines={2}>
+        {isNotice ? item.content : item.common_content}
+      </Text>
+
+      {/* 개별일지 강조 (수업일지만) */}
+      {!isNotice && item.student_note ? (
+        <View style={s.noteBox}>
+          <Feather name="user" size={11} color="#7C3AED" />
+          <Text style={[s.noteText, { color: "#5B21B6" }]} numberOfLines={1}>{item.student_note}</Text>
+        </View>
+      ) : null}
+
+      <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+        <Text style={[s.moreLink, { color: C.tint }]}>자세히 →</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// ─── 메인 화면 ────────────────────────────────────────────────
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("home");
   const { token, parentAccount, logout } = useAuth();
   const { students, selectedStudent, loading: ctxLoading, refresh } = useParent();
-  const [feed, setFeed] = useState<FeedItem[]>([]);
-  const [feedLoading, setFeedLoading] = useState(false);
+
+  const [unread, setUnread] = useState<UnreadCounts>({ unread_notices: 0, unread_messages: 0 });
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectorVisible, setSelectorVisible] = useState(false);
-  const [currentLevel, setCurrentLevel] = useState<string | null>(null);
 
-  async function handleFullLogout() {
-    await logout();
-  }
-
+  // 안드로이드 뒤로가기 막기
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== "web") {
-        const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-          return true;
-        });
+        const sub = BackHandler.addEventListener("hardwareBackPress", () => true);
         return () => sub.remove();
       }
     }, [])
   );
 
+  // 학생 변경 시 데이터 로드
   useEffect(() => {
-    if (selectedStudent?.id) {
-      loadFeed(selectedStudent.id);
-      loadLevel(selectedStudent.id);
+    if (selectedStudent?.id && !(selectedStudent as any).access_blocked) {
+      loadAll(selectedStudent.id);
+    } else {
+      setNews([]); setUnread({ unread_notices: 0, unread_messages: 0 });
     }
   }, [selectedStudent?.id]);
 
-  async function loadFeed(studentId: string) {
-    setFeedLoading(true);
-    try {
-      const res = await apiRequest(token, `/parent/students/${studentId}/feed`);
-      if (res.ok) setFeed(await res.json());
-    } catch { }
-    finally { setFeedLoading(false); }
+  // 화면 포커스 시 배지 갱신
+  useFocusEffect(useCallback(() => {
+    if (selectedStudent?.id && !(selectedStudent as any).access_blocked) {
+      loadCounts(selectedStudent.id);
+    }
+  }, [selectedStudent?.id]));
+
+  async function loadAll(sid: string) {
+    setNewsLoading(true);
+    await Promise.all([loadNews(sid), loadCounts(sid)]);
+    setNewsLoading(false);
   }
 
-  async function loadLevel(studentId: string) {
+  async function loadNews(sid: string) {
     try {
-      const res = await apiRequest(token, `/parent/students/${studentId}/levels`);
-      if (res.ok) {
-        const data: StudentLevel[] = await res.json();
-        if (data.length > 0) setCurrentLevel(data[0].level);
-        else setCurrentLevel(null);
-      }
-    } catch { }
+      const r = await apiRequest(token, `/parent/students/${sid}/news`);
+      if (r.ok) setNews(await r.json());
+    } catch {}
+  }
+
+  async function loadCounts(sid: string) {
+    try {
+      const r = await apiRequest(token, `/parent/students/${sid}/unread-counts`);
+      if (r.ok) setUnread(await r.json());
+    } catch {}
   }
 
   async function onRefresh() {
     setRefreshing(true);
     await refresh();
-    if (selectedStudent?.id) {
-      await Promise.all([
-        loadFeed(selectedStudent.id),
-        loadLevel(selectedStudent.id),
-      ]);
-    }
+    if (selectedStudent?.id) await loadAll(selectedStudent.id);
     setRefreshing(false);
   }
 
+  function handleNewsPress(item: NewsItem) {
+    if (item.kind === "notice") {
+      router.push({ pathname: "/(parent)/notices" as any });
+    } else {
+      router.push("/(parent)/diary" as any);
+    }
+  }
+
+  // 아이콘 정의
+  const icons: IconCellProps[] = [
+    {
+      icon: "bell", label: "공지사항",
+      badge: unread.unread_notices > 0 ? unread.unread_notices : null,
+      color: "#1D4ED8", bg: "#EFF6FF",
+      onPress: () => router.push("/(parent)/notices" as any),
+    },
+    {
+      icon: "book-open", label: "수업일지",
+      badge: null,
+      color: "#059669", bg: "#ECFDF5",
+      onPress: () => router.push("/(parent)/diary" as any),
+    },
+    {
+      icon: "image", label: "앨범",
+      badge: null,
+      color: "#D97706", bg: "#FFF7ED",
+      onPress: () => router.push("/(parent)/photos" as any),
+    },
+    {
+      icon: "calendar", label: "수업일정표",
+      badge: null,
+      color: "#7C3AED", bg: "#F5F3FF",
+      onPress: () => router.push("/(parent)/attendance-history" as any),
+    },
+    {
+      icon: "award", label: "교육프로그램",
+      badge: null,
+      color: "#0EA5E9", bg: "#F0F9FF",
+      onPress: () => router.push("/(parent)/program" as any),
+    },
+    {
+      icon: "settings", label: "설정",
+      badge: null,
+      color: "#6B7280", bg: "#F3F4F6",
+      onPress: () => router.push("/(parent)/more" as any),
+    },
+  ];
+
+  const blocked = (selectedStudent as any)?.access_blocked;
+
   if (ctxLoading) {
     return (
-      <View style={[s.root, { justifyContent: "center", alignItems: "center" }]}>
+      <View style={[s.root, { justifyContent: "center", alignItems: "center", backgroundColor: C.background }]}>
         <ActivityIndicator color={C.tint} size="large" />
       </View>
     );
@@ -216,133 +299,109 @@ export default function ParentHomeScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      {/* 상단 헤더 */}
-      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.poolName, { color: C.text }]}>{parentAccount?.pool_name || "스윔노트"}</Text>
-          <Text style={[s.greeting, { color: C.textSecondary }]}>{parentAccount?.name}님, 안녕하세요</Text>
-        </View>
-        <Pressable onPress={handleFullLogout} style={[s.logoutBtn, { backgroundColor: C.card }]}>
-          <Feather name="log-out" size={18} color={C.textSecondary} />
+      {/* ─── A. 헤더 ─── */}
+      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
+        {/* 자녀 이름 (드롭다운 트리거) */}
+        <Pressable
+          style={s.childSelector}
+          onPress={() => students.length > 0 && setSelectorVisible(true)}
+        >
+          <Text style={[s.childName, { color: C.text }]} numberOfLines={1}>
+            {selectedStudent ? selectedStudent.name : parentAccount?.name ?? "스윔노트"}
+          </Text>
+          {students.length > 1 && (
+            <Feather name="chevron-down" size={18} color={C.textSecondary} />
+          )}
         </Pressable>
+
+        {/* 우측 아이콘 */}
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          {/* 쪽지 아이콘 */}
+          <Pressable
+            style={[s.headerIconBtn, { backgroundColor: C.card }]}
+            onPress={() => router.push("/(parent)/diary" as any)}
+          >
+            <Feather name="message-circle" size={20} color={C.textSecondary} />
+            {unread.unread_messages > 0 && (
+              <View style={[s.headerBadge, { backgroundColor: "#EF4444" }]}>
+                <Text style={s.headerBadgeTxt}>{unread.unread_messages}</Text>
+              </View>
+            )}
+          </Pressable>
+          {/* 알림 아이콘 (확장 예정) */}
+          <Pressable
+            style={[s.headerIconBtn, { backgroundColor: C.card }]}
+            onPress={() => router.push("/(parent)/notifications" as any)}
+          >
+            <Feather name="bell" size={20} color={C.textSecondary} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
       >
-        {/* 자녀 선택 카드 */}
-        {selectedStudent && (selectedStudent as any).access_blocked ? (
-          // 접근 차단된 학생 — 관리자가 최종퇴원처리 또는 아카이브로 이동한 경우
-          <View style={[s.childCard, { backgroundColor: "#F3F4F6", gap: 10 }]}>
-            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" }}>
-              <Feather name="lock" size={20} color="#DC2626" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" }}>{selectedStudent.name}</Text>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 4, lineHeight: 18 }}>
-                {`아쉽게도 ${(selectedStudent as any).pool_name || "이 수영장"}의 정보를 이용할 수 없습니다.\n수영장 등록 후 다시 이용해 주세요.`}
-              </Text>
-            </View>
-            {students.length > 1 && (
-              <Pressable onPress={() => setSelectorVisible(true)}>
-                <Feather name="repeat" size={18} color="#6B7280" />
-              </Pressable>
-            )}
-          </View>
-        ) : selectedStudent ? (
-          <Pressable
-            style={[s.childCard, { backgroundColor: C.tint }]}
-            onPress={() => students.length > 1 && setSelectorVisible(true)}
-          >
-            <View style={s.childCardAvatar}>
-              <Text style={s.childCardAvatarText}>{selectedStudent.name[0]}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={s.childCardName}>{selectedStudent.name}</Text>
-                {currentLevel ? (
-                  <View style={s.levelBadge}>
-                    <Feather name="award" size={11} color="rgba(255,255,255,0.9)" />
-                    <Text style={s.levelTxt}>{currentLevel}</Text>
-                  </View>
-                ) : null}
-              </View>
-              {selectedStudent.class_group?.name ? (
-                <Text style={s.childCardSub}>{selectedStudent.class_group.name} · {selectedStudent.class_group.instructor || selectedStudent.class_group.schedule_days + " " + selectedStudent.class_group.schedule_time}</Text>
-              ) : null}
-            </View>
-            {students.length > 1 && (
-              <View style={s.switchRow}>
-                <Feather name="repeat" size={15} color="rgba(255,255,255,0.85)" />
-                <Text style={s.switchTxt}>전환</Text>
-              </View>
-            )}
-          </Pressable>
-        ) : (
-          <View style={[s.childCard, { backgroundColor: C.card }]}>
-            <Feather name="user-x" size={24} color={C.textMuted} />
-            <Text style={[s.childCardName, { color: C.text }]}>연결된 자녀가 없습니다</Text>
-          </View>
-        )}
-
-        {/* 바로가기 메뉴 */}
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: C.text }]}>바로가기</Text>
-          {selectedStudent && !(selectedStudent as any).access_blocked ? (
-            <QuickMenu studentId={selectedStudent.id} />
-          ) : (
-            <Text style={[s.emptyHint, { color: C.textMuted }]}>
-              {selectedStudent ? "수영장에서 정보를 비공개로 설정하여 이용할 수 없습니다" : "자녀 연결 후 이용 가능합니다"}
+        {/* 학생 수영장 카드 (반 정보) */}
+        {selectedStudent && !blocked && selectedStudent.class_group?.name ? (
+          <View style={[s.infoBar, { backgroundColor: C.tint + "12", borderColor: C.tint + "30" }]}>
+            <Feather name="map-pin" size={13} color={C.tint} />
+            <Text style={[s.infoBarTxt, { color: C.tint }]}>
+              {parentAccount?.pool_name} · {selectedStudent.class_group.name}
             </Text>
-          )}
+          </View>
+        ) : blocked ? (
+          <View style={[s.infoBar, { backgroundColor: "#FEE2E2", borderColor: "#FECACA" }]}>
+            <Feather name="lock" size={13} color="#DC2626" />
+            <Text style={[s.infoBarTxt, { color: "#DC2626" }]}>수영장에서 정보를 비공개로 설정했습니다</Text>
+          </View>
+        ) : null}
+
+        {/* ─── B. 3×2 아이콘 그리드 ─── */}
+        <View style={s.section}>
+          <View style={s.iconGrid}>
+            {icons.map((ic) => (
+              <IconCell key={ic.label} {...ic} />
+            ))}
+          </View>
         </View>
 
-        {/* 최근 업데이트 피드 */}
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: C.text }]}>최근 업데이트</Text>
-          {(selectedStudent as any)?.access_blocked ? (
-            <Text style={[s.emptyHint, { color: C.textMuted }]}>수영장에서 정보를 비공개로 설정하여 이용할 수 없습니다</Text>
-          ) : feedLoading ? (
-            <ActivityIndicator color={C.tint} style={{ marginTop: 20 }} />
-          ) : feed.length === 0 ? (
-            <View style={[s.emptyFeed, { backgroundColor: C.card }]}>
-              <Text style={s.emptyFeedEmoji}>📋</Text>
-              <Text style={[s.emptyFeedTitle, { color: C.text }]}>아직 업데이트가 없습니다</Text>
-              <Text style={[s.emptyFeedSub, { color: C.textSecondary }]}>선생님이 수업 일지나 사진을 올리면{"\n"}여기에서 확인할 수 있어요</Text>
+        {/* ─── C. 최신소식 피드 ─── */}
+        <View style={[s.section, { marginTop: 4 }]}>
+          <View style={s.sectionHeader}>
+            <Text style={[s.sectionTitle, { color: C.text }]}>최신소식</Text>
+            <Pressable onPress={() => router.push("/(parent)/notices" as any)}>
+              <Text style={[s.sectionMore, { color: C.tint }]}>더보기</Text>
+            </Pressable>
+          </View>
+
+          {blocked ? (
+            <View style={s.emptyBox}>
+              <Text style={[s.emptyTxt, { color: C.textMuted }]}>수영장에서 정보를 비공개로 설정하여 이용할 수 없습니다</Text>
+            </View>
+          ) : newsLoading ? (
+            <ActivityIndicator color={C.tint} style={{ marginTop: 24 }} />
+          ) : news.length === 0 ? (
+            <View style={[s.emptyBox, { backgroundColor: C.card }]}>
+              <Text style={s.emptyEmoji}>📋</Text>
+              <Text style={[s.emptyTitle, { color: C.text }]}>아직 소식이 없습니다</Text>
+              <Text style={[s.emptyBody, { color: C.textSecondary }]}>
+                공지사항이나 수업일지가 등록되면{"\n"}여기에서 확인할 수 있어요
+              </Text>
             </View>
           ) : (
             <View style={{ gap: 10 }}>
-              {feed.slice(0, 3).map(item => <FeedCard key={`${item.type}_${item.id}`} item={item} />)}
+              {news.map(item => (
+                <NewsCard
+                  key={`${item.kind}_${item.id}`}
+                  item={item}
+                  onPress={() => handleNewsPress(item)}
+                />
+              ))}
             </View>
           )}
-        </View>
-
-        {/* 광고 영역 */}
-        <View style={[s.adSection, { backgroundColor: C.card, borderColor: C.border }]}>
-          <View style={[s.adBanner, { backgroundColor: "#F0F9FF" }]}>
-            <Feather name="star" size={18} color="#0EA5E9" />
-            <View style={{ flex: 1 }}>
-              <Text style={[s.adTitle, { color: "#0C4A6E" }]}>수영 레슨 특별 프로그램</Text>
-              <Text style={[s.adSub, { color: "#0369A1" }]}>여름 집중반 등록 시 10% 할인</Text>
-            </View>
-            <Pressable style={[s.adBtn, { backgroundColor: "#0EA5E9" }]}>
-              <Text style={s.adBtnTxt}>자세히</Text>
-            </Pressable>
-          </View>
-          <View style={[s.adBanner, { backgroundColor: "#F5F3FF" }]}>
-            <Feather name="gift" size={18} color="#7C3AED" />
-            <View style={{ flex: 1 }}>
-              <Text style={[s.adTitle, { color: "#3B0764" }]}>친구 추천 이벤트</Text>
-              <Text style={[s.adSub, { color: "#6D28D9" }]}>추천 시 양쪽 1개월 무료</Text>
-            </View>
-            <Pressable style={[s.adBtn, { backgroundColor: "#7C3AED" }]}>
-              <Text style={s.adBtnTxt}>참여</Text>
-            </Pressable>
-          </View>
-          <Text style={[s.adDisclaimer, { color: C.textMuted }]}>광고</Text>
         </View>
       </ScrollView>
 
@@ -353,76 +412,84 @@ export default function ParentHomeScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
+
+  // 헤더
   header: {
-    flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16, gap: 12,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 20, paddingBottom: 12, gap: 12,
   },
-  poolName: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  greeting: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
-  logoutBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  childSelector: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
+  childName: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  headerIconBtn: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: "center", justifyContent: "center", position: "relative",
+  },
+  headerBadge: {
+    position: "absolute", top: -4, right: -4,
+    minWidth: 16, height: 16, borderRadius: 8,
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 3,
+  },
+  headerBadgeTxt: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" },
 
-  childCard: {
-    marginHorizontal: 20, marginBottom: 8, borderRadius: 20, padding: 16,
-    flexDirection: "row", alignItems: "center", gap: 12,
+  // 수영장·반 인포바
+  infoBar: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginHorizontal: 20, marginBottom: 8,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 12, borderWidth: 1,
   },
-  childCardAvatar: {
-    width: 52, height: 52, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.25)",
-    alignItems: "center", justifyContent: "center",
-  },
-  childCardAvatarText: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff" },
-  childCardName: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
-  childCardSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
-  switchRow: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  switchTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.9)" },
-  levelBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  levelTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.95)" },
+  infoBarTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
-  section: { paddingHorizontal: 20, paddingTop: 20, gap: 12 },
+  // 섹션
+  section: { paddingHorizontal: 20, paddingTop: 16, gap: 12 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  emptyHint: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  sectionMore: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
-  quickGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  quickItem: { width: "18%", alignItems: "center", gap: 6, minWidth: 60 },
-  quickIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  quickLabel: { fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center" },
-
-  feedCard: {
-    borderRadius: 16, padding: 14, gap: 8,
-    shadowColor: "#0000001A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
+  // 아이콘 그리드
+  iconGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  iconCell: { alignItems: "center", gap: 8, paddingVertical: 14 },
+  iconWrap: { position: "relative" },
+  iconBg: { width: 60, height: 60, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  badgeWrap: {
+    position: "absolute", top: -5, right: -5,
+    minWidth: 20, height: 20, borderRadius: 10,
+    backgroundColor: "#EF4444",
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 4,
+    borderWidth: 2, borderColor: "#fff",
   },
-  feedTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  feedTypeBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  feedTypeTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  feedDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  feedTeacher: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  feedContent: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  feedMore: { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 2 },
-  noteBox: { flexDirection: "row", alignItems: "flex-start", gap: 6, borderRadius: 10, borderWidth: 1, padding: 8 },
-  noteText: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, flex: 1 },
-  feedDetailBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-end" },
-  feedDetailTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  badgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#fff" },
+  iconLabel: { fontSize: 12, fontFamily: "Inter_500Medium", textAlign: "center" },
 
-  emptyFeed: { borderRadius: 16, padding: 32, alignItems: "center", gap: 8 },
-  emptyFeedEmoji: { fontSize: 48 },
-  emptyFeedTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  emptyFeedSub: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  // 최신소식 카드
+  newsCard: {
+    borderRadius: 16, padding: 14, gap: 7,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
+  },
+  newsTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  newsTag: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  newsTagTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  unreadDot: { width: 7, height: 7, borderRadius: 4 },
+  newsDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  newsTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  newsBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  noteBox: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#F5F3FF", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
+  noteText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+  moreLink: { fontSize: 12, fontFamily: "Inter_500Medium" },
 
-  adSection: { margin: 20, marginTop: 12, borderRadius: 20, borderWidth: 1, padding: 16, gap: 10 },
-  adBanner: { borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 10 },
-  adTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  adSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  adBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
-  adBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  adDisclaimer: { fontSize: 10, fontFamily: "Inter_400Regular", textAlign: "right" },
+  // 빈 상태
+  emptyBox: { borderRadius: 16, padding: 32, alignItems: "center", gap: 8 },
+  emptyEmoji: { fontSize: 44 },
+  emptyTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  emptyBody: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  emptyTxt: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 20 },
 
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  selectorSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12 },
-  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
-  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  // 자녀 선택 모달
   sheetItem: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 14 },
   sheetAvatar: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   sheetAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
   sheetItemName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   sheetItemSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  sheetClose: { padding: 14, borderRadius: 14, alignItems: "center", marginTop: 4 },
-  sheetCloseTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

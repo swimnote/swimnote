@@ -121,9 +121,8 @@ router.get("/notices", requireAuth, requireParent, async (req: AuthRequest, res)
   try {
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
-    const notices = await db.select().from(noticesTable).where(
-      and(eq(noticesTable.swimming_pool_id, pa.swimming_pool_id), eq(noticesTable.notice_type, "general"))
-    );
+    // general + class 모두 포함
+    const notices = await db.select().from(noticesTable).where(eq(noticesTable.swimming_pool_id, pa.swimming_pool_id));
 
     const readRows = await db.execute(sql`SELECT notice_id FROM notice_reads WHERE parent_id = ${pa.id}`);
     const readSet = new Set((readRows.rows as any[]).map((r: any) => r.notice_id));
@@ -359,6 +358,107 @@ router.delete("/diary/:diaryId/messages/:msgId/permanent", requireAuth, requireP
     await db.execute(sql`DELETE FROM diary_messages WHERE id=${req.params.msgId}`);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 최신소식 피드 (공지 + 수업일지 통합, 최대 10개) ─────────────────────
+router.get("/students/:id/news", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(
+        eq(parentStudentsTable.parent_id, req.user!.userId),
+        eq(parentStudentsTable.student_id, req.params.id),
+        eq(parentStudentsTable.status, "approved")
+      )).limit(1);
+    if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+
+    const readRows = await db.execute(sql`SELECT notice_id FROM notice_reads WHERE parent_id = ${pa.id}`);
+    const readSet = new Set((readRows.rows as any[]).map((r: any) => r.notice_id));
+
+    const news: any[] = [];
+
+    // 공지사항 (최근 20개 → 피드에 섞기)
+    const noticeRows = await db.select().from(noticesTable)
+      .where(eq(noticesTable.swimming_pool_id, pa.swimming_pool_id));
+    for (const n of noticeRows) {
+      news.push({
+        kind: "notice",
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        notice_type: n.notice_type,
+        is_read: readSet.has(n.id),
+        is_pinned: n.is_pinned,
+        author_name: n.author_name,
+        created_at: n.created_at,
+      });
+    }
+
+    // 수업일지 (최근 20개)
+    if (student?.class_group_id) {
+      const diaryRows = await db.execute(sql`
+        SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.created_at,
+               csn.note_content AS student_note
+        FROM class_diaries cd
+        LEFT JOIN class_diary_student_notes csn
+          ON csn.diary_id = cd.id AND csn.student_id = ${req.params.id} AND csn.is_deleted = false
+        WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
+        ORDER BY cd.lesson_date DESC LIMIT 20
+      `);
+      for (const d of diaryRows.rows as any[]) {
+        news.push({
+          kind: "diary",
+          id: d.id,
+          lesson_date: d.lesson_date,
+          common_content: d.common_content,
+          teacher_name: d.teacher_name,
+          student_note: d.student_note || null,
+          created_at: d.created_at,
+        });
+      }
+    }
+
+    news.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    res.json(news.slice(0, 10));
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 안읽은 카운트 (공지 미열람 수) ───────────────────────────────────────
+router.get("/students/:id/unread-counts", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(
+        eq(parentStudentsTable.parent_id, req.user!.userId),
+        eq(parentStudentsTable.student_id, req.params.id),
+        eq(parentStudentsTable.status, "approved")
+      )).limit(1);
+    if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+
+    // 안읽은 공지 수
+    const totalNotices = await db.execute(sql`SELECT COUNT(*) AS cnt FROM notices WHERE swimming_pool_id = ${pa.swimming_pool_id}`);
+    const readNotices = await db.execute(sql`SELECT COUNT(*) AS cnt FROM notice_reads nr JOIN notices n ON n.id = nr.notice_id WHERE nr.parent_id = ${pa.id} AND n.swimming_pool_id = ${pa.swimming_pool_id}`);
+    const unreadNotices = Number((totalNotices.rows[0] as any).cnt) - Number((readNotices.rows[0] as any).cnt);
+
+    res.json({ unread_notices: Math.max(0, unreadNotices), unread_messages: 0 });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 교육 프로그램 (수영장별 1개 문서) ─────────────────────────────────────
+router.get("/program", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
+    // pool_programs 테이블이 없으면 null 반환
+    const rows = await db.execute(sql`
+      SELECT id, title, content, updated_at, author_name
+      FROM pool_programs WHERE swimming_pool_id = ${pa.swimming_pool_id} LIMIT 1
+    `).catch(() => ({ rows: [] }));
+    res.json(rows.rows[0] || null);
+  } catch (err) { res.json(null); }
 });
 
 // ── 홈 피드 (최근 수업일지 + 사진) ──────────────────────────────────────

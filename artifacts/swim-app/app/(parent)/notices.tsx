@@ -1,14 +1,22 @@
+/**
+ * 학부모 공지사항 화면
+ * - 전체공지 / 우리반공지 태그 분리
+ * - 상세 진입 시에만 읽음 처리
+ * - 안읽은 수 배지
+ */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Image, Platform, Pressable, RefreshControl,
+  ActivityIndicator, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useParent } from "@/context/ParentContext";
+
+const C = Colors.light;
 
 interface Notice {
   id: string;
@@ -19,214 +27,183 @@ interface Notice {
   is_read: boolean;
   created_at: string;
   notice_type?: string;
-  student_name?: string | null;
-  image_urls?: string[];
 }
 
-const C = Colors.light;
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
+type FilterKey = "all" | "general" | "class";
+
+function fmtDate(d: string) {
+  const dt = new Date(d);
+  return dt.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+}
 
 function TypeBadge({ type }: { type?: string }) {
   const isClass = type === "class";
   return (
     <View style={[tb.badge, { backgroundColor: isClass ? "#EDE9FE" : "#EFF6FF" }]}>
       <Text style={[tb.txt, { color: isClass ? "#6D28D9" : "#1D4ED8" }]}>
-        {isClass ? "반" : "전체"}
+        {isClass ? "우리반 공지" : "전체 공지"}
       </Text>
     </View>
   );
 }
 const tb = StyleSheet.create({
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, alignSelf: "flex-start" },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, alignSelf: "flex-start" },
   txt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });
 
 export default function ParentNoticesScreen() {
   const { token } = useAuth();
+  const { selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "general" | "class">("all");
+  const [filter, setFilter] = useState<FilterKey>("all");
 
   async function fetchNotices() {
     try {
+      setLoading(true);
       const res = await apiRequest(token, "/parent/notices");
-      const data = await res.json();
-      setNotices(Array.isArray(data) ? data : []);
-    } finally { setLoading(false); setRefreshing(false); }
+      if (res.ok) setNotices(await res.json());
+    } finally { setLoading(false); }
   }
 
   useEffect(() => { fetchNotices(); }, []);
 
-  async function handleOpen(n: Notice) {
-    const isOpening = expanded !== n.id;
-    setExpanded(isOpening ? n.id : null);
-    if (isOpening && !n.is_read) {
-      await apiRequest(token, `/parent/notices/${n.id}/read`, { method: "POST" });
-      setNotices(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+  async function markRead(n: Notice) {
+    if (n.is_read) return;
+    await apiRequest(token, `/parent/notices/${n.id}/read`, { method: "POST" });
+    setNotices(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+  }
+
+  function toggleExpand(n: Notice) {
+    if (expanded === n.id) {
+      setExpanded(null);
+    } else {
+      setExpanded(n.id);
+      markRead(n);
     }
   }
 
-  const filtered = filter === "all" ? notices : notices.filter(n => (n.notice_type || "general") === filter);
-  const pinned = filtered.filter(n => n.is_pinned);
-  const regular = filtered.filter(n => !n.is_pinned);
+  const filtered = notices.filter(n => {
+    if (filter === "all") return true;
+    return n.notice_type === filter;
+  });
+
   const unreadCount = notices.filter(n => !n.is_read).length;
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.background }}>
+    <View style={[s.root, { backgroundColor: C.background }]}>
       <SubScreenHeader
-        title="공지사항"
-        onBack={() => router.navigate("/(parent)/more" as any)}
-        rightSlot={
-          unreadCount > 0 ? (
-            <View style={[styles.unreadBadge, { backgroundColor: C.error }]}>
-              <Text style={styles.unreadCount}>미읽음 {unreadCount}</Text>
-            </View>
-          ) : undefined
-        }
+        title={unreadCount > 0 ? `공지사항 (${unreadCount})` : "공지사항"}
+        onBack={() => {}}
       />
 
-      {/* 필터 탭 */}
-      <View style={styles.filterRow}>
-        {(["all", "general", "class"] as const).map(f => (
-          <Pressable
-            key={f}
-            style={[styles.filterBtn, { backgroundColor: filter === f ? C.tint : "#F3F4F6" }]}
-            onPress={() => setFilter(f)}
-          >
-            <Text style={[styles.filterTxt, { color: filter === f ? "#fff" : C.textSecondary }]}>
-              {f === "all" ? "전체" : f === "general" ? "수영장 공지" : "반 공지"}
-            </Text>
-          </Pressable>
-        ))}
+      {/* 필터 칩 */}
+      <View style={s.filterRow}>
+        {(["all", "general", "class"] as FilterKey[]).map(k => {
+          const labels: Record<FilterKey, string> = { all: "전체", general: "전체공지", class: "우리반공지" };
+          const active = filter === k;
+          return (
+            <Pressable
+              key={k}
+              style={[s.chip, active && { backgroundColor: C.tint, borderColor: C.tint }]}
+              onPress={() => setFilter(k)}
+            >
+              <Text style={[s.chipTxt, { color: active ? "#fff" : C.textSecondary }]}>{labels[k]}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 10 }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchNotices(); }} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await fetchNotices(); setRefreshing(false); }} />}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 10, paddingTop: 8 }}
         >
-          {pinned.length > 0 && (
-            <>
-              <View style={styles.sectionRow}>
-                <Feather name="pin" size={13} color={C.tint} />
-                <Text style={[styles.sectionLabel, { color: C.tint }]}>고정 공지</Text>
-              </View>
-              {pinned.map(n => <NoticeItem key={n.id} n={n} expanded={expanded} onOpen={handleOpen} />)}
-            </>
-          )}
-          {regular.length > 0 && (
-            <>
-              {pinned.length > 0 && (
-                <View style={styles.sectionRow}>
-                  <Text style={[styles.sectionLabel, { color: C.textSecondary }]}>일반 공지</Text>
-                </View>
-              )}
-              {regular.map(n => <NoticeItem key={n.id} n={n} expanded={expanded} onOpen={handleOpen} />)}
-            </>
-          )}
-          {filtered.length === 0 && (
-            <View style={styles.empty}>
-              <Feather name="bell-off" size={48} color={C.textMuted} />
-              <Text style={[styles.emptyTitle, { color: C.text }]}>공지사항 없음</Text>
-              <Text style={[styles.emptyText, { color: C.textSecondary }]}>아직 등록된 공지사항이 없습니다</Text>
+          {filtered.length === 0 ? (
+            <View style={[s.emptyBox, { backgroundColor: C.card }]}>
+              <Text style={s.emptyEmoji}>📋</Text>
+              <Text style={[s.emptyTitle, { color: C.text }]}>공지사항이 없습니다</Text>
             </View>
-          )}
+          ) : filtered.map(n => {
+            const isExpanded = expanded === n.id;
+            return (
+              <Pressable
+                key={n.id}
+                style={[s.card, { backgroundColor: C.card }, !n.is_read && s.cardUnread]}
+                onPress={() => toggleExpand(n)}
+              >
+                {/* 상단 */}
+                <View style={s.cardTop}>
+                  <TypeBadge type={n.notice_type} />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    {!n.is_read && <View style={[s.dot, { backgroundColor: C.tint }]} />}
+                    {n.is_pinned && <Feather name="bookmark" size={13} color={C.tint} />}
+                  </View>
+                </View>
+
+                {/* 제목 */}
+                <Text style={[s.title, { color: C.text }]}>{n.title}</Text>
+
+                {/* 본문 (펼침) */}
+                {isExpanded ? (
+                  <Text style={[s.content, { color: C.textSecondary }]}>{n.content}</Text>
+                ) : (
+                  <Text style={[s.contentPreview, { color: C.textSecondary }]} numberOfLines={2}>{n.content}</Text>
+                )}
+
+                {/* 하단 */}
+                <View style={s.cardBottom}>
+                  <Text style={[s.meta, { color: C.textMuted }]}>
+                    {n.author_name} · {fmtDate(n.created_at)}
+                  </Text>
+                  <Text style={[s.expandHint, { color: C.tint }]}>
+                    {isExpanded ? "접기" : "펼치기"}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </ScrollView>
       )}
     </View>
   );
 }
 
-function NoticeItem({ n, expanded, onOpen }: {
-  n: Notice; expanded: string | null; onOpen: (n: Notice) => void;
-}) {
-  const isOpen = expanded === n.id;
-  const images: string[] = Array.isArray(n.image_urls) ? n.image_urls : [];
+const s = StyleSheet.create({
+  root: { flex: 1 },
 
-  return (
-    <Pressable
-      style={[
-        styles.card,
-        { backgroundColor: C.card, borderLeftWidth: n.is_pinned ? 3 : 0, borderLeftColor: C.tint },
-        !n.is_read && { borderWidth: 1.5, borderColor: C.tint + "60" },
-      ]}
-      onPress={() => onOpen(n)}
-    >
-      <View style={styles.cardRow}>
-        <View style={{ flex: 1, gap: 6 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <TypeBadge type={n.notice_type} />
-            {!n.is_read && <View style={[styles.unreadDot, { backgroundColor: C.tint }]} />}
-          </View>
-          <Text style={[styles.noticeTitle, { color: C.text, fontFamily: n.is_read ? "Inter_500Medium" : "Inter_700Bold" }]} numberOfLines={isOpen ? undefined : 2}>
-            {n.title}
-          </Text>
-        </View>
-        <View style={{ alignItems: "flex-end", gap: 4 }}>
-          <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={16} color={C.textMuted} />
-        </View>
-      </View>
+  filterRow: {
+    flexDirection: "row", gap: 8, paddingHorizontal: 20,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F3F4F6",
+  },
+  chip: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+    borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff",
+  },
+  chipTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
-      {isOpen && (
-        <View style={styles.expandedArea}>
-          {n.student_name && (
-            <View style={[styles.individualTag, { backgroundColor: C.tintLight }]}>
-              <Feather name="user" size={12} color={C.tint} />
-              <Text style={[styles.individualText, { color: C.tint }]}>{n.student_name} 학생 개별 공지</Text>
-            </View>
-          )}
-          <Text style={[styles.noticeContent, { color: C.textSecondary }]}>{n.content}</Text>
-          {images.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }} contentContainerStyle={{ gap: 8 }}>
-              {images.map((key, i) => (
-                <Image
-                  key={i}
-                  source={{ uri: `${API_BASE}/api/uploads/${encodeURIComponent(key)}` }}
-                  style={styles.thumbImage}
-                  resizeMode="cover"
-                />
-              ))}
-            </ScrollView>
-          )}
-        </View>
-      )}
+  card: {
+    borderRadius: 16, padding: 14, gap: 8,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+  },
+  cardUnread: { borderLeftWidth: 3, borderLeftColor: C.tint },
+  cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  title: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  content: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  contentPreview: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
+  meta: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  expandHint: { fontSize: 12, fontFamily: "Inter_500Medium" },
 
-      <View style={styles.meta}>
-        <Text style={[styles.metaText, { color: C.textMuted }]}>{n.author_name}</Text>
-        <Text style={[styles.metaText, { color: C.textMuted }]}>{new Date(n.created_at).toLocaleDateString("ko-KR")}</Text>
-      </View>
-    </Pressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
-  title: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  unreadBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  unreadCount: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  filterRow: { flexDirection: "row", paddingHorizontal: 20, gap: 8, marginBottom: 12 },
-  filterBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  filterTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  sectionRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  card: { borderRadius: 14, padding: 14, gap: 10, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2, shadowColor: "#0000001A", backgroundColor: "#fff" },
-  cardRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  unreadDot: { width: 7, height: 7, borderRadius: 4, marginTop: 2, flexShrink: 0 },
-  noticeTitle: { fontSize: 15, lineHeight: 22 },
-  expandedArea: { gap: 8 },
-  individualTag: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  individualText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  noticeContent: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
-  thumbImage: { width: 140, height: 140, borderRadius: 10 },
-  meta: { flexDirection: "row", justifyContent: "space-between" },
-  metaText: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyBox: { borderRadius: 16, padding: 40, alignItems: "center", gap: 8, marginTop: 20 },
+  emptyEmoji: { fontSize: 44 },
+  emptyTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

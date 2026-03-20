@@ -95,6 +95,7 @@ function ParentTabs() {
       <Tabs.Screen name="notice-detail" options={{ href: null }} />
       <Tabs.Screen name="swim-diary"    options={{ href: null }} />
       <Tabs.Screen name="level"         options={{ href: null }} />
+      <Tabs.Screen name="program"       options={{ href: null }} />
     </Tabs>
   );
 }
