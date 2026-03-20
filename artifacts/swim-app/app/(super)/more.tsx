@@ -66,6 +66,12 @@ export default function SuperMoreScreen() {
           sub="수영장별 영상·사진 용량 정책 설정"
           onPress={() => router.push("/(super)/storage-policy" as any)}
         />
+        <MenuItem
+          icon="database"
+          label="데이터 동기화"
+          sub="변경분 수집 · 스냅샷 관리 · 새벽 배치 현황"
+          onPress={() => router.push("/(super)/sync" as any)}
+        />
 
         <Text style={[s.sectionLabel, { color: C.textMuted }]}>플랫폼 정보</Text>
         <MenuItem

@@ -68,6 +68,13 @@ The platform is built as a pnpm workspace monorepo using TypeScript. It leverage
 - **Makeup Lesson System**: Automated creation of makeup lesson requests upon student absence, with comprehensive lifecycle management (waiting, assigned, transferred, completed, cancelled) via dedicated API endpoints.
 - **Activity Logging**: Automated tracking of significant administrator actions (e.g., status changes, information edits, restorations) in a `member_activity_logs` table, providing a detailed audit trail.
 - **이벤트 기록 타임라인 (Event Log Timeline)**: `event_logs` 테이블 + `event-logger.ts` 헬퍼 모듈로 구조화된 이벤트 로그 관리. 카테고리: 삭제·결제·구독·해지·권한·선생님·저장공간·휴무일. 연결된 라우터: `teacher-invites.ts` (승인/해제/부관리자/인수), `billing.ts` (구독/결제/해지/저장공간추가), `holidays.ts` (휴무일추가/삭제), `kill-switch.ts` (원본삭제). Admin `more.tsx`에 "이벤트 기록" 탭 추가 (카테고리 필터 + FlatList 타임라인).
+- **서버 기반 변경분 수집 + 새벽 배치 (2026-03)**:
+  - **DB**: `data_change_logs`(tenant_id, table_name, record_id, change_type, payload, sync_status=pending/synced, created_at, synced_at), `backup_snapshots`(snapshot_type=incremental/full, tables_included, record_count) 2개 테이블 신규.
+  - **Change Logger**: `api-server/src/utils/change-logger.ts` — `logChange({tenantId, tableName, recordId, changeType, payload})` 헬퍼. 오류 발생해도 메인 흐름에 영향 없음.
+  - **변경 계측 라우트**: `students.ts`(create/update/delete), `class-groups.ts`(create/update/delete), `teacher-invites.ts`(create), `settlement.ts`(save/finalize), `parent.ts`(PUT /me) — 각 변경 직후 logChange 호출.
+  - **배치 잡**: `api-server/src/jobs/backup-batch.ts` — node-cron. 매일 새벽 03:00 증분 동기화(pending→synced), 매주 일 02:00 전체 스냅샷(7개 테이블 레코드 수 집계). 앱 꺼져 있어도 서버 기준 실행.
+  - **Sync API**: `GET /super/sync/stats`, `GET /super/sync/tenants`, `GET /super/sync/changes`, `POST /super/sync/run`(즉시 증분), `POST /super/sync/snapshot`(즉시 전체 스냅샷), `GET /super/sync/snapshots`.
+  - **슈퍼관리자 UI**: `(super)/sync.tsx` — 통계카드/테이블별현황/테넌트별현황/즉시실행버튼/스냅샷이력. 더보기 → "데이터 동기화" 메뉴 추가.
 - **킬 스위치 (Kill Switch)**: `/admin/kill-switch/preview` + `/admin/kill-switch/execute` 엔드포인트. 사진/영상/기록 종류 선택 + 기간(1~12개월) → 미리보기(건수/용량) → 비밀번호 bcrypt 인증 → 오브젝트 스토리지 삭제 + DB DELETE + event_logs 기록. Admin `more.tsx` "데이터 관리" 섹션 + 3단계 Modal UI (select→preview→confirm). Alert.alert 금지 규칙 준수.
 - **미등록회원 일괄등록 시스템 (Bulk Unregistered Member Management)**:
   - **DB**: `students.invite_status` 컬럼 추가 (text, default "none" | "invited" | "joined"). `status="unregistered"` + `registration_path="bulk_upload"` 조합으로 미등록회원 식별.

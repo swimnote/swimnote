@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { classGroupsTable, studentsTable, attendanceTable, usersTable } from "@workspace/db/schema";
 import { eq, and, sql, ne } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { logChange } from "../utils/change-logger.js";
 
 const router = Router();
 
@@ -126,6 +127,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
       is_one_time: isOneTime,
       one_time_date: isOneTime ? (one_time_date || null) : null,
     }).returning();
+    await logChange({ tenantId: poolId, tableName: "class_groups", recordId: group.id, changeType: "create", payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time } });
     res.status(201).json({ success: true, ...group, student_count: 0 });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -221,6 +223,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
       })
       .where(eq(classGroupsTable.id, req.params.id))
       .returning();
+    await logChange({ tenantId: group.swimming_pool_id, tableName: "class_groups", recordId: group.id, changeType: "update", payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time } });
     res.json({ success: true, ...group });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -290,6 +293,7 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "tea
       .where(eq(classGroupsTable.id, cgId));
 
     console.log(`[deleteClass] class soft deleted: ${cgId}`);
+    if (poolId) await logChange({ tenantId: poolId, tableName: "class_groups", recordId: cgId, changeType: "delete", payload: { pool_id: poolId } });
     res.json({ success: true });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

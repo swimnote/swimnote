@@ -13,6 +13,7 @@ import { Router, type Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { logChange } from "../utils/change-logger.js";
 
 const router = Router();
 
@@ -252,7 +253,9 @@ router.post("/settlement/save", requireAuth, requireRole("pool_admin", "teacher"
         RETURNING *
       `);
 
-      return res.json({ success: true, settlement: rows.rows[0] });
+      const saved = rows.rows[0] as any;
+      await logChange({ tenantId: pool_id, tableName: "monthly_settlements", recordId: saved?.id || `${pool_id}_${month}`, changeType: "update", payload: { month, status, teacher: userId } });
+      return res.json({ success: true, settlement: saved });
     } catch (e: any) {
       console.error("[settlement/save]", e);
       return err(res, 500, e.message);
@@ -362,6 +365,7 @@ router.post("/settlement/finalize", requireAuth, requireRole("pool_admin", "teac
         SET is_finalized = true, finalized_at = now(), status = 'confirmed'
         WHERE pool_id = ${pool_id} AND teacher_user_id = ${userId} AND settlement_month = ${month}
       `);
+      if (pool_id) await logChange({ tenantId: pool_id, tableName: "monthly_settlements", recordId: `${pool_id}_${month}`, changeType: "update", payload: { month, status: "confirmed", finalized: true } });
       return res.json({ success: true });
     } catch (e: any) {
       return err(res, 500, e.message);

@@ -7,6 +7,7 @@ import {
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
+import { logChange } from "../utils/change-logger.js";
 
 const router = Router();
 
@@ -201,6 +202,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
     }).returning();
 
     const enriched = await enrichWithClasses({ ...student, class_group_name: null });
+    await logChange({ tenantId: poolId!, tableName: "students", recordId: student.id, changeType: "create", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id } });
     res.status(201).json({ success: true, ...enriched });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -267,6 +269,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
       .returning();
 
     const enriched = await enrichWithClasses(student);
+    await logChange({ tenantId: existing.swimming_pool_id, tableName: "students", recordId: student.id, changeType: "update", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id } });
     res.json({ success: true, ...enriched });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -695,6 +698,7 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
     // parent_students는 유지 (학부모가 과거 기록 조회 가능해야 함)
     // swim_diary, attendance 기록도 유지
     console.log(`[deleteStudent] archived success: ${sid}`);
+    await logChange({ tenantId: (existing as any).swimming_pool_id, tableName: "students", recordId: sid, changeType: "delete", payload: { name: (existing as any).name, prev_status: (existing as any).status } });
     res.json({ success: true, message: "회원이 삭제회원으로 처리되었습니다." });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

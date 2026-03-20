@@ -31,6 +31,7 @@ import settlementRouter from "./settlement.js";
 import storageRouter from "./storage.js";
 import killSwitchRouter from "./kill-switch.js";
 import unregisteredRouter from "./unregistered.js";
+import superSyncRouter from "./super-sync.js";
 
 const router: IRouter = Router();
 
@@ -66,5 +67,6 @@ router.use("/", settlementRouter);
 router.use("/", storageRouter);
 router.use("/", killSwitchRouter);
 router.use("/", unregisteredRouter);
+router.use("/", superSyncRouter);
 
 export default router;

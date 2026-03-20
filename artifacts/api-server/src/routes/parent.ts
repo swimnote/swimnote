@@ -5,6 +5,7 @@ import { parentAccountsTable, parentStudentsTable, studentsTable, attendanceTabl
 import { eq, and } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, comparePassword } from "../lib/auth.js";
+import { logChange } from "../utils/change-logger.js";
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.put("/me", requireAuth, requireParent, async (req: AuthRequest, res) => {
       })
       .where(eq(parentAccountsTable.id, pa.id));
 
+    await logChange({ tenantId: pa.swimming_pool_id, tableName: "parent_accounts", recordId: pa.id, changeType: "update", payload: { name: name.trim() } });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });

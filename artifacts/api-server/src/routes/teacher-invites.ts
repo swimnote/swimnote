@@ -15,6 +15,7 @@ import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword } from "../lib/auth.js";
 import { logEvent } from "../lib/event-logger.js";
+import { logChange } from "../utils/change-logger.js";
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.post("/admin/teacher-invites", requireAuth, requireRole("pool_admin", "su
       `);
 
       const result = await db.execute(sql`SELECT * FROM teacher_invites WHERE id = ${id}`);
+      await logChange({ tenantId: me.swimming_pool_id, tableName: "teacher_invites", recordId: id, changeType: "create", payload: { name: name.trim(), phone: phone.trim(), invite_status: "invited" } });
       res.status(201).json({ success: true, data: result.rows[0] });
     } catch (err) {
       console.error(err);

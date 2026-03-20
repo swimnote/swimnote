@@ -77,6 +77,7 @@ export default function SuperLayout() {
 
       {/* ─── 숨김 화면들 ─── */}
       <Tabs.Screen name="storage-policy" options={{ href: null }} />
+      <Tabs.Screen name="sync" options={{ href: null }} />
     </Tabs>
   );
 }
