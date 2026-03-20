@@ -4,7 +4,7 @@
  * 구조: WeeklySchedule → 반 선택 → 작성(공통일지 + 학생별추가) / 기록(수정/삭제)
  */
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, KeyboardAvoidingView,
@@ -169,7 +169,11 @@ function EditModal({ diary, token, onDone, onClose }: {
 export default function TeacherDiaryScreen() {
   const { token, user } = useAuth();
   const { themeColor } = useBrand();
-  const params = useLocalSearchParams<{ classGroupId?: string; className?: string }>();
+  const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string }>();
+
+  // 파라미터로 넘어온 날짜가 있으면 그 날짜로, 없으면 오늘 날짜
+  const targetDate = (params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/))
+    ? params.lessonDate : todayStr();
 
   const [groups,     setGroups]     = useState<TeacherClassGroup[]>([]);
   const [diarySet,   setDiarySet]   = useState<Set<string>>(new Set());
@@ -177,7 +181,9 @@ export default function TeacherDiaryScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(
+    null
+  );
   const [subView,       setSubView]       = useState<SubView>("write");
 
   // ── 작성 폼 상태 ─────────────────────────────────────────────────────
@@ -222,12 +228,11 @@ export default function TeacherDiaryScreen() {
 
   // ── 초기 로드 ────────────────────────────────────────────────────────
   const load = useCallback(async () => {
-    const today = todayStr();
     try {
       const [cgRes, attRes, dRes] = await Promise.all([
         apiRequest(token, "/class-groups"),
-        apiRequest(token, `/attendance?date=${today}`),
-        apiRequest(token, `/diaries?lesson_date=${today}`),
+        apiRequest(token, `/attendance?date=${targetDate}`),
+        apiRequest(token, `/diaries?lesson_date=${targetDate}`),
       ]);
       let groupsList: TeacherClassGroup[] = [];
       if (cgRes.ok) { groupsList = await cgRes.json(); setGroups(groupsList); }
@@ -247,7 +252,7 @@ export default function TeacherDiaryScreen() {
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [token]);
+  }, [token, targetDate]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -333,7 +338,7 @@ export default function TeacherDiaryScreen() {
         method: "POST",
         body: JSON.stringify({
           class_group_id: selectedGroup.id,
-          lesson_date: todayStr(),
+          lesson_date: targetDate,
           common_content: commonContent.trim(),
           student_notes: studentNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content })),
         }),
@@ -342,7 +347,16 @@ export default function TeacherDiaryScreen() {
       if (!r.ok) throw new Error(data?.error || "저장 실패");
       setDiarySet(prev => new Set([...prev, selectedGroup.id]));
       setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
-      setTimeout(() => { setSaveMsg(null); setSelectedGroup(null); }, 2200);
+      // 미작성 목록에서 진입한 경우 저장 후 해당 화면으로 복귀
+      const cameFromUnwritten = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/));
+      setTimeout(() => {
+        setSaveMsg(null);
+        if (cameFromUnwritten) {
+          router.back();
+        } else {
+          setSelectedGroup(null);
+        }
+      }, 2000);
     } catch (e: any) { setSaveMsg({ type: "error", text: e.message || "저장 중 오류가 발생했습니다." }); }
     finally { setSaving(false); }
   }
@@ -396,7 +410,7 @@ export default function TeacherDiaryScreen() {
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader
           title={group.name}
-          subtitle={`${todayStr()} · ${group.schedule_time}`}
+          subtitle={`${targetDate} · ${group.schedule_time}`}
           onBack={() => setSelectedGroup(null)}
           homePath="/(teacher)/today-schedule"
         />

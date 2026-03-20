@@ -173,6 +173,18 @@ export default function DiaryIndexScreen() {
     <SafeAreaView style={di.safe} edges={[]}>
       <SubScreenHeader title="수업 일지" subtitle="학생에게 노출된 전체 이력" homePath="/(teacher)/today-schedule" />
 
+      {/* 일지 작성 버튼 */}
+      <Pressable
+        style={[di.writeBtn, { backgroundColor: themeColor }]}
+        onPress={() => router.push("/(teacher)/diary-unwritten" as any)}
+      >
+        <Feather name="edit-3" size={15} color="#fff" />
+        <Text style={di.writeBtnText}>일지 작성</Text>
+        <View style={di.writeBtnBadgeWrap}>
+          <Feather name="chevron-right" size={15} color="rgba(255,255,255,0.7)" />
+        </View>
+      </Pressable>
+
       {/* 검색창 */}
       <View style={di.searchRow}>
         <Feather name="search" size={15} color={C.textSecondary} />
@@ -294,6 +306,16 @@ export default function DiaryIndexScreen() {
 
 const di = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.background },
+
+  writeBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginHorizontal: 16, marginBottom: 12,
+    paddingHorizontal: 16, paddingVertical: 13,
+    borderRadius: 12,
+  },
+  writeBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff", flex: 1 },
+  writeBtnBadgeWrap: { opacity: 0.7 },
+
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   backBtn: { marginBottom: 6, width: 32 },
   headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },

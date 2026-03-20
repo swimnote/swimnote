@@ -76,7 +76,8 @@ export default function AdminLayout() {
       <Tabs.Screen name="parents"           options={{ href: null }} />
       <Tabs.Screen name="notices"           options={{ href: null }} />
       <Tabs.Screen name="mode"              options={{ href: null }} />
-      <Tabs.Screen name="diary-write"       options={{ href: null }} />
+      <Tabs.Screen name="diary-write"            options={{ href: null }} />
+      <Tabs.Screen name="diary-teacher-entries"  options={{ href: null }} />
       <Tabs.Screen name="photo-upload"      options={{ href: null }} />
       <Tabs.Screen name="teachers"          options={{ href: null }} />
       <Tabs.Screen name="pool-settings"     options={{ href: null }} />

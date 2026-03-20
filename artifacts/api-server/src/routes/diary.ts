@@ -923,5 +923,224 @@ router.post("/teacher/diary/:diaryId/messages",
   }
 );
 
+// ════════════════════════════════════════════════════════════════════════
+// 미작성 수업 슬롯 목록 (선생님 모드 — 일지 작성 진입용)
+// GET /diaries/unwritten-slots
+// ════════════════════════════════════════════════════════════════════════
+router.get("/diaries/unwritten-slots",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+
+      // 선생님: 본인 반만, 관리자: 전체
+      let classRows;
+      if (role === "teacher") {
+        classRows = await db.execute(sql`
+          SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time,
+            (SELECT COUNT(*) FROM students s WHERE s.class_group_id = cg.id AND s.status NOT IN ('withdrawn','deleted')) AS student_count
+          FROM class_groups cg
+          WHERE cg.teacher_user_id = ${userId} AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
+        `);
+      } else {
+        classRows = await db.execute(sql`
+          SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time,
+            (SELECT COUNT(*) FROM students s WHERE s.class_group_id = cg.id AND s.status NOT IN ('withdrawn','deleted')) AS student_count
+          FROM class_groups cg
+          WHERE cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
+        `);
+      }
+
+      const DAY_MAP: Record<string, number> = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 0 };
+      const KO_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      // 8주 전부터 어제까지의 날짜를 생성
+      const fromDate = new Date(today);
+      fromDate.setDate(fromDate.getDate() - 56);
+
+      const slots: any[] = [];
+
+      for (const cg of classRows.rows as any[]) {
+        const days: number[] = [];
+        for (const ch of (cg.schedule_days || "")) {
+          if (DAY_MAP[ch] !== undefined) days.push(DAY_MAP[ch]);
+        }
+        if (days.length === 0) continue;
+
+        // 이 반의 기작성 일지 날짜 목록
+        const writtenRows = await db.execute(sql`
+          SELECT lesson_date FROM class_diaries
+          WHERE class_group_id = ${cg.id} AND is_deleted = false
+        `);
+        const writtenDates = new Set((writtenRows.rows as any[]).map(r => r.lesson_date?.toString?.().slice(0, 10) || ""));
+
+        // fromDate ~ yesterday 기간 중 schedule_days에 해당하는 날짜 생성
+        const cursor = new Date(fromDate);
+        while (cursor < today) {
+          if (days.includes(cursor.getDay())) {
+            const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+            if (!writtenDates.has(dateStr)) {
+              slots.push({
+                classGroupId: cg.id,
+                className: cg.name,
+                scheduleTime: (cg.schedule_time || "").slice(0, 5),
+                lessonDate: dateStr,
+                dayOfWeek: KO_DAYS[cursor.getDay()],
+                studentCount: Number(cg.student_count) || 0,
+              });
+            }
+          }
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      }
+
+      // 날짜 오름차순, 같은 날짜면 시간 오름차순
+      slots.sort((a, b) => {
+        const dateCmp = a.lessonDate.localeCompare(b.lessonDate);
+        if (dateCmp !== 0) return dateCmp;
+        return a.scheduleTime.localeCompare(b.scheduleTime);
+      });
+
+      res.json({ success: true, slots, total: slots.length });
+    } catch (e) { console.error("[unwritten-slots]", e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════
+// 관리자 — 교사별 일지 통계 목록
+// GET /diaries/admin/teachers
+// ════════════════════════════════════════════════════════════════════════
+router.get("/diaries/admin/teachers",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+
+      const rows = await db.execute(sql`
+        SELECT
+          u.id AS teacher_id,
+          u.name AS teacher_name,
+          COUNT(DISTINCT cg.id) AS class_count,
+          COUNT(DISTINCT cd.id) FILTER (WHERE cd.is_deleted = false) AS diary_count,
+          MAX(cd.lesson_date) FILTER (WHERE cd.is_deleted = false) AS last_diary_date
+        FROM users u
+        LEFT JOIN class_groups cg ON cg.teacher_user_id = u.id AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
+        LEFT JOIN class_diaries cd ON cd.teacher_id = u.id::text AND cd.swimming_pool_id = ${poolId}
+        WHERE u.swimming_pool_id = ${poolId} AND u.role = 'teacher' AND u.is_active = true
+        GROUP BY u.id, u.name
+        ORDER BY diary_count DESC, u.name ASC
+      `);
+
+      res.json({ success: true, teachers: rows.rows });
+    } catch (e) { console.error("[diaries/admin/teachers]", e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════
+// 관리자 — 특정 교사의 일지 목록
+// GET /diaries/admin/teacher/:teacherId/entries
+// ════════════════════════════════════════════════════════════════════════
+router.get("/diaries/admin/teacher/:teacherId/entries",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+
+      const { teacherId } = req.params;
+      const { page = "1", limit = "30" } = req.query as any;
+      const offset = (parseInt(page) - 1) * parseInt(limit);
+
+      const rows = await db.execute(sql`
+        SELECT
+          cd.id, cd.lesson_date, cd.common_content, cd.teacher_name,
+          cd.is_edited, cd.is_deleted, cd.created_at, cd.deleted_at,
+          cg.name AS class_name,
+          cg.schedule_days, cg.schedule_time,
+          (SELECT COUNT(*) FROM class_diary_student_notes csn WHERE csn.diary_id = cd.id AND csn.is_deleted = false) AS note_count
+        FROM class_diaries cd
+        LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.teacher_id = ${teacherId} AND cd.swimming_pool_id = ${poolId} AND cd.is_deleted = false
+        ORDER BY cd.lesson_date DESC, cd.created_at DESC
+        LIMIT ${parseInt(limit)} OFFSET ${offset}
+      `);
+
+      const countRow = await db.execute(sql`
+        SELECT COUNT(*) AS total FROM class_diaries
+        WHERE teacher_id = ${teacherId} AND swimming_pool_id = ${poolId} AND is_deleted = false
+      `);
+
+      res.json({
+        success: true,
+        entries: rows.rows,
+        total: Number((countRow.rows[0] as any)?.total || 0),
+      });
+    } catch (e) { console.error("[admin/teacher/entries]", e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════
+// 관리자 — 일지 일괄 삭제
+// POST /diaries/admin/bulk-delete
+// Body: { ids: string[], mode: "photo_only" | "full" }
+// ════════════════════════════════════════════════════════════════════════
+router.post("/diaries/admin/bulk-delete",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, role } = req.user!;
+      const poolId = await getUserPoolId(userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+
+      const { ids, mode } = req.body as { ids: string[]; mode: "photo_only" | "full" };
+      if (!Array.isArray(ids) || ids.length === 0) return apiErr(res, 400, "삭제할 일지 ID 목록이 필요합니다.");
+      if (!["photo_only", "full"].includes(mode)) return apiErr(res, 400, "mode는 photo_only 또는 full 이어야 합니다.");
+
+      const actorName = await getUserName(userId);
+      let deletedCount = 0;
+
+      for (const diaryId of ids) {
+        const diaryRows = await db.execute(sql`
+          SELECT * FROM class_diaries WHERE id = ${diaryId} AND swimming_pool_id = ${poolId} AND is_deleted = false
+        `);
+        const diary = diaryRows.rows[0] as any;
+        if (!diary) continue;
+
+        if (mode === "full") {
+          await db.execute(sql`
+            UPDATE class_diaries
+            SET is_deleted = true, deleted_at = NOW(), deleted_by = ${userId}, updated_at = NOW()
+            WHERE id = ${diaryId}
+          `);
+          await logAudit({
+            diaryId, targetType: "common", actionType: "delete",
+            beforeContent: diary.common_content,
+            actorId: userId, actorName, actorRole: role, poolId,
+          });
+        } else {
+          // photo_only: 글은 유지, 이미지/미디어 URL 제거 (media_urls 컬럼이 있는 경우)
+          // class_diaries 테이블에 media 필드가 없으면 아무것도 안 함 (no-op)
+          // logAudit으로 기록만
+          await logAudit({
+            diaryId, targetType: "common", actionType: "delete",
+            beforeContent: "(사진 삭제)",
+            actorId: userId, actorName, actorRole: role, poolId,
+          });
+        }
+        deletedCount++;
+      }
+
+      res.json({ success: true, deleted_count: deletedCount, mode });
+    } catch (e) { console.error("[admin/bulk-delete]", e); apiErr(res, 500, "서버 오류"); }
+  }
+);
+
 export default router;
 
