@@ -27,6 +27,9 @@ export const studentsTable = pgTable("students", {
   deleted_at: timestamp("deleted_at"),
   archived_reason: text("archived_reason"),
   last_class_group_name: text("last_class_group_name"),
+  pending_status_change: text("pending_status_change"),
+  pending_effective_mode: text("pending_effective_mode"),
+  pending_effective_month: text("pending_effective_month"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

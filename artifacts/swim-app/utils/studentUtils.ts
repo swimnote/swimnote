@@ -31,6 +31,10 @@ export interface StudentMember {
   updated_at: string;
   withdrawn_at?: string | null;
   archived_reason?: string | null;
+  // 예약 상태 (다음달 이동 예약)
+  pending_status_change?: "suspended" | "withdrawn" | null;
+  pending_effective_mode?: "next_month" | null;
+  pending_effective_month?: string | null;
   // enriched
   assignedClasses?: AssignedClassInfo[];
 }
@@ -84,6 +88,38 @@ export const PRIMARY_STATUS_BADGE: Record<PrimaryStatus, { label: string; color:
   suspended:  { label: "휴원",  color: "#B45309", bg: "#FEF3C7" },
   withdrawn:  { label: "퇴원",  color: "#6B7280", bg: "#F3F4F6" },
 };
+
+// ── 예약 배지 ─────────────────────────────────────────────────────
+
+export type PendingBadge = {
+  label: string;
+  color: string;
+  bg: string;
+} | null;
+
+/**
+ * 예약 배지 계산
+ * pending_status_change 가 있고 pending_effective_mode = "next_month" 일 때 표시
+ */
+export function getMemberPendingBadge(s: StudentMember): PendingBadge {
+  if (!s.pending_status_change || s.pending_effective_mode !== "next_month") return null;
+  if (s.pending_status_change === "suspended") {
+    return { label: "휴원예정", color: "#B45309", bg: "#FFFBEB" };
+  }
+  if (s.pending_status_change === "withdrawn") {
+    return { label: "퇴원예정", color: "#DC2626", bg: "#FFF1F2" };
+  }
+  return null;
+}
+
+/** 다음 달 YYYY-MM 계산 */
+export function getNextMonthStr(): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
 
 // ── 필터 ─────────────────────────────────────────────────────────
 

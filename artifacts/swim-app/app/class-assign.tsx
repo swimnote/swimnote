@@ -17,6 +17,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { UnifiedMemberCard } from "@/components/common/MemberCard";
+import type { StudentMember } from "@/utils/studentUtils";
 const C = Colors.light;
 
 interface ClassGroup {
@@ -40,6 +42,36 @@ interface Student {
   schedule_labels?: string | null;
   status?: string;
   weekly_count?: number | null;
+  parent_user_id?: string | null;
+  // 예약 상태 (다음달 이동 예약)
+  pending_status_change?: "suspended" | "withdrawn" | null;
+  pending_effective_mode?: "next_month" | null;
+  pending_effective_month?: string | null;
+}
+
+// ── Student → StudentMember 변환 (class-assign 전용) ─────────────
+function toStudentMember(s: Student): StudentMember {
+  return {
+    id: s.id,
+    swimming_pool_id: "",
+    name: s.name,
+    birth_year: s.birth_year != null ? String(s.birth_year) : null,
+    parent_phone: s.parent_phone,
+    parent_name: s.parent_name,
+    parent_user_id: s.parent_user_id,
+    registration_path: "admin_created",
+    status: s.status || "active",
+    weekly_count: s.weekly_count,
+    assigned_class_ids: s.assigned_class_ids,
+    schedule_labels: s.schedule_labels,
+    class_group_id: s.class_group_id,
+    pending_status_change: s.pending_status_change,
+    pending_effective_mode: s.pending_effective_mode,
+    pending_effective_month: s.pending_effective_month,
+    created_at: "",
+    updated_at: "",
+    assignedClasses: [],
+  };
 }
 
 export default function ClassAssignScreen() {
@@ -57,8 +89,10 @@ export default function ClassAssignScreen() {
 
   // 주횟수 선택 팝업
   const [weeklyPicker, setWeeklyPicker] = useState<Student | null>(null);
-  // 상태 선택 팝업 (해제 시 대기/연기/퇴원)
+  // 상태 선택 팝업 (해제 시 대기/연기/휴원/퇴원)
   const [statusSelectTarget, setStatusSelectTarget] = useState<Student | null>(null);
+  // 이동 시점 선택 팝업 (휴원/퇴원 선택 후)
+  const [timingTarget, setTimingTarget] = useState<{ student: Student; status: "suspended" | "withdrawn" } | null>(null);
   // 변경 여부 (배정완료 버튼 강조용)
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -153,24 +187,45 @@ export default function ClassAssignScreen() {
     finally { setSaving(null); }
   }
 
-  // 해제 처리 — new_status 지정 시 상태 변경 + 전체 반 해제
-  async function doRemove(student: Student, new_status?: "pending" | "suspended" | "withdrawn") {
+  // 해제 처리
+  // effective_mode: "immediate"(기본) → 즉시 상태변경+반해제
+  //                "next_month" → pending 예약만 저장, 반배정/상태 유지
+  async function doRemove(
+    student: Student,
+    new_status?: "pending" | "suspended" | "withdrawn",
+    effective_mode: "immediate" | "next_month" = "immediate",
+  ) {
     if (!classId) return;
     setSaving(student.id);
     try {
       const body: any = { class_group_id: classId };
       if (new_status) body.new_status = new_status;
+      if (new_status && effective_mode === "next_month") body.effective_mode = "next_month";
+
       const res = await apiRequest(token, `/students/${student.id}/remove-from-class`, {
         method: "POST",
         body: JSON.stringify(body),
       });
       if (!res.ok) return;
-      // 상태 변경 시: 학생이 대기자 명단으로 이동 (assigned 목록에서 제거)
-      setAssigned(prev => prev.filter(s => s.id !== student.id));
-      setAllStudents(prev => new_status
-        ? prev.filter(s => s.id !== student.id)
-        : prev.map(s => s.id === student.id ? { ...s, assigned_class_ids: (s.assigned_class_ids || []).filter(id => id !== classId) } : s)
-      );
+
+      if (effective_mode === "next_month" && new_status) {
+        // 다음달 예약: 반배정 유지, pending 배지만 업데이트
+        setAssigned(prev => prev.map(s => s.id === student.id
+          ? { ...s, pending_status_change: new_status as "suspended" | "withdrawn", pending_effective_mode: "next_month" }
+          : s
+        ));
+        setAllStudents(prev => prev.map(s => s.id === student.id
+          ? { ...s, pending_status_change: new_status as "suspended" | "withdrawn", pending_effective_mode: "next_month" }
+          : s
+        ));
+      } else {
+        // 즉시 이동 또는 단순 반 해제
+        setAssigned(prev => prev.filter(s => s.id !== student.id));
+        setAllStudents(prev => new_status
+          ? prev.filter(s => s.id !== student.id)
+          : prev.map(s => s.id === student.id ? { ...s, assigned_class_ids: (s.assigned_class_ids || []).filter(id => id !== classId) } : s)
+        );
+      }
       setHasChanges(true);
     } catch (e) { console.error(e); }
     finally { setSaving(null); }
@@ -266,13 +321,20 @@ export default function ClassAssignScreen() {
         ) : (
           <View style={{ paddingHorizontal: 16, gap: 8 }}>
             {assigned.map(item => (
-              <StudentRow
+              <UnifiedMemberCard
                 key={item.id}
-                student={item}
-                classId={classId!}
-                action="remove"
-                loading={saving === item.id}
-                onPress={() => setStatusSelectTarget(item)}
+                student={toStudentMember(item)}
+                showTeacher={false}
+                actions={[
+                  {
+                    label: "해제",
+                    icon: "minus-circle",
+                    color: C.error,
+                    bg: "#FEE2E2",
+                    loading: saving === item.id,
+                    onPress: () => setStatusSelectTarget(item),
+                  },
+                ]}
               />
             ))}
           </View>
@@ -358,9 +420,28 @@ export default function ClassAssignScreen() {
           onSelect={(st) => {
             const target = statusSelectTarget;
             setStatusSelectTarget(null);
-            doRemove(target, st);
+            if (st === "suspended" || st === "withdrawn") {
+              // 휴원/퇴원 → 이동 시점 선택 팝업
+              setTimingTarget({ student: target, status: st });
+            } else {
+              // 대기/연기 → 즉시 적용
+              doRemove(target, st, "immediate");
+            }
           }}
           onCancel={() => setStatusSelectTarget(null)}
+        />
+      )}
+
+      {/* ── 이동 시점 선택 팝업 (휴원/퇴원 선택 후) ── */}
+      {timingTarget && (
+        <TimingPickerModal
+          status={timingTarget.status}
+          onSelect={(mode) => {
+            const { student, status } = timingTarget;
+            setTimingTarget(null);
+            doRemove(student, status, mode);
+          }}
+          onCancel={() => setTimingTarget(null)}
         />
       )}
     </View>
@@ -368,6 +449,7 @@ export default function ClassAssignScreen() {
 }
 
 // ── 반 제거 시 상태 선택 모달 ────────────────────────────────────
+// 대기/연기 → 즉시 적용 / 휴원/퇴원 → 이동 시점 팝업으로 연결
 function RemoveStatusModal({
   studentName, onSelect, onCancel,
 }: {
@@ -376,10 +458,11 @@ function RemoveStatusModal({
   onCancel: () => void;
 }) {
   const C = Colors.light;
-  const options: { key: "pending" | "suspended" | "withdrawn"; label: string; sub: string; color: string; bg: string }[] = [
-    { key: "pending",   label: "대기",  sub: "재등록 대기, 출결/일지 보존", color: "#1D4ED8", bg: "#EFF6FF" },
-    { key: "suspended", label: "연기",  sub: "일시적 중단, 기록 보존",       color: "#92400E", bg: "#FFFBEB" },
-    { key: "withdrawn", label: "퇴원",  sub: "수강 종료, 관리자 최종 처리", color: "#991B1B", bg: "#FEF2F2" },
+  const options: { key: "pending" | "suspended" | "withdrawn"; label: string; sub: string; color: string; bg: string; emoji: string; needsTiming: boolean }[] = [
+    { key: "pending",   label: "대기",  sub: "재등록 대기, 즉시 적용",           color: "#1D4ED8", bg: "#EFF6FF", emoji: "⏳", needsTiming: false },
+    { key: "suspended", label: "연기",  sub: "일시적 중단, 즉시 적용",           color: "#92400E", bg: "#FFFBEB", emoji: "⏸️", needsTiming: false },
+    { key: "suspended", label: "휴원",  sub: "휴원 처리, 이동 시점 선택 가능",   color: "#B45309", bg: "#FEF3C7", emoji: "🏖️", needsTiming: true  },
+    { key: "withdrawn", label: "퇴원",  sub: "수강 종료, 이동 시점 선택 가능",   color: "#991B1B", bg: "#FEF2F2", emoji: "🚪", needsTiming: true  },
   ];
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
@@ -393,12 +476,12 @@ function RemoveStatusModal({
           반 배정 해제 — 상태 선택
         </Text>
         <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted, marginBottom: 20 }}>
-          {`"${studentName}"을(를) 반에서 제거합니다. 이동할 상태를 선택하세요.`}
+          {`"${studentName}" 회원의 이동할 상태를 선택하세요.`}
         </Text>
         <View style={{ gap: 10 }}>
-          {options.map(opt => (
+          {options.map((opt, i) => (
             <Pressable
-              key={opt.key}
+              key={`${opt.key}-${i}`}
               onPress={() => onSelect(opt.key)}
               style={{
                 flexDirection: "row", alignItems: "center", gap: 14,
@@ -407,17 +490,86 @@ function RemoveStatusModal({
               }}
             >
               <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: opt.color + "18", alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 18 }}>
-                  {opt.key === "pending" ? "⏳" : opt.key === "suspended" ? "⏸️" : "🚪"}
-                </Text>
+                <Text style={{ fontSize: 18 }}>{opt.emoji}</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: opt.color }}>{opt.label}</Text>
                 <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 }}>{opt.sub}</Text>
               </View>
-              <Feather name="chevron-right" size={16} color={opt.color} />
+              {opt.needsTiming
+                ? <Feather name="clock" size={14} color={opt.color} />
+                : <Feather name="zap" size={14} color={opt.color} />
+              }
             </Pressable>
           ))}
+        </View>
+        <Pressable onPress={onCancel} style={{ alignItems: "center", marginTop: 18 }}>
+          <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: C.textMuted }}>취소</Text>
+        </Pressable>
+      </View>
+    </Modal>
+  );
+}
+
+// ── 이동 시점 선택 모달 ───────────────────────────────────────────
+function TimingPickerModal({
+  status, onSelect, onCancel,
+}: {
+  status: "suspended" | "withdrawn";
+  onSelect: (mode: "immediate" | "next_month") => void;
+  onCancel: () => void;
+}) {
+  const C = Colors.light;
+  const label = status === "suspended" ? "휴원" : "퇴원";
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const nextLabel = `${next.getFullYear()}년 ${next.getMonth() + 1}월`;
+
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }} onPress={onCancel} />
+      <View style={{
+        position: "absolute", bottom: 0, left: 0, right: 0,
+        backgroundColor: C.background, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+        padding: 24, paddingBottom: 36,
+      }}>
+        <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 4 }}>
+          이동 시점을 선택하세요
+        </Text>
+        <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted, marginBottom: 20 }}>
+          {label} 처리 시점을 선택합니다.
+        </Text>
+        <View style={{ gap: 10 }}>
+          {/* 즉시 이동 */}
+          <Pressable
+            onPress={() => onSelect("immediate")}
+            style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#FEF2F2", borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: "#991B1B40" }}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" }}>
+              <Feather name="zap" size={20} color="#991B1B" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#991B1B" }}>즉시 이동</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 }}>
+                지금 바로 {label} 처리하고 현재 반에서 제외합니다.
+              </Text>
+            </View>
+          </Pressable>
+          {/* 다음 달 이동 */}
+          <Pressable
+            onPress={() => onSelect("next_month")}
+            style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#FFFBEB", borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: "#B4530940" }}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#FEF3C7", alignItems: "center", justifyContent: "center" }}>
+              <Feather name="calendar" size={20} color="#B45309" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#B45309" }}>다음 달 이동</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 }}>
+                {nextLabel}부터 {label} 처리. 이번 달은 현재 상태 유지 + [{label}예정] 배지 표시.
+              </Text>
+            </View>
+          </Pressable>
         </View>
         <Pressable onPress={onCancel} style={{ alignItems: "center", marginTop: 18 }}>
           <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: C.textMuted }}>취소</Text>

@@ -273,8 +273,13 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
 
 // ── POST /:id/remove-from-class — 특정 반에서 제거 (선생님 전용) ────
 // new_status: 'pending'|'suspended'|'withdrawn' 전달 시 상태변경 + 전체 반 해제
+// effective_mode: 'immediate'(기본) | 'next_month' — next_month 시 pending 예약만 저장, 클래스 변경 없음
 router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { class_group_id, new_status } = req.body as { class_group_id: string; new_status?: string };
+  const { class_group_id, new_status, effective_mode } = req.body as {
+    class_group_id: string;
+    new_status?: string;
+    effective_mode?: "immediate" | "next_month";
+  };
   if (!class_group_id) return err(res, 400, "class_group_id 필요");
 
   const validNewStatuses = ["pending", "suspended", "withdrawn"];
@@ -313,14 +318,42 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       : (typeof existing.assigned_class_ids === "string"
           ? JSON.parse(existing.assigned_class_ids || "[]") : []);
 
+    // ── 다음 달 이동 예약 (next_month) ──────────────────────────────
+    // 상태/반 배정 변경 없이 pending 필드만 저장 (휴원/퇴원 예약 배지용)
+    if (new_status && effective_mode === "next_month") {
+      // 다음 달 YYYY-MM 계산
+      const now = new Date();
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const nextMonthStr = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
+
+      await db.execute(sql`
+        UPDATE students
+        SET
+          pending_status_change = ${new_status},
+          pending_effective_mode = 'next_month',
+          pending_effective_month = ${nextMonthStr},
+          updated_at = NOW()
+        WHERE id = ${req.params.id}
+      `);
+      return res.json({
+        success: true,
+        pending_status_change: new_status,
+        pending_effective_mode: "next_month",
+        pending_effective_month: nextMonthStr,
+      });
+    }
+
     if (new_status) {
-      // 상태 변경 시: 전체 반 배정 해제
+      // 즉시 이동: 전체 반 배정 해제 + 상태 변경 + pending 초기화
       const extraFields: any = {
         assigned_class_ids: [] as any,
         class_group_id: null,
         schedule_labels: null,
         status: new_status,
         last_class_group_name: lastClassName,
+        pending_status_change: null,
+        pending_effective_mode: null,
+        pending_effective_month: null,
         updated_at: new Date(),
       };
       if (new_status === "withdrawn") {
