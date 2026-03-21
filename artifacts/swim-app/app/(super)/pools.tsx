@@ -34,7 +34,9 @@ interface Operator {
   created_at: string;
 }
 
-type FilterKey = "all" | "pending" | "payment_failed" | "storage_alert" | "deletion_pending" | "this_week" | "free_over30" |
+type FilterKey =
+  "all" | "pending" | "payment_failed" | "storage_alert" | "deletion_pending" |
+  "this_week" | "free_over30" | "credit_balance" | "upload_spike" | "policy_unsigned" | "repeat_refund" |
   "type_swimming" | "type_coach" | "type_rental" | "type_franchise";
 
 const FILTER_CHIPS: { key: FilterKey; label: string; color: string; bg: string }[] = [
@@ -43,8 +45,12 @@ const FILTER_CHIPS: { key: FilterKey; label: string; color: string; bg: string }
   { key: "payment_failed",   label: "결제 실패",      color: "#DC2626", bg: "#FEE2E2" },
   { key: "storage_alert",    label: "저장 95%↑",     color: P,         bg: "#EDE9FE" },
   { key: "deletion_pending", label: "삭제 예정",      color: "#0891B2", bg: "#ECFEFF" },
-  { key: "this_week",        label: "이번 주 신규",  color: "#059669", bg: "#D1FAE5" },
+  { key: "credit_balance",   label: "크레딧 보유",    color: "#059669", bg: "#D1FAE5" },
+  { key: "this_week",        label: "이번 주 신규",  color: "#6B7280", bg: "#F3F4F6" },
   { key: "free_over30",      label: "무료 체험",      color: "#6B7280", bg: "#F3F4F6" },
+  { key: "policy_unsigned",  label: "정책 미확인",    color: "#4F46E5", bg: "#EEF2FF" },
+  { key: "upload_spike",     label: "업로드 급증",    color: "#D97706", bg: "#FEF3C7" },
+  { key: "repeat_refund",    label: "반복 환불",      color: "#DC2626", bg: "#FEE2E2" },
 ];
 
 const TYPE_CHIPS: { key: FilterKey; label: string; color: string; bg: string }[] = [
@@ -62,10 +68,12 @@ const POOL_TYPE_CFG: Record<string, { label: string; color: string }> = {
 };
 
 const SORT_OPTS = [
-  { key: "created_at", label: "최신순" },
-  { key: "name",       label: "이름순" },
-  { key: "members",    label: "회원 수↓" },
-  { key: "storage",    label: "저장 사용↓" },
+  { key: "created_at",   label: "최신순" },
+  { key: "name",         label: "이름순" },
+  { key: "members",      label: "회원 수↓" },
+  { key: "storage",      label: "저장 사용↓" },
+  { key: "last_login",   label: "최근 활동순" },
+  { key: "payment_risk", label: "결제 위험도↓" },
 ];
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
@@ -83,10 +91,13 @@ const SUB_CFG: Record<string, { label: string; color: string }> = {
 };
 
 const BULK_ACTIONS = [
-  { key: "approve",    label: "승인",   color: "#059669", bg: "#D1FAE5" },
-  { key: "reject",     label: "반려",   color: "#DC2626", bg: "#FEE2E2" },
-  { key: "restrict",   label: "제한",   color: "#D97706", bg: "#FEF3C7" },
-  { key: "terminate",  label: "종료",   color: "#7F1D1D", bg: "#FEE2E2" },
+  { key: "approve",         label: "승인",       color: "#059669", bg: "#D1FAE5" },
+  { key: "reject",          label: "반려",       color: "#DC2626", bg: "#FEE2E2" },
+  { key: "restrict",        label: "제한",       color: "#D97706", bg: "#FEF3C7" },
+  { key: "readonly_on",     label: "읽기전용",   color: "#7C3AED", bg: "#EDE9FE" },
+  { key: "block_upload",    label: "업로드 차단", color: "#D97706", bg: "#FEF3C7" },
+  { key: "policy_reminder", label: "정책 재알림", color: "#4F46E5", bg: "#EEF2FF" },
+  { key: "terminate",       label: "종료",       color: "#7F1D1D", bg: "#FEE2E2" },
 ];
 
 export default function SuperPoolsScreen() {

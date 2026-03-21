@@ -21,6 +21,7 @@ export default function SuperLayout() {
       <Stack.Screen name="users" />
       <Stack.Screen name="more" />
       <Stack.Screen name="sync" />
+      <Stack.Screen name="feature-flags" />
     </Stack>
   );
 }

@@ -25,15 +25,19 @@ interface LogItem {
   created_at: string;
 }
 
-const TABS = ["전체", "권한", "구독", "저장공간", "삭제", "정책", "결제"];
+const TABS = ["전체", "권한", "구독", "저장공간", "삭제", "정책", "결제", "보안", "기능 플래그", "읽기전용 전환", "고객센터"];
 
 const CAT_CFG: Record<string, { color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
-  권한:    { color: "#D97706", bg: "#FEF3C7", icon: "shield" },
-  구독:    { color: P,         bg: "#EDE9FE", icon: "credit-card" },
-  저장공간: { color: "#059669", bg: "#D1FAE5", icon: "hard-drive" },
-  삭제:    { color: "#DC2626", bg: "#FEE2E2", icon: "trash-2" },
-  정책:    { color: "#4F46E5", bg: "#EEF2FF", icon: "file-text" },
-  결제:    { color: "#0891B2", bg: "#ECFEFF", icon: "dollar-sign" },
+  권한:          { color: "#D97706", bg: "#FEF3C7", icon: "shield" },
+  구독:          { color: P,         bg: "#EDE9FE", icon: "credit-card" },
+  저장공간:      { color: "#059669", bg: "#D1FAE5", icon: "hard-drive" },
+  삭제:          { color: "#DC2626", bg: "#FEE2E2", icon: "trash-2" },
+  정책:          { color: "#4F46E5", bg: "#EEF2FF", icon: "file-text" },
+  결제:          { color: "#0891B2", bg: "#ECFEFF", icon: "dollar-sign" },
+  보안:          { color: "#991B1B", bg: "#FEE2E2", icon: "lock" },
+  "기능 플래그": { color: "#059669", bg: "#D1FAE5", icon: "toggle-left" },
+  "읽기전용 전환": { color: "#7C3AED", bg: "#EDE9FE", icon: "eye-off" },
+  고객센터:      { color: "#0284C7", bg: "#E0F2FE", icon: "message-circle" },
 };
 
 function safeDate(iso: string | null): Date | null {

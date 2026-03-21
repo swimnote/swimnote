@@ -54,86 +54,120 @@ router.get(
   requireRole("super_admin"),
   async (_req: AuthRequest, res) => {
     try {
-      const [stats] = (await db.execute(sql`
-        SELECT
-          COUNT(*)::int                                                                      AS total_operators,
-          COUNT(*) FILTER (WHERE approval_status = 'approved')::int                        AS active_operators,
-          COUNT(*) FILTER (WHERE approval_status = 'pending')::int                         AS pending_operators,
-          COUNT(*) FILTER (
-            WHERE approval_status = 'approved'
-              AND subscription_status IN ('expired','suspended','cancelled')
-          )::int                                                                             AS payment_issue_count,
-          COUNT(*) FILTER (
-            WHERE approval_status = 'approved'
-              AND used_storage_bytes IS NOT NULL
-              AND (base_storage_gb + COALESCE(extra_storage_gb,0)) > 0
-              AND used_storage_bytes::float /
-                  ((base_storage_gb + COALESCE(extra_storage_gb,0)) * 1073741824) >= 0.95
-          )::int                                                                             AS storage_danger_count,
-          COUNT(*) FILTER (
-            WHERE subscription_end_at IS NOT NULL
-              AND subscription_end_at > NOW()
-              AND subscription_end_at <= NOW() + INTERVAL '24 hours'
-          )::int                                                                             AS deletion_pending_count
-        FROM swimming_pools
-      `)).rows as any[];
+      await ensureExtraTables();
 
-      // 오늘 처리할 일 큐 (각 최대 10개)
-      const [pendingItems, paymentItems, storageItems, deletionItems] = await Promise.all([
+      const [statsRes, pendingItems, paymentItems, storageItems, deletionItems,
+             policyItems, supportRes, securityItems] = await Promise.all([
+        // KPI 지표
+        db.execute(sql`
+          SELECT
+            COUNT(*)::int AS total_operators,
+            COUNT(*) FILTER (WHERE approval_status = 'approved')::int AS active_operators,
+            COUNT(*) FILTER (WHERE approval_status = 'pending')::int AS pending_operators,
+            COUNT(*) FILTER (
+              WHERE approval_status = 'approved'
+                AND subscription_status IN ('expired','suspended','cancelled')
+            )::int AS payment_issue_count,
+            COUNT(*) FILTER (
+              WHERE approval_status = 'approved'
+                AND COALESCE(used_storage_bytes,0)::float /
+                    NULLIF((COALESCE(base_storage_gb,5) + COALESCE(extra_storage_gb,0))::bigint * 1073741824, 0) >= 0.95
+            )::int AS storage_danger_count,
+            COUNT(*) FILTER (
+              WHERE subscription_end_at IS NOT NULL
+                AND subscription_end_at > NOW()
+                AND subscription_end_at <= NOW() + INTERVAL '24 hours'
+            )::int AS deletion_pending_count
+          FROM swimming_pools
+        `),
         // 승인 대기
         db.execute(sql`
-          SELECT id, name, owner_name, created_at, 'pending_approval' AS todo_type
-          FROM swimming_pools
-          WHERE approval_status = 'pending'
-          ORDER BY created_at ASC
-          LIMIT 10
+          SELECT id, name, owner_name, created_at, COALESCE(pool_type,'swimming_pool') AS pool_type,
+                 'pending_approval' AS todo_type
+          FROM swimming_pools WHERE approval_status = 'pending'
+          ORDER BY created_at ASC LIMIT 10
         `),
         // 결제 실패
         db.execute(sql`
-          SELECT id, name, owner_name, subscription_status, subscription_end_at, 'payment_failed' AS todo_type
+          SELECT id, name, owner_name, subscription_status, subscription_end_at,
+                 'payment_failed' AS todo_type
           FROM swimming_pools
           WHERE approval_status = 'approved'
             AND subscription_status IN ('expired','suspended')
-          ORDER BY subscription_end_at ASC
-          LIMIT 10
+          ORDER BY subscription_end_at ASC NULLS LAST LIMIT 10
         `),
-        // 저장공간 위험
+        // 저장공간 위험 (95% 이상)
         db.execute(sql`
-          SELECT id, name, owner_name, used_storage_bytes,
-                 (base_storage_gb + COALESCE(extra_storage_gb,0)) AS total_gb,
-                 ROUND(
-                   used_storage_bytes::numeric /
-                   NULLIF((base_storage_gb + COALESCE(extra_storage_gb,0)) * 1073741824, 0) * 100
-                 )::int AS usage_pct,
+          SELECT id, name, owner_name,
+                 COALESCE(used_storage_bytes,0) AS used_storage_bytes,
+                 (COALESCE(base_storage_gb,5) + COALESCE(extra_storage_gb,0)) AS total_gb,
+                 LEAST(ROUND(
+                   COALESCE(used_storage_bytes,0)::numeric /
+                   NULLIF((COALESCE(base_storage_gb,5) + COALESCE(extra_storage_gb,0))::bigint * 1073741824, 0) * 100
+                 )::int, 100) AS usage_pct,
                  'storage_danger' AS todo_type
           FROM swimming_pools
           WHERE approval_status = 'approved'
-            AND used_storage_bytes IS NOT NULL
-            AND (base_storage_gb + COALESCE(extra_storage_gb,0)) > 0
-            AND used_storage_bytes::float /
-                ((base_storage_gb + COALESCE(extra_storage_gb,0)) * 1073741824) >= 0.95
-          ORDER BY usage_pct DESC
-          LIMIT 10
+            AND COALESCE(used_storage_bytes,0)::float /
+                NULLIF((COALESCE(base_storage_gb,5) + COALESCE(extra_storage_gb,0))::bigint * 1073741824, 0) >= 0.95
+          ORDER BY usage_pct DESC LIMIT 10
         `),
         // 자동삭제 예정 (24h)
         db.execute(sql`
-          SELECT id, name, owner_name, subscription_end_at, 'deletion_pending' AS todo_type
+          SELECT id, name, owner_name, subscription_end_at,
+                 EXTRACT(EPOCH FROM (subscription_end_at - NOW())) / 3600 AS hours_left,
+                 'deletion_pending' AS todo_type
           FROM swimming_pools
           WHERE subscription_end_at IS NOT NULL
             AND subscription_end_at > NOW()
             AND subscription_end_at <= NOW() + INTERVAL '24 hours'
-          ORDER BY subscription_end_at ASC
-          LIMIT 10
+          ORDER BY subscription_end_at ASC LIMIT 10
         `),
+        // 정책 미확인 (refund_policy 미동의)
+        db.execute(sql`
+          SELECT sp.id, sp.name, sp.owner_name, sp.created_at, 'policy_unsigned' AS todo_type
+          FROM swimming_pools sp
+          WHERE sp.approval_status = 'approved'
+            AND NOT EXISTS (
+              SELECT 1 FROM policy_consents pc
+              WHERE pc.pool_id = sp.id AND pc.policy_key = 'refund_policy'
+            )
+          ORDER BY sp.created_at DESC LIMIT 10
+        `).catch(() => ({ rows: [] })),
+        // 고객센터 미처리
+        db.execute(sql`
+          SELECT COUNT(*)::int AS open_count,
+                 COUNT(*) FILTER (
+                   WHERE created_at <= NOW() - (sla_hours || ' hours')::interval
+                 )::int AS overdue_count
+          FROM support_tickets WHERE status IN ('open','in_progress')
+        `).catch(() => ({ rows: [{ open_count: 0, overdue_count: 0 }] })),
+        // 보안 이벤트 (최근 24h)
+        db.execute(sql`
+          SELECT el.id, el.pool_id, sp.name AS pool_name, el.actor_name,
+                 el.description, el.created_at, '보안' AS todo_type
+          FROM event_logs el
+          LEFT JOIN swimming_pools sp ON sp.id = el.pool_id
+          WHERE el.category = '보안'
+            AND el.created_at >= NOW() - INTERVAL '24 hours'
+          ORDER BY el.created_at DESC LIMIT 5
+        `).catch(() => ({ rows: [] })),
       ]);
 
+      const stats = (statsRes.rows[0] as any) ?? {};
+      const support = (supportRes.rows[0] as any) ?? { open_count: 0, overdue_count: 0 };
+
       res.json({
-        stats: stats ?? {},
+        stats,
         todo: {
           pending_approval: pendingItems.rows,
           payment_failed:   paymentItems.rows,
           storage_danger:   storageItems.rows,
           deletion_pending: deletionItems.rows,
+          policy_unsigned:  policyItems.rows,
+          security_events:  securityItems.rows,
+          support_open_count:    support.open_count ?? 0,
+          support_overdue_count: support.overdue_count ?? 0,
         },
       });
     } catch (err) {
@@ -163,7 +197,7 @@ router.get(
       }
       if (filter === "pending")          conditions.push(`sp.approval_status = 'pending'`);
       if (filter === "payment_failed")   conditions.push(`sp.approval_status = 'approved' AND sp.subscription_status IN ('expired','suspended','cancelled')`);
-      if (filter === "storage_alert")    conditions.push(`sp.approval_status = 'approved' AND sp.used_storage_bytes IS NOT NULL AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0 AND sp.used_storage_bytes::float / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) * 1073741824) >= 0.95`);
+      if (filter === "storage_alert")    conditions.push(`sp.approval_status = 'approved' AND sp.used_storage_bytes IS NOT NULL AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0 AND sp.used_storage_bytes::float / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) >= 0.95`);
       if (filter === "deletion_pending") conditions.push(`sp.subscription_end_at IS NOT NULL AND sp.subscription_end_at > NOW() AND sp.subscription_end_at <= NOW() + INTERVAL '24 hours'`);
       if (filter === "this_week")        conditions.push(`sp.created_at >= NOW() - INTERVAL '7 days'`);
       if (filter === "free_over30")      conditions.push(`sp.approval_status = 'approved' AND sp.subscription_status = 'trial'`);
@@ -172,13 +206,25 @@ router.get(
       if (filter === "type_coach")       conditions.push(`sp.pool_type = 'solo_coach'`);
       if (filter === "type_rental")      conditions.push(`sp.pool_type = 'rental_team'`);
       if (filter === "type_franchise")   conditions.push(`sp.pool_type = 'franchise'`);
+      if (filter === "credit_balance")   conditions.push(`COALESCE(sp.credit_balance,0) > 0`);
+      if (filter === "upload_spike")     conditions.push(`sp.upload_blocked = TRUE`);
+      if (filter === "policy_unsigned")  conditions.push(`
+        sp.approval_status = 'approved' AND NOT EXISTS (
+          SELECT 1 FROM policy_consents pc WHERE pc.pool_id = sp.id AND pc.policy_key = 'refund_policy'
+        )
+      `);
+      if (filter === "repeat_refund")    conditions.push(`
+        (SELECT COUNT(*) FROM support_tickets st WHERE st.pool_id = sp.id AND st.ticket_type = 'refund') >= 2
+      `);
 
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
       const orderMap: Record<string, string> = {
-        created_at: "sp.created_at DESC",
-        name:       "sp.name ASC",
-        members:    "active_member_count DESC",
-        storage:    "usage_pct DESC",
+        created_at:   "sp.created_at DESC",
+        name:         "sp.name ASC",
+        members:      "active_member_count DESC",
+        storage:      "usage_pct DESC",
+        last_login:   "last_login_at DESC NULLS LAST",
+        payment_risk: "CASE WHEN sp.subscription_status IN ('expired','suspended','cancelled') THEN 0 ELSE 1 END ASC, sp.created_at DESC",
       };
       const orderClause = orderMap[sort] ?? "sp.created_at DESC";
 
@@ -210,7 +256,7 @@ router.get(
               AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0
             THEN ROUND(
               sp.used_storage_bytes::numeric /
-              ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) * 1073741824) * 100
+              ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) * 100
             )::int
             ELSE 0
           END AS usage_pct,
@@ -255,7 +301,7 @@ router.get(
             (SELECT COUNT(*)::int FROM classes c WHERE c.swimming_pool_id = sp.id) AS total_class_count,
             CASE
               WHEN sp.used_storage_bytes IS NOT NULL AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0
-              THEN ROUND(sp.used_storage_bytes::numeric / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) * 1073741824) * 100)::int
+              THEN ROUND(sp.used_storage_bytes::numeric / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) * 100)::int
               ELSE 0
             END AS usage_pct,
             (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) AS total_storage_gb
@@ -385,18 +431,39 @@ router.post(
       const actorName = req.user?.name ?? "슈퍼관리자";
 
       for (const id of ids) {
+        let category = "권한";
+        let desc = "";
         if (action === "approve") {
           await db.execute(sql`UPDATE swimming_pools SET approval_status = 'approved' WHERE id = ${id}`);
+          desc = "일괄 승인";
         } else if (action === "reject") {
           await db.execute(sql`UPDATE swimming_pools SET approval_status = 'rejected', rejection_reason = ${reason ?? "기준 미달"} WHERE id = ${id}`);
+          desc = `일괄 반려: ${reason ?? "기준 미달"}`;
         } else if (action === "restrict") {
           await db.execute(sql`UPDATE swimming_pools SET subscription_status = 'suspended' WHERE id = ${id}`);
+          desc = `일괄 제한: ${reason ?? "운영 위반"}`;
+        } else if (action === "readonly_on") {
+          await db.execute(sql`UPDATE swimming_pools SET is_readonly = TRUE, readonly_reason = ${reason ?? "일괄 읽기전용"} WHERE id = ${id}`);
+          desc = `일괄 읽기전용 전환: ${reason ?? ""}`;
+          category = "읽기전용 전환";
+        } else if (action === "readonly_off") {
+          await db.execute(sql`UPDATE swimming_pools SET is_readonly = FALSE WHERE id = ${id}`);
+          desc = "일괄 읽기전용 해제";
+          category = "읽기전용 전환";
+        } else if (action === "block_upload") {
+          await db.execute(sql`UPDATE swimming_pools SET upload_blocked = TRUE WHERE id = ${id}`);
+          desc = "일괄 업로드 차단";
+          category = "저장공간";
+        } else if (action === "policy_reminder") {
+          desc = "일괄 정책 재알림";
+          category = "정책";
+        } else {
+          desc = `일괄 ${action}`;
         }
         const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-        const desc = action === "approve" ? "일괄 승인" : action === "reject" ? `일괄 반려: ${reason ?? "기준 미달"}` : `일괄 제한: ${reason ?? "운영 위반"}`;
         await db.execute(sql`
           INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-          VALUES (${logId}, ${id}, '권한', ${req.user!.userId}, ${actorName}, ${id}, ${desc}, '{}'::jsonb)
+          VALUES (${logId}, ${id}, ${category}, ${req.user!.userId}, ${actorName}, ${id}, ${desc}, '{}'::jsonb)
         `).catch(() => {});
       }
 
@@ -421,7 +488,7 @@ router.get(
           (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) AS total_storage_gb,
           CASE
             WHEN sp.used_storage_bytes IS NOT NULL AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0
-            THEN ROUND(sp.used_storage_bytes::numeric / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) * 1073741824) * 100)::int
+            THEN ROUND(sp.used_storage_bytes::numeric / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) * 100)::int
             ELSE 0
           END AS usage_pct,
           COALESCE(sp.upload_blocked, false) AS upload_blocked
@@ -615,11 +682,29 @@ router.put(
 );
 
 // ── DB 초기화: 컬럼 + 테이블 (앱 시작 시 즉시 실행) ──────────────────
+let _ensureDone = false;
 async function ensureExtraTables() {
-  // pool_type 컬럼 추가 (없으면)
-  await db.execute(sql`
-    ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS pool_type TEXT DEFAULT 'swimming_pool'
-  `).catch(() => {});
+  if (_ensureDone) return;
+  // swimming_pools 필수 컬럼 추가
+  for (const ddl of [
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS pool_type TEXT DEFAULT 'swimming_pool'`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS used_storage_bytes BIGINT DEFAULT 0`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS base_storage_gb INTEGER DEFAULT 5`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS extra_storage_gb INTEGER DEFAULT 0`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS credit_balance INTEGER DEFAULT 0`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS is_readonly BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS upload_blocked BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS readonly_reason TEXT`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS rejection_reason TEXT`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_end_at TIMESTAMPTZ`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS trial_end_at TIMESTAMPTZ`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_tier TEXT DEFAULT 'free'`,
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trial'`,
+  ]) {
+    await db.execute(sql.raw(ddl)).catch(() => {});
+  }
+  // users 컬럼
+  await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ`).catch(() => {});
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS support_tickets (
       id          TEXT PRIMARY KEY,
@@ -658,6 +743,48 @@ async function ensureExtraTables() {
       UNIQUE(pool_id, policy_key, version)
     )
   `);
+  // 기능 플래그
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS feature_flags (
+      key         TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      description TEXT,
+      category    TEXT DEFAULT 'general',
+      global_enabled BOOLEAN DEFAULT FALSE,
+      updated_at  TIMESTAMPTZ DEFAULT NOW(),
+      updated_by  TEXT
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS feature_flag_overrides (
+      id          TEXT PRIMARY KEY,
+      flag_key    TEXT NOT NULL,
+      pool_id     TEXT NOT NULL,
+      enabled     BOOLEAN DEFAULT FALSE,
+      reason      TEXT,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      updated_by  TEXT,
+      UNIQUE(flag_key, pool_id)
+    )
+  `);
+  // 기본 기능 플래그 시드
+  for (const [key, name, desc, cat] of [
+    ["new_scheduler",          "새 스케줄러",          "개선된 수업 스케줄러 엔진 사용", "기능"],
+    ["new_subscription_policy","새 구독 정책",         "구독 정책 v2 적용",              "구독"],
+    ["auto_deletion_policy",   "자동 삭제 정책",       "구독 해지 후 24h 자동 삭제",     "데이터"],
+    ["support_center",         "고객센터 기능",         "고객센터 티켓 시스템 활성화",    "기능"],
+    ["new_upload_structure",   "새 업로드 구조",        "업로드 파이프라인 v2 사용",      "저장공간"],
+    ["readonly_auto_trigger",  "읽기전용 자동 전환",    "구독 만료 시 자동 읽기전용 전환","구독"],
+    ["credit_auto_apply",      "크레딧 자동 차감",      "다음 결제 시 크레딧 자동 차감",  "구독"],
+    ["upload_spike_detection", "업로드 급증 탐지",      "24h 급증 운영자 자동 감지",      "저장공간"],
+  ] as const) {
+    await db.execute(sql`
+      INSERT INTO feature_flags (key, name, description, category)
+      VALUES (${key}, ${name}, ${desc}, ${cat})
+      ON CONFLICT (key) DO NOTHING
+    `).catch(() => {});
+  }
+  _ensureDone = true;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -684,13 +811,13 @@ router.get(
             SELECT id, name, owner_name, used_storage_bytes,
                    (base_storage_gb + COALESCE(extra_storage_gb,0)) AS total_gb,
                    ROUND(used_storage_bytes::numeric /
-                     NULLIF((base_storage_gb + COALESCE(extra_storage_gb,0)) * 1073741824, 0) * 100)::int AS usage_pct
+                     NULLIF((base_storage_gb + COALESCE(extra_storage_gb,0))::bigint * 1073741824, 0) * 100)::int AS usage_pct
             FROM swimming_pools
             WHERE approval_status = 'approved'
               AND used_storage_bytes IS NOT NULL
               AND (base_storage_gb + COALESCE(extra_storage_gb,0)) > 0
               AND used_storage_bytes::float /
-                  ((base_storage_gb + COALESCE(extra_storage_gb,0)) * 1073741824) >= 0.95
+                  ((base_storage_gb + COALESCE(extra_storage_gb,0))::bigint * 1073741824) >= 0.95
             ORDER BY usage_pct DESC LIMIT 20
           `),
           // 자동삭제 예정 (48h)
@@ -950,6 +1077,181 @@ router.post(
         VALUES (${logId}, ${id}, '삭제', ${req.user!.userId}, ${actorName}, ${id},
                 ${'삭제 유예 ' + hours + '시간'}, '{}'::jsonb)
       `).catch(() => {});
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/readonly — 읽기전용 전환
+// ════════════════════════════════════════════════════════════════
+router.patch(
+  "/super/operators/:id/readonly",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { id } = req.params;
+      const { enabled, reason } = req.body as any;
+      await db.execute(sql`
+        UPDATE swimming_pools SET is_readonly = ${!!enabled},
+          readonly_reason = ${reason ?? null}
+        WHERE id = ${id}
+      `);
+      const desc = enabled ? `읽기전용 전환: ${reason ?? ""}` : "읽기전용 해제";
+      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await db.execute(sql`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (${logId}, ${id}, '읽기전용 전환', ${req.user!.userId}, ${req.user?.name ?? "슈퍼관리자"},
+                ${id}, ${desc}, '{}'::jsonb)
+      `).catch(() => {});
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/block-upload — 업로드 차단 토글
+// ════════════════════════════════════════════════════════════════
+router.patch(
+  "/super/operators/:id/block-upload",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { id } = req.params;
+      const { enabled } = req.body as any;
+      await db.execute(sql`UPDATE swimming_pools SET upload_blocked = ${!!enabled} WHERE id = ${id}`);
+      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await db.execute(sql`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (${logId}, ${id}, '저장공간', ${req.user!.userId}, ${req.user?.name ?? "슈퍼관리자"},
+                ${id}, ${enabled ? "업로드 차단" : "업로드 차단 해제"}, '{}'::jsonb)
+      `).catch(() => {});
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// POST /super/operators/:id/policy-reminder — 정책 재알림
+// ════════════════════════════════════════════════════════════════
+router.post(
+  "/super/operators/:id/policy-reminder",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { policy_key = "refund_policy" } = req.body as any;
+      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await db.execute(sql`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (${logId}, ${id}, '정책', ${req.user!.userId}, ${req.user?.name ?? "슈퍼관리자"},
+                ${id}, ${"정책 재알림 발송: " + policy_key}, '{}'::jsonb)
+      `).catch(() => {});
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// GET  /super/feature-flags       — 전체 기능 플래그 목록 (+오버라이드 수)
+// PATCH /super/feature-flags/:key — 글로벌 토글
+// GET  /super/feature-flags/:key/overrides — 운영자별 오버라이드 목록
+// POST /super/feature-flags/:key/overrides — 오버라이드 추가/수정
+// DELETE /super/feature-flags/:key/overrides/:poolId
+// ════════════════════════════════════════════════════════════════
+router.get(
+  "/super/feature-flags",
+  requireAuth, requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const rows = (await db.execute(sql`
+        SELECT ff.*,
+          (SELECT COUNT(*)::int FROM feature_flag_overrides ffo WHERE ffo.flag_key = ff.key) AS override_count
+        FROM feature_flags ff ORDER BY ff.category, ff.name
+      `)).rows;
+      res.json(rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+router.patch(
+  "/super/feature-flags/:key",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { key } = req.params;
+      const { global_enabled } = req.body as any;
+      const actorName = req.user?.name ?? "슈퍼관리자";
+      await db.execute(sql`
+        UPDATE feature_flags SET global_enabled = ${!!global_enabled},
+          updated_at = NOW(), updated_by = ${actorName}
+        WHERE key = ${key}
+      `);
+      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await db.execute(sql`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (${logId}, NULL, '기능 플래그', ${req.user!.userId}, ${actorName},
+                ${key}, ${`기능 플래그 ${global_enabled ? "활성화" : "비활성화"}: ${key}`}, '{}'::jsonb)
+      `).catch(() => {});
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+router.get(
+  "/super/feature-flags/:key/overrides",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const rows = (await db.execute(sql`
+        SELECT ffo.*, sp.name AS pool_name, sp.owner_name
+        FROM feature_flag_overrides ffo
+        LEFT JOIN swimming_pools sp ON sp.id = ffo.pool_id
+        WHERE ffo.flag_key = ${req.params.key}
+        ORDER BY ffo.created_at DESC
+      `)).rows;
+      res.json(rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+router.post(
+  "/super/feature-flags/:key/overrides",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { key } = req.params;
+      const { pool_id, enabled, reason } = req.body as any;
+      if (!pool_id) { res.status(400).json({ error: "pool_id 필요" }); return; }
+      const id = `ffo_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await db.execute(sql`
+        INSERT INTO feature_flag_overrides (id, flag_key, pool_id, enabled, reason, updated_by)
+        VALUES (${id}, ${key}, ${pool_id}, ${!!enabled}, ${reason ?? null}, ${req.user?.name ?? "슈퍼관리자"})
+        ON CONFLICT (flag_key, pool_id) DO UPDATE
+          SET enabled = EXCLUDED.enabled, reason = EXCLUDED.reason,
+              updated_by = EXCLUDED.updated_by
+      `);
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+router.delete(
+  "/super/feature-flags/:key/overrides/:poolId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      await db.execute(sql`
+        DELETE FROM feature_flag_overrides
+        WHERE flag_key = ${req.params.key} AND pool_id = ${req.params.poolId}
+      `);
       res.json({ ok: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
