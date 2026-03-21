@@ -65,6 +65,105 @@ export type MediaStatus = 'uploading' | 'uploaded' | 'processing' | 'ready' | 'f
 
 export type ImpactLevel = 'low' | 'medium' | 'high' | 'critical'
 
+// ── 삭제 사유 구분 ──────────────────────────────────
+export type DeletionReason =
+  | 'operator_terminated'   // 운영자 해지 확정
+  | 'manual_by_admin'       // 슈퍼관리자 수동 삭제
+  | 'policy_violation'      // 정책 위반 (슈관 승인 필요)
+
+// ── SMS / 초대 ────────────────────────────────────────
+export type SmsType =
+  | 'teacher_invite'
+  | 'parent_connect'
+  | 'phone_verify'
+  | 'policy_reconfirm'
+  | 'payment_fail'
+  | 'storage_warn'
+  | 'deletion_notice'
+
+export type InviteRole = 'operator' | 'teacher' | 'parent'
+export type InviteStatus = 'pending' | 'accepted' | 'expired' | 'cancelled'
+export type SmsStatus = 'sent' | 'failed' | 'pending'
+
+export interface SmsTemplate {
+  id: string
+  type: SmsType
+  name: string
+  body: string
+  isActive: boolean
+  updatedAt: string
+  updatedBy: string
+}
+
+export interface SmsRecord {
+  id: string
+  type: SmsType
+  recipientName: string
+  recipientPhone: string
+  operatorId: string
+  operatorName: string
+  status: SmsStatus
+  sentAt: string
+  sentBy: string
+  templateId: string
+  message: string
+  failReason: string | null
+}
+
+export interface InviteRecord {
+  id: string
+  role: InviteRole
+  recipientName: string
+  recipientPhone: string
+  operatorId: string
+  operatorName: string
+  status: InviteStatus
+  createdAt: string
+  expiresAt: string
+  acceptedAt: string | null
+  sentBy: string
+  note: string
+}
+
+// ── 슈퍼관리자 보안 ───────────────────────────────────
+export type SuperAdminRole = 'super_admin' | 'senior_admin' | 'read_only_admin'
+
+export interface SuperAdminDevice {
+  id: string
+  label: string
+  os: string
+  browser: string
+  lastUsedAt: string
+  isCurrent: boolean
+}
+
+export interface SuperAdminSession {
+  id: string
+  adminId: string
+  ip: string
+  device: string
+  startedAt: string
+  expiresAt: string
+  isActive: boolean
+}
+
+export interface SuperAdminAccount {
+  id: string
+  name: string
+  email: string
+  role: SuperAdminRole
+  twoFactorEnabled: boolean
+  lastLoginAt: string | null
+  lastLoginIp: string | null
+  loginFailCount: number
+  lockedUntil: string | null
+  isActive: boolean
+  createdAt: string
+  devices: SuperAdminDevice[]
+  sessions: SuperAdminSession[]
+}
+
+// ── 핵심 도메인 ──────────────────────────────────────
 export interface Operator {
   id: string
   code: string
@@ -109,6 +208,17 @@ export interface Operator {
   uploadGrowth7dMb: number
   uploadSpikeFlag: boolean
   autoDeleteScheduledAt: string | null
+
+  // 해지/삭제 관련 (선택적 — 기존 시드 호환)
+  isTerminationConfirmed?: boolean
+  terminationConfirmedAt?: string | null
+  deletionReason?: DeletionReason | null
+  terminationPolicyAgreed?: boolean
+  terminationNoticeSent?: boolean
+
+  // 저장공간 긴급 override
+  storageOverrideUntil?: string | null
+  storageOverrideBy?: string | null
 
   policyRefundRead: boolean
   policyPrivacyRead: boolean
@@ -209,6 +319,7 @@ export interface FeatureFlag {
   updatedAt: string
   updatedBy: string
   reason: string
+  lastEnabledState?: boolean  // 롤백용 이전 상태
 }
 
 export interface ReadonlyControl {
@@ -286,6 +397,7 @@ export interface StoragePolicy {
   uploadSpikeFlag: boolean
   uploadGrowth7dMb: number
   autoDeleteScheduledAt: string | null
+  storageOverrideUntil?: string | null
 }
 
 export interface PolicyDocument {

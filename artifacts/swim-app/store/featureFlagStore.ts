@@ -1,6 +1,6 @@
 /**
  * store/featureFlagStore.ts
- * 기능 플래그 — 토글 시 사유 필수, 감사 로그 자동 생성
+ * 기능 플래그 — 토글 시 사유 필수, 롤백 지원, 감사 로그 자동 생성
  */
 
 import { create } from 'zustand'
@@ -11,14 +11,13 @@ interface FeatureFlagState {
   flags: FeatureFlag[]
   loading: boolean
 
-  // selectors
   getGlobalFlags: () => FeatureFlag[]
   getOperatorFlags: (operatorId: string) => FeatureFlag[]
   getFlagByKey: (key: string, operatorId?: string) => FeatureFlag | undefined
   isEnabled: (key: string, operatorId?: string) => boolean
 
-  // actions
   toggleFlag: (id: string, enabled: boolean, reason: string, actorName: string) => FeatureFlag | null
+  rollbackFlag: (id: string, reason: string, actorName: string) => FeatureFlag | null
   setOperatorFlag: (params: {
     key: string
     name: string
@@ -33,8 +32,14 @@ interface FeatureFlagState {
 
 let idCounter = 100
 
+// 시드 데이터에 lastEnabledState 초기화
+const initFlags: FeatureFlag[] = SEED_FEATURE_FLAGS.map(f => ({
+  ...f,
+  lastEnabledState: f.enabled,
+}))
+
 export const useFeatureFlagStore = create<FeatureFlagState>((set, get) => ({
-  flags: SEED_FEATURE_FLAGS,
+  flags: initFlags,
   loading: false,
 
   getGlobalFlags: () => get().flags.filter(f => f.scope === 'global'),
@@ -62,7 +67,35 @@ export const useFeatureFlagStore = create<FeatureFlagState>((set, get) => ({
     set(s => ({
       flags: s.flags.map(f => {
         if (f.id !== id) return f
-        result = { ...f, enabled, reason, updatedAt: new Date().toISOString(), updatedBy: actorName }
+        result = {
+          ...f,
+          lastEnabledState: f.enabled,  // 이전 상태 저장
+          enabled,
+          reason,
+          updatedAt: new Date().toISOString(),
+          updatedBy: actorName,
+        }
+        return result
+      }),
+    }))
+    return result
+  },
+
+  rollbackFlag: (id, reason, actorName) => {
+    if (!reason.trim()) return null
+    let result: FeatureFlag | null = null
+    set(s => ({
+      flags: s.flags.map(f => {
+        if (f.id !== id) return f
+        const previousState = f.lastEnabledState ?? !f.enabled
+        result = {
+          ...f,
+          lastEnabledState: f.enabled,
+          enabled: previousState,
+          reason: `[롤백] ${reason}`,
+          updatedAt: new Date().toISOString(),
+          updatedBy: actorName,
+        }
         return result
       }),
     }))
@@ -80,6 +113,7 @@ export const useFeatureFlagStore = create<FeatureFlagState>((set, get) => ({
           if (f.id !== existing.id) return f
           result = {
             ...f,
+            lastEnabledState: f.enabled,
             enabled: params.enabled,
             reason: params.reason,
             updatedAt: new Date().toISOString(),
@@ -98,6 +132,7 @@ export const useFeatureFlagStore = create<FeatureFlagState>((set, get) => ({
       scope: 'operator' as FeatureFlagScope,
       operatorId: params.operatorId,
       enabled: params.enabled,
+      lastEnabledState: !params.enabled,
       updatedAt: new Date().toISOString(),
       updatedBy: params.actorName,
       reason: params.reason,

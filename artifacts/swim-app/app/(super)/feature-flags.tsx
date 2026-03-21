@@ -1,7 +1,6 @@
 /**
  * (super)/feature-flags.tsx — 기능 플래그 관리
- * featureFlagStore에서 9개 플래그 — API 호출 없음
- * 글로벌 토글 + 운영자별 예외 설정 모두 store에서 처리
+ * 롤백 지원 · 위험 플래그 경고 모달 · 변경 사유 필수 · 영향 범위 표시
  */
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
@@ -18,11 +17,34 @@ import { useAuditLogStore } from "@/store/auditLogStore";
 import type { FeatureFlag } from "@/domain/types";
 
 const P = "#7C3AED";
+const DANGER = "#DC2626";
+const WARN = "#D97706";
+
+// 위험 플래그 목록 — 변경 시 경고 모달 강제
+const DANGER_FLAG_KEYS = new Set([
+  'auto_deletion_policy',
+  'readonly_auto_trigger',
+  'upload_spike_detection',
+  'new_subscription_policy',
+  'support_center_v2',
+  'new_upload_structure',
+]);
+
+// 영향 범위 설명
+const FLAG_IMPACT: Record<string, { scope: string; risk: string; riskColor: string }> = {
+  auto_deletion_policy:    { scope: '전체 운영자 · 데이터 삭제 정책', risk: '위험',    riskColor: DANGER },
+  readonly_auto_trigger:   { scope: '전체 운영자 · 자동 읽기전용 전환', risk: '위험',  riskColor: DANGER },
+  upload_spike_detection:  { scope: '전체 운영자 · 업로드 감지 시스템', risk: '주의', riskColor: WARN },
+  new_subscription_policy: { scope: '전체 구독·결제 흐름',               risk: '주의', riskColor: WARN },
+  support_center_v2:       { scope: '고객센터 v2 기능 전체',              risk: '주의', riskColor: WARN },
+  new_upload_structure:    { scope: '미디어 업로드 파이프라인',            risk: '주의', riskColor: WARN },
+  new_scheduler:           { scope: '수업 스케줄링 엔진',                 risk: '낮음', riskColor: '#059669' },
+};
 
 const CAT_CFG: Record<string, { color: string; bg: string }> = {
   기능:     { color: "#7C3AED", bg: "#EDE9FE" },
   구독:     { color: "#0891B2", bg: "#ECFEFF" },
-  데이터:   { color: "#DC2626", bg: "#FEE2E2" },
+  데이터:   { color: DANGER,    bg: "#FEE2E2" },
   저장공간: { color: "#059669", bg: "#D1FAE5" },
   보안:     { color: "#991B1B", bg: "#FEE2E2" },
   general:  { color: "#6B7280", bg: "#F3F4F6" },
@@ -40,179 +62,199 @@ function relStr(iso: string | null | undefined) {
   return `${Math.floor(h / 24)}일 전`;
 }
 
+function getCategory(key: string): string {
+  if (key.includes('subscription') || key.includes('grace')) return '구독';
+  if (key.includes('media') || key.includes('upload')) return '저장공간';
+  if (key.includes('delete') || key.includes('readonly')) return '데이터';
+  if (key.includes('security')) return '보안';
+  return '기능';
+}
+
 export default function FeatureFlagsScreen() {
   const { adminUser } = useAuth();
   const actorName = adminUser?.name ?? '슈퍼관리자';
 
-  const [refreshing, setRefreshing] = useState(false);
-  const [overridePanel, setOverridePanel] = useState<FeatureFlag | null>(null);
-  const [addModal, setAddModal] = useState(false);
-  const [reasonModal, setReasonModal] = useState<{ flag: FeatureFlag; newEnabled: boolean } | null>(null);
-  const [reason, setReason] = useState("");
-  const [selOp, setSelOp] = useState<{ id: string; name: string } | null>(null);
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [overridePanel,setOverridePanel]= useState<FeatureFlag | null>(null);
+  const [reasonModal,  setReasonModal]  = useState<{ flag: FeatureFlag; newEnabled: boolean } | null>(null);
+  const [dangerModal,  setDangerModal]  = useState<{ flag: FeatureFlag; newEnabled: boolean } | null>(null);
+  const [rollbackModal,setRollbackModal]= useState<FeatureFlag | null>(null);
+  const [reason,       setReason]       = useState("");
+  const [selOp,        setSelOp]        = useState<{ id: string; name: string } | null>(null);
   const [opOverrideEnabled, setOpOverrideEnabled] = useState(false);
-  const [opReason, setOpReason] = useState("");
-  const [opSearch, setOpSearch] = useState("");
+  const [opReason,     setOpReason]     = useState("");
+  const [opSearch,     setOpSearch]     = useState("");
 
-  const allFlags       = useFeatureFlagStore(s => s.flags);
-  const globalFlags    = useMemo(() => allFlags.filter(f => f.scope === 'global'), [allFlags]);
-  const toggleFlagFn   = useFeatureFlagStore(s => s.toggleFlag);
-  const setOpFlag      = useFeatureFlagStore(s => s.setOperatorFlag);
-  const createLog      = useAuditLogStore(s => s.createLog);
-  const operators      = useOperatorsStore(s => s.operators);
+  const allFlags    = useFeatureFlagStore(s => s.flags);
+  const globalFlags = useMemo(() => allFlags.filter(f => f.scope === 'global'), [allFlags]);
+  const toggleFlagFn  = useFeatureFlagStore(s => s.toggleFlag);
+  const rollbackFlagFn = useFeatureFlagStore(s => s.rollbackFlag);
+  const setOpFlag   = useFeatureFlagStore(s => s.setOperatorFlag);
+  const createLog   = useAuditLogStore(s => s.createLog);
+  const operators   = useOperatorsStore(s => s.operators);
 
-  // Group global flags by category
   const grouped = useMemo(() => {
     const map: Record<string, FeatureFlag[]> = {};
     globalFlags.forEach(f => {
-      const cat = f.key.includes('subscription') || f.key.includes('grace') ? '구독'
-        : f.key.includes('media') || f.key.includes('upload') ? '저장공간'
-        : f.key.includes('delete') || f.key.includes('readonly') ? '데이터'
-        : f.key.includes('security') ? '보안'
-        : '기능';
+      const cat = getCategory(f.key);
       map[cat] = map[cat] ?? [];
       map[cat].push(f);
     });
     return map;
   }, [globalFlags]);
 
-  // Get override count for a flag key
   function getOverrideCount(key: string): number {
-    return allFlags.filter(f => f.scope === 'operator' && f.key === key).length;
+    return allFlags.filter(f => f.key === key && f.scope === 'operator').length;
   }
 
-  // Get operator overrides for current panel
-  const panelOverrides = useMemo(() => {
-    if (!overridePanel) return [];
-    return allFlags.filter(f => f.scope === 'operator' && f.key === overridePanel.key);
-  }, [allFlags, overridePanel]);
-
-  function requestToggle(flag: FeatureFlag) {
-    setReasonModal({ flag, newEnabled: !flag.enabled });
-    setReason("");
+  function canRollback(f: FeatureFlag): boolean {
+    return typeof f.lastEnabledState === 'boolean' && f.lastEnabledState !== f.enabled;
   }
 
-  function confirmToggle() {
-    if (!reasonModal) return;
+  // 토글 시도: 위험 플래그면 dangerModal, 아니면 reasonModal
+  function handleToggleAttempt(flag: FeatureFlag, newEnabled: boolean) {
+    if (DANGER_FLAG_KEYS.has(flag.key)) {
+      setDangerModal({ flag, newEnabled });
+      setReason("");
+    } else {
+      setReasonModal({ flag, newEnabled });
+      setReason("");
+    }
+  }
+
+  function confirmToggle(flag: FeatureFlag, newEnabled: boolean) {
     if (!reason.trim()) return;
-    const updated = toggleFlagFn(reasonModal.flag.id, reasonModal.newEnabled, reason, actorName);
-    if (updated) {
+    const result = toggleFlagFn(flag.id, newEnabled, reason, actorName);
+    if (result) {
       createLog({
         category: '기능플래그',
-        title: `${reasonModal.flag.name} ${reasonModal.newEnabled ? '활성화' : '비활성화'}`,
+        title: `플래그 ${newEnabled ? '활성화' : '비활성화'}: ${flag.name}`,
+        detail: `키: ${flag.key} / 사유: ${reason}${DANGER_FLAG_KEYS.has(flag.key) ? ' [위험 플래그]' : ''}`,
         actorName,
-        impact: 'medium',
-        detail: reason,
+        impact: DANGER_FLAG_KEYS.has(flag.key) ? 'critical' : 'medium',
       });
     }
-    setReasonModal(null);
-    setReason("");
+    setReasonModal(null); setDangerModal(null); setReason("");
   }
 
-  function addOperatorOverride() {
-    if (!overridePanel || !selOp || !opReason.trim()) return;
-    const result = setOpFlag({
-      key: overridePanel.key,
-      name: overridePanel.name,
-      operatorId: selOp.id,
-      operatorName: selOp.name,
-      enabled: opOverrideEnabled,
-      reason: opReason,
-      actorName,
-    });
-    createLog({
-      category: '기능플래그',
-      title: `${overridePanel.name} 운영자 예외: ${selOp.name}`,
-      operatorId: selOp.id,
-      operatorName: selOp.name,
-      actorName,
-      impact: 'medium',
-      detail: `${opOverrideEnabled ? '활성화' : '비활성화'} 예외 · ${opReason}`,
-    });
-    setAddModal(false); setSelOp(null); setOpReason(""); setOpOverrideEnabled(false);
+  function doRollback() {
+    if (!rollbackModal || !reason.trim()) return;
+    const result = rollbackFlagFn(rollbackModal.id, reason, actorName);
+    if (result) {
+      createLog({
+        category: '기능플래그',
+        title: `플래그 롤백: ${rollbackModal.name}`,
+        detail: `${rollbackModal.enabled ? '활성' : '비활성'} → ${!rollbackModal.enabled ? '활성' : '비활성'} / 사유: ${reason}`,
+        actorName,
+        impact: DANGER_FLAG_KEYS.has(rollbackModal.key) ? 'critical' : 'medium',
+      });
+    }
+    setRollbackModal(null); setReason("");
+  }
+
+  function setOpFlagConfirm() {
+    if (!selOp || !overridePanel || !opReason.trim()) return;
+    const result = setOpFlag({ key: overridePanel.key, name: overridePanel.name, operatorId: selOp.id, operatorName: selOp.name, enabled: opOverrideEnabled, reason: opReason, actorName });
+    createLog({ category: '기능플래그', title: `운영자 예외 설정: ${overridePanel.name} → ${selOp.name}`, detail: `${opOverrideEnabled ? '활성' : '비활성'} / ${opReason}`, actorName, impact: 'medium' });
+    setSelOp(null); setOpReason(""); setOverridePanel(null);
   }
 
   const filteredOps = useMemo(() =>
-    operators
-      .filter(op => opSearch ? op.name.includes(opSearch) || op.representativeName.includes(opSearch) : true)
-      .slice(0, 20),
-    [operators, opSearch]
-  );
+    operators.filter(op => op.name.includes(opSearch) || op.code.includes(opSearch))
+  , [operators, opSearch]);
+
+  const categoryOrder = ['데이터', '구독', '저장공간', '보안', '기능'];
 
   return (
-    <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
-      <SubScreenHeader title="기능 플래그" subtitle="플랫폼 기능 ON/OFF 관리" homePath="/(super)/dashboard" />
+    <SafeAreaView style={s.safe} edges={[]}>
+      <SubScreenHeader title="기능 플래그" homePath="/(super)/dashboard" />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}
+      <ScrollView
+        contentContainerStyle={{ padding: 14, gap: 16, paddingBottom: 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
-
-        <View style={s.infoBox}>
-          <Feather name="info" size={13} color="#4F46E5" />
-          <Text style={s.infoTxt}>
-            글로벌 ON/OFF는 전체 운영자에 적용됩니다. 토글 시 사유 입력이 필수입니다. 운영자별 예외는 "예외" 버튼에서 설정하세요.
-          </Text>
+          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+      >
+        {/* 안내 배너 */}
+        <View style={s.infoBanner}>
+          <Feather name="info" size={13} color="#0891B2" />
+          <Text style={s.infoBannerTxt}>위험 플래그(🔴)는 변경 시 경고 확인 필수. 모든 변경은 사유 입력 후 감사 로그 기록됩니다. 롤백 버튼으로 이전 상태 복원 가능.</Text>
         </View>
 
-        <View style={s.countRow}>
-          <Text style={s.countTxt}>
-            총 <Text style={{ color: P, fontFamily: "Inter_700Bold" }}>{globalFlags.length}</Text>개 플래그
-            · 활성 <Text style={{ color: "#059669", fontFamily: "Inter_700Bold" }}>{globalFlags.filter(f => f.enabled).length}</Text>개
-          </Text>
-        </View>
-
-        {Object.entries(grouped).map(([cat, catFlags]) => {
-          const cfg = CAT_CFG[cat] ?? CAT_CFG.general;
+        {categoryOrder.map(cat => {
+          const flags = grouped[cat];
+          if (!flags || flags.length === 0) return null;
+          const cc = CAT_CFG[cat] ?? CAT_CFG.general;
           return (
             <View key={cat} style={s.catSection}>
-              <View style={s.catHeader}>
-                <View style={[s.catDot, { backgroundColor: cfg.color }]} />
-                <Text style={[s.catTitle, { color: cfg.color }]}>{cat}</Text>
-                <Text style={s.catCount}>{catFlags.length}개</Text>
+              <View style={[s.catHeader, { backgroundColor: cc.bg }]}>
+                <Text style={[s.catLabel, { color: cc.color }]}>{cat}</Text>
+                <Text style={[s.catCount, { color: cc.color }]}>{flags.length}개</Text>
               </View>
-              {catFlags.map(flag => {
-                const overrideCount = getOverrideCount(flag.key);
+
+              {flags.map(flag => {
+                const isDanger   = DANGER_FLAG_KEYS.has(flag.key);
+                const impact     = FLAG_IMPACT[flag.key];
+                const overrides  = getOverrideCount(flag.key);
+                const rollable   = canRollback(flag);
+
                 return (
-                  <View key={flag.id} style={[s.flagCard, flag.enabled && s.flagCardActive]}>
-                    <View style={s.flagMain}>
+                  <View key={flag.id} style={[s.flagCard, isDanger && s.flagCardDanger]}>
+                    <View style={s.flagTop}>
                       <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <View style={s.flagNameRow}>
+                          {isDanger && <Text style={s.dangerIcon}>🔴</Text>}
                           <Text style={s.flagName}>{flag.name}</Text>
-                          <View style={[s.catBadge, { backgroundColor: cfg.bg }]}>
-                            <Text style={[s.catBadgeTxt, { color: cfg.color }]}>{cat}</Text>
-                          </View>
+                          {overrides > 0 && (
+                            <View style={s.overrideBadge}>
+                              <Text style={s.overrideTxt}>예외 {overrides}</Text>
+                            </View>
+                          )}
                         </View>
-                        <Text style={s.flagDesc}>{flag.description ?? ""}</Text>
-                        <Text style={s.flagMeta}>
-                          {flag.updatedBy ? `수정: ${flag.updatedBy} · ` : ""}{relStr(flag.updatedAt)}
-                          {overrideCount > 0 ? ` · 예외 ${overrideCount}개` : ""}
-                        </Text>
-                        {flag.reason && (
-                          <Text style={s.reasonTxt}>{flag.reason}</Text>
-                        )}
+                        <Text style={s.flagKey}>{flag.key}</Text>
+                        <Text style={s.flagDesc}>{flag.description}</Text>
                       </View>
-                      <View style={{ alignItems: "flex-end", gap: 6 }}>
-                        <Switch
-                          value={flag.enabled}
-                          onValueChange={() => requestToggle(flag)}
-                          trackColor={{ false: "#E5E7EB", true: "#C4B5FD" }}
-                          thumbColor={flag.enabled ? P : "#9CA3AF"}
-                        />
-                        <Text style={[s.statusTxt, { color: flag.enabled ? "#059669" : "#6B7280" }]}>
-                          {flag.enabled ? "전체 활성" : "전체 비활성"}
-                        </Text>
-                      </View>
+                      <Switch
+                        value={flag.enabled}
+                        onValueChange={v => handleToggleAttempt(flag, v)}
+                        trackColor={{ false: "#E5E7EB", true: isDanger ? "#FCA5A5" : "#C4B5FD" }}
+                        thumbColor={flag.enabled ? (isDanger ? DANGER : P) : "#9CA3AF"}
+                      />
                     </View>
-                    <View style={s.flagActions}>
-                      <Pressable style={s.overrideBtn}
-                        onPress={() => { setOverridePanel(flag); }}>
-                        <Feather name="sliders" size={12} color="#4F46E5" />
-                        <Text style={s.overrideBtnTxt}>운영자 예외 {overrideCount > 0 ? `(${overrideCount})` : ""}</Text>
-                      </Pressable>
-                      <View style={s.keyBadge}>
-                        <Text style={s.keyTxt}>{flag.key}</Text>
+
+                    {/* 영향 범위 */}
+                    {impact && (
+                      <View style={s.impactRow}>
+                        <Feather name="target" size={10} color={impact.riskColor} />
+                        <Text style={[s.impactScope, { color: impact.riskColor }]}>{impact.scope}</Text>
+                        <View style={[s.riskBadge, { backgroundColor: impact.riskColor + "20" }]}>
+                          <Text style={[s.riskBadgeTxt, { color: impact.riskColor }]}>위험도 {impact.risk}</Text>
+                        </View>
                       </View>
+                    )}
+
+                    <View style={s.flagMeta}>
+                      <Text style={s.flagMetaTxt}>{relStr(flag.updatedAt)} · {flag.updatedBy}</Text>
+                      {flag.reason ? <Text style={s.flagReason} numberOfLines={1}>{flag.reason}</Text> : null}
                     </View>
+
+                    {/* 마지막 정상 상태 / 롤백 */}
+                    {rollable && (
+                      <View style={s.rollbackRow}>
+                        <Text style={s.rollbackHint}>
+                          이전 상태: {flag.lastEnabledState ? '활성' : '비활성'} → 현재: {flag.enabled ? '활성' : '비활성'}
+                        </Text>
+                        <Pressable style={s.rollbackBtn} onPress={() => { setRollbackModal(flag); setReason(""); }}>
+                          <Feather name="rotate-ccw" size={11} color={P} />
+                          <Text style={s.rollbackBtnTxt}>롤백</Text>
+                        </Pressable>
+                      </View>
+                    )}
+
+                    {/* 운영자 예외 */}
+                    <Pressable style={s.overrideBtn} onPress={() => { setOverridePanel(flag); setSelOp(null); setOpReason(""); setOpOverrideEnabled(flag.enabled); }}>
+                      <Feather name="users" size={11} color="#6B7280" />
+                      <Text style={s.overrideBtnTxt}>운영자별 예외 설정</Text>
+                    </Pressable>
                   </View>
                 );
               })}
@@ -221,194 +263,226 @@ export default function FeatureFlagsScreen() {
         })}
       </ScrollView>
 
-      {/* 토글 사유 입력 모달 */}
-      <Modal visible={!!reasonModal} transparent animationType="fade" onRequestClose={() => setReasonModal(null)}>
-        <Pressable style={s.overlay} onPress={() => setReasonModal(null)}>
-          <Pressable style={s.reasonSheet} onPress={() => {}}>
-            <Text style={s.addTitle}>
-              {reasonModal?.flag.name} {reasonModal?.newEnabled ? "활성화" : "비활성화"}
-            </Text>
-            <Text style={s.addLabel}>사유 입력 (필수)</Text>
-            <TextInput style={s.addInput} value={reason} onChangeText={setReason}
-              placeholder="변경 사유를 입력하세요" multiline numberOfLines={2}
-              placeholderTextColor="#9CA3AF" />
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-              <Pressable style={[s.actionBtn, { backgroundColor: "#F3F4F6" }]} onPress={() => setReasonModal(null)}>
-                <Text style={{ color: "#374151", fontFamily: "Inter_600SemiBold" }}>취소</Text>
-              </Pressable>
-              <Pressable
-                style={[s.actionBtn, { backgroundColor: P, opacity: !reason.trim() ? 0.5 : 1 }]}
-                onPress={confirmToggle} disabled={!reason.trim()}>
-                <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>확인</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* 운영자 예외 패널 */}
-      <Modal visible={!!overridePanel} transparent animationType="slide" onRequestClose={() => setOverridePanel(null)}>
-        <Pressable style={s.overlay} onPress={() => setOverridePanel(null)}>
-          <Pressable style={s.panel} onPress={() => {}}>
-            <View style={s.panelHandle} />
-            <View style={s.panelHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.panelTitle}>{overridePanel?.name} — 운영자별 예외</Text>
-                <Text style={s.panelSub}>글로벌 설정을 무시하는 운영자별 예외입니다</Text>
-              </View>
-              <Pressable style={s.addOverrideBtn}
-                onPress={() => { setAddModal(true); }}>
-                <Feather name="plus" size={14} color="#fff" />
-                <Text style={s.addOverrideBtnTxt}>예외 추가</Text>
-              </Pressable>
-            </View>
-
-            {panelOverrides.length === 0 ? (
-              <View style={s.emptyBox}>
-                <Feather name="check-circle" size={32} color="#D1D5DB" />
-                <Text style={s.emptyTxt}>운영자 예외 없음</Text>
-                <Text style={s.emptySub}>모든 운영자에 글로벌 설정이 적용됩니다</Text>
-              </View>
-            ) : (
-              <FlatList
-                data={panelOverrides}
-                keyExtractor={o => o.id}
-                style={{ maxHeight: 400 }}
-                renderItem={({ item }) => (
-                  <View style={s.overrideRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.overridePoolName}>{item.operatorId ? (operators.find(o => o.id === item.operatorId)?.name ?? item.operatorId) : "—"}</Text>
-                      <Text style={s.overridePoolSub}>{relStr(item.updatedAt)}</Text>
-                      {item.reason && <Text style={s.overrideReason}>{item.reason}</Text>}
-                    </View>
-                    <View style={[s.enableBadge, { backgroundColor: item.enabled ? "#D1FAE5" : "#FEE2E2" }]}>
-                      <Text style={[s.enableBadgeTxt, { color: item.enabled ? "#059669" : "#DC2626" }]}>
-                        {item.enabled ? "활성화" : "비활성화"}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-              />
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* 운영자 예외 추가 모달 */}
-      <Modal visible={addModal} transparent animationType="fade" onRequestClose={() => setAddModal(false)}>
-        <Pressable style={s.overlay} onPress={() => setAddModal(false)}>
-          <Pressable style={s.addSheet} onPress={() => {}}>
-            <Text style={s.addTitle}>운영자 예외 추가 — {overridePanel?.name}</Text>
-
-            <Text style={s.addLabel}>운영자 검색</Text>
-            <TextInput style={s.addInput} value={opSearch} onChangeText={setOpSearch}
-              placeholder="운영자명 검색" placeholderTextColor="#9CA3AF" />
-            {selOp ? (
-              <View style={s.selPoolRow}>
-                <Text style={s.selPoolTxt}>{selOp.name}</Text>
-                <Pressable onPress={() => setSelOp(null)}>
-                  <Feather name="x" size={14} color="#DC2626" />
+      {/* ── 일반 토글 사유 모달 ── */}
+      {reasonModal && (
+        <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={() => setReasonModal(null)}>
+          <Pressable style={m.backdrop} onPress={() => setReasonModal(null)}>
+            <Pressable style={m.sheet} onPress={() => {}}>
+              <View style={m.handle} />
+              <Text style={m.title}>{reasonModal.flag.name} {reasonModal.newEnabled ? '활성화' : '비활성화'}</Text>
+              <Text style={m.sub}>{reasonModal.flag.key}</Text>
+              <Text style={m.label}>변경 사유 (필수)</Text>
+              <TextInput style={m.reasonInput} value={reason} onChangeText={setReason}
+                placeholder="변경 사유를 입력하세요" placeholderTextColor="#9CA3AF"
+                multiline autoFocus />
+              <View style={m.btnRow}>
+                <Pressable style={m.cancelBtn} onPress={() => setReasonModal(null)}>
+                  <Text style={m.cancelTxt}>취소</Text>
+                </Pressable>
+                <Pressable style={[m.confirmBtn, { opacity: reason.trim() ? 1 : 0.4 }]}
+                  disabled={!reason.trim()} onPress={() => confirmToggle(reasonModal.flag, reasonModal.newEnabled)}>
+                  <Text style={m.confirmTxt}>확인</Text>
                 </Pressable>
               </View>
-            ) : filteredOps.length > 0 ? (
-              <ScrollView style={s.opList}>
-                {filteredOps.map(op => (
-                  <Pressable key={op.id} style={s.opRow}
-                    onPress={() => { setSelOp({ id: op.id, name: op.name }); setOpSearch(""); }}>
-                    <Text style={s.opName}>{op.name}</Text>
-                    <Text style={s.opOwner}>{op.representativeName}</Text>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* ── 위험 플래그 경고 모달 ── */}
+      {dangerModal && (
+        <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={() => setDangerModal(null)}>
+          <Pressable style={m.backdrop} onPress={() => {}}>
+            <View style={m.sheet}>
+              <View style={m.handle} />
+              <View style={m.dangerHeaderRow}>
+                <Text style={m.dangerIcon}>🔴</Text>
+                <Text style={[m.title, { color: DANGER }]}>위험 플래그 변경</Text>
+              </View>
+              <Text style={m.dangerDesc}>
+                <Text style={{ fontFamily: "Inter_700Bold" }}>{dangerModal.flag.name}</Text> 은(는) 전체 시스템에 영향을 미치는 위험 플래그입니다.{"\n"}
+                {FLAG_IMPACT[dangerModal.flag.key]?.scope && `영향 범위: ${FLAG_IMPACT[dangerModal.flag.key].scope}\n`}
+                변경 내용을 신중히 검토하고 사유를 기록하세요.
+              </Text>
+              <Text style={m.label}>변경 사유 (필수)</Text>
+              <TextInput style={[m.reasonInput, { borderColor: DANGER }]}
+                value={reason} onChangeText={setReason}
+                placeholder="위험 플래그 변경 사유를 상세히 입력하세요"
+                placeholderTextColor="#9CA3AF" multiline autoFocus />
+              <View style={m.btnRow}>
+                <Pressable style={m.cancelBtn} onPress={() => setDangerModal(null)}>
+                  <Text style={m.cancelTxt}>취소</Text>
+                </Pressable>
+                <Pressable style={[m.dangerBtn, { opacity: reason.trim() ? 1 : 0.4 }]}
+                  disabled={!reason.trim()} onPress={() => confirmToggle(dangerModal.flag, dangerModal.newEnabled)}>
+                  <Feather name="alert-triangle" size={14} color="#fff" />
+                  <Text style={m.dangerBtnTxt}>{dangerModal.newEnabled ? '활성화' : '비활성화'} 확인</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* ── 롤백 모달 ── */}
+      {rollbackModal && (
+        <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={() => setRollbackModal(null)}>
+          <Pressable style={m.backdrop} onPress={() => setRollbackModal(null)}>
+            <Pressable style={m.sheet} onPress={() => {}}>
+              <View style={m.handle} />
+              <Text style={m.title}>플래그 롤백</Text>
+              <Text style={m.sub}>{rollbackModal.name} ({rollbackModal.key})</Text>
+              <View style={m.rollbackInfo}>
+                <Text style={m.rollbackInfoTxt}>
+                  현재: <Text style={{ fontFamily: "Inter_700Bold" }}>{rollbackModal.enabled ? '활성' : '비활성'}</Text>
+                  {"  →  "}
+                  롤백 후: <Text style={{ fontFamily: "Inter_700Bold", color: P }}>{rollbackModal.lastEnabledState ? '활성' : '비활성'}</Text>
+                </Text>
+              </View>
+              <Text style={m.label}>롤백 사유 (필수)</Text>
+              <TextInput style={m.reasonInput} value={reason} onChangeText={setReason}
+                placeholder="롤백 사유를 입력하세요" placeholderTextColor="#9CA3AF" autoFocus />
+              <View style={m.btnRow}>
+                <Pressable style={m.cancelBtn} onPress={() => setRollbackModal(null)}>
+                  <Text style={m.cancelTxt}>취소</Text>
+                </Pressable>
+                <Pressable style={[m.rollbackExecBtn, { opacity: reason.trim() ? 1 : 0.4 }]}
+                  disabled={!reason.trim()} onPress={doRollback}>
+                  <Feather name="rotate-ccw" size={14} color="#fff" />
+                  <Text style={m.confirmTxt}>롤백 실행</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* ── 운영자 예외 패널 ── */}
+      {overridePanel && (
+        <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={() => setOverridePanel(null)}>
+          <Pressable style={m.backdrop} onPress={() => setOverridePanel(null)}>
+            <Pressable style={[m.sheet, { maxHeight: "90%" }]} onPress={() => {}}>
+              <View style={m.handle} />
+              <Text style={m.title}>{overridePanel.name}</Text>
+              <Text style={m.sub}>운영자별 예외 설정</Text>
+
+              <TextInput style={m.searchInput} value={opSearch} onChangeText={setOpSearch}
+                placeholder="운영자 검색" placeholderTextColor="#9CA3AF" />
+
+              <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+                {filteredOps.slice(0, 12).map(op => (
+                  <Pressable key={op.id} style={[m.opRow, selOp?.id === op.id && m.opRowActive]}
+                    onPress={() => setSelOp({ id: op.id, name: op.name })}>
+                    <Text style={[m.opRowTxt, selOp?.id === op.id && { color: P }]}>{op.name}</Text>
+                    <Text style={m.opRowCode}>{op.code}</Text>
+                    {selOp?.id === op.id && <Feather name="check" size={14} color={P} />}
                   </Pressable>
                 ))}
               </ScrollView>
-            ) : null}
 
-            <View style={s.enableRow}>
-              <Text style={s.addLabel}>예외 설정</Text>
-              <Switch value={opOverrideEnabled} onValueChange={setOpOverrideEnabled}
-                trackColor={{ false: "#E5E7EB", true: "#C4B5FD" }}
-                thumbColor={opOverrideEnabled ? P : "#9CA3AF"} />
-              <Text style={{ color: opOverrideEnabled ? "#059669" : "#DC2626", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
-                {opOverrideEnabled ? "활성화 (글로벌 무시)" : "비활성화 (글로벌 무시)"}
-              </Text>
-            </View>
-
-            <Text style={s.addLabel}>사유 (필수)</Text>
-            <TextInput style={s.addInput} value={opReason} onChangeText={setOpReason}
-              placeholder="예외 사유 (필수)" placeholderTextColor="#9CA3AF" />
-
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-              <Pressable style={[s.actionBtn, { backgroundColor: "#F3F4F6" }]}
-                onPress={() => { setAddModal(false); setSelOp(null); setOpReason(""); }}>
-                <Text style={{ color: "#374151", fontFamily: "Inter_600SemiBold" }}>취소</Text>
-              </Pressable>
-              <Pressable
-                style={[s.actionBtn, { backgroundColor: P, opacity: (!selOp || !opReason.trim()) ? 0.5 : 1 }]}
-                onPress={addOperatorOverride}
-                disabled={!selOp || !opReason.trim()}>
-                <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>추가</Text>
-              </Pressable>
-            </View>
+              {selOp && (
+                <>
+                  <View style={m.toggleRow}>
+                    <Text style={m.toggleLabel}>{selOp.name} — {overridePanel.name}</Text>
+                    <Switch value={opOverrideEnabled} onValueChange={setOpOverrideEnabled}
+                      trackColor={{ false: "#E5E7EB", true: "#C4B5FD" }}
+                      thumbColor={opOverrideEnabled ? P : "#9CA3AF"} />
+                  </View>
+                  <TextInput style={m.reasonInput} value={opReason} onChangeText={setOpReason}
+                    placeholder="예외 설정 사유 (필수)" placeholderTextColor="#9CA3AF" />
+                  <View style={m.btnRow}>
+                    <Pressable style={m.cancelBtn} onPress={() => setOverridePanel(null)}>
+                      <Text style={m.cancelTxt}>취소</Text>
+                    </Pressable>
+                    <Pressable style={[m.confirmBtn, { opacity: opReason.trim() ? 1 : 0.4 }]}
+                      disabled={!opReason.trim()} onPress={setOpFlagConfirm}>
+                      <Text style={m.confirmTxt}>적용</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </Pressable>
           </Pressable>
-        </Pressable>
-      </Modal>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#F9FAFB" },
-  infoBox:       { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#EEF2FF", margin: 14, marginBottom: 6, padding: 12, borderRadius: 10 },
-  infoTxt:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#4F46E5", flex: 1, lineHeight: 18 },
-  countRow:      { paddingHorizontal: 16, paddingBottom: 4 },
-  countTxt:      { fontFamily: "Inter_400Regular", fontSize: 13, color: "#374151" },
-  catSection:    { marginBottom: 4 },
-  catHeader:     { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8 },
-  catDot:        { width: 8, height: 8, borderRadius: 4 },
-  catTitle:      { fontSize: 13, fontFamily: "Inter_700Bold" },
-  catCount:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginLeft: "auto" },
-  flagCard:      { backgroundColor: "#fff", marginHorizontal: 14, marginBottom: 8, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  flagCardActive:{ borderColor: "#C4B5FD" },
-  flagMain:      { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  flagName:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  flagDesc:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 4, lineHeight: 18 },
-  flagMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 4 },
-  reasonTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#D97706", marginTop: 4, backgroundColor: "#FEF3C7", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  catBadge:      { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  catBadgeTxt:   { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  statusTxt:     { fontSize: 11, fontFamily: "Inter_500Medium" },
-  flagActions:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
-  overrideBtn:   { flexDirection: "row", gap: 5, alignItems: "center", backgroundColor: "#EEF2FF", borderRadius: 7, paddingHorizontal: 10, paddingVertical: 6 },
-  overrideBtnTxt:{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#4F46E5" },
-  keyBadge:      { backgroundColor: "#1E293B", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  keyTxt:        { fontSize: 10, fontFamily: "Inter_400Regular", color: "#94A3B8" },
-  overlay:       { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  panel:         { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "80%" },
-  panelHandle:   { width: 40, height: 4, backgroundColor: "#D1D5DB", borderRadius: 2, alignSelf: "center", marginBottom: 16 },
-  panelHeader:   { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
-  panelTitle:    { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
-  panelSub:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
-  addOverrideBtn:{ flexDirection: "row", gap: 5, backgroundColor: P, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, alignItems: "center" },
-  addOverrideBtnTxt:{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  emptyBox:      { alignItems: "center", paddingVertical: 32, gap: 8 },
-  emptyTxt:      { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#D1D5DB" },
-  emptySub:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  overrideRow:   { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  overridePoolName:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  overridePoolSub: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
-  overrideReason:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#D97706", marginTop: 4, backgroundColor: "#FEF3C7", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  enableBadge:     { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  enableBadgeTxt:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  reasonSheet:   { backgroundColor: "#fff", borderRadius: 20, padding: 20, margin: 16 },
-  addSheet:      { backgroundColor: "#fff", borderRadius: 20, padding: 20, margin: 16, maxHeight: "85%" },
-  addTitle:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 12 },
-  addLabel:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#374151", marginBottom: 6, marginTop: 10 },
-  addInput:      { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
-  opList:        { maxHeight: 140, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, marginBottom: 4 },
-  opRow:         { flexDirection: "row", alignItems: "center", padding: 10, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  opName:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827", flex: 1 },
-  opOwner:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
-  selPoolRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#D1FAE5", borderRadius: 8, padding: 10, marginTop: 4 },
-  selPoolTxt:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#059669" },
-  enableRow:     { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 },
-  actionBtn:     { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center" },
+  safe:          { flex: 1, backgroundColor: "#F5F3FF" },
+  infoBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#E0F2FE",
+                   padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#BAE6FD" },
+  infoBannerTxt: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#0369A1", lineHeight: 17 },
+  catSection:    { gap: 8 },
+  catHeader:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+                   paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
+  catLabel:      { fontSize: 13, fontFamily: "Inter_700Bold" },
+  catCount:      { fontSize: 12, fontFamily: "Inter_400Regular" },
+  flagCard:      { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8,
+                   shadowColor: "#0000001A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 3, elevation: 1 },
+  flagCardDanger:{ borderWidth: 1, borderColor: "#FCA5A5" },
+  flagTop:       { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  flagNameRow:   { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  dangerIcon:    { fontSize: 12 },
+  flagName:      { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  overrideBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: "#EDE9FE" },
+  overrideTxt:   { fontSize: 10, fontFamily: "Inter_700Bold", color: P },
+  flagKey:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  flagDesc:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2, lineHeight: 17 },
+  impactRow:     { flexDirection: "row", alignItems: "center", gap: 6 },
+  impactScope:   { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular" },
+  riskBadge:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  riskBadgeTxt:  { fontSize: 10, fontFamily: "Inter_700Bold" },
+  flagMeta:      { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  flagMetaTxt:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  flagReason:    { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280",
+                   fontStyle: "italic", backgroundColor: "#F9FAFB", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
+  rollbackRow:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EDE9FE",
+                   paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9 },
+  rollbackHint:  { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#5B21B6" },
+  rollbackBtn:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4,
+                   borderRadius: 7, backgroundColor: "#fff", borderWidth: 1, borderColor: P },
+  rollbackBtnTxt:{ fontSize: 11, fontFamily: "Inter_700Bold", color: P },
+  overrideBtn:   { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start",
+                   paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F3F4F6" },
+  overrideBtnTxt:{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+});
+
+const m = StyleSheet.create({
+  backdrop:      { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+  sheet:         { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
+                   borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, maxHeight: "85%", gap: 12 },
+  handle:        { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
+  dangerHeaderRow:{ flexDirection: "row", alignItems: "center", gap: 8 },
+  dangerIcon:    { fontSize: 20 },
+  title:         { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
+  sub:           { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  dangerDesc:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 20,
+                   backgroundColor: "#FFF5F5", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#FCA5A5" },
+  label:         { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  reasonInput:   { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
+                   fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827", minHeight: 80,
+                   textAlignVertical: "top" },
+  rollbackInfo:  { backgroundColor: "#EDE9FE", padding: 12, borderRadius: 10 },
+  rollbackInfoTxt:{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151" },
+  searchInput:   { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 10,
+                   fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  opRow:         { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 4,
+                   borderBottomWidth: 1, borderBottomColor: "#F3F4F6", gap: 8 },
+  opRowActive:   { backgroundColor: "#F5F3FF" },
+  opRowTxt:      { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: "#111827" },
+  opRowCode:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  toggleRow:     { flexDirection: "row", alignItems: "center", gap: 10 },
+  toggleLabel:   { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  btnRow:        { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
+  cancelBtn:     { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },
+  cancelTxt:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  confirmBtn:    { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
+  confirmTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  dangerBtn:     { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16,
+                   paddingVertical: 10, borderRadius: 10, backgroundColor: DANGER },
+  dangerBtnTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  rollbackExecBtn:{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16,
+                    paddingVertical: 10, borderRadius: 10, backgroundColor: P },
 });
