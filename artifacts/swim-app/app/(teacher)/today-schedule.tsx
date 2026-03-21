@@ -1317,6 +1317,21 @@ export default function TodayScheduleScreen() {
           </View>
         </View>
 
+        {/* ── 스케줄러 바로가기 ── */}
+        <Pressable
+          style={[h.schedCard, { backgroundColor: C.card }]}
+          onPress={() => router.push("/(teacher)/my-schedule" as any)}
+        >
+          <View style={[h.schedIcon, { backgroundColor: themeColor + "15" }]}>
+            <Feather name="calendar" size={22} color={themeColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[h.schedTitle, { color: C.text }]}>월간 스케줄러</Text>
+            <Text style={h.schedSub}>수업·출결·일지·날짜 메모를 한 화면에서</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={themeColor} />
+        </Pressable>
+
         {/* ── 오늘 할 일 (미처리 항목 있을 때만 표시) ── */}
         {!loading && hasTasks && (
           <View style={[h.sectionCard, { backgroundColor: C.card }]}>
@@ -1433,21 +1448,6 @@ export default function TodayScheduleScreen() {
             </View>
           )}
         </View>
-
-        {/* ── 스케줄러 바로가기 ── */}
-        <Pressable
-          style={[h.schedCard, { backgroundColor: C.card }]}
-          onPress={() => router.push("/(teacher)/my-schedule" as any)}
-        >
-          <View style={[h.schedIcon, { backgroundColor: themeColor + "15" }]}>
-            <Feather name="calendar" size={22} color={themeColor} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[h.schedTitle, { color: C.text }]}>월간 스케줄러</Text>
-            <Text style={h.schedSub}>수업·출결·일지·날짜 메모를 한 화면에서</Text>
-          </View>
-          <Feather name="chevron-right" size={18} color={themeColor} />
-        </Pressable>
 
         {/* ── 기능 메뉴 그리드 ── */}
         <View style={[h.gridCard, { backgroundColor: C.card }]}>
