@@ -1,39 +1,50 @@
 /**
  * (super)/subscriptions.tsx — 구독·결제 관리
- * 탭: 전체 / 결제실패 큐 / 환불 요청 / 차지백·분쟁 / 읽기전용 / 24h 삭제
+ * operatorsStore + subscriptionStore — API 호출 없음
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { useOperatorsStore } from "@/store/operatorsStore";
+import { useSubscriptionStore } from "@/store/subscriptionStore";
+import { useAuditLogStore } from "@/store/auditLogStore";
+import type { Operator } from "@/domain/types";
 
 const P = "#0891B2";
 
 const TABS = [
-  { key: "all",       label: "전체" },
-  { key: "failed",    label: "결제 실패", filter: ["expired", "suspended"] },
-  { key: "refund",    label: "환불 요청", filter: ["refund_pending"] },
-  { key: "chargeback",label: "차지백·분쟁", filter: ["chargeback"] },
-  { key: "readonly",  label: "읽기전용", filter: ["readonly"] },
-  { key: "deletion",  label: "24h 삭제", filter: ["deletion_pending"] },
+  { key: "all",        label: "전체" },
+  { key: "failed",     label: "결제 실패" },
+  { key: "refund",     label: "환불 요청" },
+  { key: "chargeback", label: "차지백" },
+  { key: "readonly",   label: "읽기전용" },
+  { key: "deletion",   label: "삭제 예정" },
 ];
 
+const BILLING_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
+  active:                { label: "구독 중",    color: "#059669", bg: "#D1FAE5" },
+  payment_failed:        { label: "결제 실패",  color: "#DC2626", bg: "#FEE2E2" },
+  grace:                 { label: "유예 중",    color: "#D97706", bg: "#FEF3C7" },
+  cancelled:             { label: "해지",       color: "#6B7280", bg: "#F3F4F6" },
+  auto_delete_scheduled: { label: "삭제 예정",  color: "#DC2626", bg: "#FEE2E2" },
+  readonly:              { label: "읽기전용",   color: "#0284C7", bg: "#E0F2FE" },
+  free:                  { label: "무료 체험",  color: "#0891B2", bg: "#ECFEFF" },
+};
+
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  trial:          { label: "무료 체험",  color: "#0891B2", bg: "#ECFEFF" },
-  active:         { label: "구독 중",    color: "#059669", bg: "#D1FAE5" },
-  expired:        { label: "만료",       color: "#DC2626", bg: "#FEE2E2" },
-  suspended:      { label: "정지",       color: "#D97706", bg: "#FEF3C7" },
-  cancelled:      { label: "해지",       color: "#6B7280", bg: "#F3F4F6" },
-  refund_pending: { label: "환불 요청",  color: "#9333EA", bg: "#F3E8FF" },
-  chargeback:     { label: "차지백",     color: "#DC2626", bg: "#FEE2E2" },
-  readonly:       { label: "읽기전용",   color: "#0284C7", bg: "#E0F2FE" },
-  deletion_pending:{ label: "삭제 예정", color: "#DC2626", bg: "#FEE2E2" },
+  pending:    { label: "승인 대기", color: "#D97706", bg: "#FEF3C7" },
+  active:     { label: "운영",     color: "#059669", bg: "#D1FAE5" },
+  rejected:   { label: "반려",     color: "#DC2626", bg: "#FEE2E2" },
+  cancelled:  { label: "해지",     color: "#6B7280", bg: "#F3F4F6" },
+  readonly:   { label: "읽기전용", color: "#7C3AED", bg: "#EDE9FE" },
+  restricted: { label: "제한",     color: "#DC2626", bg: "#FEE2E2" },
 };
 
 function safeDate(iso: string | null | undefined): Date | null {
@@ -58,143 +69,139 @@ function hoursLeft(iso: string | null | undefined): string {
   const d = safeDate(iso);
   if (!d) return "—";
   const h = Math.floor((d.getTime() - Date.now()) / 3600000);
-  if (h < 0) return "만료됨";
+  if (h < 0) return "삭제 예정 초과";
   if (h < 1) return "1시간 미만";
   return `${h}h 후 삭제`;
 }
 
 export default function SubscriptionsScreen() {
-  const { token } = useAuth();
-  const [tab,        setTab]        = useState("all");
-  const [operators,  setOperators]  = useState<any[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [editOp,     setEditOp]     = useState<any | null>(null);
-  const [newStatus,  setNewStatus]  = useState("");
-  const [newEndDate, setNewEndDate] = useState("");
-  const [newCredit,  setNewCredit]  = useState("");
-  const [saving,     setSaving]     = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const { adminUser } = useAuth();
+  const actorName = adminUser?.name ?? '슈퍼관리자';
 
-  async function load() {
-    try {
-      const res = await apiRequest(token, "/super/operators?limit=200");
-      if (res.ok) {
-        const data = await res.json();
-        setOperators(data.operators ?? []);
-      }
-    } catch {}
-    finally { setLoading(false); setRefreshing(false); }
-  }
+  const [tab, setTab]                 = useState("all");
+  const [refreshing, setRefreshing]   = useState(false);
+  const [editOp, setEditOp]           = useState<Operator | null>(null);
+  const [newCredit, setNewCredit]     = useState("");
+  const [newEndDate, setNewEndDate]   = useState("");
+  const [newStatus, setNewStatus]     = useState("");
+  const [saving, setSaving]           = useState(false);
 
-  useEffect(() => { load(); }, []);
+  const operators       = useOperatorsStore(s => s.operators);
+  const applyCredit     = useSubscriptionStore(s => s.applyCredit);
+  const billingRecords  = useSubscriptionStore(s => s.billingRecords);
+  const approveOp       = useOperatorsStore(s => s.approveOperator);
+  const scheduleDelete  = useOperatorsStore(s => s.scheduleAutoDelete);
+  const updateOpField   = useOperatorsStore(s => s.updateOperatorField);
+  const createLog       = useAuditLogStore(s => s.createLog);
 
-  function filterByTab(items: any[]): any[] {
-    const tabCfg = TABS.find(t => t.key === tab);
-    if (!tabCfg?.filter) return items;
-    return items.filter(op => tabCfg.filter!.includes(op.subscription_status));
-  }
+  // Refund/chargeback from billing records
+  const refundOpIds    = useMemo(() => new Set(billingRecords.filter(r => r.action === 'refund' || r.status === 'refund_requested').map(r => r.operatorId)), [billingRecords]);
+  const chargebackOpIds = useMemo(() => new Set(billingRecords.filter(r => r.action === 'chargeback' || r.status === 'chargeback').map(r => r.operatorId)), [billingRecords]);
 
-  const filtered = filterByTab(operators);
+  const filtered = useMemo(() => {
+    switch (tab) {
+      case "failed":     return operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace');
+      case "refund":     return operators.filter(o => refundOpIds.has(o.id));
+      case "chargeback": return operators.filter(o => chargebackOpIds.has(o.id));
+      case "readonly":   return operators.filter(o => o.status === 'readonly');
+      case "deletion":   return operators.filter(o => !!o.autoDeleteScheduledAt);
+      default:           return operators;
+    }
+  }, [tab, operators, refundOpIds, chargebackOpIds]);
 
-  const counts: Record<string, number> = {
+  const counts = useMemo(() => ({
     all:        operators.length,
-    failed:     operators.filter(o => ["expired","suspended"].includes(o.subscription_status)).length,
-    refund:     operators.filter(o => o.subscription_status === "refund_pending").length,
-    chargeback: operators.filter(o => o.subscription_status === "chargeback").length,
-    readonly:   operators.filter(o => o.subscription_status === "readonly").length,
-    deletion:   operators.filter(o => {
-      const d = safeDate(o.subscription_end_at);
-      return d ? (d.getTime() - Date.now()) < 86400000 && d.getTime() > Date.now() : false;
-    }).length,
-  };
+    failed:     operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace').length,
+    refund:     operators.filter(o => refundOpIds.has(o.id)).length,
+    chargeback: operators.filter(o => chargebackOpIds.has(o.id)).length,
+    readonly:   operators.filter(o => o.status === 'readonly').length,
+    deletion:   operators.filter(o => !!o.autoDeleteScheduledAt).length,
+  }), [operators, refundOpIds, chargebackOpIds]);
 
-  async function quickApprove(id: string) {
-    setActionLoading(id);
-    await apiRequest(token, `/super/operators/${id}/approve`, { method: "PATCH" }).catch(() => {});
-    setActionLoading(null); load();
+  function handleRetry(op: Operator) {
+    const updatedOp = { ...op, billingStatus: 'active' as any };
+    updateOpField(op.id, { billingStatus: 'active' });
+    createLog({ category: '결제', title: `${op.name} 결제 재시도 승인`, operatorId: op.id, operatorName: op.name, actorName, impact: 'medium', detail: '결제 재시도 수동 처리' });
   }
 
-  async function deferDeletion(id: string) {
-    setActionLoading(id);
-    await apiRequest(token, `/super/operators/${id}/defer-deletion`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hours: 48 }),
-    }).catch(() => {});
-    setActionLoading(null); load();
+  function handleDeferDeletion(op: Operator) {
+    const at = new Date(Date.now() + 48 * 3600000).toISOString();
+    scheduleDelete(op.id, at);
+    createLog({ category: '삭제', title: `${op.name} 삭제 48h 유예`, operatorId: op.id, operatorName: op.name, actorName, impact: 'high', detail: '자동삭제 유예 48시간 연장' });
   }
 
-  async function handleSave() {
+  function handleSave() {
     if (!editOp) return;
     setSaving(true);
-    await apiRequest(token, `/super/operators/${editOp.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subscription_status: newStatus || undefined,
-        subscription_end_at: newEndDate || undefined,
-        credit: newCredit ? Number(newCredit) : undefined,
-      }),
-    }).catch(() => {});
-    setSaving(false); setEditOp(null); load();
+    try {
+      const updates: Partial<Operator> = {};
+      if (newStatus)  updates.billingStatus = newStatus as any;
+      if (newEndDate) updates.subscriptionEndAt = new Date(newEndDate).toISOString();
+      if (newCredit)  updates.creditBalance = Number(newCredit);
+      updateOpField(editOp.id, updates);
+      if (newCredit) {
+        applyCredit(editOp.id, editOp.name, Number(newCredit), '관리자 수동 지급');
+        createLog({ category: '결제', title: `${editOp.name} 크레딧 지급`, operatorId: editOp.id, operatorName: editOp.name, actorName, impact: 'medium', detail: `${Number(newCredit).toLocaleString()}원 크레딧` });
+      }
+      setEditOp(null);
+    } finally { setSaving(false); }
   }
 
-  const renderItem = ({ item }: { item: any }) => {
-    const sc = STATUS_CFG[item.subscription_status] ?? { label: item.subscription_status, color: "#6B7280", bg: "#F3F4F6" };
-    const isDeletion = tab === "deletion" || (() => {
-      const d = safeDate(item.subscription_end_at);
-      return d ? (d.getTime() - Date.now()) < 86400000 && d.getTime() > Date.now() : false;
-    })();
-    const isFailed = ["expired","suspended","chargeback"].includes(item.subscription_status);
+  const renderItem = ({ item }: { item: Operator }) => {
+    const bCfg = BILLING_STATUS_CFG[item.billingStatus] ?? { label: item.billingStatus, color: "#6B7280", bg: "#F3F4F6" };
+    const isFailed = item.billingStatus === 'payment_failed' || item.billingStatus === 'grace';
+    const isDeletion = !!item.autoDeleteScheduledAt;
 
     return (
       <Pressable style={[s.row, isFailed && s.rowAlert]}
         onPress={() => {
           setEditOp(item);
-          setNewStatus(item.subscription_status ?? "");
-          setNewEndDate(item.subscription_end_at ? fmtDateFull(item.subscription_end_at) : "");
-          setNewCredit(item.credit?.toString() ?? "0");
+          setNewStatus(item.billingStatus ?? "");
+          setNewEndDate(item.subscriptionEndAt ? fmtDateFull(item.subscriptionEndAt) : "");
+          setNewCredit(item.creditBalance?.toString() ?? "0");
         }}>
         <View style={s.rowMain}>
           <View style={s.rowTop}>
             <Text style={s.opName} numberOfLines={1}>{item.name}</Text>
-            <View style={[s.badge, { backgroundColor: sc.bg }]}>
-              <Text style={[s.badgeTxt, { color: sc.color }]}>{sc.label}</Text>
+            <View style={[s.badge, { backgroundColor: bCfg.bg }]}>
+              <Text style={[s.badgeTxt, { color: bCfg.color }]}>{bCfg.label}</Text>
             </View>
+            {refundOpIds.has(item.id) && (
+              <View style={[s.badge, { backgroundColor: "#F3E8FF" }]}>
+                <Text style={[s.badgeTxt, { color: "#9333EA" }]}>환불</Text>
+              </View>
+            )}
+            {chargebackOpIds.has(item.id) && (
+              <View style={[s.badge, { backgroundColor: "#FEE2E2" }]}>
+                <Text style={[s.badgeTxt, { color: "#991B1B" }]}>차지백</Text>
+              </View>
+            )}
           </View>
           <View style={s.rowMeta}>
-            <Text style={s.metaTxt}>{item.owner_name}</Text>
+            <Text style={s.metaTxt}>{item.representativeName}</Text>
             <Text style={s.metaDot}>·</Text>
-            <Text style={s.metaTxt}>종료: {fmtDate(item.subscription_end_at)}</Text>
-            {item.credit != null && item.credit > 0 && (
+            <Text style={s.metaTxt}>종료: {fmtDate(item.subscriptionEndAt)}</Text>
+            {(item.creditBalance ?? 0) > 0 && (
               <><Text style={s.metaDot}>·</Text>
-              <Text style={[s.metaTxt, { color: "#059669" }]}>크레딧 {item.credit?.toLocaleString()}원</Text></>
+                <Text style={[s.metaTxt, { color: "#059669" }]}>크레딧 {item.creditBalance?.toLocaleString()}원</Text>
+              </>
             )}
-            {item.member_count != null && (
-              <><Text style={s.metaDot}>·</Text>
-              <Text style={s.metaTxt}>회원 {item.member_count}명</Text></>
-            )}
+            <Text style={s.metaDot}>·</Text>
+            <Text style={s.metaTxt}>{item.activeMemberCount}명</Text>
           </View>
           {isDeletion && (
-            <Text style={s.deletionWarn}>{hoursLeft(item.subscription_end_at)}</Text>
+            <Text style={s.deletionWarn}>{hoursLeft(item.autoDeleteScheduledAt)}</Text>
           )}
         </View>
         <View style={s.rowActions}>
           {isFailed && (
-            <Pressable style={[s.actionBtn, { backgroundColor: "#D1FAE5" }]}
-              onPress={() => quickApprove(item.id)} disabled={actionLoading === item.id}>
-              {actionLoading === item.id
-                ? <ActivityIndicator size="small" color="#059669" />
-                : <Text style={[s.actionTxt, { color: "#059669" }]}>재개</Text>}
+            <Pressable style={[s.actionBtn, { backgroundColor: "#D1FAE5" }]} onPress={() => handleRetry(item)}>
+              <Text style={[s.actionTxt, { color: "#059669" }]}>재시도</Text>
             </Pressable>
           )}
           {isDeletion && (
-            <Pressable style={[s.actionBtn, { backgroundColor: "#FEF3C7" }]}
-              onPress={() => deferDeletion(item.id)} disabled={actionLoading === item.id}>
-              {actionLoading === item.id
-                ? <ActivityIndicator size="small" color="#D97706" />
-                : <Text style={[s.actionTxt, { color: "#D97706" }]}>유예</Text>}
+            <Pressable style={[s.actionBtn, { backgroundColor: "#FEF3C7" }]} onPress={() => handleDeferDeletion(item)}>
+              <Text style={[s.actionTxt, { color: "#D97706" }]}>유예</Text>
             </Pressable>
           )}
           <Pressable style={[s.actionBtn, { backgroundColor: "#E0F2FE" }]}
@@ -215,18 +222,19 @@ export default function SubscriptionsScreen() {
         style={s.summaryBar} contentContainerStyle={s.summaryContent}>
         {TABS.map(t => {
           const isActive = tab === t.key;
+          const count = counts[t.key as keyof typeof counts] ?? 0;
           return (
-            <Pressable key={t.key} style={[s.summaryChip, isActive && s.summaryChipActive]}
+            <Pressable key={t.key}
+              style={[s.summaryChip, isActive && s.summaryChipActive]}
               onPress={() => setTab(t.key)}>
-              {counts[t.key] > 0 && !isActive && t.key !== "all" && <View style={s.alertDot} />}
-              <Text style={[s.summaryNum, isActive && { color: "#fff" }]}>{counts[t.key] ?? 0}</Text>
+              {count > 0 && !isActive && t.key !== "all" && <View style={s.alertDot} />}
+              <Text style={[s.summaryNum, isActive && { color: "#fff" }]}>{count}</Text>
               <Text style={[s.summaryLabel, isActive && { color: "rgba(255,255,255,0.8)" }]}>{t.label}</Text>
             </Pressable>
           );
         })}
       </ScrollView>
 
-      {/* 탭별 설명 */}
       {tab === "failed" && (
         <View style={s.bannerRow}>
           <Feather name="alert-triangle" size={13} color="#DC2626" />
@@ -236,7 +244,7 @@ export default function SubscriptionsScreen() {
       {tab === "deletion" && (
         <View style={[s.bannerRow, { backgroundColor: "#FEF3C7" }]}>
           <Feather name="clock" size={13} color="#D97706" />
-          <Text style={[s.bannerTxt, { color: "#92400E" }]}>24시간 내 자동 삭제 예정 운영자입니다. 유예 버튼으로 48시간 연장 가능합니다</Text>
+          <Text style={[s.bannerTxt, { color: "#92400E" }]}>자동삭제 예정 운영자입니다. 유예 버튼으로 48시간 연장 가능합니다</Text>
         </View>
       )}
       {tab === "chargeback" && (
@@ -246,25 +254,21 @@ export default function SubscriptionsScreen() {
         </View>
       )}
 
-      {loading ? (
-        <ActivityIndicator color={P} style={{ marginTop: 40 }} />
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={i => i.id}
-          renderItem={renderItem}
-          refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-            onRefresh={() => { setRefreshing(true); load(); }} />}
-          contentContainerStyle={{ paddingBottom: 80 }}
-          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Feather name="credit-card" size={30} color="#D1D5DB" />
-              <Text style={s.emptyTxt}>{TABS.find(t => t.key === tab)?.label} 운영자가 없습니다</Text>
-            </View>
-          }
-        />
-      )}
+      <FlatList
+        data={filtered}
+        keyExtractor={i => i.id}
+        renderItem={renderItem}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
+          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+        contentContainerStyle={{ paddingBottom: 80 }}
+        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
+        ListEmptyComponent={
+          <View style={s.empty}>
+            <Feather name="credit-card" size={30} color="#D1D5DB" />
+            <Text style={s.emptyTxt}>{TABS.find(t => t.key === tab)?.label} 운영자가 없습니다</Text>
+          </View>
+        }
+      />
 
       {/* 수정 모달 */}
       {editOp && (
@@ -273,15 +277,18 @@ export default function SubscriptionsScreen() {
             <Pressable style={m.sheet} onPress={() => {}}>
               <View style={m.handle} />
               <Text style={m.title}>{editOp.name}</Text>
-              <Text style={m.sub}>{editOp.owner_name} · 현재: {STATUS_CFG[editOp.subscription_status]?.label ?? editOp.subscription_status}</Text>
+              <Text style={m.sub}>
+                {editOp.representativeName} · 현재: {BILLING_STATUS_CFG[editOp.billingStatus]?.label ?? editOp.billingStatus}
+              </Text>
 
               <View style={m.section}>
-                <Text style={m.label}>구독 상태</Text>
+                <Text style={m.label}>결제 상태 변경</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                  {Object.keys(STATUS_CFG).map(k => {
-                    const sc = STATUS_CFG[k];
+                  {Object.keys(BILLING_STATUS_CFG).map(k => {
+                    const sc = BILLING_STATUS_CFG[k];
                     return (
-                      <Pressable key={k} style={[m.chip, newStatus === k && { backgroundColor: sc.color, borderColor: sc.color }]}
+                      <Pressable key={k}
+                        style={[m.chip, newStatus === k && { backgroundColor: sc.color, borderColor: sc.color }]}
                         onPress={() => setNewStatus(k)}>
                         <Text style={[m.chipTxt, newStatus === k && { color: "#fff" }]}>{sc.label}</Text>
                       </Pressable>
@@ -291,13 +298,13 @@ export default function SubscriptionsScreen() {
               </View>
 
               <View style={m.section}>
-                <Text style={m.label}>구독 종료일</Text>
+                <Text style={m.label}>구독 종료일 (YYYY-MM-DD)</Text>
                 <TextInput style={m.input} value={newEndDate} onChangeText={setNewEndDate}
-                  placeholder="YYYY-MM-DD" placeholderTextColor="#9CA3AF" />
+                  placeholder="2026-12-31" placeholderTextColor="#9CA3AF" />
               </View>
 
               <View style={m.section}>
-                <Text style={m.label}>크레딧 (원)</Text>
+                <Text style={m.label}>크레딧 지급 (원)</Text>
                 <TextInput style={m.input} value={newCredit} onChangeText={setNewCredit}
                   keyboardType="numeric" placeholder="0" placeholderTextColor="#9CA3AF" />
               </View>
@@ -328,56 +335,47 @@ export default function SubscriptionsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F0FDFE" },
-  summaryBar:   { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  safe:          { flex: 1, backgroundColor: "#F0FDFE" },
+  summaryBar:    { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   summaryContent:{ paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
-  summaryChip:  { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6,
-                  borderRadius: 10, backgroundColor: "#F3F4F6", position: "relative" },
+  summaryChip:   { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: "#F3F4F6", position: "relative" },
   summaryChipActive:{ backgroundColor: P },
-  alertDot:     { position: "absolute", top: 4, right: 4, width: 6, height: 6,
-                  borderRadius: 3, backgroundColor: "#DC2626" },
-  summaryNum:   { fontSize: 17, fontFamily: "Inter_700Bold", color: "#374151" },
-  summaryLabel: { fontSize: 9, fontFamily: "Inter_500Medium", color: "#9CA3AF", marginTop: 1 },
-  bannerRow:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2",
-                  paddingHorizontal: 14, paddingVertical: 9 },
-  bannerTxt:    { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#7F1D1D", lineHeight: 16 },
-  row:          { flexDirection: "row", alignItems: "center", gap: 10,
-                  paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
-  rowAlert:     { borderLeftWidth: 3, borderLeftColor: "#DC2626" },
-  rowMain:      { flex: 1, gap: 3 },
-  rowTop:       { flexDirection: "row", alignItems: "center", gap: 8 },
-  opName:       { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  badge:        { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  badgeTxt:     { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  rowMeta:      { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
-  metaTxt:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  metaDot:      { fontSize: 10, color: "#D1D5DB" },
-  deletionWarn: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#DC2626" },
-  rowActions:   { flexDirection: "row", gap: 6 },
-  actionBtn:    { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minWidth: 36, alignItems: "center" },
-  actionTxt:    { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  empty:        { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  alertDot:      { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: "#DC2626" },
+  summaryNum:    { fontSize: 17, fontFamily: "Inter_700Bold", color: "#374151" },
+  summaryLabel:  { fontSize: 9, fontFamily: "Inter_500Medium", color: "#9CA3AF", marginTop: 1 },
+  bannerRow:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", paddingHorizontal: 14, paddingVertical: 9 },
+  bannerTxt:     { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#7F1D1D", lineHeight: 16 },
+  row:           { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
+  rowAlert:      { borderLeftWidth: 3, borderLeftColor: "#DC2626" },
+  rowMain:       { flex: 1, gap: 3 },
+  rowTop:        { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  opName:        { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  badge:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badgeTxt:      { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  rowMeta:       { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
+  metaTxt:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  metaDot:       { fontSize: 10, color: "#D1D5DB" },
+  deletionWarn:  { fontSize: 11, fontFamily: "Inter_700Bold", color: "#DC2626" },
+  rowActions:    { flexDirection: "row", gap: 6 },
+  actionBtn:     { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minWidth: 36, alignItems: "center" },
+  actionTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  empty:         { alignItems: "center", paddingTop: 80, gap: 10 },
+  emptyTxt:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 });
 
 const m = StyleSheet.create({
   backdrop:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-               borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40,
-               maxHeight: "85%", gap: 12 },
+  sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "85%", gap: 12 },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
   title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
   sub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: -6 },
   section:   { gap: 6 },
   label:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  chip:      { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-               borderWidth: 1.5, borderColor: "#E5E7EB" },
+  chip:      { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB" },
   chipTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151" },
-  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-               fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
   linkRow:   { flexDirection: "row" },
-  linkBtn:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E0F2FE",
-               borderRadius: 10, padding: 12, flex: 1 },
+  linkBtn:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E0F2FE", borderRadius: 10, padding: 12, flex: 1 },
   linkTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: P },
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
   cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },

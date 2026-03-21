@@ -1,24 +1,28 @@
 /**
  * (super)/storage.tsx — 저장공간 관리
- * 탭: 전체 / 95%↑ / 80%↑ / 업로드 급증 / 삭제 예정 큐
+ * storageStore — API 호출 없음
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { useStorageStore } from "@/store/storageStore";
+import { useOperatorsStore } from "@/store/operatorsStore";
+import { useAuditLogStore } from "@/store/auditLogStore";
+import type { StoragePolicy } from "@/domain/types";
 
 const P = "#059669";
 
 const TABS = [
   { key: "all",      label: "전체" },
-  { key: "danger",   label: "95%↑ 위험" },
-  { key: "warn",     label: "80%↑ 경고" },
+  { key: "blocked95",label: "95%↑ 위험" },
+  { key: "warning80",label: "80%↑ 경고" },
   { key: "spike",    label: "업로드 급증" },
   { key: "deletion", label: "삭제 예정" },
 ];
@@ -29,10 +33,10 @@ function safeDate(iso: string | null | undefined): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function fmtBytes(bytes: number | null | undefined): string {
-  if (!bytes || bytes === 0) return "0 MB";
-  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(0)} MB`;
-  return `${(bytes / 1073741824).toFixed(1)} GB`;
+function fmtMb(mb: number): string {
+  if (!mb || mb === 0) return "0 MB";
+  if (mb < 1024) return `${mb.toFixed(0)} MB`;
+  return `${(mb / 1024).toFixed(1)} GB`;
 }
 
 function hoursLeft(iso: string | null | undefined): string {
@@ -44,99 +48,74 @@ function hoursLeft(iso: string | null | undefined): string {
 }
 
 export default function StorageScreen() {
-  const { token } = useAuth();
-  const [tab,         setTab]         = useState("all");
-  const [operators,   setOperators]   = useState<any[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [refreshing,  setRefreshing]  = useState(false);
-  const [editOp,      setEditOp]      = useState<any | null>(null);
-  const [newStorage,  setNewStorage]  = useState("");
-  const [saving,      setSaving]      = useState(false);
+  const { adminUser } = useAuth();
+  const actorName = adminUser?.name ?? '슈퍼관리자';
+
+  const policies        = useStorageStore(s => s.policies);
+  const storageTab      = useStorageStore(s => s.storageTab);
+  const setStorageTab   = useStorageStore(s => s.setStorageTab);
+  const setStoragePolicy= useStorageStore(s => s.setStoragePolicy);
+  const getByTab        = useStorageStore(s => s.getByTab);
+
+  const scheduleAutoDelete = useOperatorsStore(s => s.scheduleAutoDelete);
+  const createLog          = useAuditLogStore(s => s.createLog);
+
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [editOp,        setEditOp]        = useState<StoragePolicy | null>(null);
+  const [newStorageMb,  setNewStorageMb]  = useState("");
+  const [saving,        setSaving]        = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  async function load() {
-    try {
-      const res = await apiRequest(token, "/super/storage-list");
-      if (res.ok) setOperators(await res.json());
-    } catch {}
-    finally { setLoading(false); setRefreshing(false); }
-  }
-
-  useEffect(() => { load(); }, []);
-
-  function filterByTab(items: any[]): any[] {
-    switch (tab) {
-      case "danger":   return items.filter(o => (o.usage_pct ?? 0) >= 95);
-      case "warn":     return items.filter(o => (o.usage_pct ?? 0) >= 80 && (o.usage_pct ?? 0) < 95);
-      case "spike":    return items.filter(o => o.recent_upload_count > 0);
-      case "deletion": return items.filter(o => {
-        const d = safeDate(o.subscription_end_at);
-        return d ? (d.getTime() - Date.now()) < 86400000 && d.getTime() > Date.now() : false;
-      });
-      default: return items;
-    }
-  }
-
-  const filtered = filterByTab(operators);
+  const tab = storageTab;
+  const filtered = getByTab();
 
   const counts = {
-    all:      operators.length,
-    danger:   operators.filter(o => (o.usage_pct ?? 0) >= 95).length,
-    warn:     operators.filter(o => (o.usage_pct ?? 0) >= 80 && (o.usage_pct ?? 0) < 95).length,
-    spike:    operators.filter(o => o.recent_upload_count > 0).length,
-    deletion: operators.filter(o => {
-      const d = safeDate(o.subscription_end_at);
-      return d ? (d.getTime() - Date.now()) < 86400000 && d.getTime() > Date.now() : false;
-    }).length,
+    all:       policies.length,
+    blocked95: policies.filter(p => p.isBlocked95).length,
+    warning80: policies.filter(p => p.isWarning80 && !p.isBlocked95).length,
+    spike:     policies.filter(p => p.uploadSpikeFlag).length,
+    deletion:  policies.filter(p => !!p.autoDeleteScheduledAt).length,
   };
 
-  async function handleSave() {
+  function handleSave() {
     if (!editOp) return;
-    const gb = parseFloat(newStorage);
-    if (isNaN(gb) || gb < 0) return;
+    const mb = parseFloat(newStorageMb) * 1024; // input is GB → convert to MB
+    if (isNaN(mb) || mb < 0) return;
     setSaving(true);
-    await apiRequest(token, `/super/operators/${editOp.id}/storage`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ extra_storage_gb: gb }),
-    }).catch(() => {});
-    setSaving(false); setEditOp(null); load();
+    setStoragePolicy(editOp.operatorId, { extraMb: Math.round(mb) });
+    createLog({ category: '저장공간', title: `추가 용량 부여: ${editOp.operatorName} +${newStorageMb}GB`, actorName, impact: 'medium' });
+    setSaving(false); setEditOp(null);
   }
 
-  async function deferDeletion(id: string) {
-    setActionLoading(id);
-    await apiRequest(token, `/super/operators/${id}/defer-deletion`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hours: 48 }),
-    }).catch(() => {});
-    setActionLoading(null); load();
+  function deferDeletion(p: StoragePolicy) {
+    setActionLoading(p.operatorId);
+    const at = new Date(Date.now() + 48 * 3600000).toISOString();
+    scheduleAutoDelete(p.operatorId, at);
+    createLog({ category: '저장공간', title: `삭제 유예 48h: ${p.operatorName}`, actorName, impact: 'medium' });
+    setTimeout(() => setActionLoading(null), 500);
   }
 
-  const renderItem = ({ item }: { item: any }) => {
-    const pct = item.usage_pct ?? 0;
-    const isDanger = pct >= 95;
-    const isWarn   = pct >= 80 && pct < 95;
-    const barColor = isDanger ? "#DC2626" : isWarn ? "#D97706" : "#059669";
-    const isDeletion = (() => {
-      const d = safeDate(item.subscription_end_at);
-      return d ? (d.getTime() - Date.now()) < 86400000 && d.getTime() > Date.now() : false;
-    })();
+  const renderItem = ({ item: p }: { item: StoragePolicy }) => {
+    const pct        = p.usedPercent;
+    const isDanger   = p.isBlocked95;
+    const isWarn     = p.isWarning80 && !isDanger;
+    const barColor   = isDanger ? "#DC2626" : isWarn ? "#D97706" : "#059669";
+    const isDeletion = !!p.autoDeleteScheduledAt;
 
     return (
-      <View style={[s.row, isDanger && s.rowDanger, isWarn && !isDanger && s.rowWarn]}>
+      <View style={[s.row, isDanger && s.rowDanger, isWarn && s.rowWarn]}>
         <View style={s.rowMain}>
           <View style={s.rowTop}>
-            <Pressable onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
-              <Text style={s.opName}>{item.name}</Text>
+            <Pressable onPress={() => router.push(`/(super)/operator-detail?id=${p.operatorId}` as any)}>
+              <Text style={s.opName}>{p.operatorName}</Text>
             </Pressable>
             {isDanger && (
               <View style={s.dangerTag}><Text style={s.dangerTagTxt}>업로드 차단</Text></View>
             )}
-            {item.recent_upload_count > 0 && (
+            {p.uploadSpikeFlag && (
               <View style={s.spikeTag}>
                 <Feather name="trending-up" size={9} color="#D97706" />
-                <Text style={s.spikeTxt}>급증 {item.recent_upload_count}회</Text>
+                <Text style={s.spikeTxt}>급증</Text>
               </View>
             )}
           </View>
@@ -145,14 +124,14 @@ export default function StorageScreen() {
             <View style={s.barBg}>
               <View style={[s.barFill, { width: `${Math.min(pct, 100)}%` as any, backgroundColor: barColor }]} />
             </View>
-            <Text style={[s.pctTxt, { color: barColor }]}>{pct}%</Text>
+            <Text style={[s.pctTxt, { color: barColor }]}>{pct.toFixed(0)}%</Text>
           </View>
 
           <View style={s.rowMeta}>
-            <Text style={s.metaTxt}>{fmtBytes(item.used_storage_bytes)} / {item.total_gb ?? (item.base_storage_gb ?? 5)}GB</Text>
+            <Text style={s.metaTxt}>{fmtMb(p.usedMb)} / {fmtMb(p.totalMb)}</Text>
             {isDeletion && (
               <><Text style={s.metaDot}>·</Text>
-              <Text style={[s.metaTxt, { color: "#DC2626", fontFamily: "Inter_700Bold" }]}>{hoursLeft(item.subscription_end_at)}</Text></>
+              <Text style={[s.metaTxt, { color: "#DC2626", fontFamily: "Inter_700Bold" }]}>{hoursLeft(p.autoDeleteScheduledAt)}</Text></>
             )}
           </View>
         </View>
@@ -160,14 +139,14 @@ export default function StorageScreen() {
         <View style={s.rowActions}>
           {isDeletion && (
             <Pressable style={[s.actionBtn, { backgroundColor: "#FEF3C7" }]}
-              onPress={() => deferDeletion(item.id)} disabled={actionLoading === item.id}>
-              {actionLoading === item.id
+              onPress={() => deferDeletion(p)} disabled={actionLoading === p.operatorId}>
+              {actionLoading === p.operatorId
                 ? <ActivityIndicator size="small" color="#D97706" />
                 : <Text style={[s.actionTxt, { color: "#D97706" }]}>유예</Text>}
             </Pressable>
           )}
           <Pressable style={[s.actionBtn, { backgroundColor: "#D1FAE5" }]}
-            onPress={() => { setEditOp(item); setNewStorage((item.extra_storage_gb ?? 0).toString()); }}>
+            onPress={() => { setEditOp(p); setNewStorageMb("0"); }}>
             <Text style={[s.actionTxt, { color: "#059669" }]}>용량↑</Text>
           </Pressable>
         </View>
@@ -186,14 +165,13 @@ export default function StorageScreen() {
           </Pressable>
         } />
 
-      {/* 탭 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={s.tabContent}>
         {TABS.map(t => {
           const isActive = tab === t.key;
           const cnt = counts[t.key as keyof typeof counts] ?? 0;
           return (
-            <Pressable key={t.key} style={[s.tab, isActive && s.tabActive]} onPress={() => setTab(t.key)}>
+            <Pressable key={t.key} style={[s.tab, isActive && s.tabActive]} onPress={() => setStorageTab(t.key)}>
               <Text style={[s.tabTxt, isActive && s.tabTxtActive]}>{t.label}</Text>
               {cnt > 0 && t.key !== "all" && (
                 <View style={[s.tabBadge, isActive && { backgroundColor: P }]}>
@@ -205,54 +183,48 @@ export default function StorageScreen() {
         })}
       </ScrollView>
 
-      {/* 급증 탐지 경고 배너 */}
       {tab === "spike" && (
         <View style={s.spikeBanner}>
           <Feather name="trending-up" size={13} color="#D97706" />
-          <Text style={s.spikeBannerTxt}>24시간 내 5회 이상 저장공간 이벤트 발생 운영자입니다. 비정상 사용 여부를 확인하세요.</Text>
+          <Text style={s.spikeBannerTxt}>7일 내 업로드 급증 운영자입니다. 비정상 사용 여부를 확인하세요.</Text>
         </View>
       )}
-      {tab === "danger" && (
+      {tab === "blocked95" && (
         <View style={[s.spikeBanner, { backgroundColor: "#FEE2E2" }]}>
           <Feather name="alert-triangle" size={13} color="#DC2626" />
           <Text style={[s.spikeBannerTxt, { color: "#7F1D1D" }]}>95% 초과 운영자는 신규 업로드가 자동 차단됩니다.</Text>
         </View>
       )}
 
-      {loading ? (
-        <ActivityIndicator color={P} style={{ marginTop: 40 }} />
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={i => i.id}
-          renderItem={renderItem}
-          refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-            onRefresh={() => { setRefreshing(true); load(); }} />}
-          contentContainerStyle={{ paddingBottom: 80 }}
-          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Feather name="hard-drive" size={30} color="#D1D5DB" />
-              <Text style={s.emptyTxt}>{TABS.find(t => t.key === tab)?.label} 운영자가 없습니다</Text>
-            </View>
-          }
-        />
-      )}
+      <FlatList
+        data={filtered}
+        keyExtractor={p => p.id}
+        renderItem={renderItem}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
+          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+        contentContainerStyle={{ paddingBottom: 80 }}
+        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
+        ListEmptyComponent={
+          <View style={s.empty}>
+            <Feather name="hard-drive" size={30} color="#D1D5DB" />
+            <Text style={s.emptyTxt}>{TABS.find(t => t.key === tab)?.label} 운영자가 없습니다</Text>
+          </View>
+        }
+      />
 
-      {/* 용량 변경 모달 */}
       {editOp && (
         <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={() => setEditOp(null)}>
           <Pressable style={m.backdrop} onPress={() => setEditOp(null)}>
             <Pressable style={m.sheet} onPress={() => {}}>
               <View style={m.handle} />
-              <Text style={m.title}>{editOp.name}</Text>
-              <Text style={m.sub}>현재 {editOp.usage_pct ?? 0}% 사용 · {fmtBytes(editOp.used_storage_bytes)} / {editOp.total_gb ?? editOp.base_storage_gb ?? 5}GB</Text>
+              <Text style={m.title}>{editOp.operatorName}</Text>
+              <Text style={m.sub}>현재 {editOp.usedPercent.toFixed(0)}% 사용 · {fmtMb(editOp.usedMb)} / {fmtMb(editOp.totalMb)}</Text>
 
               <View style={m.infoBar}>
                 <View style={m.barBg}>
                   <View style={[m.barFill, {
-                    width: `${Math.min(editOp.usage_pct ?? 0, 100)}%` as any,
-                    backgroundColor: (editOp.usage_pct ?? 0) >= 95 ? "#DC2626" : "#059669"
+                    width: `${Math.min(editOp.usedPercent, 100)}%` as any,
+                    backgroundColor: editOp.isBlocked95 ? "#DC2626" : "#059669"
                   }]} />
                 </View>
               </View>
@@ -261,13 +233,13 @@ export default function StorageScreen() {
                 <Text style={m.label}>추가 용량 (GB)</Text>
                 <View style={m.qtyRow}>
                   {[0, 5, 10, 20, 50].map(v => (
-                    <Pressable key={v} style={[m.qtyBtn, newStorage === v.toString() && m.qtyBtnActive]}
-                      onPress={() => setNewStorage(v.toString())}>
-                      <Text style={[m.qtyTxt, newStorage === v.toString() && { color: "#fff" }]}>{v}GB</Text>
+                    <Pressable key={v} style={[m.qtyBtn, newStorageMb === v.toString() && m.qtyBtnActive]}
+                      onPress={() => setNewStorageMb(v.toString())}>
+                      <Text style={[m.qtyTxt, newStorageMb === v.toString() && { color: "#fff" }]}>{v}GB</Text>
                     </Pressable>
                   ))}
                 </View>
-                <TextInput style={m.input} value={newStorage} onChangeText={setNewStorage}
+                <TextInput style={m.input} value={newStorageMb} onChangeText={setNewStorageMb}
                   keyboardType="decimal-pad" placeholder="직접 입력 (GB)" placeholderTextColor="#9CA3AF" />
               </View>
 
@@ -329,28 +301,28 @@ const s = StyleSheet.create({
 });
 
 const m = StyleSheet.create({
-  backdrop:     { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet:        { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-                  borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40,
-                  maxHeight: "70%", gap: 14 },
-  handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:        { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:          { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: -8 },
-  infoBar:      { backgroundColor: "#F3F4F6", borderRadius: 8, padding: 8 },
-  barBg:        { height: 8, borderRadius: 4, backgroundColor: "#E5E7EB", overflow: "hidden" },
-  barFill:      { height: 8, borderRadius: 4 },
-  section:      { gap: 8 },
-  label:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  qtyRow:       { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  qtyBtn:       { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB" },
-  qtyBtnActive: { backgroundColor: P, borderColor: P },
-  qtyTxt:       { fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
-  input:        { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                  fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
-  btnRow:       { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn:    { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  saveBtn:      { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
-  saveTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  backdrop:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+  sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
+               borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40,
+               maxHeight: "70%", gap: 14 },
+  handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
+  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
+  sub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: -8 },
+  infoBar:   { backgroundColor: "#F3F4F6", borderRadius: 8, padding: 8 },
+  barBg:     { height: 8, borderRadius: 4, backgroundColor: "#E5E7EB", overflow: "hidden" },
+  barFill:   { height: 8, borderRadius: 4 },
+  section:   { gap: 8 },
+  label:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  qtyRow:    { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  qtyBtn:    { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+               borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB" },
+  qtyBtnActive:{ backgroundColor: P, borderColor: P },
+  qtyTxt:    { fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
+  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
+               fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
+  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },
+  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  saveBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
+  saveTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

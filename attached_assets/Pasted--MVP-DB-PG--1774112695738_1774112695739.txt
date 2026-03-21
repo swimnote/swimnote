@@ -1,0 +1,1076 @@
+프로젝트: 스윔노트 전국 수영 레슨 운영 플랫폼 MVP
+현재 작업 목표:
+DB 연결 직전 / PG 연결 직전까지 실제 작동하는 구조로 코딩한다.
+즉, 화면만 만드는 게 아니라 상태/정책/용량/구독/리스크/로그가 mock store 기준으로 실제로 작동해야 한다.
+
+절대 금지:
+- undefined 표시
+- Invalid Date 표시
+- 빈 화면 방치
+- 버튼 눌렀는데 상태 안 바뀌는 구조
+- 같은 데이터를 화면마다 따로 관리하는 구조
+- 업로드 정책/플랜 정책/노출 정책이 섞이는 구조
+
+==================================================
+[1. 현재 확정 정책]
+==================================================
+
+1) 역할
+- super_admin
+- operator
+- teacher
+- parent
+
+2) 운영자 정의
+- 결제 주체는 operator
+- 운영자 범위:
+  franchise / swimming_pool / rental_team / solo_coach / weekend_coach
+
+3) 결제 방향
+- 국내 전용 결제로 시작
+- 월 자동결제만
+- PG 연결 직전까지 개발
+- 나중에 PortOne + 국내 PG 연결 가능 상태로 구조화
+
+4) 플랜
+- 무료: 정상+연기 회원 10명 / 500MB
+- 유료100
+- 유료300
+- 유료500
+- 유료1000
+- enterprise 확장 가능 구조 열어두기
+
+5) 최소 가격 기준 (생존 최소선)
+- 100명: 5,000원
+- 300명: 10,000원
+- 500명: 16,000원
+- 1000명: 25,000원
+
+6) 인프라 목표
+- DB/Auth/핵심 데이터: Supabase 연결 직전 구조
+- 파일/이미지/영상: Cloudflare R2 연결 직전 구조
+- mock data → 나중에 Supabase/R2로 쉽게 교체 가능하게 설계
+
+7) 사진 정책
+- 업로드 상한은 공통
+- 무료/유료 업로드 상한을 따로 두지 않는다
+- 같은 업로드를 받은 뒤 서버 변환 버전으로 나눈다
+- 무료 노출용 저화질 버전
+- 유료 노출용 선명 버전
+- 플랜 변경 시 재업로드 없이 노출 버전만 바뀌게 한다
+
+8) 영상 정책
+- 기본 제공 안 함
+- 추가 저장공간 구매 시만 기능 활성
+- 스트리밍 중심 아님
+- 다운로드 또는 제한적 전달 중심
+- 현재는 구조만 구현하고 실제 전달은 mock 처리
+
+9) 해지/제한 정책
+- 해지 시 read-only
+- 업로드 차단
+- 다운로드 제한
+- 24시간 후 사진/영상 자동삭제 예약
+- 텍스트 데이터 유지
+
+==================================================
+[2. 개발 범위]
+==================================================
+
+이번 작업에서는 아래까지 구현한다.
+
+- 타입/스토어/시드데이터 정리
+- 슈퍼관리자 콘솔 기능 작동
+- 운영자/구독/저장공간/정책/로그/리스크/고객센터 작동
+- 파일 업로드 mock 흐름 구현
+- 사진 버전 정책 구현
+- 플랜별 용량/기능 제한 구현
+- read-only / 업로드 차단 / 자동삭제 예약 상태 구현
+- 감사 로그 자동 기록 구현
+- DB/R2/PG provider는 연결하지 않되 adapter 구조까지 만든다
+
+이번 작업에서는 아직 안 해도 되는 것:
+- 실제 Supabase 연결
+- 실제 R2 업로드
+- 실제 PG 결제 API 호출
+- 실제 webhook 수신
+- 실제 영상 스트리밍
+
+==================================================
+[3. 폴더 구조 정리]
+==================================================
+
+가능하면 아래 구조로 정리한다.
+
+src/
+  app/
+    AppShell.tsx
+    routes.ts
+  store/
+    operatorsStore.ts
+    subscriptionStore.ts
+    storageStore.ts
+    auditLogStore.ts
+    supportStore.ts
+    riskStore.ts
+    featureFlagStore.ts
+    readonlyStore.ts
+    mediaStore.ts
+    backupStore.ts
+    uiStore.ts
+  domain/
+    types.ts
+    constants.ts
+    policies.ts
+    formatters.ts
+    calculators.ts
+  adapters/
+    dbAdapter.ts
+    storageAdapter.ts
+    billingAdapter.ts
+  seed/
+    operators.ts
+    subscriptions.ts
+    supportTickets.ts
+    auditLogs.ts
+    featureFlags.ts
+    media.ts
+    backups.ts
+  screens/
+    superAdmin/
+      SuperAdminHome.tsx
+      OperatorListScreen.tsx
+      OperatorDetailScreen.tsx
+      SubscriptionManagementScreen.tsx
+      SubscriptionPlanScreen.tsx
+      StorageManagementScreen.tsx
+      StoragePolicyScreen.tsx
+      KillSwitchScreen.tsx
+      BackupRestoreScreen.tsx
+      PolicyComplianceScreen.tsx
+      AuditLogScreen.tsx
+      SupportCenterScreen.tsx
+      RiskCenterScreen.tsx
+      FeatureFlagScreen.tsx
+      ReadonlyControlScreen.tsx
+    operator/
+    teacher/
+    parent/
+  components/
+    common/
+    tables/
+    cards/
+    forms/
+    modals/
+
+==================================================
+[4. 공통 타입 정의]
+==================================================
+
+domain/types.ts 에 최소 아래 타입 정의
+
+type UserRole = 'super_admin' | 'operator' | 'teacher' | 'parent'
+
+type OperatorType =
+  | 'franchise'
+  | 'swimming_pool'
+  | 'rental_team'
+  | 'solo_coach'
+  | 'weekend_coach'
+
+type OperatorStatus =
+  | 'pending'
+  | 'active'
+  | 'rejected'
+  | 'restricted'
+  | 'readonly'
+  | 'suspended'
+
+type BillingStatus =
+  | 'trial'
+  | 'active'
+  | 'payment_failed'
+  | 'grace'
+  | 'readonly'
+  | 'cancelled'
+  | 'auto_delete_scheduled'
+
+type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
+
+type SupportRole = 'operator' | 'teacher' | 'parent'
+type SupportType =
+  | 'payment'
+  | 'account'
+  | 'data_delete'
+  | 'upload_error'
+  | 'app_bug'
+  | 'policy'
+  | 'refund'
+  | 'dispute'
+  | 'login_permission'
+  | 'etc'
+
+type SupportStatus =
+  | 'received'
+  | 'in_progress'
+  | 'resolved'
+  | 'on_hold'
+  | 'refund_linked'
+  | 'policy_sent'
+  | 'need_recheck'
+  | 'escalated_to_tech'
+
+type FeatureFlagScope = 'global' | 'operator'
+type ReadonlyScope = 'platform' | 'operator' | 'feature'
+type BackupBucket = 'operator_snapshot' | 'platform_shadow_backup'
+type BackupScope = 'platform' | 'operator'
+
+type MediaVisibility = 'class_all' | 'student_only'
+type MediaQuality = 'free_preview' | 'paid_preview'
+type MediaStatus = 'uploading' | 'uploaded' | 'processing' | 'ready' | 'failed'
+
+type Operator = {
+  id: string
+  code: string
+  name: string
+  type: OperatorType
+  representativeName: string
+  phone: string
+  createdAt: string
+  lastLoginAt: string | null
+
+  status: OperatorStatus
+  isApproved: boolean
+  isReadOnly: boolean
+  isUploadBlocked: boolean
+  isDeletionDeferred: boolean
+
+  normalMemberCount: number
+  pausedMemberCount: number
+  withdrawnMemberCount: number
+  activeMemberCount: number
+
+  currentPlanId: string | null
+  currentPlanName: string
+  billingStatus: BillingStatus
+  nextBillingAt: string | null
+  lastPaymentStatus: 'success' | 'failed' | 'pending' | 'refunded' | 'disputed'
+  paymentFailCount: number
+  creditBalance: number
+  hasChargeback: boolean
+  hasRefundDispute: boolean
+  refundRepeatFlag: boolean
+  churnRepeatFlag: boolean
+
+  storageUsedMb: number
+  storageTotalMb: number
+  storageWarning80: boolean
+  storageBlocked95: boolean
+  uploadGrowth7dMb: number
+  uploadSpikeFlag: boolean
+  autoDeleteScheduledAt: string | null
+
+  policyRefundRead: boolean
+  policyPrivacyRead: boolean
+  policyTermsAgreed: boolean
+  policyLastConfirmedAt: string | null
+  policyVersionRefund: string | null
+  policyVersionPrivacy: string | null
+  policyVersionTerms: string | null
+
+  riskLevel: RiskLevel
+  riskFlags: string[]
+  authorityStructure: string
+}
+
+type SubscriptionPlan = {
+  id: string
+  code: 'free_10' | 'pro_100' | 'pro_300' | 'pro_500' | 'pro_1000' | 'enterprise'
+  name: string
+  memberLimit: number | null
+  baseStorageMb: number
+  monthlyPrice: number
+  includesVideo: boolean
+  note?: string
+}
+
+type AuditLog = {
+  id: string
+  category: string
+  title: string
+  operatorId?: string
+  operatorName?: string
+  actorName: string
+  createdAt: string
+  impact: 'low' | 'medium' | 'high' | 'critical'
+  detail: string
+  reason?: string
+  metadata?: Record<string, any>
+}
+
+type SupportTicket = {
+  id: string
+  requesterName: string
+  requesterRole: SupportRole
+  operatorId?: string
+  operatorName?: string
+  type: SupportType
+  status: SupportStatus
+  createdAt: string
+  lastAnsweredAt: string | null
+  slaDueAt: string | null
+  isSlaOverdue: boolean
+  riskLevel: RiskLevel
+  title: string
+  body: string
+  assigneeName?: string
+  repeatedIssueFlag?: boolean
+  internalMemo?: string
+}
+
+type FeatureFlag = {
+  id: string
+  key: string
+  name: string
+  scope: FeatureFlagScope
+  operatorId?: string
+  enabled: boolean
+  updatedAt: string
+  updatedBy: string
+  reason?: string
+}
+
+type ReadonlyControl = {
+  id: string
+  scope: ReadonlyScope
+  operatorId?: string
+  targetFeature?: string
+  enabled: boolean
+  reason: string
+  createdAt: string
+  createdBy: string
+}
+
+type BackupSnapshot = {
+  id: string
+  bucket: BackupBucket
+  scope: BackupScope
+  operatorId?: string
+  createdAt: string
+  createdBy: string
+  includes: string[]
+  checksum?: string
+  note?: string
+}
+
+type MediaAsset = {
+  id: string
+  operatorId: string
+  journalId?: string | null
+  classId?: string | null
+  studentId?: string | null
+  visibility: MediaVisibility
+  status: MediaStatus
+
+  originalInputSizeMb: number
+  previewFreeSizeMb: number
+  previewPaidSizeMb: number
+
+  originalKey?: string | null
+  previewFreeKey?: string | null
+  previewPaidKey?: string | null
+
+  sourceLabel: string
+  createdAt: string
+}
+
+==================================================
+[5. 안전 유틸]
+==================================================
+
+domain/formatters.ts 에 아래 구현
+
+export function safeText(value: unknown, fallback = '-') {
+  if (value === null || value === undefined) return fallback
+  const str = String(value).trim()
+  return str.length ? str : fallback
+}
+
+export function formatDateSafe(value?: string | null, fallback = '-') {
+  if (!value) return fallback
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return fallback
+  return d.toLocaleString('ko-KR')
+}
+
+export function calcPercent(used: number, total: number) {
+  if (!total || total <= 0) return 0
+  return Math.min(999, Math.round((used / total) * 100))
+}
+
+절대:
+- undefined 노출 금지
+- Invalid Date 노출 금지
+
+==================================================
+[6. 플랜/가격/용량 정책]
+==================================================
+
+domain/policies.ts 에 아래 기준 고정
+
+플랜 seed:
+- free_10: 회원 10명 / 500MB / 0원 / 영상 불가
+- pro_100: 회원 100명 / 10GB / 5000원 / 영상 불가(추가용량 구매 시 가능 구조만 열기)
+- pro_300: 회원 300명 / 30GB / 10000원
+- pro_500: 회원 500명 / 50GB / 16000원
+- pro_1000: 회원 1000명 / 100GB / 25000원
+- enterprise: 별도협의 / 커스텀
+
+주의:
+이 가격은 최소 생존 가격 기준이며, 현재는 시스템 작동 기준으로 사용한다.
+나중에 운영자가격은 조정 가능하도록 monthlyPrice 수정 가능하게 구현.
+
+추가 저장공간 상품 구조도 타입/seed 로 미리 만든다.
+예:
+- extra_storage_10gb
+- extra_storage_50gb
+
+==================================================
+[7. 사진 처리 정책]
+==================================================
+
+중요:
+무료회원 업로드 사이즈와 유료회원 업로드 사이즈를 아예 다르게 제한하지 말고,
+업로드는 공통 규칙으로 받고, 저장/노출 버전을 분리한다.
+
+공통 업로드 정책:
+- 이미지 업로드 상한은 공통
+- 업로드 후 mock processing 단계 생성
+
+버전 정책:
+- previewFree: 무료 노출용 저화질
+- previewPaid: 유료 노출용 선명 버전
+
+기술 구현:
+- 파일 업로드 시 MediaAsset 생성
+- 상태 흐름:
+  uploading -> uploaded -> processing -> ready
+- previewFreeSizeMb 와 previewPaidSizeMb 를 mock 계산해서 저장
+- 무료 운영자/무료 범위는 previewFree 사용
+- 유료 운영자는 previewPaid 사용
+
+중요:
+플랜 변경 시 재업로드 금지
+기존 MediaAsset의 previewFree / previewPaid 중 노출만 바꾸기
+
+==================================================
+[8. store 구현]
+==================================================
+
+각 store는 실제 동작하도록 만든다.
+mock data를 읽기만 하는 게 아니라 상태 변경까지 가능해야 한다.
+
+필수 store와 기능:
+
+1) operatorsStore
+- operators 목록
+- approveOperator
+- rejectOperator
+- setOperatorReadonly
+- setOperatorUploadBlocked
+- updateOperatorPlan
+- updateOperatorStorage
+- scheduleAutoDelete
+- clearAutoDelete
+- getFilteredOperators
+
+2) subscriptionStore
+- plans 목록
+- billing records
+- updatePlan
+- setBillingFailure
+- retryBilling
+- applyGrace
+- setReadonlyScheduled
+- cancelSubscription
+- applyCredit
+- getBillingIssueQueue
+
+3) storageStore
+- storage policies
+- media usage summaries
+- setStoragePolicy
+- updateUsage
+- mark95Blocked
+- mark80Warning
+- detectUploadSpike
+- getStorageRiskQueue
+
+4) mediaStore
+- uploadMediaMock
+- processMediaMock
+- getVisibleMediaForPlan
+- deleteMedia
+- calculateMediaUsageByOperator
+
+5) auditLogStore
+- createAuditLog
+- listAuditLogs
+- filterByCategory
+- filterByOperator
+
+6) supportStore
+- tickets
+- createTicket
+- updateTicketStatus
+- assignTicket
+- addInternalMemo
+- markEscalated
+- getSlaOverdueTickets
+
+7) riskStore
+- derive risks from operators/subscription/storage/support/featureFlags/backups
+- risk summary counts
+- risk categories list
+
+8) featureFlagStore
+- toggleFlag
+- setOperatorFlag
+- require reason on change
+- audit log 자동 생성
+
+9) readonlyStore
+- platform readonly
+- operator readonly
+- feature readonly
+- audit log 자동 생성
+
+10) backupStore
+- snapshots
+- createSnapshot
+- createForcedSnapshotBeforeKillSwitch
+- createForcedSnapshotBeforeRestore
+- listSnapshots
+- startRestoreSimulation
+- createRestoreJob
+
+==================================================
+[9. adapter 구조]
+==================================================
+
+실제 연결 전이므로 adapter interface 먼저 만든다.
+
+adapters/dbAdapter.ts
+- getOperators
+- saveOperator
+- listAuditLogs
+- saveAuditLog
+- listTickets
+- saveTicket
+- ... 현재는 mock implementation
+
+adapters/storageAdapter.ts
+- uploadPreviewFree
+- uploadPreviewPaid
+- deleteAsset
+- getSignedUrl
+- ... 현재는 mock implementation
+
+adapters/billingAdapter.ts
+- createBillingCustomer
+- requestFirstCharge
+- requestRecurringCharge
+- cancelRecurring
+- refundPayment
+- ... 현재는 mock implementation
+
+중요:
+지금은 mock implementation만 넣고
+나중에 Supabase/R2/PG 꽂을 때 이 파일만 교체 가능하게 한다.
+
+==================================================
+[10. 슈퍼관리자 홈]
+==================================================
+
+SuperAdminHome.tsx 에 아래 순서 고정
+
+1. KPI 6칸
+- 전체 운영자
+- 활성 운영자
+- 승인 대기
+- 결제 이슈
+- 저장 95% 초과
+- 24시간 내 자동삭제 예정
+
+2. 오늘 처리할 일
+- 승인 대기 운영자
+- 결제 실패 운영자
+- 저장공간 위험 운영자
+- 삭제 예정 운영자
+- 정책 미확인 운영자
+- 고객센터 미처리 문의
+- 기능 오류 리포트
+- 보안 이벤트 경고
+
+각 항목 액션:
+- 승인
+- 반려
+- 상세
+- 메시지
+- 읽기전용 전환
+
+3. 리스크 요약
+0건이어도 반드시 표시:
+- 결제 리스크
+- 저장공간 리스크
+- 삭제 예정
+- 정책 미확인
+- SLA 초과
+- 보안 이벤트
+- 백업 경고
+
+4. 최근 감사 로그 5건
+
+5. 아이콘 메뉴
+아이콘 많아도 상관없음
+반드시 포함:
+- 운영자 관리
+- 구독·결제 관리
+- 구독 상품 설정
+- 저장공간 관리
+- 저장공간 정책
+- 데이터·킬스위치
+- 백업/복구/스냅샷
+- 정책·컴플라이언스
+- 운영 로그
+- 고객센터
+- 장애·리스크 센터
+- 기능 플래그
+- 읽기전용 제어
+
+==================================================
+[11. 운영자 관리 화면]
+==================================================
+
+카드형 느낌 제거하고 모바일용 행형 리스트로 재구성
+
+행 표시 순서:
+[체크] [상태] [운영자명] [운영유형] [활성회원수] [플랜] [용량%] [결제상태] [마지막접속일] [액션]
+
+액션:
+- 상세
+- 승인/반려
+- 제한
+- 구독
+- 저장공간
+- 더보기
+
+다중선택:
+- 승인
+- 반려
+- 제한
+- 읽기전용 전환
+- 업로드 차단
+- 메시지 발송
+- 정책 재알림
+
+필터칩:
+- 전체
+- 승인 대기
+- 결제 실패
+- 저장 95% 초과
+- 삭제 예정
+- 크레딧 보유
+- 무료+활성회원 10명 초과
+- 이번 주 신규
+- 1인 코치
+- 프랜차이즈
+- 반복 환불
+- 업로드 급증
+- 정책 미확인
+
+칩/행 정렬 맞춤 반드시 수정
+
+==================================================
+[12. 운영자 상세]
+==================================================
+
+탭:
+- 기본 정보
+- 구독/결제
+- 저장공간
+- 정책/동의
+- 로그
+- 강제조치
+
+강제조치 버튼:
+- 승인
+- 반려
+- 읽기전용 전환
+- 업로드 차단
+- 삭제 유예
+- 정책 재알림
+- 계정 제한
+- 고객센터 티켓 생성
+- 기능 플래그 예외 적용
+
+조치 전 모달에서 사유 입력
+감사 로그 자동 생성
+
+==================================================
+[13. 구독·결제 관리]
+==================================================
+
+반드시 운영자 데이터와 같은 source 사용
+0건 화면 나오면 안 됨
+
+표시:
+- 운영자명
+- 현재 플랜
+- 활성 회원 수
+- 다음 결제일
+- 최근 결제 상태
+- credit_balance
+- read-only 여부
+- 분쟁 여부
+
+상태칩:
+- 체험
+- 구독
+- 결제실패
+- grace
+- readonly
+- 해지
+- 자동삭제예정
+- 크레딧보유
+- 환불대기
+- 분쟁대응필요
+
+기능:
+- 플랜 변경
+- 결제 실패 처리
+- grace 적용
+- readonly 예약
+- 재청구 mock
+- 환불 검토 mock
+- credit 적용
+
+==================================================
+[14. 구독 상품 설정]
+==================================================
+
+새 화면 추가
+
+표시:
+- 상품명
+- 회원수 제한
+- 기본 용량
+- 월 요금
+- 영상 기능 여부
+- 비고
+
+기능:
+- 생성
+- 수정
+- 숨김 처리
+
+초기 seed는 위 플랜 정책 기준 사용
+
+==================================================
+[15. 저장공간 관리]
+==================================================
+
+탭:
+- 전체
+- 95% 차단
+- 80% 경고
+- 업로드 급증
+- 삭제 예정
+
+행 표시:
+- 운영자명
+- 사용량/총량
+- %
+- 업로드 차단 여부
+- 최근 7일 증가량
+- 자동삭제 예정 여부
+
+액션:
+- 상세
+- 용량 변경
+- 삭제 유예
+- 정책 로그 보기
+
+==================================================
+[16. 데이터·킬스위치]
+==================================================
+
+삭제 실행 전:
+- 예상 삭제량 계산
+- 강제 스냅샷 생성
+- 복구 불가 경고
+- 실행자 기록
+
+삭제 방식:
+- 전체 삭제
+- 기간별 삭제
+- 항목별 삭제
+- 운영자별 삭제
+
+항목:
+- 사진 메타
+- 영상 메타
+- 수업일지 텍스트
+- 출결
+- 보강
+- 메모
+- 쪽지
+
+주의:
+원본 파일 복구 기능 만들지 말 것
+
+==================================================
+[17. 백업/복구/스냅샷]
+==================================================
+
+새 화면 추가
+
+구성:
+- operator_snapshot 목록
+- platform_shadow_backup 목록
+- 강제 스냅샷 생성
+- 킬스위치 직전 스냅샷
+- 복구 시뮬레이션
+- 비교 복구(diff) mock UI
+- 복구 실행 로그
+
+현재는 mock 기준으로:
+- snapshot 생성 가능
+- restore job 생성 가능
+- single / dual compare 선택 가능
+
+백업 대상 includes 기본값:
+- operator_info
+- member_core
+- subscription
+- credit
+- policy_docs
+- attendance
+- journal_text
+- logs
+- permissions
+- feature_flags
+
+==================================================
+[18. 정책·컴플라이언스]
+==================================================
+
+문서:
+- 환불 정책
+- 개인정보 처리방침
+- 이용약관
+
+환불 정책 기본 문구는 아래로 seed 저장
+
+구독 변경은 즉시 적용됩니다.
+상위 플랜 변경 시 남은 기간 기준 차액이 즉시 결제됩니다.
+하위 플랜 변경 시 남은 기간 기준 차액은 환불되지 않고, 다음 결제 시 차감되는 크레딧으로 적립됩니다.
+구독 해지 시 유료 기능은 즉시 제한되며, 서비스는 읽기전용 상태로 전환됩니다.
+구독 해지 후 24시간이 경과하면 저장된 사진 및 영상 데이터는 자동 삭제되며 복구되지 않습니다.
+이미 결제된 이용요금은 원칙적으로 환불되지 않습니다.
+단, 다음 결제가 발생하지 않는 상태에서 남아 있는 크레딧은 환불될 수 있습니다.
+사용자는 구독 해지 전 데이터 삭제 정책을 충분히 확인해야 하며, 삭제된 데이터는 복구되지 않습니다.
+
+운영자는 읽기 전용만 가능
+슈퍼관리자는 수정 가능
+버전 기록 남기기
+감사 로그 생성
+
+==================================================
+[19. 감사 로그]
+==================================================
+
+절대:
+- undefined 금지
+- Invalid Date 금지
+
+공통 title builder 또는 safe fallback 적용
+필수 기록 항목:
+- 승인/반려
+- 플랜 변경
+- 결제 실패 처리
+- grace 적용
+- readonly 전환
+- 업로드 차단
+- 용량 정책 변경
+- 삭제 예약/실행
+- 정책 수정
+- 기능 플래그 변경
+- 고객센터 상태 변경
+- 스냅샷 생성
+- 복구 시뮬레이션 생성
+
+로그 삭제 기능 절대 만들지 말 것
+
+==================================================
+[20. 고객센터]
+==================================================
+
+빈 화면 금지
+seed ticket 최소 15개 이상 추가
+
+문의자:
+- 운영자
+- 선생님
+- 학부모
+
+유형:
+- 결제 문제
+- 계정 문제
+- 데이터 삭제
+- 업로드 오류
+- 앱 버그
+- 정책 문의
+- 환불 요청
+- 분쟁 대응
+- 로그인/권한 오류
+- 기타
+
+상태:
+- 접수
+- 처리중
+- 해결
+- 보류
+- 환불 연동
+- 정책 안내 완료
+- 재확인 필요
+- 기술팀 전달
+
+각 행:
+- 문의자
+- 역할
+- 연결 운영자
+- 유형
+- 상태
+- 생성일
+- 최근 답변일
+- SLA 경과 여부
+- 위험도
+
+액션:
+- 즉시 답변
+- 템플릿 답변
+- 운영자 상세 이동
+- 환불 검토
+- 정책 링크 발송
+- 담당자 지정
+- 기술 이슈 승격
+- 읽기전용 임시 해제 검토
+- 삭제 유예 검토
+
+==================================================
+[21. 장애·리스크 센터]
+==================================================
+
+“현재 리스크 없음”만 보여주지 말고
+항목별 0건도 항상 표시
+
+리스크 카테고리:
+- 결제 리스크
+- 저장공간 리스크
+- 데이터 삭제 리스크
+- 정책 미확인 리스크
+- 고객센터 SLA 리스크
+- 보안 이벤트
+- 기능 오류
+- 외부 서비스
+- 백업/동기화
+- 악용/남용
+
+마지막 백업 없음 = 경고 처리
+
+==================================================
+[22. 기능 플래그]
+==================================================
+
+토글 시 사유 입력 모달 필수
+변경 시 감사 로그 자동 생성
+
+플래그 예시:
+- new_scheduler
+- new_subscription_policy
+- auto_deletion_policy
+- support_center
+- new_upload_structure
+- upload_spike_detection
+- readonly_auto_trigger
+- credit_auto_apply
+
+==================================================
+[23. 읽기전용 제어]
+==================================================
+
+범위:
+- 플랫폼 전체
+- 운영자별
+- 기능별
+
+예:
+- 전체 업로드 차단
+- 특정 운영자 업로드 차단
+- 결제 기능만 읽기전용
+- 스케줄 저장만 읽기전용
+
+로그 남기기:
+- 누가
+- 언제
+- 왜
+
+==================================================
+[24. seed 데이터]
+==================================================
+
+운영자 최소 12개 이상
+상태 골고루 섞기:
+- 승인대기
+- 결제실패
+- grace
+- readonly
+- 저장95
+- 정책미확인
+- 업로드급증
+- 자동삭제예정
+
+고객센터 티켓 최소 15개
+감사 로그 최소 30개
+스냅샷 최소 8개
+플래그 최소 8개
+
+==================================================
+[25. 품질 체크]
+==================================================
+
+반드시 점검:
+- iPhone 뒤로가기 먹통 없는지
+- 팝업 빈 화면 클릭 닫기 되는지
+- X 버튼 닫기 되는지
+- invisible overlay 남지 않는지
+- 키보드가 입력창 가리지 않는지
+- 리스트 액션 터치 잘 되는지
+- undefined 안 뜨는지
+- Invalid Date 안 뜨는지
+- 홈/운영자/구독/저장공간/고객센터가 같은 source 쓰는지
+
+==================================================
+[26. 작업 완료 후 반드시 보고]
+==================================================
+
+작업 후 아래를 정리해서 보여줄 것:
+1. 새로 만든 화면 목록
+2. 새로 만든 store 목록
+3. 추가된 타입 목록
+4. 무료/유료 사진 노출 구조가 어떻게 구현됐는지
+5. DB 연결 전까지 어떤 부분이 mock인지
+6. PG 연결 전까지 어떤 부분이 mock인지
+7. 아직 미연동인 부분
+8. 품질 점검 결과

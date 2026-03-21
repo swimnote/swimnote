@@ -1,71 +1,56 @@
 /**
  * (super)/risk-center.tsx — 장애·리스크 센터
- * 오늘 처리 큐 + 서비스 상태 + 백업 상태
+ * riskStore + operatorsStore + supportStore + backupStore — API 호출 없음
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator, Pressable, RefreshControl,
+  Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { useOperatorsStore } from "@/store/operatorsStore";
+import { useSupportStore } from "@/store/supportStore";
+import { useRiskStore } from "@/store/riskStore";
+import { useBackupStore } from "@/store/backupStore";
+import { useAuditLogStore } from "@/store/auditLogStore";
 
 const P = "#7C3AED";
 
-interface RiskData {
-  payment_failed:   any[];
-  storage_danger:   any[];
-  deletion_pending: any[];
-  upload_spike:     any[];
-  support:          { open_count: number; overdue_count: number };
-  backup:           { last_at: string | null };
-  external_services: { name: string; status: string }[];
-}
-
-const SUB_CFG: Record<string, string> = {
-  expired: "만료", suspended: "정지", cancelled: "해지",
-};
-
-function safeDate(iso: string | null | undefined): Date | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-function hoursLeft(iso: string | null | undefined): string {
-  const d = safeDate(iso);
-  if (!d) return "—";
-  const h = Math.floor((d.getTime() - Date.now()) / 3600000);
-  if (h < 0) return "만료됨";
-  if (h < 1) return "1시간 미만";
-  return `${h}시간 후`;
-}
-
 function fmtAgo(iso: string | null | undefined): string {
-  const d = safeDate(iso);
-  if (!d) return "기록 없음";
+  if (!iso) return "기록 없음";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
   const h = Math.floor((Date.now() - d.getTime()) / 3600000);
   if (h < 1) return "방금";
   if (h < 24) return `${h}시간 전`;
   return `${Math.floor(h / 24)}일 전`;
 }
 
+function hoursLeftStr(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  const h = Math.floor((d.getTime() - Date.now()) / 3600000);
+  if (h < 0) return "만료됨";
+  if (h < 1) return "1시간 미만";
+  return `${h}시간 후`;
+}
+
 interface RiskGroupProps {
   title: string;
   icon: React.ComponentProps<typeof Feather>["name"];
-  color: string;
-  bg: string;
-  items: any[];
-  max?: number;
-  renderItem: (item: any, idx: number) => React.ReactNode;
+  color: string; bg: string;
+  count: number;
+  children: React.ReactNode;
   onViewAll?: () => void;
 }
 
-function RiskGroup({ title, icon, color, bg, items, max = 5, renderItem, onViewAll }: RiskGroupProps) {
-  if (items.length === 0) return null;
+function RiskGroup({ title, icon, color, bg, count, children, onViewAll }: RiskGroupProps) {
+  if (count === 0) return null;
   return (
     <View style={g.group}>
       <View style={g.groupHeader}>
@@ -74,7 +59,7 @@ function RiskGroup({ title, icon, color, bg, items, max = 5, renderItem, onViewA
         </View>
         <Text style={g.groupTitle}>{title}</Text>
         <View style={[g.countBadge, { backgroundColor: bg }]}>
-          <Text style={[g.countTxt, { color }]}>{items.length}</Text>
+          <Text style={[g.countTxt, { color }]}>{count}</Text>
         </View>
         {onViewAll && (
           <Pressable onPress={onViewAll} style={{ marginLeft: "auto" }}>
@@ -82,46 +67,49 @@ function RiskGroup({ title, icon, color, bg, items, max = 5, renderItem, onViewA
           </Pressable>
         )}
       </View>
-      {items.slice(0, max).map((item, i) => renderItem(item, i))}
+      {children}
     </View>
   );
 }
 
+const EXTERNAL_SERVICES = [
+  { name: "Supabase (DB)",         status: "normal" },
+  { name: "Cloudflare R2 (스토리지)", status: "normal" },
+  { name: "PortOne (PG)",          status: "normal" },
+  { name: "Apple Push (APNs)",     status: "normal" },
+];
+
 export default function RiskCenterScreen() {
-  const { token } = useAuth();
-  const [data,       setData]       = useState<RiskData | null>(null);
-  const [loading,    setLoading]    = useState(true);
+  const { adminUser } = useAuth();
+  const actorName = adminUser?.name ?? '슈퍼관리자';
   const [refreshing, setRefreshing] = useState(false);
   const [processing, setProcessing] = useState<string | null>(null);
 
-  async function load() {
-    try {
-      const res = await apiRequest(token, "/super/risk-center");
-      if (res.ok) setData(await res.json());
-    } catch {}
-    finally { setLoading(false); setRefreshing(false); }
-  }
+  const operators      = useOperatorsStore(s => s.operators);
+  const scheduleDelete = useOperatorsStore(s => s.scheduleAutoDelete);
+  const createLog      = useAuditLogStore(s => s.createLog);
+  const openCount      = useSupportStore(s => s.getOpenCount());
+  const slaCount       = useSupportStore(s => s.getSlaOverdueCount());
+  const riskSummary    = useRiskStore(s => s.summary);
+  const latestSnap     = useBackupStore(s => s.getLatestPlatformSnapshot());
 
-  useEffect(() => { load(); }, []);
+  const paymentFailed  = useMemo(() => operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace'), [operators]);
+  const storageDanger  = useMemo(() => operators.filter(o => o.storageBlocked95), [operators]);
+  const deletionPending = useMemo(() => operators.filter(o => !!o.autoDeleteScheduledAt), [operators]);
+  const uploadSpike    = useMemo(() => operators.filter(o => o.uploadSpikeFlag), [operators]);
+  const policyUnsigned = useMemo(() => operators.filter(o => !o.policyRefundRead || !o.policyPrivacyRead), [operators]);
 
-  async function approve(id: string) {
+  const totalRisk = paymentFailed.length + storageDanger.length + deletionPending.length + uploadSpike.length;
+
+  function deferDeletion(id: string) {
+    const op = operators.find(o => o.id === id);
+    if (!op) return;
     setProcessing(id);
-    await apiRequest(token, `/super/operators/${id}/approve`, { method: "PATCH" }).catch(() => {});
-    setProcessing(null); load();
+    const at = new Date(Date.now() + 48 * 3600000).toISOString();
+    scheduleDelete(id, at);
+    createLog({ category: '삭제', title: `${op.name} 자동삭제 48h 유예`, operatorId: id, operatorName: op.name, actorName, impact: 'high', detail: '자동삭제 유예 48시간 연장' });
+    setTimeout(() => setProcessing(null), 500);
   }
-
-  async function deferDeletion(id: string) {
-    setProcessing(id);
-    await apiRequest(token, `/super/operators/${id}/defer-deletion`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hours: 48 }),
-    }).catch(() => {});
-    setProcessing(null); load();
-  }
-
-  const totalRisk = (data?.payment_failed.length ?? 0) + (data?.storage_danger.length ?? 0) +
-    (data?.deletion_pending.length ?? 0) + (data?.upload_spike.length ?? 0);
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
@@ -130,159 +118,175 @@ export default function RiskCenterScreen() {
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 60 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-          onRefresh={() => { setRefreshing(true); load(); }} />}>
+          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
 
-        {loading ? (
-          <ActivityIndicator color={P} style={{ marginTop: 60 }} />
-        ) : (
-          <>
-            {/* 요약 헤더 */}
-            <View style={s.summaryCard}>
-              <View style={s.summaryRow}>
-                <Feather name="shield" size={20} color={totalRisk > 0 ? "#DC2626" : "#10B981"} />
-                <Text style={[s.summaryTitle, totalRisk > 0 && { color: "#DC2626" }]}>
-                  {totalRisk > 0 ? `리스크 ${totalRisk}건 처리 필요` : "현재 리스크 없음 ✓"}
+        {/* 요약 헤더 */}
+        <View style={s.summaryCard}>
+          <View style={s.summaryRow}>
+            <Feather name="shield" size={20} color={totalRisk > 0 ? "#F87171" : "#34D399"} />
+            <Text style={[s.summaryTitle, totalRisk > 0 && { color: "#F87171" }]}>
+              {totalRisk > 0 ? `리스크 ${totalRisk}건 처리 필요` : "현재 리스크 없음 ✓"}
+            </Text>
+          </View>
+
+          {/* 리스크 개요 6칸 */}
+          <View style={s.riskGrid}>
+            {[
+              { label: "결제 실패", count: paymentFailed.length, color: "#F87171" },
+              { label: "저장 95%↑", count: storageDanger.length, color: "#C084FC" },
+              { label: "삭제 예정", count: deletionPending.length, color: "#60A5FA" },
+              { label: "업로드 급증", count: uploadSpike.length, color: "#FBBF24" },
+              { label: "정책 미확인", count: policyUnsigned.length, color: "#818CF8" },
+              { label: "SLA 초과", count: slaCount, color: "#F87171" },
+            ].map(item => (
+              <View key={item.label} style={s.riskTile}>
+                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#6B7280" }]}>{item.count}</Text>
+                <Text style={s.riskLbl}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {openCount > 0 && (
+            <View style={s.supportRow}>
+              <Feather name="message-circle" size={13} color="#38BDF8" />
+              <Text style={s.supportTxt}>
+                고객센터 미처리 {openCount}건
+                {slaCount > 0 && ` · SLA 초과 ${slaCount}건`}
+              </Text>
+              <Pressable onPress={() => router.push("/(super)/support" as any)} style={s.supportLink}>
+                <Text style={s.supportLinkTxt}>처리</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
+        {/* 결제 실패 */}
+        <RiskGroup title="결제 실패 운영자" icon="credit-card" color="#DC2626" bg="#FEE2E2"
+          count={paymentFailed.length} onViewAll={() => router.push("/(super)/subscriptions" as any)}>
+          {paymentFailed.slice(0, 5).map(op => (
+            <View key={op.id} style={g.item}>
+              <View style={g.itemLeft}>
+                <Text style={g.itemName} numberOfLines={1}>{op.name}</Text>
+                <Text style={g.itemSub}>{op.representativeName} · {op.billingStatus === 'grace' ? '유예 중' : '결제 실패'}</Text>
+              </View>
+              <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]}
+                onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                <Text style={[g.btnTxt, { color: P }]}>상세</Text>
+              </Pressable>
+            </View>
+          ))}
+        </RiskGroup>
+
+        {/* 저장공간 95% 초과 */}
+        <RiskGroup title="저장공간 위험 (95%↑)" icon="hard-drive" color={P} bg="#EDE9FE"
+          count={storageDanger.length} onViewAll={() => router.push("/(super)/storage" as any)}>
+          {storageDanger.slice(0, 5).map(op => {
+            const pct = Math.round((op.storageUsedMb / Math.max(op.storageTotalMb, 1)) * 100);
+            return (
+              <View key={op.id} style={g.item}>
+                <View style={g.itemLeft}>
+                  <Text style={g.itemName} numberOfLines={1}>{op.name}</Text>
+                  <View style={g.barRow}>
+                    <View style={g.barBg}>
+                      <View style={[g.barFill, { width: `${Math.min(pct, 100)}%` as any, backgroundColor: "#DC2626" }]} />
+                    </View>
+                    <Text style={[g.pctTxt, { color: "#DC2626" }]}>{pct}%</Text>
+                  </View>
+                </View>
+                <Pressable style={[g.btn, { backgroundColor: "#D1FAE5" }]}
+                  onPress={() => router.push(`/(super)/storage` as any)}>
+                  <Text style={[g.btnTxt, { color: "#059669" }]}>용량↑</Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </RiskGroup>
+
+        {/* 자동삭제 예정 */}
+        <RiskGroup title="자동삭제 예정 (48h)" icon="trash-2" color="#0891B2" bg="#ECFEFF"
+          count={deletionPending.length} onViewAll={() => router.push("/(super)/kill-switch" as any)}>
+          {deletionPending.slice(0, 5).map(op => (
+            <View key={op.id} style={g.item}>
+              <View style={g.itemLeft}>
+                <Text style={g.itemName} numberOfLines={1}>{op.name}</Text>
+                <Text style={g.itemSub}>{op.representativeName} · {hoursLeftStr(op.autoDeleteScheduledAt)}</Text>
+              </View>
+              <View style={g.itemActions}>
+                <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]}
+                  onPress={() => deferDeletion(op.id)}
+                  disabled={processing === op.id}>
+                  <Text style={[g.btnTxt, { color: "#D97706" }]}>유예</Text>
+                </Pressable>
+                <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]}
+                  onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                  <Text style={[g.btnTxt, { color: P }]}>상세</Text>
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </RiskGroup>
+
+        {/* 업로드 급증 */}
+        <RiskGroup title="업로드 급증 탐지" icon="trending-up" color="#D97706" bg="#FEF3C7"
+          count={uploadSpike.length}>
+          {uploadSpike.slice(0, 5).map(op => (
+            <View key={op.id} style={g.item}>
+              <View style={g.itemLeft}>
+                <Text style={g.itemName} numberOfLines={1}>{op.name}</Text>
+                <Text style={g.itemSub}>{op.representativeName} · 7일 내 {op.uploadGrowth7dMb}MB 급증</Text>
+              </View>
+              <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]}
+                onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                <Text style={[g.btnTxt, { color: P }]}>상세</Text>
+              </Pressable>
+            </View>
+          ))}
+        </RiskGroup>
+
+        {/* 정책 미확인 */}
+        <RiskGroup title="정책 미확인 운영자" icon="file-text" color="#4F46E5" bg="#EEF2FF"
+          count={policyUnsigned.length} onViewAll={() => router.push("/(super)/policy" as any)}>
+          {policyUnsigned.slice(0, 5).map(op => (
+            <View key={op.id} style={g.item}>
+              <View style={g.itemLeft}>
+                <Text style={g.itemName} numberOfLines={1}>{op.name}</Text>
+                <Text style={g.itemSub}>
+                  {!op.policyRefundRead ? "환불정책 미확인" : ""}
+                  {!op.policyRefundRead && !op.policyPrivacyRead ? " · " : ""}
+                  {!op.policyPrivacyRead ? "개인정보 미확인" : ""}
                 </Text>
               </View>
-              {data?.support && (data.support.open_count > 0) && (
-                <View style={s.supportRow}>
-                  <Feather name="message-circle" size={13} color="#0284C7" />
-                  <Text style={s.supportTxt}>
-                    고객센터 미처리 {data.support.open_count}건
-                    {data.support.overdue_count > 0 && ` · SLA 초과 ${data.support.overdue_count}건`}
-                  </Text>
-                  <Pressable onPress={() => router.push("/(super)/support" as any)} style={s.supportLink}>
-                    <Text style={s.supportLinkTxt}>처리</Text>
-                  </Pressable>
-                </View>
-              )}
+              <Pressable style={[g.btn, { backgroundColor: "#EEF2FF" }]}
+                onPress={() => router.push(`/(super)/policy` as any)}>
+                <Text style={[g.btnTxt, { color: "#4F46E5" }]}>알림</Text>
+              </Pressable>
             </View>
+          ))}
+        </RiskGroup>
 
-            {/* 결제 실패 */}
-            <RiskGroup
-              title="결제 실패 운영자"
-              icon="credit-card"
-              color="#DC2626" bg="#FEE2E2"
-              items={data?.payment_failed ?? []}
-              onViewAll={() => router.push("/(super)/subscriptions" as any)}>
-              {(item: any) => (
-                <View key={item.id} style={g.item}>
-                  <View style={g.itemLeft}>
-                    <Text style={g.itemName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={g.itemSub}>{item.owner_name} · {SUB_CFG[item.subscription_status] ?? item.subscription_status}</Text>
-                  </View>
-                  <View style={g.itemActions}>
-                    <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]}
-                      onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
-                      <Text style={[g.btnTxt, { color: P }]}>상세</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              )}
-            </RiskGroup>
-
-            {/* 저장공간 95% 초과 */}
-            <RiskGroup
-              title="저장공간 위험 (95%↑)"
-              icon="hard-drive"
-              color={P} bg="#EDE9FE"
-              items={data?.storage_danger ?? []}
-              onViewAll={() => router.push("/(super)/storage" as any)}>
-              {(item: any) => (
-                <View key={item.id} style={g.item}>
-                  <View style={g.itemLeft}>
-                    <Text style={g.itemName} numberOfLines={1}>{item.name}</Text>
-                    <View style={g.barRow}>
-                      <View style={g.barBg}>
-                        <View style={[g.barFill, { width: `${Math.min(item.usage_pct, 100)}%` as any, backgroundColor: "#DC2626" }]} />
-                      </View>
-                      <Text style={[g.pctTxt, { color: "#DC2626" }]}>{item.usage_pct}%</Text>
-                    </View>
-                  </View>
-                  <Pressable style={[g.btn, { backgroundColor: "#D1FAE5" }]}
-                    onPress={() => router.push(`/(super)/storage` as any)}>
-                    <Text style={[g.btnTxt, { color: "#059669" }]}>용량↑</Text>
-                  </Pressable>
-                </View>
-              )}
-            </RiskGroup>
-
-            {/* 자동삭제 예정 */}
-            <RiskGroup
-              title="자동삭제 예정 (48h)"
-              icon="trash-2"
-              color="#0891B2" bg="#ECFEFF"
-              items={data?.deletion_pending ?? []}
-              onViewAll={() => router.push("/(super)/kill-switch" as any)}>
-              {(item: any) => (
-                <View key={item.id} style={g.item}>
-                  <View style={g.itemLeft}>
-                    <Text style={g.itemName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={g.itemSub}>{item.owner_name} · {hoursLeft(item.subscription_end_at)}</Text>
-                  </View>
-                  <View style={g.itemActions}>
-                    <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]}
-                      onPress={() => deferDeletion(item.id)}
-                      disabled={processing === item.id}>
-                      {processing === item.id
-                        ? <ActivityIndicator size="small" color="#D97706" />
-                        : <Text style={[g.btnTxt, { color: "#D97706" }]}>유예</Text>
-                      }
-                    </Pressable>
-                    <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]}
-                      onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
-                      <Text style={[g.btnTxt, { color: P }]}>상세</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              )}
-            </RiskGroup>
-
-            {/* 업로드 급증 */}
-            <RiskGroup
-              title="업로드 급증 탐지 (24h)"
-              icon="trending-up"
-              color="#D97706" bg="#FEF3C7"
-              items={data?.upload_spike ?? []}>
-              {(item: any) => (
-                <View key={item.pool_id} style={g.item}>
-                  <View style={g.itemLeft}>
-                    <Text style={g.itemName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={g.itemSub}>{item.owner_name} · 24h 내 {item.event_count}회 업로드</Text>
-                  </View>
-                  <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]}
-                    onPress={() => router.push(`/(super)/operator-detail?id=${item.pool_id}` as any)}>
-                    <Text style={[g.btnTxt, { color: P }]}>상세</Text>
-                  </Pressable>
-                </View>
-              )}
-            </RiskGroup>
-
-            {/* 서비스 상태 */}
-            <View style={s.serviceCard}>
-              <Text style={s.serviceTitle}>외부 서비스 상태</Text>
-              {(data?.external_services ?? []).map(svc => (
-                <View key={svc.name} style={s.serviceRow}>
-                  <View style={[s.serviceDot, { backgroundColor: svc.status === "normal" ? "#10B981" : "#DC2626" }]} />
-                  <Text style={s.serviceName}>{svc.name}</Text>
-                  <Text style={[s.serviceStatus, { color: svc.status === "normal" ? "#10B981" : "#DC2626" }]}>
-                    {svc.status === "normal" ? "정상" : "이상"}
-                  </Text>
-                </View>
-              ))}
-              <View style={s.backupRow}>
-                <Feather name="database" size={13} color="#6B7280" />
-                <Text style={s.backupTxt}>마지막 백업: {fmtAgo(data?.backup?.last_at)}</Text>
-              </View>
+        {/* 외부 서비스 상태 */}
+        <View style={s.serviceCard}>
+          <Text style={s.serviceTitle}>외부 서비스 상태</Text>
+          {EXTERNAL_SERVICES.map(svc => (
+            <View key={svc.name} style={s.serviceRow}>
+              <View style={[s.serviceDot, { backgroundColor: svc.status === "normal" ? "#10B981" : "#DC2626" }]} />
+              <Text style={s.serviceName}>{svc.name}</Text>
+              <Text style={[s.serviceStatus, { color: svc.status === "normal" ? "#10B981" : "#DC2626" }]}>
+                {svc.status === "normal" ? "정상" : "이상"}
+              </Text>
             </View>
+          ))}
+          <View style={s.backupRow}>
+            <Feather name="database" size={13} color="#6B7280" />
+            <Text style={s.backupTxt}>마지막 플랫폼 백업: {fmtAgo(latestSnap?.createdAt)}</Text>
+          </View>
+        </View>
 
-            {totalRisk === 0 && (data?.payment_failed.length === 0) && (
-              <View style={s.allClear}>
-                <Feather name="check-circle" size={32} color="#10B981" />
-                <Text style={s.allClearTxt}>오늘 처리할 리스크가 없습니다</Text>
-              </View>
-            )}
-          </>
+        {totalRisk === 0 && openCount === 0 && (
+          <View style={s.allClear}>
+            <Feather name="check-circle" size={32} color="#10B981" />
+            <Text style={s.allClearTxt}>오늘 처리할 리스크가 없습니다</Text>
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -290,42 +294,39 @@ export default function RiskCenterScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F5F3FF" },
-  summaryCard:  { backgroundColor: "#1F1235", borderRadius: 14, padding: 16, gap: 10 },
-  summaryRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
-  summaryTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#F9FAFB" },
-  supportRow:   { flexDirection: "row", alignItems: "center", gap: 6,
-                  backgroundColor: "rgba(2,132,199,0.1)", borderRadius: 8, padding: 8 },
-  supportTxt:   { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#38BDF8" },
-  supportLink:  { backgroundColor: "#0284C7", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  safe:           { flex: 1, backgroundColor: "#F5F3FF" },
+  summaryCard:    { backgroundColor: "#1F1235", borderRadius: 14, padding: 16, gap: 12 },
+  summaryRow:     { flexDirection: "row", alignItems: "center", gap: 8 },
+  summaryTitle:   { fontSize: 16, fontFamily: "Inter_700Bold", color: "#F9FAFB" },
+  riskGrid:       { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  riskTile:       { flex: 1, minWidth: "28%", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 10, padding: 10, alignItems: "center" },
+  riskNum:        { fontSize: 22, fontFamily: "Inter_700Bold", color: "#6B7280" },
+  riskLbl:        { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9CA3AF", marginTop: 2, textAlign: "center" },
+  supportRow:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(2,132,199,0.12)", borderRadius: 8, padding: 8 },
+  supportTxt:     { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#38BDF8" },
+  supportLink:    { backgroundColor: "#0284C7", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   supportLinkTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  serviceCard:  { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8,
-                  borderWidth: 1, borderColor: "#E5E7EB" },
-  serviceTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 4 },
-  serviceRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
-  serviceDot:   { width: 8, height: 8, borderRadius: 4 },
-  serviceName:  { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
-  serviceStatus:{ fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  backupRow:    { flexDirection: "row", alignItems: "center", gap: 6,
-                  borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 8, marginTop: 4 },
-  backupTxt:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  allClear:     { alignItems: "center", paddingVertical: 40, gap: 10 },
-  allClearTxt:  { fontSize: 14, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  serviceCard:    { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E5E7EB" },
+  serviceTitle:   { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 4 },
+  serviceRow:     { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  serviceDot:     { width: 8, height: 8, borderRadius: 4 },
+  serviceName:    { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
+  serviceStatus:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  backupRow:      { flexDirection: "row", alignItems: "center", gap: 6, borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 8, marginTop: 4 },
+  backupTxt:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  allClear:       { alignItems: "center", paddingVertical: 40, gap: 10 },
+  allClearTxt:    { fontSize: 14, fontFamily: "Inter_500Medium", color: "#6B7280" },
 });
 
 const g = StyleSheet.create({
   group:       { backgroundColor: "#fff", borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: "#E5E7EB" },
-  groupHeader: { flexDirection: "row", alignItems: "center", gap: 8,
-                 paddingHorizontal: 14, paddingVertical: 12,
-                 backgroundColor: "#F9FAFB", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#F9FAFB", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
   groupIcon:   { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   groupTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
   countBadge:  { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   countTxt:    { fontSize: 11, fontFamily: "Inter_700Bold" },
   viewAll:     { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  item:        { flexDirection: "row", alignItems: "center", gap: 10,
-                 paddingHorizontal: 14, paddingVertical: 11,
-                 borderBottomWidth: 1, borderBottomColor: "#F9FAFB" },
+  item:        { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#F9FAFB" },
   itemLeft:    { flex: 1, gap: 3 },
   itemName:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
   itemSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },

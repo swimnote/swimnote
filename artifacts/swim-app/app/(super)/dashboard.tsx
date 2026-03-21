@@ -4,13 +4,17 @@
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
+  ActivityIndicator, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
+import { useOperatorsStore } from "@/store/operatorsStore";
+import { useAuditLogStore } from "@/store/auditLogStore";
+import { useRiskStore } from "@/store/riskStore";
+import { useSupportStore } from "@/store/supportStore";
 
 const P = "#7C3AED";
 
@@ -205,89 +209,108 @@ interface AuditLogItem {
 }
 
 export default function SuperDashboard() {
-  const { logout, adminUser, token } = useAuth();
-  const [stats,      setStats]      = useState<Stats | null>(null);
-  const [todo,       setTodo]       = useState<Todo | null>(null);
-  const [riskSummary, setRiskSummary] = useState<RiskSummary>({
-    payment_risk: 0, storage_risk: 0, deletion_pending: 0,
-    policy_unsigned: 0, sla_overdue: 0, security_events: 0,
-    feature_errors: 0, external_services: 0, backup_failures: 0, abuse_detected: 0,
-  });
-  const [recentLogs,  setRecentLogs]  = useState<AuditLogItem[]>([]);
-  const [loading,    setLoading]    = useState(true);
+  const { logout, adminUser } = useAuth();
+  const actorName = adminUser?.name ?? '슈퍼관리자';
   const [refreshing, setRefreshing] = useState(false);
   const [rejectModal, setRejectModal] = useState<{ id: string } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [processing, setProcessing] = useState(false);
 
-  async function load() {
-    try {
-      const [dashRes, riskRes, logsRes] = await Promise.all([
-        apiRequest(token, "/super/dashboard-stats"),
-        apiRequest(token, "/super/risk-summary"),
-        apiRequest(token, "/super/recent-audit-logs?limit=5"),
-      ]);
-      if (dashRes.ok) {
-        const d = await dashRes.json();
-        setStats(d.stats ?? null);
-        setTodo(d.todo ?? null);
-      }
-      if (riskRes.ok) {
-        const d = await riskRes.json();
-        setRiskSummary(d);
-      }
-      if (logsRes.ok) {
-        const d = await logsRes.json();
-        setRecentLogs(d.logs ?? []);
-      }
-    } catch {}
-    finally { setLoading(false); setRefreshing(false); }
-  }
+  const operators      = useOperatorsStore(s => s.operators);
+  const approveOp      = useOperatorsStore(s => s.approveOperator);
+  const rejectOp       = useOperatorsStore(s => s.rejectOperator);
+  const scheduleDelete = useOperatorsStore(s => s.scheduleAutoDelete);
+  const createLog      = useAuditLogStore(s => s.createLog);
+  const recentLogs     = useAuditLogStore(s => s.getRecent(5));
+  const riskSummary    = useRiskStore(s => s.summary);
+  const openCount      = useSupportStore(s => s.getOpenCount());
+  const slaOverdue     = useSupportStore(s => s.getSlaOverdueCount());
 
-  useEffect(() => { load(); }, []);
+  // Derived stats
+  const stats = useMemo(() => ({
+    total_operators:    operators.length,
+    active_operators:   operators.filter(o => o.status === 'active').length,
+    pending_operators:  operators.filter(o => o.status === 'pending').length,
+    payment_issue_count: operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace').length,
+    storage_danger_count: operators.filter(o => o.storageBlocked95).length,
+    deletion_pending_count: operators.filter(o => !!o.autoDeleteScheduledAt).length,
+  }), [operators]);
 
-  async function doAction(action: string, id: string) {
+  // Derive todo queues from operators
+  const todo = useMemo(() => ({
+    pending_approval: operators.filter(o => o.status === 'pending').slice(0, 5).map(o => ({
+      id: o.id, name: o.name, owner_name: o.representativeName,
+      todo_type: 'pending_approval', pool_type: o.type, created_at: o.createdAt,
+    })),
+    payment_failed: operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace').slice(0, 5).map(o => ({
+      id: o.id, name: o.name, owner_name: o.representativeName,
+      todo_type: 'payment_failed', subscription_status: o.billingStatus, created_at: o.lastLoginAt,
+    })),
+    storage_danger: operators.filter(o => o.storageBlocked95).slice(0, 5).map(o => ({
+      id: o.id, name: o.name, owner_name: o.representativeName,
+      todo_type: 'storage_danger',
+      usage_pct: Math.round((o.storageUsedMb / o.storageTotalMb) * 100),
+      total_gb: +(o.storageTotalMb / 1024).toFixed(1), created_at: o.lastLoginAt,
+    })),
+    deletion_pending: operators.filter(o => !!o.autoDeleteScheduledAt).slice(0, 5).map(o => {
+      const msLeft = new Date(o.autoDeleteScheduledAt!).getTime() - Date.now();
+      return {
+        id: o.id, name: o.name, owner_name: o.representativeName,
+        todo_type: 'deletion_pending',
+        hours_left: Math.max(0, msLeft / 3600000), created_at: o.autoDeleteScheduledAt,
+      };
+    }),
+    policy_unsigned: operators.filter(o => !o.policyRefundRead || !o.policyPrivacyRead).slice(0, 5).map(o => ({
+      id: o.id, name: o.name, owner_name: o.representativeName,
+      todo_type: 'policy_unsigned', created_at: o.createdAt,
+    })),
+    security_events: operators.filter(o => o.refundRepeatFlag || o.uploadSpikeFlag).slice(0, 3).map(o => ({
+      id: o.id, name: o.name, pool_name: o.name,
+      actor_name: o.representativeName, todo_type: 'security',
+      description: o.refundRepeatFlag ? '반복 환불 감지' : '업로드 급증',
+      created_at: o.lastLoginAt,
+    })),
+    support_open_count: openCount,
+    support_overdue_count: slaOverdue,
+  }), [operators, openCount, slaOverdue]);
+
+  function doAction(action: string, id: string) {
     if (action === "reject") { setRejectModal({ id }); return; }
     setProcessing(true);
+    const op = operators.find(o => o.id === id);
+    if (!op) { setProcessing(false); return; }
     try {
       if (action === "approve") {
-        await apiRequest(token, `/super/operators/${id}/approve`, { method: "PATCH" });
+        approveOp(id, actorName);
+        createLog({ category: '운영자관리', title: `${op.name} 운영자 승인`, operatorId: id, operatorName: op.name, actorName, impact: 'medium', detail: '신규 운영자 승인 처리' });
       } else if (action === "defer") {
-        await apiRequest(token, `/super/operators/${id}/defer-deletion`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ hours: 48 }),
-        });
+        const at = new Date(Date.now() + 48 * 3600000).toISOString();
+        scheduleDelete(id, at);
+        createLog({ category: '운영자관리', title: `${op.name} 자동삭제 48h 유예`, operatorId: id, operatorName: op.name, actorName, impact: 'high', detail: '자동삭제 유예 48시간' });
       } else if (action === "policy_reminder") {
-        await apiRequest(token, `/super/operators/${id}/policy-reminder`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ policy_key: "refund_policy" }),
-        });
+        createLog({ category: '정책', title: `${op.name} 정책 확인 요청`, operatorId: id, operatorName: op.name, actorName, impact: 'low', detail: '환불정책 확인 알림 발송' });
       }
-      load();
-    } catch {}
-    finally { setProcessing(false); }
+    } finally { setProcessing(false); }
   }
 
-  async function doReject() {
+  function doReject() {
     if (!rejectModal) return;
     setProcessing(true);
+    const op = operators.find(o => o.id === rejectModal.id);
     try {
-      await apiRequest(token, `/super/operators/${rejectModal.id}/reject`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: rejectReason || "기준 미달" }),
-      });
-      setRejectModal(null); setRejectReason(""); load();
-    } catch {}
-    finally { setProcessing(false); }
+      rejectOp(rejectModal.id, rejectReason || '기준 미달', actorName);
+      if (op) createLog({ category: '운영자관리', title: `${op.name} 운영자 반려`, operatorId: rejectModal.id, operatorName: op.name, actorName, impact: 'medium', detail: rejectReason || '기준 미달' });
+      setRejectModal(null); setRejectReason("");
+    } finally { setProcessing(false); }
   }
 
   const today = new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
-  const totalAlerts = (stats?.pending_operators ?? 0) + (stats?.payment_issue_count ?? 0) +
-    (stats?.storage_danger_count ?? 0) + (stats?.deletion_pending_count ?? 0);
-  const todoCount = (todo?.pending_approval.length ?? 0) + (todo?.payment_failed.length ?? 0) +
-    (todo?.storage_danger.length ?? 0) + (todo?.deletion_pending.length ?? 0) +
-    (todo?.policy_unsigned.length ?? 0) + (todo?.security_events.length ?? 0) +
-    (todo?.support_open_count ?? 0);
+  const totalAlerts = stats.pending_operators + stats.payment_issue_count + stats.storage_danger_count + stats.deletion_pending_count;
+  const todoCount = todo.pending_approval.length + todo.payment_failed.length +
+    todo.storage_danger.length + todo.deletion_pending.length +
+    todo.policy_unsigned.length + todo.security_events.length +
+    todo.support_open_count;
+  const loading = false;
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -335,7 +358,7 @@ export default function SuperDashboard() {
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-          onRefresh={() => { setRefreshing(true); load(); }} />}>
+          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
 
         {/* ── 6대 KPI ── */}
         {loading ? (
@@ -483,12 +506,12 @@ export default function SuperDashboard() {
             </Pressable>
             <View style={s.riskGrid}>
               {[
-                { label: "결제 리스크",    v: riskSummary.payment_risk,     color: "#DC2626", path: "/(super)/subscriptions" },
-                { label: "저장공간 리스크", v: riskSummary.storage_risk,     color: "#D97706", path: "/(super)/storage" },
-                { label: "삭제 예정",      v: riskSummary.deletion_pending,  color: "#0891B2", path: "/(super)/risk-center" },
-                { label: "정책 미확인",    v: riskSummary.policy_unsigned,   color: "#4F46E5", path: "/(super)/policy" },
-                { label: "SLA 초과",       v: riskSummary.sla_overdue,       color: "#DC2626", path: "/(super)/support" },
-                { label: "보안 이벤트",    v: riskSummary.security_events,   color: "#991B1B", path: "/(super)/op-logs" },
+                { label: "결제 리스크",    v: riskSummary.paymentRisk,    color: "#DC2626", path: "/(super)/subscriptions" },
+                { label: "저장공간 리스크", v: riskSummary.storageRisk,    color: "#D97706", path: "/(super)/storage" },
+                { label: "삭제 예정",      v: riskSummary.deletionPending, color: "#0891B2", path: "/(super)/risk-center" },
+                { label: "정책 미확인",    v: riskSummary.policyUnsigned,  color: "#4F46E5", path: "/(super)/policy" },
+                { label: "SLA 초과",       v: riskSummary.slaOverdue,      color: "#DC2626", path: "/(super)/support" },
+                { label: "보안 이벤트",    v: riskSummary.securityEvents,  color: "#991B1B", path: "/(super)/op-logs" },
               ].map((item) => (
                 <Pressable key={item.label} style={s.riskCard}
                   onPress={() => router.push(item.path as any)}>
@@ -515,7 +538,7 @@ export default function SuperDashboard() {
               </View>
             ) : (
               recentLogs.map((log) => {
-                const d = new Date(log.created_at);
+                const d = new Date(log.createdAt);
                 const timeStr = isNaN(d.getTime()) ? "—" :
                   d.toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
                 return (
@@ -524,8 +547,8 @@ export default function SuperDashboard() {
                       <Text style={s.auditCatTxt} numberOfLines={1}>{log.category ?? "—"}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.auditDesc} numberOfLines={1}>{log.description ?? "—"}</Text>
-                      <Text style={s.auditMeta}>{log.actor_name ?? "시스템"} · {timeStr}</Text>
+                      <Text style={s.auditDesc} numberOfLines={1}>{log.title ?? log.detail ?? "—"}</Text>
+                      <Text style={s.auditMeta}>{log.actorName ?? "시스템"} · {timeStr}</Text>
                     </View>
                   </View>
                 );

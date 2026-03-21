@@ -1,17 +1,19 @@
 /**
  * (super)/policy.tsx — 정책·컴플라이언스
- * 탭: 환불정책 / 개인정보 / 이용약관 / 버전관리 / 미동의 운영자
+ * operatorsStore (미동의 필터) + 로컬 버전 상태 — API 호출 없음
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
+  FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { useOperatorsStore } from "@/store/operatorsStore";
+import { useAuditLogStore } from "@/store/auditLogStore";
 
 const P = "#7C3AED";
 
@@ -31,63 +33,66 @@ const DEFAULT_POLICIES: Record<string, string> = {
   terms_of_service: "1. 서비스 이용 연령: 법정대리인 동의 필요 (만 14세 미만)\n2. 계정 관리 책임: 이용자 본인\n3. 금지 행위: 타인 계정 도용, 서비스 방해\n4. 서비스 중단: 불가항력·점검 시 가능",
 };
 
-function safeDate(iso: string | null | undefined): Date | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? null : d;
-}
+const SEED_VERSIONS: Record<string, { id: string; version: string; preview: string; created_at: string; created_by: string }[]> = {
+  refund_policy: [
+    { id: "rv-1", version: "1.2.0", preview: "1. 수강 시작 전 전액 환불\n2. 1/3 경과 전 2/3 환불", created_at: "2024-09-01T00:00:00.000Z", created_by: "슈퍼관리자" },
+    { id: "rv-2", version: "1.1.0", preview: "환불 정책 v1.1 - 환불 조건 강화", created_at: "2024-03-15T00:00:00.000Z", created_by: "슈퍼관리자" },
+  ],
+  privacy_policy: [
+    { id: "pv-1", version: "2.0.0", preview: "1. 수집 항목: 이름, 연락처, 사진...", created_at: "2025-01-01T00:00:00.000Z", created_by: "슈퍼관리자" },
+  ],
+  terms_of_service: [
+    { id: "tv-1", version: "1.5.0", preview: "1. 서비스 이용 연령: 법정대리인 동의 필요...", created_at: "2024-12-01T00:00:00.000Z", created_by: "슈퍼관리자" },
+  ],
+};
 
 function fmtDate(iso: string | null | undefined): string {
-  const d = safeDate(iso);
-  if (!d) return "—";
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("ko-KR", { year: "numeric", month: "short", day: "numeric" });
 }
 
 export default function PolicyScreen() {
-  const { token } = useAuth();
+  const { adminUser } = useAuth();
+  const actorName = adminUser?.name ?? '슈퍼관리자';
+
+  const operators = useOperatorsStore(s => s.operators);
+  const createLog = useAuditLogStore(s => s.createLog);
+
   const [tab,          setTab]          = useState("refund_policy");
-  const [loading,      setLoading]      = useState(false);
   const [refreshing,   setRefreshing]   = useState(false);
-  const [versions,     setVersions]     = useState<any[]>([]);
-  const [unsigned,     setUnsigned]     = useState<any[]>([]);
+  const [versionsByKey,setVersionsByKey]= useState(SEED_VERSIONS);
   const [unsignedKey,  setUnsignedKey]  = useState("refund_policy");
   const [versionKey,   setVersionKey]   = useState("refund_policy");
   const [versionModal, setVersionModal] = useState(false);
   const [newVer,       setNewVer]       = useState("");
   const [newVal,       setNewVal]       = useState("");
-  const [saving,       setSaving]       = useState(false);
 
-  async function loadVersions() {
-    setLoading(true);
-    try {
-      const res = await apiRequest(token, `/super/policy-versions/${versionKey}`);
-      if (res.ok) setVersions(await res.json());
-    } finally { setLoading(false); setRefreshing(false); }
-  }
+  const versions = versionsByKey[versionKey] ?? [];
 
-  async function loadUnsigned() {
-    setLoading(true);
-    try {
-      const res = await apiRequest(token, `/super/policy-consents?policy_key=${unsignedKey}`);
-      if (res.ok) setUnsigned(await res.json());
-    } finally { setLoading(false); setRefreshing(false); }
-  }
+  const unsignedOperators = operators.filter(op => {
+    if (unsignedKey === "refund_policy")    return !op.policyRefundRead;
+    if (unsignedKey === "privacy_policy")   return !op.policyPrivacyRead;
+    if (unsignedKey === "terms_of_service") return !op.policyTermsAgreed;
+    return false;
+  });
 
-  useEffect(() => {
-    if (tab === "versions") loadVersions();
-    if (tab === "unsigned") loadUnsigned();
-  }, [tab, versionKey, unsignedKey]);
-
-  async function handleSaveVersion() {
+  function handleSaveVersion() {
     if (!newVer || !newVal) return;
-    setSaving(true);
-    await apiRequest(token, `/super/policy-versions/${versionKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ version: newVer, value: newVal }),
-    }).catch(() => {});
-    setSaving(false); setVersionModal(false); setNewVer(""); setNewVal("");
-    loadVersions();
+    const entry = {
+      id:         `ver-${Date.now()}`,
+      version:    newVer,
+      preview:    newVal.slice(0, 80),
+      created_at: new Date().toISOString(),
+      created_by: actorName,
+    };
+    setVersionsByKey(prev => ({
+      ...prev,
+      [versionKey]: [entry, ...(prev[versionKey] ?? [])],
+    }));
+    createLog({ category: '정책', title: `정책 버전 저장: ${TABS.find(t => t.key === versionKey)?.label} v${newVer}`, actorName, impact: 'medium' });
+    setVersionModal(false); setNewVer(""); setNewVal("");
   }
 
   const policyLabel = TABS.find(t => t.key === tab)?.label ?? "";
@@ -105,10 +110,10 @@ export default function PolicyScreen() {
         ))}
       </ScrollView>
 
-      {/* 정책 본문 탭들 */}
       {POLICY_KEYS.includes(tab) && (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 60 }}
-          refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={() => {}} />}>
+          refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
+            onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
           <View style={s.policyCard}>
             <View style={s.policyHeader}>
               <View style={s.policyIconBg}>
@@ -144,7 +149,6 @@ export default function PolicyScreen() {
         </ScrollView>
       )}
 
-      {/* 버전 관리 탭 */}
       {tab === "versions" && (
         <View style={{ flex: 1 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -158,41 +162,35 @@ export default function PolicyScreen() {
               </Pressable>
             ))}
           </ScrollView>
-          {loading ? (
-            <ActivityIndicator color={P} style={{ marginTop: 40 }} />
-          ) : (
-            <FlatList
-              data={versions}
-              keyExtractor={i => i.id}
-              contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 80 }}
-              refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={loadVersions} />}
-              ListHeaderComponent={
-                <Pressable style={s.addVerBtn} onPress={() => setVersionModal(true)}>
-                  <Feather name="plus" size={13} color="#fff" />
-                  <Text style={s.addVerTxt}>현재 버전 저장</Text>
-                </Pressable>
-              }
-              renderItem={({ item }) => (
-                <View style={s.verRow}>
-                  <View style={s.verBadge}><Text style={s.verBadgeTxt}>v{item.version}</Text></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.verPreview} numberOfLines={2}>{item.preview}</Text>
-                    <Text style={s.verMeta}>{fmtDate(item.created_at)} · {item.created_by ?? "시스템"}</Text>
-                  </View>
+          <FlatList
+            data={versions}
+            keyExtractor={i => i.id}
+            contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 80 }}
+            ListHeaderComponent={
+              <Pressable style={s.addVerBtn} onPress={() => setVersionModal(true)}>
+                <Feather name="plus" size={13} color="#fff" />
+                <Text style={s.addVerTxt}>현재 버전 저장</Text>
+              </Pressable>
+            }
+            renderItem={({ item }) => (
+              <View style={s.verRow}>
+                <View style={s.verBadge}><Text style={s.verBadgeTxt}>v{item.version}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.verPreview} numberOfLines={2}>{item.preview}</Text>
+                  <Text style={s.verMeta}>{fmtDate(item.created_at)} · {item.created_by ?? "시스템"}</Text>
                 </View>
-              )}
-              ListEmptyComponent={
-                <View style={s.empty}>
-                  <Feather name="git-branch" size={28} color="#D1D5DB" />
-                  <Text style={s.emptyTxt}>저장된 버전이 없습니다</Text>
-                </View>
-              }
-            />
-          )}
+              </View>
+            )}
+            ListEmptyComponent={
+              <View style={s.empty}>
+                <Feather name="git-branch" size={28} color="#D1D5DB" />
+                <Text style={s.emptyTxt}>저장된 버전이 없습니다</Text>
+              </View>
+            }
+          />
         </View>
       )}
 
-      {/* 미동의 운영자 탭 */}
       {tab === "unsigned" && (
         <View style={{ flex: 1 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -206,54 +204,48 @@ export default function PolicyScreen() {
               </Pressable>
             ))}
           </ScrollView>
-          {loading ? (
-            <ActivityIndicator color={P} style={{ marginTop: 40 }} />
-          ) : (
-            <FlatList
-              data={unsigned}
-              keyExtractor={i => i.id}
-              contentContainerStyle={{ padding: 14, gap: 8, paddingBottom: 80 }}
-              refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={loadUnsigned} />}
-              ListHeaderComponent={
-                unsigned.length > 0 ? (
-                  <View style={s.unsignedHeader}>
-                    <Feather name="alert-circle" size={14} color="#DC2626" />
-                    <Text style={s.unsignedHeaderTxt}>
-                      {TABS.find(t => t.key === unsignedKey)?.label} 미동의 운영자 {unsigned.length}명
-                    </Text>
-                  </View>
-                ) : null
-              }
-              renderItem={({ item }) => (
-                <Pressable style={s.unsignedRow}
-                  onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
-                  <View style={s.unsignedLeft}>
-                    <View style={s.unsignedBullet} />
-                    <View>
-                      <Text style={s.unsignedName}>{item.name}</Text>
-                      <Text style={s.unsignedSub}>{item.owner_name} · {fmtDate(item.created_at)} 가입</Text>
-                    </View>
-                  </View>
-                  <View style={[s.unsignedBadge, { backgroundColor: item.approval_status === "approved" ? "#D1FAE5" : "#FEF3C7" }]}>
-                    <Text style={[s.unsignedBadgeTxt, { color: item.approval_status === "approved" ? "#059669" : "#D97706" }]}>
-                      {item.approval_status === "approved" ? "승인" : "대기"}
-                    </Text>
-                  </View>
-                  <Feather name="chevron-right" size={14} color="#9CA3AF" />
-                </Pressable>
-              )}
-              ListEmptyComponent={
-                <View style={s.empty}>
-                  <Feather name="check-circle" size={28} color="#10B981" />
-                  <Text style={s.emptyTxt}>모든 운영자가 동의했습니다</Text>
+          <FlatList
+            data={unsignedOperators}
+            keyExtractor={i => i.id}
+            contentContainerStyle={{ padding: 14, gap: 8, paddingBottom: 80 }}
+            ListHeaderComponent={
+              unsignedOperators.length > 0 ? (
+                <View style={s.unsignedHeader}>
+                  <Feather name="alert-circle" size={14} color="#DC2626" />
+                  <Text style={s.unsignedHeaderTxt}>
+                    {TABS.find(t => t.key === unsignedKey)?.label} 미동의 운영자 {unsignedOperators.length}명
+                  </Text>
                 </View>
-              }
-            />
-          )}
+              ) : null
+            }
+            renderItem={({ item }) => (
+              <Pressable style={s.unsignedRow}
+                onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
+                <View style={s.unsignedLeft}>
+                  <View style={s.unsignedBullet} />
+                  <View>
+                    <Text style={s.unsignedName}>{item.name}</Text>
+                    <Text style={s.unsignedSub}>{item.representativeName} · {fmtDate(item.createdAt)} 가입</Text>
+                  </View>
+                </View>
+                <View style={[s.unsignedBadge, { backgroundColor: item.isApproved ? "#D1FAE5" : "#FEF3C7" }]}>
+                  <Text style={[s.unsignedBadgeTxt, { color: item.isApproved ? "#059669" : "#D97706" }]}>
+                    {item.isApproved ? "승인" : "대기"}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={14} color="#9CA3AF" />
+              </Pressable>
+            )}
+            ListEmptyComponent={
+              <View style={s.empty}>
+                <Feather name="check-circle" size={28} color="#10B981" />
+                <Text style={s.emptyTxt}>모든 운영자가 동의했습니다</Text>
+              </View>
+            }
+          />
         </View>
       )}
 
-      {/* 버전 저장 모달 */}
       {versionModal && (
         <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={() => setVersionModal(false)}>
           <Pressable style={m.backdrop} onPress={() => setVersionModal(false)}>
@@ -276,10 +268,9 @@ export default function PolicyScreen() {
                 <Pressable style={m.cancelBtn} onPress={() => setVersionModal(false)}>
                   <Text style={m.cancelTxt}>취소</Text>
                 </Pressable>
-                <Pressable style={[m.saveBtn, { opacity: saving ? 0.6 : 1 }]}
-                  onPress={handleSaveVersion} disabled={saving || !newVer || !newVal}>
-                  {saving ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={m.saveTxt}>저장</Text>}
+                <Pressable style={[m.saveBtn, { opacity: !newVer || !newVal ? 0.4 : 1 }]}
+                  onPress={handleSaveVersion} disabled={!newVer || !newVal}>
+                  <Text style={m.saveTxt}>저장</Text>
                 </Pressable>
               </View>
             </Pressable>

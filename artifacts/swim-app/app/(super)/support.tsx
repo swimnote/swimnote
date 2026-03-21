@@ -1,50 +1,41 @@
 /**
  * (super)/support.tsx — 고객센터
- * 문의 유형·처리 상태·SLA·운영자 연결
+ * supportStore에서 15+개 티켓 데이터 — API 호출 없음
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { useSupportStore } from "@/store/supportStore";
+import { useAuditLogStore } from "@/store/auditLogStore";
+import type { SupportTicket, SupportStatus } from "@/domain/types";
+import { SLA_HOURS } from "@/domain/policies";
 
 const P = "#7C3AED";
 
-interface Ticket {
-  id: string;
-  ticket_type: string;
-  requester_type: string;
-  requester_name: string | null;
-  pool_id: string | null;
-  pool_name: string | null;
-  subject: string;
-  description: string | null;
-  status: string;
-  assignee: string | null;
-  sla_hours: number;
-  created_at: string;
-  resolved_at: string | null;
-}
-
 const TYPE_CFG: Record<string, { label: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
-  refund:    { label: "환불",   color: "#DC2626", bg: "#FEE2E2", icon: "rotate-ccw" },
-  payment:   { label: "결제",   color: "#0891B2", bg: "#ECFEFF", icon: "credit-card" },
-  deletion:  { label: "삭제",   color: "#D97706", bg: "#FEF3C7", icon: "trash-2" },
-  policy:    { label: "정책",   color: "#4F46E5", bg: "#EEF2FF", icon: "file-text" },
-  technical: { label: "기술",   color: P,         bg: "#EDE9FE", icon: "tool" },
-  other:     { label: "기타",   color: "#6B7280", bg: "#F3F4F6", icon: "help-circle" },
+  refund:     { label: "환불",   color: "#DC2626", bg: "#FEE2E2", icon: "rotate-ccw" },
+  payment:    { label: "결제",   color: "#0891B2", bg: "#ECFEFF", icon: "credit-card" },
+  deletion:   { label: "삭제",   color: "#D97706", bg: "#FEF3C7", icon: "trash-2" },
+  policy:     { label: "정책",   color: "#4F46E5", bg: "#EEF2FF", icon: "file-text" },
+  technical:  { label: "기술",   color: P,         bg: "#EDE9FE", icon: "tool" },
+  storage:    { label: "저장공간", color: "#059669", bg: "#D1FAE5", icon: "hard-drive" },
+  chargeback: { label: "차지백", color: "#991B1B", bg: "#FEE2E2", icon: "alert-triangle" },
+  other:      { label: "기타",   color: "#6B7280", bg: "#F3F4F6", icon: "help-circle" },
 };
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  open:        { label: "미처리",  color: "#DC2626", bg: "#FEE2E2" },
-  in_progress: { label: "처리 중", color: "#D97706", bg: "#FEF3C7" },
-  resolved:    { label: "해결됨",  color: "#059669", bg: "#D1FAE5" },
-  closed:      { label: "종결",    color: "#6B7280", bg: "#F3F4F6" },
+  open:               { label: "미처리",  color: "#DC2626", bg: "#FEE2E2" },
+  pending:            { label: "대기 중", color: "#D97706", bg: "#FEF3C7" },
+  in_progress:        { label: "처리 중", color: "#D97706", bg: "#FEF3C7" },
+  escalated_to_tech:  { label: "에스컬",  color: P,         bg: "#EDE9FE" },
+  resolved:           { label: "해결됨",  color: "#059669", bg: "#D1FAE5" },
 };
 
 const REQUESTER_CFG: Record<string, { label: string; color: string }> = {
@@ -54,7 +45,7 @@ const REQUESTER_CFG: Record<string, { label: string; color: string }> = {
 };
 
 const TICKET_TYPES = Object.keys(TYPE_CFG);
-const STATUS_KEYS  = Object.keys(STATUS_CFG);
+const STATUS_KEYS  = Object.keys(STATUS_CFG) as SupportStatus[];
 
 function safeDate(iso: string | null | undefined): Date | null {
   if (!iso) return null;
@@ -62,13 +53,7 @@ function safeDate(iso: string | null | undefined): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function isSlaOverdue(ticket: Ticket): boolean {
-  const d = safeDate(ticket.created_at);
-  if (!d || ticket.status === "resolved" || ticket.status === "closed") return false;
-  return Date.now() - d.getTime() > ticket.sla_hours * 3600000;
-}
-
-function fmtDate(iso: string | null | undefined): string {
+function fmtRelative(iso: string | null | undefined): string {
   const d = safeDate(iso);
   if (!d) return "—";
   const diff = Date.now() - d.getTime();
@@ -78,68 +63,118 @@ function fmtDate(iso: string | null | undefined): string {
   return d.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
+function getSlaStatus(ticket: SupportTicket): { overdue: boolean; label: string } {
+  if (!ticket.slaDueAt || ticket.status === 'resolved') return { overdue: false, label: "" };
+  const d = safeDate(ticket.slaDueAt);
+  if (!d) return { overdue: false, label: "" };
+  const msLeft = d.getTime() - Date.now();
+  if (msLeft < 0) return { overdue: true, label: "SLA 초과" };
+  const hLeft = Math.floor(msLeft / 3600000);
+  if (hLeft < 4) return { overdue: false, label: `${hLeft}시간 남음` };
+  return { overdue: false, label: "" };
+}
+
 export default function SupportScreen() {
-  const { token } = useAuth();
-  const [tickets,    setTickets]    = useState<Ticket[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterType,   setFilterType]   = useState("all");
-  const [editTicket, setEditTicket]  = useState<Ticket | null>(null);
-  const [newStatus,  setNewStatus]   = useState("in_progress");
-  const [assignee,   setAssignee]    = useState("");
-  const [saving,     setSaving]      = useState(false);
-  const [createModal,setCreateModal] = useState(false);
-  const [form,       setForm]        = useState({ ticket_type: "other", requester_type: "operator", requester_name: "", subject: "", description: "", sla_hours: "24" });
-  const [creating,   setCreating]    = useState(false);
+  const { adminUser } = useAuth();
+  const actorName = adminUser?.name ?? '슈퍼관리자';
 
-  async function fetch() {
-    try {
-      const params = new URLSearchParams();
-      if (filterStatus !== "all") params.set("status", filterStatus);
-      if (filterType !== "all")   params.set("ticket_type", filterType);
-      const res = await apiRequest(token, `/super/support-tickets?${params}`);
-      if (res.ok) setTickets(await res.json());
-    } finally { setLoading(false); setRefreshing(false); }
-  }
+  const [filterStatus, setFilterStatus]  = useState("all");
+  const [filterType, setFilterType]      = useState("all");
+  const [refreshing, setRefreshing]      = useState(false);
+  const [editTicket, setEditTicket]      = useState<SupportTicket | null>(null);
+  const [newStatus, setNewStatus]        = useState<SupportStatus>("in_progress");
+  const [assignee, setAssignee]          = useState("");
+  const [internalMemo, setInternalMemo]  = useState("");
+  const [saving, setSaving]              = useState(false);
+  const [createModal, setCreateModal]    = useState(false);
+  const [form, setForm]                  = useState({
+    type: "other", requesterType: "operator", requesterName: "",
+    operatorId: "", operatorName: "", subject: "", description: "",
+    riskLevel: "medium" as any,
+  });
+  const [creating, setCreating]          = useState(false);
 
-  useEffect(() => { fetch(); }, [filterStatus, filterType]);
+  const allTickets        = useSupportStore(s => s.tickets);
+  const updateStatus      = useSupportStore(s => s.updateTicketStatus);
+  const assignTicket      = useSupportStore(s => s.assignTicket);
+  const addMemo           = useSupportStore(s => s.addInternalMemo);
+  const createTicketFn    = useSupportStore(s => s.createTicket);
+  const createLog         = useAuditLogStore(s => s.createLog);
 
-  async function handleUpdate() {
+  const filtered = useMemo(() => {
+    let list = allTickets;
+    if (filterStatus !== "all") list = list.filter(t => t.status === filterStatus);
+    if (filterType !== "all")   list = list.filter(t => t.type === filterType);
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [allTickets, filterStatus, filterType]);
+
+  const counts: Record<string, number> = useMemo(() => {
+    const c: Record<string, number> = { all: allTickets.length };
+    STATUS_KEYS.forEach(k => { c[k] = allTickets.filter(t => t.status === k).length; });
+    return c;
+  }, [allTickets]);
+
+  const slaOverdueCount = useMemo(() => allTickets.filter(t => t.isSlaOverdue).length, [allTickets]);
+
+  function handleUpdate() {
     if (!editTicket) return;
     setSaving(true);
-    await apiRequest(token, `/super/support-tickets/${editTicket.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus, assignee: assignee || null }),
-    }).catch(() => {});
-    setSaving(false); setEditTicket(null); fetch();
+    try {
+      updateStatus(editTicket.id, newStatus);
+      if (assignee.trim()) assignTicket(editTicket.id, assignee.trim());
+      if (internalMemo.trim()) addMemo(editTicket.id, internalMemo.trim());
+      createLog({
+        category: '고객센터',
+        title: `티켓 상태 변경: ${editTicket.subject}`,
+        operatorId: editTicket.operatorId,
+        operatorName: editTicket.operatorName,
+        actorName,
+        impact: 'low',
+        detail: `${STATUS_CFG[newStatus]?.label ?? newStatus}${assignee ? ` · 담당: ${assignee}` : ''}`,
+      });
+      setEditTicket(null);
+      setInternalMemo("");
+    } finally { setSaving(false); }
   }
 
-  async function handleCreate() {
-    if (!form.subject) return;
+  function handleCreate() {
+    if (!form.subject.trim()) return;
     setCreating(true);
-    await apiRequest(token, "/super/support-tickets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, sla_hours: parseInt(form.sla_hours) || 24 }),
-    }).catch(() => {});
-    setCreating(false); setCreateModal(false);
-    setForm({ ticket_type: "other", requester_type: "operator", requester_name: "", subject: "", description: "", sla_hours: "24" });
-    fetch();
+    try {
+      const ticket = createTicketFn({
+        type: form.type as any,
+        requesterType: form.requesterType as any,
+        requesterName: form.requesterName,
+        operatorId: form.operatorId,
+        operatorName: form.operatorName,
+        subject: form.subject,
+        description: form.description,
+        status: 'open',
+        assigneeName: '',
+        riskLevel: form.riskLevel,
+        internalMemo: '',
+      });
+      createLog({
+        category: '고객센터',
+        title: `신규 티켓 등록: ${form.subject}`,
+        actorName,
+        impact: 'low',
+        detail: `유형: ${TYPE_CFG[form.type]?.label ?? form.type}`,
+      });
+      setCreateModal(false);
+      setForm({ type: "other", requesterType: "operator", requesterName: "", operatorId: "", operatorName: "", subject: "", description: "", riskLevel: "medium" });
+    } finally { setCreating(false); }
   }
 
-  const counts: Record<string, number> = { all: tickets.length };
-  STATUS_KEYS.forEach(k => { counts[k] = tickets.filter(t => t.status === k).length; });
-
-  const renderItem = ({ item }: { item: Ticket }) => {
-    const tc = TYPE_CFG[item.ticket_type] ?? TYPE_CFG.other;
+  const renderItem = ({ item }: { item: SupportTicket }) => {
+    const tc = TYPE_CFG[item.type] ?? TYPE_CFG.other;
     const sc = STATUS_CFG[item.status] ?? STATUS_CFG.open;
-    const rc = REQUESTER_CFG[item.requester_type] ?? { label: item.requester_type, color: "#6B7280" };
-    const overdue = isSlaOverdue(item);
+    const rc = REQUESTER_CFG[item.requesterType] ?? { label: item.requesterType, color: "#6B7280" };
+    const { overdue, label: slaLabel } = getSlaStatus(item);
 
     return (
-      <Pressable style={[s.row, overdue && s.rowOverdue]} onPress={() => { setEditTicket(item); setNewStatus(item.status); setAssignee(item.assignee ?? ""); }}>
+      <Pressable style={[s.row, overdue && s.rowOverdue, item.riskLevel === 'critical' && s.rowCritical]}
+        onPress={() => { setEditTicket(item); setNewStatus(item.status as SupportStatus); setAssignee(item.assigneeName ?? ""); setInternalMemo(item.internalMemo ?? ""); }}>
         <View style={[s.typeIcon, { backgroundColor: tc.bg }]}>
           <Feather name={tc.icon} size={15} color={tc.color} />
         </View>
@@ -147,21 +182,21 @@ export default function SupportScreen() {
           <View style={s.rowTop}>
             <Text style={s.subject} numberOfLines={1}>{item.subject}</Text>
             {overdue && <View style={s.slaTag}><Text style={s.slaTxt}>SLA 초과</Text></View>}
+            {slaLabel && !overdue && <View style={[s.slaTag, { backgroundColor: "#FEF3C7" }]}><Text style={[s.slaTxt, { color: "#D97706" }]}>{slaLabel}</Text></View>}
           </View>
           <View style={s.rowMeta}>
             <Text style={[s.metaTxt, { color: rc.color }]}>{rc.label}</Text>
-            {item.requester_name && <Text style={s.metaDot}>·</Text>}
-            {item.requester_name && <Text style={s.metaTxt}>{item.requester_name}</Text>}
-            {item.pool_name && <><Text style={s.metaDot}>·</Text><Text style={s.metaTxt}>{item.pool_name}</Text></>}
+            {item.requesterName && <><Text style={s.metaDot}>·</Text><Text style={s.metaTxt}>{item.requesterName}</Text></>}
+            {item.operatorName && <><Text style={s.metaDot}>·</Text><Text style={s.metaTxt}>{item.operatorName}</Text></>}
             <Text style={s.metaDot}>·</Text>
-            <Text style={s.metaTxt}>{fmtDate(item.created_at)}</Text>
+            <Text style={s.metaTxt}>{fmtRelative(item.createdAt)}</Text>
           </View>
         </View>
         <View style={s.rowRight}>
           <View style={[s.badge, { backgroundColor: sc.bg }]}>
             <Text style={[s.badgeTxt, { color: sc.color }]}>{sc.label}</Text>
           </View>
-          {item.assignee && <Text style={s.assigneeTxt}>{item.assignee}</Text>}
+          {item.assigneeName && <Text style={s.assigneeTxt}>{item.assigneeName}</Text>}
         </View>
       </Pressable>
     );
@@ -171,16 +206,27 @@ export default function SupportScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="고객센터" homePath="/(super)/dashboard" />
 
+      {/* SLA 알림 배너 */}
+      {slaOverdueCount > 0 && (
+        <Pressable style={s.slaBanner} onPress={() => setFilterStatus("open")}>
+          <Feather name="alert-circle" size={14} color="#DC2626" />
+          <Text style={s.slaBannerTxt}>SLA 초과 티켓 <Text style={{ fontFamily: "Inter_700Bold" }}>{slaOverdueCount}건</Text> — 즉시 처리 필요</Text>
+        </Pressable>
+      )}
+
       {/* 상태별 요약 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.summaryBar} contentContainerStyle={s.summaryContent}>
-        {[{ k: "all", label: "전체" }, ...STATUS_KEYS.map(k => ({ k, label: STATUS_CFG[k].label }))].map(item => {
-          const sc = STATUS_CFG[item.k] ?? { color: "#374151", bg: "#F3F4F6" };
+        {[
+          { k: "all", label: "전체", color: "#374151" },
+          ...STATUS_KEYS.map(k => ({ k, label: STATUS_CFG[k].label, color: STATUS_CFG[k].color })),
+        ].map(item => {
           const isActive = filterStatus === item.k;
           return (
-            <Pressable key={item.k} style={[s.summaryChip, { backgroundColor: isActive ? sc.color : "#F3F4F6" }]}
+            <Pressable key={item.k}
+              style={[s.summaryChip, { backgroundColor: isActive ? item.color : "#F3F4F6" }]}
               onPress={() => setFilterStatus(item.k)}>
-              <Text style={[s.summaryNum, { color: isActive ? "#fff" : "#374151" }]}>{counts[item.k] ?? 0}</Text>
+              <Text style={[s.summaryNum, { color: isActive ? "#fff" : "#111827" }]}>{counts[item.k] ?? 0}</Text>
               <Text style={[s.summaryLabel, { color: isActive ? "rgba(255,255,255,0.8)" : "#9CA3AF" }]}>{item.label}</Text>
             </Pressable>
           );
@@ -206,25 +252,22 @@ export default function SupportScreen() {
         })}
       </ScrollView>
 
-      {loading ? (
-        <ActivityIndicator color={P} style={{ marginTop: 40 }} />
-      ) : (
-        <FlatList
-          data={tickets}
-          keyExtractor={i => i.id}
-          renderItem={renderItem}
-          refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-            onRefresh={() => { setRefreshing(true); fetch(); }} />}
-          contentContainerStyle={{ paddingVertical: 4, paddingBottom: 80 }}
-          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Feather name="message-circle" size={32} color="#D1D5DB" />
-              <Text style={s.emptyTxt}>문의가 없습니다</Text>
-            </View>
-          }
-        />
-      )}
+      {/* 리스트 */}
+      <FlatList
+        data={filtered}
+        keyExtractor={i => i.id}
+        renderItem={renderItem}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
+          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+        contentContainerStyle={{ paddingVertical: 4, paddingBottom: 80 }}
+        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
+        ListEmptyComponent={
+          <View style={s.empty}>
+            <Feather name="message-circle" size={32} color="#D1D5DB" />
+            <Text style={s.emptyTxt}>해당 조건의 문의가 없습니다</Text>
+          </View>
+        }
+      />
 
       {/* 등록 FAB */}
       <Pressable style={s.fab} onPress={() => setCreateModal(true)}>
@@ -238,29 +281,30 @@ export default function SupportScreen() {
             <Pressable style={m.sheet} onPress={() => {}}>
               <View style={m.handle} />
               <Text style={m.title}>{editTicket.subject}</Text>
-              {editTicket.description && <Text style={m.desc}>{editTicket.description}</Text>}
+              {editTicket.description && <Text style={m.desc} numberOfLines={3}>{editTicket.description}</Text>}
 
               <View style={m.infoBox}>
                 <View style={m.infoRow}>
                   <Text style={m.infoLabel}>유형</Text>
-                  <Text style={m.infoVal}>{TYPE_CFG[editTicket.ticket_type]?.label ?? editTicket.ticket_type}</Text>
+                  <Text style={m.infoVal}>{TYPE_CFG[editTicket.type]?.label ?? editTicket.type}</Text>
                 </View>
                 <View style={m.infoRow}>
                   <Text style={m.infoLabel}>요청자</Text>
-                  <Text style={m.infoVal}>{REQUESTER_CFG[editTicket.requester_type]?.label} {editTicket.requester_name ?? ""}</Text>
+                  <Text style={m.infoVal}>{REQUESTER_CFG[editTicket.requesterType]?.label} {editTicket.requesterName ?? ""}</Text>
                 </View>
-                {editTicket.pool_name && (
+                {editTicket.operatorName && (
                   <View style={m.infoRow}>
                     <Text style={m.infoLabel}>운영자</Text>
-                    <Pressable onPress={() => { setEditTicket(null); router.push(`/(super)/operator-detail?id=${editTicket.pool_id}` as any); }}>
-                      <Text style={[m.infoVal, { color: P, textDecorationLine: "underline" }]}>{editTicket.pool_name}</Text>
+                    <Pressable onPress={() => { setEditTicket(null); router.push(`/(super)/operator-detail?id=${editTicket.operatorId}` as any); }}>
+                      <Text style={[m.infoVal, { color: P, textDecorationLine: "underline" }]}>{editTicket.operatorName}</Text>
                     </Pressable>
                   </View>
                 )}
                 <View style={m.infoRow}>
-                  <Text style={m.infoLabel}>SLA</Text>
-                  <Text style={[m.infoVal, isSlaOverdue(editTicket) && { color: "#DC2626" }]}>
-                    {editTicket.sla_hours}시간 {isSlaOverdue(editTicket) ? "· 초과됨" : ""}
+                  <Text style={m.infoLabel}>SLA 마감</Text>
+                  <Text style={[m.infoVal, editTicket.isSlaOverdue && { color: "#DC2626" }]}>
+                    {editTicket.slaDueAt ? new Date(editTicket.slaDueAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                    {editTicket.isSlaOverdue ? " · 초과됨" : ""}
                   </Text>
                 </View>
               </View>
@@ -271,7 +315,8 @@ export default function SupportScreen() {
                   {STATUS_KEYS.map(k => {
                     const sc = STATUS_CFG[k];
                     return (
-                      <Pressable key={k} style={[m.optChip, newStatus === k && { backgroundColor: sc.color, borderColor: sc.color }]}
+                      <Pressable key={k}
+                        style={[m.optChip, newStatus === k && { backgroundColor: sc.color, borderColor: sc.color }]}
                         onPress={() => setNewStatus(k)}>
                         <Text style={[m.optTxt, newStatus === k && { color: "#fff" }]}>{sc.label}</Text>
                       </Pressable>
@@ -286,7 +331,13 @@ export default function SupportScreen() {
                   placeholder="담당자 이름" placeholderTextColor="#9CA3AF" />
               </View>
 
-              {editTicket.ticket_type === "refund" && (
+              <View style={m.section}>
+                <Text style={m.label}>내부 메모</Text>
+                <TextInput style={[m.input, { minHeight: 60 }]} value={internalMemo} onChangeText={setInternalMemo}
+                  multiline placeholder="내부 처리 메모" placeholderTextColor="#9CA3AF" textAlignVertical="top" />
+              </View>
+
+              {editTicket.type === "refund" && (
                 <Pressable style={m.linkBtn} onPress={() => { setEditTicket(null); router.push("/(super)/subscriptions" as any); }}>
                   <Feather name="credit-card" size={14} color={P} />
                   <Text style={m.linkBtnTxt}>구독·결제 관리로 이동</Text>
@@ -311,7 +362,7 @@ export default function SupportScreen() {
       {createModal && (
         <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={() => setCreateModal(false)}>
           <Pressable style={m.backdrop} onPress={() => setCreateModal(false)}>
-            <Pressable style={m.sheet} onPress={() => {}}>
+            <Pressable style={[m.sheet, { maxHeight: "90%" }]} onPress={() => {}}>
               <View style={m.handle} />
               <Text style={m.title}>문의 등록</Text>
 
@@ -322,9 +373,9 @@ export default function SupportScreen() {
                     {TICKET_TYPES.map(t => {
                       const tc = TYPE_CFG[t];
                       return (
-                        <Pressable key={t} style={[m.optChip, form.ticket_type === t && { backgroundColor: tc.color, borderColor: tc.color }]}
-                          onPress={() => setForm(f => ({ ...f, ticket_type: t }))}>
-                          <Text style={[m.optTxt, form.ticket_type === t && { color: "#fff" }]}>{tc.label}</Text>
+                        <Pressable key={t} style={[m.optChip, form.type === t && { backgroundColor: tc.color, borderColor: tc.color }]}
+                          onPress={() => setForm(f => ({ ...f, type: t }))}>
+                          <Text style={[m.optTxt, form.type === t && { color: "#fff" }]}>{tc.label}</Text>
                         </Pressable>
                       );
                     })}
@@ -335,9 +386,9 @@ export default function SupportScreen() {
                   <Text style={m.label}>요청자 유형</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                     {["operator", "teacher", "parent"].map(t => (
-                      <Pressable key={t} style={[m.optChip, form.requester_type === t && { backgroundColor: P, borderColor: P }]}
-                        onPress={() => setForm(f => ({ ...f, requester_type: t }))}>
-                        <Text style={[m.optTxt, form.requester_type === t && { color: "#fff" }]}>
+                      <Pressable key={t} style={[m.optChip, form.requesterType === t && { backgroundColor: P, borderColor: P }]}
+                        onPress={() => setForm(f => ({ ...f, requesterType: t }))}>
+                        <Text style={[m.optTxt, form.requesterType === t && { color: "#fff" }]}>
                           {REQUESTER_CFG[t]?.label ?? t}
                         </Text>
                       </Pressable>
@@ -347,7 +398,7 @@ export default function SupportScreen() {
 
                 <View style={m.section}>
                   <Text style={m.label}>요청자 이름</Text>
-                  <TextInput style={m.input} value={form.requester_name} onChangeText={v => setForm(f => ({ ...f, requester_name: v }))}
+                  <TextInput style={m.input} value={form.requesterName} onChangeText={v => setForm(f => ({ ...f, requesterName: v }))}
                     placeholder="이름 (선택)" placeholderTextColor="#9CA3AF" />
                 </View>
 
@@ -364,17 +415,12 @@ export default function SupportScreen() {
                     multiline placeholder="문의 내용 (선택)" placeholderTextColor="#9CA3AF" textAlignVertical="top" />
                 </View>
 
-                <View style={m.section}>
-                  <Text style={m.label}>SLA (시간)</Text>
-                  <TextInput style={m.input} value={form.sla_hours} onChangeText={v => setForm(f => ({ ...f, sla_hours: v }))}
-                    keyboardType="number-pad" placeholder="24" placeholderTextColor="#9CA3AF" />
-                </View>
-
                 <View style={m.btnRow}>
                   <Pressable style={m.cancelBtn} onPress={() => setCreateModal(false)}>
                     <Text style={m.cancelTxt}>취소</Text>
                   </Pressable>
-                  <Pressable style={[m.saveBtn, { opacity: creating ? 0.6 : 1 }]} onPress={handleCreate} disabled={creating || !form.subject}>
+                  <Pressable style={[m.saveBtn, { opacity: creating || !form.subject ? 0.6 : 1 }]}
+                    onPress={handleCreate} disabled={creating || !form.subject}>
                     {creating ? <ActivityIndicator color="#fff" size="small" />
                       : <Text style={m.saveTxt}>등록</Text>}
                   </Pressable>
@@ -389,66 +435,60 @@ export default function SupportScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F5F3FF" },
-  summaryBar:   { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  safe:          { flex: 1, backgroundColor: "#F5F3FF" },
+  slaBanner:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FCA5A5" },
+  slaBannerTxt:  { fontFamily: "Inter_500Medium", fontSize: 13, color: "#991B1B", flex: 1 },
+  summaryBar:    { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   summaryContent:{ paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
-  summaryChip:  { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  summaryNum:   { fontSize: 17, fontFamily: "Inter_700Bold" },
-  summaryLabel: { fontSize: 9, fontFamily: "Inter_500Medium", marginTop: 1 },
-  typeBar:      { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
-  typeContent:  { paddingHorizontal: 12, paddingVertical: 7, gap: 6, flexDirection: "row" },
-  typeChip:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6,
-                  borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+  summaryChip:   { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  summaryNum:    { fontSize: 17, fontFamily: "Inter_700Bold" },
+  summaryLabel:  { fontSize: 9, fontFamily: "Inter_500Medium", marginTop: 1 },
+  typeBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  typeContent:   { paddingHorizontal: 12, paddingVertical: 7, gap: 6, flexDirection: "row" },
+  typeChip:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
   typeChipActive:{ backgroundColor: P, borderColor: P },
-  typeChipTxt:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  row:          { flexDirection: "row", alignItems: "center", gap: 10,
-                  paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
-  rowOverdue:   { borderLeftWidth: 3, borderLeftColor: "#DC2626" },
-  typeIcon:     { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  rowMain:      { flex: 1, gap: 4 },
-  rowTop:       { flexDirection: "row", alignItems: "center", gap: 6 },
-  subject:      { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  slaTag:       { backgroundColor: "#FEE2E2", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
-  slaTxt:       { fontSize: 9, fontFamily: "Inter_700Bold", color: "#DC2626" },
-  rowMeta:      { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  metaTxt:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  metaDot:      { fontSize: 10, color: "#D1D5DB" },
-  rowRight:     { alignItems: "flex-end", gap: 4 },
-  badge:        { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  badgeTxt:     { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  assigneeTxt:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  empty:        { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  fab:          { position: "absolute", bottom: 20, right: 16, width: 52, height: 52,
-                  borderRadius: 26, backgroundColor: P, alignItems: "center", justifyContent: "center",
-                  shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
+  typeChipTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  row:           { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
+  rowOverdue:    { borderLeftWidth: 3, borderLeftColor: "#DC2626" },
+  rowCritical:   { backgroundColor: "#FFF5F5" },
+  typeIcon:      { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  rowMain:       { flex: 1, gap: 4 },
+  rowTop:        { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  subject:       { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  slaTag:        { backgroundColor: "#FEE2E2", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
+  slaTxt:        { fontSize: 9, fontFamily: "Inter_700Bold", color: "#DC2626" },
+  rowMeta:       { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  metaTxt:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  metaDot:       { fontSize: 10, color: "#D1D5DB" },
+  rowRight:      { alignItems: "flex-end", gap: 4 },
+  badge:         { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  badgeTxt:      { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  assigneeTxt:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  empty:         { alignItems: "center", paddingTop: 80, gap: 10 },
+  emptyTxt:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  fab:           { position: "absolute", bottom: 20, right: 16, width: 52, height: 52, borderRadius: 26, backgroundColor: P, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
 });
 
 const m = StyleSheet.create({
-  backdrop:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-               borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40,
-               maxHeight: "88%", gap: 12 },
-  handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  desc:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 20 },
-  infoBox:   { backgroundColor: "#F9FAFB", borderRadius: 10, padding: 12, gap: 6 },
-  infoRow:   { flexDirection: "row", gap: 8 },
-  infoLabel: { width: 50, fontSize: 12, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
-  infoVal:   { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151" },
-  section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-               fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
-  optChip:   { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-               borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
-  optTxt:    { fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
-  linkBtn:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EDE9FE",
-               borderRadius: 10, padding: 12 },
-  linkBtnTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: P },
-  btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end", marginTop: 4 },
-  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },
-  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  saveBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
-  saveTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  backdrop:   { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+  sheet:      { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "88%", gap: 12 },
+  handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
+  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
+  desc:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 20 },
+  infoBox:    { backgroundColor: "#F9FAFB", borderRadius: 10, padding: 12, gap: 6 },
+  infoRow:    { flexDirection: "row", gap: 8 },
+  infoLabel:  { width: 60, fontSize: 12, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
+  infoVal:    { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151" },
+  section:    { gap: 6 },
+  label:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  input:      { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  optChip:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+  optTxt:     { fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
+  linkBtn:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EDE9FE", borderRadius: 10, padding: 12 },
+  linkBtnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: P },
+  btnRow:     { flexDirection: "row", gap: 10, justifyContent: "flex-end", marginTop: 4 },
+  cancelBtn:  { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },
+  cancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  saveBtn:    { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
+  saveTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

@@ -1,99 +1,78 @@
 /**
  * (super)/pools.tsx — 운영자 관리 (대규모 운영 콘솔)
- * - 리스트형(행형) 구조
- * - 다중 선택 + 일괄 처리
- * - 강화된 필터 칩
+ * 14개 실데이터 · 13개 필터칩 · 다중선택 · 일괄처리
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
+  FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { useOperatorsStore, type OperatorFilter } from "@/store/operatorsStore";
+import { useAuditLogStore } from "@/store/auditLogStore";
+import type { Operator } from "@/domain/types";
+import { fmtDate, fmtPercent } from "@/domain/formatters";
 
 const P = "#7C3AED";
 
-interface Operator {
-  id: string;
-  name: string;
-  owner_name: string;
-  approval_status: "pending" | "approved" | "rejected";
-  subscription_status: string;
-  subscription_tier: any;
-  pool_type: string;
-  active_member_count: number;
-  usage_pct: number;
-  total_storage_gb: number;
-  last_login_at: string | null;
-  next_billing_at: string | null;
-  deletion_pending: boolean;
-  created_at: string;
-}
-
-type FilterKey =
-  "all" | "pending" | "payment_failed" | "storage_alert" | "deletion_pending" |
-  "this_week" | "free_over30" | "credit_balance" | "upload_spike" | "policy_unsigned" | "repeat_refund" |
-  "type_swimming" | "type_coach" | "type_rental" | "type_franchise";
-
-const FILTER_CHIPS: { key: FilterKey; label: string; color: string; bg: string }[] = [
-  { key: "all",              label: "전체",          color: "#374151", bg: "#F3F4F6" },
-  { key: "pending",          label: "승인 대기",      color: "#D97706", bg: "#FEF3C7" },
-  { key: "payment_failed",   label: "결제 실패",      color: "#DC2626", bg: "#FEE2E2" },
-  { key: "storage_alert",    label: "저장 95%↑",     color: P,         bg: "#EDE9FE" },
-  { key: "deletion_pending", label: "삭제 예정",      color: "#0891B2", bg: "#ECFEFF" },
-  { key: "credit_balance",   label: "크레딧 보유",    color: "#059669", bg: "#D1FAE5" },
-  { key: "this_week",        label: "이번 주 신규",  color: "#6B7280", bg: "#F3F4F6" },
-  { key: "free_over30",      label: "무료 체험",      color: "#6B7280", bg: "#F3F4F6" },
-  { key: "policy_unsigned",  label: "정책 미확인",    color: "#4F46E5", bg: "#EEF2FF" },
-  { key: "upload_spike",     label: "업로드 급증",    color: "#D97706", bg: "#FEF3C7" },
-  { key: "repeat_refund",    label: "반복 환불",      color: "#DC2626", bg: "#FEE2E2" },
+const FILTER_CHIPS: { key: OperatorFilter; label: string; color: string; bg: string }[] = [
+  { key: "all",              label: "전체",         color: "#374151", bg: "#F3F4F6" },
+  { key: "pending",          label: "승인 대기",     color: "#D97706", bg: "#FEF3C7" },
+  { key: "payment_failed",   label: "결제 실패",     color: "#DC2626", bg: "#FEE2E2" },
+  { key: "storage95",        label: "저장 95%↑",    color: P,         bg: "#EDE9FE" },
+  { key: "deletion_pending", label: "삭제 예정",     color: "#0891B2", bg: "#ECFEFF" },
+  { key: "credit",           label: "크레딧 보유",   color: "#059669", bg: "#D1FAE5" },
+  { key: "new_this_week",    label: "이번 주 신규", color: "#6B7280", bg: "#F3F4F6" },
+  { key: "free_over10",      label: "무료 체험",     color: "#6B7280", bg: "#F3F4F6" },
+  { key: "policy_unsigned",  label: "정책 미확인",   color: "#4F46E5", bg: "#EEF2FF" },
+  { key: "upload_spike",     label: "업로드 급증",   color: "#D97706", bg: "#FEF3C7" },
+  { key: "refund_repeat",    label: "반복 환불",     color: "#DC2626", bg: "#FEE2E2" },
+  { key: "solo_coach",       label: "🧑‍🏫 1인 코치",  color: "#059669", bg: "#D1FAE5" },
+  { key: "franchise",        label: "🏢 프랜차이즈", color: P,         bg: "#EDE9FE" },
+  { key: "readonly",         label: "읽기전용",      color: "#7C3AED", bg: "#EDE9FE" },
 ];
 
-const TYPE_CHIPS: { key: FilterKey; label: string; color: string; bg: string }[] = [
-  { key: "type_swimming",  label: "🏊 수영장",    color: "#0891B2", bg: "#ECFEFF" },
-  { key: "type_coach",     label: "🧑‍🏫 1인 코치", color: "#059669", bg: "#D1FAE5" },
-  { key: "type_rental",    label: "🏟 대관팀",    color: "#D97706", bg: "#FEF3C7" },
-  { key: "type_franchise", label: "🏢 프랜차이즈", color: P,         bg: "#EDE9FE" },
+const SORT_OPTS = [
+  { key: "createdAt",    label: "최신순" },
+  { key: "name",         label: "이름순" },
+  { key: "activeMemberCount", label: "회원 수↓" },
+  { key: "storageUsedMb",   label: "저장 사용↓" },
+  { key: "lastLoginAt",  label: "최근 활동순" },
 ];
 
-const POOL_TYPE_CFG: Record<string, { label: string; color: string }> = {
+const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
+  pending:    { label: "대기",   color: "#D97706", bg: "#FEF3C7" },
+  active:     { label: "운영",   color: "#059669", bg: "#D1FAE5" },
+  rejected:   { label: "반려",   color: "#DC2626", bg: "#FEE2E2" },
+  cancelled:  { label: "해지",   color: "#6B7280", bg: "#F3F4F6" },
+  readonly:   { label: "읽기전용", color: "#7C3AED", bg: "#EDE9FE" },
+  restricted: { label: "제한",   color: "#DC2626", bg: "#FEE2E2" },
+};
+
+const BILLING_CFG: Record<string, { label: string; color: string }> = {
+  active:                { label: "정상",  color: "#059669" },
+  payment_failed:        { label: "실패",  color: "#DC2626" },
+  grace:                 { label: "유예",  color: "#D97706" },
+  cancelled:             { label: "해지",  color: "#6B7280" },
+  auto_delete_scheduled: { label: "삭제예정", color: "#0891B2" },
+  readonly:              { label: "읽기전용", color: "#7C3AED" },
+  free:                  { label: "무료",  color: "#4F46E5" },
+};
+
+const TYPE_CFG: Record<string, { label: string; color: string }> = {
   swimming_pool: { label: "수영장",    color: "#0891B2" },
   solo_coach:    { label: "1인 코치",  color: "#059669" },
   rental_team:   { label: "대관팀",    color: "#D97706" },
   franchise:     { label: "프랜차이즈", color: P },
 };
 
-const SORT_OPTS = [
-  { key: "created_at",   label: "최신순" },
-  { key: "name",         label: "이름순" },
-  { key: "members",      label: "회원 수↓" },
-  { key: "storage",      label: "저장 사용↓" },
-  { key: "last_login",   label: "최근 활동순" },
-  { key: "payment_risk", label: "결제 위험도↓" },
-];
-
-const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  pending:   { label: "대기",   color: "#D97706", bg: "#FEF3C7" },
-  approved:  { label: "운영",   color: "#059669", bg: "#D1FAE5" },
-  rejected:  { label: "반려",   color: "#DC2626", bg: "#FEE2E2" },
-};
-
-const SUB_CFG: Record<string, { label: string; color: string }> = {
-  trial:     { label: "체험",   color: P },
-  active:    { label: "구독",   color: "#059669" },
-  expired:   { label: "만료",   color: "#6B7280" },
-  suspended: { label: "정지",   color: "#D97706" },
-  cancelled: { label: "해지",   color: "#DC2626" },
-};
-
 const BULK_ACTIONS = [
   { key: "approve",         label: "승인",       color: "#059669", bg: "#D1FAE5" },
   { key: "reject",          label: "반려",       color: "#DC2626", bg: "#FEE2E2" },
-  { key: "restrict",        label: "제한",       color: "#D97706", bg: "#FEF3C7" },
   { key: "readonly_on",     label: "읽기전용",   color: "#7C3AED", bg: "#EDE9FE" },
   { key: "block_upload",    label: "업로드 차단", color: "#D97706", bg: "#FEF3C7" },
   { key: "policy_reminder", label: "정책 재알림", color: "#4F46E5", bg: "#EEF2FF" },
@@ -101,93 +80,124 @@ const BULK_ACTIONS = [
 ];
 
 export default function SuperPoolsScreen() {
-  const { token } = useAuth();
-  const { filter: initFilter } = useLocalSearchParams<{ filter?: FilterKey }>();
+  const { adminUser } = useAuth();
+  const actorName = adminUser?.name ?? '슈퍼관리자';
+  const { filter: initFilter } = useLocalSearchParams<{ filter?: string }>();
 
-  const [operators,   setOperators]   = useState<Operator[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [refreshing,  setRefreshing]  = useState(false);
-  const [filter,      setFilter]      = useState<FilterKey>((initFilter as FilterKey) || "all");
-  const [sort,        setSort]        = useState("created_at");
-  const [search,      setSearch]      = useState("");
-  const [selected,    setSelected]    = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState<OperatorFilter>((initFilter as OperatorFilter) || "all");
+  const [search, setSearch] = useState("");
+  const [sort,   setSort]   = useState("createdAt");
+  const [refreshing, setRefreshing] = useState(false);
   const [multiSelect, setMultiSelect] = useState(false);
-  const [bulkModal,   setBulkModal]   = useState<string | null>(null);
-  const [processing,  setProcessing]  = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkModal, setBulkModal] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const storeFilter     = useOperatorsStore(s => s.filter);
+  const setStoreFilter  = useOperatorsStore(s => s.setFilter);
+  const setStoreSearch  = useOperatorsStore(s => s.setSearch);
+  const getFiltered     = useOperatorsStore(s => s.getFiltered);
+  const approveOp       = useOperatorsStore(s => s.approveOperator);
+  const rejectOp        = useOperatorsStore(s => s.rejectOperator);
+  const setReadonly     = useOperatorsStore(s => s.setOperatorReadonly);
+  const blockUpload     = useOperatorsStore(s => s.setOperatorUploadBlocked);
+  const createLog       = useAuditLogStore(s => s.createLog);
 
-  const fetchOperators = useCallback(async (f: FilterKey, s: string, so: string) => {
-    try {
-      const params = new URLSearchParams({ sort: so });
-      if (f !== "all") params.set("filter", f);
-      if (s.trim())    params.set("search", s.trim());
-      const res = await apiRequest(token, `/super/operators?${params}`);
-      if (res.ok) { const d = await res.json(); setOperators(d.operators ?? d ?? []); }
-    } finally { setLoading(false); setRefreshing(false); }
-  }, [token]);
+  // sync local filter to store
+  React.useEffect(() => {
+    setStoreFilter(filter);
+    setStoreSearch(search);
+  }, [filter, search]);
 
-  useEffect(() => {
-    setLoading(true);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchOperators(filter, search, sort), 300);
-  }, [filter, search, sort]);
+  const allFiltered = useMemo(() => getFiltered(), [storeFilter, useOperatorsStore.getState().operators, useOperatorsStore.getState().search]);
+
+  // local sort
+  const sorted = useMemo(() => {
+    const list = [...allFiltered];
+    switch (sort) {
+      case 'name':              list.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case 'activeMemberCount': list.sort((a, b) => b.activeMemberCount - a.activeMemberCount); break;
+      case 'storageUsedMb':     list.sort((a, b) => b.storageUsedMb - a.storageUsedMb); break;
+      case 'lastLoginAt':       list.sort((a, b) => new Date(b.lastLoginAt ?? 0).getTime() - new Date(a.lastLoginAt ?? 0).getTime()); break;
+      default:                  list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); break;
+    }
+    return list;
+  }, [allFiltered, sort]);
 
   function toggleSelect(id: string) {
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
 
-  async function executeBulk(action: string) {
+  function executeBulk(action: string) {
     if (selected.size === 0) return;
     if (action === "terminate") {
       setBulkModal(null); setMultiSelect(false);
       router.push("/(super)/kill-switch" as any); return;
     }
     setProcessing(true);
+    const ids = Array.from(selected);
     try {
-      await apiRequest(token, "/super/operators/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selected), action, reason: rejectReason || undefined }),
+      ids.forEach(id => {
+        const op = sorted.find(o => o.id === id);
+        if (!op) return;
+        if (action === "approve") {
+          approveOp(id, actorName);
+          createLog({ category: '운영자관리', title: `${op.name} 승인`, operatorId: id, operatorName: op.name, actorName, impact: 'medium', detail: '일괄 승인' });
+        } else if (action === "reject") {
+          rejectOp(id, rejectReason || '기준 미달', actorName);
+          createLog({ category: '운영자관리', title: `${op.name} 반려`, operatorId: id, operatorName: op.name, actorName, impact: 'medium', detail: rejectReason || '기준 미달' });
+        } else if (action === "readonly_on") {
+          setReadonly(id, '관리자 설정', actorName);
+          createLog({ category: '읽기전용 전환', title: `${op.name} 읽기전용 전환`, operatorId: id, operatorName: op.name, actorName, impact: 'high', detail: '일괄 읽기전용' });
+        } else if (action === "block_upload") {
+          blockUpload(id, true);
+          createLog({ category: '저장공간', title: `${op.name} 업로드 차단`, operatorId: id, operatorName: op.name, actorName, impact: 'high', detail: '업로드 차단' });
+        } else if (action === "policy_reminder") {
+          createLog({ category: '정책', title: `${op.name} 정책 재알림`, operatorId: id, operatorName: op.name, actorName, impact: 'low', detail: '정책 확인 알림 발송' });
+        }
       });
       setBulkModal(null); setSelected(new Set()); setMultiSelect(false); setRejectReason("");
-      fetchOperators(filter, search, sort);
-    } catch {}
-    finally { setProcessing(false); }
+    } finally { setProcessing(false); }
   }
 
-  async function quickAction(id: string, action: "approve" | "reject" | "restrict") {
-    setProcessing(true);
-    await apiRequest(token, `/super/operators/${id}/${action}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: "기준 미달" }),
-    }).catch(() => {});
-    setProcessing(false);
-    fetchOperators(filter, search, sort);
+  function quickAction(op: Operator, action: "approve" | "reject" | "restrict") {
+    if (action === "approve") {
+      approveOp(op.id, actorName);
+      createLog({ category: '운영자관리', title: `${op.name} 승인`, operatorId: op.id, operatorName: op.name, actorName, impact: 'medium', detail: '단건 승인' });
+    } else if (action === "reject") {
+      rejectOp(op.id, '기준 미달', actorName);
+      createLog({ category: '운영자관리', title: `${op.name} 반려`, operatorId: op.id, operatorName: op.name, actorName, impact: 'medium', detail: '기준 미달 반려' });
+    } else if (action === "restrict") {
+      setReadonly(op.id, '제한', actorName);
+      createLog({ category: '운영자관리', title: `${op.name} 읽기전용`, operatorId: op.id, operatorName: op.name, actorName, impact: 'high', detail: '운영자 제한' });
+    }
   }
-
-  const filterCfg = FILTER_CHIPS.find(f => f.key === filter) ?? FILTER_CHIPS[0];
 
   const renderItem = ({ item }: { item: Operator }) => {
     const isSelected = selected.has(item.id);
-    const approvalCfg = STATUS_CFG[item.approval_status] ?? STATUS_CFG.pending;
-    const subCfg = SUB_CFG[item.subscription_status] ?? { label: item.subscription_status, color: "#6B7280" };
-    const storagePct = item.usage_pct ?? 0;
-    const storageAlert = storagePct >= 95;
-    const storageWarn  = storagePct >= 80;
+    const sCfg   = STATUS_CFG[item.status] ?? STATUS_CFG.pending;
+    const bCfg   = BILLING_CFG[item.billingStatus] ?? { label: item.billingStatus, color: "#6B7280" };
+    const tCfg   = TYPE_CFG[item.type] ?? { label: "수영장", color: "#0891B2" };
+    const pct    = Math.round((item.storageUsedMb / Math.max(item.storageTotalMb, 1)) * 100);
+    const pctStr = `${pct}%`;
+    const isDanger  = item.storageBlocked95;
+    const isWarn    = item.storageWarning80 && !isDanger;
+    const barColor  = isDanger ? "#DC2626" : isWarn ? "#F59E0B" : "#10B981";
+    const loginStr  = item.lastLoginAt ? fmtDate(item.lastLoginAt) : "—";
+    const isPending = item.status === 'pending';
+    const isDeletion = !!item.autoDeleteScheduledAt;
 
     return (
       <Pressable
-        style={[s.row, isSelected && s.rowSelected, item.deletion_pending && s.rowDanger]}
+        style={[s.row, isSelected && s.rowSelected, isDeletion && s.rowDanger, isDanger && s.rowStorageDanger]}
         onPress={() => {
           if (multiSelect) { toggleSelect(item.id); return; }
           router.push(`/(super)/operator-detail?id=${item.id}` as any);
         }}
         onLongPress={() => { setMultiSelect(true); toggleSelect(item.id); }}>
 
-        {/* 선택 체크 */}
+        {/* 체크박스 */}
         {multiSelect && (
           <View style={[s.checkbox, isSelected && s.checkboxChecked]}>
             {isSelected && <Feather name="check" size={12} color="#fff" />}
@@ -198,60 +208,64 @@ export default function SuperPoolsScreen() {
         <View style={s.rowMain}>
           <View style={s.rowTop}>
             <Text style={s.rowName} numberOfLines={1}>{item.name}</Text>
-            <View style={[s.statusBadge, { backgroundColor: approvalCfg.bg }]}>
-              <Text style={[s.statusBadgeTxt, { color: approvalCfg.color }]}>{approvalCfg.label}</Text>
+            <View style={[s.badge, { backgroundColor: sCfg.bg }]}>
+              <Text style={[s.badgeTxt, { color: sCfg.color }]}>{sCfg.label}</Text>
             </View>
-            {item.deletion_pending && (
-              <View style={[s.statusBadge, { backgroundColor: "#ECFEFF" }]}>
-                <Text style={[s.statusBadgeTxt, { color: "#0891B2" }]}>삭제예정</Text>
+            {isDeletion && (
+              <View style={[s.badge, { backgroundColor: "#ECFEFF" }]}>
+                <Text style={[s.badgeTxt, { color: "#0891B2" }]}>삭제예정</Text>
+              </View>
+            )}
+            {item.uploadSpikeFlag && (
+              <View style={[s.badge, { backgroundColor: "#FEF3C7" }]}>
+                <Text style={[s.badgeTxt, { color: "#D97706" }]}>업로드급증</Text>
               </View>
             )}
           </View>
 
           <View style={s.rowMeta}>
-            <Text style={s.rowOwner} numberOfLines={1}>{item.owner_name}</Text>
+            <Text style={s.rowOwner} numberOfLines={1}>{item.representativeName}</Text>
             <Text style={s.rowDot}>·</Text>
-            <Text style={[s.rowSub, { color: subCfg.color }]}>{subCfg.label}</Text>
+            <Text style={[s.metaTag, { color: tCfg.color }]}>{tCfg.label}</Text>
             <Text style={s.rowDot}>·</Text>
-            <Text style={s.rowMembers}>{item.active_member_count}명</Text>
+            <Text style={s.metaTag}>{item.activeMemberCount}명</Text>
             <Text style={s.rowDot}>·</Text>
-            <Text style={[s.rowSub, { color: POOL_TYPE_CFG[item.pool_type]?.color ?? "#6B7280" }]}>
-              {POOL_TYPE_CFG[item.pool_type]?.label ?? "수영장"}
-            </Text>
+            <Text style={s.metaTag} numberOfLines={1}>{item.currentPlanName}</Text>
           </View>
 
           {/* 저장 바 */}
           <View style={s.storageRow}>
             <View style={s.storageBarBg}>
-              <View style={[
-                s.storageBarFill,
-                { width: `${Math.min(storagePct, 100)}%` as any,
-                  backgroundColor: storageAlert ? "#DC2626" : storageWarn ? "#F59E0B" : "#10B981" }
-              ]} />
+              <View style={[s.storageBarFill,
+                { width: `${Math.min(pct, 100)}%` as any, backgroundColor: barColor }]} />
             </View>
-            <Text style={[s.storagePct, storageAlert && { color: "#DC2626" }]}>{storagePct}%</Text>
+            <Text style={[s.storagePct, { color: isDanger ? "#DC2626" : "#6B7280" }]}>{pctStr}</Text>
+          </View>
+
+          <View style={s.rowBottom}>
+            <Text style={[s.billingBadge, { color: bCfg.color }]}>{bCfg.label}</Text>
+            <Text style={s.rowDot}>·</Text>
+            <Text style={s.loginDate}>{loginStr}</Text>
           </View>
         </View>
 
         {/* 빠른 액션 */}
         {!multiSelect && (
-          <View style={s.rowActions}>
-            <Pressable style={s.rowBtn}
-              onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
-              <Feather name="eye" size={14} color={P} />
-            </Pressable>
-            {item.approval_status === "pending" && (
-              <Pressable style={s.rowBtn}
-                onPress={() => quickAction(item.id, "approve")}
-                disabled={processing}>
-                <Feather name="check" size={14} color="#059669" />
-              </Pressable>
+          <View style={s.actions}>
+            {isPending && (
+              <>
+                <Pressable style={[s.actBtn, { backgroundColor: "#D1FAE5" }]} onPress={() => quickAction(item, "approve")}>
+                  <Text style={[s.actTxt, { color: "#059669" }]}>승인</Text>
+                </Pressable>
+                <Pressable style={[s.actBtn, { backgroundColor: "#FEE2E2" }]} onPress={() => quickAction(item, "reject")}>
+                  <Text style={[s.actTxt, { color: "#DC2626" }]}>반려</Text>
+                </Pressable>
+              </>
             )}
-            {item.approval_status === "approved" && (
-              <Pressable style={s.rowBtn}
-                onPress={() => quickAction(item.id, "restrict")}
-                disabled={processing}>
-                <Feather name="pause" size={14} color="#D97706" />
+            {!isPending && (
+              <Pressable style={[s.actBtn, { backgroundColor: "#F3F4F6" }]}
+                onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
+                <Text style={[s.actTxt, { color: "#374151" }]}>상세</Text>
               </Pressable>
             )}
           </View>
@@ -260,231 +274,168 @@ export default function SuperPoolsScreen() {
     );
   };
 
-  const currentFilterChip = FILTER_CHIPS.find(f => f.key === filter);
+  const filterChip = FILTER_CHIPS.find(f => f.key === filter) ?? FILTER_CHIPS[0];
 
   return (
-    <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="운영자 관리" homePath="/(super)/dashboard" />
+    <SafeAreaView style={s.safe} edges={["top"]}>
+      {/* 일괄처리 모달 */}
+      <Modal visible={!!bulkModal} transparent animationType="fade" onRequestClose={() => setBulkModal(null)}>
+        <Pressable style={s.overlay} onPress={() => setBulkModal(null)}>
+          <Pressable style={s.sheet} onPress={() => {}}>
+            <Text style={s.sheetTitle}>{BULK_ACTIONS.find(a => a.key === bulkModal)?.label} ({selected.size}건)</Text>
+            {bulkModal === "reject" && (
+              <TextInput style={s.sheetInput} value={rejectReason} onChangeText={setRejectReason}
+                placeholder="반려 사유" multiline numberOfLines={2} />
+            )}
+            <View style={s.sheetBtns}>
+              <Pressable style={[s.sheetBtn, { backgroundColor: "#F3F4F6" }]} onPress={() => setBulkModal(null)}>
+                <Text style={{ color: "#374151", fontFamily: "Inter_600SemiBold" }}>취소</Text>
+              </Pressable>
+              <Pressable style={[s.sheetBtn, { backgroundColor: BULK_ACTIONS.find(a => a.key === bulkModal)?.bg ?? "#F3F4F6" }]}
+                disabled={processing} onPress={() => executeBulk(bulkModal!)}>
+                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? "#374151", fontFamily: "Inter_600SemiBold" }}>
+                  확인
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <SubScreenHeader title="운영자 관리" />
 
       {/* 검색 + 정렬 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
-          <Feather name="search" size={15} color="#9CA3AF" />
-          <TextInput
-            style={s.searchInput}
-            value={search} onChangeText={setSearch}
-            placeholder="이름 검색..." placeholderTextColor="#9CA3AF"
-          />
+          <Feather name="search" size={14} color="#9CA3AF" />
+          <TextInput style={s.searchInput} value={search} onChangeText={setSearch}
+            placeholder="운영자명, 코드, 담당자 검색" placeholderTextColor="#9CA3AF" />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch("")}>
-              <Feather name="x-circle" size={15} color="#9CA3AF" />
+              <Feather name="x" size={14} color="#9CA3AF" />
             </Pressable>
           )}
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {SORT_OPTS.map(o => (
-            <Pressable key={o.key}
-              style={[s.sortChip, sort === o.key && s.sortChipActive]}
+            <Pressable key={o.key} style={[s.sortChip, sort === o.key && s.sortChipActive]}
               onPress={() => setSort(o.key)}>
-              <Text style={[s.sortChipTxt, sort === o.key && { color: "#fff" }]}>{o.label}</Text>
+              <Text style={[s.sortChipTxt, sort === o.key && s.sortChipTxtActive]}>{o.label}</Text>
             </Pressable>
           ))}
         </ScrollView>
       </View>
 
-      {/* 필터 칩 — 상태 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={s.filterBar} contentContainerStyle={s.filterContent}>
-        {FILTER_CHIPS.map(f => (
-          <Pressable key={f.key}
-            style={[s.filterChip, filter === f.key && { backgroundColor: f.color, borderColor: f.color }]}
-            onPress={() => { setFilter(f.key); setSelected(new Set()); setMultiSelect(false); }}>
-            <Text style={[s.filterTxt, filter === f.key && { color: "#fff" }]}>{f.label}</Text>
-            {filter === f.key && operators.length > 0 && (
-              <View style={s.filterCount}>
-                <Text style={s.filterCountTxt}>{operators.length}</Text>
-              </View>
-            )}
+      {/* 필터 칩 */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipsScroll}
+        contentContainerStyle={s.chipsContent}>
+        {FILTER_CHIPS.map(chip => (
+          <Pressable key={chip.key} style={[s.chip, filter === chip.key && { backgroundColor: chip.bg }]}
+            onPress={() => setFilter(chip.key)}>
+            <Text style={[s.chipTxt, filter === chip.key && { color: chip.color }]}>{chip.label}</Text>
           </Pressable>
         ))}
       </ScrollView>
 
-      {/* 필터 칩 — 운영 유형 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={[s.filterBar, { borderTopWidth: 0, paddingTop: 0 }]} contentContainerStyle={s.filterContent}>
-        {TYPE_CHIPS.map(f => (
-          <Pressable key={f.key}
-            style={[s.filterChip, { borderStyle: "dashed" }, filter === f.key && { backgroundColor: f.color, borderColor: f.color, borderStyle: "solid" }]}
-            onPress={() => { setFilter(filter === f.key ? "all" : f.key); setSelected(new Set()); setMultiSelect(false); }}>
-            <Text style={[s.filterTxt, filter === f.key && { color: "#fff" }]}>{f.label}</Text>
+      {/* 헤더: 카운트 + 다중선택 토글 */}
+      <View style={s.listHeader}>
+        <Text style={s.listCount}>
+          <Text style={{ color: filterChip.color, fontFamily: "Inter_700Bold" }}>{sorted.length}</Text>
+          <Text>/{useOperatorsStore.getState().operators.length}개</Text>
+          {multiSelect && <Text style={{ color: P }}> · {selected.size}개 선택됨</Text>}
+        </Text>
+        <View style={s.listHeaderRight}>
+          {multiSelect && selected.size > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {BULK_ACTIONS.map(a => (
+                <Pressable key={a.key} style={[s.bulkBtn, { backgroundColor: a.bg }]}
+                  onPress={() => setBulkModal(a.key)}>
+                  <Text style={[s.bulkTxt, { color: a.color }]}>{a.label}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+          <Pressable style={[s.multiBtn, multiSelect && s.multiBtnActive]}
+            onPress={() => { setMultiSelect(!multiSelect); setSelected(new Set()); }}>
+            <Feather name="check-square" size={14} color={multiSelect ? P : "#6B7280"} />
+            <Text style={[s.multiBtnTxt, multiSelect && { color: P }]}>
+              {multiSelect ? "완료" : "다중선택"}
+            </Text>
           </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* 다중 선택 툴바 */}
-      {multiSelect && (
-        <View style={s.bulkBar}>
-          <Pressable onPress={() => { setMultiSelect(false); setSelected(new Set()); }}>
-            <Feather name="x" size={18} color="#374151" />
-          </Pressable>
-          <Text style={s.bulkBarTxt}>{selected.size}개 선택</Text>
-          <Pressable style={s.bulkSelectAll}
-            onPress={() => setSelected(new Set(operators.map(o => o.id)))}>
-            <Text style={s.bulkSelectAllTxt}>전체 선택</Text>
-          </Pressable>
-          <View style={{ flex: 1 }} />
-          {BULK_ACTIONS.map(a => (
-            <Pressable key={a.key}
-              style={[s.bulkBtn, { backgroundColor: a.bg }, selected.size === 0 && { opacity: 0.4 }]}
-              onPress={() => { if (selected.size > 0) setBulkModal(a.key); }}
-              disabled={selected.size === 0}>
-              <Text style={[s.bulkBtnTxt, { color: a.color }]}>{a.label}</Text>
-            </Pressable>
-          ))}
         </View>
-      )}
+      </View>
 
-      {/* 리스트 */}
-      {loading ? (
-        <ActivityIndicator color={P} style={{ marginTop: 40 }} />
-      ) : (
-        <FlatList
-          data={operators}
-          keyExtractor={i => i.id}
-          renderItem={renderItem}
-          refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-            onRefresh={() => { setRefreshing(true); fetchOperators(filter, search, sort); }} />}
-          contentContainerStyle={{ paddingVertical: 4, paddingBottom: 80 }}
-          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Feather name="users" size={32} color="#D1D5DB" />
-              <Text style={s.emptyTxt}>운영자가 없습니다</Text>
-            </View>
-          }
-        />
-      )}
-
-      {/* 다중 선택 시작 버튼 (일반 상태) */}
-      {!multiSelect && operators.length > 0 && (
-        <Pressable style={s.fab} onPress={() => setMultiSelect(true)}>
-          <Feather name="check-square" size={18} color="#fff" />
-          <Text style={s.fabTxt}>다중 선택</Text>
-        </Pressable>
-      )}
-
-      {/* 일괄 처리 확인 모달 */}
-      {bulkModal && (
-        <Modal visible animationType="fade" transparent statusBarTranslucent onRequestClose={() => setBulkModal(null)}>
-          <Pressable style={m.backdrop} onPress={() => setBulkModal(null)}>
-            <Pressable style={m.dialog} onPress={() => {}}>
-              <Text style={m.title}>
-                {BULK_ACTIONS.find(a => a.key === bulkModal)?.label} 확인
-              </Text>
-              <Text style={m.body}>
-                선택한 {selected.size}개 운영자를 일괄{" "}
-                <Text style={{ fontFamily: "Inter_700Bold" }}>
-                  {BULK_ACTIONS.find(a => a.key === bulkModal)?.label}
-                </Text>
-                하시겠습니까?
-              </Text>
-              {(bulkModal === "reject" || bulkModal === "restrict") && (
-                <TextInput
-                  style={m.reasonInput}
-                  value={rejectReason}
-                  onChangeText={setRejectReason}
-                  placeholder="사유 (선택)"
-                  placeholderTextColor="#9CA3AF"
-                />
-              )}
-              <View style={m.btnRow}>
-                <Pressable style={m.cancelBtn} onPress={() => setBulkModal(null)}>
-                  <Text style={m.cancelTxt}>취소</Text>
-                </Pressable>
-                <Pressable style={[m.confirmBtn, { opacity: processing ? 0.6 : 1 }]}
-                  onPress={() => executeBulk(bulkModal!)} disabled={processing}>
-                  {processing
-                    ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={m.confirmTxt}>{BULK_ACTIONS.find(a => a.key === bulkModal)?.label}</Text>
-                  }
-                </Pressable>
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
-      )}
+      <FlatList
+        data={sorted}
+        keyExtractor={item => item.id}
+        renderItem={renderItem}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
+          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={s.empty}>
+            <Feather name="inbox" size={40} color="#D1D5DB" />
+            <Text style={s.emptyTxt}>해당 조건의 운영자가 없습니다</Text>
+          </View>
+        }
+      />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#F5F3FF" },
-  searchRow:      { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  searchBox:      { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff",
-                    borderRadius: 10, borderWidth: 1.5, borderColor: "#E5E7EB", paddingHorizontal: 10, height: 40 },
-  searchInput:    { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827" },
-  sortChip:       { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginRight: 4,
-                    backgroundColor: "#fff", borderWidth: 1, borderColor: "#E5E7EB" },
-  sortChipActive: { backgroundColor: P, borderColor: P },
-  sortChipTxt:    { fontSize: 11, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  filterBar:      { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
-  filterContent:  { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
-  filterChip:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7,
-                    borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
-  filterTxt:      { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  filterCount:    { backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
-  filterCountTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#fff" },
-
-  bulkBar:        { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10,
-                    backgroundColor: "#1F1235", borderBottomWidth: 1, borderBottomColor: "#2D1B4E" },
-  bulkBarTxt:     { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
-  bulkSelectAll:  { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
-  bulkSelectAllTxt:{ fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.7)" },
-  bulkBtn:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  bulkBtnTxt:     { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-
-  row:            { flexDirection: "row", alignItems: "center", gap: 10,
-                    paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
-  rowSelected:    { backgroundColor: "#F5F3FF" },
-  rowDanger:      { borderLeftWidth: 3, borderLeftColor: "#0891B2" },
-  checkbox:       { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB",
-                    alignItems: "center", justifyContent: "center" },
-  checkboxChecked:{ backgroundColor: P, borderColor: P },
-  rowMain:        { flex: 1, gap: 4 },
-  rowTop:         { flexDirection: "row", alignItems: "center", gap: 6 },
-  rowName:        { flex: 1, fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
-  statusBadge:    { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  statusBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  rowMeta:        { flexDirection: "row", alignItems: "center", gap: 4 },
-  rowOwner:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
-  rowDot:         { fontSize: 10, color: "#D1D5DB" },
-  rowSub:         { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  rowMembers:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
-  storageRow:     { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
-  storageBarBg:   { flex: 1, height: 4, borderRadius: 2, backgroundColor: "#F3F4F6", overflow: "hidden" },
-  storageBarFill: { height: 4, borderRadius: 2 },
-  storagePct:     { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9CA3AF", width: 30, textAlign: "right" },
-  rowActions:     { flexDirection: "row", gap: 4 },
-  rowBtn:         { width: 32, height: 32, borderRadius: 8, backgroundColor: "#F3F4F6",
-                    alignItems: "center", justifyContent: "center" },
-  empty:          { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:       { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  fab:            { position: "absolute", bottom: 20, right: 16, flexDirection: "row", alignItems: "center",
-                    gap: 6, backgroundColor: P, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10,
-                    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  fabTxt:         { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
-});
-
-const m = StyleSheet.create({
-  backdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
-  dialog:      { backgroundColor: "#fff", borderRadius: 20, padding: 24, width: "85%", gap: 16 },
-  title:       { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
-  body:        { fontSize: 14, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 22 },
-  reasonInput: { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                 fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
-  btnRow:      { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn:   { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },
-  cancelTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  confirmBtn:  { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
-  confirmTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  safe:              { flex: 1, backgroundColor: "#fff" },
+  overlay:           { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
+  sheet:             { backgroundColor: "#fff", borderRadius: 16, padding: 20, width: "85%", gap: 12 },
+  sheetTitle:        { fontFamily: "Inter_700Bold", fontSize: 16, color: "#111827" },
+  sheetInput:        { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10, color: "#111827", fontFamily: "Inter_400Regular", minHeight: 60 },
+  sheetBtns:         { flexDirection: "row", gap: 10 },
+  sheetBtn:          { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
+  searchRow:         { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
+  searchBox:         { flexDirection: "row", alignItems: "center", backgroundColor: "#F9FAFB", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
+  searchInput:       { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, color: "#111827" },
+  sortChip:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#F3F4F6", marginRight: 6 },
+  sortChipActive:    { backgroundColor: "#EDE9FE" },
+  sortChipTxt:       { fontFamily: "Inter_400Regular", fontSize: 12, color: "#6B7280" },
+  sortChipTxtActive: { color: P, fontFamily: "Inter_600SemiBold" },
+  chipsScroll:       { maxHeight: 40 },
+  chipsContent:      { paddingHorizontal: 16, gap: 6 },
+  chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#F3F4F6", marginRight: 6 },
+  chipTxt:           { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6B7280" },
+  listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  listCount:         { fontFamily: "Inter_400Regular", fontSize: 13, color: "#374151" },
+  listHeaderRight:   { flexDirection: "row", alignItems: "center", gap: 8 },
+  bulkBtn:           { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
+  bulkTxt:           { fontFamily: "Inter_600SemiBold", fontSize: 11 },
+  multiBtn:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#F3F4F6" },
+  multiBtnActive:    { backgroundColor: "#EDE9FE" },
+  multiBtnTxt:       { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6B7280" },
+  row:               { backgroundColor: "#fff", marginHorizontal: 16, marginVertical: 4, borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "flex-start", borderWidth: 1, borderColor: "#F3F4F6" },
+  rowSelected:       { borderColor: P, backgroundColor: "#F5F3FF" },
+  rowDanger:         { borderColor: "#BAE6FD" },
+  rowStorageDanger:  { borderColor: "#FCA5A5" },
+  checkbox:          { width: 22, height: 22, borderRadius: 5, borderWidth: 2, borderColor: "#D1D5DB", alignItems: "center", justifyContent: "center", marginRight: 10, marginTop: 2 },
+  checkboxChecked:   { backgroundColor: P, borderColor: P },
+  rowMain:           { flex: 1, gap: 4 },
+  rowTop:            { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  rowName:           { fontFamily: "Inter_700Bold", fontSize: 15, color: "#111827", flex: 1 },
+  badge:             { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  badgeTxt:          { fontFamily: "Inter_600SemiBold", fontSize: 10 },
+  rowMeta:           { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  rowOwner:          { fontFamily: "Inter_400Regular", fontSize: 12, color: "#6B7280" },
+  rowDot:            { color: "#D1D5DB", fontSize: 10 },
+  metaTag:           { fontFamily: "Inter_400Regular", fontSize: 12, color: "#374151" },
+  storageRow:        { flexDirection: "row", alignItems: "center", gap: 6 },
+  storageBarBg:      { flex: 1, height: 4, backgroundColor: "#F3F4F6", borderRadius: 2, overflow: "hidden" },
+  storageBarFill:    { height: 4, borderRadius: 2 },
+  storagePct:        { fontFamily: "Inter_600SemiBold", fontSize: 11, minWidth: 34, textAlign: "right" },
+  rowBottom:         { flexDirection: "row", alignItems: "center", gap: 4 },
+  billingBadge:      { fontFamily: "Inter_600SemiBold", fontSize: 11 },
+  loginDate:         { fontFamily: "Inter_400Regular", fontSize: 11, color: "#9CA3AF" },
+  actions:           { flexDirection: "column", gap: 4, marginLeft: 8 },
+  actBtn:            { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7 },
+  actTxt:            { fontFamily: "Inter_600SemiBold", fontSize: 11 },
+  empty:             { alignItems: "center", paddingVertical: 60, gap: 12 },
+  emptyTxt:          { fontFamily: "Inter_400Regular", fontSize: 14, color: "#9CA3AF" },
 });

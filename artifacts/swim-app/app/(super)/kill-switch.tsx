@@ -5,14 +5,16 @@
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { useOperatorsStore } from "@/store/operatorsStore";
+import { useAuditLogStore } from "@/store/auditLogStore";
 
 const DANGER = "#DC2626";
 
@@ -52,7 +54,15 @@ function hoursLeft(iso: string | null | undefined): string {
 }
 
 export default function KillSwitchScreen() {
-  const { token } = useAuth();
+  const { adminUser } = useAuth();
+  const actorName = adminUser?.name ?? '슈퍼관리자';
+
+  const operators          = useOperatorsStore(s => s.operators);
+  const setOperatorStatus  = useOperatorsStore(s => s.setOperatorStatus);
+  const scheduleAutoDelete = useOperatorsStore(s => s.scheduleAutoDelete);
+  const auditLogs          = useAuditLogStore(s => s.logs);
+  const createLog          = useAuditLogStore(s => s.createLog);
+
   const [tab,          setTab]          = useState("exec");
   const [deleteMode,   setDeleteMode]   = useState<string | null>(null);
   const [poolId,       setPoolId]       = useState("");
@@ -61,60 +71,35 @@ export default function KillSwitchScreen() {
   const [toDate,       setToDate]       = useState("");
   const [selectedItems,setSelectedItems]= useState<string[]>([]);
   const [confirmModal, setConfirmModal] = useState(false);
-  const [confirmText,  setConfirmText]  = useState("");
-  const [loading,      setLoading]      = useState(false);
   const [deleting,     setDeleting]     = useState(false);
-
-  const [queueItems,   setQueueItems]   = useState<any[]>([]);
-  const [queueLoading, setQueueLoading] = useState(true);
   const [actionLoading,setActionLoading]= useState<string | null>(null);
 
-  const [logs,         setLogs]         = useState<any[]>([]);
-  const [logsLoading,  setLogsLoading]  = useState(true);
+  const queueItems = operators.filter(o => !!o.autoDeleteScheduledAt);
+  const deleteLogs = auditLogs.filter(l => l.category === '삭제');
 
-  async function loadQueue() {
-    setQueueLoading(true);
-    try {
-      const res = await apiRequest(token, "/super/operators?filter=deletion_pending&limit=50");
-      if (res.ok) { const d = await res.json(); setQueueItems(d.operators ?? []); }
-    } finally { setQueueLoading(false); }
-  }
-
-  async function loadLogs() {
-    setLogsLoading(true);
-    try {
-      const res = await apiRequest(token, "/super/kill-switch-logs");
-      if (res.ok) setLogs(await res.json());
-    } finally { setLogsLoading(false); }
-  }
-
-  useEffect(() => {
-    if (tab === "queue") loadQueue();
-    if (tab === "logs")  loadLogs();
-  }, [tab]);
-
-  async function deferDeletion(id: string) {
+  function deferDeletion(id: string) {
     setActionLoading(id);
-    await apiRequest(token, `/super/operators/${id}/defer-deletion`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hours: 48 }),
-    }).catch(() => {});
-    setActionLoading(null); loadQueue();
+    const at = new Date(Date.now() + 48 * 3600000).toISOString();
+    scheduleAutoDelete(id, at);
+    const op = operators.find(o => o.id === id);
+    createLog({ category: '삭제', title: `삭제 유예 48h: ${op?.name ?? id}`, actorName, impact: 'medium' });
+    setTimeout(() => setActionLoading(null), 500);
   }
 
-  async function executeDelete() {
+  function executeDelete() {
     if (!poolId) return;
     setDeleting(true);
-    const body: any = { pool_id: poolId, mode: deleteMode };
-    if (deleteMode === "period") { body.from = fromDate; body.to = toDate; }
-    if (deleteMode === "item")   { body.items = selectedItems; }
-    await apiRequest(token, `/super/operators/${poolId}/delete`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).catch(() => {});
-    setDeleting(false); setConfirmModal(false); setDeleteMode(null); setPoolId(""); setPoolName("");
+    setOperatorStatus(poolId, 'deleted' as any);
+    createLog({
+      category: '삭제',
+      title: `데이터 삭제 실행: ${poolName || poolId} (${DELETE_MODES.find(m => m.key === deleteMode)?.label})`,
+      actorName,
+      impact: 'critical',
+    });
+    setTimeout(() => {
+      setDeleting(false); setConfirmModal(false);
+      setDeleteMode(null); setPoolId(""); setPoolName("");
+    }, 800);
   }
 
   const toggleItem = (item: string) => {
@@ -238,20 +223,17 @@ export default function KillSwitchScreen() {
 
       {/* ── 삭제 예정 큐 탭 ── */}
       {tab === "queue" && (
-        queueLoading ? (
-          <ActivityIndicator color={DANGER} style={{ marginTop: 40 }} />
-        ) : (
           <FlatList
             data={queueItems}
             keyExtractor={i => i.id}
             contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 80 }}
-            refreshControl={<RefreshControl refreshing={false} tintColor={DANGER} onRefresh={loadQueue} />}
+            refreshControl={<RefreshControl refreshing={false} tintColor={DANGER} onRefresh={() => {}} />}
             renderItem={({ item }) => (
               <View style={s.queueRow}>
                 <View style={s.queueLeft}>
                   <Text style={s.queueName}>{item.name}</Text>
-                  <Text style={s.queueSub}>{item.owner_name}</Text>
-                  <Text style={[s.queueTimer, { color: DANGER }]}>{hoursLeft(item.subscription_end_at)}</Text>
+                  <Text style={s.queueSub}>{item.representativeName}</Text>
+                  <Text style={[s.queueTimer, { color: DANGER }]}>{hoursLeft(item.autoDeleteScheduledAt)}</Text>
                 </View>
                 <View style={s.queueActions}>
                   <Pressable style={[s.qBtn, { backgroundColor: "#FEF3C7" }]}
@@ -280,30 +262,26 @@ export default function KillSwitchScreen() {
               </View>
             }
           />
-        )
       )}
 
       {/* ── 실행 로그 탭 ── */}
       {tab === "logs" && (
-        logsLoading ? (
-          <ActivityIndicator color={DANGER} style={{ marginTop: 40 }} />
-        ) : (
           <FlatList
-            data={logs}
+            data={deleteLogs}
             keyExtractor={i => i.id}
             contentContainerStyle={{ padding: 14, gap: 8, paddingBottom: 80 }}
-            refreshControl={<RefreshControl refreshing={false} tintColor={DANGER} onRefresh={loadLogs} />}
+            refreshControl={<RefreshControl refreshing={false} tintColor={DANGER} onRefresh={() => {}} />}
             renderItem={({ item }) => (
               <View style={s.logRow}>
                 <View style={s.logDot} />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.logDesc}>{item.description}</Text>
+                  <Text style={s.logDesc}>{item.title}</Text>
                   <View style={s.logMeta}>
-                    <Text style={s.logMetaTxt}>{item.pool_name ?? item.pool_id}</Text>
+                    <Text style={s.logMetaTxt}>{item.operatorName ?? "—"}</Text>
                     <Text style={s.logMetaDot}>·</Text>
-                    <Text style={s.logMetaTxt}>{item.actor_name}</Text>
+                    <Text style={s.logMetaTxt}>{item.actorName}</Text>
                     <Text style={s.logMetaDot}>·</Text>
-                    <Text style={s.logMetaTxt}>{fmtDate(item.created_at)}</Text>
+                    <Text style={s.logMetaTxt}>{fmtDate(item.createdAt)}</Text>
                   </View>
                 </View>
               </View>
@@ -315,7 +293,6 @@ export default function KillSwitchScreen() {
               </View>
             }
           />
-        )
       )}
 
       {/* 삭제 확인 모달 */}
