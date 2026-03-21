@@ -206,7 +206,7 @@ function MonthlyCalendar({
   const CELL_H = Math.max(72, Math.floor((SCREEN_W - 32) / 7 * 1.1));
   const CELL_W = Math.floor((SCREEN_W - 32) / 7);
   const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowHour = now.getHours();
 
   return (
     <View style={mc.root}>
@@ -279,7 +279,7 @@ function MonthlyCalendar({
                   <View style={mc.timePills}>
                     {timePills.map((label, ti) => {
                       const pillIsPast = isPast ||
-                        (isToday && parseScheduleMinutes(cls[ti].schedule_time) < nowMinutes);
+                        (isToday && parseHour(cls[ti].schedule_time) < nowHour);
                       return (
                         <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id) + "22" }]}>
                           <Text style={[mc.timePillText, { color: classColor(cls[ti].id) }]}>{label}</Text>
