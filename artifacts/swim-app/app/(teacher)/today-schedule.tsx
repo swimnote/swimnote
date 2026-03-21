@@ -1380,10 +1380,6 @@ export default function TodayScheduleScreen() {
               <Feather name="layers" size={13} color={themeColor} />
             </View>
             <Text style={h.sectionTitle}>오늘 수업</Text>
-            <Pressable style={{ marginLeft: "auto" }}
-              onPress={() => router.push({ pathname: "/(teacher)/my-schedule", params: { openDate: today } } as any)}>
-              <Text style={[h.sectionMore, { color: themeColor }]}>스케줄러 열기 →</Text>
-            </Pressable>
           </View>
           {loading ? (
             <ActivityIndicator color={themeColor} style={{ paddingVertical: 20 }} />
