@@ -8,7 +8,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { Feather } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Dimensions, FlatList, Modal,
@@ -977,6 +977,7 @@ const em = StyleSheet.create({
 export default function MyScheduleScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
+  const params = useLocalSearchParams<{ openDate?: string }>();
   const selfTeacher = adminUser ? { id: adminUser.id, name: adminUser.name || "나" } : undefined;
   const poolId = (adminUser as any)?.swimming_pool_id || "";
 
@@ -1023,6 +1024,8 @@ export default function MyScheduleScreen() {
 
   // 최초 마운트 여부 (useFocusEffect skip)
   const isMountedRef = useRef(false);
+  // openDate 파라미터 자동 오픈 처리 여부
+  const autoOpenDoneRef = useRef(false);
 
   // ── 기본 데이터 로드 ──
   const load = useCallback(async () => {
@@ -1051,6 +1054,15 @@ export default function MyScheduleScreen() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── openDate 파라미터: 홈에서 특정 날짜 팝업 자동 오픈 ──
+  useEffect(() => {
+    if (!loading && params.openDate && typeof params.openDate === "string" && !autoOpenDoneRef.current) {
+      autoOpenDoneRef.current = true;
+      setViewMode("monthly");
+      handleDatePress(params.openDate);
+    }
+  }, [loading, params.openDate]);
 
   // ── 날짜별 출결/일지 로드 ──
   async function loadDayData(dateStr: string) {
