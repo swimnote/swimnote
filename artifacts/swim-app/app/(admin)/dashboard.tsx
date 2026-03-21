@@ -200,9 +200,9 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "hard-drive",  label: "저장공간현황", color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/data-storage-overview") },
       { icon: "user",        label: "계정별사용량", color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/data-storage-by-account") },
       { icon: "pie-chart",   label: "카테고리별\n사용량", color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/data-storage-by-category") },
-      { icon: "trash-2",     label: "원본데이터\n삭제", color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/data-delete") },
       { icon: "list",        label: "이벤트기록",  color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/data-event-logs") },
       { icon: "database",    label: "데이터관리",  color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/data-management") },
+      { icon: "trash-2",     label: "원본데이터\n삭제", color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/data-delete") },
     ];
     case "운영설정": return [
       { icon: "settings",    label: "수업운영설정", color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/pool-settings") },
