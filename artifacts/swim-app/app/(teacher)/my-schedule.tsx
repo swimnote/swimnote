@@ -232,6 +232,7 @@ function MonthlyCalendar({
           {days.slice(wi * 7, wi * 7 + 7).map((dateStr, di) => {
             if (!dateStr) return <View key={di} style={[mc.dayCell, { width: CELL_W, height: CELL_H }]} />;
             const isToday    = dateStr === today;
+            const isPast     = dateStr < today;
             const isSelected = dateStr === selectedDate;
             const isHoliday  = holidayDates.has(dateStr);
             const cls        = classesForDate(groups, dateStr);
@@ -273,6 +274,11 @@ function MonthlyCalendar({
                     {timePills.map((label, ti) => (
                       <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id) + "22" }]}>
                         <Text style={[mc.timePillText, { color: classColor(cls[ti].id) }]}>{label}</Text>
+                        {isPast && (
+                          <View style={mc.strikeOverlay} pointerEvents="none">
+                            <View style={mc.strikeLine} />
+                          </View>
+                        )}
                       </View>
                     ))}
                     {extraCount > 0 && (
@@ -304,6 +310,10 @@ const mc = StyleSheet.create({
   timePills:      { flexDirection: "column", alignItems: "center", gap: 1, marginTop: 2, width: "100%" },
   timePill:       { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, alignItems: "center" },
   timePillText:   { fontSize: 9, fontFamily: "Inter_600SemiBold" },
+  strikeOverlay:  { position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                    justifyContent: "center" },
+  strikeLine:     { height: 1.5, backgroundColor: "rgba(0,0,0,0.28)", borderRadius: 1,
+                    marginHorizontal: 1 },
   moreTxt:        { fontSize: 8, fontFamily: "Inter_400Regular", color: C.textMuted },
   holidayTag:     { fontSize: 9, fontFamily: "Inter_700Bold", color: "#EF4444", marginTop: 2 },
 });
