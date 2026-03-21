@@ -1257,7 +1257,412 @@ router.delete(
   }
 );
 
+// ════════════════════════════════════════════════════════════════
+// 구독 상품 테이블 보장
+// ════════════════════════════════════════════════════════════════
+async function ensurePlansTables() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS subscription_plans (
+      id                      TEXT PRIMARY KEY,
+      name                    TEXT NOT NULL,
+      tier_key                TEXT NOT NULL UNIQUE,
+      min_members             INTEGER NOT NULL DEFAULT 0,
+      max_members             INTEGER NOT NULL DEFAULT 9999,
+      base_storage_gb         INTEGER NOT NULL DEFAULT 5,
+      extra_storage_unit_price INTEGER NOT NULL DEFAULT 1000,
+      monthly_price           INTEGER NOT NULL DEFAULT 0,
+      annual_price            INTEGER NOT NULL DEFAULT 0,
+      upgrade_policy          TEXT NOT NULL DEFAULT '즉시 적용, 차액 즉시 결제',
+      downgrade_policy        TEXT NOT NULL DEFAULT '즉시 적용, 차액 크레딧 적립',
+      credit_policy           TEXT NOT NULL DEFAULT '다음 결제 시 자동 차감',
+      cancel_policy           TEXT NOT NULL DEFAULT '즉시 제한, 읽기전용 전환',
+      auto_delete_policy      TEXT NOT NULL DEFAULT '해지 후 24시간 미디어 자동 삭제',
+      is_active               BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+
+  // 기본 플랜 시드
+  for (const plan of [
+    { id: "plan_free",       tier: "free",       name: "무료 체험",  min: 0,   max: 30,   storage: 5,  extra: 0,     monthly: 0,      annual: 0 },
+    { id: "plan_starter",    tier: "starter",    name: "스타터",     min: 1,   max: 50,   storage: 10, extra: 500,   monthly: 29000,  annual: 290000 },
+    { id: "plan_standard",   tier: "standard",   name: "스탠다드",   min: 51,  max: 150,  storage: 30, extra: 400,   monthly: 59000,  annual: 590000 },
+    { id: "plan_pro",        tier: "pro",        name: "프로",       min: 151, max: 500,  storage: 100, extra: 300,  monthly: 99000,  annual: 990000 },
+    { id: "plan_enterprise", tier: "enterprise", name: "엔터프라이즈", min: 501, max: 9999, storage: 500, extra: 200, monthly: 199000, annual: 1990000 },
+  ]) {
+    await db.execute(sql`
+      INSERT INTO subscription_plans
+        (id, name, tier_key, min_members, max_members, base_storage_gb, extra_storage_unit_price, monthly_price, annual_price)
+      VALUES
+        (${plan.id}, ${plan.name}, ${plan.tier}, ${plan.min}, ${plan.max}, ${plan.storage}, ${plan.extra}, ${plan.monthly}, ${plan.annual})
+      ON CONFLICT (tier_key) DO NOTHING
+    `).catch(() => {});
+  }
+
+  // 백업 테이블
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS platform_backups (
+      id              TEXT PRIMARY KEY,
+      operator_id     TEXT,
+      operator_name   TEXT,
+      backup_type     TEXT NOT NULL DEFAULT 'operator',
+      status          TEXT NOT NULL DEFAULT 'pending',
+      is_snapshot     BOOLEAN NOT NULL DEFAULT FALSE,
+      size_bytes      BIGINT,
+      note            TEXT,
+      created_by      TEXT,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at    TIMESTAMPTZ
+    )
+  `).catch(() => {});
+
+  // 읽기전용 제어 로그 테이블
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS readonly_control_logs (
+      id              TEXT PRIMARY KEY,
+      scope           TEXT NOT NULL DEFAULT 'operator',
+      target_id       TEXT,
+      target_name     TEXT,
+      feature_key     TEXT,
+      enabled         BOOLEAN NOT NULL DEFAULT FALSE,
+      reason          TEXT,
+      actor_name      TEXT,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+}
+
+// ════════════════════════════════════════════════════════════════
+// GET /super/plans — 구독 상품 목록
+// POST /super/plans — 구독 상품 생성
+// PUT /super/plans/:id — 구독 상품 수정
+// PATCH /super/plans/:id/toggle — 활성화/비활성화
+// ════════════════════════════════════════════════════════════════
+
+router.get("/super/plans", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const rows = (await db.execute(sql`SELECT * FROM subscription_plans ORDER BY monthly_price ASC`)).rows;
+    res.json({ plans: rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/super/plans", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const {
+      name, tier_key, min_members = 0, max_members = 9999,
+      base_storage_gb = 5, extra_storage_unit_price = 1000,
+      monthly_price = 0, annual_price = 0,
+      upgrade_policy = "즉시 적용, 차액 즉시 결제",
+      downgrade_policy = "즉시 적용, 차액 크레딧 적립",
+      credit_policy = "다음 결제 시 자동 차감",
+      cancel_policy = "즉시 제한, 읽기전용 전환",
+      auto_delete_policy = "해지 후 24시간 미디어 자동 삭제",
+    } = req.body as any;
+    if (!name || !tier_key) { res.status(400).json({ error: "name과 tier_key가 필요합니다" }); return; }
+    const id = `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    await db.execute(sql`
+      INSERT INTO subscription_plans
+        (id, name, tier_key, min_members, max_members, base_storage_gb, extra_storage_unit_price,
+         monthly_price, annual_price, upgrade_policy, downgrade_policy, credit_policy, cancel_policy, auto_delete_policy)
+      VALUES
+        (${id}, ${name}, ${tier_key}, ${min_members}, ${max_members}, ${base_storage_gb}, ${extra_storage_unit_price},
+         ${monthly_price}, ${annual_price}, ${upgrade_policy}, ${downgrade_policy}, ${credit_policy}, ${cancel_policy}, ${auto_delete_policy})
+    `);
+    const actor = req.user?.name ?? "슈퍼관리자";
+    const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+      VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, ${id}, ${`구독 상품 생성: ${name}`}, '{}'::jsonb)
+    `).catch(() => {});
+    res.json({ ok: true, id });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.put("/super/plans/:id", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const { id } = req.params;
+    const {
+      name, min_members, max_members, base_storage_gb, extra_storage_unit_price,
+      monthly_price, annual_price, upgrade_policy, downgrade_policy,
+      credit_policy, cancel_policy, auto_delete_policy,
+    } = req.body as any;
+    await db.execute(sql`
+      UPDATE subscription_plans SET
+        name = COALESCE(${name ?? null}, name),
+        min_members = COALESCE(${min_members ?? null}, min_members),
+        max_members = COALESCE(${max_members ?? null}, max_members),
+        base_storage_gb = COALESCE(${base_storage_gb ?? null}, base_storage_gb),
+        extra_storage_unit_price = COALESCE(${extra_storage_unit_price ?? null}, extra_storage_unit_price),
+        monthly_price = COALESCE(${monthly_price ?? null}, monthly_price),
+        annual_price = COALESCE(${annual_price ?? null}, annual_price),
+        upgrade_policy = COALESCE(${upgrade_policy ?? null}, upgrade_policy),
+        downgrade_policy = COALESCE(${downgrade_policy ?? null}, downgrade_policy),
+        credit_policy = COALESCE(${credit_policy ?? null}, credit_policy),
+        cancel_policy = COALESCE(${cancel_policy ?? null}, cancel_policy),
+        auto_delete_policy = COALESCE(${auto_delete_policy ?? null}, auto_delete_policy),
+        updated_at = NOW()
+      WHERE id = ${id}
+    `);
+    const actor = req.user?.name ?? "슈퍼관리자";
+    const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+      VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, ${id}, ${`구독 상품 수정: ${name ?? id}`}, '{}'::jsonb)
+    `).catch(() => {});
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.patch("/super/plans/:id/toggle", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const { id } = req.params;
+    const { is_active } = req.body as any;
+    await db.execute(sql`UPDATE subscription_plans SET is_active = ${!!is_active}, updated_at = NOW() WHERE id = ${id}`);
+    const actor = req.user?.name ?? "슈퍼관리자";
+    const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+      VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, ${id}, ${`구독 상품 ${is_active ? "활성화" : "비활성화"}: ${id}`}, '{}'::jsonb)
+    `).catch(() => {});
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════════
+// 백업/스냅샷
+// GET  /super/backups             — 백업 목록
+// POST /super/backups             — 백업 생성
+// POST /super/backups/:id/restore — 복구 실행
+// POST /super/snapshots           — 스냅샷 생성
+// ════════════════════════════════════════════════════════════════
+
+router.get("/super/backups", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const rows = (await db.execute(sql`
+      SELECT pb.*, sp.name AS operator_name_resolved
+      FROM platform_backups pb
+      LEFT JOIN swimming_pools sp ON sp.id = pb.operator_id
+      ORDER BY pb.created_at DESC LIMIT 100
+    `)).rows;
+    res.json({ backups: rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/super/backups", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const { operator_id, backup_type = "operator", note, is_snapshot = false } = req.body as any;
+    const actor = req.user?.name ?? "슈퍼관리자";
+
+    let operatorName: string | null = null;
+    if (operator_id) {
+      const r = await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${operator_id}`);
+      operatorName = (r.rows[0] as any)?.name ?? null;
+    }
+
+    const id = `bak_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO platform_backups (id, operator_id, operator_name, backup_type, status, is_snapshot, note, created_by)
+      VALUES (${id}, ${operator_id ?? null}, ${operatorName}, ${backup_type}, 'running', ${!!is_snapshot}, ${note ?? null}, ${actor})
+    `);
+
+    // 시뮬레이션: 즉시 완료 처리 (실제에서는 비동기 잡)
+    const simSizeBytes = Math.floor(Math.random() * 500 * 1024 * 1024);
+    await db.execute(sql`
+      UPDATE platform_backups SET status = 'done', completed_at = NOW(), size_bytes = ${simSizeBytes} WHERE id = ${id}
+    `);
+
+    const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+      VALUES (${logId}, ${operator_id ?? null}, '백업', ${req.user!.userId}, ${actor},
+              ${id}, ${is_snapshot ? `스냅샷 생성: ${operatorName ?? "플랫폼"}` : `백업 생성: ${operatorName ?? "플랫폼"}`}, '{}'::jsonb)
+    `).catch(() => {});
+
+    res.json({ ok: true, id, status: "done" });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/super/backups/:id/restore", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const { id } = req.params;
+    const { reason } = req.body as any;
+    const actor = req.user?.name ?? "슈퍼관리자";
+
+    const backup = (await db.execute(sql`SELECT * FROM platform_backups WHERE id = ${id}`)).rows[0] as any;
+    if (!backup) { res.status(404).json({ error: "백업을 찾을 수 없습니다" }); return; }
+
+    const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+      VALUES (${logId}, ${backup.operator_id ?? null}, '백업', ${req.user!.userId}, ${actor},
+              ${id}, ${`데이터 복구 실행: ${backup.operator_name ?? "플랫폼"} (사유: ${reason ?? "미입력"})`}, '{}'::jsonb)
+    `).catch(() => {});
+
+    res.json({ ok: true, message: "복구가 기록되었습니다. 미디어 원본은 복구되지 않습니다." });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════════
+// 읽기전용 제어 (3단계: 플랫폼 전체, 운영자별, 기능별)
+// GET  /super/readonly-control        — 현황
+// POST /super/readonly-control        — 플랫폼 전체 읽기전용
+// POST /super/readonly-control/feature — 기능별 읽기전용
+// ════════════════════════════════════════════════════════════════
+
+router.get("/super/readonly-control", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const [platformStatus, operatorList, featureList, recentLogs] = await Promise.all([
+      db.execute(sql`
+        SELECT value FROM system_policies WHERE key = 'platform_readonly'
+      `).catch(() => ({ rows: [] })),
+      db.execute(sql`
+        SELECT id, name, owner_name, is_readonly, readonly_reason, subscription_status
+        FROM swimming_pools WHERE is_readonly = TRUE ORDER BY name
+      `),
+      db.execute(sql`
+        SELECT key, name, description, category, global_enabled
+        FROM feature_flags WHERE key LIKE 'readonly%' OR category = '읽기전용'
+        ORDER BY name
+      `),
+      db.execute(sql`
+        SELECT * FROM readonly_control_logs ORDER BY created_at DESC LIMIT 20
+      `).catch(() => ({ rows: [] })),
+    ]);
+    const platformReadonly = (platformStatus.rows[0] as any)?.value === "true";
+    res.json({
+      platform_readonly: platformReadonly,
+      operators_readonly: operatorList.rows,
+      feature_readonly: featureList.rows,
+      recent_logs: recentLogs.rows,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/super/readonly-control", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    await ensurePoliciesTable();
+    const { scope, target_id, feature_key, enabled, reason } = req.body as any;
+    const actor = req.user?.name ?? "슈퍼관리자";
+
+    if (scope === "platform") {
+      await db.execute(sql`
+        INSERT INTO system_policies (key, value, updated_by) VALUES ('platform_readonly', ${enabled ? "true" : "false"}, ${actor})
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+      `);
+    } else if (scope === "operator" && target_id) {
+      await db.execute(sql`
+        UPDATE swimming_pools SET is_readonly = ${!!enabled}, readonly_reason = ${reason ?? null} WHERE id = ${target_id}
+      `);
+    } else if (scope === "feature" && feature_key) {
+      await db.execute(sql`
+        UPDATE feature_flags SET global_enabled = ${!!enabled}, updated_by = ${actor}, updated_at = NOW() WHERE key = ${feature_key}
+      `);
+    } else {
+      res.status(400).json({ error: "잘못된 scope 또는 대상" }); return;
+    }
+
+    const logId = `rcl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO readonly_control_logs (id, scope, target_id, target_name, feature_key, enabled, reason, actor_name)
+      VALUES (${logId}, ${scope}, ${target_id ?? null}, ${null}, ${feature_key ?? null}, ${!!enabled}, ${reason ?? null}, ${actor})
+    `).catch(() => {});
+
+    const evtId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+      VALUES (${evtId}, ${target_id ?? null}, '읽기전용', ${req.user!.userId}, ${actor},
+              ${feature_key ?? target_id ?? "플랫폼"},
+              ${`읽기전용 ${enabled ? "활성화" : "해제"} (${scope}) - ${reason ?? "사유 없음"}`}, '{}'::jsonb)
+    `).catch(() => {});
+
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════════
+// GET /super/risk-summary — 리스크 요약 (0이어도 표시)
+// ════════════════════════════════════════════════════════════════
+
+router.get("/super/risk-summary", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensureExtraTables();
+    const [pay, store, del, policy, sla, sec] = await Promise.all([
+      db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM swimming_pools
+        WHERE approval_status = 'approved' AND subscription_status IN ('expired','suspended','cancelled')
+      `),
+      db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM swimming_pools
+        WHERE approval_status = 'approved'
+          AND COALESCE(used_storage_bytes,0)::float /
+              NULLIF((COALESCE(base_storage_gb,5)+COALESCE(extra_storage_gb,0))::bigint*1073741824,0) >= 0.95
+      `),
+      db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM swimming_pools
+        WHERE subscription_end_at IS NOT NULL AND subscription_end_at > NOW()
+          AND subscription_end_at <= NOW() + INTERVAL '24 hours'
+      `),
+      db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM swimming_pools sp
+        WHERE sp.approval_status = 'approved'
+          AND NOT EXISTS (SELECT 1 FROM policy_consents pc WHERE pc.pool_id = sp.id AND pc.policy_key = 'refund_policy')
+      `).catch(() => ({ rows: [{ cnt: 0 }] })),
+      db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM support_tickets
+        WHERE status IN ('open','in_progress')
+          AND created_at <= NOW() - (sla_hours || ' hours')::interval
+      `).catch(() => ({ rows: [{ cnt: 0 }] })),
+      db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM event_logs
+        WHERE category = '보안' AND created_at >= NOW() - INTERVAL '24 hours'
+      `).catch(() => ({ rows: [{ cnt: 0 }] })),
+    ]);
+    res.json({
+      payment_risk:      (pay.rows[0] as any)?.cnt ?? 0,
+      storage_risk:      (store.rows[0] as any)?.cnt ?? 0,
+      deletion_pending:  (del.rows[0] as any)?.cnt ?? 0,
+      policy_unsigned:   (policy.rows[0] as any)?.cnt ?? 0,
+      sla_overdue:       (sla.rows[0] as any)?.cnt ?? 0,
+      security_events:   (sec.rows[0] as any)?.cnt ?? 0,
+      feature_errors:    0,
+      external_services: 0,
+      backup_failures:   0,
+      abuse_detected:    0,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ════════════════════════════════════════════════════════════════
+// GET /super/recent-audit-logs — 최근 감사 로그 N개
+// ════════════════════════════════════════════════════════════════
+
+router.get("/super/recent-audit-logs", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    const limit = Math.min(parseInt((req.query.limit as string) ?? "10", 10), 50);
+    const rows = (await db.execute(sql`
+      SELECT el.id, el.category, el.description, el.actor_name, el.pool_id, el.target,
+             el.created_at, sp.name AS pool_name
+      FROM event_logs el
+      LEFT JOIN swimming_pools sp ON sp.id = el.pool_id
+      ORDER BY el.created_at DESC
+      LIMIT ${limit}
+    `)).rows;
+    res.json({ logs: rows });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 // 앱 시작 시 비동기로 테이블/컬럼 보장
 ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));
+ensurePlansTables().catch(err => console.error("[super] ensurePlansTables 오류:", err));
 
 export default router;
