@@ -1235,8 +1235,6 @@ export default function TodayScheduleScreen() {
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
   const diaryPending = items.filter(i => !i.diary_done).length;
   const sortedItems = [...items].sort((a, b) => a.schedule_time.localeCompare(b.schedule_time));
-  const hasTasks = pendingAtt > 0 || diaryPending > 0 || (overview?.makeup_count ?? 0) > 0;
-
   const WEEK_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
   const weekDates = React.useMemo(() => {
     const now = new Date();
@@ -1363,62 +1361,6 @@ export default function TodayScheduleScreen() {
             })}
           </View>
         </Pressable>
-
-        {/* ── 오늘 할 일 (미처리 항목 있을 때만 표시) ── */}
-        {!loading && hasTasks && (
-          <View style={[h.sectionCard, { backgroundColor: C.card }]}>
-            <View style={h.sectionHeaderRow}>
-              <View style={[h.sectionIconBox, { backgroundColor: "#FEF3C7" }]}>
-                <Feather name="alert-circle" size={13} color="#D97706" />
-              </View>
-              <Text style={h.sectionTitle}>오늘 할 일</Text>
-            </View>
-            <View style={h.taskList}>
-              {pendingAtt > 0 && (
-                <Pressable style={h.taskRow}
-                  onPress={() => router.push("/(teacher)/attendance" as any)}>
-                  <View style={[h.taskIcon, { backgroundColor: "#FEE2E2" }]}>
-                    <Feather name="user-check" size={13} color="#DC2626" />
-                  </View>
-                  <Text style={h.taskLabel}>출석 미체크</Text>
-                  <View style={{ flex: 1 }} />
-                  <View style={[h.taskBadge, { backgroundColor: "#FEE2E2" }]}>
-                    <Text style={[h.taskBadgeTxt, { color: "#DC2626" }]}>{pendingAtt}명</Text>
-                  </View>
-                  <Feather name="chevron-right" size={14} color={C.textMuted} />
-                </Pressable>
-              )}
-              {diaryPending > 0 && (
-                <Pressable style={h.taskRow}
-                  onPress={() => router.push("/(teacher)/diary" as any)}>
-                  <View style={[h.taskIcon, { backgroundColor: "#FEF3C7" }]}>
-                    <Feather name="edit-3" size={13} color="#D97706" />
-                  </View>
-                  <Text style={h.taskLabel}>미작성 일지</Text>
-                  <View style={{ flex: 1 }} />
-                  <View style={[h.taskBadge, { backgroundColor: "#FEF3C7" }]}>
-                    <Text style={[h.taskBadgeTxt, { color: "#D97706" }]}>{diaryPending}개</Text>
-                  </View>
-                  <Feather name="chevron-right" size={14} color={C.textMuted} />
-                </Pressable>
-              )}
-              {(overview?.makeup_count ?? 0) > 0 && (
-                <Pressable style={h.taskRow}
-                  onPress={() => router.push("/(teacher)/makeups" as any)}>
-                  <View style={[h.taskIcon, { backgroundColor: "#EDE9FE" }]}>
-                    <Feather name="refresh-cw" size={13} color="#7C3AED" />
-                  </View>
-                  <Text style={h.taskLabel}>보강 대기</Text>
-                  <View style={{ flex: 1 }} />
-                  <View style={[h.taskBadge, { backgroundColor: "#EDE9FE" }]}>
-                    <Text style={[h.taskBadgeTxt, { color: "#7C3AED" }]}>{overview!.makeup_count}개</Text>
-                  </View>
-                  <Feather name="chevron-right" size={14} color={C.textMuted} />
-                </Pressable>
-              )}
-            </View>
-          </View>
-        )}
 
         {/* ── 오늘 수업 (뱃지 그리드 4×3) ── */}
         <View style={[h.sectionCard, { backgroundColor: C.card }]}>
