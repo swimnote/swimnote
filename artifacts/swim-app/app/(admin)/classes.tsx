@@ -267,32 +267,33 @@ function DaySheet({ dateStr, dayClasses, themeColor, onSelectClass, onClose }: {
   const [y, m, d] = dateStr.split("-").map(Number);
   const DOW = ["일","월","화","수","목","금","토"][new Date(dateStr + "T00:00:00").getDay()];
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={daysh.backdrop} onPress={onClose} />
-      <View style={[daysh.sheet, { minHeight: "30%" }]}>
-        <View style={daysh.handle} />
-        <View style={daysh.sheetHeader}>
-          <Text style={[daysh.sheetTitle, { flex: 1 }]}>{y}년 {m}월 {d}일 ({DOW})</Text>
-          <Pressable onPress={onClose} style={{ padding: 4 }}>
-            <Feather name="x" size={20} color={C.textSecondary} />
-          </Pressable>
-        </View>
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
-          {dayClasses.length === 0 ? (
-            <Text style={{ color: C.textMuted, textAlign: "center", marginTop: 20 }}>이 날 수업이 없습니다</Text>
-          ) : dayClasses.map(g => (
-            <Pressable key={g.id} style={[daysh.classRow, { borderLeftColor: classColor(g.id) }]}
-              onPress={() => { onClose(); setTimeout(() => onSelectClass(g), 100); }}>
-              <View style={[daysh.dot, { backgroundColor: classColor(g.id) }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={daysh.className}>{g.name}</Text>
-                <Text style={daysh.classSub}>{g.schedule_time} · {g.student_count}명</Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={C.textMuted} />
+    <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
+      <Pressable style={daysh.backdrop} onPress={onClose}>
+        <Pressable style={daysh.sheet} onPress={() => {}}>
+          <View style={daysh.handle} />
+          <View style={daysh.sheetHeader}>
+            <Text style={[daysh.sheetTitle, { flex: 1 }]}>{y}년 {m}월 {d}일 ({DOW})</Text>
+            <Pressable onPress={onClose} style={{ padding: 4 }}>
+              <Feather name="x" size={20} color={C.textSecondary} />
             </Pressable>
-          ))}
-        </ScrollView>
-      </View>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+            {dayClasses.length === 0 ? (
+              <Text style={{ color: C.textMuted, textAlign: "center", marginTop: 20 }}>이 날 수업이 없습니다</Text>
+            ) : dayClasses.map(g => (
+              <Pressable key={g.id} style={[daysh.classRow, { borderLeftColor: classColor(g.id) }]}
+                onPress={() => { onClose(); setTimeout(() => onSelectClass(g), 100); }}>
+                <View style={[daysh.dot, { backgroundColor: classColor(g.id) }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={daysh.className}>{g.name}</Text>
+                  <Text style={daysh.classSub}>{g.schedule_time} · {g.student_count}명</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={C.textMuted} />
+              </Pressable>
+            ))}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -319,7 +320,7 @@ export default function ClassesScreen() {
   const { themeColor } = useBrand();
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
 
-  const [viewMode,    setViewMode]    = useState<ViewMode>("weekly");
+  const [viewMode,    setViewMode]    = useState<ViewMode>("monthly");
   const [selectedDay, setSelectedDay] = useState(() => KO_DAY_ARR[new Date().getDay()]);
   const [groups,      setGroups]      = useState<TeacherClassGroup[]>([]);
   const [attMap,      setAttMap]      = useState<Record<string, number>>({});
@@ -342,7 +343,7 @@ export default function ClassesScreen() {
 
   useEffect(() => {
     return addTabResetListener("classes", () => {
-      setDetailGroup(null); setDaySheet(null); setViewMode("weekly");
+      setDetailGroup(null); setDaySheet(null); setViewMode("monthly");
     });
   }, []);
 
