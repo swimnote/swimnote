@@ -451,10 +451,11 @@ function DaySheet({
   }
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={dy.backdrop} onPress={onClose} />
-      <View style={dy.sheet}>
-        <View style={dy.handle} />
+    <Modal visible animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
+      {/* 바깥 탭 → 팝업 닫기 / 내부 탭은 시트 Pressable이 흡수 → 화살표 클릭 정상 동작 */}
+      <Pressable style={dy.backdrop} onPress={onClose}>
+        <Pressable style={dy.sheet} onPress={() => {}}>
+          <View style={dy.handle} />
 
         {/* 헤더 */}
         <View style={dy.header}>
@@ -642,7 +643,8 @@ function DaySheet({
             )}
           </View>
         </ScrollView>
-      </View>
+        </Pressable>{/* /sheet */}
+      </Pressable>{/* /backdrop */}
     </Modal>
   );
 }
@@ -723,10 +725,12 @@ const dy = StyleSheet.create({
 });
 
 // ─── 반 상세 시트 (주간 뷰 클릭용) ─────────────────────────────
-function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClose, onOpenUnreg, onOpenRemove, onOpenExtra }:
+function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClose, onOpenUnreg, onOpenRemove, onOpenExtra, onNavigateTo }:
   { group: TeacherClassGroup; students: StudentItem[]; attMap: Record<string,number>;
     diarySet: Set<string>; themeColor: string; onClose: () => void;
-    onOpenUnreg?: () => void; onOpenRemove?: () => void; onOpenExtra?: () => void }) {
+    onOpenUnreg?: () => void; onOpenRemove?: () => void; onOpenExtra?: () => void;
+    /** 페이지 이동이 필요할 때 부모가 모달 정리 후 navigate 실행 */
+    onNavigateTo?: (navigate: () => void) => void; }) {
 
   const groupStudents = students.filter(st =>
     (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
@@ -737,10 +741,10 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
   const diarDone = diarySet.has(group.id);
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={cds.backdrop} onPress={onClose} />
-      <View style={cds.sheet}>
-        <View style={cds.handle} />
+    <Modal visible animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
+      <Pressable style={cds.backdrop} onPress={onClose}>
+        <Pressable style={cds.sheet} onPress={() => {}}>
+          <View style={cds.handle} />
         <View style={cds.sheetHeader}>
           <View style={{ flex: 1 }}>
             <Text style={cds.sheetTitle}>{group.name}</Text>
@@ -752,7 +756,7 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
         </View>
         <View style={cds.actionRow}>
           <Pressable style={[cds.actionBtn, { backgroundColor: "#EEF2FF" }]}
-            onPress={() => { onClose(); router.push(`/class-assign?classId=${group.id}` as any); }}>
+            onPress={() => onNavigateTo?.(() => router.push(`/class-assign?classId=${group.id}` as any))}>
             <Feather name="users" size={13} color="#4338CA" />
             <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
           </Pressable>
@@ -767,12 +771,12 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
             <Text style={[cds.actionText, { color: "#E11D48" }]}>반이동</Text>
           </Pressable>
           <Pressable style={[cds.actionBtn, { backgroundColor: attDone ? "#D1FAE5" : "#FEE2E2" }]}
-            onPress={() => { onClose(); router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: group.id} } as any); }}>
+            onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: group.id} } as any))}>
             <Feather name="check-square" size={13} color={attDone ? "#059669" : "#DC2626"} />
             <Text style={[cds.actionText, { color: attDone ? "#059669" : "#DC2626" }]}>출결</Text>
           </Pressable>
           <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#D1FAE5" : "#FEF3C7" }]}
-            onPress={() => { onClose(); router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any); }}>
+            onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any))}>
             <Feather name="edit-3" size={13} color={diarDone ? "#059669" : "#D97706"} />
             <Text style={[cds.actionText, { color: diarDone ? "#059669" : "#D97706" }]}>수업일지</Text>
           </Pressable>
@@ -794,7 +798,7 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
             const wb = WEEKLY_BADGE[wc];
             return (
               <Pressable key={st.id} style={cds.studentRow}
-                onPress={() => { onClose(); setTimeout(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: st.id} } as any), 200); }}>
+                onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: st.id} } as any))}>
                 <View style={[cds.avatar, { backgroundColor: themeColor + "18" }]}>
                   <Text style={[cds.avatarText, { color: themeColor }]}>{st.name[0]}</Text>
                 </View>
@@ -813,7 +817,8 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
           })}
           <View style={{ height: 20 }} />
         </ScrollView>
-      </View>
+        </Pressable>{/* /sheet */}
+      </Pressable>{/* /backdrop */}
     </Modal>
   );
 }
@@ -1037,6 +1042,9 @@ export default function MyScheduleScreen() {
 
   // 최초 마운트 여부 (useFocusEffect skip)
   const isMountedRef = useRef(false);
+
+  // 모달→페이지 이동 후 복귀 시 팝업 복원용 날짜 저장
+  const pendingRestoreDateRef = useRef<string | null>(null);
   // openDate 파라미터 자동 오픈 처리 여부
   const autoOpenDoneRef = useRef(false);
 
@@ -1133,26 +1141,49 @@ export default function MyScheduleScreen() {
     }
   }
 
-  // ── DaySheet에서 반 클릭 → 반 상세 or 바로 출결/일지 등 이동 ──
+  // ── DaySheet에서 반 클릭 → 반 상세 시트 열기 ──
   function handleDaySheetClassPress(g: TeacherClassGroup) {
-    // 반 상세를 선택 날짜와 함께 보여주는 sub sheet
     setDetailGroup(g);
+  }
+
+  // ── 모달을 모두 닫고 안전하게 페이지 이동 (터치 freeze 방지) ──
+  // iOS 에서 Modal 이 열린 채로 router.push 하면 native 프레젠테이션 스택이
+  // 어긋나 복귀 후 터치가 먹히지 않는 현상을 방지한다.
+  // - 모든 모달 닫기 → pendingRestoreDateRef 에 날짜 저장 → 350ms 후 navigate
+  function navigateFromSheet(navigate: () => void) {
+    const dateToRestore = selectedDate;
+    setDetailGroup(null);
+    setSelectedDate(null);
+    if (dateToRestore) pendingRestoreDateRef.current = dateToRestore;
+    setTimeout(navigate, 350);
   }
 
   // ── DaySheet에서 보강 클릭 ──
   function handleDaySheetMakeup() {
-    router.push("/(teacher)/makeups" as any);
+    navigateFromSheet(() => router.push("/(teacher)/makeups" as any));
   }
 
-  // ── 포커스 복귀 시 날짜 데이터 갱신 (반 상세 / 일지 / 보강 작업 후) ──
+  // ── 포커스 복귀 시: 팝업 날짜 복원 + 데이터 갱신 ──
   useFocusEffect(useCallback(() => {
     if (!isMountedRef.current) { isMountedRef.current = true; return; }
+
+    // 모달에서 페이지 이동 후 돌아왔을 때 날짜 팝업 복원
+    if (pendingRestoreDateRef.current) {
+      const d = pendingRestoreDateRef.current;
+      pendingRestoreDateRef.current = null;
+      // 월간 뷰로 전환 후 팝업 복원
+      setViewMode("monthly");
+      setSelectedDate(d);
+      loadDayData(d);
+      loadMemo(d);
+    }
+
     // 학생 데이터 새로고침
     apiRequest(token, "/students").then(r => r.ok && r.json()).then(data => {
       if (Array.isArray(data)) setStudents(data);
     }).catch(() => {});
-    // 선택 날짜가 있으면 해당 날짜 데이터 갱신
-    if (selectedDate) {
+    // 선택 날짜가 있으면 해당 날짜 데이터 갱신 (복원한 경우 제외)
+    if (selectedDate && !pendingRestoreDateRef.current) {
       loadDayData(selectedDate);
       loadMemo(selectedDate);
     }
@@ -1457,6 +1488,7 @@ export default function MyScheduleScreen() {
           onOpenUnreg={() => { setDetailGroup(null); setUnregClassId(detailGroup.id); }}
           onOpenRemove={() => { setDetailGroup(null); setRemoveClassGroup(detailGroup); }}
           onOpenExtra={() => { const g = detailGroup; setDetailGroup(null); setTimeout(() => { setExtraGroupForModal(g); setShowExtraModal(true); }, 200); }}
+          onNavigateTo={navigateFromSheet}
         />
       )}
 
