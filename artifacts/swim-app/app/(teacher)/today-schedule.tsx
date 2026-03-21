@@ -1346,11 +1346,11 @@ export default function TodayScheduleScreen() {
               const isSat = i === 6;
               return (
                 <View key={i} style={h.miniCell}>
-                  <Text style={[h.miniDayName, isSun && { color: "rgba(255,180,180,0.9)" }, isSat && { color: "rgba(180,210,255,0.9)" }]}>
+                  <Text style={[h.miniDayName, isSun && { color: "#EF4444" }, isSat && { color: "#3B82F6" }]}>
                     {dn}
                   </Text>
                   <View style={[h.miniCircle, isToday && h.miniCircleToday]}>
-                    <Text style={[h.miniDate, isToday && h.miniDateToday, isSun && !isToday && { color: "rgba(255,180,180,0.9)" }, isSat && !isToday && { color: "rgba(180,210,255,0.9)" }]}>
+                    <Text style={[h.miniDate, isToday && h.miniDateToday, isSun && !isToday && { color: "#EF4444" }, isSat && !isToday && { color: "#3B82F6" }]}>
                       {d.getDate()}
                     </Text>
                   </View>
@@ -1565,15 +1565,15 @@ const h = StyleSheet.create({
   schedHeroSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 3 },
   schedHeroBtn:     { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   schedHeroBtnTxt:  { fontSize: 12, fontFamily: "Inter_700Bold" },
-  /* 미니 주간 달력 */
-  miniWeek:         { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 4 },
-  miniCell:         { flex: 1, alignItems: "center", gap: 6 },
-  miniDayName:      { fontSize: 10, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.75)" },
-  miniCircle:       { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  miniCircleToday:  { backgroundColor: "#fff" },
-  miniDate:         { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.9)" },
-  miniDateToday:    { fontFamily: "Inter_700Bold", color: "#000" },
-  miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.7)", marginTop: -2 },
+  /* 미니 주간 달력 (애플 스타일) */
+  miniWeek:         { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 6 },
+  miniCell:         { flex: 1, alignItems: "center", gap: 5 },
+  miniDayName:      { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9CA3AF", letterSpacing: 0.3 },
+  miniCircle:       { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  miniCircleToday:  { backgroundColor: "#1C1C1E" },
+  miniDate:         { fontSize: 14, fontFamily: "Inter_500Medium", color: "#111827" },
+  miniDateToday:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
+  miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
   /* 기능 메뉴 그리드 */
   gridCard:       { borderRadius: 18, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   grid:           { flexDirection: "row", flexWrap: "wrap" },
