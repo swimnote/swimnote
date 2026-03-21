@@ -1237,6 +1237,14 @@ export default function TodayScheduleScreen() {
   const sortedItems = [...items].sort((a, b) => a.schedule_time.localeCompare(b.schedule_time));
   const hasTasks = pendingAtt > 0 || diaryPending > 0 || (overview?.makeup_count ?? 0) > 0;
 
+  const WEEK_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+  const weekDates = React.useMemo(() => {
+    const now = new Date();
+    const sun = new Date(now);
+    sun.setDate(now.getDate() - now.getDay());
+    return Array.from({ length: 7 }, (_, i) => { const d = new Date(sun); d.setDate(sun.getDate() + i); return d; });
+  }, []);
+
   return (
     <SafeAreaView style={h.safe} edges={[]}>
       {/* ── 헤더 ── */}
@@ -1317,19 +1325,47 @@ export default function TodayScheduleScreen() {
           </View>
         </View>
 
-        {/* ── 스케줄러 바로가기 ── */}
+        {/* ── 스케줄러 히어로 카드 ── */}
         <Pressable
-          style={[h.schedCard, { backgroundColor: C.card }]}
+          style={[h.schedHero, { backgroundColor: themeColor }]}
           onPress={() => router.push("/(teacher)/my-schedule" as any)}
         >
-          <View style={[h.schedIcon, { backgroundColor: themeColor + "15" }]}>
-            <Feather name="calendar" size={22} color={themeColor} />
+          {/* 타이틀 행 */}
+          <View style={h.schedHeroTop}>
+            <View>
+              <Text style={h.schedHeroTitle}>월간 스케줄러</Text>
+              <Text style={h.schedHeroSub}>수업 · 출결 · 일지 · 날짜메모</Text>
+            </View>
+            <View style={h.schedHeroBtn}>
+              <Text style={[h.schedHeroBtnTxt, { color: themeColor }]}>열기</Text>
+              <Feather name="chevron-right" size={11} color={themeColor} />
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[h.schedTitle, { color: C.text }]}>월간 스케줄러</Text>
-            <Text style={h.schedSub}>수업·출결·일지·날짜 메모를 한 화면에서</Text>
+          {/* 미니 주간 달력 */}
+          <View style={h.miniWeek}>
+            {WEEK_DAYS.map((dn, i) => {
+              const d = weekDates[i];
+              const isToday = d.toDateString() === new Date().toDateString();
+              const isSun = i === 0;
+              const isSat = i === 6;
+              return (
+                <View key={i} style={h.miniCell}>
+                  <Text style={[h.miniDayName, isSun && { color: "rgba(255,180,180,0.9)" }, isSat && { color: "rgba(180,210,255,0.9)" }]}>
+                    {dn}
+                  </Text>
+                  <View style={[h.miniCircle, isToday && h.miniCircleToday]}>
+                    <Text style={[h.miniDate, isToday && h.miniDateToday, isSun && !isToday && { color: "rgba(255,180,180,0.9)" }, isSat && !isToday && { color: "rgba(180,210,255,0.9)" }]}>
+                      {d.getDate()}
+                    </Text>
+                  </View>
+                  {/* 오늘 수업 있으면 점 표시 */}
+                  {isToday && items.length > 0 && (
+                    <View style={h.miniDot} />
+                  )}
+                </View>
+              );
+            })}
           </View>
-          <Feather name="chevron-right" size={18} color={themeColor} />
         </Pressable>
 
         {/* ── 오늘 할 일 (미처리 항목 있을 때만 표시) ── */}
@@ -1526,11 +1562,22 @@ const h = StyleSheet.create({
   emptyTxt:       { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
   emptyBtn:       { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, marginTop: 4 },
   emptyBtnTxt:    { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  /* 스케줄러 바로가기 */
-  schedCard:      { flexDirection: "row", alignItems: "center", gap: 12, padding: 13, borderRadius: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  schedIcon:      { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  schedTitle:     { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  schedSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  /* 스케줄러 히어로 카드 */
+  schedHero:        { borderRadius: 18, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+  schedHeroTop:     { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 },
+  schedHeroTitle:   { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
+  schedHeroSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 3 },
+  schedHeroBtn:     { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  schedHeroBtnTxt:  { fontSize: 12, fontFamily: "Inter_700Bold" },
+  /* 미니 주간 달력 */
+  miniWeek:         { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 4 },
+  miniCell:         { flex: 1, alignItems: "center", gap: 6 },
+  miniDayName:      { fontSize: 10, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.75)" },
+  miniCircle:       { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  miniCircleToday:  { backgroundColor: "#fff" },
+  miniDate:         { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.9)" },
+  miniDateToday:    { fontFamily: "Inter_700Bold", color: "#000" },
+  miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.7)", marginTop: -2 },
   /* 기능 메뉴 그리드 */
   gridCard:       { borderRadius: 18, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   grid:           { flexDirection: "row", flexWrap: "wrap" },
