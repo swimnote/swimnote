@@ -255,7 +255,7 @@ export default function SubscriptionProductsScreen() {
 
     if (editTarget) {
       updatePlan(editTarget.id, patch);
-      createLog({ category: '구독', title: `구독 상품 수정: ${form.name}`, actorName, impact: 'medium' });
+      createLog({ category: '구독', title: `구독 상품 수정: ${form.name}`, detail: `가격 ${form.monthlyPrice}원`, actorName, impact: 'medium' });
     } else {
       addPlan({
         id:            `plan-${Date.now()}`,
@@ -271,7 +271,7 @@ export default function SubscriptionProductsScreen() {
         createdAt:     new Date().toISOString(),
         updatedAt:     new Date().toISOString(),
       });
-      createLog({ category: '구독', title: `구독 상품 생성: ${form.name}`, actorName, impact: 'high' });
+      createLog({ category: '구독', title: `구독 상품 생성: ${form.name}`, detail: `가격 ${form.monthlyPrice}원`, actorName, impact: 'high' });
     }
     setShowForm(false);
     setEditTarget(null);
@@ -292,6 +292,7 @@ export default function SubscriptionProductsScreen() {
             createLog({
               category: '구독',
               title: `구독 상품 ${newActive ? "활성화" : "비활성화"}: ${plan.name}`,
+              detail: `${plan.name} → ${newActive ? "활성" : "비활성"}`,
               actorName,
               impact: 'high',
             });

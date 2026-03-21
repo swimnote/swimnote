@@ -142,7 +142,7 @@ export default function SuperSyncScreen() {
         created_at:    new Date().toISOString(),
       };
       setSnapshots(prev => [snap, ...prev]);
-      createLog({ category: '구독', title: `증분 동기화 실행: ${synced}건 처리`, actorName, impact: 'medium' });
+      createLog({ category: '구독', title: `증분 동기화 실행: ${synced}건 처리`, detail: `pending→synced ${synced}건`, actorName, impact: 'medium' });
       setRunningSync(false);
     }, 1200);
   }
@@ -164,7 +164,7 @@ export default function SuperSyncScreen() {
         snapshots:        prev.snapshots + 1,
         last_snapshot_at: new Date().toISOString(),
       }));
-      createLog({ category: '구독', title: `전체 스냅샷 생성: ${newCount}건 기록`, actorName, impact: 'medium' });
+      createLog({ category: '구독', title: `전체 스냅샷 생성: ${newCount}건 기록`, detail: `총 레코드 ${newCount}건`, actorName, impact: 'medium' });
       setRunningSnapshot(false);
     }, 1600);
   }

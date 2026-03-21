@@ -58,7 +58,7 @@ export default function KillSwitchScreen() {
   const actorName = adminUser?.name ?? '슈퍼관리자';
 
   const operators          = useOperatorsStore(s => s.operators);
-  const setOperatorStatus  = useOperatorsStore(s => s.setOperatorStatus);
+  const updateOperator     = useOperatorsStore(s => s.updateOperator);
   const scheduleAutoDelete = useOperatorsStore(s => s.scheduleAutoDelete);
   const auditLogs          = useAuditLogStore(s => s.logs);
   const createLog          = useAuditLogStore(s => s.createLog);
@@ -70,9 +70,10 @@ export default function KillSwitchScreen() {
   const [fromDate,     setFromDate]     = useState("");
   const [toDate,       setToDate]       = useState("");
   const [selectedItems,setSelectedItems]= useState<string[]>([]);
-  const [confirmModal, setConfirmModal] = useState(false);
-  const [deleting,     setDeleting]     = useState(false);
-  const [actionLoading,setActionLoading]= useState<string | null>(null);
+  const [confirmModal,  setConfirmModal]  = useState(false);
+  const [confirmText,   setConfirmText]   = useState("");
+  const [deleting,      setDeleting]      = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const queueItems = operators.filter(o => !!o.autoDeleteScheduledAt);
   const deleteLogs = auditLogs.filter(l => l.category === '삭제');
@@ -82,17 +83,18 @@ export default function KillSwitchScreen() {
     const at = new Date(Date.now() + 48 * 3600000).toISOString();
     scheduleAutoDelete(id, at);
     const op = operators.find(o => o.id === id);
-    createLog({ category: '삭제', title: `삭제 유예 48h: ${op?.name ?? id}`, actorName, impact: 'medium' });
+    createLog({ category: '삭제', title: `삭제 유예 48h: ${op?.name ?? id}`, detail: '48시간 유예 연장', actorName, impact: 'medium' });
     setTimeout(() => setActionLoading(null), 500);
   }
 
   function executeDelete() {
     if (!poolId) return;
     setDeleting(true);
-    setOperatorStatus(poolId, 'deleted' as any);
+    updateOperator(poolId, { status: 'deleted' as any });
     createLog({
       category: '삭제',
       title: `데이터 삭제 실행: ${poolName || poolId} (${DELETE_MODES.find(m => m.key === deleteMode)?.label})`,
+      detail: `삭제 방식: ${DELETE_MODES.find(m => m.key === deleteMode)?.label ?? deleteMode}`,
       actorName,
       impact: 'critical',
     });

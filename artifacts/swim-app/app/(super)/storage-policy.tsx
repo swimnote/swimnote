@@ -78,7 +78,7 @@ export default function StoragePolicyScreen() {
       description:        form.description.trim() || null,
     };
     setPolicies(prev => prev.map(p => p.tier === editTarget.tier ? updated : p));
-    createLog({ category: '저장공간', title: `저장공간 정책 수정: ${TIER_META[editTarget.tier]?.label}`, actorName, impact: 'medium' });
+    createLog({ category: '저장공간', title: `저장공간 정책 수정: ${TIER_META[editTarget.tier]?.label}`, detail: `${form.quota_gb}GB 기본 용량`, actorName, impact: 'medium' });
     setSaving(false); setEditTarget(null); setFormError("");
   }
 

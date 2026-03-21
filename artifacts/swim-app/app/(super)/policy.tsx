@@ -91,7 +91,7 @@ export default function PolicyScreen() {
       ...prev,
       [versionKey]: [entry, ...(prev[versionKey] ?? [])],
     }));
-    createLog({ category: '정책', title: `정책 버전 저장: ${TABS.find(t => t.key === versionKey)?.label} v${newVer}`, actorName, impact: 'medium' });
+    createLog({ category: '정책', title: `정책 버전 저장: ${TABS.find(t => t.key === versionKey)?.label} v${newVer}`, detail: newVal.slice(0, 80), actorName, impact: 'medium' });
     setVersionModal(false); setNewVer(""); setNewVal("");
   }
 

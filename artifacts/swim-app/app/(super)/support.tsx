@@ -88,8 +88,8 @@ export default function SupportScreen() {
   const [saving, setSaving]              = useState(false);
   const [createModal, setCreateModal]    = useState(false);
   const [form, setForm]                  = useState({
-    type: "other", requesterType: "operator", requesterName: "",
-    operatorId: "", operatorName: "", subject: "", description: "",
+    type: "other", requesterRole: "operator", requesterName: "",
+    operatorId: "", operatorName: "", title: "", body: "",
     riskLevel: "medium" as any,
   });
   const [creating, setCreating]          = useState(false);
@@ -125,7 +125,7 @@ export default function SupportScreen() {
       if (internalMemo.trim()) addMemo(editTicket.id, internalMemo.trim());
       createLog({
         category: '고객센터',
-        title: `티켓 상태 변경: ${editTicket.subject}`,
+        title: `티켓 상태 변경: ${editTicket.title}`,
         operatorId: editTicket.operatorId,
         operatorName: editTicket.operatorName,
         actorName,
@@ -138,38 +138,39 @@ export default function SupportScreen() {
   }
 
   function handleCreate() {
-    if (!form.subject.trim()) return;
+    if (!form.title.trim()) return;
     setCreating(true);
     try {
       const ticket = createTicketFn({
         type: form.type as any,
-        requesterType: form.requesterType as any,
+        requesterRole: form.requesterRole as any,
         requesterName: form.requesterName,
         operatorId: form.operatorId,
         operatorName: form.operatorName,
-        subject: form.subject,
-        description: form.description,
-        status: 'open',
+        title: form.title,
+        body: form.body,
+        status: 'received',
         assigneeName: '',
         riskLevel: form.riskLevel,
         internalMemo: '',
+        repeatedIssueFlag: false,
       });
       createLog({
         category: '고객센터',
-        title: `신규 티켓 등록: ${form.subject}`,
+        title: `신규 티켓 등록: ${form.title}`,
         actorName,
         impact: 'low',
         detail: `유형: ${TYPE_CFG[form.type]?.label ?? form.type}`,
       });
       setCreateModal(false);
-      setForm({ type: "other", requesterType: "operator", requesterName: "", operatorId: "", operatorName: "", subject: "", description: "", riskLevel: "medium" });
+      setForm({ type: "other", requesterRole: "operator", requesterName: "", operatorId: "", operatorName: "", title: "", body: "", riskLevel: "medium" });
     } finally { setCreating(false); }
   }
 
   const renderItem = ({ item }: { item: SupportTicket }) => {
     const tc = TYPE_CFG[item.type] ?? TYPE_CFG.other;
-    const sc = STATUS_CFG[item.status] ?? STATUS_CFG.open;
-    const rc = REQUESTER_CFG[item.requesterType] ?? { label: item.requesterType, color: "#6B7280" };
+    const sc = STATUS_CFG[item.status] ?? STATUS_CFG.received;
+    const rc = REQUESTER_CFG[item.requesterRole] ?? { label: item.requesterRole, color: "#6B7280" };
     const { overdue, label: slaLabel } = getSlaStatus(item);
 
     return (
@@ -180,7 +181,7 @@ export default function SupportScreen() {
         </View>
         <View style={s.rowMain}>
           <View style={s.rowTop}>
-            <Text style={s.subject} numberOfLines={1}>{item.subject}</Text>
+            <Text style={s.subject} numberOfLines={1}>{item.title}</Text>
             {overdue && <View style={s.slaTag}><Text style={s.slaTxt}>SLA 초과</Text></View>}
             {slaLabel && !overdue && <View style={[s.slaTag, { backgroundColor: "#FEF3C7" }]}><Text style={[s.slaTxt, { color: "#D97706" }]}>{slaLabel}</Text></View>}
           </View>
@@ -280,8 +281,8 @@ export default function SupportScreen() {
           <Pressable style={m.backdrop} onPress={() => setEditTicket(null)}>
             <Pressable style={m.sheet} onPress={() => {}}>
               <View style={m.handle} />
-              <Text style={m.title}>{editTicket.subject}</Text>
-              {editTicket.description && <Text style={m.desc} numberOfLines={3}>{editTicket.description}</Text>}
+              <Text style={m.title}>{editTicket.title}</Text>
+              {editTicket.body && <Text style={m.desc} numberOfLines={3}>{editTicket.body}</Text>}
 
               <View style={m.infoBox}>
                 <View style={m.infoRow}>
@@ -290,7 +291,7 @@ export default function SupportScreen() {
                 </View>
                 <View style={m.infoRow}>
                   <Text style={m.infoLabel}>요청자</Text>
-                  <Text style={m.infoVal}>{REQUESTER_CFG[editTicket.requesterType]?.label} {editTicket.requesterName ?? ""}</Text>
+                  <Text style={m.infoVal}>{REQUESTER_CFG[editTicket.requesterRole]?.label} {editTicket.requesterName ?? ""}</Text>
                 </View>
                 {editTicket.operatorName && (
                   <View style={m.infoRow}>
@@ -386,9 +387,9 @@ export default function SupportScreen() {
                   <Text style={m.label}>요청자 유형</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                     {["operator", "teacher", "parent"].map(t => (
-                      <Pressable key={t} style={[m.optChip, form.requesterType === t && { backgroundColor: P, borderColor: P }]}
-                        onPress={() => setForm(f => ({ ...f, requesterType: t }))}>
-                        <Text style={[m.optTxt, form.requesterType === t && { color: "#fff" }]}>
+                      <Pressable key={t} style={[m.optChip, form.requesterRole === t && { backgroundColor: P, borderColor: P }]}
+                        onPress={() => setForm(f => ({ ...f, requesterRole: t }))}>
+                        <Text style={[m.optTxt, form.requesterRole === t && { color: "#fff" }]}>
                           {REQUESTER_CFG[t]?.label ?? t}
                         </Text>
                       </Pressable>
@@ -404,14 +405,14 @@ export default function SupportScreen() {
 
                 <View style={m.section}>
                   <Text style={m.label}>제목 *</Text>
-                  <TextInput style={m.input} value={form.subject} onChangeText={v => setForm(f => ({ ...f, subject: v }))}
+                  <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))}
                     placeholder="문의 제목" placeholderTextColor="#9CA3AF" />
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>내용</Text>
-                  <TextInput style={[m.input, { minHeight: 80 }]} value={form.description}
-                    onChangeText={v => setForm(f => ({ ...f, description: v }))}
+                  <TextInput style={[m.input, { minHeight: 80 }]} value={form.body}
+                    onChangeText={v => setForm(f => ({ ...f, body: v }))}
                     multiline placeholder="문의 내용 (선택)" placeholderTextColor="#9CA3AF" textAlignVertical="top" />
                 </View>
 
@@ -419,8 +420,8 @@ export default function SupportScreen() {
                   <Pressable style={m.cancelBtn} onPress={() => setCreateModal(false)}>
                     <Text style={m.cancelTxt}>취소</Text>
                   </Pressable>
-                  <Pressable style={[m.saveBtn, { opacity: creating || !form.subject ? 0.6 : 1 }]}
-                    onPress={handleCreate} disabled={creating || !form.subject}>
+                  <Pressable style={[m.saveBtn, { opacity: creating || !form.title ? 0.6 : 1 }]}
+                    onPress={handleCreate} disabled={creating || !form.title}>
                     {creating ? <ActivityIndicator color="#fff" size="small" />
                       : <Text style={m.saveTxt}>등록</Text>}
                   </Pressable>

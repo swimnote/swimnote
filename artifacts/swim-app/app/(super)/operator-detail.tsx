@@ -83,7 +83,8 @@ export default function OperatorDetailScreen() {
 
   const operators         = useOperatorsStore(s => s.operators);
   const approveOperator   = useOperatorsStore(s => s.approveOperator);
-  const setOperatorStatus = useOperatorsStore(s => s.setOperatorStatus);
+  const rejectOperator    = useOperatorsStore(s => s.rejectOperator);
+  const setRestricted     = useOperatorsStore(s => s.setRestricted);
   const storagePolicies   = useStorageStore(s => s.policies);
   const setStoragePolicy  = useStorageStore(s => s.setStoragePolicy);
   const auditLogs         = useAuditLogStore(s => s.logs);
@@ -124,20 +125,20 @@ export default function OperatorDetailScreen() {
     setProcessing(true);
     if (act === "approve") {
       approveOperator(op!.id, actorName);
-      createLog({ category: '권한', title: `운영 승인: ${op!.name}`, actorName, operatorId: op!.id, operatorName: op!.name, impact: 'high' });
+      createLog({ category: '권한', title: `운영 승인: ${op!.name}`, detail: '수동 승인', actorName, operatorId: op!.id, operatorName: op!.name, impact: 'high' });
       setFeedback("운영 승인 완료");
     } else if (act === "reject") {
-      setOperatorStatus(op!.id, "rejected");
-      createLog({ category: '권한', title: `반려 처리: ${op!.name}${reason ? " / " + reason : ""}`, actorName, operatorId: op!.id, operatorName: op!.name, impact: 'high' });
+      rejectOperator(op!.id, reason || '수동 반려', actorName);
+      createLog({ category: '권한', title: `반려 처리: ${op!.name}${reason ? " / " + reason : ""}`, detail: reason || '수동 반려', actorName, operatorId: op!.id, operatorName: op!.name, impact: 'high' });
       setFeedback("반려 처리 완료");
     } else if (act === "restrict") {
-      setOperatorStatus(op!.id, "restricted");
-      createLog({ category: '권한', title: `일시 제한: ${op!.name}${reason ? " / " + reason : ""}`, actorName, operatorId: op!.id, operatorName: op!.name, impact: 'high' });
+      setRestricted(op!.id, reason || '수동 제한');
+      createLog({ category: '권한', title: `일시 제한: ${op!.name}${reason ? " / " + reason : ""}`, detail: reason || '수동 제한', actorName, operatorId: op!.id, operatorName: op!.name, impact: 'high' });
       setFeedback("일시 제한 처리 완료");
     } else if (act === "storage") {
       const mb = (parseFloat(extraGB) || 0) * 1024;
       setStoragePolicy(op!.id, { extraMb: Math.round(mb) });
-      createLog({ category: '저장공간', title: `추가 용량 부여: ${op!.name} +${extraGB}GB`, actorName, operatorId: op!.id, operatorName: op!.name, impact: 'medium' });
+      createLog({ category: '저장공간', title: `추가 용량 부여: ${op!.name} +${extraGB}GB`, detail: `추가 ${extraGB}GB`, actorName, operatorId: op!.id, operatorName: op!.name, impact: 'medium' });
       setFeedback("저장공간 변경 완료");
     }
     setAction(null); setReason(""); setExtraGB("");

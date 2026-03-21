@@ -158,14 +158,13 @@ export default function ReadonlyControlScreen() {
   const actorName = adminUser?.name ?? '슈퍼관리자';
   const [refreshing, setRefreshing] = useState(false);
 
-  const platformReadonly    = useReadonlyStore(s => s.platformReadonly);
-  const platformReason      = useReadonlyStore(s => s.platformReason);
-  const setPlatformReadonly = useReadonlyStore(s => s.setPlatformReadonly);
-  const readonlyLog         = useReadonlyStore(s => s.readonlyLog);
-  const createLog           = useAuditLogStore(s => s.createLog);
-  const operators           = useOperatorsStore(s => s.operators);
-  const setOpReadonly        = useOperatorsStore(s => s.setOperatorReadonly);
-  const setOpStatus          = useOperatorsStore(s => s.setOperatorStatus);
+  const platformReadonly        = useReadonlyStore(s => s.platformReadonly);
+  const platformReadonlyReason  = useReadonlyStore(s => s.platformReadonlyReason);
+  const setPlatformReadonly     = useReadonlyStore(s => s.setPlatformReadonly);
+  const setOpReadonly           = useReadonlyStore(s => s.setOperatorReadonly);
+  const createLog               = useAuditLogStore(s => s.createLog);
+  const auditLogs               = useAuditLogStore(s => s.logs);
+  const operators               = useOperatorsStore(s => s.operators);
   const globalFlags         = useFeatureFlagStore(s => s.getGlobalFlags());
 
   const readonlyOperators = useMemo(() =>
@@ -179,13 +178,13 @@ export default function ReadonlyControlScreen() {
   );
 
   const recentLogs = useMemo(() =>
-    readonlyLog.slice(0, 10),
-    [readonlyLog]
+    auditLogs.filter(l => l.category === '읽기전용 전환').slice(0, 10),
+    [auditLogs]
   );
 
   function togglePlatform(reason: string) {
     const newEnabled = !platformReadonly;
-    setPlatformReadonly(newEnabled, reason);
+    setPlatformReadonly(newEnabled, reason, 'active', actorName);
     createLog({
       category: '읽기전용 전환',
       title: `플랫폼 전체 읽기전용 ${newEnabled ? "활성화" : "해제"}`,
@@ -204,7 +203,7 @@ export default function ReadonlyControlScreen() {
         {
           text: "해제",
           onPress: () => {
-            setOpStatus(op.id, 'active');
+            setOpReadonly({ operatorId: op.id, operatorName: op.name, enabled: false, reason: '수동 해제', level: 'active', actorName });
             createLog({
               category: '읽기전용 전환',
               title: `${op.name} 읽기전용 해제`,
@@ -251,7 +250,7 @@ export default function ReadonlyControlScreen() {
         {/* 플랫폼 전체 */}
         <PlatformSection
           enabled={platformReadonly}
-          reason={platformReason}
+          reason={platformReadonlyReason}
           onToggle={togglePlatform}
         />
 
@@ -276,7 +275,7 @@ export default function ReadonlyControlScreen() {
               <View key={op.id} style={or.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={or.name}>{op.name}</Text>
-                  <Text style={or.sub}>{op.representativeName}{op.readonlyReason ? ` · ${op.readonlyReason}` : ""}</Text>
+                  <Text style={or.sub}>{op.representativeName}</Text>
                 </View>
                 <Pressable style={or.releaseBtn} onPress={() => releaseOperator({ id: op.id, name: op.name })}>
                   <Feather name="unlock" size={12} color="#059669" />
@@ -323,20 +322,23 @@ export default function ReadonlyControlScreen() {
               <Text style={s.emptyTxt}>로그 없음</Text>
             </View>
           ) : (
-            recentLogs.map(log => (
-              <View key={log.id} style={lr.row}>
-                <View style={[lr.dot, { backgroundColor: log.enabled ? "#DC2626" : "#059669" }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={lr.desc} numberOfLines={1}>{log.scope} · {log.reason ?? "사유 없음"}</Text>
-                  <Text style={lr.time}>{log.actorName} · {fmtRelative(log.createdAt)}</Text>
+            recentLogs.map(log => {
+              const isActivate = log.title.includes("활성화") || log.title.includes("설정");
+              return (
+                <View key={log.id} style={lr.row}>
+                  <View style={[lr.dot, { backgroundColor: isActivate ? "#DC2626" : "#059669" }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={lr.desc} numberOfLines={1}>{log.title}</Text>
+                    <Text style={lr.time}>{log.actorName} · {fmtRelative(log.createdAt)}</Text>
+                  </View>
+                  <View style={[lr.badge, { backgroundColor: isActivate ? "#FEE2E2" : "#D1FAE5" }]}>
+                    <Text style={[lr.badgeTxt, { color: isActivate ? "#DC2626" : "#059669" }]}>
+                      {isActivate ? "활성화" : "해제"}
+                    </Text>
+                  </View>
                 </View>
-                <View style={[lr.badge, { backgroundColor: log.enabled ? "#FEE2E2" : "#D1FAE5" }]}>
-                  <Text style={[lr.badgeTxt, { color: log.enabled ? "#DC2626" : "#059669" }]}>
-                    {log.enabled ? "활성화" : "해제"}
-                  </Text>
-                </View>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       </ScrollView>

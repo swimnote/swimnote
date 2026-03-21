@@ -15,7 +15,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore, type OperatorFilter } from "@/store/operatorsStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { Operator } from "@/domain/types";
-import { fmtDate, fmtPercent } from "@/domain/formatters";
+import { formatDateSafe, calcPercent } from "@/domain/formatters";
 
 const P = "#7C3AED";
 
@@ -184,7 +184,7 @@ export default function SuperPoolsScreen() {
     const isDanger  = item.storageBlocked95;
     const isWarn    = item.storageWarning80 && !isDanger;
     const barColor  = isDanger ? "#DC2626" : isWarn ? "#F59E0B" : "#10B981";
-    const loginStr  = item.lastLoginAt ? fmtDate(item.lastLoginAt) : "—";
+    const loginStr  = item.lastLoginAt ? formatDateSafe(item.lastLoginAt) : "—";
     const isPending = item.status === 'pending';
     const isDeletion = !!item.autoDeleteScheduledAt;
 

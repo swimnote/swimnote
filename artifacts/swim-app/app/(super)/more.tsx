@@ -35,7 +35,7 @@ function MenuItem({ icon, label, sub, onPress }: {
 
 export default function SuperMoreScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { adminUser: user } = useAuth();
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>

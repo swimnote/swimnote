@@ -91,12 +91,12 @@ export default function SubscriptionsScreen() {
   const billingRecords  = useSubscriptionStore(s => s.billingRecords);
   const approveOp       = useOperatorsStore(s => s.approveOperator);
   const scheduleDelete  = useOperatorsStore(s => s.scheduleAutoDelete);
-  const updateOpField   = useOperatorsStore(s => s.updateOperatorField);
+  const updateOp        = useOperatorsStore(s => s.updateOperator);
   const createLog       = useAuditLogStore(s => s.createLog);
 
   // Refund/chargeback from billing records
-  const refundOpIds    = useMemo(() => new Set(billingRecords.filter(r => r.action === 'refund' || r.status === 'refund_requested').map(r => r.operatorId)), [billingRecords]);
-  const chargebackOpIds = useMemo(() => new Set(billingRecords.filter(r => r.action === 'chargeback' || r.status === 'chargeback').map(r => r.operatorId)), [billingRecords]);
+  const refundOpIds    = useMemo(() => new Set(billingRecords.filter(r => r.status === 'refunded').map(r => r.operatorId)), [billingRecords]);
+  const chargebackOpIds = useMemo(() => new Set(billingRecords.filter(r => r.status === 'disputed').map(r => r.operatorId)), [billingRecords]);
 
   const filtered = useMemo(() => {
     switch (tab) {
@@ -120,7 +120,7 @@ export default function SubscriptionsScreen() {
 
   function handleRetry(op: Operator) {
     const updatedOp = { ...op, billingStatus: 'active' as any };
-    updateOpField(op.id, { billingStatus: 'active' });
+    updateOp(op.id, { billingStatus: 'active' });
     createLog({ category: '결제', title: `${op.name} 결제 재시도 승인`, operatorId: op.id, operatorName: op.name, actorName, impact: 'medium', detail: '결제 재시도 수동 처리' });
   }
 
@@ -136,11 +136,10 @@ export default function SubscriptionsScreen() {
     try {
       const updates: Partial<Operator> = {};
       if (newStatus)  updates.billingStatus = newStatus as any;
-      if (newEndDate) updates.subscriptionEndAt = new Date(newEndDate).toISOString();
       if (newCredit)  updates.creditBalance = Number(newCredit);
-      updateOpField(editOp.id, updates);
+      updateOp(editOp.id, updates);
       if (newCredit) {
-        applyCredit(editOp.id, editOp.name, Number(newCredit), '관리자 수동 지급');
+        applyCredit(editOp.id, Number(newCredit));
         createLog({ category: '결제', title: `${editOp.name} 크레딧 지급`, operatorId: editOp.id, operatorName: editOp.name, actorName, impact: 'medium', detail: `${Number(newCredit).toLocaleString()}원 크레딧` });
       }
       setEditOp(null);
@@ -157,7 +156,7 @@ export default function SubscriptionsScreen() {
         onPress={() => {
           setEditOp(item);
           setNewStatus(item.billingStatus ?? "");
-          setNewEndDate(item.subscriptionEndAt ? fmtDateFull(item.subscriptionEndAt) : "");
+          setNewEndDate("");
           setNewCredit(item.creditBalance?.toString() ?? "0");
         }}>
         <View style={s.rowMain}>
@@ -180,7 +179,7 @@ export default function SubscriptionsScreen() {
           <View style={s.rowMeta}>
             <Text style={s.metaTxt}>{item.representativeName}</Text>
             <Text style={s.metaDot}>·</Text>
-            <Text style={s.metaTxt}>종료: {fmtDate(item.subscriptionEndAt)}</Text>
+            <Text style={s.metaTxt}>플랜: {item.currentPlanName}</Text>
             {(item.creditBalance ?? 0) > 0 && (
               <><Text style={s.metaDot}>·</Text>
                 <Text style={[s.metaTxt, { color: "#059669" }]}>크레딧 {item.creditBalance?.toLocaleString()}원</Text>

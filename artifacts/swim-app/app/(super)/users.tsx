@@ -123,7 +123,7 @@ export default function UsersScreen() {
       created_at:  new Date().toISOString(),
     };
     setUsers(prev => [newUser, ...prev]);
-    createLog({ category: '권한', title: `관리자 계정 생성: ${form.name}`, actorName, impact: 'high' });
+    createLog({ category: '권한', title: `관리자 계정 생성: ${form.name}`, detail: form.email, actorName, impact: 'high' });
     setShowCreate(false);
     setForm({ email: "", name: "", phone: "" });
     setFormPerms({ ...DEFAULT_PERMS });
@@ -140,7 +140,7 @@ export default function UsersScreen() {
     setUsers(prev => prev.map(u =>
       u.id === editTarget.id ? { ...u, permissions: { ...editPerms } } : u
     ));
-    createLog({ category: '권한', title: `관리자 권한 수정: ${editTarget.name}`, actorName, impact: 'medium' });
+    createLog({ category: '권한', title: `관리자 권한 수정: ${editTarget.name}`, detail: '권한 업데이트', actorName, impact: 'medium' });
     setEditTarget(null);
   }
 
@@ -162,7 +162,7 @@ export default function UsersScreen() {
             </View>
             <Switch
               value={perms[key]}
-              onValueChange={(v) => !disabled && setPerms({ ...perms, [key]: v })}
+              onValueChange={(v) => { if (!disabled) setPerms({ ...perms, [key]: v }); }}
               trackColor={{ false: "#D1D5DB", true: "#3B82F6" }}
               thumbColor="#fff"
               disabled={disabled}

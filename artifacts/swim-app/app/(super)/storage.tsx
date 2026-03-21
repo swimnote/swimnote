@@ -83,7 +83,7 @@ export default function StorageScreen() {
     if (isNaN(mb) || mb < 0) return;
     setSaving(true);
     setStoragePolicy(editOp.operatorId, { extraMb: Math.round(mb) });
-    createLog({ category: '저장공간', title: `추가 용량 부여: ${editOp.operatorName} +${newStorageMb}GB`, actorName, impact: 'medium' });
+    createLog({ category: '저장공간', title: `추가 용량 부여: ${editOp.operatorName} +${newStorageMb}GB`, detail: `+${newStorageMb}GB 추가`, actorName, impact: 'medium' });
     setSaving(false); setEditOp(null);
   }
 
@@ -91,7 +91,7 @@ export default function StorageScreen() {
     setActionLoading(p.operatorId);
     const at = new Date(Date.now() + 48 * 3600000).toISOString();
     scheduleAutoDelete(p.operatorId, at);
-    createLog({ category: '저장공간', title: `삭제 유예 48h: ${p.operatorName}`, actorName, impact: 'medium' });
+    createLog({ category: '저장공간', title: `삭제 유예 48h: ${p.operatorName}`, detail: '48시간 유예 설정', actorName, impact: 'medium' });
     setTimeout(() => setActionLoading(null), 500);
   }
 
