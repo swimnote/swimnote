@@ -390,18 +390,29 @@ function DaySheet({
 
   async function stopAndSaveRecording() {
     if (!recording) return;
+    setIsRecording(false);
+    let tempUri: string | null = null;
     try {
-      setIsRecording(false);
       await recording.stopAndUnloadAsync();
-      const tempUri = recording.getURI();
-      setRecording(null);
-      if (!tempUri) return;
-      const ts = Date.now();
-      const dest = `${FileSystem.documentDirectory}scheduleAudio_${poolId}_${dateStr}_${ts}.m4a`;
-      await FileSystem.copyAsync({ from: tempUri, to: dest });
-      const newItem: AudioItem = { uri: dest, createdAt: new Date(ts).toISOString() };
-      await saveAudioList([...audioList, newItem]);
+      tempUri = recording.getURI();
     } catch {}
+    setRecording(null);
+    if (!tempUri) return;
+
+    const ts = Date.now();
+    let finalUri = tempUri;
+
+    // 네이티브 환경에서는 영구 저장소로 복사, 웹에서는 임시 URI 그대로 사용
+    try {
+      if (FileSystem.documentDirectory) {
+        const dest = `${FileSystem.documentDirectory}scheduleAudio_${poolId}_${dateStr}_${ts}.m4a`;
+        await FileSystem.copyAsync({ from: tempUri, to: dest });
+        finalUri = dest;
+      }
+    } catch {}
+
+    const newItem: AudioItem = { uri: finalUri, createdAt: new Date(ts).toISOString() };
+    await saveAudioList([...audioList, newItem]);
   }
 
   async function playAudio(uri: string) {
