@@ -47,6 +47,10 @@ function todayDateStr() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 function parseHour(t: string): number { return parseInt(t.split(/[:-]/)[0]) || 0; }
+function parseScheduleMinutes(t: string): number {
+  const parts = t.split(/[:-]/);
+  return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+}
 function getKoDay(dateStr: string): string {
   return KO_DAY_ARR[new Date(dateStr + "T12:00:00Z").getUTCDay()];
 }
@@ -201,6 +205,8 @@ function MonthlyCalendar({
 
   const CELL_H = Math.max(72, Math.floor((SCREEN_W - 32) / 7 * 1.1));
   const CELL_W = Math.floor((SCREEN_W - 32) / 7);
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
   return (
     <View style={mc.root}>
@@ -271,16 +277,20 @@ function MonthlyCalendar({
                   <Text style={mc.holidayTag}>휴무일</Text>
                 ) : (
                   <View style={mc.timePills}>
-                    {timePills.map((label, ti) => (
-                      <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id) + "22" }]}>
-                        <Text style={[mc.timePillText, { color: classColor(cls[ti].id) }]}>{label}</Text>
-                        {isPast && (
-                          <View style={mc.strikeOverlay} pointerEvents="none">
-                            <View style={mc.strikeLine} />
-                          </View>
-                        )}
-                      </View>
-                    ))}
+                    {timePills.map((label, ti) => {
+                      const pillIsPast = isPast ||
+                        (isToday && parseScheduleMinutes(cls[ti].schedule_time) < nowMinutes);
+                      return (
+                        <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id) + "22" }]}>
+                          <Text style={[mc.timePillText, { color: classColor(cls[ti].id) }]}>{label}</Text>
+                          {pillIsPast && (
+                            <View style={mc.strikeOverlay} pointerEvents="none">
+                              <View style={mc.strikeLine} />
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
                     {extraCount > 0 && (
                       <Text style={mc.moreTxt}>+{extraCount}</Text>
                     )}
