@@ -193,10 +193,7 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
     ];
     case "매출관리": return [
       { icon: "trending-up", label: "월별매출",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/admin-revenue") },
-      { icon: "credit-card", label: "결제현황",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/billing") },
-      { icon: "alert-circle",label: "미납관리",   color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/billing") },
       { icon: "check-square",label: "정산확인",   color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/admin-revenue") },
-      { icon: "activity",    label: "수업발생",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/admin-revenue") },
       { icon: "calendar",    label: "휴무일관리",  color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/holidays") },
     ];
     case "데이터관리": return [
