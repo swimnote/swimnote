@@ -1,16 +1,29 @@
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Tabs } from "expo-router";
-import React from "react";
+import { Tabs, router } from "expo-router";
+import React, { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
+import { useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { emitTabReset } from "@/utils/tabReset";
 import { FeedbackTemplateProvider } from "@/context/FeedbackTemplateContext";
 
+const ADMIN_ROLES = ["pool_admin", "sub_admin", "super_admin", "platform_admin"];
+
 export default function TeacherLayout() {
   const { themeColor } = useBrand();
+  const { kind, isLoading, adminUser } = useAuth();
   const C = Colors.light;
+
+  // 권한 보호: 관리자 모드 상태에서 선생님 화면 접근 시 관리자 홈으로 리다이렉트
+  useEffect(() => {
+    if (isLoading || !kind) return;
+    if (kind === "admin" && adminUser?.role && ADMIN_ROLES.includes(adminUser.role)) {
+      router.replace("/(admin)/dashboard" as any);
+    }
+  }, [isLoading, kind, adminUser?.role]);
+
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 

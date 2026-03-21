@@ -8,9 +8,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
-import { DEMO_ACCOUNTS, LOGIN_LABELS } from "@/constants/auth";
+import { LOGIN_LABELS } from "@/constants/auth";
 import { useAuth } from "@/context/AuthContext";
-import { QuickLoginCard } from "@/components/auth/QuickLoginCard";
 
 const C = Colors.light;
 
@@ -170,33 +169,6 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
-        {/* ── 테스트 계정 빠른 로그인 ── */}
-        <View style={styles.demoSection}>
-          <View style={styles.demoHeader}>
-            <View style={[styles.demoDivider, { backgroundColor: C.border }]} />
-            <Text style={[styles.demoTitle, { color: C.textMuted }]}>테스트 계정으로 빠른 로그인</Text>
-            <View style={[styles.demoDivider, { backgroundColor: C.border }]} />
-          </View>
-          <View style={styles.demoGrid}>
-            {DEMO_ACCOUNTS.map(acc => (
-              <QuickLoginCard
-                key={acc.id}
-                id={acc.id}
-                pw={acc.pw}
-                label={acc.label}
-                roleKey={acc.roleKey}
-                color={acc.color}
-                disabled={loading}
-                onPress={() => {
-                  setIdentifier(acc.id);
-                  setPassword(acc.pw);
-                  handleLogin(acc.id, acc.pw);
-                }}
-              />
-            ))}
-          </View>
-        </View>
-
         {/* ── 회원가입 ── */}
         <View style={styles.signupRow}>
           <Text style={[styles.signupLabel, { color: C.textSecondary }]}>아직 계정이 없으신가요?</Text>
@@ -269,11 +241,6 @@ const styles = StyleSheet.create({
   loginBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
   forgotBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingVertical: 4 },
   forgotText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  demoSection: { gap: 12 },
-  demoHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  demoDivider: { flex: 1, height: 1 },
-  demoTitle: { fontSize: 11, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.6 },
-  demoGrid: { gap: 8 },
   signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   signupLabel: { fontSize: 14, fontFamily: "Inter_400Regular" },
   signupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },

@@ -247,7 +247,7 @@ const MAIN_ICONS: Array<{
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 export default function DashboardScreen() {
-  const { adminUser, pool, logout, token } = useAuth();
+  const { adminUser, pool, logout, token, switchRole, setLastUsedRole } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("dashboard");
@@ -258,6 +258,21 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [activePopup, setActivePopup] = useState<PopupKey | null>(null);
+  const [switching, setSwitching] = useState(false);
+
+  // 선생님으로 전환 가능 여부: roles 배열에 teacher 포함 시
+  const canSwitchToTeacher = !!(adminUser?.roles?.includes("teacher"));
+
+  async function handleSwitchToTeacher() {
+    if (switching) return;
+    setSwitching(true);
+    try {
+      await switchRole("teacher");
+      await setLastUsedRole("teacher");
+      router.replace("/(teacher)/today-schedule" as any);
+    } catch (e) { console.error(e); }
+    finally { setSwitching(false); }
+  }
 
   const fetchStats = useCallback(async () => {
     try {
@@ -333,7 +348,27 @@ export default function DashboardScreen() {
       {/* ── 상단 헤더 ── */}
       <View style={[s.topBar, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 14) }]}>
         <View style={{ flex: 1 }}>
-          <Text style={s.poolName} numberOfLines={1}>{pool?.name || "수영장"}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={s.poolName} numberOfLines={1}>{pool?.name || "수영장"}</Text>
+            {canSwitchToTeacher && (
+              <Pressable
+                style={({ pressed }) => [
+                  s.switchChip,
+                  { borderColor: "#059669" + "50", backgroundColor: "#D1FAE5", opacity: pressed || switching ? 0.7 : 1 },
+                ]}
+                onPress={handleSwitchToTeacher}
+                disabled={switching}
+              >
+                {switching
+                  ? <ActivityIndicator size="small" color="#059669" />
+                  : <>
+                      <Feather name="repeat" size={10} color="#059669" />
+                      <Text style={[s.switchChipTxt, { color: "#059669" }]}>선생님으로 전환</Text>
+                    </>
+                }
+              </Pressable>
+            )}
+          </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
             <Text style={s.greet}>안녕하세요, {adminUser?.name}님</Text>
             {sub && (
@@ -478,6 +513,8 @@ const s = StyleSheet.create({
   },
   poolName:    { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
   greet:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  switchChip:  { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
+  switchChipTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   subBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   subBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   headerBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },

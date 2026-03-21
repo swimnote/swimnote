@@ -10,7 +10,7 @@ import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AuthProvider, apiRequest, useAuth } from "@/context/AuthContext";
+import { AuthProvider, apiRequest, useAuth, type AccountEntry, type AdminUser, type SessionKind, type ParentAccount } from "@/context/AuthContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 
 SplashScreen.preventAutoHideAsync();
@@ -26,6 +26,33 @@ const ROLE_HOME_MAP: Record<string, string> = {
   parent: "/(parent)/home",
   parent_account: "/(parent)/home",
 };
+
+// 계정에서 이용 가능한 역할 키 목록 추출
+function computeRoleKeys(
+  allAccounts: AccountEntry[],
+  kind: SessionKind | null,
+  adminUser: AdminUser | null,
+  parentAccount: ParentAccount | null,
+): string[] {
+  const result = new Set<string>();
+  for (const entry of allAccounts) {
+    if (entry.kind === "parent") {
+      result.add("parent");
+    } else if (entry.kind === "admin" && entry.user) {
+      const roles = entry.user.roles?.length ? entry.user.roles : [entry.user.role];
+      for (const r of roles) if (r) result.add(r);
+    }
+  }
+  // fallback: allAccounts 비어있으면 현재 세션에서 추출
+  if (result.size === 0) {
+    if (kind === "parent") result.add("parent");
+    else if (kind === "admin" && adminUser) {
+      const roles = adminUser.roles?.length ? adminUser.roles : [adminUser.role];
+      for (const r of roles) if (r) result.add(r);
+    }
+  }
+  return Array.from(result);
+}
 
 function BrandSync() {
   const { kind, adminUser, parentAccount, pool } = useAuth();
@@ -87,7 +114,10 @@ function PushTokenSync() {
  * 4. admin이 pool 없거나 pool 상태 이슈 → 적절한 화면
  */
 function RootNav() {
-  const { kind, isLoading, adminUser, pool, lastUsedRole, checkRolePermission } = useAuth();
+  const {
+    kind, isLoading, adminUser, parentAccount, pool,
+    lastUsedRole, allAccounts, checkRolePermission, setLastUsedRole,
+  } = useAuth();
   const segments = useSegments();
   const didRoute = useRef(false);
 
@@ -149,7 +179,21 @@ function RootNav() {
         }
       }
 
-      // last_used_role 없거나 무효 → 역할 선택 화면
+      // last_used_role 없거나 무효 → 이용 가능한 역할 수 계산
+      // 역할 1개: 자동 분기 / 역할 2개 이상: 역할 선택 화면
+      const roleKeys = computeRoleKeys(allAccounts, kind, adminUser, parentAccount);
+      if (roleKeys.length === 1) {
+        const roleKey = roleKeys[0];
+        const homePath = ROLE_HOME_MAP[roleKey];
+        if (homePath) {
+          didRoute.current = true;
+          await setLastUsedRole(roleKey);
+          router.replace(homePath as any);
+          return;
+        }
+      }
+
+      // 여러 역할이거나 경로 없음 → 역할 선택 화면
       didRoute.current = true;
       router.replace("/org-role-select");
     }

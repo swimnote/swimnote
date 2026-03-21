@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
-import React from "react";
+import { Tabs, router } from "expo-router";
+import React, { useEffect } from "react";
 import Colors from "@/constants/colors";
+import { useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { emitTabReset } from "@/utils/tabReset";
 
@@ -9,6 +10,15 @@ const C = Colors.light;
 
 export default function AdminLayout() {
   const { themeColor } = useBrand();
+  const { kind, isLoading, adminUser } = useAuth();
+
+  // 권한 보호: teacher 모드 상태에서 관리자 화면 접근 시 선생님 홈으로 리다이렉트
+  useEffect(() => {
+    if (isLoading || !kind) return;
+    if (kind === "admin" && adminUser?.role === "teacher") {
+      router.replace("/(teacher)/today-schedule" as any);
+    }
+  }, [isLoading, kind, adminUser?.role]);
 
   function makeTabListener(tabName: string) {
     return ({ navigation }: { navigation: any; route: any }) => ({

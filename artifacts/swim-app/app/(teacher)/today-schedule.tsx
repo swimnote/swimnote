@@ -1115,7 +1115,7 @@ interface HubIcon {
 }
 
 export default function TodayScheduleScreen() {
-  const { token, logout, adminUser, pool } = useAuth();
+  const { token, logout, adminUser, pool, switchRole, setLastUsedRole } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const today = todayStr();
@@ -1127,6 +1127,22 @@ export default function TodayScheduleScreen() {
   const [overview, setOverview]       = useState<TeacherOverview | null>(null);
   const [unreadMsgVisible, setUnreadMsgVisible] = useState(false);
   const [notePopupVisible, setNotePopupVisible] = useState(false);
+  const [switching, setSwitching]     = useState(false);
+
+  // 관리자로 전환 가능 여부: roles에 pool_admin 또는 sub_admin 포함 시
+  const adminRoleKey = adminUser?.roles?.find(r => ["pool_admin", "sub_admin"].includes(r));
+  const canSwitchToAdmin = !!adminRoleKey;
+
+  async function handleSwitchToAdmin() {
+    if (switching || !adminRoleKey) return;
+    setSwitching(true);
+    try {
+      await switchRole(adminRoleKey);
+      await setLastUsedRole(adminRoleKey);
+      router.replace("/(admin)/dashboard" as any);
+    } catch (e) { console.error(e); }
+    finally { setSwitching(false); }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -1227,9 +1243,29 @@ export default function TodayScheduleScreen() {
       {/* ── 허브 헤더 ── */}
       <View style={[h.header, { paddingTop: topPad }]}>
         <View style={{ flex: 1 }}>
-          <Text style={[h.poolName, { color: themeColor }]} numberOfLines={1}>
-            {pool?.name ?? "수영장"}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={[h.poolName, { color: themeColor }]} numberOfLines={1}>
+              {pool?.name ?? "수영장"}
+            </Text>
+            {canSwitchToAdmin && (
+              <Pressable
+                style={({ pressed }) => [
+                  h.switchChip,
+                  { borderColor: themeColor + "50", backgroundColor: themeColor + "15", opacity: pressed || switching ? 0.7 : 1 },
+                ]}
+                onPress={handleSwitchToAdmin}
+                disabled={switching}
+              >
+                {switching
+                  ? <ActivityIndicator size="small" color={themeColor} />
+                  : <>
+                      <Feather name="repeat" size={10} color={themeColor} />
+                      <Text style={[h.switchChipTxt, { color: themeColor }]}>관리자로 전환</Text>
+                    </>
+                }
+              </Pressable>
+            )}
+          </View>
           <Text style={h.greeting} numberOfLines={1}>
             {adminUser?.name ?? "선생님"} · 선생님 홈
           </Text>
@@ -1408,6 +1444,8 @@ const h = StyleSheet.create({
   poolName:     { fontSize: 18, fontFamily: "Inter_700Bold" },
   greeting:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   logoutBtn:    { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  switchChip:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
+  switchChipTxt:{ fontSize: 11, fontFamily: "Inter_600SemiBold" },
   scroll:       { padding: 14, gap: 12 },
   /* 오늘 기준 배너 */
   banner:       { borderRadius: 20, padding: 20, gap: 6 },

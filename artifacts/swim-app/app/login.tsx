@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { LOGIN_LABELS, DEMO_ACCOUNTS } from "@/constants/auth";
+import { LOGIN_LABELS } from "@/constants/auth";
 import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
@@ -155,34 +155,6 @@ export default function LoginPasswordScreen() {
           </View>
         )}
 
-        <View style={[styles.demoSection]}>
-          <Text style={[styles.demoTitle, { color: C.textMuted }]}>테스트 계정으로 빠른 로그인</Text>
-          <View style={styles.demoGrid}>
-            {DEMO_ACCOUNTS.map(acc => (
-              <Pressable
-                key={acc.id}
-                style={({ pressed }) => [
-                  styles.demoBtn,
-                  { backgroundColor: C.card, borderColor: acc.color + "55", opacity: pressed ? 0.8 : 1 },
-                ]}
-                onPress={() => {
-                  setIdentifier(acc.id);
-                  setPassword(acc.pw);
-                  handleLogin(acc.id, acc.pw);
-                }}
-                disabled={loading}
-              >
-                <View style={[styles.demoIcon, { backgroundColor: acc.color + "20" }]}>
-                  <Feather name="user" size={14} color={acc.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.demoLabel, { color: C.text }]}>{acc.label}</Text>
-                  <Text style={[styles.demoId, { color: C.textMuted }]}>ID: {acc.id} / PW: {acc.pw}</Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -234,11 +206,4 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   inviteBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  demoSection: { gap: 10 },
-  demoTitle: { fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center", textTransform: "uppercase", letterSpacing: 0.5 },
-  demoGrid: { gap: 8 },
-  demoBtn: { flexDirection: "row", alignItems: "center", gap: 10, padding: 11, borderRadius: 12, borderWidth: 1.5 },
-  demoIcon: { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  demoLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  demoId: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
 });
