@@ -354,20 +354,28 @@ function DaySheet({
   const [editingMemo, setEditingMemo] = useState(false);
   const label = dateLabelFull(dateStr);
 
-  // ── 음성 메모 상태 ──
-  const [isRecording, setIsRecording] = useState(false);
-  const [recording,   setRecording]   = useState<Audio.Recording | null>(null);
-  const [audioUri,    setAudioUri]    = useState<string | null>(null);
-  const [sound,       setSound]       = useState<Audio.Sound | null>(null);
-  const [isPlaying,   setIsPlaying]   = useState(false);
+  // ── 음성 메모 상태 (다중 녹음 목록) ──
+  type AudioItem = { uri: string; createdAt: string };
+  const [isRecording,  setIsRecording]  = useState(false);
+  const [recording,    setRecording]    = useState<Audio.Recording | null>(null);
+  const [audioList,    setAudioList]    = useState<AudioItem[]>([]);
+  const [sound,        setSound]        = useState<Audio.Sound | null>(null);
+  const [playingUri,   setPlayingUri]   = useState<string | null>(null);
 
-  const AUDIO_STORAGE_KEY = `scheduleAudio_${poolId}_${dateStr}`;
+  const AUDIO_LIST_KEY = `scheduleAudioList_${poolId}_${dateStr}`;
 
-  // 날짜 변경 시 저장된 음성 로드
+  // 날짜 변경 시 저장된 음성 목록 로드
   useEffect(() => {
-    AsyncStorage.getItem(AUDIO_STORAGE_KEY).then(uri => setAudioUri(uri || null)).catch(() => {});
+    AsyncStorage.getItem(AUDIO_LIST_KEY)
+      .then(raw => setAudioList(raw ? JSON.parse(raw) : []))
+      .catch(() => setAudioList([]));
     return () => { sound?.unloadAsync().catch(() => {}); };
   }, [dateStr, poolId]);
+
+  async function saveAudioList(list: AudioItem[]) {
+    setAudioList(list);
+    await AsyncStorage.setItem(AUDIO_LIST_KEY, JSON.stringify(list)).catch(() => {});
+  }
 
   async function startRecording() {
     try {
@@ -388,34 +396,35 @@ function DaySheet({
       const tempUri = recording.getURI();
       setRecording(null);
       if (!tempUri) return;
-      if (audioUri) await FileSystem.deleteAsync(audioUri, { idempotent: true }).catch(() => {});
-      const dest = `${FileSystem.documentDirectory}scheduleAudio_${poolId}_${dateStr}.m4a`;
+      const ts = Date.now();
+      const dest = `${FileSystem.documentDirectory}scheduleAudio_${poolId}_${dateStr}_${ts}.m4a`;
       await FileSystem.copyAsync({ from: tempUri, to: dest });
-      await AsyncStorage.setItem(AUDIO_STORAGE_KEY, dest);
-      setAudioUri(dest);
+      const newItem: AudioItem = { uri: dest, createdAt: new Date(ts).toISOString() };
+      await saveAudioList([...audioList, newItem]);
     } catch {}
   }
 
-  async function playAudio() {
-    if (!audioUri) return;
+  async function playAudio(uri: string) {
     try {
-      if (sound) { await sound.unloadAsync(); setSound(null); }
+      if (sound) { await sound.unloadAsync(); setSound(null); setPlayingUri(null); }
+      if (playingUri === uri) return; // 같은 항목 누르면 정지
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      const { sound: s } = await Audio.Sound.createAsync({ uri: audioUri }, { shouldPlay: true });
-      setSound(s); setIsPlaying(true);
+      const { sound: s } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
+      setSound(s); setPlayingUri(uri);
       s.setOnPlaybackStatusUpdate(status => {
-        if ("didJustFinish" in status && status.didJustFinish) setIsPlaying(false);
+        if ("didJustFinish" in status && status.didJustFinish) {
+          setPlayingUri(null); setSound(null);
+        }
       });
     } catch {}
   }
 
-  async function deleteAudio() {
-    if (audioUri) {
-      await FileSystem.deleteAsync(audioUri, { idempotent: true }).catch(() => {});
-      await AsyncStorage.removeItem(AUDIO_STORAGE_KEY).catch(() => {});
+  async function deleteAudioItem(uri: string) {
+    await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+    if (playingUri === uri) {
+      await sound?.unloadAsync().catch(() => {}); setSound(null); setPlayingUri(null);
     }
-    if (sound) { await sound.unloadAsync().catch(() => {}); setSound(null); }
-    setAudioUri(null); setIsPlaying(false);
+    await saveAudioList(audioList.filter(a => a.uri !== uri));
   }
 
   return (
@@ -572,31 +581,41 @@ function DaySheet({
                   <Text style={[dy.audioBtnTxt, { color: themeColor }]}>녹음</Text>
                 </Pressable>
               )}
-              {audioUri && !isRecording && (
-                <>
-                  <Pressable
-                    style={[dy.audioBtn, { backgroundColor: isPlaying ? themeColor + "30" : "#F0FDF4" }]}
-                    onPress={playAudio}>
-                    <Feather name={isPlaying ? "volume-2" : "play"} size={15}
-                      color={isPlaying ? themeColor : "#059669"} />
-                    <Text style={[dy.audioBtnTxt, { color: isPlaying ? themeColor : "#059669" }]}>
-                      {isPlaying ? "재생중" : "재생"}
-                    </Text>
-                  </Pressable>
-                  <Pressable style={dy.audioDelBtn} onPress={deleteAudio}>
-                    <Feather name="trash-2" size={14} color="#EF4444" />
-                  </Pressable>
-                </>
-              )}
             </View>
             {isRecording && (
               <View style={dy.recordingIndicator}>
                 <View style={dy.recordingDot} />
-                <Text style={dy.recordingTxt}>녹음 중...</Text>
+                <Text style={dy.recordingTxt}>녹음 중... (저장을 눌러 완료)</Text>
               </View>
             )}
-            {audioUri && !isRecording && (
-              <Text style={dy.audioSavedTxt}>음성 메모 저장됨</Text>
+            {/* 녹음 목록 */}
+            {audioList.length > 0 && (
+              <View style={dy.audioListBox}>
+                {audioList.map((item, idx) => {
+                  const isThis = playingUri === item.uri;
+                  const t = new Date(item.createdAt);
+                  const timeLabel = `${String(t.getHours()).padStart(2,"0")}:${String(t.getMinutes()).padStart(2,"0")}`;
+                  return (
+                    <View key={item.uri} style={dy.audioListItem}>
+                      <Feather name="file-text" size={13} color="#92400E" style={{ transform: [{ rotate: "0deg" }] }} />
+                      <Text style={dy.audioListLabel}>녹음 {idx + 1}  <Text style={dy.audioListTime}>{timeLabel}</Text></Text>
+                      <View style={{ flex: 1 }} />
+                      <Pressable
+                        style={[dy.audioPlayBtn, isThis && { backgroundColor: themeColor + "30" }]}
+                        onPress={() => playAudio(item.uri)}>
+                        <Feather name={isThis ? "volume-2" : "play"} size={14}
+                          color={isThis ? themeColor : "#059669"} />
+                        <Text style={[dy.audioBtnTxt, { color: isThis ? themeColor : "#059669" }]}>
+                          {isThis ? "재생중" : "재생"}
+                        </Text>
+                      </Pressable>
+                      <Pressable style={dy.audioDelBtn} onPress={() => deleteAudioItem(item.uri)}>
+                        <Feather name="trash-2" size={13} color="#EF4444" />
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
             )}
           </View>
         </ScrollView>
@@ -665,13 +684,19 @@ const dy = StyleSheet.create({
   audioBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10,
                     paddingVertical: 6, borderRadius: 8 },
   audioBtnTxt:    { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  audioDelBtn:    { width: 30, height: 30, alignItems: "center", justifyContent: "center",
-                    borderRadius: 8, backgroundColor: "#FEE2E2" },
+  audioDelBtn:    { width: 28, height: 28, alignItems: "center", justifyContent: "center",
+                    borderRadius: 7, backgroundColor: "#FEE2E2" },
+  audioPlayBtn:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8,
+                    paddingVertical: 5, borderRadius: 7, backgroundColor: "#F0FDF4" },
   recordingIndicator: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   recordingDot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444" },
   recordingTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#EF4444" },
-  audioSavedTxt:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#92400E",
-                    marginTop: 4, opacity: 0.8 },
+  audioListBox:   { marginTop: 10, gap: 6 },
+  audioListItem:  { flexDirection: "row", alignItems: "center", gap: 6,
+                    backgroundColor: "#FFFBEB", borderRadius: 8, padding: 8,
+                    borderWidth: 1, borderColor: "#FDE68A" },
+  audioListLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#92400E" },
+  audioListTime:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#B45309" },
 });
 
 // ─── 반 상세 시트 (주간 뷰 클릭용) ─────────────────────────────
