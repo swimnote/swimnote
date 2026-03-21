@@ -120,10 +120,11 @@ export default function MessagesScreen() {
         subtitle={subtitle}
       />
 
+      {/* ParentScreenHeader가 KAV 위에 있으므로 그 높이만큼 오프셋 지정 */}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 60 : 0}
       >
         {/* 메시지 목록 */}
         <ScrollView

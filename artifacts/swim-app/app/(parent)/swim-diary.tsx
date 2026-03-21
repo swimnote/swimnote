@@ -141,7 +141,7 @@ export default function SwimDiaryScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader title={`${name} 수업 일지`} showHome={false} />
+      <SubScreenHeader title={`${name} 수업 일지`} showHome={false} homePath="/(parent)/children" />
 
       {loading ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />

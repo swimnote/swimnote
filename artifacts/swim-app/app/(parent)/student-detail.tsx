@@ -54,7 +54,7 @@ export default function ParentStudentDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader title={name as string || "학생 정보"} showHome={false} />
+      <SubScreenHeader title={name as string || "학생 정보"} showHome={false} homePath="/(parent)/children" />
 
       {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : (
         <ScrollView

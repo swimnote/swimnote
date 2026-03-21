@@ -87,6 +87,8 @@ interface Props {
   poolId: string;
   myUserId: string;
   myRole: "pool_admin" | "teacher";
+  /** iOS에서 KeyboardAvoidingView 위에 있는 헤더 높이(px). 입력창 가림 방지에 사용 */
+  keyboardHeaderOffset?: number;
 }
 
 /* ─── 헬퍼 ──────────────────────────────────────────────── */
@@ -107,7 +109,7 @@ function sameDay(a: string, b: string): boolean {
 /* ─────────────────────────────────────────────────────────
    메인 컴포넌트
 ───────────────────────────────────────────────────────── */
-export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
+export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHeaderOffset = 0 }: Props) {
   const { token } = useAuth();
   const isAdmin = myRole === "pool_admin";
 
@@ -513,7 +515,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole }: Props) {
     <KeyboardAvoidingView
       style={s.flex}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? keyboardHeaderOffset : 0}
     >
       {/* ── 상단 세그먼트 탭 + 참가인원 ── */}
       <View style={s.topBar}>

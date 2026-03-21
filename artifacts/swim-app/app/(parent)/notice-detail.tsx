@@ -49,7 +49,7 @@ export default function NoticeDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader title="공지 상세" showHome={false} />
+      <SubScreenHeader title="공지 상세" showHome={false} homePath="/(parent)/notices" />
 
       {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : !notice ? (
         <View style={styles.empty}>

@@ -61,9 +61,12 @@ export function ConfirmModal({
       animationType="fade"
       transparent
       onRequestClose={onCancel ?? onConfirm}
+      statusBarTranslucent
     >
-      <View style={s.overlay}>
-        <View style={[s.card, { paddingBottom: Math.max(insets.bottom, 8) + 8, backgroundColor: C.card }]}>
+      {/* 바깥 터치 → 닫힘 (onCancel 없으면 onConfirm) */}
+      <Pressable style={s.overlay} onPress={onCancel ?? onConfirm}>
+        {/* 카드 내부 터치는 전파 차단 */}
+        <Pressable onPress={() => {}} style={[s.card, { paddingBottom: Math.max(insets.bottom, 8) + 8, backgroundColor: C.card }]}>
           <Text style={[s.title, { color: C.text }]}>{title}</Text>
           <Text style={[s.message, { color: C.textSecondary }]}>{message}</Text>
 
@@ -91,8 +94,8 @@ export function ConfirmModal({
               <Text style={[s.btnTxt, { color: "#fff" }]}>{confirmText}</Text>
             </Pressable>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

@@ -2,7 +2,7 @@
  * (teacher)/messenger.tsx — 선생님 업무 메신저
  */
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -28,6 +28,9 @@ export default function TeacherMessengerTab() {
     );
   }
 
+  // SubScreenHeader 높이: paddingTop(insets.top+8) + 내용(38) + paddingBottom(14)
+  const headerOffset = Platform.OS === "ios" ? insets.top + 60 : 0;
+
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
       <SubScreenHeader title="메신저" homePath="/(teacher)/today-schedule" />
@@ -35,6 +38,7 @@ export default function TeacherMessengerTab() {
         poolId={pool.id}
         myUserId={adminUser.id}
         myRole="teacher"
+        keyboardHeaderOffset={headerOffset}
       />
     </View>
   );
