@@ -32,6 +32,7 @@ import storageRouter from "./storage.js";
 import killSwitchRouter from "./kill-switch.js";
 import unregisteredRouter from "./unregistered.js";
 import superSyncRouter from "./super-sync.js";
+import superRouter from "./super.js";
 
 const router: IRouter = Router();
 
@@ -68,5 +69,6 @@ router.use("/", storageRouter);
 router.use("/", killSwitchRouter);
 router.use("/", unregisteredRouter);
 router.use("/", superSyncRouter);
+router.use("/", superRouter);
 
 export default router;

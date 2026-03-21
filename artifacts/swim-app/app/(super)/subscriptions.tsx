@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Platform, Pressable, ScrollView,
@@ -79,15 +80,7 @@ export default function SubscriptionsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <View>
-          <Text style={[styles.badge, { color: "#7C3AED" }]}>슈퍼관리자</Text>
-          <Text style={[styles.title, { color: C.text }]}>구독 관리</Text>
-        </View>
-        <View style={[styles.countBadge, { backgroundColor: "#F3E8FF" }]}>
-          <Text style={[styles.countText, { color: "#7C3AED" }]}>승인 {pools.length}개</Text>
-        </View>
-      </View>
+      <SubScreenHeader title="구독 관리" homePath="/(super)/dashboard" />
 
       {loading ? <ActivityIndicator color="#7C3AED" style={{ marginTop: 40 }} /> : (
         <FlatList

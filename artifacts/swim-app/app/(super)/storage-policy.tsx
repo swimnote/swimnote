@@ -98,7 +98,7 @@ export default function StoragePolicyScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F3FF" }}>
-      <SubScreenHeader title="저장 용량 정책" showHome={false} onBack={() => router.navigate("/(super)/more" as any)} />
+      <SubScreenHeader title="저장공간 관리" homePath="/(super)/dashboard" />
 
       {/* 안내 배너 */}
       <View style={[styles.infoBanner, { marginHorizontal: 20 }]}>

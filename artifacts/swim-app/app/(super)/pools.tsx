@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, FlatList, KeyboardAvoidingView, Modal,
@@ -166,12 +167,7 @@ export default function SuperPoolsScreen() {
   const header = (
     <>
       {/* 타이틀 영역 */}
-      <View style={[s.titleArea, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.superLabel, { color: PURPLE }]}>슈퍼관리자</Text>
-          <Text style={[s.title, { color: C.text }]}>수영장 관리</Text>
-        </View>
-      </View>
+      <SubScreenHeader title="운영자 관리" homePath="/(super)/dashboard" />
 
       {/* 검색 + 정렬 */}
       <View style={s.searchRow}>
@@ -435,13 +431,6 @@ function PoolDetailModal({ pool, onClose }: { pool: Pool; onClose: () => void })
 }
 
 const s = StyleSheet.create({
-  titleArea: {
-    flexDirection: "row", alignItems: "flex-start",
-    paddingHorizontal: 20, paddingBottom: 12,
-    backgroundColor: C.background,
-  },
-  superLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.8, textTransform: "uppercase" },
-  title:      { fontSize: 24, fontFamily: "Inter_700Bold", color: C.text },
   iconBtn:    { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
 
   searchRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 4 },
