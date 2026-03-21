@@ -170,12 +170,15 @@ const wt = StyleSheet.create({
 // ─── 월간 달력 ───────────────────────────────────────────────────
 function MonthlyCalendar({
   groups, themeColor, selectedDate, onSelectDate, memoDateSet,
+  selectionMode, selectedDates,
 }: {
   groups: TeacherClassGroup[];
   themeColor: string;
   selectedDate: string | null;
   onSelectDate: (dateStr: string) => void;
   memoDateSet: Set<string>;
+  selectionMode?: boolean;
+  selectedDates?: Set<string>;
 }) {
   const today = todayDateStr();
   const { token, adminUser } = useAuth();
@@ -239,10 +242,11 @@ function MonthlyCalendar({
         <View key={wi} style={mc.weekRow}>
           {days.slice(wi * 7, wi * 7 + 7).map((dateStr, di) => {
             if (!dateStr) return <View key={di} style={[mc.dayCell, { width: CELL_W, height: CELL_H }]} />;
-            const isToday    = dateStr === today;
-            const isPast     = dateStr < today;
-            const isSelected = dateStr === selectedDate;
-            const isHoliday  = holidayDates.has(dateStr);
+            const isToday       = dateStr === today;
+            const isPast        = dateStr < today;
+            const isSelected    = !selectionMode && dateStr === selectedDate;
+            const isMultiPicked = selectionMode && (selectedDates?.has(dateStr) ?? false);
+            const isHoliday     = holidayDates.has(dateStr);
             const cls        = classesForDate(groups, dateStr);
             const dayNum     = parseInt(dateStr.split("-")[2]);
             const isSun      = di === 0;
@@ -256,10 +260,18 @@ function MonthlyCalendar({
                 style={[
                   mc.dayCell, { width: CELL_W, height: CELL_H },
                   isSelected && { backgroundColor: themeColor + "18", borderRadius: 8 },
-                  isToday && !isSelected && { backgroundColor: themeColor + "0C" },
-                  isHoliday && { backgroundColor: "#FEF2F2" },
+                  isMultiPicked && { backgroundColor: "#10B981" + "20", borderRadius: 8, borderWidth: 1.5, borderColor: "#10B981" },
+                  isToday && !isSelected && !isMultiPicked && { backgroundColor: themeColor + "0C" },
+                  isHoliday && !isMultiPicked && { backgroundColor: "#FEF2F2" },
                 ]}
                 onPress={() => onSelectDate(dateStr)}>
+
+                {isMultiPicked && (
+                  <View style={{ position: "absolute", top: 3, right: 3, width: 14, height: 14, borderRadius: 7,
+                    backgroundColor: "#10B981", alignItems: "center", justifyContent: "center" }}>
+                    <Feather name="check" size={9} color="#fff" />
+                  </View>
+                )}
 
                 <View style={[mc.dayNumWrap,
                   isToday && { backgroundColor: themeColor },
@@ -984,6 +996,7 @@ export default function MyScheduleScreen() {
   const [viewMode,      setViewMode]      = useState<ViewMode>("monthly");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
 
   const [groups,    setGroups]    = useState<TeacherClassGroup[]>([]);
   const [students,  setStudents]  = useState<StudentItem[]>([]);
@@ -1101,8 +1114,16 @@ export default function MyScheduleScreen() {
     }
   }
 
-  // ── 날짜 클릭 토글 ──
+  // ── 날짜 클릭 ——  선택모드: 날짜 다중선택  /  일반: 날짜 팝업 열기
   function handleDatePress(dateStr: string) {
+    if (selectionMode) {
+      setSelectedDates(prev => {
+        const next = new Set(prev);
+        next.has(dateStr) ? next.delete(dateStr) : next.add(dateStr);
+        return next;
+      });
+      return;
+    }
     if (selectedDate === dateStr) {
       setSelectedDate(null);
     } else {
@@ -1145,6 +1166,7 @@ export default function MyScheduleScreen() {
       setSelectedDate(null);
       setSelectionMode(false);
       setSelectedIds(new Set());
+      setSelectedDates(new Set());
       setViewMode("monthly");
     });
   }, []);
@@ -1175,6 +1197,19 @@ export default function MyScheduleScreen() {
     setDeleting(false); setSelectionMode(false); setSelectedIds(new Set());
     if (failed > 0) setDeleteFailCount(failed);
     load();
+  }
+  async function confirmDeleteMemos() {
+    setShowDeleteConfirm(false); setDeleting(true);
+    for (const dateStr of Array.from(selectedDates)) {
+      await AsyncStorage.removeItem(`scheduleMemo_${poolId}_${dateStr}`).catch(() => {});
+      await AsyncStorage.removeItem(`scheduleAudioList_${poolId}_${dateStr}`).catch(() => {});
+    }
+    setMemoDateSet(prev => {
+      const next = new Set(prev);
+      selectedDates.forEach(d => next.delete(d));
+      return next;
+    });
+    setDeleting(false); setSelectionMode(false); setSelectedDates(new Set());
   }
 
   // ─ 로딩 ─
@@ -1284,15 +1319,15 @@ export default function MyScheduleScreen() {
           <View style={s.rightBtns}>
             {selectionMode ? (
               <>
-                <Pressable style={[s.selBtn, { backgroundColor: selectedIds.size > 0 ? "#EF4444" : "#9CA3AF" }]}
-                  onPress={() => { if (selectedIds.size > 0) setShowDeleteConfirm(true); }}
-                  disabled={deleting || selectedIds.size === 0}>
+                <Pressable style={[s.selBtn, { backgroundColor: selectedDates.size > 0 ? "#EF4444" : "#9CA3AF" }]}
+                  onPress={() => { if (selectedDates.size > 0) setShowDeleteConfirm(true); }}
+                  disabled={deleting || selectedDates.size === 0}>
                   {deleting
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <><Feather name="trash-2" size={13} color="#fff" /><Text style={s.selBtnText}>삭제 {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}</Text></>}
+                    : <><Feather name="trash-2" size={13} color="#fff" /><Text style={s.selBtnText}>메모삭제{selectedDates.size > 0 ? ` (${selectedDates.size})` : ""}</Text></>}
                 </Pressable>
                 <Pressable style={[s.selBtn, { backgroundColor: "#6B7280" }]}
-                  onPress={() => { setSelectionMode(false); setSelectedIds(new Set()); }}>
+                  onPress={() => { setSelectionMode(false); setSelectedIds(new Set()); setSelectedDates(new Set()); }}>
                   <Text style={s.selBtnText}>취소</Text>
                 </Pressable>
               </>
@@ -1324,7 +1359,7 @@ export default function MyScheduleScreen() {
               return (
                 <Pressable key={mode}
                   style={[s.toggleBtn, isActive && { backgroundColor: themeColor, borderColor: themeColor }]}
-                  onPress={() => { setViewMode(mode); setSelectionMode(false); setSelectedIds(new Set()); if (mode !== "monthly") setSelectedDate(null); }}>
+                  onPress={() => { setViewMode(mode); setSelectionMode(false); setSelectedIds(new Set()); setSelectedDates(new Set()); if (mode !== "monthly") setSelectedDate(null); }}>
                   <Text style={[s.toggleText, isActive && { color: "#fff" }]}>{labels[mode]}</Text>
                 </Pressable>
               );
@@ -1348,6 +1383,8 @@ export default function MyScheduleScreen() {
             selectedDate={selectedDate}
             onSelectDate={handleDatePress}
             memoDateSet={memoDateSet}
+            selectionMode={selectionMode}
+            selectedDates={selectedDates}
           />
           <View style={{ height: 120 }} />
         </ScrollView>
@@ -1451,11 +1488,11 @@ export default function MyScheduleScreen() {
         />
       )}
 
-      {/* 반 삭제 확인 */}
-      <ConfirmModal visible={showDeleteConfirm} title="반 삭제"
-        message={`선택한 반 ${selectedIds.size}개를 삭제하시겠습니까?`}
+      {/* 메모 삭제 확인 */}
+      <ConfirmModal visible={showDeleteConfirm} title="메모 삭제"
+        message={`선택한 날짜 ${selectedDates.size}일의 텍스트·음성 메모를 삭제하시겠습니까?\n수업·출결 데이터는 삭제되지 않습니다.`}
         confirmText="삭제" cancelText="취소" destructive
-        onConfirm={confirmDelete} onCancel={() => setShowDeleteConfirm(false)} />
+        onConfirm={confirmDeleteMemos} onCancel={() => setShowDeleteConfirm(false)} />
       <ConfirmModal visible={deleteFailCount > 0} title="일부 실패"
         message={`${deleteFailCount}개 반 삭제에 실패했습니다.`}
         confirmText="확인" onConfirm={() => setDeleteFailCount(0)} />
