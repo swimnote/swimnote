@@ -6,6 +6,7 @@
  * - 공통 일지 + 학생별 추가 일지 모두 수정 가능
  */
 import { Feather } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -22,6 +23,15 @@ import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teac
 import SentencePicker from "@/components/teacher/SentencePicker";
 
 const C = Colors.light;
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || "/api";
+
+interface UploadedMedia {
+  uri: string;
+  kind: "photo" | "video";
+  uploading: boolean;
+  uploaded: boolean;
+  error?: string;
+}
 
 interface DiaryTemplate { id: string; category: string; level?: string | null; template_text: string; }
 interface StudentOption  { id: string; name: string; birth_year?: string | null; }
@@ -140,6 +150,11 @@ export default function TeacherDiaryScreen() {
   const commonCursorRef = useRef<number>(0);
   const noteCursorRef   = useRef<number>(0);
 
+  // ── 미디어 업로드 상태 ────────────────────────────────────────────────
+  const [groupMedia,   setGroupMedia]   = useState<UploadedMedia[]>([]);
+  const [studentMedia, setStudentMedia] = useState<Record<string, UploadedMedia[]>>({}); // keyed by student_id
+  const [mediaUploading, setMediaUploading] = useState<string | null>(null); // "group" | studentId | null
+
   // ── 기록 목록 상태 ────────────────────────────────────────────────────
   const [diaries,      setDiaries]      = useState<DiaryEntry[]>([]);
   const [diaryLoading, setDiaryLoading] = useState(false);
@@ -256,6 +271,110 @@ export default function TeacherDiaryScreen() {
       }
     } catch {}
     finally { setDiaryLoading(false); }
+  }
+
+  // ── 미디어 업로드 함수 ─────────────────────────────────────────────────
+  async function uploadGroupMedia(kind: "photo" | "video") {
+    if (!selectedGroup) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: kind === "video" ? ["videos"] : ["images"],
+      allowsMultipleSelection: kind !== "video",
+      quality: kind === "video" ? 1 : 0.85,
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    const caption = `${selectedGroup.schedule_days || ""} ${selectedGroup.schedule_time || ""}반 일지`.trim() || `${selectedGroup.name} 일지`;
+
+    setMediaUploading("group");
+    const newItems: UploadedMedia[] = result.assets.map(a => ({
+      uri: a.uri, kind, uploading: true, uploaded: false,
+    }));
+    setGroupMedia(prev => [...prev, ...newItems]);
+
+    try {
+      const form = new FormData();
+      for (const asset of result.assets) {
+        form.append(kind === "video" ? "video" : "photos", {
+          uri: asset.uri,
+          name: asset.fileName || (kind === "video" ? "video.mp4" : "photo.jpg"),
+          type: asset.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg"),
+        } as any);
+      }
+      form.append("class_id", selectedGroup.id);
+      form.append("caption", caption);
+      const endpoint = kind === "video" ? "/videos/group" : "/photos/group";
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!res.ok) throw new Error("업로드 실패");
+      setGroupMedia(prev => prev.map(m =>
+        newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m
+      ));
+    } catch {
+      setGroupMedia(prev => prev.map(m =>
+        newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: "실패" } : m
+      ));
+    } finally { setMediaUploading(null); }
+  }
+
+  async function uploadStudentMedia(student: StudentOption, kind: "photo" | "video") {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: kind === "video" ? ["videos"] : ["images"],
+      allowsMultipleSelection: kind !== "video",
+      quality: kind === "video" ? 1 : 0.85,
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    const caption = `${student.name} 개별 일지`;
+
+    setMediaUploading(student.id);
+    const newItems: UploadedMedia[] = result.assets.map(a => ({
+      uri: a.uri, kind, uploading: true, uploaded: false,
+    }));
+    setStudentMedia(prev => ({
+      ...prev,
+      [student.id]: [...(prev[student.id] || []), ...newItems],
+    }));
+
+    try {
+      const form = new FormData();
+      for (const asset of result.assets) {
+        form.append(kind === "video" ? "video" : "photos", {
+          uri: asset.uri,
+          name: asset.fileName || (kind === "video" ? "video.mp4" : "photo.jpg"),
+          type: asset.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg"),
+        } as any);
+      }
+      if (selectedGroup) form.append("class_id", selectedGroup.id);
+      form.append("student_id", student.id);
+      form.append("caption", caption);
+      const endpoint = kind === "video" ? "/videos/private" : "/photos/private";
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (!res.ok) throw new Error("업로드 실패");
+      setStudentMedia(prev => ({
+        ...prev,
+        [student.id]: (prev[student.id] || []).map(m =>
+          newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m
+        ),
+      }));
+    } catch {
+      setStudentMedia(prev => ({
+        ...prev,
+        [student.id]: (prev[student.id] || []).map(m =>
+          newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: "실패" } : m
+        ),
+      }));
+    } finally { setMediaUploading(null); }
   }
 
   function insertAtCursor(current: string, insert: string, cursorPos: number, setter: (v: string) => void) {
@@ -778,6 +897,43 @@ export default function TeacherDiaryScreen() {
                     <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* 반 전체 사진/영상 업로드 */}
+                <View style={s.mediaRow}>
+                  <Pressable
+                    style={[s.mediaBtn, { backgroundColor: "#FEF3C7" }]}
+                    onPress={() => uploadGroupMedia("photo")}
+                    disabled={mediaUploading === "group"}
+                  >
+                    {mediaUploading === "group"
+                      ? <ActivityIndicator size="small" color="#F59E0B" />
+                      : <><Feather name="image" size={14} color="#F59E0B" /><Text style={[s.mediaBtnText, { color: "#F59E0B" }]}>반 사진 추가</Text></>
+                    }
+                  </Pressable>
+                  <Pressable
+                    style={[s.mediaBtn, { backgroundColor: "#D1FAE5" }]}
+                    onPress={() => uploadGroupMedia("video")}
+                    disabled={mediaUploading === "group"}
+                  >
+                    <Feather name="video" size={14} color="#059669" />
+                    <Text style={[s.mediaBtnText, { color: "#059669" }]}>반 영상 추가</Text>
+                  </Pressable>
+                </View>
+                {groupMedia.length > 0 && (
+                  <View style={s.mediaPreviewRow}>
+                    {groupMedia.map((m, i) => (
+                      <View key={i} style={s.mediaThumb}>
+                        {m.kind === "photo"
+                          ? <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={20}
+                              color={m.uploaded ? "#059669" : m.error ? "#EF4444" : "#F59E0B"} />
+                          : <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={20}
+                              color={m.uploaded ? "#059669" : m.error ? "#EF4444" : "#059669"} />
+                        }
+                        {m.uploading && <ActivityIndicator size="small" color={C.tint} style={{ position: "absolute" }} />}
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
 
               {/* 학생별 추가 일지 카드 */}
@@ -790,17 +946,57 @@ export default function TeacherDiaryScreen() {
                   <Text style={s.cardSub}>필요한 학생만 선택</Text>
                 </View>
 
-                {studentNotes.map(note => (
-                  <View key={note.student_id} style={[s.noteItem, { backgroundColor: "#F5F3FF" }]}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.noteName}>{note.student_name}</Text>
-                      <Text style={s.noteContent} numberOfLines={2}>{note.note_content}</Text>
+                {studentNotes.map(note => {
+                  const st: StudentOption = { id: note.student_id, name: note.student_name };
+                  const stMedia = studentMedia[note.student_id] || [];
+                  return (
+                    <View key={note.student_id} style={[s.noteItem, { backgroundColor: "#F5F3FF" }]}>
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                          <Text style={s.noteName}>{note.student_name}</Text>
+                          <Pressable onPress={() => removeStudentNote(note.student_id)}>
+                            <Feather name="x-circle" size={18} color={C.textMuted} />
+                          </Pressable>
+                        </View>
+                        <Text style={s.noteContent} numberOfLines={2}>{note.note_content}</Text>
+                        {/* 개별 사진/영상 업로드 */}
+                        <View style={[s.mediaRow, { marginTop: 2 }]}>
+                          <Pressable
+                            style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]}
+                            onPress={() => uploadStudentMedia(st, "photo")}
+                            disabled={mediaUploading === note.student_id}
+                          >
+                            {mediaUploading === note.student_id
+                              ? <ActivityIndicator size="small" color="#7C3AED" />
+                              : <><Feather name="image" size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개별 사진</Text></>
+                            }
+                          </Pressable>
+                          <Pressable
+                            style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]}
+                            onPress={() => uploadStudentMedia(st, "video")}
+                            disabled={mediaUploading === note.student_id}
+                          >
+                            <Feather name="video" size={13} color="#7C3AED" />
+                            <Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개별 영상</Text>
+                          </Pressable>
+                        </View>
+                        {stMedia.length > 0 && (
+                          <View style={s.mediaPreviewRow}>
+                            {stMedia.map((m, i) => (
+                              <View key={i} style={s.mediaThumb}>
+                                <Feather
+                                  name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : (m.kind === "photo" ? "image" : "video")}
+                                  size={16}
+                                  color={m.uploaded ? "#059669" : m.error ? "#EF4444" : "#7C3AED"}
+                                />
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
                     </View>
-                    <Pressable onPress={() => removeStudentNote(note.student_id)}>
-                      <Feather name="x-circle" size={18} color={C.textMuted} />
-                    </Pressable>
-                  </View>
-                ))}
+                  );
+                })}
 
                 {classStudents.length === 0 ? (
                   <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
@@ -1093,7 +1289,7 @@ const s = StyleSheet.create({
   sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   studentChip:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 8 },
   studentChipText: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
-  noteItem:     { flexDirection: "row", alignItems: "center", borderRadius: 10, padding: 10, gap: 8 },
+  noteItem:     { borderRadius: 10, padding: 10, gap: 4 },
   editNoteItem: { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   editNoteHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   noteName:     { fontSize: 12, fontFamily: "Inter_700Bold", color: "#7C3AED" },
@@ -1101,6 +1297,12 @@ const s = StyleSheet.create({
   noteInput:    { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
   noteTextarea: { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: "#fff" },
   noteBtn:      { flex: 1, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+
+  mediaRow:     { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  mediaBtn:     { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  mediaBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  mediaPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
+  mediaThumb:   { width: 36, height: 36, borderRadius: 8, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
 
   footer:       { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
   cancelBtnFt:  { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },

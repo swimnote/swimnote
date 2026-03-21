@@ -344,14 +344,14 @@ router.post(
   }
 );
 
-// ── 부모: 자녀 전체 앨범 요약 (group + private) ───────────────────────
+// ── 부모: 자녀 전체 앨범 — 반 전체 + 개별 통합 flat 목록 + source_label ─
 router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
 
-    // 자녀 목록 조회
     const childRows = await db.execute(sql`
-      SELECT s.id, s.name, s.class_group_id, cg.name AS class_name
+      SELECT s.id, s.name, s.class_group_id,
+             cg.name AS class_name, cg.schedule_days, cg.schedule_time
       FROM students s
       JOIN parent_students ps ON ps.student_id = s.id
       LEFT JOIN class_groups cg ON cg.id = s.class_group_id
@@ -359,32 +359,53 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
     `);
     const children = childRows.rows as any[];
 
-    const result = await Promise.all(children.map(async (child) => {
-      const [groupRows, privateRows] = await Promise.all([
-        child.class_group_id ? db.execute(sql`
-          SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploader_name, sp.caption, sp.created_at,
-                 '/api/photos/' || sp.id || '/file' AS file_url
+    const photoMap = new Map<string, any>();
+
+    for (const child of children) {
+      if (child.class_group_id) {
+        const rows = (await db.execute(sql`
+          SELECT sp.id, sp.album_type, sp.class_id, sp.student_id,
+                 sp.uploader_name, sp.caption, sp.created_at,
+                 '/api/photos/' || sp.id || '/file' AS file_url,
+                 cg.name AS class_name, cg.schedule_days, cg.schedule_time
           FROM student_photos sp
+          LEFT JOIN class_groups cg ON cg.id = sp.class_id
           WHERE sp.album_type = 'group' AND sp.class_id = ${child.class_group_id}
-          ORDER BY sp.created_at DESC LIMIT 20
-        `) : { rows: [] },
-        db.execute(sql`
-          SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploader_name, sp.caption, sp.created_at,
-                 '/api/photos/' || sp.id || '/file' AS file_url
-          FROM student_photos sp
-          WHERE sp.album_type = 'private' AND sp.student_id = ${child.id}
-          ORDER BY sp.created_at DESC LIMIT 20
-        `),
-      ]);
+          ORDER BY sp.created_at DESC LIMIT 100
+        `)).rows as any[];
+        for (const row of rows) {
+          if (!photoMap.has(row.id)) {
+            const source_label = row.caption ||
+              (row.schedule_days && row.schedule_time
+                ? `${row.schedule_days.split(",")[0]} ${row.schedule_time}반 사진`
+                : row.class_name ? `${row.class_name} 반 전체 사진` : "반 전체 사진");
+            photoMap.set(row.id, { ...row, source_label });
+          }
+        }
+      }
+      const privRows = (await db.execute(sql`
+        SELECT sp.id, sp.album_type, sp.class_id, sp.student_id,
+               sp.uploader_name, sp.caption, sp.created_at,
+               '/api/photos/' || sp.id || '/file' AS file_url,
+               s.name AS student_name
+        FROM student_photos sp
+        LEFT JOIN students s ON s.id = sp.student_id
+        WHERE sp.album_type = 'private' AND sp.student_id = ${child.id}
+        ORDER BY sp.created_at DESC LIMIT 100
+      `)).rows as any[];
+      for (const row of privRows) {
+        if (!photoMap.has(row.id)) {
+          const source_label = row.caption ||
+            `${row.student_name || child.name || "학생"} 개별 사진`;
+          photoMap.set(row.id, { ...row, source_label });
+        }
+      }
+    }
 
-      return {
-        student: { id: child.id, name: child.name, class_id: child.class_group_id, class_name: child.class_name },
-        group_photos: groupRows.rows,
-        private_photos: privateRows.rows,
-      };
-    }));
+    const photos = Array.from(photoMap.values())
+      .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
 
-    res.json(result);
+    res.json({ photos, total: photos.length });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 

@@ -322,13 +322,14 @@ router.post(
   }
 );
 
-// ── 학부모: 자녀 영상 앨범 요약 ──────────────────────────────────────
+// ── 학부모: 자녀 영상 앨범 — 반 전체 + 개별 통합 flat 목록 + source_label ─
 router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
 
     const childRows = await db.execute(sql`
-      SELECT s.id, s.name, s.class_group_id, cg.name AS class_name
+      SELECT s.id, s.name, s.class_group_id,
+             cg.name AS class_name, cg.schedule_days, cg.schedule_time
       FROM students s
       JOIN parent_students ps ON ps.student_id = s.id
       LEFT JOIN class_groups cg ON cg.id = s.class_group_id
@@ -336,31 +337,53 @@ router.get("/videos/parent-view", requireAuth, requireRole("parent_account"), as
     `);
     const children = childRows.rows as any[];
 
-    const result = await Promise.all(children.map(async (child) => {
-      const [groupRows, privateRows] = await Promise.all([
-        child.class_group_id ? db.execute(sql`
-          SELECT sv.id, sv.album_type, sv.class_id, sv.student_id, sv.uploader_name, sv.caption, sv.created_at,
-                 '/api/videos/' || sv.id || '/file' AS file_url
-          FROM student_videos sv
-          WHERE sv.album_type = 'group' AND sv.class_id = ${child.class_group_id}
-          ORDER BY sv.created_at DESC LIMIT 10
-        `) : { rows: [] },
-        db.execute(sql`
-          SELECT sv.id, sv.album_type, sv.class_id, sv.student_id, sv.uploader_name, sv.caption, sv.created_at,
-                 '/api/videos/' || sv.id || '/file' AS file_url
-          FROM student_videos sv
-          WHERE sv.album_type = 'private' AND sv.student_id = ${child.id}
-          ORDER BY sv.created_at DESC LIMIT 10
-        `),
-      ]);
-      return {
-        student: { id: child.id, name: child.name, class_id: child.class_group_id, class_name: child.class_name },
-        group_videos: groupRows.rows,
-        private_videos: privateRows.rows,
-      };
-    }));
+    const videoMap = new Map<string, any>();
 
-    res.json(result);
+    for (const child of children) {
+      if (child.class_group_id) {
+        const rows = (await db.execute(sql`
+          SELECT sv.id, sv.album_type, sv.class_id, sv.student_id,
+                 sv.uploader_name, sv.caption, sv.created_at,
+                 '/api/videos/' || sv.id || '/file' AS file_url,
+                 cg.name AS class_name, cg.schedule_days, cg.schedule_time
+          FROM student_videos sv
+          LEFT JOIN class_groups cg ON cg.id = sv.class_id
+          WHERE sv.album_type = 'group' AND sv.class_id = ${child.class_group_id}
+          ORDER BY sv.created_at DESC LIMIT 100
+        `)).rows as any[];
+        for (const row of rows) {
+          if (!videoMap.has(row.id)) {
+            const source_label = row.caption ||
+              (row.schedule_days && row.schedule_time
+                ? `${row.schedule_days.split(",")[0]} ${row.schedule_time}반 영상`
+                : row.class_name ? `${row.class_name} 반 전체 영상` : "반 전체 영상");
+            videoMap.set(row.id, { ...row, source_label });
+          }
+        }
+      }
+      const privRows = (await db.execute(sql`
+        SELECT sv.id, sv.album_type, sv.class_id, sv.student_id,
+               sv.uploader_name, sv.caption, sv.created_at,
+               '/api/videos/' || sv.id || '/file' AS file_url,
+               s.name AS student_name
+        FROM student_videos sv
+        LEFT JOIN students s ON s.id = sv.student_id
+        WHERE sv.album_type = 'private' AND sv.student_id = ${child.id}
+        ORDER BY sv.created_at DESC LIMIT 100
+      `)).rows as any[];
+      for (const row of privRows) {
+        if (!videoMap.has(row.id)) {
+          const source_label = row.caption ||
+            `${row.student_name || child.name || "학생"} 개별 영상`;
+          videoMap.set(row.id, { ...row, source_label });
+        }
+      }
+    }
+
+    const videos = Array.from(videoMap.values())
+      .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+
+    res.json({ videos, total: videos.length });
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
 });
 
