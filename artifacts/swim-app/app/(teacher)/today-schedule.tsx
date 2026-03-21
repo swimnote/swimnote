@@ -1419,10 +1419,9 @@ export default function TodayScheduleScreen() {
                     <View style={[h.classTimeBox, { backgroundColor: themeColor + "15" }]}>
                       <Text style={[h.classTime, { color: themeColor }]}>{item.schedule_time}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={h.className} numberOfLines={1}>{item.name}</Text>
-                      <Text style={h.classSub}>{item.student_count}명</Text>
-                    </View>
+                    <Text style={h.className} numberOfLines={1}>
+                      {item.name}<Text style={h.classSub}> · {item.student_count}명</Text>
+                    </Text>
                     <View style={{ flexDirection: "row", gap: 4, alignItems: "center" }}>
                       {item.att_total > 0 && (
                         <View style={[h.classBadge, {
@@ -1514,12 +1513,12 @@ const h = StyleSheet.create({
   taskBadgeTxt:   { fontSize: 12, fontFamily: "Inter_700Bold" },
   /* 오늘 수업 */
   classList:      { gap: 0 },
-  classRow:       { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
+  classRow:       { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
   classRowBorder: { borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  classTimeBox:   { paddingHorizontal: 6, paddingVertical: 4, borderRadius: 7, minWidth: 48, alignItems: "center" },
-  classTime:      { fontSize: 12, fontFamily: "Inter_700Bold" },
-  className:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
-  classSub:       { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  classTimeBox:   { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, minWidth: 46, alignItems: "center" },
+  classTime:      { fontSize: 11, fontFamily: "Inter_700Bold" },
+  className:      { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
+  classSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary },
   classBadge:     { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, alignItems: "center", justifyContent: "center" },
   classBadgeTxt:  { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   /* 빈 상태 */
