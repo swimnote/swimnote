@@ -1129,8 +1129,8 @@ export default function TodayScheduleScreen() {
   const [notePopupVisible, setNotePopupVisible] = useState(false);
   const [switching, setSwitching]     = useState(false);
 
-  // 관리자로 전환 가능 여부: roles에 pool_admin 또는 sub_admin 포함 시
-  const adminRoleKey = adminUser?.roles?.find(r => ["pool_admin", "sub_admin"].includes(r));
+  // 관리자로 전환 가능 여부: roles에 pool_admin 포함 시 (부관리자 개념 제거)
+  const adminRoleKey = adminUser?.roles?.find(r => r === "pool_admin");
   const canSwitchToAdmin = !!adminRoleKey;
 
   async function handleSwitchToAdmin() {

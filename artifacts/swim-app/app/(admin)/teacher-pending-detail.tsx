@@ -42,27 +42,6 @@ interface TeacherDetail {
   member_count?: number;
 }
 
-type SelectedRole = "teacher" | "sub_admin";
-
-const ROLE_OPTIONS: { key: SelectedRole; label: string; desc: string; icon: string; color: string; bg: string }[] = [
-  {
-    key: "teacher",
-    label: "일반선생님",
-    desc: "출결·일지·담당회원 조회·보강관리 기본 기능",
-    icon: "user",
-    color: "#1A5CFF",
-    bg: "#EFF4FF",
-  },
-  {
-    key: "sub_admin",
-    label: "부관리자",
-    desc: "일반선생님 + 회원관리 일부 + 반배정 + 운영보조\n※ 결제/정산/킬스위치/최고관리자 권한 없음",
-    icon: "shield",
-    color: "#7C3AED",
-    bg: "#F5F3FF",
-  },
-];
-
 const REJECT_PRESETS = [
   "가입 자격 미달",
   "정보 불일치 (이름/연락처 오류)",
@@ -98,11 +77,9 @@ export default function TeacherPendingDetailScreen() {
   const [data,         setData]         = useState<TeacherDetail | null>(null);
   const [loading,      setLoading]      = useState(true);
   const [notFound,     setNotFound]     = useState(false);
-  const [selectedRole, setSelectedRole] = useState<SelectedRole>("teacher");
 
   const [approving,    setApproving]    = useState(false);
   const [approveError, setApproveError] = useState("");
-  const [rejecting,    setRejecting]    = useState(false);
 
   const [showRejectModal,    setShowRejectModal]    = useState(false);
   const [showRejectReasonModal, setShowRejectReasonModal] = useState(false);
@@ -132,13 +109,6 @@ export default function TeacherPendingDetailScreen() {
       }
 
       setData(detail);
-
-      // 기본 권한: rejected이면 마지막 지정 권한 유지, 없으면 teacher
-      if (detail.invite_status === "rejected" && detail.approved_role === "sub_admin") {
-        setSelectedRole("sub_admin");
-      } else {
-        setSelectedRole("teacher");
-      }
     } catch { setNotFound(true); }
     finally { setLoading(false); }
   }
@@ -150,7 +120,7 @@ export default function TeacherPendingDetailScreen() {
     try {
       const res = await apiRequest(token, `/admin/teacher-invites/${inviteId}`, {
         method: "PATCH",
-        body: JSON.stringify({ action: "approve", selected_role: selectedRole }),
+        body: JSON.stringify({ action: "approve" }),
       });
       const json = await res.json();
       if (!res.ok) { setApproveError(json.message || "승인에 실패했습니다."); return; }
@@ -215,8 +185,6 @@ export default function TeacherPendingDetailScreen() {
   const statusInfo = STATUS_META[data.invite_status] ?? STATUS_META.invited;
   const isPending  = data.invite_status === "joinedPendingApproval";
   const isRejected = data.invite_status === "rejected";
-  const canSelectRole = isPending || isRejected;
-
   const joinedDate   = fmtDate(data.created_at)   || "알 수 없음";
   const requestedDate = fmtDate(data.requested_at) || joinedDate;
   const rejectedDate = fmtDate(data.rejected_at);
@@ -265,48 +233,7 @@ export default function TeacherPendingDetailScreen() {
           </View>
         </View>
 
-        {/* ── 권한 선택 (pending 또는 rejected 상태) ── */}
-        {canSelectRole && (
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>
-              권한 선택 <Text style={s.required}>*필수</Text>
-            </Text>
-            <Text style={s.sectionDesc}>승인 시 부여할 권한을 선택해주세요.</Text>
-            {ROLE_OPTIONS.map(opt => (
-              <Pressable
-                key={opt.key}
-                style={[
-                  s.roleCard,
-                  selectedRole === opt.key && { borderColor: opt.color, borderWidth: 2 },
-                ]}
-                onPress={() => setSelectedRole(opt.key)}
-              >
-                <View style={[s.roleIconBox, { backgroundColor: opt.bg }]}>
-                  <Feather name={opt.icon as any} size={20} color={opt.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.roleLabel, selectedRole === opt.key && { color: opt.color }]}>
-                    {opt.label}
-                  </Text>
-                  <Text style={s.roleDesc}>{opt.desc}</Text>
-                </View>
-                <View style={[s.radioOuter, selectedRole === opt.key && { borderColor: opt.color }]}>
-                  {selectedRole === opt.key && (
-                    <View style={[s.radioInner, { backgroundColor: opt.color }]} />
-                  )}
-                </View>
-              </Pressable>
-            ))}
-            {selectedRole === "sub_admin" && (
-              <View style={[s.warnBox, { backgroundColor: "#FEF3C7" }]}>
-                <Feather name="alert-triangle" size={14} color="#D97706" />
-                <Text style={s.warnTxt}>
-                  부관리자는 결제·정산·킬스위치·최고관리자 설정 변경 권한이 없습니다.
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
+        {/* 선생님 권한으로 승인 (관리자 권한은 "관리자 추가/승계" 화면에서 별도 부여 가능) */}
 
         {/* ── 승인 오류 메시지 ── */}
         {!!approveError && (
@@ -342,9 +269,7 @@ export default function TeacherPendingDetailScreen() {
                 : (
                   <>
                     <Feather name="check-circle" size={16} color="#fff" />
-                    <Text style={s.approveBtnTxt}>
-                      {selectedRole === "sub_admin" ? "부관리자로 승인" : "일반선생님으로 승인"}
-                    </Text>
+                    <Text style={s.approveBtnTxt}>선생님으로 승인</Text>
                   </>
                 )
               }
@@ -373,9 +298,7 @@ export default function TeacherPendingDetailScreen() {
                 : (
                   <>
                     <Feather name="refresh-cw" size={16} color="#fff" />
-                    <Text style={s.approveBtnTxt}>
-                      {selectedRole === "sub_admin" ? "부관리자로 재승인" : "선생님으로 재승인"}
-                    </Text>
+                    <Text style={s.approveBtnTxt}>선생님으로 재승인</Text>
                   </>
                 )
               }
@@ -393,9 +316,7 @@ export default function TeacherPendingDetailScreen() {
                   <View style={[s.historyDot, { backgroundColor: "#059669" }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={s.historyDate}>{approvedDate}</Text>
-                    <Text style={s.historyDesc}>
-                      승인: {data.approved_role === "sub_admin" ? "부관리자" : "일반선생님"} 권한 부여
-                    </Text>
+                    <Text style={s.historyDesc}>승인: 선생님 권한 부여</Text>
                   </View>
                 </View>
               )}

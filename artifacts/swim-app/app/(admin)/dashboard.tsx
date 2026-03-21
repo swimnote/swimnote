@@ -210,7 +210,7 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
     case "운영설정": return [
       { icon: "settings",    label: "수업운영설정", color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/pool-settings") },
       { icon: "refresh-cw",  label: "보강정책설정", color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/pool-settings") },
-      { icon: "shield",      label: "권한설정",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/more") },
+      { icon: "shield",      label: "권한설정",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/admin-grant") },
       { icon: "bell",        label: "알림설정",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/notifications") },
       { icon: "award",       label: "레벨/테스트\n설정", color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/pool-settings") },
       { icon: "message-circle", label: "피드백\n기본설정", color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/pool-settings") },
@@ -260,8 +260,8 @@ export default function DashboardScreen() {
   const [activePopup, setActivePopup] = useState<PopupKey | null>(null);
   const [switching, setSwitching] = useState(false);
 
-  // 선생님으로 전환 가능 여부: roles 배열에 teacher 포함 시
-  const canSwitchToTeacher = !!(adminUser?.roles?.includes("teacher"));
+  // 관리자 계정은 항상 선생님으로 전환 가능 (switch-role이 teacher 자동 추가)
+  const canSwitchToTeacher = true;
 
   async function handleSwitchToTeacher() {
     if (switching) return;

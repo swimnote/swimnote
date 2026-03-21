@@ -109,6 +109,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="data-storage-by-category"   options={{ href: null }} />
       <Tabs.Screen name="data-delete"                options={{ href: null }} />
       <Tabs.Screen name="data-event-logs"            options={{ href: null }} />
+      <Tabs.Screen name="admin-grant"               options={{ href: null }} />
     </Tabs>
   );
 }

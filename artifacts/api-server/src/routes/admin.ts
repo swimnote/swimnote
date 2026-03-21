@@ -1789,10 +1789,7 @@ router.get("/teachers", requireAuth, requireRole("super_admin","pool_admin"),
           ti.rejection_reason,
           ti.approved_at,
           ti.created_at AS joined_at,
-          COALESCE(
-            (u.roles @> ARRAY['sub_admin']::text[]),
-            false
-          ) AS is_sub_admin,
+          (u.roles @> ARRAY['pool_admin']::text[]) AS is_admin_granted,
           COUNT(DISTINCT cg.id)::int AS class_count,
           COUNT(DISTINCT s.id)::int AS student_count,
           COUNT(DISTINCT a.id) FILTER (WHERE a.date = '${today}')::int AS today_att,

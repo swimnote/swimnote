@@ -407,10 +407,19 @@ router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
   const { role } = req.body;
   if (!role) return err(res, 400, "전환할 역할을 지정해주세요.");
   try {
-    const rolesRow = await db.execute(sql`SELECT roles, swimming_pool_id FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const rolesRow = await db.execute(sql`SELECT roles, swimming_pool_id, role AS primary_role FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
     const row = rolesRow.rows[0] as any;
     if (!row) return err(res, 404, "계정을 찾을 수 없습니다.");
-    const userRoles: string[] = row.roles ?? [];
+    let userRoles: string[] = row.roles ?? [];
+
+    // pool_admin 계정이 "teacher"로 전환 요청 시 자동으로 teacher 역할 추가 (최초 1회)
+    if (!userRoles.includes(role) && role === "teacher" &&
+        (userRoles.includes("pool_admin") || row.primary_role === "pool_admin")) {
+      userRoles = [...userRoles, "teacher"];
+      const rolesLiteral = `{${userRoles.map((r: string) => `"${r}"`).join(",")}}`;
+      await db.execute(sql.raw(`UPDATE users SET roles = '${rolesLiteral}'::TEXT[] WHERE id = '${req.user!.userId}'`));
+    }
+
     if (!userRoles.includes(role)) return err(res, 403, "해당 역할에 대한 권한이 없습니다.");
     const newToken = signToken({ userId: req.user!.userId, role, poolId: row.swimming_pool_id });
     res.json({ success: true, token: newToken, role });

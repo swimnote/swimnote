@@ -20,8 +20,8 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 const C = Colors.light;
 const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
 
-type FilterKey = "전체" | "승인됨" | "미승인" | "부관리자";
-const FILTERS: FilterKey[] = ["전체", "승인됨", "미승인", "부관리자"];
+type FilterKey = "전체" | "승인됨" | "미승인" | "관리자";
+const FILTERS: FilterKey[] = ["전체", "승인됨", "미승인", "관리자"];
 
 interface Teacher {
   id: string;
@@ -30,7 +30,7 @@ interface Teacher {
   phone?: string;
   position?: string;
   is_activated: boolean;
-  is_sub_admin?: boolean;
+  is_admin_granted?: boolean;
   invite_id?: string;
   invite_status?: string;
   rejection_reason?: string;
@@ -53,7 +53,7 @@ function getApprovalStatus(t: Teacher): "pending" | "rejected" | "approved" {
 function isPending(t: Teacher) { return getApprovalStatus(t) === "pending"; }
 function isRejected(t: Teacher) { return getApprovalStatus(t) === "rejected"; }
 function isApproved(t: Teacher) { return getApprovalStatus(t) === "approved"; }
-function isSubAdmin(t: Teacher) { return !!t.is_sub_admin; }
+function isAdminGranted(t: Teacher) { return !!t.is_admin_granted; }
 function needsApprovalPage(t: Teacher) { return isPending(t) || isRejected(t); }
 
 export default function PeopleTeachersScreen() {
@@ -85,7 +85,7 @@ export default function PeopleTeachersScreen() {
     if (filter === "전체") return true;
     if (filter === "승인됨") return isApproved(t);
     if (filter === "미승인") return isPending(t) || isRejected(t);
-    if (filter === "부관리자") return isApproved(t) && isSubAdmin(t);
+    if (filter === "관리자") return isApproved(t) && isAdminGranted(t);
     return true;
   });
 
@@ -155,7 +155,7 @@ export default function PeopleTeachersScreen() {
           }
           renderItem={({ item }) => {
             const status = getApprovalStatus(item);
-            const subAdmin = isSubAdmin(item);
+            const adminGranted = isAdminGranted(item);
             return (
               <Pressable
                 style={({ pressed }) => [s.card, { opacity: pressed ? 0.85 : 1 }]}
@@ -166,10 +166,10 @@ export default function PeopleTeachersScreen() {
                     <View style={s.nameRow}>
                       <Text style={s.name}>{item.name}</Text>
 
-                      {/* 부관리자 뱃지 */}
-                      {subAdmin && status === "approved" && (
+                      {/* 관리자 권한 뱃지 */}
+                      {adminGranted && status === "approved" && (
                         <View style={s.subAdminBadge}>
-                          <Text style={s.subAdminBadgeTxt}>부관리자</Text>
+                          <Text style={s.subAdminBadgeTxt}>관리자권한</Text>
                         </View>
                       )}
 

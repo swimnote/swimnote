@@ -499,28 +499,25 @@ const tm = StyleSheet.create({
 function TeacherDetailModal({
   detail, processing, onClose,
   onApprove, onRejectOpen,
-  onSetSubAdmin, onRevoke, onTransfer,
+  onRevoke, onTransfer,
 }: {
   detail: TeacherDetail | null;
   processing: boolean;
   onClose: () => void;
   onApprove?: () => void;
   onRejectOpen?: () => void;
-  onSetSubAdmin?: (grant: boolean) => void;
   onRevoke?: () => void;
   onTransfer?: () => void;
 }) {
   if (!detail) return null;
 
-  const isPending  = detail.invite_status === "joinedPendingApproval";
-  const isApproved = detail.invite_status === "approved";
+  const isPending   = detail.invite_status === "joinedPendingApproval";
+  const isApproved  = detail.invite_status === "approved";
   const roles: string[] = parseRoles(detail.user_roles);
-  const isSubAdmin = roles.includes("sub_admin");
-  const isTeacher  = roles.includes("teacher");
+  const isAdminGranted = roles.includes("pool_admin");
 
   const roleLabel = () => {
-    if (isSubAdmin && isTeacher) return "선생님 + 부관리자";
-    if (isSubAdmin) return "부관리자";
+    if (isAdminGranted) return "선생님 + 관리자권한";
     return "선생님";
   };
 
@@ -603,24 +600,6 @@ function TeacherDetailModal({
                       <>
                         <Feather name="user-minus" size={13} color="#DC2626" />
                         <Text style={[dm.smBtnText, { color: "#DC2626" }]}>승인 해제</Text>
-                      </>
-                    )}
-                  </Pressable>
-                )}
-                {onSetSubAdmin && (
-                  <Pressable
-                    style={[dm.smBtn, isSubAdmin
-                      ? { borderWidth: 1.5, borderColor: "#6366F1", backgroundColor: "#EEF2FF" }
-                      : { backgroundColor: "#6366F1" }
-                    ]}
-                    onPress={() => onSetSubAdmin(!isSubAdmin)} disabled={processing}
-                  >
-                    {processing ? <ActivityIndicator color={isSubAdmin ? "#6366F1" : "#fff"} size="small" /> : (
-                      <>
-                        <Feather name={isSubAdmin ? "shield-off" : "shield"} size={13} color={isSubAdmin ? "#6366F1" : "#fff"} />
-                        <Text style={[dm.smBtnText, { color: isSubAdmin ? "#6366F1" : "#fff" }]}>
-                          {isSubAdmin ? "부관리자 해제" : "부관리자 지정"}
-                        </Text>
                       </>
                     )}
                   </Pressable>
@@ -788,23 +767,6 @@ export default function ApprovalsScreen() {
     finally { setTeacherDetailLoading(false); }
   }
 
-  // ── 부관리자 지정/해제 ────────────────────────────────────────
-  async function handleSetSubAdmin(inviteId: string, grant: boolean) {
-    setActionProcessing(true);
-    try {
-      const res = await apiRequest(token, `/admin/teacher-invites/${inviteId}`, {
-        method: "PATCH", body: JSON.stringify({ action: "set-sub-admin", grant }),
-      });
-      const d = await res.json();
-      if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류"); return; }
-      // 로컬 상태에 즉시 반영
-      if (d.roles && teacherDetail) {
-        setTeacherDetail(prev => prev ? { ...prev, user_roles: d.roles } : prev);
-      }
-      await load();
-    } finally { setActionProcessing(false); }
-  }
-
   // ── 선생님 승인 해제 ──────────────────────────────────────────
   async function handleRevokeTeacher(inviteId: string) {
     setActionProcessing(true);
@@ -926,10 +888,9 @@ export default function ApprovalsScreen() {
       invited:               "invited",
       inactive:              "inactive",
     };
-    // 부관리자 여부 표시
     const roles: string[] = parseRoles(inv.user_roles);
-    const isSubAdmin = roles.includes("sub_admin");
-    const roleText = isSubAdmin ? "선생님+부관리자" : "선생님";
+    const isAdminGranted = roles.includes("pool_admin");
+    const roleText = isAdminGranted ? "선생님+관리자권한" : "선생님";
     const positionText = [inv.position, roleText].filter(Boolean).join(" · ");
 
     return {
@@ -1079,9 +1040,6 @@ export default function ApprovalsScreen() {
               : undefined}
             onRejectOpen={teacherDetailInvite.invite_status === "joinedPendingApproval"
               ? () => setRejectTargetId(teacherDetailInvite.id)
-              : undefined}
-            onSetSubAdmin={teacherDetailInvite.invite_status === "approved"
-              ? (grant) => handleSetSubAdmin(teacherDetailInvite.id, grant)
               : undefined}
             onRevoke={teacherDetailInvite.invite_status === "approved"
               ? () => handleRevokeTeacher(teacherDetailInvite.id)

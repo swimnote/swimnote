@@ -159,22 +159,19 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         if (!approvableStatuses.includes(invite.invite_status)) {
           res.status(409).json({ success: false, message: "승인 처리 가능한 상태가 아닙니다." }); return;
         }
-        // roles 선택: "teacher" (일반) 또는 "sub_admin" (부관리자)
-        // 부관리자: ["teacher","sub_admin"], 일반: ["teacher"]
-        // 결제·정산·킬스위치·최고관리자 권한은 절대 부여 금지
-        const selectedRole = (req.body.selected_role === "sub_admin") ? "sub_admin" : "teacher";
-        const approvedRoles: string[] = selectedRole === "sub_admin" ? ["teacher", "sub_admin"] : ["teacher"];
+        // 항상 일반 선생님으로 승인 (관리자 권한은 이후 "관리자 추가/승계" 화면에서 별도 부여)
+        const approvedRoles: string[] = ["teacher"];
         if (invite.user_id) {
-          const rolesLiteral = `{${approvedRoles.map((r: string) => `"${r}"`).join(",")}}`;
+          const rolesLiteral = `{"teacher"}`;
           await db.execute(sql`UPDATE users SET is_activated = true, roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
         await db.execute(sql`
           UPDATE teacher_invites
           SET invite_status = 'approved', approved_at = NOW(), approved_by = ${actorId},
-              approved_role = ${selectedRole}
+              approved_role = 'teacher'
           WHERE id = ${req.params.id}
         `);
-        logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.name, description: `선생님 승인 (${selectedRole === "sub_admin" ? "부관리자" : "일반"}) — ${invite.name}` }).catch(console.error);
+        logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.name, description: `선생님 승인 — ${invite.name}` }).catch(console.error);
         res.json({ success: true, message: "선생님이 승인되었습니다.", roles: approvedRoles });
 
       } else if (action === "reject") {
@@ -238,6 +235,92 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
 
         res.json({ success: true, message: grant ? "부관리자로 지정되었습니다." : "부관리자 권한이 해제되었습니다.", roles: currentRoles });
       }
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 관리자: 승인된 선생님 목록 (관리자 추가/승계 화면용) ──────────────
+router.get("/admin/approved-teachers-for-grant", requireAuth, requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const result = await db.execute(sql`
+        SELECT u.id, u.name, u.email, u.phone, u.roles,
+               (u.roles @> ARRAY['pool_admin']::text[]) AS is_admin_granted,
+               ti.invite_status, ti.approved_at
+        FROM teacher_invites ti
+        JOIN users u ON ti.user_id = u.id
+        WHERE ti.swimming_pool_id = ${me.swimming_pool_id}
+          AND ti.invite_status = 'approved'
+          AND u.role = 'teacher'
+        ORDER BY u.name
+      `);
+      res.json({ success: true, data: result.rows });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
+// ─── 관리자: 선생님에게 관리자 권한 부여/회수 ──────────────────────────
+router.post("/admin/grant-pool-admin", requireAuth, requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { userId, grant } = req.body;
+      if (!userId || typeof grant !== "boolean") {
+        res.status(400).json({ success: false, message: "userId와 grant(boolean)가 필요합니다." }); return;
+      }
+
+      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id, name: usersTable.name })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      // 같은 수영장의 승인된 선생님인지 확인
+      const targetRow = await db.execute(sql`
+        SELECT u.id, u.name, u.roles FROM users u
+        JOIN teacher_invites ti ON ti.user_id = u.id
+        WHERE u.id = ${userId}
+          AND ti.swimming_pool_id = ${me.swimming_pool_id}
+          AND ti.invite_status = 'approved'
+          AND u.role = 'teacher'
+        LIMIT 1
+      `);
+      if (!targetRow.rows.length) {
+        res.status(404).json({ success: false, message: "해당 수영장의 승인된 선생님을 찾을 수 없습니다." }); return;
+      }
+
+      const target = targetRow.rows[0] as any;
+      let currentRoles: string[] = Array.isArray(target.roles) ? target.roles : ["teacher"];
+
+      if (grant) {
+        if (!currentRoles.includes("pool_admin")) currentRoles = [...currentRoles, "pool_admin"];
+        if (!currentRoles.includes("teacher"))    currentRoles = [...currentRoles, "teacher"];
+      } else {
+        currentRoles = currentRoles.filter((r: string) => r !== "pool_admin");
+        if (!currentRoles.includes("teacher")) currentRoles = ["teacher"];
+      }
+
+      const rolesLiteral = `{${currentRoles.map((r: string) => `"${r}"`).join(",")}}`;
+      await db.execute(sql`UPDATE users SET roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${userId}`);
+
+      const actorName = (me as any).name || "관리자";
+      logEvent({
+        pool_id: me.swimming_pool_id, category: "권한",
+        actor_id: req.user!.userId, actor_name: actorName, target: target.name,
+        description: grant
+          ? `관리자 권한 부여 — ${target.name}`
+          : `관리자 권한 회수 — ${target.name}`,
+        metadata: { grant, target_name: target.name, roles: currentRoles },
+      }).catch(console.error);
+
+      res.json({ success: true, message: grant ? "관리자 권한이 부여되었습니다." : "관리자 권한이 회수되었습니다.", roles: currentRoles });
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: "서버 오류" });
