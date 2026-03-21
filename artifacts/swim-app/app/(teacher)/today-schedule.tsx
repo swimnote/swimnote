@@ -1327,7 +1327,7 @@ export default function TodayScheduleScreen() {
 
         {/* ── 스케줄러 히어로 카드 ── */}
         <Pressable
-          style={[h.schedHero, { backgroundColor: themeColor }]}
+          style={[h.schedHero, { backgroundColor: "#2DD4BF" }]}
           onPress={() => router.push("/(teacher)/my-schedule" as any)}
         >
           {/* 타이틀 행 */}
@@ -1335,10 +1335,6 @@ export default function TodayScheduleScreen() {
             <View>
               <Text style={h.schedHeroTitle}>월간 스케줄러</Text>
               <Text style={h.schedHeroSub}>수업 · 출결 · 일지 · 날짜메모</Text>
-            </View>
-            <View style={h.schedHeroBtn}>
-              <Text style={[h.schedHeroBtnTxt, { color: themeColor }]}>열기</Text>
-              <Feather name="chevron-right" size={11} color={themeColor} />
             </View>
           </View>
           {/* 미니 주간 달력 */}
