@@ -1420,64 +1420,50 @@ export default function TodayScheduleScreen() {
           </View>
         )}
 
-        {/* ── 오늘 수업 ── */}
+        {/* ── 오늘 수업 (뱃지 그리드 4×3) ── */}
         <View style={[h.sectionCard, { backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
             <View style={[h.sectionIconBox, { backgroundColor: themeColor + "18" }]}>
               <Feather name="layers" size={13} color={themeColor} />
             </View>
             <Text style={h.sectionTitle}>오늘 수업</Text>
+            {!loading && sortedItems.length > 0 && (
+              <Text style={[h.classCnt, { color: themeColor }]}>{sortedItems.length}개</Text>
+            )}
           </View>
-          {loading ? (
-            <ActivityIndicator color={themeColor} style={{ paddingVertical: 20 }} />
-          ) : sortedItems.length === 0 ? (
-            <View style={h.emptyBox}>
-              <Feather name="sun" size={28} color={C.textMuted} />
-              <Text style={h.emptyTxt}>오늘 수업이 없습니다</Text>
-              <Pressable style={[h.emptyBtn, { borderColor: themeColor }]}
-                onPress={() => router.push("/(teacher)/my-schedule" as any)}>
-                <Text style={[h.emptyBtnTxt, { color: themeColor }]}>스케줄러에서 추가</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={h.classList}>
-              {sortedItems.map((item, idx) => {
+          {/* 고정 높이 컨테이너 — 수업 수 변화에도 아이콘 위치 고정 */}
+          <View style={h.badgeGrid}>
+            {loading ? (
+              <ActivityIndicator color={themeColor} style={{ flex: 1 }} />
+            ) : sortedItems.length === 0 ? (
+              <View style={h.badgeEmpty}>
+                <Feather name="sun" size={20} color={C.textMuted} />
+                <Text style={h.emptyTxt}>오늘 수업 없음</Text>
+              </View>
+            ) : (
+              sortedItems.slice(0, 12).map(item => {
                 const attDone = item.att_present >= item.student_count && item.student_count > 0;
                 const attPartial = item.att_present > 0 && !attDone;
+                const dotColor = item.att_total === 0 ? "transparent"
+                  : attDone ? "#10B981" : attPartial ? "#F59E0B" : "#EF4444";
                 return (
                   <Pressable key={item.id}
-                    style={[h.classRow, idx < sortedItems.length - 1 && h.classRowBorder]}
+                    style={[h.chip, { backgroundColor: themeColor + "12" }]}
                     onPress={() => router.push({ pathname: "/(teacher)/my-schedule", params: { openDate: today } } as any)}>
-                    <View style={[h.classTimeBox, { backgroundColor: themeColor + "15" }]}>
-                      <Text style={[h.classTime, { color: themeColor }]}>{item.schedule_time}</Text>
-                    </View>
-                    <Text style={h.className} numberOfLines={1}>
-                      {item.name}<Text style={h.classSub}> · {item.student_count}명</Text>
-                    </Text>
-                    <View style={{ flexDirection: "row", gap: 4, alignItems: "center" }}>
+                    <View style={h.chipTop}>
+                      <Text style={[h.chipTime, { color: themeColor }]} numberOfLines={1}>
+                        {item.schedule_time}
+                      </Text>
                       {item.att_total > 0 && (
-                        <View style={[h.classBadge, {
-                          backgroundColor: attDone ? "#D1FAE5" : attPartial ? "#FEF3C7" : "#FEE2E2",
-                        }]}>
-                          <Text style={[h.classBadgeTxt, {
-                            color: attDone ? "#059669" : attPartial ? "#D97706" : "#DC2626",
-                          }]}>
-                            {item.att_present}/{item.student_count}
-                          </Text>
-                        </View>
+                        <View style={[h.chipDot, { backgroundColor: dotColor }]} />
                       )}
-                      {item.diary_done && (
-                        <View style={[h.classBadge, { backgroundColor: "#EDE9FE" }]}>
-                          <Feather name="check" size={10} color="#7C3AED" />
-                        </View>
-                      )}
-                      <Feather name="chevron-right" size={14} color={C.textMuted} />
                     </View>
+                    <Text style={h.chipName} numberOfLines={1}>{item.name}</Text>
                   </Pressable>
                 );
-              })}
-            </View>
-          )}
+              })
+            )}
+          </View>
         </View>
 
         {/* ── 기능 메뉴 그리드 ── */}
@@ -1543,21 +1529,17 @@ const h = StyleSheet.create({
   taskLabel:      { fontSize: 13, fontFamily: "Inter_500Medium", color: C.text },
   taskBadge:      { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   taskBadgeTxt:   { fontSize: 11, fontFamily: "Inter_700Bold" },
-  /* 오늘 수업 */
-  classList:      { gap: 0 },
-  classRow:       { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
-  classRowBorder: { borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  classTimeBox:   { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, minWidth: 46, alignItems: "center" },
-  classTime:      { fontSize: 11, fontFamily: "Inter_700Bold" },
-  className:      { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
-  classSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  classBadge:     { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, alignItems: "center", justifyContent: "center" },
-  classBadgeTxt:  { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  /* 오늘 수업 뱃지 그리드 */
+  classCnt:       { marginLeft: "auto", fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  badgeGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 6, minHeight: 164, alignContent: "flex-start" },
+  badgeEmpty:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
+  chip:           { width: "23.5%", borderRadius: 10, padding: 8, gap: 4 },
+  chipTop:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  chipTime:       { fontSize: 11, fontFamily: "Inter_700Bold" },
+  chipDot:        { width: 6, height: 6, borderRadius: 3 },
+  chipName:       { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textSecondary },
   /* 빈 상태 */
-  emptyBox:       { alignItems: "center", gap: 8, paddingVertical: 24 },
-  emptyTxt:       { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
-  emptyBtn:       { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, marginTop: 4 },
-  emptyBtnTxt:    { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  emptyTxt:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
   /* 스케줄러 히어로 카드 */
   schedHero:        { borderRadius: 18, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   schedHeroTop:     { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 },
