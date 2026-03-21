@@ -31,11 +31,14 @@ const TYPE_CFG: Record<string, { label: string; color: string; bg: string; icon:
 };
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  open:               { label: "미처리",  color: "#DC2626", bg: "#FEE2E2" },
-  pending:            { label: "대기 중", color: "#D97706", bg: "#FEF3C7" },
-  in_progress:        { label: "처리 중", color: "#D97706", bg: "#FEF3C7" },
-  escalated_to_tech:  { label: "에스컬",  color: P,         bg: "#EDE9FE" },
-  resolved:           { label: "해결됨",  color: "#059669", bg: "#D1FAE5" },
+  received:          { label: "접수",     color: "#DC2626", bg: "#FEE2E2" },
+  in_progress:       { label: "처리 중",  color: "#D97706", bg: "#FEF3C7" },
+  on_hold:           { label: "보류",     color: "#6B7280", bg: "#F3F4F6" },
+  refund_linked:     { label: "환불연계", color: "#9333EA", bg: "#F3E8FF" },
+  policy_sent:       { label: "정책발송", color: "#0891B2", bg: "#ECFEFF" },
+  need_recheck:      { label: "재확인",   color: "#F59E0B", bg: "#FEF3C7" },
+  escalated_to_tech: { label: "에스컬",   color: P,         bg: "#EDE9FE" },
+  resolved:          { label: "해결됨",   color: "#059669", bg: "#D1FAE5" },
 };
 
 const REQUESTER_CFG: Record<string, { label: string; color: string }> = {
