@@ -165,7 +165,8 @@ export default function ReadonlyControlScreen() {
   const createLog               = useAuditLogStore(s => s.createLog);
   const auditLogs               = useAuditLogStore(s => s.logs);
   const operators               = useOperatorsStore(s => s.operators);
-  const globalFlags         = useFeatureFlagStore(s => s.getGlobalFlags());
+  const allFeatureFlags     = useFeatureFlagStore(s => s.flags);
+  const globalFlags         = useMemo(() => allFeatureFlags.filter(f => f.scope === 'global'), [allFeatureFlags]);
 
   const readonlyOperators = useMemo(() =>
     operators.filter(o => o.status === 'readonly'),

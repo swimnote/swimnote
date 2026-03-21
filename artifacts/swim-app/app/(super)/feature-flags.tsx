@@ -54,8 +54,8 @@ export default function FeatureFlagsScreen() {
   const [opReason, setOpReason] = useState("");
   const [opSearch, setOpSearch] = useState("");
 
-  const globalFlags    = useFeatureFlagStore(s => s.getGlobalFlags());
   const allFlags       = useFeatureFlagStore(s => s.flags);
+  const globalFlags    = useMemo(() => allFlags.filter(f => f.scope === 'global'), [allFlags]);
   const toggleFlagFn   = useFeatureFlagStore(s => s.toggleFlag);
   const setOpFlag      = useFeatureFlagStore(s => s.setOperatorFlag);
   const createLog      = useAuditLogStore(s => s.createLog);

@@ -95,6 +95,8 @@ export default function SuperPoolsScreen() {
   const [rejectReason, setRejectReason] = useState("");
 
   const storeFilter     = useOperatorsStore(s => s.filter);
+  const storeSearch     = useOperatorsStore(s => s.search);
+  const operators       = useOperatorsStore(s => s.operators);
   const setStoreFilter  = useOperatorsStore(s => s.setFilter);
   const setStoreSearch  = useOperatorsStore(s => s.setSearch);
   const getFiltered     = useOperatorsStore(s => s.getFiltered);
@@ -110,7 +112,7 @@ export default function SuperPoolsScreen() {
     setStoreSearch(search);
   }, [filter, search]);
 
-  const allFiltered = useMemo(() => getFiltered(), [storeFilter, useOperatorsStore.getState().operators, useOperatorsStore.getState().search]);
+  const allFiltered = useMemo(() => getFiltered(), [storeFilter, storeSearch, operators]);
 
   // local sort
   const sorted = useMemo(() => {

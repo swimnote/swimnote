@@ -1,0 +1,193 @@
+현재 크래시 원인은 import 문제가 아니라 무한 상태 업데이트 루프다.
+오류:
+Maximum update depth exceeded
+
+즉, 특정 screen/store/useEffect 에서
+렌더 -> effect 실행 -> setState/store update -> 재렌더 -> effect 재실행
+이 반복되고 있다.
+
+지금부터 기능 추가 중단하고 아래 순서로 루프 원인을 제거하라.
+
+==================================================
+[1. 가장 먼저 찾을 패턴]
+==================================================
+
+프로젝트 전체 검색:
+- useEffect(
+- setState(
+- set(
+- update(
+- initialize
+- derive
+- sync
+- normalize
+
+아래 패턴 전수 점검:
+1) useEffect 안에서 setState/store action 호출
+2) dependency array에 새 객체/새 배열/새 함수가 들어가는 경우
+3) selector 안에서 filter/map/sort 후 그 결과를 effect dependency로 쓰는 경우
+4) 렌더 중 계산한 값을 다시 store에 저장하는 경우
+5) mount 때 seed/normalize 실행 후 dependency 때문에 반복되는 경우
+
+==================================================
+[2. 우선 의심 파일부터 점검]
+==================================================
+
+이 순서대로 확인:
+1. riskStore.ts
+2. RiskCenterScreen.tsx
+3. SuperAdminHome.tsx
+4. FeatureFlagScreen.tsx
+5. SupportCenterScreen.tsx
+6. AuditLogScreen.tsx
+7. uiStore.ts
+8. AppShell.tsx
+9. routes/layout 관련 파일
+
+==================================================
+[3. 반드시 고칠 규칙]
+==================================================
+
+규칙 A:
+useEffect 안에서 setState/store action 호출할 때
+dependency array에 매 렌더마다 새로 생성되는 배열/객체/함수 넣지 말 것
+
+예시 잘못된 코드:
+const filtered = operators.filter(...)
+useEffect(() => {
+  setFiltered(filtered)
+}, [filtered])
+
+수정:
+- filtered는 useMemo로 계산하거나
+- local state 자체를 제거하고 렌더에서 직접 사용
+
+규칙 B:
+계산 가능한 값은 store에 다시 넣지 말 것
+예:
+risk summary, KPI, filtered list, grouped flags
+이런 건 derived value로 계산만 하고 store update 금지
+
+규칙 C:
+초기화(seed insert/normalize)는 mount 1회만 실행
+필요하면:
+const initializedRef = useRef(false)
+useEffect(() => {
+  if (initializedRef.current) return
+  initializedRef.current = true
+  initializeSomething()
+}, [])
+
+규칙 D:
+Zustand selector는 원시값 또는 이미 존재하는 참조만 뽑기
+selector 안에서 filter/map로 새 배열 만들지 말 것
+새 배열이 필요하면 컴포넌트 내부에서 useMemo 사용
+
+==================================================
+[4. 위험 패턴 예시와 수정]
+==================================================
+
+잘못된 예시 1:
+const operators = useOperatorsStore(s => s.operators)
+useEffect(() => {
+  setKpis(buildKpis(operators))
+}, [operators])
+
+수정:
+const operators = useOperatorsStore(s => s.operators)
+const kpis = useMemo(() => buildKpis(operators), [operators])
+
+잘못된 예시 2:
+const riskSummary = useRiskStore(s => s.buildRiskSummary())
+useEffect(() => {
+  useRiskStore.getState().syncRiskSummary()
+}, [riskSummary])
+
+수정:
+- buildRiskSummary는 pure function으로 분리
+- render에서 useMemo로만 계산
+- store에 summary 저장하지 말 것
+
+잘못된 예시 3:
+const tickets = useSupportStore(s => s.tickets.filter(...))
+
+수정:
+const tickets = useSupportStore(s => s.tickets)
+const filteredTickets = useMemo(() => tickets.filter(...), [tickets])
+
+잘못된 예시 4:
+useEffect(() => {
+  setGroupedFlags(groupFlags(flags))
+}, [flags])
+
+수정:
+const groupedFlags = useMemo(() => groupFlags(flags), [flags])
+
+==================================================
+[5. 지금 바로 적용할 원칙]
+==================================================
+
+- derived state 최소화
+- local state로 저장하지 않아도 되는 값은 모두 useMemo로 계산
+- screen mount 시 store mutate 금지
+- seed 삽입/normalize는 앱 시작 1회만
+- route 진입마다 initialize 호출 금지
+- logs/risks/kpis/filtered lists 는 store에 다시 쓰지 말고 계산만 하라
+
+==================================================
+[6. 디버깅용 임시 로그 추가]
+==================================================
+
+문제 screen에 임시 로그 추가:
+console.log('[MOUNT] SuperAdminHome')
+console.log('[MOUNT] RiskCenterScreen')
+console.log('[MOUNT] FeatureFlagScreen')
+
+effect 안에도:
+console.log('[EFFECT] RiskCenter derive')
+console.log('[EFFECT] Home KPI sync')
+
+어떤 effect가 계속 도는지 확인하고 그 effect 제거/수정
+
+==================================================
+[7. 임시 안전 조치]
+==================================================
+
+리스크 요약, KPI, 필터 결과, 그룹핑 결과는
+일단 전부 store에 저장하지 말고 screen 안에서 useMemo로만 계산하라
+
+즉:
+- setRiskSummary 제거
+- setKpis 제거
+- setGroupedFlags 제거
+- setFilteredOperators 제거
+- setFilteredTickets 제거
+
+==================================================
+[8. 수정 후 검증]
+==================================================
+
+아래 순서로 확인:
+1. 앱 첫 실행
+2. 로그인
+3. 슈퍼관리자 홈 열림
+4. 운영자 관리 열림
+5. 구독/결제 열림
+6. 저장공간 열림
+7. 정책 열림
+8. 운영 로그 열림
+9. 고객센터 열림
+10. 리스크 센터 열림
+11. 기능 플래그 열림
+
+==================================================
+[9. 작업 완료 보고 형식]
+==================================================
+
+반드시 아래로 보고:
+1. 무한루프 원인 screen/store
+2. 문제 useEffect 또는 action 이름
+3. 왜 반복됐는지
+4. 무엇을 useMemo로 바꿨는지
+5. 어떤 setState/store update를 제거했는지
+6. 현재 정상 진입 가능한 화면 목록

@@ -221,7 +221,8 @@ export default function SuperDashboard() {
   const rejectOp       = useOperatorsStore(s => s.rejectOperator);
   const scheduleDelete = useOperatorsStore(s => s.scheduleAutoDelete);
   const createLog      = useAuditLogStore(s => s.createLog);
-  const recentLogs     = useAuditLogStore(s => s.getRecent(5));
+  const allLogs        = useAuditLogStore(s => s.logs);
+  const recentLogs     = useMemo(() => allLogs.slice(0, 5), [allLogs]);
   const riskSummary    = useRiskStore(s => s.summary);
   const openCount      = useSupportStore(s => s.getOpenCount());
   const slaOverdue     = useSupportStore(s => s.getSlaOverdueCount());

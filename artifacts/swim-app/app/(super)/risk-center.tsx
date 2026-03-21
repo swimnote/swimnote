@@ -91,7 +91,8 @@ export default function RiskCenterScreen() {
   const openCount      = useSupportStore(s => s.getOpenCount());
   const slaCount       = useSupportStore(s => s.getSlaOverdueCount());
   const riskSummary    = useRiskStore(s => s.summary);
-  const latestSnap     = useBackupStore(s => s.getLatestPlatformSnapshot());
+  const allSnapshots   = useBackupStore(s => s.snapshots);
+  const latestSnap     = useMemo(() => allSnapshots.filter(s => s.scope === 'platform')[0], [allSnapshots]);
 
   const paymentFailed  = useMemo(() => operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace'), [operators]);
   const storageDanger  = useMemo(() => operators.filter(o => o.storageBlocked95), [operators]);
