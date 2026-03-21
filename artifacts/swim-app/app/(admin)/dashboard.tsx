@@ -215,7 +215,7 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
     case "플랫폼설정": return [
       { icon: "credit-card", label: "구독관리",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/billing") },
       { icon: "tag",         label: "화이트라벨",  color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/branding") },
-      { icon: "image",       label: "워터마크",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/branding") },
+      { icon: "message-square", label: "SMS서비스\n관리", color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/more") },
       { icon: "star",        label: "로고/브랜드", color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/branding") },
       { icon: "smartphone",  label: "앱기본설정",  color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/more") },
       { icon: "link",        label: "연결서비스",  color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/more") },
