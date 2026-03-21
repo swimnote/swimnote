@@ -1446,7 +1446,7 @@ export default function MyScheduleScreen() {
             classGroups={groups} statusMap={statusMap} onSelectClass={setSelectedGroup}
             themeColor={themeColor} selectionMode={selectionMode}
             selectedIds={selectedIds} onToggleSelect={toggleSelect} />
-          <View style={{ height: 120 }} />
+          <View style={{ height: 80 }} />
         </ScrollView>
       )}
 

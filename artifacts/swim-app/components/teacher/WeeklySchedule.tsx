@@ -24,9 +24,9 @@ export interface TeacherClassGroup {
 }
 
 export interface SlotStatus {
-  attChecked: number;   // 오늘 출결 체크된 학생 수
-  diaryDone:  boolean;  // 오늘 일지 작성 여부
-  hasPhotos:  boolean;  // 사진/영상 업로드 여부
+  attChecked: number;
+  diaryDone:  boolean;
+  hasPhotos:  boolean;
 }
 
 interface WeeklyScheduleProps {
@@ -58,6 +58,15 @@ function getDayClasses(groups: TeacherClassGroup[], day: string) {
     .sort((a, b) => parseHour(a.schedule_time) - parseHour(b.schedule_time));
 }
 
+const CLASS_COLORS = [
+  "#6366F1","#EC4899","#14B8A6","#F59E0B","#8B5CF6",
+  "#10B981","#3B82F6","#EF4444","#F97316","#06B6D4",
+];
+function classColor(id: string) {
+  let n = 0; for (let i = 0; i < id.length; i++) n += id.charCodeAt(i);
+  return CLASS_COLORS[n % CLASS_COLORS.length];
+}
+
 export function WeeklySchedule({
   classGroups, statusMap, onSelectClass, themeColor,
   selectedDay: externalDay, onDayChange,
@@ -74,7 +83,6 @@ export function WeeklySchedule({
     onDayChange?.(day);
   }
 
-  // 요일 탭의 각 반 수
   const dayCount = WEEK_DAYS.reduce<Record<string, number>>((acc, d) => {
     acc[d] = getDayClasses(classGroups, d).length;
     return acc;
@@ -84,7 +92,7 @@ export function WeeklySchedule({
 
   return (
     <View style={ws.root}>
-      {/* ── 요일 탭 (hideDayBar=true 이면 숨김) ── */}
+      {/* ── 요일 탭 ── */}
       {!hideDayBar && (
         <ScrollView
           ref={dayScrollRef}
@@ -136,103 +144,76 @@ export function WeeklySchedule({
       {/* ── 시간 슬롯 리스트 ── */}
       {currentClasses.length === 0 ? (
         <View style={ws.empty}>
-          <Feather name="calendar" size={28} color={C.textMuted} />
+          <Feather name="calendar" size={24} color={C.textMuted} />
           <Text style={ws.emptyText}>{selectedDay}요일 수업이 없습니다</Text>
         </View>
       ) : (
         <View style={ws.slotList}>
           {currentClasses.map(g => {
-            const status  = statusMap[g.id];
-            const total   = g.student_count;
-            const checked = status?.attChecked ?? 0;
-            const attDone = total === 0 || checked >= total;
+            const status    = statusMap[g.id];
+            const total     = g.student_count;
+            const checked   = status?.attChecked ?? 0;
+            const attDone   = total === 0 || checked >= total;
             const diaryDone = status?.diaryDone ?? true;
             const hasPhotos = status?.hasPhotos ?? false;
             const inactive  = total === 0;
-            const hour      = g.schedule_time.split(/[:-]/)[0].trim();
-
+            const color     = classColor(g.id);
             const isSelected = selectedIds.has(g.id);
+
             return (
               <Pressable
                 key={g.id}
-                style={[ws.slot, { backgroundColor: inactive ? "#F9FAFB" : C.card, borderColor: inactive ? "#E5E7EB" : isSelected ? themeColor : C.border }]}
+                style={[
+                  ws.slot,
+                  { borderColor: isSelected ? themeColor : C.border },
+                  inactive && ws.slotInactive,
+                ]}
                 onPress={() => selectionMode ? onToggleSelect?.(g.id) : (!inactive && onSelectClass(g))}
                 onLongPress={() => !inactive && onToggleSelect?.(g.id)}
                 disabled={!selectionMode && inactive}
               >
+                {/* 왼쪽 컬러 바 */}
+                <View style={[ws.colorBar, { backgroundColor: inactive ? "#D1D5DB" : color }]} />
+
                 {/* 선택 모드 체크박스 */}
                 {selectionMode && !inactive && (
                   <View style={[ws.checkBox, { borderColor: themeColor, backgroundColor: isSelected ? themeColor : "#fff" }]}>
-                    {isSelected && <Feather name="check" size={10} color="#fff" />}
+                    {isSelected && <Feather name="check" size={9} color="#fff" />}
                   </View>
                 )}
-                {/* 시간 pill */}
-                <View style={[ws.timePill, { backgroundColor: inactive ? "#F3F4F6" : themeColor + "18" }]}>
-                  <Text style={[ws.timeText, { color: inactive ? C.textMuted : themeColor }]}>{hour}시</Text>
-                </View>
 
-                {/* 반 정보 */}
-                <View style={ws.slotMid}>
-                  <Text style={[ws.slotName, { color: inactive ? C.textMuted : C.text }]} numberOfLines={1}>
-                    {g.name}
+                {/* 시간 */}
+                <Text style={[ws.timeCol, { color: inactive ? C.textMuted : color }]}>
+                  {g.schedule_time.replace(/:00$/, "").replace(/:00 /, " ")}
+                </Text>
+
+                {/* 반 이름 */}
+                <Text style={[ws.nameCol, { color: inactive ? C.textMuted : C.text }]} numberOfLines={1}>
+                  {g.name}
+                  {g.level ? <Text style={ws.levelInline}> {g.level}</Text> : null}
+                </Text>
+
+                {/* 우측 정보 */}
+                <View style={ws.rightCol}>
+                  <Text style={[ws.cntText, { color: inactive ? C.textMuted : C.textSecondary }]}>
+                    {total}명
                   </Text>
-                  <View style={ws.slotMeta}>
-                    <Text style={[ws.slotTime, { color: inactive ? C.textMuted : C.textSecondary }]}>
-                      {g.schedule_time}
-                    </Text>
-                    {g.level && (
-                      <View style={ws.levelBadge}>
-                        <Text style={ws.levelText}>{g.level}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-
-                {/* 우측: 학생 수 + 상태 점 */}
-                <View style={ws.slotRight}>
-                  {/* 학생 수 배지 */}
-                  <View style={[ws.cntBadge, { backgroundColor: inactive ? "#F3F4F6" : themeColor + "15" }]}>
-                    <Feather name="users" size={10} color={inactive ? C.textMuted : themeColor} />
-                    <Text style={[ws.cntText, { color: inactive ? C.textMuted : themeColor }]}>
-                      {total}명
-                    </Text>
-                  </View>
-
-                  {/* 상태 점 */}
                   {!inactive && (
                     <View style={ws.dots}>
-                      {/* 출결 미완료 → 빨간 점 */}
                       <View style={[ws.dot, { backgroundColor: attDone ? "#D1FAE5" : "#FEE2E2" }]}>
-                        <Feather
-                          name={attDone ? "check" : "x"}
-                          size={8}
-                          color={attDone ? "#059669" : "#DC2626"}
-                        />
+                        <Feather name={attDone ? "check" : "x"} size={7} color={attDone ? "#059669" : "#DC2626"} />
                       </View>
-                      {/* 일지 미작성 → 주황 점 */}
                       <View style={[ws.dot, { backgroundColor: diaryDone ? "#D1FAE5" : "#FEF3C7" }]}>
-                        <Feather
-                          name={diaryDone ? "check" : "edit-3"}
-                          size={8}
-                          color={diaryDone ? "#059669" : "#D97706"}
-                        />
+                        <Feather name={diaryDone ? "check" : "edit-3"} size={7} color={diaryDone ? "#059669" : "#D97706"} />
                       </View>
-                      {/* 사진 있음 → 카메라 */}
                       {hasPhotos && (
                         <View style={[ws.dot, { backgroundColor: "#EDE9FE" }]}>
-                          <Feather name="camera" size={8} color="#7C3AED" />
+                          <Feather name="camera" size={7} color="#7C3AED" />
                         </View>
                       )}
                     </View>
                   )}
                 </View>
-
-                {/* 비활성 오버레이 */}
-                {inactive && (
-                  <View style={ws.inactiveBadge}>
-                    <Text style={ws.inactiveText}>학생없음</Text>
-                  </View>
-                )}
               </Pressable>
             );
           })}
@@ -300,48 +281,52 @@ const ws = StyleSheet.create({
   root: { flex: 1 },
 
   dayBar:        { backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },
-  dayBarContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
+  dayBarContent: { paddingHorizontal: 12, paddingVertical: 6, gap: 5, flexDirection: "row" },
   dayTab: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 11, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background,
+    flexDirection: "row", alignItems: "center", gap: 3,
+    paddingHorizontal: 9, paddingVertical: 5,
+    borderRadius: 16, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background,
   },
-  dayTabText:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  todayDot:    { width: 5, height: 5, borderRadius: 3 },
-  dayCntBubble:{ minWidth: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
-  dayCntText:  { fontSize: 9, fontFamily: "Inter_700Bold" },
+  dayTabText:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  todayDot:     { width: 4, height: 4, borderRadius: 2 },
+  dayCntBubble: { minWidth: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  dayCntText:   { fontSize: 9, fontFamily: "Inter_700Bold" },
 
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10 },
-  sectionDay:    { fontSize: 14, fontFamily: "Inter_700Bold" },
-  todayLabel:    { fontSize: 13, fontFamily: "Inter_500Medium" },
-  sectionCount:  { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 14, paddingVertical: 7 },
+  sectionDay:    { fontSize: 13, fontFamily: "Inter_700Bold" },
+  todayLabel:    { fontSize: 12, fontFamily: "Inter_500Medium" },
+  sectionCount:  { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
 
-  slotList: { paddingHorizontal: 12, gap: 6 },
+  slotList: { paddingHorizontal: 10, gap: 5 },
+
   slot: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10,
-    borderWidth: 1,
+    flexDirection: "row", alignItems: "center",
+    borderRadius: 10, paddingVertical: 0,
+    borderWidth: 1, backgroundColor: C.card,
+    overflow: "hidden", height: 44,
   },
-  timePill:  { width: 42, paddingVertical: 6, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  timeText:  { fontSize: 12, fontFamily: "Inter_700Bold" },
-  slotMid:   { flex: 1, gap: 2 },
-  slotName:  { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  slotMeta:  { flexDirection: "row", alignItems: "center", gap: 6 },
-  slotTime:  { fontSize: 11, fontFamily: "Inter_400Regular" },
-  levelBadge:{ backgroundColor: "#EDE9FE", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 6 },
-  levelText: { fontSize: 10, fontFamily: "Inter_500Medium", color: "#7C3AED" },
+  slotInactive: { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" },
 
-  slotRight: { alignItems: "flex-end", gap: 5 },
-  cntBadge:  { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
-  cntText:   { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  dots:      { flexDirection: "row", gap: 3 },
-  dot:       { width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  colorBar: { width: 4, alignSelf: "stretch" },
 
-  inactiveBadge: { backgroundColor: "#F3F4F6", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  inactiveText:  { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
-  checkBox:      { width: 20, height: 20, borderRadius: 10, borderWidth: 2,
-                   alignItems: "center", justifyContent: "center" },
+  timeCol: {
+    fontSize: 11, fontFamily: "Inter_700Bold",
+    width: 62, textAlign: "center",
+  },
+  nameCol: {
+    flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold",
+    color: C.text,
+  },
+  levelInline: { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
 
-  empty:     { alignItems: "center", paddingTop: 48, gap: 10 },
-  emptyText: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
+  rightCol: { alignItems: "flex-end", paddingRight: 10, gap: 3 },
+  cntText:  { fontSize: 10, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  dots:     { flexDirection: "row", gap: 2 },
+  dot:      { width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+
+  checkBox: { width: 18, height: 18, borderRadius: 9, borderWidth: 2,
+              alignItems: "center", justifyContent: "center", marginLeft: 6 },
+
+  empty:    { alignItems: "center", paddingTop: 32, gap: 8 },
+  emptyText:{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
 });
