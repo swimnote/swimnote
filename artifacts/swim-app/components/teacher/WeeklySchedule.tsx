@@ -187,11 +187,16 @@ export function WeeklySchedule({
                   {g.schedule_time.replace(/:00$/, "").replace(/:00 /, " ")}
                 </Text>
 
-                {/* 반 이름 */}
-                <Text style={[ws.nameCol, { color: inactive ? C.textMuted : C.text }]} numberOfLines={1}>
-                  {g.name}
-                  {g.level ? <Text style={ws.levelInline}> {g.level}</Text> : null}
-                </Text>
+                {/* 반 이름 + 담당 선생 */}
+                <View style={{ flex: 1, justifyContent: "center" }}>
+                  <Text style={[ws.nameCol, { color: inactive ? C.textMuted : C.text }]} numberOfLines={1}>
+                    {g.name}
+                    {g.level ? <Text style={ws.levelInline}> {g.level}</Text> : null}
+                  </Text>
+                  {!!g.instructor && (
+                    <Text style={ws.instructorCol} numberOfLines={1}>{g.instructor}</Text>
+                  )}
+                </View>
 
                 {/* 우측 정보 */}
                 <View style={ws.rightCol}>
@@ -301,9 +306,9 @@ const ws = StyleSheet.create({
 
   slot: {
     flexDirection: "row", alignItems: "center",
-    borderRadius: 10, paddingVertical: 0,
+    borderRadius: 10, paddingVertical: 6,
     borderWidth: 1, backgroundColor: C.card,
-    overflow: "hidden", height: 44,
+    overflow: "hidden", minHeight: 44,
   },
   slotInactive: { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" },
 
@@ -314,10 +319,11 @@ const ws = StyleSheet.create({
     width: 62, textAlign: "center",
   },
   nameCol: {
-    flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold",
+    fontSize: 13, fontFamily: "Inter_600SemiBold",
     color: C.text,
   },
-  levelInline: { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
+  levelInline:    { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
+  instructorCol:  { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 1 },
 
   rightCol: { alignItems: "flex-end", paddingRight: 10, gap: 3 },
   cntText:  { fontSize: 10, fontFamily: "Inter_500Medium", color: C.textSecondary },
