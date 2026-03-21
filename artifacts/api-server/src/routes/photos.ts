@@ -344,6 +344,72 @@ router.post(
   }
 );
 
+// ── 선생님: 내 담당 반 전체 미디어 목록 (scope=group|private) ─────────────
+router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const scope = (req.query.scope as string) || "group";
+
+    let photos: any[];
+    if (scope === "group") {
+      const rows = await db.execute(sql`
+        SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploader_name,
+               sp.caption, sp.created_at, sp.file_size_bytes,
+               '/api/photos/' || sp.id || '/file' AS file_url,
+               cg.name AS class_name, cg.schedule_days, cg.schedule_time
+        FROM student_photos sp
+        JOIN class_groups cg ON cg.id = sp.class_id
+        WHERE sp.album_type = 'group'
+          AND cg.teacher_user_id = ${userId}
+        ORDER BY sp.created_at DESC
+      `);
+      photos = rows.rows as any[];
+    } else {
+      const rows = await db.execute(sql`
+        SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploader_name,
+               sp.caption, sp.created_at, sp.file_size_bytes,
+               '/api/photos/' || sp.id || '/file' AS file_url,
+               s.name AS student_name,
+               cg.name AS class_name
+        FROM student_photos sp
+        LEFT JOIN students s ON s.id = sp.student_id
+        LEFT JOIN class_groups cg ON cg.id = sp.class_id
+        WHERE sp.album_type = 'private'
+          AND sp.uploader_id = ${userId}
+        ORDER BY sp.created_at DESC
+      `);
+      photos = rows.rows as any[];
+    }
+
+    res.json({ photos, total: photos.length });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 사진 대량 삭제 (teacher: 자신이 올린 것, admin: 풀 내 모두) ──────────
+router.delete("/photos/bulk", requireAuth, requireRole("pool_admin", "teacher", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { ids } = req.body as { ids: string[] };
+      if (!Array.isArray(ids) || ids.length === 0) {
+        res.status(400).json({ error: "삭제할 사진 ID를 지정해주세요." }); return;
+      }
+      const { role, userId } = req.user!;
+      const client = getClient();
+      let deletedCount = 0;
+      for (const id of ids) {
+        const rows = await db.execute(sql`SELECT * FROM student_photos WHERE id = ${id}`);
+        const photo = rows.rows[0] as any;
+        if (!photo) continue;
+        if (role === "teacher" && photo.uploader_id !== userId) continue;
+        await client.delete(photo.storage_key).catch(() => {});
+        await db.execute(sql`DELETE FROM student_photos WHERE id = ${id}`);
+        deletedCount++;
+      }
+      res.json({ success: true, deleted: deletedCount });
+    } catch (e) { res.status(500).json({ error: "삭제 중 오류" }); }
+  }
+);
+
 // ── 부모: 자녀 전체 앨범 — 반 전체 + 개별 통합 flat 목록 + source_label ─
 router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), async (req: AuthRequest, res: Response) => {
   try {
