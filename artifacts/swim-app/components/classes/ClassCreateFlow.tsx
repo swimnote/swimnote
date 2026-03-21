@@ -57,15 +57,17 @@ interface Teacher {
   is_admin_self_teacher: boolean;
 }
 
+type StepId = 1 | 2 | 3 | 4;
+
 interface ClassCreateFlowProps {
   token: string | null;
   role: "pool_admin" | "teacher";
   selfTeacher?: { id: string; name: string };
   onSuccess: (newClass: any) => void;
   onClose: () => void;
+  initialDays?: string[];
+  initialStep?: StepId;
 }
-
-type StepId = 1 | 2 | 3 | 4;
 
 function StepDots({ current, total }: { current: number; total: number }) {
   return (
@@ -161,11 +163,11 @@ const tr = StyleSheet.create({
   badgeText: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#92400E" },
 });
 
-export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, onClose }: ClassCreateFlowProps) {
+export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, onClose, initialDays, initialStep }: ClassCreateFlowProps) {
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<StepId>(1);
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const [step, setStep] = useState<StepId>(initialStep ?? 1);
+  const [selectedDays, setSelectedDays] = useState<string[]>(initialDays ?? []);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [teachersLoading, setTeachersLoading] = useState(false);

@@ -806,6 +806,8 @@ export default function MyScheduleScreen() {
   const [loading,   setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [createInitialDays, setCreateInitialDays] = useState<string[]>([]);
+  const [createInitialStep, setCreateInitialStep] = useState<1|2|3|4>(1);
   const [deleting,   setDeleting]   = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteFailCount,   setDeleteFailCount]   = useState(0);
@@ -1109,7 +1111,7 @@ export default function MyScheduleScreen() {
                   <Feather name="users" size={13} color={themeColor} />
                   <Text style={[s.mgmtBtnText, { color: themeColor }]}>수강생관리</Text>
                 </Pressable>
-                <Pressable style={[s.createBtn, { backgroundColor: themeColor }]} onPress={() => setShowCreate(true)}>
+                <Pressable style={[s.createBtn, { backgroundColor: themeColor }]} onPress={() => { setCreateInitialDays([]); setCreateInitialStep(1); setShowCreate(true); }}>
                   <Feather name="plus" size={14} color="#fff" />
                   <Text style={s.createBtnText}>반 등록</Text>
                 </Pressable>
@@ -1199,7 +1201,14 @@ export default function MyScheduleScreen() {
           onClose={() => setSelectedDate(null)}
           onSelectClass={handleDaySheetClassPress}
           onOpenMakeup={handleDaySheetMakeup}
-          onAddClass={() => { setSelectedDate(null); setTimeout(() => setShowCreate(true), 200); }}
+          onAddClass={() => {
+            const koDay = selectedDate ? getKoDay(selectedDate) : null;
+            const validDay = koDay && koDay !== "일" ? koDay : null;
+            setCreateInitialDays(validDay ? [validDay] : []);
+            setCreateInitialStep(validDay ? 2 : 1);
+            setSelectedDate(null);
+            setTimeout(() => setShowCreate(true), 200);
+          }}
         />
       )}
 
@@ -1234,6 +1243,8 @@ export default function MyScheduleScreen() {
           token={token}
           role="teacher"
           selfTeacher={selfTeacher}
+          initialDays={createInitialDays}
+          initialStep={createInitialStep}
           onSuccess={(newGroup) => {
             const g = newGroup as TeacherClassGroup;
             setGroups(prev => [...prev, g]);
