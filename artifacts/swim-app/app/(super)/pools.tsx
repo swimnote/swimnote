@@ -24,6 +24,7 @@ interface Operator {
   approval_status: "pending" | "approved" | "rejected";
   subscription_status: string;
   subscription_tier: any;
+  pool_type: string;
   active_member_count: number;
   usage_pct: number;
   total_storage_gb: number;
@@ -33,17 +34,32 @@ interface Operator {
   created_at: string;
 }
 
-type FilterKey = "all" | "pending" | "payment_failed" | "storage_alert" | "deletion_pending" | "this_week" | "free_over30";
+type FilterKey = "all" | "pending" | "payment_failed" | "storage_alert" | "deletion_pending" | "this_week" | "free_over30" |
+  "type_swimming" | "type_coach" | "type_rental" | "type_franchise";
 
 const FILTER_CHIPS: { key: FilterKey; label: string; color: string; bg: string }[] = [
-  { key: "all",             label: "전체",          color: "#374151", bg: "#F3F4F6" },
-  { key: "pending",         label: "승인 대기",      color: "#D97706", bg: "#FEF3C7" },
-  { key: "payment_failed",  label: "결제 실패",      color: "#DC2626", bg: "#FEE2E2" },
-  { key: "storage_alert",   label: "저장 95%↑",     color: P,         bg: "#EDE9FE" },
-  { key: "deletion_pending",label: "삭제 예정",      color: "#0891B2", bg: "#ECFEFF" },
-  { key: "this_week",       label: "이번 주 신규",  color: "#059669", bg: "#D1FAE5" },
-  { key: "free_over30",     label: "무료 체험",      color: "#6B7280", bg: "#F3F4F6" },
+  { key: "all",              label: "전체",          color: "#374151", bg: "#F3F4F6" },
+  { key: "pending",          label: "승인 대기",      color: "#D97706", bg: "#FEF3C7" },
+  { key: "payment_failed",   label: "결제 실패",      color: "#DC2626", bg: "#FEE2E2" },
+  { key: "storage_alert",    label: "저장 95%↑",     color: P,         bg: "#EDE9FE" },
+  { key: "deletion_pending", label: "삭제 예정",      color: "#0891B2", bg: "#ECFEFF" },
+  { key: "this_week",        label: "이번 주 신규",  color: "#059669", bg: "#D1FAE5" },
+  { key: "free_over30",      label: "무료 체험",      color: "#6B7280", bg: "#F3F4F6" },
 ];
+
+const TYPE_CHIPS: { key: FilterKey; label: string; color: string; bg: string }[] = [
+  { key: "type_swimming",  label: "🏊 수영장",    color: "#0891B2", bg: "#ECFEFF" },
+  { key: "type_coach",     label: "🧑‍🏫 1인 코치", color: "#059669", bg: "#D1FAE5" },
+  { key: "type_rental",    label: "🏟 대관팀",    color: "#D97706", bg: "#FEF3C7" },
+  { key: "type_franchise", label: "🏢 프랜차이즈", color: P,         bg: "#EDE9FE" },
+];
+
+const POOL_TYPE_CFG: Record<string, { label: string; color: string }> = {
+  swimming_pool: { label: "수영장",    color: "#0891B2" },
+  solo_coach:    { label: "1인 코치",  color: "#059669" },
+  rental_team:   { label: "대관팀",    color: "#D97706" },
+  franchise:     { label: "프랜차이즈", color: P },
+};
 
 const SORT_OPTS = [
   { key: "created_at", label: "최신순" },
@@ -67,9 +83,10 @@ const SUB_CFG: Record<string, { label: string; color: string }> = {
 };
 
 const BULK_ACTIONS = [
-  { key: "approve",   label: "승인",      color: "#059669", bg: "#D1FAE5" },
-  { key: "reject",    label: "반려",      color: "#DC2626", bg: "#FEE2E2" },
-  { key: "restrict",  label: "제한",      color: "#D97706", bg: "#FEF3C7" },
+  { key: "approve",    label: "승인",   color: "#059669", bg: "#D1FAE5" },
+  { key: "reject",     label: "반려",   color: "#DC2626", bg: "#FEE2E2" },
+  { key: "restrict",   label: "제한",   color: "#D97706", bg: "#FEF3C7" },
+  { key: "terminate",  label: "종료",   color: "#7F1D1D", bg: "#FEE2E2" },
 ];
 
 export default function SuperPoolsScreen() {
@@ -96,7 +113,7 @@ export default function SuperPoolsScreen() {
       if (f !== "all") params.set("filter", f);
       if (s.trim())    params.set("search", s.trim());
       const res = await apiRequest(token, `/super/operators?${params}`);
-      if (res.ok) setOperators(await res.json());
+      if (res.ok) { const d = await res.json(); setOperators(d.operators ?? d ?? []); }
     } finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
@@ -112,6 +129,10 @@ export default function SuperPoolsScreen() {
 
   async function executeBulk(action: string) {
     if (selected.size === 0) return;
+    if (action === "terminate") {
+      setBulkModal(null); setMultiSelect(false);
+      router.push("/(super)/kill-switch" as any); return;
+    }
     setProcessing(true);
     try {
       await apiRequest(token, "/super/operators/bulk", {
@@ -182,6 +203,10 @@ export default function SuperPoolsScreen() {
             <Text style={[s.rowSub, { color: subCfg.color }]}>{subCfg.label}</Text>
             <Text style={s.rowDot}>·</Text>
             <Text style={s.rowMembers}>{item.active_member_count}명</Text>
+            <Text style={s.rowDot}>·</Text>
+            <Text style={[s.rowSub, { color: POOL_TYPE_CFG[item.pool_type]?.color ?? "#6B7280" }]}>
+              {POOL_TYPE_CFG[item.pool_type]?.label ?? "수영장"}
+            </Text>
           </View>
 
           {/* 저장 바 */}
@@ -256,7 +281,7 @@ export default function SuperPoolsScreen() {
         </ScrollView>
       </View>
 
-      {/* 필터 칩 */}
+      {/* 필터 칩 — 상태 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.filterBar} contentContainerStyle={s.filterContent}>
         {FILTER_CHIPS.map(f => (
@@ -269,6 +294,18 @@ export default function SuperPoolsScreen() {
                 <Text style={s.filterCountTxt}>{operators.length}</Text>
               </View>
             )}
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* 필터 칩 — 운영 유형 */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        style={[s.filterBar, { borderTopWidth: 0, paddingTop: 0 }]} contentContainerStyle={s.filterContent}>
+        {TYPE_CHIPS.map(f => (
+          <Pressable key={f.key}
+            style={[s.filterChip, { borderStyle: "dashed" }, filter === f.key && { backgroundColor: f.color, borderColor: f.color, borderStyle: "solid" }]}
+            onPress={() => { setFilter(filter === f.key ? "all" : f.key); setSelected(new Set()); setMultiSelect(false); }}>
+            <Text style={[s.filterTxt, filter === f.key && { color: "#fff" }]}>{f.label}</Text>
           </Pressable>
         ))}
       </ScrollView>

@@ -16,6 +16,8 @@ export default function SuperLayout() {
       <Stack.Screen name="kill-switch" />
       <Stack.Screen name="policy" />
       <Stack.Screen name="op-logs" />
+      <Stack.Screen name="support" />
+      <Stack.Screen name="risk-center" />
       <Stack.Screen name="users" />
       <Stack.Screen name="more" />
       <Stack.Screen name="sync" />

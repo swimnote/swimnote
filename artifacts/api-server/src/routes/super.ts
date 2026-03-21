@@ -167,6 +167,11 @@ router.get(
       if (filter === "deletion_pending") conditions.push(`sp.subscription_end_at IS NOT NULL AND sp.subscription_end_at > NOW() AND sp.subscription_end_at <= NOW() + INTERVAL '24 hours'`);
       if (filter === "this_week")        conditions.push(`sp.created_at >= NOW() - INTERVAL '7 days'`);
       if (filter === "free_over30")      conditions.push(`sp.approval_status = 'approved' AND sp.subscription_status = 'trial'`);
+      // 운영 유형 필터
+      if (filter === "type_swimming")    conditions.push(`sp.pool_type = 'swimming_pool'`);
+      if (filter === "type_coach")       conditions.push(`sp.pool_type = 'solo_coach'`);
+      if (filter === "type_rental")      conditions.push(`sp.pool_type = 'rental_team'`);
+      if (filter === "type_franchise")   conditions.push(`sp.pool_type = 'franchise'`);
 
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
       const orderMap: Record<string, string> = {
@@ -190,6 +195,7 @@ router.get(
           sp.extra_storage_gb,
           sp.used_storage_bytes,
           sp.created_at,
+          COALESCE(sp.pool_type, 'swimming_pool') AS pool_type,
           COALESCE(sp.subscription_end_at, sp.trial_end_at) AS next_billing_at,
           (
             SELECT COUNT(*)::int FROM students st
@@ -607,5 +613,349 @@ router.put(
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
+
+// ── DB 초기화: 컬럼 + 테이블 (앱 시작 시 즉시 실행) ──────────────────
+async function ensureExtraTables() {
+  // pool_type 컬럼 추가 (없으면)
+  await db.execute(sql`
+    ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS pool_type TEXT DEFAULT 'swimming_pool'
+  `).catch(() => {});
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id          TEXT PRIMARY KEY,
+      ticket_type TEXT NOT NULL DEFAULT 'other',
+      requester_type TEXT NOT NULL DEFAULT 'operator',
+      requester_name TEXT,
+      pool_id     TEXT,
+      subject     TEXT NOT NULL,
+      description TEXT,
+      status      TEXT NOT NULL DEFAULT 'open',
+      assignee    TEXT,
+      sla_hours   INTEGER DEFAULT 24,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ DEFAULT NOW(),
+      resolved_at TIMESTAMPTZ
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS policy_versions (
+      id          TEXT PRIMARY KEY,
+      policy_key  TEXT NOT NULL,
+      version     TEXT NOT NULL,
+      value       TEXT NOT NULL,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      created_by  TEXT
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS policy_consents (
+      id          TEXT PRIMARY KEY,
+      pool_id     TEXT NOT NULL,
+      policy_key  TEXT NOT NULL,
+      version     TEXT NOT NULL,
+      agreed_at   TIMESTAMPTZ DEFAULT NOW(),
+      ip_address  TEXT,
+      UNIQUE(pool_id, policy_key, version)
+    )
+  `);
+}
+
+// ════════════════════════════════════════════════════════════════
+// GET /super/risk-center — 장애·리스크 센터 통합 데이터
+// ════════════════════════════════════════════════════════════════
+router.get(
+  "/super/risk-center",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      const [payFailed, storageDanger, deletionPending, uploadSpike, openTickets, lastBackup] =
+        await Promise.all([
+          // 결제 실패
+          db.execute(sql`
+            SELECT id, name, owner_name, subscription_status, subscription_end_at
+            FROM swimming_pools
+            WHERE approval_status = 'approved'
+              AND subscription_status IN ('expired','suspended','cancelled')
+            ORDER BY subscription_end_at ASC NULLS LAST LIMIT 20
+          `),
+          // 저장 95% 초과
+          db.execute(sql`
+            SELECT id, name, owner_name, used_storage_bytes,
+                   (base_storage_gb + COALESCE(extra_storage_gb,0)) AS total_gb,
+                   ROUND(used_storage_bytes::numeric /
+                     NULLIF((base_storage_gb + COALESCE(extra_storage_gb,0)) * 1073741824, 0) * 100)::int AS usage_pct
+            FROM swimming_pools
+            WHERE approval_status = 'approved'
+              AND used_storage_bytes IS NOT NULL
+              AND (base_storage_gb + COALESCE(extra_storage_gb,0)) > 0
+              AND used_storage_bytes::float /
+                  ((base_storage_gb + COALESCE(extra_storage_gb,0)) * 1073741824) >= 0.95
+            ORDER BY usage_pct DESC LIMIT 20
+          `),
+          // 자동삭제 예정 (48h)
+          db.execute(sql`
+            SELECT id, name, owner_name, subscription_end_at,
+                   EXTRACT(EPOCH FROM (subscription_end_at - NOW())) / 3600 AS hours_left
+            FROM swimming_pools
+            WHERE subscription_end_at IS NOT NULL
+              AND subscription_end_at > NOW()
+              AND subscription_end_at <= NOW() + INTERVAL '48 hours'
+            ORDER BY subscription_end_at ASC LIMIT 20
+          `),
+          // 업로드 급증 (24h 내 저장공간 이벤트 많은 운영자)
+          db.execute(sql`
+            SELECT el.pool_id, sp.name, sp.owner_name, COUNT(*)::int AS event_count
+            FROM event_logs el
+            JOIN swimming_pools sp ON sp.id = el.pool_id
+            WHERE el.category = '저장공간'
+              AND el.created_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY el.pool_id, sp.name, sp.owner_name
+            HAVING COUNT(*) >= 5
+            ORDER BY event_count DESC LIMIT 10
+          `),
+          // 미처리 고객센터 티켓
+          db.execute(sql`
+            SELECT COUNT(*)::int AS open_count,
+                   COUNT(*) FILTER (WHERE created_at <= NOW() - (sla_hours || ' hours')::interval)::int AS overdue_count
+            FROM support_tickets
+            WHERE status IN ('open','in_progress')
+          `).catch(() => ({ rows: [{ open_count: 0, overdue_count: 0 }] })),
+          // 마지막 백업 시간
+          db.execute(sql`
+            SELECT MAX(created_at) AS last_at FROM event_logs
+            WHERE description ILIKE '%백업%' OR category = '백업'
+          `).catch(() => ({ rows: [{ last_at: null }] })),
+        ]);
+
+      res.json({
+        payment_failed:   payFailed.rows,
+        storage_danger:   storageDanger.rows,
+        deletion_pending: deletionPending.rows,
+        upload_spike:     uploadSpike.rows,
+        support: (openTickets.rows[0] as any) ?? { open_count: 0, overdue_count: 0 },
+        backup: { last_at: (lastBackup.rows[0] as any)?.last_at ?? null },
+        external_services: [
+          { name: "데이터베이스", status: "normal" },
+          { name: "오브젝트 스토리지", status: "normal" },
+          { name: "API 서버", status: "normal" },
+          { name: "Expo 빌드", status: "normal" },
+        ],
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// GET /super/support-tickets
+// ════════════════════════════════════════════════════════════════
+router.get(
+  "/super/support-tickets",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { status, ticket_type, limit = "50", offset = "0" } = req.query as any;
+      const conds: string[] = [];
+      if (status && status !== "all") conds.push(`st.status = '${status.replace(/'/g,"''")}'`);
+      if (ticket_type && ticket_type !== "all") conds.push(`st.ticket_type = '${ticket_type.replace(/'/g,"''")}'`);
+      const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+      const rows = (await db.execute(sql.raw(`
+        SELECT st.*, sp.name AS pool_name
+        FROM support_tickets st
+        LEFT JOIN swimming_pools sp ON sp.id = st.pool_id
+        ${where}
+        ORDER BY st.created_at DESC
+        LIMIT ${Number(limit)} OFFSET ${Number(offset)}
+      `))).rows;
+      res.json(rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// POST /super/support-tickets
+// ════════════════════════════════════════════════════════════════
+router.post(
+  "/super/support-tickets",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { ticket_type, requester_type, requester_name, pool_id, subject, description, sla_hours } = req.body as any;
+      if (!subject) { res.status(400).json({ error: "제목을 입력해주세요." }); return; }
+      const id = `tkt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await db.execute(sql`
+        INSERT INTO support_tickets (id, ticket_type, requester_type, requester_name, pool_id, subject, description, sla_hours)
+        VALUES (${id}, ${ticket_type ?? "other"}, ${requester_type ?? "operator"}, ${requester_name ?? null},
+                ${pool_id ?? null}, ${subject}, ${description ?? null}, ${sla_hours ?? 24})
+      `);
+      res.json({ ok: true, id });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// PATCH /super/support-tickets/:id
+// ════════════════════════════════════════════════════════════════
+router.patch(
+  "/super/support-tickets/:id",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { id } = req.params;
+      const { status, assignee, description } = req.body as any;
+      if (status === "resolved") {
+        await db.execute(sql`
+          UPDATE support_tickets SET status = ${status}, assignee = ${assignee ?? null},
+            description = COALESCE(${description ?? null}, description),
+            updated_at = NOW(), resolved_at = NOW() WHERE id = ${id}
+        `);
+      } else {
+        await db.execute(sql`
+          UPDATE support_tickets SET status = COALESCE(${status ?? null}, status),
+            assignee = COALESCE(${assignee ?? null}, assignee),
+            description = COALESCE(${description ?? null}, description),
+            updated_at = NOW() WHERE id = ${id}
+        `);
+      }
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// GET /super/policy-versions/:key — 정책 버전 목록
+// POST /super/policy-versions/:key — 새 버전 저장
+// ════════════════════════════════════════════════════════════════
+router.get(
+  "/super/policy-versions/:key",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const rows = (await db.execute(sql`
+        SELECT id, policy_key, version, created_at, created_by,
+               LEFT(value, 120) AS preview
+        FROM policy_versions
+        WHERE policy_key = ${req.params.key}
+        ORDER BY created_at DESC LIMIT 20
+      `)).rows;
+      res.json(rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+router.post(
+  "/super/policy-versions/:key",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { key } = req.params;
+      const { version, value } = req.body as any;
+      if (!version || !value) { res.status(400).json({ error: "버전·내용을 입력해주세요." }); return; }
+      const id = `pv_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      const actorName = req.user?.name ?? "슈퍼관리자";
+      await db.execute(sql`
+        INSERT INTO policy_versions (id, policy_key, version, value, created_by)
+        VALUES (${id}, ${key}, ${version}, ${value}, ${actorName})
+      `);
+      res.json({ ok: true, id });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// GET /super/policy-consents — 정책 미동의 운영자 목록
+// ════════════════════════════════════════════════════════════════
+router.get(
+  "/super/policy-consents",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { policy_key } = req.query as any;
+      // 승인된 운영자 중 해당 정책에 동의하지 않은 목록
+      const rows = (await db.execute(sql`
+        SELECT sp.id, sp.name, sp.owner_name, sp.approval_status, sp.created_at
+        FROM swimming_pools sp
+        WHERE sp.approval_status = 'approved'
+          AND NOT EXISTS (
+            SELECT 1 FROM policy_consents pc
+            WHERE pc.pool_id = sp.id
+              AND pc.policy_key = ${policy_key ?? "refund_policy"}
+          )
+        ORDER BY sp.created_at DESC
+        LIMIT 50
+      `)).rows;
+      res.json(rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// GET /super/kill-switch-logs — 킬스위치 실행 로그
+// ════════════════════════════════════════════════════════════════
+router.get(
+  "/super/kill-switch-logs",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      const rows = (await db.execute(sql`
+        SELECT el.id, el.pool_id, el.actor_name, el.description, el.metadata, el.created_at,
+               sp.name AS pool_name
+        FROM event_logs el
+        LEFT JOIN swimming_pools sp ON sp.id = el.pool_id
+        WHERE el.category = '삭제'
+        ORDER BY el.created_at DESC LIMIT 50
+      `)).rows;
+      res.json(rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// POST /super/operators/:id/defer-deletion — 삭제 유예 (종료 기간 연장)
+// Body: { hours: number }
+// ════════════════════════════════════════════════════════════════
+router.post(
+  "/super/operators/:id/defer-deletion",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { hours = 48 } = req.body as any;
+      await db.execute(sql`
+        UPDATE swimming_pools
+        SET subscription_end_at = subscription_end_at + (${hours} || ' hours')::interval
+        WHERE id = ${id} AND subscription_end_at IS NOT NULL
+      `);
+      const actorName = req.user?.name ?? "슈퍼관리자";
+      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await db.execute(sql`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (${logId}, ${id}, '삭제', ${req.user!.userId}, ${actorName}, ${id},
+                ${'삭제 유예 ' + hours + '시간'}, '{}'::jsonb)
+      `).catch(() => {});
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// 앱 시작 시 비동기로 테이블/컬럼 보장
+ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));
 
 export default router;
