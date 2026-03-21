@@ -5,6 +5,8 @@
  * 팝업 → 반 클릭 → 반 상세 / 일지 / 보강 이동 → 같은 날짜 팝업 복귀
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -330,7 +332,7 @@ const mc = StyleSheet.create({
 
 // ─── 날짜 상세 팝업 (월간 → 날짜 클릭) ──────────────────────────
 function DaySheet({
-  dateStr, classes, attMap, diarySet, themeColor,
+  dateStr, classes, attMap, diarySet, themeColor, poolId,
   memo, onMemoChange, onSaveMemo,
   onClose, onSelectClass,
   onOpenMakeup, onAddClass,
@@ -340,6 +342,7 @@ function DaySheet({
   attMap: Record<string, number>;
   diarySet: Set<string>;
   themeColor: string;
+  poolId: string;
   memo: string;
   onMemoChange: (v: string) => void;
   onSaveMemo: () => void;
@@ -350,6 +353,70 @@ function DaySheet({
 }) {
   const [editingMemo, setEditingMemo] = useState(false);
   const label = dateLabelFull(dateStr);
+
+  // ── 음성 메모 상태 ──
+  const [isRecording, setIsRecording] = useState(false);
+  const [recording,   setRecording]   = useState<Audio.Recording | null>(null);
+  const [audioUri,    setAudioUri]    = useState<string | null>(null);
+  const [sound,       setSound]       = useState<Audio.Sound | null>(null);
+  const [isPlaying,   setIsPlaying]   = useState(false);
+
+  const AUDIO_STORAGE_KEY = `scheduleAudio_${poolId}_${dateStr}`;
+
+  // 날짜 변경 시 저장된 음성 로드
+  useEffect(() => {
+    AsyncStorage.getItem(AUDIO_STORAGE_KEY).then(uri => setAudioUri(uri || null)).catch(() => {});
+    return () => { sound?.unloadAsync().catch(() => {}); };
+  }, [dateStr, poolId]);
+
+  async function startRecording() {
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      setRecording(rec);
+      setIsRecording(true);
+    } catch {}
+  }
+
+  async function stopAndSaveRecording() {
+    if (!recording) return;
+    try {
+      setIsRecording(false);
+      await recording.stopAndUnloadAsync();
+      const tempUri = recording.getURI();
+      setRecording(null);
+      if (!tempUri) return;
+      if (audioUri) await FileSystem.deleteAsync(audioUri, { idempotent: true }).catch(() => {});
+      const dest = `${FileSystem.documentDirectory}scheduleAudio_${poolId}_${dateStr}.m4a`;
+      await FileSystem.copyAsync({ from: tempUri, to: dest });
+      await AsyncStorage.setItem(AUDIO_STORAGE_KEY, dest);
+      setAudioUri(dest);
+    } catch {}
+  }
+
+  async function playAudio() {
+    if (!audioUri) return;
+    try {
+      if (sound) { await sound.unloadAsync(); setSound(null); }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      const { sound: s } = await Audio.Sound.createAsync({ uri: audioUri }, { shouldPlay: true });
+      setSound(s); setIsPlaying(true);
+      s.setOnPlaybackStatusUpdate(status => {
+        if ("didJustFinish" in status && status.didJustFinish) setIsPlaying(false);
+      });
+    } catch {}
+  }
+
+  async function deleteAudio() {
+    if (audioUri) {
+      await FileSystem.deleteAsync(audioUri, { idempotent: true }).catch(() => {});
+      await AsyncStorage.removeItem(AUDIO_STORAGE_KEY).catch(() => {});
+    }
+    if (sound) { await sound.unloadAsync().catch(() => {}); setSound(null); }
+    setAudioUri(null); setIsPlaying(false);
+  }
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
@@ -485,6 +552,52 @@ function DaySheet({
             ) : (
               <Text style={dy.memoEmpty}>메모 없음</Text>
             )}
+
+            {/* 음성 메모 */}
+            <View style={dy.audioDivider} />
+            <View style={dy.audioRow}>
+              <Feather name="mic" size={13} color={C.textSecondary} />
+              <Text style={dy.audioLabel}>음성 메모</Text>
+              <View style={{ flex: 1 }} />
+              {isRecording ? (
+                <Pressable style={[dy.audioBtn, { backgroundColor: "#FEE2E2" }]}
+                  onPress={stopAndSaveRecording}>
+                  <Feather name="stop-circle" size={15} color="#EF4444" />
+                  <Text style={[dy.audioBtnTxt, { color: "#EF4444" }]}>저장</Text>
+                </Pressable>
+              ) : (
+                <Pressable style={[dy.audioBtn, { backgroundColor: themeColor + "1A" }]}
+                  onPress={startRecording}>
+                  <Feather name="mic" size={15} color={themeColor} />
+                  <Text style={[dy.audioBtnTxt, { color: themeColor }]}>녹음</Text>
+                </Pressable>
+              )}
+              {audioUri && !isRecording && (
+                <>
+                  <Pressable
+                    style={[dy.audioBtn, { backgroundColor: isPlaying ? themeColor + "30" : "#F0FDF4" }]}
+                    onPress={playAudio}>
+                    <Feather name={isPlaying ? "volume-2" : "play"} size={15}
+                      color={isPlaying ? themeColor : "#059669"} />
+                    <Text style={[dy.audioBtnTxt, { color: isPlaying ? themeColor : "#059669" }]}>
+                      {isPlaying ? "재생중" : "재생"}
+                    </Text>
+                  </Pressable>
+                  <Pressable style={dy.audioDelBtn} onPress={deleteAudio}>
+                    <Feather name="trash-2" size={14} color="#EF4444" />
+                  </Pressable>
+                </>
+              )}
+            </View>
+            {isRecording && (
+              <View style={dy.recordingIndicator}>
+                <View style={dy.recordingDot} />
+                <Text style={dy.recordingTxt}>녹음 중...</Text>
+              </View>
+            )}
+            {audioUri && !isRecording && (
+              <Text style={dy.audioSavedTxt}>음성 메모 저장됨</Text>
+            )}
           </View>
         </ScrollView>
       </View>
@@ -545,6 +658,20 @@ const dy = StyleSheet.create({
   memoCancelBtnTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
   memoSaveBtn:    { flex: 2, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
   memoSaveBtnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  // 음성 메모
+  audioDivider:   { height: 1, backgroundColor: "#FDE68A", marginVertical: 10 },
+  audioRow:       { flexDirection: "row", alignItems: "center", gap: 6 },
+  audioLabel:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#92400E" },
+  audioBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10,
+                    paddingVertical: 6, borderRadius: 8 },
+  audioBtnTxt:    { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  audioDelBtn:    { width: 30, height: 30, alignItems: "center", justifyContent: "center",
+                    borderRadius: 8, backgroundColor: "#FEE2E2" },
+  recordingIndicator: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  recordingDot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444" },
+  recordingTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#EF4444" },
+  audioSavedTxt:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#92400E",
+                    marginTop: 4, opacity: 0.8 },
 });
 
 // ─── 반 상세 시트 (주간 뷰 클릭용) ─────────────────────────────
@@ -1215,6 +1342,7 @@ export default function MyScheduleScreen() {
           attMap={dayAttMap}
           diarySet={dayDiarySet}
           themeColor={themeColor}
+          poolId={poolId}
           memo={dayMemo}
           onMemoChange={setDayMemo}
           onSaveMemo={() => saveMemo(selectedDate, dayMemo)}
