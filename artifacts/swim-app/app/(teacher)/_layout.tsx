@@ -9,18 +9,28 @@ import { useBrand } from "@/context/BrandContext";
 import { emitTabReset } from "@/utils/tabReset";
 import { FeedbackTemplateProvider } from "@/context/FeedbackTemplateContext";
 
-const ADMIN_ROLES = ["pool_admin", "sub_admin", "super_admin", "platform_admin"];
+const ADMIN_ONLY_ROLES = ["pool_admin", "super_admin", "platform_admin"];
 
 export default function TeacherLayout() {
   const { themeColor } = useBrand();
   const { kind, isLoading, adminUser } = useAuth();
   const C = Colors.light;
 
-  // 권한 보호: 관리자 모드 상태에서 선생님 화면 접근 시 관리자 홈으로 리다이렉트
+  // 권한 보호: 관리자 전용 역할로 선생님 화면에 직접 접근하는 경우만 리다이렉트
+  // 역할 전환 직후 state 업데이트 타이밍 이슈 방지를 위해 200ms 딜레이 사용
   useEffect(() => {
     if (isLoading || !kind) return;
-    if (kind === "admin" && adminUser?.role && ADMIN_ROLES.includes(adminUser.role)) {
-      router.replace("/(admin)/dashboard" as any);
+    const role = adminUser?.role;
+    if (!role) return;
+    // role이 명시적으로 "teacher"면 OK (전환 성공)
+    if (role === "teacher") return;
+    // 순수 관리자 역할이면 짧은 딜레이 후 관리자 홈으로
+    // (딜레이 중 state가 "teacher"로 바뀌면 cleanup으로 취소됨)
+    if (kind === "admin" && ADMIN_ONLY_ROLES.includes(role)) {
+      const timer = setTimeout(() => {
+        router.replace("/(admin)/dashboard" as any);
+      }, 200);
+      return () => clearTimeout(timer);
     }
   }, [isLoading, kind, adminUser?.role]);
 

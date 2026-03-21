@@ -384,16 +384,24 @@ router.post("/check-role-permission", requireAuth, async (req: AuthRequest, res)
   try {
     const userId = req.user!.userId;
     if (role === "teacher") {
-      // teacher_invites에서 approved 상태 확인
+      // pool_admin은 항상 teacher 전환 가능
+      const userRow = await db.execute(sql`
+        SELECT is_activated, roles, role AS primary_role FROM users WHERE id = ${userId} LIMIT 1
+      `);
+      const u = userRow.rows[0] as any;
+      if (!u) { res.json({ valid: false }); return; }
+      const userRoles: string[] = u.roles ?? [];
+      if (userRoles.includes("pool_admin") || u.primary_role === "pool_admin") {
+        res.json({ valid: true }); return;
+      }
+      // 일반 teacher: teacher_invites에서 approved 상태 확인
       const rows = await db.execute(sql`
         SELECT invite_status FROM teacher_invites WHERE user_id = ${userId} LIMIT 1
       `);
       const row = rows.rows[0] as any;
       if (!row) {
-        // teacher_invites에 없으면 users.is_activated 확인
-        const userRow = await db.execute(sql`SELECT is_activated FROM users WHERE id = ${userId} LIMIT 1`);
-        const activated = (userRow.rows[0] as any)?.is_activated ?? false;
-        res.json({ valid: activated }); return;
+        // teacher_invites에 없으면 is_activated 확인
+        res.json({ valid: u.is_activated === true }); return;
       }
       res.json({ valid: row.invite_status === "approved" }); return;
     }
@@ -413,11 +421,33 @@ router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
     let userRoles: string[] = row.roles ?? [];
 
     // pool_admin 계정이 "teacher"로 전환 요청 시 자동으로 teacher 역할 추가 (최초 1회)
-    if (!userRoles.includes(role) && role === "teacher" &&
-        (userRoles.includes("pool_admin") || row.primary_role === "pool_admin")) {
+    const isPoolAdmin = userRoles.includes("pool_admin") || row.primary_role === "pool_admin";
+    if (!userRoles.includes(role) && role === "teacher" && isPoolAdmin) {
       userRoles = [...userRoles, "teacher"];
       const rolesLiteral = `{${userRoles.map((r: string) => `"${r}"`).join(",")}}`;
       await db.execute(sql.raw(`UPDATE users SET roles = '${rolesLiteral}'::TEXT[] WHERE id = '${req.user!.userId}'`));
+    }
+
+    // pool_admin이 teacher로 전환 시 teacher_invites 승인 레코드 자동 생성 (없는 경우)
+    if (role === "teacher" && isPoolAdmin) {
+      const userId = req.user!.userId;
+      const existingInvite = await db.execute(sql`
+        SELECT id FROM teacher_invites WHERE user_id = ${userId} LIMIT 1
+      `);
+      if (!existingInvite.rows.length) {
+        const userInfo = await db.execute(sql`
+          SELECT name, phone FROM users WHERE id = ${userId} LIMIT 1
+        `);
+        const info = userInfo.rows[0] as any;
+        const inviteId = `ti_admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await db.execute(sql`
+          INSERT INTO teacher_invites
+            (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, requested_at, approved_at, created_at)
+          VALUES
+            (${inviteId}, ${row.swimming_pool_id}, ${info?.name ?? ""}, ${info?.phone ?? ""},
+             'approved', ${userId}, ${userId}, now(), now(), now())
+        `).catch(() => {});
+      }
     }
 
     if (!userRoles.includes(role)) return err(res, 403, "해당 역할에 대한 권한이 없습니다.");
