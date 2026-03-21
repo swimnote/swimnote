@@ -751,25 +751,10 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
           </Pressable>
         </View>
         <View style={cds.actionRow}>
-          <Pressable style={[cds.actionBtn, { backgroundColor: attDone ? "#D1FAE5" : "#FEE2E2" }]}
-            onPress={() => { onClose(); router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: group.id} } as any); }}>
-            <Feather name="check-square" size={13} color={attDone ? "#059669" : "#DC2626"} />
-            <Text style={[cds.actionText, { color: attDone ? "#059669" : "#DC2626" }]}>출결</Text>
-          </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#D1FAE5" : "#FEF3C7" }]}
-            onPress={() => { onClose(); router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any); }}>
-            <Feather name="edit-3" size={13} color={diarDone ? "#059669" : "#D97706"} />
-            <Text style={[cds.actionText, { color: diarDone ? "#059669" : "#D97706" }]}>수업일지</Text>
-          </Pressable>
           <Pressable style={[cds.actionBtn, { backgroundColor: "#EEF2FF" }]}
             onPress={() => { onClose(); router.push(`/class-assign?classId=${group.id}` as any); }}>
             <Feather name="users" size={13} color="#4338CA" />
             <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
-          </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: "#FEF9C3" }]}
-            onPress={() => { onClose(); setTimeout(() => onOpenExtra?.(), 200); }}>
-            <Feather name="plus-circle" size={13} color="#CA8A04" />
-            <Text style={[cds.actionText, { color: "#CA8A04" }]}>기타수업</Text>
           </Pressable>
           <Pressable style={[cds.actionBtn, { backgroundColor: "#F0FDF4" }]}
             onPress={() => { onClose(); setTimeout(() => onOpenUnreg?.(), 200); }}>
@@ -780,6 +765,21 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
             onPress={() => { onClose(); setTimeout(() => onOpenRemove?.(), 200); }}>
             <Feather name="log-out" size={13} color="#E11D48" />
             <Text style={[cds.actionText, { color: "#E11D48" }]}>반이동</Text>
+          </Pressable>
+          <Pressable style={[cds.actionBtn, { backgroundColor: attDone ? "#D1FAE5" : "#FEE2E2" }]}
+            onPress={() => { onClose(); router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: group.id} } as any); }}>
+            <Feather name="check-square" size={13} color={attDone ? "#059669" : "#DC2626"} />
+            <Text style={[cds.actionText, { color: attDone ? "#059669" : "#DC2626" }]}>출결</Text>
+          </Pressable>
+          <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#D1FAE5" : "#FEF3C7" }]}
+            onPress={() => { onClose(); router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any); }}>
+            <Feather name="edit-3" size={13} color={diarDone ? "#059669" : "#D97706"} />
+            <Text style={[cds.actionText, { color: diarDone ? "#059669" : "#D97706" }]}>수업일지</Text>
+          </Pressable>
+          <Pressable style={[cds.actionBtn, { backgroundColor: "#FEF9C3" }]}
+            onPress={() => { onClose(); setTimeout(() => onOpenExtra?.(), 200); }}>
+            <Feather name="plus-circle" size={13} color="#CA8A04" />
+            <Text style={[cds.actionText, { color: "#CA8A04" }]}>기타수업</Text>
           </Pressable>
         </View>
         <Text style={cds.sectionLabel}>학생 목록</Text>
@@ -1232,6 +1232,11 @@ export default function MyScheduleScreen() {
         <SubScreenHeader title={g.name} subtitle={`${g.schedule_days} · ${g.schedule_time}`}
           onBack={() => setSelectedGroup(null)} homePath="/(teacher)/today-schedule" />
         <View style={s.subHeader}>
+          <Pressable style={[s.subActionBtn, { backgroundColor: "#EEF2FF" }]}
+            onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
+            <Feather name="users" size={13} color="#4338CA" />
+            <Text style={[s.subActionText, { color: "#4338CA" }]}>반배정</Text>
+          </Pressable>
           <Pressable style={[s.subActionBtn, { backgroundColor: attDone ? "#D1FAE5" : "#FEE2E2" }]}
             onPress={() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: g.id} } as any)}>
             <Feather name="check-square" size={13} color={attDone ? "#059669" : "#DC2626"} />
@@ -1241,11 +1246,6 @@ export default function MyScheduleScreen() {
             onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name} } as any)}>
             <Feather name="edit-3" size={13} color={diarDone ? "#059669" : "#D97706"} />
             <Text style={[s.subActionText, { color: diarDone ? "#059669" : "#D97706" }]}>수업일지</Text>
-          </Pressable>
-          <Pressable style={[s.subActionBtn, { backgroundColor: "#EEF2FF" }]}
-            onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
-            <Feather name="users" size={13} color="#4338CA" />
-            <Text style={[s.subActionText, { color: "#4338CA" }]}>반배정</Text>
           </Pressable>
           <Pressable style={[s.subActionBtn, { backgroundColor: "#FEF9C3" }]}
             onPress={() => setShowExtraModal(true)}>
