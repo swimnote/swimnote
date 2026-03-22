@@ -54,8 +54,8 @@ const MENUS = [
   },
   {
     icon: "message-square" as const,
-    title: "SMS 과금·사용량",
-    sub: "운영자별 발송수·초과과금·차단여부",
+    title: "SMS 판매·정산 관리",
+    sub: "크레딧 판매·잔액·차단·운영자별 사용량",
     path: "/(super)/sms-billing",
     color: "#D97706",
     bg: "#FEF3C7",
