@@ -48,9 +48,11 @@ const MENUS = [
 export default function SupportGroupScreen() {
   const openCount   = useSupportStore(s => s.getOpenCount());
   const slaOverdue  = useSupportStore(s => s.getSlaOverdueCount());
-  const smsRecords  = useSmsStore(s => s.smsRecords);
+  const rawRecords  = useSmsStore(s => s.records);
+  const rawInvites  = useSmsStore(s => s.invites);
+  const smsRecords  = rawRecords  ?? [];
+  const invites     = rawInvites  ?? [];
   const failedSms   = smsRecords.filter(r => r.status === 'failed').length;
-  const invites     = useSmsStore(s => s.inviteRecords);
   const pendingInv  = invites.filter(r => r.status === 'pending').length;
 
   return (
