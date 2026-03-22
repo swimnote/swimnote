@@ -17,6 +17,7 @@ import { useBrand } from "@/context/BrandContext";
 import { useSmsStore } from "@/store/smsStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { InviteRole, InviteRecord, SmsType } from "@/domain/types";
+import { buildGuardianMessage, buildTeacherMessage } from "@/store/inviteRecordStore";
 
 const FREE_QUOTA = 500;
 const SMS_UNIT_PRICE = 9.9;
@@ -50,7 +51,7 @@ function fmtDate(iso: string) {
 }
 
 export default function OperatorInviteSmsScreen() {
-  const { adminUser } = useAuth();
+  const { adminUser, pool } = useAuth();
   const { themeColor } = useBrand();
   const actorName = adminUser?.name ?? "운영자";
 
@@ -80,11 +81,11 @@ export default function OperatorInviteSmsScreen() {
 
   async function doSend() {
     if (!invName.trim() || !invPhone.trim()) return;
-    const poolName = "우리 수영장";
-    const inviteMsg = invRole === "teacher"
-      ? `[스윔노트] 안녕하세요 ${invName} 선생님, ${poolName} 초대장입니다.\n앱 다운로드 후 선생님 코드로 가입해 주세요.\nhttps://swimnote.kr`
-      : `[스윔노트] 안녕하세요 ${invName} 학부모님, ${poolName}에서 초대장을 보냈습니다.\n앱 설치 후 가입해 주세요.\nhttps://swimnote.kr`;
+    const poolName = pool?.name ?? "우리 수영장";
     const rawPhone = invPhone.replace(/\D/g, "");
+    const inviteMsg = invRole === "teacher"
+      ? buildTeacherMessage(poolName, invPhone)
+      : buildGuardianMessage(poolName, invName);
     const smsUrl = `sms:${rawPhone}?body=${encodeURIComponent(inviteMsg)}`;
     createInvite({
       role: invRole,

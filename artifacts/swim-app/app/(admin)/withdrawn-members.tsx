@@ -152,7 +152,7 @@ export default function WithdrawnMembersScreen() {
       <View style={[styles.infoBanner, { backgroundColor: tab === "withdrawn" ? "#FEF2F2" : "#F3F4F6" }]}>
         {tab === "withdrawn" ? (
           <Text style={[styles.infoText, { color: "#991B1B" }]}>
-            퇴원자는 과금에서 제외됩니다. 최종 퇴원 처리 시 학부모 앱 접근이 즉시 차단됩니다.
+            퇴원자는 과금에 포함되지 않습니다. 최종 퇴원 처리 시 학부모 앱 접근이 차단됩니다. 복구 가능 기간 내에는 관리자가 복구할 수 있습니다.
           </Text>
         ) : (
           <Text style={[styles.infoText, { color: "#374151" }]}>

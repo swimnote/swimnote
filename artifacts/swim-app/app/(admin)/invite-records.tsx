@@ -1,15 +1,15 @@
 /**
- * 학부모 초대 내역 — 관리자 화면
- * 문자앱 열기 / 링크 복사로 발송된 초대 기록 목록 + 상태 추적
+ * (admin)/invite-records.tsx — 초대 안내 기록
+ * 플랫폼은 문자 전송 성공/실패를 추적하지 않음.
+ * "문자 앱 호출 횟수"만 기록하며, 재안내 버튼으로 문자 앱을 다시 열 수 있음.
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   Alert, FlatList, Linking, Platform, Pressable,
-  Share, StyleSheet, Text, View,
+  StyleSheet, Text, View,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -17,126 +17,124 @@ import { ScreenLayout } from "@/components/common/ScreenLayout";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { FilterChips, FilterChipItem } from "@/components/common/FilterChips";
 import { EmptyState } from "@/components/common/EmptyState";
-import { useInviteRecordStore, InviteRecord, InviteStatus } from "@/store/inviteRecordStore";
+import { useInviteRecordStore, InviteRecord, InviteTargetType } from "@/store/inviteRecordStore";
 
 const C = Colors.light;
 
-// ── 상태 설정 ────────────────────────────────────────────────────
-const STATUS_CFG: Record<InviteStatus, { label: string; color: string; bg: string; icon: string }> = {
-  opened_sms_app:   { label: "문자앱 열기 완료", color: "#0891B2", bg: "#ECFEFF", icon: "message-circle" },
-  copied_link:      { label: "링크 복사",        color: "#7C3AED", bg: "#F3E8FF", icon: "copy"           },
-  signup_requested: { label: "가입 요청 옴",     color: "#D97706", bg: "#FEF3C7", icon: "user-plus"      },
-  approved:         { label: "승인 완료",         color: "#059669", bg: "#D1FAE5", icon: "check-circle"   },
-};
-
-type FilterKey = "all" | InviteStatus;
+type FilterKey = "all" | InviteTargetType;
 
 const FILTER_CHIPS: FilterChipItem<FilterKey>[] = [
-  { key: "all",             label: "전체",         icon: "list"          },
-  { key: "opened_sms_app",  label: "문자앱",       icon: "message-circle", activeColor: STATUS_CFG.opened_sms_app.color,   activeBg: STATUS_CFG.opened_sms_app.bg   },
-  { key: "copied_link",     label: "링크복사",     icon: "copy",           activeColor: STATUS_CFG.copied_link.color,      activeBg: STATUS_CFG.copied_link.bg      },
-  { key: "signup_requested",label: "가입요청",     icon: "user-plus",      activeColor: STATUS_CFG.signup_requested.color, activeBg: STATUS_CFG.signup_requested.bg },
-  { key: "approved",        label: "승인완료",     icon: "check-circle",   activeColor: STATUS_CFG.approved.color,         activeBg: STATUS_CFG.approved.bg         },
+  { key: "all",      label: "전체",   icon: "list"   },
+  { key: "guardian", label: "학부모", icon: "users",      activeColor: "#059669", activeBg: "#D1FAE5" },
+  { key: "teacher",  label: "선생님", icon: "user-check", activeColor: "#7C3AED", activeBg: "#EDE9FE" },
 ];
 
-function formatDate(iso: string) {
+const TARGET_CFG: Record<InviteTargetType, { label: string; color: string; bg: string; icon: string }> = {
+  guardian: { label: "학부모", color: "#059669", bg: "#D1FAE5", icon: "users"      },
+  teacher:  { label: "선생님", color: "#7C3AED", bg: "#EDE9FE", icon: "user-check" },
+};
+
+function fmtDate(iso: string) {
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// ── 초대 카드 ────────────────────────────────────────────────────
+// ── 초대 안내 카드 ────────────────────────────────────────────────
 function InviteCard({ record }: { record: InviteRecord }) {
-  const sc = STATUS_CFG[record.status];
+  const reNotify    = useInviteRecordStore(s => s.reNotify);
+  const tc          = TARGET_CFG[record.targetType];
   const [expanded, setExpanded] = useState(false);
 
-  async function handleResendSms() {
-    if (!record.messageBody) return;
+  async function handleReNotify() {
     const smsUrl = Platform.OS === "ios"
-      ? `sms:${record.guardianPhone}&body=${encodeURIComponent(record.messageBody)}`
-      : `sms:${record.guardianPhone}?body=${encodeURIComponent(record.messageBody)}`;
+      ? `sms:${record.targetPhone}&body=${encodeURIComponent(record.messageBody)}`
+      : `sms:${record.targetPhone}?body=${encodeURIComponent(record.messageBody)}`;
     const can = await Linking.canOpenURL(smsUrl);
     if (can) {
+      reNotify(record.id);
       await Linking.openURL(smsUrl);
     } else {
-      await Share.share({ message: record.messageBody });
+      Alert.alert("알림", "문자 앱을 열 수 없습니다. 기기 문자 앱에서 직접 발송해 주세요.");
     }
-  }
-
-  async function handleCopyLink() {
-    await Clipboard.setStringAsync(record.messageBody);
-    Alert.alert("복사 완료", "초대 메시지가 클립보드에 복사되었습니다.");
   }
 
   return (
     <View style={[s.card, { backgroundColor: C.card }]}>
-      {/* 헤더 */}
       <Pressable style={s.cardTop} onPress={() => setExpanded(v => !v)}>
-        <View style={[s.methodIcon, { backgroundColor: sc.bg }]}>
-          <Feather name={sc.icon as any} size={16} color={sc.color} />
+        {/* 대상 타입 아이콘 */}
+        <View style={[s.typeIcon, { backgroundColor: tc.bg }]}>
+          <Feather name={tc.icon as any} size={16} color={tc.color} />
         </View>
+
         <View style={s.cardInfo}>
+          {/* 이름 + 대상 배지 + 호출 횟수 */}
           <View style={s.nameRow}>
-            <Text style={s.studentName}>{record.studentName}</Text>
-            <View style={[s.statusChip, { backgroundColor: sc.bg }]}>
-              <Text style={[s.statusLabel, { color: sc.color }]}>{sc.label}</Text>
+            <Text style={s.targetName}>{record.targetName}</Text>
+            <View style={[s.typeBadge, { backgroundColor: tc.bg }]}>
+              <Text style={[s.typeBadgeTxt, { color: tc.color }]}>{tc.label}</Text>
+            </View>
+            <View style={[s.countBadge, { backgroundColor: record.callCount >= 3 ? "#FEE2E2" : "#F1F5F9" }]}>
+              <Feather name="phone-call" size={10} color={record.callCount >= 3 ? "#DC2626" : C.textMuted} />
+              <Text style={[s.countTxt, { color: record.callCount >= 3 ? "#DC2626" : C.textMuted }]}>
+                {record.callCount}회
+              </Text>
             </View>
           </View>
-          <Text style={s.phone}>{record.guardianPhone}</Text>
-          <Text style={s.meta}>
-            {record.senderName} · {record.method === "sms_app" ? "문자앱" : "링크복사"} · {formatDate(record.createdAt)}
+
+          {/* 학생 이름 (학부모 안내인 경우) */}
+          {record.targetType === "guardian" && record.studentName && (
+            <Text style={s.studentLine}>
+              <Feather name="user" size={11} color={C.textMuted} /> 자녀: {record.studentName}
+            </Text>
+          )}
+
+          {/* 전화번호 + 수영장명 */}
+          <Text style={s.metaLine}>{record.targetPhone} · {record.operatorName}</Text>
+
+          {/* 안내 일시 */}
+          <Text style={s.dateLine}>
+            첫 안내: {fmtDate(record.createdAt)}
+            {record.lastReSentAt ? `  ·  마지막 재안내: ${fmtDate(record.lastReSentAt)}` : ""}
           </Text>
         </View>
+
         <Feather name={expanded ? "chevron-up" : "chevron-down"} size={16} color={C.textMuted} />
       </Pressable>
 
       {/* 펼침 영역 */}
       {expanded && (
         <View style={s.expandBody}>
-          {/* 메시지 미리보기 */}
+          {/* 문자 미리보기 */}
           <View style={[s.msgBox, { backgroundColor: C.background }]}>
-            <Text style={s.msgText} numberOfLines={4}>{record.messageBody}</Text>
+            <Text style={s.msgLabel}>문자 본문</Text>
+            <Text style={s.msgText}>{record.messageBody}</Text>
           </View>
 
-          {/* 액션 버튼들 */}
-          <View style={s.actions}>
-            <Pressable style={[s.actionBtn, { backgroundColor: C.tintLight }]} onPress={handleResendSms}>
-              <Feather name="message-circle" size={13} color={C.tint} />
-              <Text style={[s.actionTxt, { color: C.tint }]}>다시 문자 열기</Text>
-            </Pressable>
-            <Pressable style={[s.actionBtn, { backgroundColor: "#F3E8FF" }]} onPress={handleCopyLink}>
-              <Feather name="copy" size={13} color="#7C3AED" />
-              <Text style={[s.actionTxt, { color: "#7C3AED" }]}>링크 다시 복사</Text>
-            </Pressable>
-          </View>
-          <View style={s.actions}>
-            {(record.status === "signup_requested" || record.status === "approved") && (
-              <Pressable
-                style={[s.actionBtn, { backgroundColor: "#FEF3C7", flex: 1 }]}
-                onPress={() => router.push("/(admin)/approvals" as any)}
-              >
-                <Feather name="check-circle" size={13} color="#D97706" />
-                <Text style={[s.actionTxt, { color: "#D97706" }]}>가입 요청 보기</Text>
-              </Pressable>
-            )}
-          </View>
-
-          {/* 발송자 역할 배지 */}
+          {/* 발송자 정보 */}
           <View style={s.senderRow}>
-            <View style={[s.roleChip, { backgroundColor: record.senderRole === "teacher" ? "#EDE9FE" : "#DBEAFE" }]}>
-              <Feather name={record.senderRole === "teacher" ? "user-check" : "shield"} size={11}
-                color={record.senderRole === "teacher" ? "#7C3AED" : "#2563EB"} />
+            <View style={[s.roleBadge, { backgroundColor: record.senderRole === "teacher" ? "#EDE9FE" : "#DBEAFE" }]}>
+              <Feather
+                name={record.senderRole === "teacher" ? "user-check" : "shield"}
+                size={11}
+                color={record.senderRole === "teacher" ? "#7C3AED" : "#2563EB"}
+              />
               <Text style={[s.roleLabel, { color: record.senderRole === "teacher" ? "#7C3AED" : "#2563EB" }]}>
-                {record.senderRole === "teacher" ? "선생님" : "관리자"}
+                {record.senderRole === "teacher" ? "선생님" : "관리자"} · {record.senderName}
               </Text>
             </View>
-            {record.relatedParentUserId && (
-              <View style={[s.roleChip, { backgroundColor: "#D1FAE5" }]}>
-                <Feather name="link" size={11} color="#059669" />
-                <Text style={[s.roleLabel, { color: "#059669" }]}>학부모 계정 연결됨</Text>
-              </View>
-            )}
           </View>
+
+          {/* 재안내 버튼 */}
+          <Pressable style={[s.reNotifyBtn, { backgroundColor: C.tintLight }]} onPress={handleReNotify}>
+            <Feather name="message-circle" size={14} color={C.tint} />
+            <Text style={[s.reNotifyTxt, { color: C.tint }]}>재안내 (문자 앱 열기)</Text>
+          </Pressable>
+
+          {record.lastReSentAt && (
+            <Text style={s.reNotifyHint}>마지막 재안내: {fmtDate(record.lastReSentAt)} · 총 {record.callCount}회 발송</Text>
+          )}
         </View>
       )}
     </View>
@@ -146,9 +144,8 @@ function InviteCard({ record }: { record: InviteRecord }) {
 // ── 메인 화면 ────────────────────────────────────────────────────
 export default function InviteRecordsScreen() {
   const insets = useSafeAreaInsets();
-  const { pool } = useAuth();
-  const records  = useInviteRecordStore(s => s.records);
-
+  const { pool }  = useAuth();
+  const records   = useInviteRecordStore(s => s.records);
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const operatorRecords = useMemo(
@@ -157,36 +154,47 @@ export default function InviteRecordsScreen() {
   );
 
   const filtered = useMemo(
-    () => filter === "all" ? operatorRecords : operatorRecords.filter(r => r.status === filter),
+    () => filter === "all" ? operatorRecords : operatorRecords.filter(r => r.targetType === filter),
     [operatorRecords, filter],
   );
 
-  // 집계
-  const counts = useMemo(() => {
-    const c: Record<InviteStatus, number> = {
-      opened_sms_app: 0, copied_link: 0, signup_requested: 0, approved: 0,
-    };
-    operatorRecords.forEach(r => { c[r.status]++ });
-    return c;
-  }, [operatorRecords]);
+  const totalCalls = useMemo(
+    () => operatorRecords.reduce((acc, r) => acc + r.callCount, 0),
+    [operatorRecords],
+  );
+  const guardianCount = useMemo(() => operatorRecords.filter(r => r.targetType === "guardian").length, [operatorRecords]);
+  const teacherCount  = useMemo(() => operatorRecords.filter(r => r.targetType === "teacher").length,  [operatorRecords]);
 
   return (
     <ScreenLayout>
-      <SubScreenHeader title="학부모 초대 내역" onBack={() => router.back()} />
+      <SubScreenHeader title="초대 안내 기록" onBack={() => router.back()} />
+
+      {/* 안내 배너 */}
+      <View style={[s.infoBanner, { backgroundColor: "#F0FDF4" }]}>
+        <Feather name="info" size={13} color="#059669" />
+        <Text style={s.infoTxt}>
+          플랫폼은 문자 전송 성공·실패를 추적하지 않습니다. "재안내" 버튼으로 문자 앱을 다시 열 수 있습니다.
+        </Text>
+      </View>
 
       {/* 요약 카드 */}
       <View style={s.summaryRow}>
-        {(["opened_sms_app", "copied_link", "signup_requested", "approved"] as InviteStatus[]).map(k => {
-          const sc = STATUS_CFG[k];
-          return (
-            <View key={k} style={[s.summaryCard, { backgroundColor: sc.bg }]}>
-              <Text style={[s.summaryNum, { color: sc.color }]}>{counts[k]}</Text>
-              <Text style={[s.summaryLbl, { color: sc.color }]} numberOfLines={1}>
-                {k === "opened_sms_app" ? "문자발송" : k === "copied_link" ? "링크복사" : k === "signup_requested" ? "가입요청" : "승인완료"}
-              </Text>
-            </View>
-          );
-        })}
+        <View style={[s.summaryCard, { backgroundColor: "#F1F5F9", flex: 1 }]}>
+          <Text style={[s.summaryNum, { color: C.text }]}>{operatorRecords.length}</Text>
+          <Text style={[s.summaryLbl, { color: C.textSecondary }]}>전체 안내 건</Text>
+        </View>
+        <View style={[s.summaryCard, { backgroundColor: "#D1FAE5", flex: 1 }]}>
+          <Text style={[s.summaryNum, { color: "#059669" }]}>{guardianCount}</Text>
+          <Text style={[s.summaryLbl, { color: "#059669" }]}>학부모</Text>
+        </View>
+        <View style={[s.summaryCard, { backgroundColor: "#EDE9FE", flex: 1 }]}>
+          <Text style={[s.summaryNum, { color: "#7C3AED" }]}>{teacherCount}</Text>
+          <Text style={[s.summaryLbl, { color: "#7C3AED" }]}>선생님</Text>
+        </View>
+        <View style={[s.summaryCard, { backgroundColor: "#DBEAFE", flex: 1 }]}>
+          <Text style={[s.summaryNum, { color: "#2563EB" }]}>{totalCalls}</Text>
+          <Text style={[s.summaryLbl, { color: "#2563EB" }]}>총 호출</Text>
+        </View>
       </View>
 
       {/* 필터 */}
@@ -208,8 +216,11 @@ export default function InviteRecordsScreen() {
           filtered.length === 0 && { flex: 1 },
         ]}
         ListEmptyComponent={
-          <EmptyState icon="send" title="초대 내역이 없습니다"
-            description="학생 목록에서 초대 문자를 보내면 여기에 기록됩니다." />
+          <EmptyState
+            icon="send"
+            title="초대 안내 기록이 없습니다"
+            description="학생 목록에서 초대 문자를 보내면 여기에 기록됩니다."
+          />
         }
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
       />
@@ -218,8 +229,12 @@ export default function InviteRecordsScreen() {
 }
 
 const s = StyleSheet.create({
-  summaryRow:    { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 12, marginTop: 8 },
-  summaryCard:   { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: "center" },
+  infoBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 8, marginHorizontal: 16, marginBottom: 12,
+                   marginTop: 8, padding: 10, borderRadius: 10 },
+  infoTxt:       { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#059669", lineHeight: 17 },
+
+  summaryRow:    { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 12 },
+  summaryCard:   { borderRadius: 12, paddingVertical: 10, alignItems: "center" },
   summaryNum:    { fontSize: 20, fontFamily: "Inter_700Bold" },
   summaryLbl:    { fontSize: 10, fontFamily: "Inter_500Medium", marginTop: 2 },
 
@@ -227,26 +242,31 @@ const s = StyleSheet.create({
 
   card:          { borderRadius: 14, overflow: "hidden" },
   cardTop:       { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
-  methodIcon:    { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  typeIcon:      { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   cardInfo:      { flex: 1, gap: 3 },
-  nameRow:       { flexDirection: "row", alignItems: "center", gap: 8 },
-  studentName:   { fontSize: 15, fontFamily: "Inter_700Bold", color: C.text },
-  statusChip:    { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
-  statusLabel:   { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  phone:         { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  meta:          { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
+
+  nameRow:       { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  targetName:    { fontSize: 15, fontFamily: "Inter_700Bold", color: C.text },
+  typeBadge:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 20 },
+  typeBadgeTxt:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  countBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 20 },
+  countTxt:      { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+
+  studentLine:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  metaLine:      { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  dateLine:      { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
 
   expandBody:    { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
   msgBox:        { borderRadius: 10, padding: 12 },
+  msgLabel:      { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 6 },
   msgText:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.text, lineHeight: 18 },
 
-  actions:       { flexDirection: "row", gap: 8 },
-  actionBtn:     { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                   gap: 6, paddingVertical: 9, borderRadius: 10 },
-  actionTxt:     { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-
   senderRow:     { flexDirection: "row", gap: 8 },
-  roleChip:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8,
-                   paddingVertical: 4, borderRadius: 20 },
+  roleBadge:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
   roleLabel:     { fontSize: 11, fontFamily: "Inter_500Medium" },
+
+  reNotifyBtn:   { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+                   paddingVertical: 11, borderRadius: 10 },
+  reNotifyTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  reNotifyHint:  { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" },
 });

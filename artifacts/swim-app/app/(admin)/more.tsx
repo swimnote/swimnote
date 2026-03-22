@@ -44,7 +44,7 @@ const TYPE_LABEL: Record<string, string> = {
 const SHORTCUTS = [
   { label: "휴무일 관리",  icon: "x-square"   as const, color: "#EF4444", bg: "#FEE2E2", route: "/(admin)/holidays"        },
   { label: "데이터 관리",  icon: "hard-drive" as const, color: "#0891B2", bg: "#ECFEFF", route: "/(admin)/data-management" },
-  { label: "초대 내역",    icon: "send"       as const, color: "#0891B2", bg: "#ECFEFF", route: "/(admin)/invite-records"  },
+  { label: "초대 안내 기록", icon: "send"       as const, color: "#0891B2", bg: "#ECFEFF", route: "/(admin)/invite-records"  },
 ];
 
 const MISC = [

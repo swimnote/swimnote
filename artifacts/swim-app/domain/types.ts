@@ -335,12 +335,16 @@ export interface ReadonlyControl {
   createdBy: string
 }
 
+export type SnapshotType = 'auto' | 'manual' | 'before_restore' | 'before_delete'
+
 export interface BackupSnapshot {
   id: string
   bucket: BackupBucket
   scope: BackupScope
   operatorId: string
   operatorName: string
+  snapshotName?: string
+  snapshotType?: SnapshotType
   createdAt: string
   createdBy: string
   includes: string[]

@@ -46,17 +46,15 @@ function fmtSize(mb: number) {
   return `${(mb / 1024).toFixed(1)} GB`;
 }
 
-const REASON_CFG: Record<string, { color: string; bg: string; label: string }> = {
-  "수동 스냅샷":               { color: "#2563EB", bg: "#DBEAFE", label: "수동" },
-  "자동 스냅샷":               { color: "#059669", bg: "#D1FAE5", label: "자동" },
-  "복구 실행 직전 현재 상태 보존 스냅샷": { color: "#D97706", bg: "#FEF3C7", label: "복구 전" },
-  "킬스위치 실행 직전 강제 스냅샷 — 복구 불가 경고 확인됨": { color: "#DC2626", bg: "#FEE2E2", label: "킬스위치 전" },
+const TYPE_CFG: Record<string, { color: string; bg: string; label: string; icon: string }> = {
+  auto:           { color: "#059669", bg: "#D1FAE5", label: "자동",    icon: "clock"      },
+  manual:         { color: "#2563EB", bg: "#DBEAFE", label: "수동",    icon: "save"       },
+  before_restore: { color: "#D97706", bg: "#FEF3C7", label: "복구 전", icon: "rotate-ccw" },
+  before_delete:  { color: "#DC2626", bg: "#FEE2E2", label: "삭제 전", icon: "alert-triangle" },
 };
 
-function reasonChip(note: string) {
-  const key = Object.keys(REASON_CFG).find(k => note.includes(k.split(" — ")[0])) ?? "";
-  const cfg = REASON_CFG[key] ?? { color: "#6B7280", bg: "#F3F4F6", label: "기타" };
-  return cfg;
+function snapTypeChip(snap: BackupSnapshot) {
+  return TYPE_CFG[snap.snapshotType ?? "manual"] ?? { color: "#6B7280", bg: "#F3F4F6", label: "기타", icon: "archive" };
 }
 
 // ── 스냅샷 삭제 확인 모달 (2단계) ────────────────────────────────
@@ -100,6 +98,9 @@ function SnapshotDeleteModal({
 
         <View style={[rm.targetBox, { backgroundColor: "#FEE2E2" }]}>
           <Text style={rm.targetLabel}>삭제할 스냅샷</Text>
+          {snap.snapshotName && (
+            <Text style={[rm.targetTime, { fontFamily: "Inter_600SemiBold", marginBottom: 2 }]}>{snap.snapshotName}</Text>
+          )}
           <Text style={rm.targetTime}>{fmtDateTime(snap.createdAt)}</Text>
           <Text style={rm.targetNote}>{snap.note ?? ""} · {fmtSize(snap.sizeMb)}</Text>
         </View>
@@ -109,7 +110,7 @@ function SnapshotDeleteModal({
             <View style={[rm.checkRow, { backgroundColor: "#FEF2F2" }]}>
               <Feather name="alert-triangle" size={14} color="#DC2626" />
               <Text style={[rm.checkTxt, { color: "#991B1B" }]}>
-                이 스냅샷을 삭제하면 복구할 수 없습니다. 이 시점으로 돌아가는 것이 영구적으로 불가능해집니다.
+                데이터 유지를 위하여 백업 데이터를 삭제할 경우 이전 데이터는 영원히 복구할 수 없습니다.
               </Text>
             </View>
             <View style={rm.btnRow}>
@@ -127,7 +128,7 @@ function SnapshotDeleteModal({
             <View style={[rm.checkRow, { backgroundColor: "#F9FAFB" }]}>
               <Switch value={confirmed} onValueChange={setConfirmed} />
               <Text style={rm.checkTxt}>
-                이 스냅샷이 영구 삭제됨을 이해했으며, 복구가 불가능함을 확인합니다.
+                이 스냅샷이 영구 삭제됨을 이해했으며, 삭제 이후 이전 데이터 복구가 불가능함을 확인합니다.
               </Text>
             </View>
             <View style={rm.btnRow}>
@@ -159,15 +160,22 @@ function SnapshotCard({
   onDelete: (snap: BackupSnapshot) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const chip = reasonChip(snap.note ?? "");
+  const chip = snapTypeChip(snap);
+
+  function handleCompare() {
+    Alert.alert("비교 복구", "선택한 스냅샷 시점과 현재 상태를 비교하는 기능입니다.\n\n현재 버전에서는 미리보기 모드로만 제공됩니다. 실제 복구 전 차이를 확인해 주세요.");
+  }
 
   return (
     <View style={s.snapCard}>
       <Pressable style={s.snapTop} onPress={() => setExpanded(v => !v)}>
         <View style={[s.snapIcon, { backgroundColor: chip.bg }]}>
-          <Feather name="archive" size={16} color={chip.color} />
+          <Feather name={chip.icon as any} size={16} color={chip.color} />
         </View>
         <View style={s.snapInfo}>
+          {snap.snapshotName && (
+            <Text style={s.snapName} numberOfLines={1}>{snap.snapshotName}</Text>
+          )}
           <View style={s.snapRow}>
             <Text style={s.snapTime}>{fmtDateTime(snap.createdAt)}</Text>
             <View style={[s.chip, { backgroundColor: chip.bg }]}>
@@ -194,13 +202,21 @@ function SnapshotCard({
             <Feather name="alert-circle" size={12} color="#D97706" />
             <Text style={s.excludeTxt}>사진·영상 원본 복구 미보장</Text>
           </View>
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          {/* 액션 버튼: 복구 / 비교 / 삭제 */}
+          <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
               style={[s.restoreBtn, { backgroundColor: C.tint, flex: 1 }]}
               onPress={() => onRestore(snap)}
             >
               <Feather name="rotate-ccw" size={14} color="#fff" />
               <Text style={s.restoreBtnTxt}>이 시점으로 복구</Text>
+            </Pressable>
+            <Pressable
+              style={[s.restoreBtn, { backgroundColor: "#EFF6FF", flex: 0.65 }]}
+              onPress={handleCompare}
+            >
+              <Feather name="git-branch" size={14} color="#2563EB" />
+              <Text style={[s.restoreBtnTxt, { color: "#2563EB" }]}>비교</Text>
             </Pressable>
             <Pressable
               style={[s.restoreBtn, { backgroundColor: "#FEE2E2", flex: 0.55 }]}
@@ -377,7 +393,11 @@ export default function RecoveryScreen() {
     [restoreJobs, operatorId],
   );
 
-  const latestSnap = mySnaps[0];
+  const latestSnap     = mySnaps[0];
+  const latestAutoSnap = useMemo(
+    () => mySnaps.find(s => s.snapshotType === "auto"),
+    [mySnaps],
+  );
 
   async function handleManualSnapshot() {
     setCreating(true);
@@ -430,6 +450,27 @@ export default function RecoveryScreen() {
                 </>
             }
           </Pressable>
+        </View>
+
+        {/* 자동 백업 정책 안내 */}
+        <View style={[s.autoBackupBox, { backgroundColor: "#F0FDF4" }]}>
+          <View style={s.autoBackupRow}>
+            <Feather name="clock" size={14} color="#059669" />
+            <Text style={s.autoBackupTitle}>자동 백업 정책</Text>
+          </View>
+          <Text style={s.autoBackupLine}>• 자동 백업 주기: <Text style={{ fontFamily: "Inter_600SemiBold" }}>1시간</Text></Text>
+          <Text style={s.autoBackupLine}>
+            • 마지막 자동 백업:{" "}
+            <Text style={{ fontFamily: "Inter_600SemiBold" }}>
+              {latestAutoSnap ? fmtDateTime(latestAutoSnap.createdAt) : "기록 없음"}
+            </Text>
+          </Text>
+          {latestAutoSnap?.snapshotName && (
+            <Text style={s.autoBackupLine}>
+              • 스냅샷 이름: <Text style={{ fontFamily: "Inter_500Medium" }}>{latestAutoSnap.snapshotName}</Text>
+            </Text>
+          )}
+          <Text style={s.autoBackupLine}>• 보존 기간: 최근 30일 자동 스냅샷 유지</Text>
         </View>
 
         {/* 복구 완료 배너 */}
@@ -571,11 +612,17 @@ const s = StyleSheet.create({
   section:      { gap: 8 },
   sectionTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: C.textSecondary },
 
+  autoBackupBox:  { marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: 12, gap: 4 },
+  autoBackupRow:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  autoBackupTitle:{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#059669" },
+  autoBackupLine: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#166534", lineHeight: 18 },
+
   snapCard:     { backgroundColor: C.card, borderRadius: 14, overflow: "hidden" },
   snapTop:      { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
   snapIcon:     { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   snapInfo:     { flex: 1, gap: 3 },
   snapRow:      { flexDirection: "row", alignItems: "center", gap: 8 },
+  snapName:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
   snapTime:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
   snapNote:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
   snapMeta:     { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
