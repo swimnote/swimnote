@@ -32,6 +32,7 @@ interface BackupState {
   }) => BackupSnapshot
   createForcedSnapshotBeforeKillSwitch: (operatorId: string, operatorName: string, actorName: string) => BackupSnapshot
   createForcedSnapshotBeforeRestore: (operatorId: string, operatorName: string, actorName: string) => BackupSnapshot
+  deleteSnapshot: (id: string) => void
   updateSnapshot: (id: string, patch: Partial<BackupSnapshot>) => void
   createRestoreJob: (params: {
     snapshotId: string
@@ -104,6 +105,10 @@ export const useBackupStore = create<BackupState>((set, get) => ({
       note: '복구 실행 직전 현재 상태 보존 스냅샷',
       actorName,
     }),
+
+  deleteSnapshot: (id) => set(s => ({
+    snapshots: s.snapshots.filter(snap => snap.id !== id),
+  })),
 
   updateSnapshot: (id, patch) => set(s => ({
     snapshots: s.snapshots.map(snap => snap.id === id ? { ...snap, ...patch } : snap),

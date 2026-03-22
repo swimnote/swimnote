@@ -12,7 +12,7 @@ export type OperatorEventType =
   | 'journal_save' | 'attendance_change'
   | 'invite_send_sms' | 'invite_copy_link'
   | 'photo_upload' | 'video_upload'
-  | 'restore_execute' | 'snapshot_create' | 'snapshot_auto'
+  | 'restore_execute' | 'snapshot_create' | 'snapshot_auto' | 'snapshot_delete'
   | 'billing_event' | 'settings_change' | 'teacher_invite' | 'teacher_approve'
 
 export interface OperatorEventLog {
@@ -108,8 +108,14 @@ export const useOperatorEventLogStore = create<OperatorEventLogState>((set, get)
   addLog(logData) {
     const newLog: OperatorEventLog = {
       ...logData,
-      id: `evl-${Date.now()}`,
+      id: `evl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       createdAt: new Date().toISOString(),
+      // 안전한 기본값 — undefined/null 방지
+      actorName:  logData.actorName  || '시스템',
+      actorId:    logData.actorId    || 'system',
+      actorRole:  logData.actorRole  || 'system',
+      targetType: logData.targetType || 'unknown',
+      summary:    logData.summary    || `${logData.eventType} 이벤트`,
     }
     set(s => ({ logs: [newLog, ...s.logs] }))
     return newLog

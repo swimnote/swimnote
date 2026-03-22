@@ -120,9 +120,16 @@ export default function DataEventLogsScreen() {
         }
         renderItem={({ item: ev }) => {
           const meta = CAT_META[ev.category] || { icon: "activity", color: C.textSecondary, bg: "#F3F4F6" };
-          const dt = new Date(ev.created_at);
-          const dateStr = dt.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
-          const timeStr = `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+          // 안전한 날짜 파싱 — Invalid Date / NaN:NaN 방지
+          const rawDate = ev.created_at;
+          const dt = rawDate ? new Date(rawDate) : null;
+          const validDate = dt && !isNaN(dt.getTime());
+          const dateStr = validDate ? dt!.toLocaleDateString("ko-KR", { month: "short", day: "numeric" }) : "날짜 없음";
+          const timeStr = validDate ? `${String(dt!.getHours()).padStart(2, "0")}:${String(dt!.getMinutes()).padStart(2, "0")}` : "—";
+          // 안전한 텍스트 필드 — undefined 노출 방지
+          const description = (ev.description && ev.description !== "undefined") ? ev.description : "기록 없음";
+          const actorName   = (ev.actor_name  && ev.actor_name  !== "undefined") ? ev.actor_name  : "시스템";
+          const target      = (ev.target      && ev.target      !== "undefined") ? ev.target      : null;
           return (
             <View style={[s.card, { backgroundColor: C.card }]}>
               <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
@@ -132,11 +139,11 @@ export default function DataEventLogsScreen() {
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
                     <View style={[s.badge, { backgroundColor: meta.bg }]}>
-                      <Text style={[s.badgeText, { color: meta.color }]}>{ev.category}</Text>
+                      <Text style={[s.badgeText, { color: meta.color }]}>{ev.category || "기타"}</Text>
                     </View>
                   </View>
-                  <Text style={s.desc}>{ev.description}</Text>
-                  {ev.target && <Text style={s.target}>대상: {ev.target}</Text>}
+                  <Text style={s.desc}>{description}</Text>
+                  {target && <Text style={s.target}>대상: {target}</Text>}
                 </View>
                 <View style={{ alignItems: "flex-end" }}>
                   <Text style={s.date}>{dateStr}</Text>
@@ -145,7 +152,7 @@ export default function DataEventLogsScreen() {
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
                 <Feather name="user" size={11} color={C.textMuted} />
-                <Text style={s.actor}>{ev.actor_name}</Text>
+                <Text style={s.actor}>{actorName}</Text>
               </View>
             </View>
           );

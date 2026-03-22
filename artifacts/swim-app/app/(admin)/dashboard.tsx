@@ -177,9 +177,9 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "user-check",  label: "선생님 관리",  color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/people-teachers") },
       { icon: "check-circle",label: "승인 관리",   color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/approvals"), badge: pending },
       { icon: "send",        label: "초대 내역",   color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/invite-records") },
-      { icon: "credit-card", label: "구독 관리",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/billing") },
+      { icon: "credit-card", label: "결제·구독",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/billing") },
       { icon: "hard-drive",  label: "추가 용량",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/extra-storage") },
-      { icon: "message-square", label: "SMS 크레딧", color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/sms-credit") },
+      { icon: "trending-up", label: "매출 관리",   color: "#EA580C", bg: "#FFF7ED", onPress: () => router.push("/(admin)/admin-revenue") },
     ];
     // ─ 수업 관리 ─
     case "수업관리": return [

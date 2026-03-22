@@ -59,13 +59,104 @@ function reasonChip(note: string) {
   return cfg;
 }
 
+// ── 스냅샷 삭제 확인 모달 (2단계) ────────────────────────────────
+function SnapshotDeleteModal({
+  snap, actorName, onClose, onDone,
+}: {
+  snap: BackupSnapshot;
+  actorName: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [step, setStep]       = useState<1 | 2>(1);
+  const [confirmed, setConfirmed] = useState(false);
+  const deleteSnapshot = useBackupStore(s => s.deleteSnapshot);
+  const addEventLog    = useOperatorEventLogStore(s => s.addLog);
+
+  function execDelete() {
+    deleteSnapshot(snap.id);
+    addEventLog({
+      operatorId: snap.operatorId || "system",
+      actorRole: "operator",
+      actorId: "self",
+      actorName,
+      eventType: "snapshot_delete",
+      targetType: "snapshot",
+      targetId: snap.id,
+      summary: `스냅샷 삭제: ${fmtDateTime(snap.createdAt)} — ${snap.note ?? ""}`,
+    });
+    onDone();
+  }
+
+  return (
+    <View style={rm.overlay}>
+      <Pressable style={rm.backdrop} onPress={onClose} />
+      <View style={rm.sheet}>
+        <View style={rm.header}>
+          <Feather name="trash-2" size={20} color="#DC2626" />
+          <Text style={rm.title}>스냅샷 삭제</Text>
+          <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
+        </View>
+
+        <View style={[rm.targetBox, { backgroundColor: "#FEE2E2" }]}>
+          <Text style={rm.targetLabel}>삭제할 스냅샷</Text>
+          <Text style={rm.targetTime}>{fmtDateTime(snap.createdAt)}</Text>
+          <Text style={rm.targetNote}>{snap.note ?? ""} · {fmtSize(snap.sizeMb)}</Text>
+        </View>
+
+        {step === 1 ? (
+          <>
+            <View style={[rm.checkRow, { backgroundColor: "#FEF2F2" }]}>
+              <Feather name="alert-triangle" size={14} color="#DC2626" />
+              <Text style={[rm.checkTxt, { color: "#991B1B" }]}>
+                이 스냅샷을 삭제하면 복구할 수 없습니다. 이 시점으로 돌아가는 것이 영구적으로 불가능해집니다.
+              </Text>
+            </View>
+            <View style={rm.btnRow}>
+              <Pressable style={[rm.btn, { backgroundColor: C.background, borderWidth: 1, borderColor: C.border }]} onPress={onClose}>
+                <Text style={[rm.btnTxt, { color: C.textSecondary }]}>취소</Text>
+              </Pressable>
+              <Pressable style={[rm.btn, { backgroundColor: "#FEE2E2", flex: 1.5 }]} onPress={() => setStep(2)}>
+                <Feather name="trash-2" size={14} color="#DC2626" />
+                <Text style={[rm.btnTxt, { color: "#DC2626" }]}>계속 (2/2)</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={[rm.checkRow, { backgroundColor: "#F9FAFB" }]}>
+              <Switch value={confirmed} onValueChange={setConfirmed} />
+              <Text style={rm.checkTxt}>
+                이 스냅샷이 영구 삭제됨을 이해했으며, 복구가 불가능함을 확인합니다.
+              </Text>
+            </View>
+            <View style={rm.btnRow}>
+              <Pressable style={[rm.btn, { backgroundColor: C.background, borderWidth: 1, borderColor: C.border }]} onPress={() => setStep(1)}>
+                <Text style={[rm.btnTxt, { color: C.textSecondary }]}>뒤로</Text>
+              </Pressable>
+              <Pressable
+                style={[rm.btn, { backgroundColor: confirmed ? "#DC2626" : "#9CA3AF", flex: 1.5 }]}
+                onPress={execDelete}
+                disabled={!confirmed}
+              >
+                <Feather name="trash-2" size={14} color="#fff" />
+                <Text style={[rm.btnTxt, { color: "#fff" }]}>영구 삭제</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
 // ── 스냅샷 카드 ───────────────────────────────────────────────────
 function SnapshotCard({
-  snap, onRestore, onManualSnap,
+  snap, onRestore, onDelete,
 }: {
   snap: BackupSnapshot;
   onRestore: (snap: BackupSnapshot) => void;
-  onManualSnap?: never;
+  onDelete: (snap: BackupSnapshot) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const chip = reasonChip(snap.note ?? "");
@@ -103,13 +194,22 @@ function SnapshotCard({
             <Feather name="alert-circle" size={12} color="#D97706" />
             <Text style={s.excludeTxt}>사진·영상 원본 복구 미보장</Text>
           </View>
-          <Pressable
-            style={[s.restoreBtn, { backgroundColor: C.tint }]}
-            onPress={() => onRestore(snap)}
-          >
-            <Feather name="rotate-ccw" size={14} color="#fff" />
-            <Text style={s.restoreBtnTxt}>이 시점으로 복구</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <Pressable
+              style={[s.restoreBtn, { backgroundColor: C.tint, flex: 1 }]}
+              onPress={() => onRestore(snap)}
+            >
+              <Feather name="rotate-ccw" size={14} color="#fff" />
+              <Text style={s.restoreBtnTxt}>이 시점으로 복구</Text>
+            </Pressable>
+            <Pressable
+              style={[s.restoreBtn, { backgroundColor: "#FEE2E2", flex: 0.55 }]}
+              onPress={() => onDelete(snap)}
+            >
+              <Feather name="trash-2" size={14} color="#DC2626" />
+              <Text style={[s.restoreBtnTxt, { color: "#DC2626" }]}>삭제</Text>
+            </Pressable>
+          </View>
         </View>
       )}
     </View>
@@ -262,7 +362,9 @@ export default function RecoveryScreen() {
   const eventLogs      = useMemo(() => getEventLogs(operatorId, 5), [getEventLogs, operatorId]);
 
   const [restoreTarget, setRestoreTarget] = useState<BackupSnapshot | null>(null);
+  const [deleteTarget,  setDeleteTarget]  = useState<BackupSnapshot | null>(null);
   const [doneSnap, setDoneSnap]           = useState(false);
+  const [doneDelete, setDoneDelete]       = useState(false);
   const [creating, setCreating]           = useState(false);
 
   const mySnaps = useMemo(
@@ -288,6 +390,11 @@ export default function RecoveryScreen() {
   function handleRestoreDone() {
     setRestoreTarget(null);
     setDoneSnap(true);
+  }
+
+  function handleDeleteDone() {
+    setDeleteTarget(null);
+    setDoneDelete(true);
   }
 
   return (
@@ -330,6 +437,14 @@ export default function RecoveryScreen() {
           <View style={s.doneBanner}>
             <Feather name="check-circle" size={14} color="#059669" />
             <Text style={s.doneTxt}>복구가 실행 중입니다. 완료 후 화면을 새로고침하세요.</Text>
+          </View>
+        )}
+
+        {/* 삭제 완료 배너 */}
+        {doneDelete && (
+          <View style={[s.doneBanner, { backgroundColor: "#FEE2E2" }]}>
+            <Feather name="trash-2" size={14} color="#DC2626" />
+            <Text style={[s.doneTxt, { color: "#991B1B" }]}>스냅샷이 영구 삭제되었습니다.</Text>
           </View>
         )}
 
@@ -385,7 +500,7 @@ export default function RecoveryScreen() {
             </View>
           ) : (
             mySnaps.map(snap => (
-              <SnapshotCard key={snap.id} snap={snap} onRestore={setRestoreTarget} />
+              <SnapshotCard key={snap.id} snap={snap} onRestore={setRestoreTarget} onDelete={setDeleteTarget} />
             ))
           )}
         </View>
@@ -416,6 +531,18 @@ export default function RecoveryScreen() {
             actorName={actorName}
             onClose={() => setRestoreTarget(null)}
             onDone={handleRestoreDone}
+          />
+        </View>
+      )}
+
+      {/* 스냅샷 삭제 확인 모달 */}
+      {deleteTarget && (
+        <View style={StyleSheet.absoluteFill}>
+          <SnapshotDeleteModal
+            snap={deleteTarget}
+            actorName={actorName}
+            onClose={() => setDeleteTarget(null)}
+            onDone={handleDeleteDone}
           />
         </View>
       )}
