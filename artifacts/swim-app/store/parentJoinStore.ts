@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useInviteRecordStore } from './inviteRecordStore'
 
 export type ParentRelation = '부' | '모' | '조부' | '조모' | '기타'
 export type MatchStatus   = 'full_match' | 'phone_only' | 'no_match'
@@ -144,10 +145,13 @@ export const useParentJoinStore = create<ParentJoinState>((set) => ({
   submitRequest(req) {
     const newReq: ParentJoinRequest = { ...req, id: `pjr-${Date.now()}`, createdAt: now() }
     set(s => ({ requests: [newReq, ...s.requests], currentParentRequestId: newReq.id }))
+    useInviteRecordStore.getState().linkToJoinRequest(req.parentPhone, req.parentId)
     return newReq
   },
 
   approveRequest(id, reviewedBy) {
+    const req = useParentJoinStore.getState().requests.find(r => r.id === id)
+    if (req) useInviteRecordStore.getState().markApproved(req.parentPhone, req.parentId)
     set(s => ({
       requests: s.requests.map(r =>
         r.id === id ? { ...r, status: 'approved', reviewedAt: now(), reviewedBy } : r

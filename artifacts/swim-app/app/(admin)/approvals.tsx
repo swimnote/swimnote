@@ -19,6 +19,7 @@ import { STATUS_COLORS } from "@/components/common/constants";
 import {
   useParentJoinStore, type ParentJoinRequest, type JoinStatus, type MatchStatus,
 } from "@/store/parentJoinStore";
+import { useInviteRecordStore } from "@/store/inviteRecordStore";
 
 const C = Colors.light;
 
@@ -324,6 +325,9 @@ export default function ApprovalsScreen() {
   const storeReject      = useParentJoinStore(s => s.rejectRequest);
   const storeHold        = useParentJoinStore(s => s.holdRequest);
 
+  // inviteRecordStore — 초대 이력 연동
+  const inviteRecords    = useInviteRecordStore(s => s.records);
+
   const [mainTab,  setMainTab]  = useState<MainTab>("parents");
   const [filter,   setFilter]   = useState<StatusFilter>("pending");
   const [invites,  setInvites]  = useState<TeacherInvite[]>([]);
@@ -507,6 +511,11 @@ export default function ApprovalsScreen() {
 
   function buildStoreExtra(req: ParentJoinRequest) {
     const mc = MATCH_CFG[req.matchStatus];
+    const normalizePhone = (p: string) => p.replace(/\D/g, "");
+    const relatedInvites = inviteRecords.filter(
+      r => normalizePhone(r.guardianPhone) === normalizePhone(req.parentPhone),
+    );
+    const lastInvite = relatedInvites[0];
     return (
       <View style={x.childBox}>
         <View style={x.matchRow}>
@@ -530,6 +539,16 @@ export default function ApprovalsScreen() {
             <Text style={x.childYear}>{c.birthDate}</Text>
           </View>
         ))}
+        {lastInvite && (
+          <View style={x.inviteHint}>
+            <Feather name="send" size={11} color="#0891B2" />
+            <Text style={x.inviteHintTxt}>
+              초대 이력 있음 · {lastInvite.senderName} ·{" "}
+              {new Date(lastInvite.createdAt).toLocaleDateString("ko-KR")}
+              {relatedInvites.length > 1 ? ` 외 ${relatedInvites.length - 1}건` : ""}
+            </Text>
+          </View>
+        )}
       </View>
     );
   }
@@ -818,8 +837,11 @@ const x = StyleSheet.create({
   autoChipTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#059669" },
   childTitle:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 2 },
   childRow:    { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
-  childName:   { fontSize: 13, fontFamily: "Inter_500Medium", color: C.text },
-  childYear:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
+  childName:    { fontSize: 13, fontFamily: "Inter_500Medium", color: C.text },
+  childYear:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
+  inviteHint:   { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2,
+                  backgroundColor: "#ECFEFF", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  inviteHintTxt:{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#0891B2", flex: 1 },
 });
 
 // 학부모 상세 모달 스타일

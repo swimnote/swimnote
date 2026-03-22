@@ -25,6 +25,7 @@ import {
 import { MemberCard } from "@/components/common/MemberCard";
 import { useSelectionMode } from "@/hooks/useSelectionMode";
 import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
+import { useInviteRecordStore } from "@/store/inviteRecordStore";
 
 const C = Colors.light;
 
@@ -42,6 +43,9 @@ const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
 
 // ── 초대문구 보기 모달 ───────────────────────────────────────────
 function InviteModal({ student, poolName, onClose }: { student: StudentMember; poolName: string; onClose: () => void }) {
+  const { adminUser, pool } = useAuth();
+  const addRecord = useInviteRecordStore(s => s.addRecord);
+
   const appUrl = `https://swimnote.kr`;
   const msg = buildInviteMessage({
     poolName,
@@ -50,16 +54,39 @@ function InviteModal({ student, poolName, onClose }: { student: StudentMember; p
     appUrl,
   });
 
+  function makeRecordBase() {
+    const role = adminUser?.role === "teacher" ? "teacher" : "operator";
+    return {
+      operatorId:         pool?.id ?? "op-unknown",
+      senderUserId:       adminUser?.id ?? "unknown",
+      senderName:         adminUser?.name ?? "관리자",
+      senderRole:         role as "operator" | "teacher",
+      studentId:          student.id,
+      studentName:        student.name,
+      guardianPhone:      student.parent_phone ?? "",
+      guardianPhoneLabel: "primary" as const,
+      messageBody:        msg,
+    };
+  }
+
   async function openSms() {
+    addRecord({ ...makeRecordBase(), method: "sms_app", status: "opened_sms_app" });
+    const phone = student.parent_phone ?? "";
     const smsUrl = Platform.OS === "ios"
-      ? `sms:&body=${encodeURIComponent(msg)}`
-      : `sms:?body=${encodeURIComponent(msg)}`;
+      ? `sms:${phone}&body=${encodeURIComponent(msg)}`
+      : `sms:${phone}?body=${encodeURIComponent(msg)}`;
     const can = await Linking.canOpenURL(smsUrl);
     if (can) {
       await Linking.openURL(smsUrl);
     } else {
       await Share.share({ message: msg });
     }
+  }
+
+  async function copyMessage() {
+    addRecord({ ...makeRecordBase(), method: "copy_link", status: "copied_link" });
+    await Clipboard.setStringAsync(msg);
+    Alert.alert("복사 완료", "초대 문자가 클립보드에 복사되었습니다.");
   }
 
   return (
@@ -82,10 +109,7 @@ function InviteModal({ student, poolName, onClose }: { student: StudentMember; p
             <Text style={inv.smsBtnTxt}>문자 앱으로 발송</Text>
           </Pressable>
           <View style={inv.btnRow}>
-            <Pressable style={[inv.btn, { backgroundColor: C.tintLight }]} onPress={async () => {
-              await Clipboard.setStringAsync(msg);
-              Alert.alert("복사 완료", "초대 문자가 클립보드에 복사되었습니다.");
-            }}>
+            <Pressable style={[inv.btn, { backgroundColor: C.tintLight }]} onPress={copyMessage}>
               <Feather name="copy" size={14} color={C.tint} />
               <Text style={[inv.btnText, { color: C.tint }]}>복사하기</Text>
             </Pressable>
