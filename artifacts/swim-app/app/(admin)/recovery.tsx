@@ -258,7 +258,8 @@ export default function RecoveryScreen() {
   const snapshots      = useBackupStore(s => s.snapshots);
   const restoreJobs    = useBackupStore(s => s.restoreJobs);
   const createSnapshot = useBackupStore(s => s.createSnapshot);
-  const eventLogs      = useOperatorEventLogStore(s => s.getOperatorLogs(operatorId, 5));
+  const getEventLogs   = useOperatorEventLogStore(s => s.getOperatorLogs);
+  const eventLogs      = useMemo(() => getEventLogs(operatorId, 5), [getEventLogs, operatorId]);
 
   const [restoreTarget, setRestoreTarget] = useState<BackupSnapshot | null>(null);
   const [doneSnap, setDoneSnap]           = useState(false);
