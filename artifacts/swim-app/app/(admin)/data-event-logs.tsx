@@ -74,7 +74,7 @@ export default function DataEventLogsScreen() {
       <ScrollView
         horizontal showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, flexDirection: "row" }}
-        style={{ borderBottomWidth: 1, borderBottomColor: C.border, maxHeight: 56 }}
+        style={{ borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0, flexShrink: 0 }}
       >
         {CATEGORIES.map(cat => {
           const active = filter === cat;
