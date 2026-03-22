@@ -304,7 +304,7 @@ export default function SuperDashboard() {
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
           onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
 

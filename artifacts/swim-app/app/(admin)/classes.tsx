@@ -328,7 +328,7 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ flexShrink: 1 }}
-            contentContainerStyle={{ paddingBottom: 32 }}>
+            contentContainerStyle={{ paddingBottom: 80 }}>
 
             {classes.length === 0 && (
               <View style={dy.emptyBox}>

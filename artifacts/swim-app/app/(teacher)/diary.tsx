@@ -82,7 +82,7 @@ function AuditModal({ diaryId, token, onClose }: { diaryId: string; token: strin
             <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
           </View>
           {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} /> : (
-            <ScrollView contentContainerStyle={{ gap: 10, padding: 16 }}>
+            <ScrollView contentContainerStyle={{ gap: 10, padding: 16, paddingBottom: 40 }}>
               {logs.length === 0 && <Text style={{ textAlign: "center", color: C.textMuted, marginTop: 20 }}>기록이 없습니다</Text>}
               {logs.map(log => (
                 <View key={log.id} style={[a.logCard, { backgroundColor: C.background }]}>

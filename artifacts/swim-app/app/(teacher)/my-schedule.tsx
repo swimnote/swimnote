@@ -479,7 +479,7 @@ function DaySheet({
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} style={{ flexShrink: 1 }}
-          contentContainerStyle={{ paddingBottom: 32 }}>
+          contentContainerStyle={{ paddingBottom: 80 }}>
 
           {/* 수업 없음 */}
           {classes.length === 0 && (

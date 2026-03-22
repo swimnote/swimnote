@@ -259,7 +259,7 @@ function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
 
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }}
+            contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}
           >
             {/* ── 자동 옵션 ── */}
             <View style={[hm.optCard, { backgroundColor: C.card }]}>

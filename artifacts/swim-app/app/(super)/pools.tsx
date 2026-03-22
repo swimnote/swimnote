@@ -373,7 +373,7 @@ export default function SuperPoolsScreen() {
         renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
           onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 80 }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={s.empty}>

@@ -605,7 +605,7 @@ export default function TeachersScreen() {
                 </Pressable>
               </View>
             </View>
-            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40, gap: 10 }} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, gap: 10 }} showsVerticalScrollIndicator={false}>
               {teachers.length === 0 ? (
                 <View style={s.emptyBox}><Feather name="users" size={36} color={C.textMuted} /><Text style={[s.emptyText, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text></View>
               ) : teachers.map(t => (

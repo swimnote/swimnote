@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   header:          { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   headerTitle:     { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
   resetBtn:        { fontSize: 14, fontFamily: "Inter_500Medium" },
-  content:         { padding: 16, gap: 8 },
+  content:         { padding: 16, gap: 8, paddingBottom: 100 },
 
   section:         { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, gap: 12 },
   sectionTitle:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#6B7280", letterSpacing: 0.5, textTransform: "uppercase" },

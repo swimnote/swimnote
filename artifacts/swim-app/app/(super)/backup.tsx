@@ -163,7 +163,7 @@ function RestoreModal({
           <Text style={rm.title}>데이터 복구</Text>
           <View style={{ width: 24 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={rm.warningBox}>
             <Feather name="alert-triangle" size={20} color="#D97706" />
             <Text style={rm.warningTxt}>
@@ -331,7 +331,7 @@ function CreateModal({
           <Text style={cr.title}>백업/스냅샷 생성</Text>
           <View style={{ width: 24 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View>
             <Text style={cr.label}>백업 범위</Text>
             <View style={cr.segRow}>
@@ -513,7 +513,7 @@ export default function BackupScreen() {
             onToggleCompare={toggleCompare}
           />
         )}
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
           onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
         ListEmptyComponent={

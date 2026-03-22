@@ -231,7 +231,7 @@ export default function ReadonlyControlScreen() {
       <SubScreenHeader title="읽기전용 제어" subtitle="3단계 읽기전용 제어 시스템" />
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }}
+        contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
           onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
 

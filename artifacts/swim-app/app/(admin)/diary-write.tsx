@@ -180,7 +180,7 @@ const dw = StyleSheet.create({
   },
   summaryNoteText: { fontSize: 11, color: C.textMuted, fontFamily: "Inter_400Regular" },
 
-  listContent: { paddingHorizontal: 16, paddingBottom: 40, gap: 8 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 100, gap: 8 },
 
   card: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

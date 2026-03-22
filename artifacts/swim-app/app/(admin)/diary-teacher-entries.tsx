@@ -378,7 +378,7 @@ const de = StyleSheet.create({
   },
   msgText: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
-  listContent: { paddingHorizontal: 16, paddingBottom: 40, gap: 8 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 100, gap: 8 },
 
   card: {
     borderRadius: 12, padding: 14,

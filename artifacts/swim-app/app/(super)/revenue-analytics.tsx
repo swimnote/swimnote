@@ -135,7 +135,7 @@ export default function RevenueAnalyticsScreen() {
         ))}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, gap: 16 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 80, gap: 16 }}>
 
         {/* 안내: 집계 기준 */}
         <View style={st.noticeBox}>
