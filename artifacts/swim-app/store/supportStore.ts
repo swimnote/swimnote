@@ -60,7 +60,11 @@ export const useSupportStore = create<SupportState>((set, get) => ({
     } else if (activeTab === 'sla') {
       list = list.filter(t => t.isSlaOverdue)
     } else if (activeTab === 'critical') {
-      list = list.filter(t => t.riskLevel === 'critical' || t.riskLevel === 'high')
+      // 긴급: 위험등급 critical/high 또는 복구·보안 유형은 항상 포함
+      list = list.filter(t =>
+        t.riskLevel === 'critical' || t.riskLevel === 'high' ||
+        t.type === 'recovery' || t.type === 'security'
+      )
     }
     if (filterType) list = list.filter(t => t.type === filterType)
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

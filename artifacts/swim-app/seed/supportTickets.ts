@@ -338,4 +338,24 @@ export const SEED_SUPPORT_TICKETS: SupportTicket[] = [
     repeatedIssueFlag: true,
     internalMemo: '',
   },
+  // 복구 문의 — 긴급/비상 최우선 처리
+  {
+    id: 'tkt-recovery-001',
+    requesterName: '이민준',
+    requesterRole: 'operator',
+    operatorId: 'op-007',
+    operatorName: '서울수영아카데미',
+    type: 'recovery',
+    status: 'received',
+    createdAt: new Date(Date.now() - 30 * 60000).toISOString(), // 30분 전
+    lastAnsweredAt: null,
+    slaDueAt: slaDeadline(new Date(Date.now() - 30 * 60000).toISOString(), 'recovery'),
+    isSlaOverdue: false,
+    riskLevel: 'critical',
+    title: '[긴급] 복구 실패 — 스냅샷 복구 후 회원 데이터 불일치',
+    body: '어제 오후 스냅샷 복구를 시도했는데 복구 후 회원 데이터가 이전 상태와 다릅니다. 회원 50명 정보가 누락된 것 같습니다. 즉시 확인 부탁드립니다.\n\n복구 시도 시간: 2026-03-22 14:30\n복구 스냅샷: 서울수영아카데미_스냅샷_2026-03-21_09-00\n실패 사유: 부분 복구 시도 후 데이터 불일치 감지',
+    assigneeName: '',
+    repeatedIssueFlag: false,
+    internalMemo: '',
+  },
 ]

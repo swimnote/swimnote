@@ -42,6 +42,8 @@ export type SupportType =
   | 'refund'
   | 'dispute'
   | 'login_permission'
+  | 'recovery'
+  | 'security'
   | 'etc'
 
 export type SupportStatus =

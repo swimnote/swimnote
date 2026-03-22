@@ -10,6 +10,7 @@ import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { NoticePopup } from "@/components/common/NoticePopup";
 import { AuthProvider, apiRequest, useAuth, type AccountEntry, type AdminUser, type SessionKind, type ParentAccount } from "@/context/AuthContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 
@@ -251,6 +252,7 @@ export default function RootLayout() {
               <AuthProvider>
                 <BrandSync />
                 <PushTokenSync />
+                <NoticePopup />
                 <RootNav />
               </AuthProvider>
             </BrandProvider>

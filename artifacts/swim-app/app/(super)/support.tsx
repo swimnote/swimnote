@@ -19,15 +19,17 @@ import { SLA_HOURS } from "@/domain/policies";
 
 const P = "#7C3AED";
 
-const TYPE_CFG: Record<string, { label: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
-  refund:     { label: "환불",   color: "#DC2626", bg: "#FEE2E2", icon: "rotate-ccw" },
-  payment:    { label: "결제",   color: "#0891B2", bg: "#ECFEFF", icon: "credit-card" },
-  deletion:   { label: "삭제",   color: "#D97706", bg: "#FEF3C7", icon: "trash-2" },
-  policy:     { label: "정책",   color: "#4F46E5", bg: "#EEF2FF", icon: "file-text" },
-  technical:  { label: "기술",   color: P,         bg: "#EDE9FE", icon: "tool" },
-  storage:    { label: "저장공간", color: "#059669", bg: "#D1FAE5", icon: "hard-drive" },
-  chargeback: { label: "차지백", color: "#991B1B", bg: "#FEE2E2", icon: "alert-triangle" },
-  other:      { label: "기타",   color: "#6B7280", bg: "#F3F4F6", icon: "help-circle" },
+const TYPE_CFG: Record<string, { label: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"]; emergency?: boolean }> = {
+  recovery:   { label: "복구 문의",  color: "#DC2626", bg: "#FEE2E2", icon: "alert-octagon", emergency: true },
+  security:   { label: "보안 문의",  color: "#991B1B", bg: "#FEE2E2", icon: "shield-off",    emergency: true },
+  refund:     { label: "환불",        color: "#DC2626", bg: "#FEE2E2", icon: "rotate-ccw" },
+  payment:    { label: "결제",        color: "#0891B2", bg: "#ECFEFF", icon: "credit-card" },
+  deletion:   { label: "삭제",        color: "#D97706", bg: "#FEF3C7", icon: "trash-2" },
+  policy:     { label: "정책",        color: "#4F46E5", bg: "#EEF2FF", icon: "file-text" },
+  technical:  { label: "기술",        color: P,         bg: "#EDE9FE", icon: "tool" },
+  storage:    { label: "저장공간",    color: "#059669", bg: "#D1FAE5", icon: "hard-drive" },
+  chargeback: { label: "차지백",      color: "#991B1B", bg: "#FEE2E2", icon: "alert-triangle" },
+  other:      { label: "기타",        color: "#6B7280", bg: "#F3F4F6", icon: "help-circle" },
 };
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
@@ -108,7 +110,14 @@ export default function SupportScreen() {
     let list = allTickets;
     if (filterStatus !== "all") list = list.filter(t => t.status === filterStatus);
     if (filterType !== "all")   list = list.filter(t => t.type === filterType);
-    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // 복구 문의·보안 문의 긴급 항목을 최상단 고정, 그 다음 생성일 내림차순
+    const emergencyTypes = new Set(["recovery", "security"]);
+    return [...list].sort((a, b) => {
+      const aEmergency = emergencyTypes.has(a.type) ? 1 : 0;
+      const bEmergency = emergencyTypes.has(b.type) ? 1 : 0;
+      if (bEmergency !== aEmergency) return bEmergency - aEmergency;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
   }, [allTickets, filterStatus, filterType]);
 
   const counts: Record<string, number> = useMemo(() => {
@@ -175,16 +184,27 @@ export default function SupportScreen() {
     const sc = STATUS_CFG[item.status] ?? STATUS_CFG.received;
     const rc = REQUESTER_CFG[item.requesterRole] ?? { label: item.requesterRole, color: "#6B7280" };
     const { overdue, label: slaLabel } = getSlaStatus(item);
+    const isEmergency = tc.emergency === true;
 
     return (
-      <Pressable style={[s.row, overdue && s.rowOverdue, item.riskLevel === 'critical' && s.rowCritical]}
+      <Pressable
+        style={[s.row, overdue && s.rowOverdue, item.riskLevel === 'critical' && s.rowCritical,
+                isEmergency && s.rowEmergency]}
         onPress={() => { setEditTicket(item); setNewStatus(item.status as SupportStatus); setAssignee(item.assigneeName ?? ""); setInternalMemo(item.internalMemo ?? ""); }}>
+        {/* 긴급/비상 사이드 스트라이프 */}
+        {isEmergency && <View style={s.emergencyStripe} />}
         <View style={[s.typeIcon, { backgroundColor: tc.bg }]}>
           <Feather name={tc.icon} size={15} color={tc.color} />
         </View>
         <View style={s.rowMain}>
           <View style={s.rowTop}>
-            <Text style={s.subject} numberOfLines={1}>{item.title}</Text>
+            <Text style={[s.subject, isEmergency && { color: "#DC2626" }]} numberOfLines={1}>{item.title}</Text>
+            {isEmergency && (
+              <View style={s.emergencyBadge}>
+                <Feather name="alert-octagon" size={9} color="#DC2626" />
+                <Text style={s.emergencyBadgeTxt}>긴급</Text>
+              </View>
+            )}
             {overdue && <View style={s.slaTag}><Text style={s.slaTxt}>SLA 초과</Text></View>}
             {slaLabel && !overdue && <View style={[s.slaTag, { backgroundColor: "#FEF3C7" }]}><Text style={[s.slaTxt, { color: "#D97706" }]}>{slaLabel}</Text></View>}
           </View>
@@ -453,8 +473,13 @@ const s = StyleSheet.create({
   typeChipActive:{ backgroundColor: P, borderColor: P },
   typeChipTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
   row:           { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
-  rowOverdue:    { borderLeftWidth: 3, borderLeftColor: "#DC2626" },
-  rowCritical:   { backgroundColor: "#FFF5F5" },
+  rowOverdue:       { borderLeftWidth: 3, borderLeftColor: "#DC2626" },
+  rowCritical:      { backgroundColor: "#FFF5F5" },
+  rowEmergency:     { backgroundColor: "#FFF1F2", borderLeftWidth: 4, borderLeftColor: "#DC2626" },
+  emergencyStripe:  { position: "absolute", left: 0, top: 0, bottom: 0, width: 4, backgroundColor: "#DC2626", borderRadius: 2 },
+  emergencyBadge:   { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#FEE2E2",
+                      paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
+  emergencyBadgeTxt:{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#DC2626" },
   typeIcon:      { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   rowMain:       { flex: 1, gap: 4 },
   rowTop:        { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },

@@ -53,10 +53,11 @@ const MENUS = [
     bg: "#ECFEFF",
   },
   {
+    // §14: SMS 판매 기능 제거. 문자 발송 기록 로그만 유지.
     icon: "message-square" as const,
-    title: "SMS 판매·정산 관리",
-    sub: "크레딧 판매·잔액·차단·운영자별 사용량",
-    path: "/(super)/sms-billing",
+    title: "문자 발송 기록 로그",
+    sub: "수영장 관리자 기기 발송 문자 수집·감사·추적",
+    path: "/(super)/invite-sms",
     color: "#D97706",
     bg: "#FEF3C7",
   },

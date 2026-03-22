@@ -142,6 +142,8 @@ export const SLA_HOURS: Record<string, number> = {
   app_bug: 24,
   policy: 48,
   login_permission: 4,
+  recovery: 4,   // 긴급: 복구 문의는 4시간 SLA
+  security: 2,   // 최긴급: 보안 문의는 2시간 SLA
   etc: 72,
 }
 
