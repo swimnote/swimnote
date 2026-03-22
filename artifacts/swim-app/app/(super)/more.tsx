@@ -69,36 +69,31 @@ export default function SuperMoreScreen() {
     {
       title: "① 운영 관리",
       items: [
-        { icon: "users",       label: "운영자 관리",        sub: "승인·제한·멤버 현황",              color: "purple", onPress: go("/(super)/pools") },
-        { icon: "credit-card", label: "구독·결제 관리",      sub: "결제 상태·크레딧·플랜 변경",       color: "blue",   onPress: go("/(super)/subscriptions") },
-        { icon: "package",     label: "구독 상품 설정",      sub: "플랜·추가 용량 상품 관리",          color: "indigo", onPress: go("/(super)/subscription-products") },
-        { icon: "hard-drive",  label: "저장공간 관리",        sub: "80%경고·95%차단·업로드 급증",      color: "green",  onPress: go("/(super)/storage") },
-        { icon: "settings",    label: "저장공간 정책",        sub: "과금 기준·임계값·override 설정",   color: "slate",  onPress: go("/(super)/storage-policy") },
+        { icon: "briefcase",   label: "운영 관리",           sub: "운영자·구독·저장공간·SMS 과금",    color: "purple", onPress: go("/(super)/op-group") },
       ],
     },
     {
-      title: "② 보호/통제",
+      title: "② 지원 센터",
       items: [
-        { icon: "zap",         label: "데이터·킬스위치",     sub: "삭제 실행·유예·안전장치 확인",     color: "red",    onPress: go("/(super)/kill-switch") },
-        { icon: "archive",     label: "백업/복구/스냅샷",    sub: "스냅샷 생성·복구 작업 관리",       color: "orange", onPress: go("/(super)/backup") },
-        { icon: "eye-off",     label: "읽기전용 제어",        sub: "플랫폼·운영자·기능별 제어",       color: "slate",  onPress: go("/(super)/readonly-control") },
-        { icon: "toggle-left", label: "기능 플래그",          sub: "전역 토글·운영자 예외·롤백",       color: "purple", onPress: go("/(super)/feature-flags") },
+        { icon: "message-circle", label: "지원 센터",        sub: "고객센터·정책·초대·인증번호",      color: "blue",   onPress: go("/(super)/support-group") },
       ],
     },
     {
-      title: "③ 정책/지원",
+      title: "③ 보호·통제",
       items: [
-        { icon: "file-text",   label: "정책·컴플라이언스",   sub: "이용약관·환불·개인정보 버전 관리", color: "indigo", onPress: go("/(super)/policy") },
-        { icon: "headphones",  label: "고객센터",             sub: "SLA·상태관리·에스컬레이션",        color: "blue",   onPress: go("/(super)/support") },
-        { icon: "send",        label: "초대/SMS 관리",         sub: "선생님·학부모·운영자 초대 발송",  color: "green",  onPress: go("/(super)/invite-sms") },
+        { icon: "shield",      label: "보호·통제",           sub: "킬스위치·백업·플래그·읽기전용",   color: "red",    onPress: go("/(super)/protect-group") },
       ],
     },
     {
-      title: "④ 보안/감사",
+      title: "④ 보안·설정",
       items: [
-        { icon: "list",        label: "운영 로그·감사",       sub: "전체 액션 감사 기록 조회",         color: "slate",  onPress: go("/(super)/op-logs") },
-        { icon: "alert-triangle",label:"장애·리스크 센터",   sub: "결제·저장·SLA 위험 현황",          color: "red",    onPress: go("/(super)/risk-center") },
-        { icon: "shield",      label: "슈퍼관리자 보안관리",  sub: "2FA·세션·잠금·권한 등급",          color: "purple", onPress: go("/(super)/security") },
+        { icon: "lock",        label: "보안·설정",           sub: "계정·2FA·외부서비스·세션·정책",   color: "red",    onPress: go("/(super)/security-settings") },
+      ],
+    },
+    {
+      title: "⑤ 감사·리스크",
+      items: [
+        { icon: "activity",    label: "감사·리스크",          sub: "운영로그·리스크·보안·민감작업",   color: "indigo", onPress: go("/(super)/audit-group") },
       ],
     },
   ];
@@ -122,7 +117,7 @@ export default function SuperMoreScreen() {
               <Text style={s.profileName}>{user.name}님</Text>
               <Text style={s.profileRole}>슈퍼관리자</Text>
             </View>
-            <Pressable style={s.securityBtn} onPress={() => router.push("/(super)/security" as any)}>
+            <Pressable style={s.securityBtn} onPress={() => router.push("/(super)/security-settings" as any)}>
               <Feather name="shield" size={16} color="#fff" />
               <Text style={s.securityBtnTxt}>보안</Text>
             </Pressable>

@@ -40,19 +40,11 @@ interface Todo {
 }
 
 const MENUS = [
-  { id: "ops",      icon: "users" as const,          title: "운영자 관리",       sub: "승인·반려·제한·종료",        path: "/(super)/pools",                  color: P,         bg: "#EDE9FE" },
-  { id: "sub",      icon: "credit-card" as const,    title: "구독·결제",         sub: "플랜·결제실패·환불·차지백",  path: "/(super)/subscriptions",          color: "#0891B2", bg: "#ECFEFF" },
-  { id: "plans",    icon: "package" as const,        title: "구독 상품 설정",     sub: "플랜 생성·수정·비활성화",    path: "/(super)/subscription-products",  color: "#7C3AED", bg: "#EDE9FE" },
-  { id: "store",    icon: "hard-drive" as const,     title: "저장공간",           sub: "사용량·급증·차단·삭제큐",   path: "/(super)/storage",                color: "#059669", bg: "#D1FAE5" },
-  { id: "storepol", icon: "sliders" as const,        title: "저장공간 정책",      sub: "자동삭제·차단·급증 임계값", path: "/(super)/storage-policy",         color: "#0891B2", bg: "#ECFEFF" },
-  { id: "kill",     icon: "alert-triangle" as const, title: "데이터·킬스위치",   sub: "삭제·유예·실행로그",         path: "/(super)/kill-switch",            color: "#DC2626", bg: "#FEE2E2" },
-  { id: "backup",   icon: "save" as const,           title: "백업/복구/스냅샷",   sub: "스냅샷·단일복구·비교복구",  path: "/(super)/backup",                 color: "#059669", bg: "#D1FAE5" },
-  { id: "policy",   icon: "file-text" as const,      title: "정책·컴플라이언스", sub: "환불·개인정보·버전·동의",    path: "/(super)/policy",                 color: "#D97706", bg: "#FEF3C7" },
-  { id: "logs",     icon: "activity" as const,       title: "운영 로그·감사",     sub: "결제·삭제·보안 이벤트",     path: "/(super)/op-logs",                color: "#4F46E5", bg: "#EEF2FF" },
-  { id: "support",  icon: "message-circle" as const, title: "고객센터",           sub: "문의·SLA·환불·결제연결",    path: "/(super)/support",                color: "#0284C7", bg: "#E0F2FE" },
-  { id: "risk",     icon: "shield" as const,         title: "장애·리스크",        sub: "오늘 처리 큐·서비스 상태",  path: "/(super)/risk-center",            color: "#9333EA", bg: "#F3E8FF" },
-  { id: "flags",    icon: "toggle-left" as const,    title: "기능 플래그",        sub: "ON/OFF·운영자별 예외",      path: "/(super)/feature-flags",          color: "#059669", bg: "#D1FAE5" },
-  { id: "readonly", icon: "lock" as const,           title: "읽기전용 제어",      sub: "플랫폼·운영자별·기능별",    path: "/(super)/readonly-control",       color: "#DC2626", bg: "#FEE2E2" },
+  { id: "op",       icon: "briefcase" as const,      title: "운영 관리",   sub: "운영자·구독·저장공간·SMS 과금",  path: "/(super)/op-group",            color: P,         bg: "#EDE9FE" },
+  { id: "support",  icon: "message-circle" as const, title: "지원 센터",   sub: "고객센터·정책·초대·인증번호",    path: "/(super)/support-group",        color: "#0284C7", bg: "#E0F2FE" },
+  { id: "protect",  icon: "shield" as const,         title: "보호·통제",   sub: "킬스위치·백업·플래그·읽기전용", path: "/(super)/protect-group",        color: "#DC2626", bg: "#FEE2E2" },
+  { id: "security", icon: "lock" as const,           title: "보안·설정",   sub: "계정·2FA·외부서비스·세션·정책", path: "/(super)/security-settings",    color: "#991B1B", bg: "#FEF2F2" },
+  { id: "audit",    icon: "activity" as const,       title: "감사·리스크", sub: "운영로그·리스크·보안·민감작업",  path: "/(super)/audit-group",          color: "#4F46E5", bg: "#EEF2FF" },
 ];
 
 const POOL_TYPE_LABELS: Record<string, string> = {

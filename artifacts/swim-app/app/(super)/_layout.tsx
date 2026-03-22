@@ -24,6 +24,12 @@ export default function SuperLayout() {
       <Stack.Screen name="op-logs" />
       <Stack.Screen name="risk-center" />
       <Stack.Screen name="security" />
+      <Stack.Screen name="security-settings" />
+      <Stack.Screen name="op-group" />
+      <Stack.Screen name="support-group" />
+      <Stack.Screen name="protect-group" />
+      <Stack.Screen name="audit-group" />
+      <Stack.Screen name="sms-billing" />
       <Stack.Screen name="users" />
       <Stack.Screen name="more" />
       <Stack.Screen name="sync" />
