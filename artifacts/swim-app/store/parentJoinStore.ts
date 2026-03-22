@@ -125,18 +125,25 @@ const SEED: ParentJoinRequest[] = [
 
 interface ParentJoinState {
   requests: ParentJoinRequest[]
+  currentParentRequestId: string | null
   submitRequest: (req: Omit<ParentJoinRequest, 'id' | 'createdAt'>) => ParentJoinRequest
   approveRequest: (id: string, reviewedBy: string) => void
   rejectRequest:  (id: string, reason: string, reviewedBy: string) => void
   holdRequest:    (id: string, reviewedBy: string) => void
+  setCurrentParentRequestId: (id: string | null) => void
 }
 
 export const useParentJoinStore = create<ParentJoinState>((set) => ({
   requests: SEED,
+  currentParentRequestId: null,
+
+  setCurrentParentRequestId(id) {
+    set({ currentParentRequestId: id })
+  },
 
   submitRequest(req) {
     const newReq: ParentJoinRequest = { ...req, id: `pjr-${Date.now()}`, createdAt: now() }
-    set(s => ({ requests: [newReq, ...s.requests] }))
+    set(s => ({ requests: [newReq, ...s.requests], currentParentRequestId: newReq.id }))
     return newReq
   },
 

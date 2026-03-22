@@ -1,12 +1,94 @@
 /**
  * 학부모 레이아웃 — Stack 기반 (탭바 없음)
- * 모든 화면은 home.tsx에서 아이콘으로 진입하며,
- * 뒤로가기/홈 버튼은 ParentScreenHeader에서 처리
+ * 미승인 학부모(pending / on_hold / rejected)는 홈 진입 차단 → 대기 화면 표시
  */
+import { Feather } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Colors from "@/constants/colors";
 import { ParentProvider } from "@/context/ParentContext";
 import { useAuth } from "@/context/AuthContext";
+import { useParentJoinStore, type JoinStatus } from "@/store/parentJoinStore";
+
+const C = Colors.light;
+
+const BLOCKED_STATUSES: JoinStatus[] = ["pending", "on_hold", "rejected"];
+
+function ApprovalPendingScreen({ status }: { status: JoinStatus }) {
+  const insets = useSafeAreaInsets();
+  const { logout } = useAuth();
+  const isRejected = status === "rejected";
+
+  return (
+    <View style={[g.root, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+      <View style={g.content}>
+        <View style={[g.iconBox, { backgroundColor: isRejected ? "#FEE2E2" : "#FEF3C7" }]}>
+          <Feather name={isRejected ? "x-circle" : "clock"} size={40} color={isRejected ? "#DC2626" : "#F59E0B"} />
+        </View>
+
+        <Text style={g.title}>
+          {isRejected ? "가입이 거절되었습니다" : "수영장 승인을 기다려주세요"}
+        </Text>
+
+        <Text style={g.message}>
+          {isRejected
+            ? "수영장 관리자가 가입 요청을 거절했습니다.\n다시 가입하거나 수영장에 직접 문의해 주세요."
+            : `가입 요청이 접수되었습니다.\n수영장 관리자가 요청을 검토한 후 승인합니다.\n\n자녀 정보가 학생 명부와 일치하는 경우\n`}
+          {!isRejected && (
+            <Text style={{ fontFamily: "Inter_600SemiBold", color: C.text }}>자동으로 즉시 승인</Text>
+          )}
+          {!isRejected && "됩니다."}
+        </Text>
+
+        {!isRejected && (
+          <View style={[g.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
+            <InfoRow icon="check-circle" color="#10B981" text="자녀 정보 일치 시 즉시 자동 승인" />
+            <InfoRow icon="user-check"  color="#1A5CFF" text="관리자 수동 승인 시 알림 발송" />
+            <InfoRow icon="clock"       color="#F59E0B" text="일반적으로 1~2 영업일 이내 처리" />
+          </View>
+        )}
+
+        <View style={[g.waitBanner, { backgroundColor: C.tintLight }]}>
+          <Feather name="info" size={14} color={C.tint} />
+          <Text style={[g.waitTxt, { color: C.tint }]}>
+            {isRejected
+              ? "문의: 수영장에 직접 연락해 주세요"
+              : "승인 후 자동으로 홈 화면으로 이동합니다"}
+          </Text>
+        </View>
+
+        <Pressable onPress={logout}>
+          <Text style={g.logoutText}>다른 계정으로 로그인</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function InfoRow({ icon, color, text }: { icon: any; color: string; text: string }) {
+  return (
+    <View style={g.infoRow}>
+      <Feather name={icon} size={14} color={color} />
+      <Text style={[g.infoText, { color: C.textSecondary }]}>{text}</Text>
+    </View>
+  );
+}
+
+const g = StyleSheet.create({
+  root:     { flex: 1, backgroundColor: C.background },
+  content:  { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28, gap: 20 },
+  iconBox:  { width: 96, height: 96, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  title:    { fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center", color: C.text },
+  message:  { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 23, color: C.textSecondary },
+  infoCard: { width: "100%", borderRadius: 16, borderWidth: 1, padding: 16, gap: 12 },
+  infoRow:  { flexDirection: "row", alignItems: "center", gap: 10 },
+  infoText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 19 },
+  waitBanner:{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12 },
+  waitTxt:  { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  logoutText:{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
+});
 
 function ParentStack() {
   return (
@@ -36,7 +118,17 @@ function ParentStack() {
 
 export default function ParentLayout() {
   const { kind, isLoading } = useAuth();
+  const currentParentRequestId = useParentJoinStore(s => s.currentParentRequestId);
+  const requests               = useParentJoinStore(s => s.requests);
+
   if (isLoading || kind !== "parent") return null;
+
+  if (currentParentRequestId) {
+    const req = requests.find(r => r.id === currentParentRequestId);
+    if (req && BLOCKED_STATUSES.includes(req.status)) {
+      return <ApprovalPendingScreen status={req.status} />;
+    }
+  }
 
   return (
     <ParentProvider>
