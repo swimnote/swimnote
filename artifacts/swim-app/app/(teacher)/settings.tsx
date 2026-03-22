@@ -94,54 +94,25 @@ export default function TeacherSettingsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
       >
 
-        {/* ── 저장공간 ── */}
-        <View style={s.card}>
-          <View style={s.cardHeader}>
-            <Feather name="hard-drive" size={15} color={themeColor} />
-            <Text style={s.cardTitle}>저장공간</Text>
-          </View>
-          <View style={{ padding: 16, gap: 14 }}>
-            <View style={[s.storageSummary, { borderColor: gaugeColor + "40", backgroundColor: gaugeColor + "08" }]}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
-                <View>
-                  <Text style={[s.storageUsedLabel, { color: gaugeColor }]}>사용 중</Text>
-                  <Text style={[s.storageUsedBytes, { color: gaugeColor }]}>{fmtBytes(used)}</Text>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={s.storageQuotaLabel}>제공 용량</Text>
-                  <Text style={s.storageQuotaBytes}>{fmtBytes(quota)}</Text>
-                </View>
-              </View>
-              <View style={s.gaugeWrap}>
-                <View style={[s.gaugeBar, { width: `${pct}%` as any, backgroundColor: gaugeColor }]} />
-              </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
-                <Text style={[s.gaugePct, { color: gaugeColor }]}>{pct.toFixed(1)}% 사용</Text>
-                <Text style={s.gaugeRemain}>남은 용량 {fmtBytes(Math.max(0, quota - used))}</Text>
-              </View>
-            </View>
+        {/* ── 피드백 기본 설정 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#EFF6FF", borderColor: "#93C5FD" }]}
+          onPress={() => router.push("/(teacher)/feedback-custom" as any)}
+        >
+          <Feather name="edit-3" size={18} color="#3B82F6" />
+          <Text style={[s.actionBtnText, { color: "#3B82F6" }]}>피드백 기본 설정</Text>
+          <Feather name="chevron-right" size={16} color="#3B82F6" />
+        </Pressable>
 
-            {([
-              { icon: "image"          as const, bg: "#FEF3C7", color: "#F59E0B", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
-              { icon: "video"          as const, bg: "#EDE9FE", color: "#7C3AED", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
-              { icon: "message-square" as const, bg: "#DBEAFE", color: "#2563EB", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
-              { icon: "book-open"      as const, bg: "#D1FAE5", color: "#059669", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
-              { icon: "bell"           as const, bg: "#FCE7F3", color: "#EC4899", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
-              { icon: "cpu"            as const, bg: "#F3F4F6", color: "#6B7280", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
-            ]).map(item => (
-              <View key={item.label} style={s.usageRow}>
-                <View style={[s.usageIcon, { backgroundColor: item.bg }]}>
-                  <Feather name={item.icon} size={16} color={item.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.usageLabel}>{item.label}</Text>
-                  <Text style={s.usageSub}>{item.sub}</Text>
-                </View>
-                <Text style={s.usageBytes}>{fmtBytes(item.bytes)}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
+        {/* ── 사진·영상 앨범 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#FFF7ED", borderColor: "#F97316" }]}
+          onPress={() => router.push("/(teacher)/photos" as any)}
+        >
+          <Feather name="camera" size={18} color="#F97316" />
+          <Text style={[s.actionBtnText, { color: "#F97316" }]}>사진·영상 앨범</Text>
+          <Feather name="chevron-right" size={16} color="#F97316" />
+        </Pressable>
 
         {/* ── 알림 설정 ── */}
         <View style={s.card}>
@@ -200,25 +171,54 @@ export default function TeacherSettingsScreen() {
           </View>
         </View>
 
-        {/* ── 피드백 기본 설정 ── */}
-        <Pressable
-          style={[s.actionBtn, { backgroundColor: "#EFF6FF", borderColor: "#93C5FD" }]}
-          onPress={() => router.push("/(teacher)/feedback-custom" as any)}
-        >
-          <Feather name="edit-3" size={18} color="#3B82F6" />
-          <Text style={[s.actionBtnText, { color: "#3B82F6" }]}>피드백 기본 설정</Text>
-          <Feather name="chevron-right" size={16} color="#3B82F6" />
-        </Pressable>
+        {/* ── 저장공간 (데이터 정보) ── */}
+        <View style={s.card}>
+          <View style={s.cardHeader}>
+            <Feather name="hard-drive" size={15} color={themeColor} />
+            <Text style={s.cardTitle}>저장공간</Text>
+          </View>
+          <View style={{ padding: 16, gap: 14 }}>
+            <View style={[s.storageSummary, { borderColor: gaugeColor + "40", backgroundColor: gaugeColor + "08" }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
+                <View>
+                  <Text style={[s.storageUsedLabel, { color: gaugeColor }]}>사용 중</Text>
+                  <Text style={[s.storageUsedBytes, { color: gaugeColor }]}>{fmtBytes(used)}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={s.storageQuotaLabel}>제공 용량</Text>
+                  <Text style={s.storageQuotaBytes}>{fmtBytes(quota)}</Text>
+                </View>
+              </View>
+              <View style={s.gaugeWrap}>
+                <View style={[s.gaugeBar, { width: `${pct}%` as any, backgroundColor: gaugeColor }]} />
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+                <Text style={[s.gaugePct, { color: gaugeColor }]}>{pct.toFixed(1)}% 사용</Text>
+                <Text style={s.gaugeRemain}>남은 용량 {fmtBytes(Math.max(0, quota - used))}</Text>
+              </View>
+            </View>
 
-        {/* ── 사진·영상 앨범 ── */}
-        <Pressable
-          style={[s.actionBtn, { backgroundColor: "#FFF7ED", borderColor: "#F97316" }]}
-          onPress={() => router.push("/(teacher)/photos" as any)}
-        >
-          <Feather name="camera" size={18} color="#F97316" />
-          <Text style={[s.actionBtnText, { color: "#F97316" }]}>사진·영상 앨범</Text>
-          <Feather name="chevron-right" size={16} color="#F97316" />
-        </Pressable>
+            {([
+              { icon: "image"          as const, bg: "#FEF3C7", color: "#F59E0B", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
+              { icon: "video"          as const, bg: "#EDE9FE", color: "#7C3AED", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
+              { icon: "message-square" as const, bg: "#DBEAFE", color: "#2563EB", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
+              { icon: "book-open"      as const, bg: "#D1FAE5", color: "#059669", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
+              { icon: "bell"           as const, bg: "#FCE7F3", color: "#EC4899", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
+              { icon: "cpu"            as const, bg: "#F3F4F6", color: "#6B7280", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
+            ]).map(item => (
+              <View key={item.label} style={s.usageRow}>
+                <View style={[s.usageIcon, { backgroundColor: item.bg }]}>
+                  <Feather name={item.icon} size={16} color={item.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.usageLabel}>{item.label}</Text>
+                  <Text style={s.usageSub}>{item.sub}</Text>
+                </View>
+                <Text style={s.usageBytes}>{fmtBytes(item.bytes)}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
 
       </ScrollView>
     </SafeAreaView>
