@@ -7,7 +7,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  FlatList, Modal, Pressable, ScrollView,
+  Alert, FlatList, Linking, Modal, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -78,8 +78,14 @@ export default function OperatorInviteSmsScreen() {
   const pending    = useMemo(() => myInvites.filter(i => i.status === "pending" || i.status === "expired"), [myInvites]);
   const failedSms  = useMemo(() => records.filter(r => r.status === "failed"), [records]);
 
-  function doSend() {
+  async function doSend() {
     if (!invName.trim() || !invPhone.trim()) return;
+    const poolName = "우리 수영장";
+    const inviteMsg = invRole === "teacher"
+      ? `[스윔노트] 안녕하세요 ${invName} 선생님, ${poolName} 초대장입니다.\n앱 다운로드 후 선생님 코드로 가입해 주세요.\nhttps://swimnote.kr`
+      : `[스윔노트] 안녕하세요 ${invName} 학부모님, ${poolName}에서 초대장을 보냈습니다.\n앱 설치 후 가입해 주세요.\nhttps://swimnote.kr`;
+    const rawPhone = invPhone.replace(/\D/g, "");
+    const smsUrl = `sms:${rawPhone}?body=${encodeURIComponent(inviteMsg)}`;
     createInvite({
       role: invRole,
       recipientName: invName,
@@ -99,6 +105,11 @@ export default function OperatorInviteSmsScreen() {
     setModal(false);
     setInvName(""); setInvPhone(""); setInvNote("");
     setTab("pending");
+    try {
+      const can = await Linking.canOpenURL(smsUrl);
+      if (can) await Linking.openURL(smsUrl);
+      else Alert.alert("알림", "문자 앱을 열 수 없습니다. 초대 내역에서 메시지를 복사해 직접 발송해 주세요.");
+    } catch { /* ignore */ }
   }
 
   function doResend(inv: InviteRecord) {

@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
-  Modal, Platform, Pressable, RefreshControl, ScrollView,
+  Linking, Modal, Platform, Pressable, RefreshControl, ScrollView,
   Share, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -49,12 +49,25 @@ function InviteModal({ student, poolName, onClose }: { student: StudentMember; p
     inviteCode: student.invite_code || "------",
     appUrl,
   });
+
+  async function openSms() {
+    const smsUrl = Platform.OS === "ios"
+      ? `sms:&body=${encodeURIComponent(msg)}`
+      : `sms:?body=${encodeURIComponent(msg)}`;
+    const can = await Linking.canOpenURL(smsUrl);
+    if (can) {
+      await Linking.openURL(smsUrl);
+    } else {
+      await Share.share({ message: msg });
+    }
+  }
+
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
       <View style={inv.overlay}>
         <View style={inv.sheet}>
           <View style={inv.header}>
-            <Text style={inv.title}>📱 학부모 초대 문자</Text>
+            <Text style={inv.title}>학부모 초대 문자</Text>
             <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
           </View>
           <View style={inv.codeRow}>
@@ -64,6 +77,10 @@ function InviteModal({ student, poolName, onClose }: { student: StudentMember; p
           <View style={inv.msgBox}>
             <Text style={inv.msgText}>{msg}</Text>
           </View>
+          <Pressable style={[inv.smsBtn, { backgroundColor: C.tint }]} onPress={openSms}>
+            <Feather name="message-circle" size={15} color="#fff" />
+            <Text style={inv.smsBtnTxt}>문자 앱으로 발송</Text>
+          </Pressable>
           <View style={inv.btnRow}>
             <Pressable style={[inv.btn, { backgroundColor: C.tintLight }]} onPress={async () => {
               await Clipboard.setStringAsync(msg);
@@ -94,6 +111,8 @@ const inv = StyleSheet.create({
   code: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.tint, letterSpacing: 3 },
   msgBox: { backgroundColor: C.background, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
   msgText: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.text, lineHeight: 20 },
+  smsBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 12 },
+  smsBtnTxt: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
   btnRow: { flexDirection: "row", gap: 10 },
   btn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 12 },
   btnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },

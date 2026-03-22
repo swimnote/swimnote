@@ -16,6 +16,9 @@ import { EmptyState }    from "@/components/common/EmptyState";
 import { ApprovalCard, ApprovalCardMeta } from "@/components/approval/ApprovalCard";
 import { RejectModal }   from "@/components/common/RejectModal";
 import { STATUS_COLORS } from "@/components/common/constants";
+import {
+  useParentJoinStore, type ParentJoinRequest, type JoinStatus, type MatchStatus,
+} from "@/store/parentJoinStore";
 
 const C = Colors.light;
 
@@ -29,6 +32,21 @@ interface JoinRequest {
   children_requested?: Array<{ childName: string; childBirthYear: number | null }> | null;
   login_id?: string | null;
 }
+
+// 매칭 상태 설정
+const MATCH_CFG: Record<MatchStatus, { label: string; color: string; bg: string; icon: string }> = {
+  full_match:  { label: "자동 일치", color: "#059669", bg: "#D1FAE5", icon: "zap"         },
+  phone_only:  { label: "번호만 일치", color: "#D97706", bg: "#FEF3C7", icon: "phone"     },
+  no_match:    { label: "미일치",    color: "#6B7280", bg: "#F3F4F6", icon: "alert-circle" },
+};
+
+const JOIN_STATUS_CFG: Record<JoinStatus, { label: string }> = {
+  auto_approved: { label: "자동 승인" },
+  approved:      { label: "승인됨"   },
+  pending:       { label: "대기 중"  },
+  on_hold:       { label: "보류"     },
+  rejected:      { label: "거절됨"   },
+};
 
 interface TeacherInvite {
   id: string; name: string; phone: string; position: string | null;
@@ -640,25 +658,30 @@ const dm = StyleSheet.create({
 
 // ── 메인 컴포넌트 ───────────────────────────────────────────────
 export default function ApprovalsScreen() {
-  const { token } = useAuth();
+  const { token, adminUser } = useAuth();
   const insets = useSafeAreaInsets();
+  const actorName = adminUser?.name ?? "관리자";
+
+  // parentJoinStore — 학부모 탭 (로컬 스토어)
+  const storeRequests    = useParentJoinStore(s => s.requests);
+  const storeApprove     = useParentJoinStore(s => s.approveRequest);
+  const storeReject      = useParentJoinStore(s => s.rejectRequest);
+  const storeHold        = useParentJoinStore(s => s.holdRequest);
 
   const [mainTab,  setMainTab]  = useState<MainTab>("parents");
   const [filter,   setFilter]   = useState<StatusFilter>("pending");
-  const [joinReqs, setJoinReqs] = useState<JoinRequest[]>([]);
   const [invites,  setInvites]  = useState<TeacherInvite[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  // 거절 모달 (공용)
+  // 거절 모달 (선생님용)
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
 
-  // 학생 연결 모달 (학부모 승인 시)
-  const [linkTarget, setLinkTarget] = useState<JoinRequest | null>(null);
-
-  // 학부모 상세 팝업
-  const [parentDetail, setParentDetail] = useState<JoinRequest | null>(null);
+  // 학부모 상세 팝업 — parentJoinStore 기반
+  const [storeParentDetail, setStoreParentDetail] = useState<ParentJoinRequest | null>(null);
+  // 학부모 거절 사유 모달
+  const [storeRejectTargetId, setStoreRejectTargetId] = useState<string | null>(null);
   // 선생님 상세 팝업
   const [teacherDetailInvite, setTeacherDetailInvite] = useState<TeacherInvite | null>(null);
   const [teacherDetail, setTeacherDetail] = useState<TeacherDetail | null>(null);
@@ -667,71 +690,35 @@ export default function ApprovalsScreen() {
   const [transferSource, setTransferSource] = useState<TeacherInvite | null>(null);
   const [actionProcessing, setActionProcessing] = useState(false);
 
-  // ── 데이터 로드 ────────────────────────────────────────────────
+  // ── 데이터 로드 (선생님만 API) ─────────────────────────────────
   const load = useCallback(async () => {
     try {
-      const [jrRes, iRes] = await Promise.all([
-        apiRequest(token, "/admin/parent-requests"),
-        apiRequest(token, "/admin/teacher-invites"),
-      ]);
-      if (jrRes.ok) { const d = await jrRes.json(); setJoinReqs(d.data ?? []); }
-      if (iRes.ok)  { const d = await iRes.json();  setInvites(d.data  ?? []); }
+      const iRes = await apiRequest(token, "/admin/teacher-invites");
+      if (iRes.ok) { const d = await iRes.json(); setInvites(d.data ?? []); }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
 
-  // ── 학부모 승인 (학생 연결 포함) ──────────────────────────────
-  async function handleJoinApprove(reqId: string, opts: {
-    link_student_id?: string; create_student?: boolean;
-    child_name?: string; child_birth_year?: string;
-  }) {
-    setLinkTarget(null);
-    setParentDetail(null);
-    setProcessingId(reqId);
-    try {
-      const body: any = { action: "approve", ...opts };
-      const res = await apiRequest(token, `/admin/parent-requests/${reqId}`, {
-        method: "PATCH", body: JSON.stringify(body),
-      });
-      const d = await res.json();
-      if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
-      let msg = "학부모 계정이 생성되었습니다.";
-      if (d.default_pin) msg += `\n초기 PIN: ${d.default_pin} (학부모에게 전달해 주세요)`;
-      if (d.linked_student_id) msg += "\n학생과 연결이 완료되었습니다.";
-      Alert.alert("승인 완료", msg);
-      await load();
-    } finally { setProcessingId(null); }
+  // ── 학부모 승인 (스토어) ──────────────────────────────────────
+  function handleStoreApprove(reqId: string) {
+    storeApprove(reqId, actorName);
+    setStoreParentDetail(null);
+    Alert.alert("승인 완료", "학부모 가입 요청이 승인되었습니다.");
   }
 
-  // ── 학부모 거절 ────────────────────────────────────────────────
-  async function handleJoinReject(reqId: string, reason?: string) {
-    setProcessingId(reqId);
-    try {
-      const res = await apiRequest(token, `/admin/parent-requests/${reqId}`, {
-        method: "PATCH", body: JSON.stringify({ action: "reject", rejection_reason: reason }),
-      });
-      const d = await res.json();
-      if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
-      setRejectTargetId(null);
-      setParentDetail(null);
-      await load();
-    } finally { setProcessingId(null); }
+  // ── 학부모 거절 (스토어) ──────────────────────────────────────
+  function handleStoreReject(reqId: string, reason: string) {
+    storeReject(reqId, reason, actorName);
+    setStoreRejectTargetId(null);
+    setStoreParentDetail(null);
   }
 
-  // ── 학부모 승인 해제 ───────────────────────────────────────────
-  async function handleRevokeParent(reqId: string) {
-    setActionProcessing(true);
-    try {
-      const res = await apiRequest(token, `/admin/parent-requests/${reqId}`, {
-        method: "PATCH", body: JSON.stringify({ action: "revoke" }),
-      });
-      const d = await res.json();
-      if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
-      setParentDetail(null);
-      await load();
-    } finally { setActionProcessing(false); }
+  // ── 학부모 보류 (스토어) ──────────────────────────────────────
+  function handleStoreHold(reqId: string) {
+    storeHold(reqId, actorName);
+    setStoreParentDetail(null);
   }
 
   // ── 선생님 승인/거절 ──────────────────────────────────────────
@@ -800,19 +787,17 @@ export default function ApprovalsScreen() {
     } finally { setActionProcessing(false); }
   }
 
-  // ── 거절 모달 핸들러 ──────────────────────────────────────────
-  const isParentTarget = rejectTargetId ? joinReqs.some(r => r.id === rejectTargetId) : false;
+  // ── 거절 모달 핸들러 (선생님용) ──────────────────────────────
   function handleRejectConfirm(reason: string) {
     if (!rejectTargetId) return;
-    if (isParentTarget) handleJoinReject(rejectTargetId, reason);
-    else                handleInviteAction(rejectTargetId, "reject", reason);
+    handleInviteAction(rejectTargetId, "reject", reason);
   }
 
   // ── 필터링 ────────────────────────────────────────────────────
-  const filteredParents = joinReqs.filter(r => {
-    if (filter === "pending")  return r.request_status === "pending";
-    if (filter === "approved") return r.request_status === "approved";
-    if (filter === "rejected") return r.request_status === "rejected" || r.request_status === "revoked";
+  const filteredParents = storeRequests.filter(r => {
+    if (filter === "pending")  return r.status === "pending" || r.status === "on_hold";
+    if (filter === "approved") return r.status === "approved" || r.status === "auto_approved";
+    if (filter === "rejected") return r.status === "rejected";
     return false;
   });
   const filteredTeachers = invites.filter(i => {
@@ -822,16 +807,16 @@ export default function ApprovalsScreen() {
     return false;
   });
 
-  const pendingParentsCnt  = joinReqs.filter(r => r.request_status === "pending").length;
+  const pendingParentsCnt  = storeRequests.filter(r => r.status === "pending" || r.status === "on_hold").length;
   const pendingTeachersCnt = invites.filter(i => i.invite_status === "joinedPendingApproval").length;
 
   function chipsWithCount(): FilterChipItem<StatusFilter>[] {
     return FILTER_CHIPS.map(chip => {
       let cnt = 0;
       if (mainTab === "parents") {
-        if (chip.key === "pending")  cnt = joinReqs.filter(r => r.request_status === "pending").length;
-        if (chip.key === "approved") cnt = joinReqs.filter(r => r.request_status === "approved").length;
-        if (chip.key === "rejected") cnt = joinReqs.filter(r => r.request_status === "rejected" || r.request_status === "revoked").length;
+        if (chip.key === "pending")  cnt = storeRequests.filter(r => r.status === "pending" || r.status === "on_hold").length;
+        if (chip.key === "approved") cnt = storeRequests.filter(r => r.status === "approved" || r.status === "auto_approved").length;
+        if (chip.key === "rejected") cnt = storeRequests.filter(r => r.status === "rejected").length;
       } else {
         if (chip.key === "pending")  cnt = invites.filter(i => i.invite_status === "joinedPendingApproval").length;
         if (chip.key === "approved") cnt = invites.filter(i => i.invite_status === "approved").length;
@@ -841,37 +826,52 @@ export default function ApprovalsScreen() {
     });
   }
 
-  // ── 학부모 카드 빌더 ─────────────────────────────────────────
-  function buildParentMeta(req: JoinRequest): ApprovalCardMeta {
-    const isPending = req.request_status === "pending";
-    const statusMap: Record<string, ApprovalCardMeta["statusKey"]> = {
-      pending: "pending", approved: "approved", rejected: "rejected", revoked: "inactive",
+  // ── 학부모 카드 빌더 (parentJoinStore) ───────────────────────
+  function buildStoreMeta(req: ParentJoinRequest): ApprovalCardMeta {
+    const isPending = req.status === "pending" || req.status === "on_hold";
+    const statusMap: Record<JoinStatus, ApprovalCardMeta["statusKey"]> = {
+      pending:      "pending",
+      auto_approved:"approved",
+      approved:     "approved",
+      on_hold:      "pending",
+      rejected:     "rejected",
     };
     return {
       id:              req.id,
-      name:            req.parent_name,
-      sub1:            req.phone,
-      requestedAt:     req.requested_at,
-      statusKey:       statusMap[req.request_status] ?? "inactive",
-      avatarInitial:   req.parent_name[0],
-      rejectionReason: req.rejection_reason ?? undefined,
+      name:            req.parentName,
+      sub1:            `${req.parentPhone} · ${req.relation} · ${req.displayName}`,
+      requestedAt:     req.createdAt,
+      statusKey:       statusMap[req.status],
+      avatarInitial:   req.parentName[0],
+      rejectionReason: req.rejectReason,
       showActions:     isPending,
       processing:      processingId === req.id,
     };
   }
 
-  function buildParentExtra(req: JoinRequest) {
-    const list = req.children_requested && req.children_requested.length > 0
-      ? req.children_requested
-      : (req.child_name ? [{ childName: req.child_name, childBirthYear: req.child_birth_year }] : []);
-    if (!list.length) return null;
+  function buildStoreExtra(req: ParentJoinRequest) {
+    const mc = MATCH_CFG[req.matchStatus];
     return (
       <View style={x.childBox}>
-        <Text style={x.childTitle}>자녀 정보</Text>
-        {list.map((c, i) => (
+        <View style={x.matchRow}>
+          <Feather name={mc.icon as any} size={11} color={mc.color} />
+          <Text style={[x.matchTxt, { color: mc.color }]}>{mc.label}</Text>
+          {req.status === "auto_approved" && (
+            <View style={x.autoChip}>
+              <Text style={x.autoChipTxt}>자동승인</Text>
+            </View>
+          )}
+          {req.status === "on_hold" && (
+            <View style={[x.autoChip, { backgroundColor: "#FEF3C7" }]}>
+              <Text style={[x.autoChipTxt, { color: "#D97706" }]}>보류</Text>
+            </View>
+          )}
+        </View>
+        <Text style={x.childTitle}>자녀 정보 ({req.children.length}명)</Text>
+        {req.children.map((c, i) => (
           <View key={i} style={x.childRow}>
-            <Text style={x.childName}>{c.childName}</Text>
-            {c.childBirthYear ? <Text style={x.childYear}>{c.childBirthYear}년생</Text> : null}
+            <Text style={x.childName}>{c.name}</Text>
+            <Text style={x.childYear}>{c.birthDate}</Text>
           </View>
         ))}
       </View>
@@ -967,13 +967,14 @@ export default function ApprovalsScreen() {
           }
           renderItem={({ item }) => {
             if (isParentTab) {
-              const req = item as JoinRequest;
+              const req = item as ParentJoinRequest;
+              const isPending = req.status === "pending" || req.status === "on_hold";
               return (
                 <ApprovalCard
-                  meta={buildParentMeta(req)}
-                  extra={buildParentExtra(req)}
-                  onApprove={() => setLinkTarget(req)}
-                  onView={() => setParentDetail(req)}
+                  meta={buildStoreMeta(req)}
+                  extra={buildStoreExtra(req)}
+                  onApprove={isPending ? () => handleStoreApprove(req.id) : undefined}
+                  onView={() => setStoreParentDetail(req)}
                 />
               );
             } else {
@@ -990,17 +991,15 @@ export default function ApprovalsScreen() {
         />
       </ScreenLayout>
 
-      {/* 학생 연결 모달 */}
-      {linkTarget && (
-        <StudentLinkModal
-          request={linkTarget}
-          token={token}
-          onConfirm={(opts) => handleJoinApprove(linkTarget.id, opts)}
-          onCancel={() => setLinkTarget(null)}
-        />
-      )}
+      {/* 학부모 거절 사유 모달 (스토어) */}
+      <RejectModal
+        visible={!!storeRejectTargetId}
+        onClose={() => setStoreRejectTargetId(null)}
+        onConfirm={(reason) => storeRejectTargetId && handleStoreReject(storeRejectTargetId, reason)}
+        loading={false}
+      />
 
-      {/* 거절 사유 모달 */}
+      {/* 선생님 거절 사유 모달 */}
       <RejectModal
         visible={!!rejectTargetId}
         onClose={() => setRejectTargetId(null)}
@@ -1008,19 +1007,108 @@ export default function ApprovalsScreen() {
         loading={!!processingId}
       />
 
-      {/* 학부모 상세 팝업 */}
-      {parentDetail && (
-        <ParentDetailModal
-          request={parentDetail}
-          processing={actionProcessing || processingId === parentDetail.id}
-          onClose={() => setParentDetail(null)}
-          onApprove={parentDetail.request_status === "pending" ? () => setLinkTarget(parentDetail) : undefined}
-          onReject={parentDetail.request_status === "pending" ? () => {
-            setRejectTargetId(parentDetail.id);
-          } : undefined}
-          onRevoke={parentDetail.request_status === "approved" ? () => handleRevokeParent(parentDetail.id) : undefined}
-        />
-      )}
+      {/* 학부모 상세 팝업 (스토어 기반) */}
+      {storeParentDetail && (() => {
+        const req = storeParentDetail;
+        const isPending  = req.status === "pending";
+        const isOnHold   = req.status === "on_hold";
+        const isApproved = req.status === "approved" || req.status === "auto_approved";
+        const mc = MATCH_CFG[req.matchStatus];
+        return (
+          <Modal visible animationType="slide" transparent onRequestClose={() => setStoreParentDetail(null)}>
+            <View style={pd.overlay}>
+              <View style={pd.sheet}>
+                <View style={pd.handle} />
+                <View style={pd.header}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <View style={[pd.avatar, { backgroundColor: C.tintLight }]}>
+                      <Text style={[pd.avatarTxt, { color: C.tint }]}>{req.parentName[0]}</Text>
+                    </View>
+                    <View>
+                      <Text style={pd.name}>{req.parentName}</Text>
+                      <Text style={pd.nameSub}>{JOIN_STATUS_CFG[req.status].label}</Text>
+                    </View>
+                  </View>
+                  <Pressable onPress={() => setStoreParentDetail(null)} style={{ padding: 4 }}>
+                    <Feather name="x" size={20} color={C.textSecondary} />
+                  </Pressable>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {/* 매칭 배지 */}
+                  <View style={[pd.matchBadge, { backgroundColor: mc.bg }]}>
+                    <Feather name={mc.icon as any} size={13} color={mc.color} />
+                    <Text style={[pd.matchTxt, { color: mc.color }]}>{mc.label}</Text>
+                    {req.matchedStudentIds.length > 0 && (
+                      <Text style={[pd.matchSub, { color: mc.color }]}>· {req.matchedStudentIds.length}명 연결</Text>
+                    )}
+                  </View>
+
+                  {/* 보호자 정보 */}
+                  <View style={pd.section}>
+                    <Text style={pd.sTitle}>보호자 정보</Text>
+                    <PDRow label="이름"   value={req.parentName} />
+                    <PDRow label="연락처" value={req.parentPhone} />
+                    <PDRow label="관계"   value={req.relation} />
+                    <PDRow label="호칭"   value={req.displayName} />
+                    <PDRow label="수영장" value={req.operatorName} />
+                    <PDRow label="신청일" value={new Date(req.createdAt).toLocaleDateString("ko-KR")} />
+                    {req.reviewedAt && <PDRow label="처리일" value={new Date(req.reviewedAt).toLocaleDateString("ko-KR")} />}
+                    {req.reviewedBy && <PDRow label="처리자" value={req.reviewedBy} />}
+                    {req.rejectReason && <PDRow label="거절 사유" value={req.rejectReason} />}
+                  </View>
+
+                  {/* 자녀 정보 */}
+                  <View style={pd.section}>
+                    <Text style={pd.sTitle}>자녀 정보 ({req.children.length}명)</Text>
+                    {req.children.map((c, i) => (
+                      <View key={i} style={pd.childRow}>
+                        <View style={[pd.childNum, { backgroundColor: C.tintLight }]}>
+                          <Text style={[pd.childNumTxt, { color: C.tint }]}>{i + 1}</Text>
+                        </View>
+                        <View>
+                          <Text style={pd.childName}>{c.name}</Text>
+                          <Text style={pd.childBirth}>{c.birthDate}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+
+                {/* 액션 버튼 */}
+                <View style={pd.actions}>
+                  {(isPending || isOnHold) && (
+                    <>
+                      <Pressable style={[pd.btn, { backgroundColor: "#FEF3C7", borderColor: "#D97706", borderWidth: 1 }]}
+                        onPress={() => handleStoreHold(req.id)}>
+                        <Feather name="pause" size={14} color="#D97706" />
+                        <Text style={[pd.btnTxt, { color: "#D97706" }]}>보류</Text>
+                      </Pressable>
+                      <Pressable style={[pd.btn, { backgroundColor: "#FEE2E2", borderColor: C.error, borderWidth: 1 }]}
+                        onPress={() => { setStoreParentDetail(null); setStoreRejectTargetId(req.id); }}>
+                        <Feather name="x" size={14} color={C.error} />
+                        <Text style={[pd.btnTxt, { color: C.error }]}>거절</Text>
+                      </Pressable>
+                      <Pressable style={[pd.btn, { backgroundColor: C.success }]}
+                        onPress={() => handleStoreApprove(req.id)}>
+                        <Feather name="check" size={14} color="#fff" />
+                        <Text style={[pd.btnTxt, { color: "#fff" }]}>승인</Text>
+                      </Pressable>
+                    </>
+                  )}
+                  {isApproved && (
+                    <Pressable style={[pd.btn, { flex: 1, backgroundColor: "#FEE2E2", borderColor: "#DC2626", borderWidth: 1 }]}
+                      onPress={() => { storeReject(req.id, "승인 해제", actorName); setStoreParentDetail(null); }}>
+                      <Feather name="user-x" size={14} color="#DC2626" />
+                      <Text style={[pd.btnTxt, { color: "#DC2626" }]}>승인 해제</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            </View>
+          </Modal>
+        );
+      })()}
 
       {/* 선생님 상세 팝업 */}
       {teacherDetailInvite && (
@@ -1067,12 +1155,53 @@ export default function ApprovalsScreen() {
 
 // 자녀 정보 extra 스타일
 const x = StyleSheet.create({
-  childBox:  { gap: 6 },
-  childTitle:{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 2 },
-  childRow:  { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
-  childName: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.text },
-  childYear: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
+  childBox:    { gap: 6 },
+  matchRow:    { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
+  matchTxt:    { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  autoChip:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "#D1FAE5" },
+  autoChipTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#059669" },
+  childTitle:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 2 },
+  childRow:    { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
+  childName:   { fontSize: 13, fontFamily: "Inter_500Medium", color: C.text },
+  childYear:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
 });
+
+// 학부모 상세 모달 스타일
+const pd = StyleSheet.create({
+  overlay:    { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet:      { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 22, gap: 14, maxHeight: "88%" },
+  handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  avatar:     { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  avatarTxt:  { fontSize: 18, fontFamily: "Inter_700Bold" },
+  name:       { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  nameSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  matchBadge: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 12 },
+  matchTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  matchSub:   { fontSize: 12, fontFamily: "Inter_400Regular" },
+  section:    { gap: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 12 },
+  sTitle:     { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
+  infoRow:    { flexDirection: "row", justifyContent: "space-between", gap: 12 },
+  infoLabel:  { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  infoValue:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text, textAlign: "right", flex: 1 },
+  childRow:   { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
+  childNum:   { width: 24, height: 24, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  childNumTxt:{ fontSize: 11, fontFamily: "Inter_700Bold" },
+  childName:  { fontSize: 14, fontFamily: "Inter_500Medium", color: C.text },
+  childBirth: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  actions:    { flexDirection: "row", gap: 10, paddingTop: 8 },
+  btn:        { flex: 1, height: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12 },
+  btnTxt:     { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+});
+
+function PDRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={pd.infoRow}>
+      <Text style={pd.infoLabel}>{label}</Text>
+      <Text style={pd.infoValue}>{value}</Text>
+    </View>
+  );
+}
 
 const s = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
