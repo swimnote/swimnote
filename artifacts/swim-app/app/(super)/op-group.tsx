@@ -15,7 +15,7 @@ const MENUS = [
   {
     icon: "users" as const,
     title: "운영자 관리",
-    sub: "승인·반려·제한·해지·운영자 목록",
+    sub: "운영자 목록·제한·해지·플랜 상태·로그",
     path: "/(super)/pools",
     color: P,
     bg: "#EDE9FE",

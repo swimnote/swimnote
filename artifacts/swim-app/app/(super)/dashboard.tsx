@@ -6,8 +6,8 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Pressable, RefreshControl,
+  ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
@@ -204,13 +204,8 @@ export default function SuperDashboard() {
   const { logout, adminUser } = useAuth();
   const actorName = adminUser?.name ?? '슈퍼관리자';
   const [refreshing, setRefreshing] = useState(false);
-  const [rejectModal, setRejectModal] = useState<{ id: string } | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
-  const [processing, setProcessing] = useState(false);
 
   const operators      = useOperatorsStore(s => s.operators);
-  const approveOp      = useOperatorsStore(s => s.approveOperator);
-  const rejectOp       = useOperatorsStore(s => s.rejectOperator);
   const scheduleDelete = useOperatorsStore(s => s.scheduleAutoDelete);
   const createLog      = useAuditLogStore(s => s.createLog);
   const allLogs        = useAuditLogStore(s => s.logs);
@@ -229,12 +224,8 @@ export default function SuperDashboard() {
     deletion_pending_count: operators.filter(o => !!o.autoDeleteScheduledAt).length,
   }), [operators]);
 
-  // Derive todo queues from operators
+  // Derive todo queues from operators (승인 절차 없음 — 수영장은 가입 즉시 활성화됨)
   const todo = useMemo(() => ({
-    pending_approval: operators.filter(o => o.status === 'pending').slice(0, 5).map(o => ({
-      id: o.id, name: o.name, owner_name: o.representativeName,
-      todo_type: 'pending_approval', pool_type: o.type, created_at: o.createdAt,
-    })),
     payment_failed: operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace').slice(0, 5).map(o => ({
       id: o.id, name: o.name, owner_name: o.representativeName,
       todo_type: 'payment_failed', subscription_status: o.billingStatus, created_at: o.lastLoginAt,
@@ -268,38 +259,20 @@ export default function SuperDashboard() {
   }), [operators, openCount, slaOverdue]);
 
   function doAction(action: string, id: string) {
-    if (action === "reject") { setRejectModal({ id }); return; }
-    setProcessing(true);
     const op = operators.find(o => o.id === id);
-    if (!op) { setProcessing(false); return; }
-    try {
-      if (action === "approve") {
-        approveOp(id, actorName);
-        createLog({ category: '운영자관리', title: `${op.name} 운영자 승인`, operatorId: id, operatorName: op.name, actorName, impact: 'medium', detail: '신규 운영자 승인 처리' });
-      } else if (action === "defer") {
-        const at = new Date(Date.now() + 48 * 3600000).toISOString();
-        scheduleDelete(id, at);
-        createLog({ category: '운영자관리', title: `${op.name} 자동삭제 48h 유예`, operatorId: id, operatorName: op.name, actorName, impact: 'high', detail: '자동삭제 유예 48시간' });
-      } else if (action === "policy_reminder") {
-        createLog({ category: '정책', title: `${op.name} 정책 확인 요청`, operatorId: id, operatorName: op.name, actorName, impact: 'low', detail: '환불정책 확인 알림 발송' });
-      }
-    } finally { setProcessing(false); }
-  }
-
-  function doReject() {
-    if (!rejectModal) return;
-    setProcessing(true);
-    const op = operators.find(o => o.id === rejectModal.id);
-    try {
-      rejectOp(rejectModal.id, rejectReason || '기준 미달', actorName);
-      if (op) createLog({ category: '운영자관리', title: `${op.name} 운영자 반려`, operatorId: rejectModal.id, operatorName: op.name, actorName, impact: 'medium', detail: rejectReason || '기준 미달' });
-      setRejectModal(null); setRejectReason("");
-    } finally { setProcessing(false); }
+    if (!op) return;
+    if (action === "defer") {
+      const at = new Date(Date.now() + 48 * 3600000).toISOString();
+      scheduleDelete(id, at);
+      createLog({ category: '운영자관리', title: `${op.name} 자동삭제 48h 유예`, operatorId: id, operatorName: op.name, actorName, impact: 'high', detail: '자동삭제 유예 48시간' });
+    } else if (action === "policy_reminder") {
+      createLog({ category: '정책', title: `${op.name} 정책 확인 요청`, operatorId: id, operatorName: op.name, actorName, impact: 'low', detail: '환불정책 확인 알림 발송' });
+    }
   }
 
   const today = new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
-  const totalAlerts = stats.pending_operators + stats.payment_issue_count + stats.storage_danger_count + stats.deletion_pending_count;
-  const todoCount = todo.pending_approval.length + todo.payment_failed.length +
+  const totalAlerts = stats.payment_issue_count + stats.storage_danger_count + stats.deletion_pending_count;
+  const todoCount = todo.payment_failed.length +
     todo.storage_danger.length + todo.deletion_pending.length +
     todo.policy_unsigned.length + todo.security_events.length +
     todo.support_open_count;
@@ -307,25 +280,6 @@ export default function SuperDashboard() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* 반려 모달 */}
-      <Modal visible={!!rejectModal} transparent animationType="fade" onRequestClose={() => setRejectModal(null)}>
-        <Pressable style={s.overlay} onPress={() => setRejectModal(null)}>
-          <Pressable style={s.rejectSheet} onPress={() => {}}>
-            <Text style={s.rejectTitle}>반려 사유</Text>
-            <TextInput style={s.rejectInput} value={rejectReason} onChangeText={setRejectReason}
-              placeholder="반려 사유를 입력하세요" multiline numberOfLines={3} />
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-              <Pressable style={[s.rejectBtn, { flex: 1, backgroundColor: "#F3F4F6" }]} onPress={() => setRejectModal(null)}>
-                <Text style={{ color: "#374151", fontFamily: "Inter_600SemiBold" }}>취소</Text>
-              </Pressable>
-              <Pressable style={[s.rejectBtn, { flex: 1, backgroundColor: "#DC2626" }]} onPress={doReject} disabled={processing}>
-                <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>반려 확인</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
       {/* 헤더 */}
       <View style={s.header}>
         <View>
@@ -386,18 +340,6 @@ export default function SuperDashboard() {
                 <Text style={s.todoBadgeTxt}>{todoCount}</Text>
               </View>
             </View>
-
-            {/* 승인 대기 */}
-            <TodoSection
-              title="승인 대기" count={todo?.pending_approval.length ?? 0}
-              color="#D97706" bg="#FEF3C7" icon="user-check"
-              items={todo?.pending_approval ?? []}
-              renderItem={(item: TodoItem) => (
-                <TodoRow item={item} color="#D97706" onAction={doAction} />
-              )}
-              path="/(super)/pools?filter=pending"
-              pathLabel={`${(todo?.pending_approval.length ?? 0) - 3}건 더 보기 →`}
-            />
 
             {/* 결제 실패 */}
             <TodoSection

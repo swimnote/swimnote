@@ -14,7 +14,6 @@ import { useExtraStorageStore } from '@/store/extraStorageStore'
 import { useOperatorsStore } from '@/store/operatorsStore'
 
 const G = '#059669'
-const OP_ID = 'op-001'
 
 function fmtMb(mb: number) {
   if (mb < 1024) return `${mb} MB`
@@ -29,8 +28,9 @@ function fmtDate(iso: string | null | undefined) {
 }
 
 export default function ExtraStorageScreen() {
-  const { adminUser } = useAuth()
-  const actorName = adminUser?.name ?? '운영자'
+  const { adminUser, pool } = useAuth()
+  const actorName  = adminUser?.name ?? '운영자'
+  const operatorId = pool?.id ?? 'op-001'
 
   const products = useExtraStorageStore(s => s.products)
   const opAccounts = useExtraStorageStore(s => s.opAccounts)
@@ -40,9 +40,9 @@ export default function ExtraStorageScreen() {
   const operators = useOperatorsStore(s => s.operators)
 
   const activeProducts = useMemo(() => products.filter(p => p.isActive), [products])
-  const myAccount = useMemo(() => opAccounts.find(a => a.operatorId === OP_ID), [opAccounts])
-  const myPurchases = useMemo(() => purchases.filter(p => p.operatorId === OP_ID), [purchases])
-  const myOperator = useMemo(() => operators.find(o => o.id === OP_ID), [operators])
+  const myAccount  = useMemo(() => opAccounts.find(a => a.operatorId === operatorId), [opAccounts, operatorId])
+  const myPurchases= useMemo(() => purchases.filter(p => p.operatorId === operatorId), [purchases, operatorId])
+  const myOperator = useMemo(() => operators.find(o => o.id === operatorId), [operators, operatorId])
 
   const planBaseMb = myOperator?.storageTotalMb ?? 512
   const extraMb = myAccount?.extraStoragePurchasedMb ?? 0
@@ -57,7 +57,7 @@ export default function ExtraStorageScreen() {
 
   function handleBuy() {
     if (!selectedProduct) return
-    const ok = purchaseProduct(OP_ID, selectedProduct, actorName)
+    const ok = purchaseProduct(operatorId, selectedProduct, actorName)
     if (ok) {
       setConfirmModal(false)
       setDoneModal(true)

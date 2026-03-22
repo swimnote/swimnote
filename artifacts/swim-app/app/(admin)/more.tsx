@@ -94,12 +94,13 @@ export default function MoreScreen() {
     {
       title: "운영",
       items: [
-        { label: "승인 관리",    icon: "check-circle" as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/approvals"          },
-        { label: "선생님 관리",  icon: "user-check"   as const, color: "#7C3AED", bg: "#F3E8FF", route: "/(admin)/teachers"           },
-        { label: "학부모 계정",  icon: "users"        as const, color: "#2563EB", bg: "#DBEAFE", route: "/(admin)/parents"            },
-        { label: "학부모 초대 내역", icon: "send"          as const, color: "#0891B2", bg: "#ECFEFF", route: "/(admin)/invite-records"  },
-        { label: "추가 용량 구매",   icon: "hard-drive"    as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/extra-storage"    },
-        { label: "삭제/복구 센터",   icon: "archive"       as const, color: "#DC2626", bg: "#FEE2E2", route: "/(admin)/withdrawn-members" },
+        { label: "승인 관리",       icon: "check-circle" as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/approvals"          },
+        { label: "선생님 관리",     icon: "user-check"   as const, color: "#7C3AED", bg: "#F3E8FF", route: "/(admin)/teachers"           },
+        { label: "학부모 계정",     icon: "users"        as const, color: "#2563EB", bg: "#DBEAFE", route: "/(admin)/parents"            },
+        { label: "학부모 초대 내역", icon: "send"         as const, color: "#0891B2", bg: "#ECFEFF", route: "/(admin)/invite-records"    },
+        { label: "백업·복구",       icon: "rotate-ccw"   as const, color: "#DC2626", bg: "#FEE2E2", route: "/(admin)/recovery"          },
+        { label: "추가 용량 구매",  icon: "hard-drive"   as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/extra-storage"     },
+        { label: "삭제/복구 센터",  icon: "archive"      as const, color: "#6B7280", bg: "#F3F4F6", route: "/(admin)/withdrawn-members"  },
       ],
     },
     {

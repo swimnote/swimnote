@@ -16,6 +16,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore } from "@/store/operatorsStore";
 import { useStorageStore } from "@/store/storageStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
+import { useOperatorEventLogStore } from "@/store/operatorEventLogStore";
 
 const P = "#7C3AED";
 
@@ -89,6 +90,7 @@ export default function OperatorDetailScreen() {
   const setStoragePolicy  = useStorageStore(s => s.setStoragePolicy);
   const auditLogs         = useAuditLogStore(s => s.logs);
   const createLog         = useAuditLogStore(s => s.createLog);
+  const getEventLogs      = useOperatorEventLogStore(s => s.getOperatorLogs);
 
   const op = operators.find(o => o.id === id);
 
@@ -108,8 +110,9 @@ export default function OperatorDetailScreen() {
     );
   }
 
-  const storagePolicy = storagePolicies.find(p => p.operatorId === id);
-  const opLogs        = auditLogs.filter(l => l.operatorId === id || l.operatorName === op.name).slice(0, 20);
+  const storagePolicy  = storagePolicies.find(p => p.operatorId === id);
+  const opLogs         = auditLogs.filter(l => l.operatorId === id || l.operatorName === op.name).slice(0, 20);
+  const opEventLogs    = getEventLogs(id ?? "", 20);
 
   const statusCfg  = STATUS_CFG[op.status]  ?? STATUS_CFG.pending;
   const billingCfg = BILLING_CFG[op.billingStatus] ?? BILLING_CFG.trial;
@@ -273,24 +276,56 @@ export default function OperatorDetailScreen() {
         )}
 
         {tab === "로그" && (
-          <View style={d.card}>
-            <Text style={d.cardTitle}>최근 운영 로그 ({opLogs.length})</Text>
-            {opLogs.length === 0 && <Text style={d.empty}>로그가 없습니다</Text>}
-            {opLogs.map(log => {
-              const catCfg = CAT_CFG[log.category] ?? { color: "#6B7280", bg: "#F3F4F6" };
-              return (
-                <View key={log.id} style={d.logItem}>
-                  <View style={[d.logCat, { backgroundColor: catCfg.bg }]}>
-                    <Text style={[d.logCatTxt, { color: catCfg.color }]}>{log.category}</Text>
+          <>
+            {/* 슈퍼관리자 감사 로그 */}
+            <View style={d.card}>
+              <Text style={d.cardTitle}>슈퍼관리자 감사 로그 ({opLogs.length})</Text>
+              {opLogs.length === 0 && <Text style={d.empty}>감사 로그가 없습니다</Text>}
+              {opLogs.map(log => {
+                const catCfg = CAT_CFG[log.category] ?? { color: "#6B7280", bg: "#F3F4F6" };
+                return (
+                  <View key={log.id} style={d.logItem}>
+                    <View style={[d.logCat, { backgroundColor: catCfg.bg }]}>
+                      <Text style={[d.logCatTxt, { color: catCfg.color }]}>{log.category}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={d.logDesc}>{log.title}</Text>
+                      <Text style={d.logTime}>{fmtDateTime(log.createdAt)} · {log.actorName ?? "—"}</Text>
+                    </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={d.logDesc}>{log.title}</Text>
-                    <Text style={d.logTime}>{fmtDateTime(log.createdAt)} · {log.actorName ?? "—"}</Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+
+            {/* 운영자 이벤트 로그 */}
+            <View style={d.card}>
+              <Text style={d.cardTitle}>수영장 운영 이벤트 ({opEventLogs.length})</Text>
+              {opEventLogs.length === 0
+                ? <Text style={d.empty}>이벤트 로그가 없습니다</Text>
+                : opEventLogs.map(log => {
+                  const roleCfg: Record<string, { color: string; bg: string }> = {
+                    operator: { color: "#2563EB", bg: "#DBEAFE" },
+                    teacher:  { color: "#059669", bg: "#D1FAE5" },
+                    system:   { color: "#6B7280", bg: "#F3F4F6" },
+                  };
+                  const cfg = roleCfg[log.actorRole] ?? roleCfg.system;
+                  return (
+                    <View key={log.id} style={d.logItem}>
+                      <View style={[d.logCat, { backgroundColor: cfg.bg }]}>
+                        <Text style={[d.logCatTxt, { color: cfg.color }]}>
+                          {log.actorRole === "operator" ? "관리자" : log.actorRole === "teacher" ? "선생님" : "시스템"}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={d.logDesc}>{log.summary}</Text>
+                        <Text style={d.logTime}>{fmtDateTime(log.createdAt)} · {log.actorName}</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              }
+            </View>
+          </>
         )}
 
         {tab === "강제조치" && (

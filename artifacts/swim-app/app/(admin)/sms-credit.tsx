@@ -17,7 +17,6 @@ import { useSmsStore } from '@/store/smsStore'
 const P = '#0891B2'
 const TABS = ['현황', '크레딧 충전', '문자 발송', '발송 이력', '실패 내역'] as const
 type Tab = typeof TABS[number]
-const OP_ID = 'op-001'
 
 const TYPE_LABEL: Record<string, string> = {
   invite: '초대', auth: '인증', notice: '안내', warning: '경고',
@@ -36,8 +35,9 @@ function fmtDate(iso: string | null | undefined) {
 }
 
 export default function SmsCreditScreen() {
-  const { adminUser } = useAuth()
-  const actorName = adminUser?.name ?? '운영자'
+  const { adminUser, pool } = useAuth()
+  const actorName  = adminUser?.name ?? '운영자'
+  const operatorId = pool?.id ?? 'op-001'
   const [tab, setTab] = useState<Tab>('현황')
 
   const accounts = useSmsCreditStore(s => s.accounts)
@@ -49,8 +49,8 @@ export default function SmsCreditScreen() {
   const createInvite = useSmsStore(s => s.createInvite)
   const sendSms = useSmsStore(s => s.sendSms)
 
-  const account = useMemo(() => accounts.find(a => a.operatorId === OP_ID), [accounts])
-  const myRecords = useMemo(() => records.filter(r => r.operatorId === OP_ID), [records])
+  const account = useMemo(() => accounts.find(a => a.operatorId === operatorId), [accounts, operatorId])
+  const myRecords = useMemo(() => records.filter(r => r.operatorId === operatorId), [records, operatorId])
   const sentRecords = useMemo(() => myRecords.filter(r => r.status === 'sent'), [myRecords])
   const failedRecords = useMemo(() => myRecords.filter(r => r.status === 'failed'), [myRecords])
 
@@ -74,7 +74,7 @@ export default function SmsCreditScreen() {
   function handleCharge() {
     const pkg = CREDIT_PACKAGES.find(p => p.id === selectedPkg)
     if (!pkg) return
-    const ok = chargeCredit(OP_ID, selectedPkg, actorName)
+    const ok = chargeCredit(operatorId, selectedPkg, actorName)
     if (ok) {
       setChargeConfirm(false)
       setChargeModal(false)
@@ -96,8 +96,8 @@ export default function SmsCreditScreen() {
         role: sendType === 'teacher_invite' ? 'teacher' : 'parent',
         recipientName: sendName,
         recipientPhone: sendPhone,
-        operatorId: OP_ID,
-        operatorName: '송파수영아카데미',
+        operatorId,
+        operatorName: pool?.name ?? '수영장',
         actorName,
         note: sendMsg,
       })
@@ -106,8 +106,8 @@ export default function SmsCreditScreen() {
         type: sendType === 'notice' ? 'policy_reconfirm' : 'payment_fail',
         recipientName: sendName,
         recipientPhone: sendPhone,
-        operatorId: OP_ID,
-        operatorName: '송파수영아카데미',
+        operatorId,
+        operatorName: pool?.name ?? '수영장',
         actorName,
         message: sendMsg || undefined,
       })
