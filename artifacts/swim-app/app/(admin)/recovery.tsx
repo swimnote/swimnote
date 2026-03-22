@@ -296,35 +296,69 @@ function RestoreModal({
           <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
         </View>
 
-        <View style={rm.targetBox}>
-          <Text style={rm.targetLabel}>복구 시점</Text>
-          <Text style={rm.targetTime}>{fmtDateTime(snap.createdAt)}</Text>
-          <Text style={rm.targetNote}>{snap.note}</Text>
-        </View>
-
-        {/* 복구 대상 */}
-        <Text style={rm.sectionTitle}>복구 대상 항목</Text>
-        {AFFECTED_ITEMS.map(item => (
-          <View key={item.label} style={rm.affectedRow}>
-            <Feather name={item.icon} size={13} color="#2563EB" />
-            <View style={{ flex: 1 }}>
-              <Text style={rm.affectedLabel}>{item.label}</Text>
-              <Text style={rm.affectedDetail}>{item.detail}</Text>
+        <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+          {/* 복구 미리보기 정보 */}
+          <View style={rm.previewBox}>
+            <View style={rm.previewRow}>
+              <Text style={rm.previewKey}>스냅샷 이름</Text>
+              <Text style={rm.previewVal} numberOfLines={2}>{snap.snapshotName ?? "—"}</Text>
             </View>
-          </View>
-        ))}
-
-        {/* 복구 제외 */}
-        <Text style={[rm.sectionTitle, { color: "#D97706", marginTop: 10 }]}>복구 제외 / 미보장</Text>
-        {EXCLUDED_ITEMS.map(item => (
-          <View key={item.label} style={[rm.affectedRow, { borderLeftColor: "#FEF3C7" }]}>
-            <Feather name={item.icon} size={13} color="#D97706" />
-            <View style={{ flex: 1 }}>
-              <Text style={[rm.affectedLabel, { color: "#D97706" }]}>{item.label}</Text>
-              <Text style={rm.affectedDetail}>{item.detail}</Text>
+            <View style={rm.previewRow}>
+              <Text style={rm.previewKey}>생성 시각</Text>
+              <Text style={rm.previewVal}>{fmtDateTime(snap.createdAt)}</Text>
             </View>
+            <View style={rm.previewRow}>
+              <Text style={rm.previewKey}>수영장</Text>
+              <Text style={rm.previewVal}>{operatorName}</Text>
+            </View>
+            {snap.note ? (
+              <View style={rm.previewRow}>
+                <Text style={rm.previewKey}>메모</Text>
+                <Text style={rm.previewVal}>{snap.note}</Text>
+              </View>
+            ) : null}
           </View>
-        ))}
+
+          {/* 전체 복구 안내 */}
+          <View style={[rm.policyBox, { marginTop: 10 }]}>
+            <Feather name="alert-circle" size={13} color="#D97706" />
+            <Text style={rm.policyTxt}>
+              전체 시점 복구만 허용됩니다. 부분 복구(항목별 선택 복구)는 지원하지 않습니다.
+            </Text>
+          </View>
+
+          {/* 덮어쓰기 경고 */}
+          <View style={[rm.overwriteBox, { marginTop: 8 }]}>
+            <Feather name="alert-triangle" size={13} color="#DC2626" />
+            <Text style={rm.overwriteTxt}>
+              복구 실행 시 현재 데이터가 모두 이 시점으로 덮어쓰여집니다. 이 시점 이후 입력·수정된 데이터는 복구되지 않습니다.
+            </Text>
+          </View>
+
+          {/* 복구 대상 */}
+          <Text style={[rm.sectionTitle, { marginTop: 12 }]}>복구 대상 데이터 종류</Text>
+          {AFFECTED_ITEMS.map(item => (
+            <View key={item.label} style={rm.affectedRow}>
+              <Feather name={item.icon} size={13} color="#2563EB" />
+              <View style={{ flex: 1 }}>
+                <Text style={rm.affectedLabel}>{item.label}</Text>
+                <Text style={rm.affectedDetail}>{item.detail}</Text>
+              </View>
+            </View>
+          ))}
+
+          {/* 복구 제외 */}
+          <Text style={[rm.sectionTitle, { color: "#D97706", marginTop: 10 }]}>복구 제외 / 미보장</Text>
+          {EXCLUDED_ITEMS.map(item => (
+            <View key={item.label} style={[rm.affectedRow, { borderLeftColor: "#FEF3C7" }]}>
+              <Feather name={item.icon} size={13} color="#D97706" />
+              <View style={{ flex: 1 }}>
+                <Text style={[rm.affectedLabel, { color: "#D97706" }]}>{item.label}</Text>
+                <Text style={rm.affectedDetail}>{item.detail}</Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
 
         {/* 동의 체크박스 */}
         <View style={rm.checkRow}>
@@ -668,6 +702,17 @@ const rm = StyleSheet.create({
   targetLabel:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#DC2626" },
   targetTime:   { fontSize: 16, fontFamily: "Inter_700Bold", color: "#DC2626" },
   targetNote:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#991B1B" },
+
+  previewBox:   { backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 14, gap: 8 },
+  previewRow:   { flexDirection: "row", justifyContent: "space-between", gap: 12 },
+  previewKey:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, flexShrink: 0 },
+  previewVal:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text, textAlign: "right", flex: 1 },
+
+  policyBox:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFFBEB", borderRadius: 10, borderWidth: 1, borderColor: "#FDE68A", padding: 10 },
+  policyTxt:    { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 17 },
+
+  overwriteBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FEF2F2", borderRadius: 10, borderWidth: 1, borderColor: "#FECACA", padding: 10 },
+  overwriteTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#991B1B", lineHeight: 17 },
 
   sectionTitle: { fontSize: 12, fontFamily: "Inter_700Bold", color: C.textSecondary, marginTop: 4 },
   affectedRow:  { flexDirection: "row", gap: 10, paddingVertical: 6,

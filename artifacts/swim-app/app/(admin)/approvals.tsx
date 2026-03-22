@@ -20,6 +20,7 @@ import {
   useParentJoinStore, type ParentJoinRequest, type JoinStatus, type MatchStatus,
 } from "@/store/parentJoinStore";
 import { useInviteRecordStore } from "@/store/inviteRecordStore";
+import { useOperatorEventLogStore } from "@/store/operatorEventLogStore";
 
 const C = Colors.light;
 
@@ -315,7 +316,7 @@ const dm = StyleSheet.create({
 
 // ── 메인 컴포넌트 ───────────────────────────────────────────────
 export default function ApprovalsScreen() {
-  const { token, adminUser } = useAuth();
+  const { token, adminUser, pool } = useAuth();
   const insets = useSafeAreaInsets();
   const actorName = adminUser?.name ?? "관리자";
 
@@ -323,7 +324,9 @@ export default function ApprovalsScreen() {
   const storeRequests    = useParentJoinStore(s => s.requests);
   const storeApprove     = useParentJoinStore(s => s.approveRequest);
   const storeReject      = useParentJoinStore(s => s.rejectRequest);
+  const storeReApprove   = useParentJoinStore(s => s.reApproveRequest);
   const storeHold        = useParentJoinStore(s => s.holdRequest);
+  const addEventLog      = useOperatorEventLogStore(s => s.addLog);
 
   // inviteRecordStore — 초대 이력 연동
   const inviteRecords    = useInviteRecordStore(s => s.records);
@@ -364,15 +367,61 @@ export default function ApprovalsScreen() {
   // ── 학부모 승인 (스토어) ──────────────────────────────────────
   function handleStoreApprove(reqId: string) {
     storeApprove(reqId, actorName);
+    const req = storeRequests.find(r => r.id === reqId);
+    if (req) {
+      addEventLog({
+        operatorId: req.operatorId,
+        actorRole: "operator",
+        actorId: pool?.id ?? "op-unknown",
+        actorName,
+        eventType: "parent_approved",
+        targetType: "parent_join_request",
+        targetId: reqId,
+        summary: `학부모 가입 승인: ${req.parentName} (${req.parentPhone})`,
+      });
+    }
     setStoreParentDetail(null);
     Alert.alert("승인 완료", "학부모 가입 요청이 승인되었습니다.");
   }
 
   // ── 학부모 거절 (스토어) ──────────────────────────────────────
   function handleStoreReject(reqId: string, reason: string) {
-    storeReject(reqId, reason, actorName);
+    storeReject(reqId, reason || null, actorName);
+    const req = storeRequests.find(r => r.id === reqId);
+    if (req) {
+      addEventLog({
+        operatorId: req.operatorId,
+        actorRole: "operator",
+        actorId: pool?.id ?? "op-unknown",
+        actorName,
+        eventType: "parent_rejected",
+        targetType: "parent_join_request",
+        targetId: reqId,
+        summary: `학부모 가입 거절: ${req.parentName}${reason ? ` · 사유: ${reason}` : " · 사유 없음"}`,
+      });
+    }
     setStoreRejectTargetId(null);
     setStoreParentDetail(null);
+  }
+
+  // ── 학부모 재승인 (거절 → 승인) ──────────────────────────────
+  function handleStoreReApprove(reqId: string) {
+    storeReApprove(reqId, actorName);
+    const req = storeRequests.find(r => r.id === reqId);
+    if (req) {
+      addEventLog({
+        operatorId: req.operatorId,
+        actorRole: "operator",
+        actorId: pool?.id ?? "op-unknown",
+        actorName,
+        eventType: "parent_approved",
+        targetType: "parent_join_request",
+        targetId: reqId,
+        summary: `학부모 재승인 (거절 → 승인): ${req.parentName} (${req.parentPhone})`,
+      });
+    }
+    setStoreParentDetail(null);
+    Alert.alert("재승인 완료", "학부모 가입 요청이 승인 처리되었습니다.");
   }
 
   // ── 학부모 보류 (스토어) ──────────────────────────────────────
@@ -513,7 +562,7 @@ export default function ApprovalsScreen() {
     const mc = MATCH_CFG[req.matchStatus];
     const normalizePhone = (p: string) => p.replace(/\D/g, "");
     const relatedInvites = inviteRecords.filter(
-      r => normalizePhone(r.guardianPhone) === normalizePhone(req.parentPhone),
+      r => r.targetType === "guardian" && normalizePhone(r.targetPhone) === normalizePhone(req.parentPhone),
     );
     const lastInvite = relatedInvites[0];
     return (
@@ -778,6 +827,21 @@ export default function ApprovalsScreen() {
                       <Text style={[pd.btnTxt, { color: "#DC2626" }]}>승인 해제</Text>
                     </Pressable>
                   )}
+                  {req.status === "rejected" && (
+                    <>
+                      <View style={pd.rejectInfo}>
+                        <Feather name="info" size={13} color="#DC2626" />
+                        <Text style={pd.rejectInfoTxt}>
+                          거절 상태입니다. 재승인하면 가입을 허용합니다.
+                        </Text>
+                      </View>
+                      <Pressable style={[pd.btn, { flex: 1, backgroundColor: C.success }]}
+                        onPress={() => handleStoreReApprove(req.id)}>
+                        <Feather name="refresh-cw" size={14} color="#fff" />
+                        <Text style={[pd.btnTxt, { color: "#fff" }]}>재승인</Text>
+                      </Pressable>
+                    </>
+                  )}
                 </View>
               </View>
             </View>
@@ -867,9 +931,11 @@ const pd = StyleSheet.create({
   childNumTxt:{ fontSize: 11, fontFamily: "Inter_700Bold" },
   childName:  { fontSize: 14, fontFamily: "Inter_500Medium", color: C.text },
   childBirth: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  actions:    { flexDirection: "row", gap: 10, paddingTop: 8 },
-  btn:        { flex: 1, height: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12 },
-  btnTxt:     { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  actions:       { gap: 10, paddingTop: 8 },
+  btn:           { flex: 1, height: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12 },
+  btnTxt:        { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  rejectInfo:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FEF2F2", borderRadius: 10, padding: 12 },
+  rejectInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#DC2626", lineHeight: 17 },
 });
 
 function PDRow({ label, value }: { label: string; value: string }) {

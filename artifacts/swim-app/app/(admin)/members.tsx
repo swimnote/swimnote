@@ -57,20 +57,20 @@ function InviteModal({ student, poolName, onClose }: { student: StudentMember; p
   function makeRecordBase() {
     const role = adminUser?.role === "teacher" ? "teacher" : "operator";
     return {
-      operatorId:         pool?.id ?? "op-unknown",
-      senderUserId:       adminUser?.id ?? "unknown",
-      senderName:         adminUser?.name ?? "관리자",
-      senderRole:         role as "operator" | "teacher",
-      studentId:          student.id,
-      studentName:        student.name,
-      guardianPhone:      student.parent_phone ?? "",
-      guardianPhoneLabel: "primary" as const,
-      messageBody:        msg,
+      operatorId:  pool?.id ?? "op-unknown",
+      operatorName: pool?.name ?? "수영장",
+      senderName:  adminUser?.name ?? "관리자",
+      senderRole:  role as "operator" | "teacher",
+      targetType:  "guardian" as const,
+      targetName:  student.parent_name ?? "학부모",
+      targetPhone: student.parent_phone ?? "",
+      studentName: student.name,
+      messageBody: msg,
     };
   }
 
   async function openSms() {
-    addRecord({ ...makeRecordBase(), method: "sms_app", status: "opened_sms_app" });
+    addRecord({ ...makeRecordBase() });
     const phone = student.parent_phone ?? "";
     const smsUrl = Platform.OS === "ios"
       ? `sms:${phone}&body=${encodeURIComponent(msg)}`
@@ -84,7 +84,7 @@ function InviteModal({ student, poolName, onClose }: { student: StudentMember; p
   }
 
   async function copyMessage() {
-    addRecord({ ...makeRecordBase(), method: "copy_link", status: "copied_link" });
+    addRecord({ ...makeRecordBase() });
     await Clipboard.setStringAsync(msg);
     Alert.alert("복사 완료", "초대 문자가 클립보드에 복사되었습니다.");
   }
@@ -540,6 +540,18 @@ export default function MembersScreen() {
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+          ListHeaderComponent={filter === "suspended" ? (
+            <View style={ms.suspendedBanner}>
+              <Feather name="info" size={14} color="#B45309" />
+              <View style={{ flex: 1 }}>
+                <Text style={ms.suspendedBannerTitle}>연기회원 과금 안내</Text>
+                <Text style={ms.suspendedBannerBody}>
+                  휴원(연기) 회원은 정상회원과 동일하게 월 과금에 100% 포함됩니다.{"\n"}
+                  감액·일할계산·예외처리 없이 동일 요금이 적용됩니다.
+                </Text>
+              </View>
+            </View>
+          ) : null}
           ListEmptyComponent={
             <EmptyState
               icon="users"
@@ -657,4 +669,7 @@ const ms = StyleSheet.create({
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 16, marginBottom: 4 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
   list: { paddingTop: 10 },
+  suspendedBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FEF3C7", borderRadius: 12, padding: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#FDE68A" },
+  suspendedBannerTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#92400E", marginBottom: 3 },
+  suspendedBannerBody: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
 });

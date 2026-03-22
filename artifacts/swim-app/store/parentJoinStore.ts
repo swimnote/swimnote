@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { useInviteRecordStore } from './inviteRecordStore'
 
 export type ParentRelation = '부' | '모' | '조부' | '조모' | '기타'
 export type MatchStatus   = 'full_match' | 'phone_only' | 'no_match'
@@ -26,7 +25,9 @@ export interface ParentJoinRequest {
   createdAt: string
   reviewedAt?: string
   reviewedBy?: string
-  rejectReason?: string
+  rejectReason?: string | null
+  rejectedAt?: string
+  rejectedBy?: string
 }
 
 interface MockStudent {
@@ -128,9 +129,10 @@ interface ParentJoinState {
   requests: ParentJoinRequest[]
   currentParentRequestId: string | null
   submitRequest: (req: Omit<ParentJoinRequest, 'id' | 'createdAt'>) => ParentJoinRequest
-  approveRequest: (id: string, reviewedBy: string) => void
-  rejectRequest:  (id: string, reason: string, reviewedBy: string) => void
-  holdRequest:    (id: string, reviewedBy: string) => void
+  approveRequest:   (id: string, reviewedBy: string) => void
+  rejectRequest:    (id: string, reason: string | null, reviewedBy: string) => void
+  reApproveRequest: (id: string, reviewedBy: string) => void
+  holdRequest:      (id: string, reviewedBy: string) => void
   setCurrentParentRequestId: (id: string | null) => void
 }
 
@@ -145,13 +147,10 @@ export const useParentJoinStore = create<ParentJoinState>((set) => ({
   submitRequest(req) {
     const newReq: ParentJoinRequest = { ...req, id: `pjr-${Date.now()}`, createdAt: now() }
     set(s => ({ requests: [newReq, ...s.requests], currentParentRequestId: newReq.id }))
-    useInviteRecordStore.getState().linkToJoinRequest(req.parentPhone, req.parentId)
     return newReq
   },
 
   approveRequest(id, reviewedBy) {
-    const req = useParentJoinStore.getState().requests.find(r => r.id === id)
-    if (req) useInviteRecordStore.getState().markApproved(req.parentPhone, req.parentId)
     set(s => ({
       requests: s.requests.map(r =>
         r.id === id ? { ...r, status: 'approved', reviewedAt: now(), reviewedBy } : r
@@ -160,9 +159,22 @@ export const useParentJoinStore = create<ParentJoinState>((set) => ({
   },
 
   rejectRequest(id, reason, reviewedBy) {
+    const ts = now()
     set(s => ({
       requests: s.requests.map(r =>
-        r.id === id ? { ...r, status: 'rejected', rejectReason: reason, reviewedAt: now(), reviewedBy } : r
+        r.id === id
+          ? { ...r, status: 'rejected', rejectReason: reason ?? null, reviewedAt: ts, reviewedBy, rejectedAt: ts, rejectedBy: reviewedBy }
+          : r
+      ),
+    }))
+  },
+
+  reApproveRequest(id, reviewedBy) {
+    set(s => ({
+      requests: s.requests.map(r =>
+        r.id === id
+          ? { ...r, status: 'approved', reviewedAt: now(), reviewedBy, rejectedAt: undefined, rejectedBy: undefined, rejectReason: null }
+          : r
       ),
     }))
   },

@@ -24,7 +24,6 @@ export function RejectModal({ visible, onClose, onConfirm, loading }: RejectModa
 
   function handleClose() { setReason(""); onClose(); }
   function handleConfirm() {
-    if (!reason.trim()) return;
     onConfirm(reason.trim());
     setReason("");
   }
@@ -57,10 +56,10 @@ export function RejectModal({ visible, onClose, onConfirm, loading }: RejectModa
             <Pressable
               style={({ pressed }) => [
                 s.confirmBtn,
-                { backgroundColor: reason.trim() ? C.error : C.border, opacity: pressed ? 0.8 : 1 },
+                { backgroundColor: C.error, opacity: (pressed || loading) ? 0.7 : 1 },
               ]}
               onPress={handleConfirm}
-              disabled={!reason.trim() || loading}
+              disabled={!!loading}
             >
               <Text style={s.confirmText}>거절 확정</Text>
             </Pressable>
