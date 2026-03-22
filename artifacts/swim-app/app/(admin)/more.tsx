@@ -97,6 +97,7 @@ export default function MoreScreen() {
         { label: "승인 관리",    icon: "check-circle" as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/approvals"          },
         { label: "선생님 관리",  icon: "user-check"   as const, color: "#7C3AED", bg: "#F3E8FF", route: "/(admin)/teachers"           },
         { label: "학부모 계정",  icon: "users"        as const, color: "#2563EB", bg: "#DBEAFE", route: "/(admin)/parents"            },
+        { label: "초대·문자 관리", icon: "send"       as const, color: "#0891B2", bg: "#ECFEFF", route: "/(admin)/invite-sms"        },
         { label: "삭제/복구 센터", icon: "archive"    as const, color: "#DC2626", bg: "#FEE2E2", route: "/(admin)/withdrawn-members" },
       ],
     },

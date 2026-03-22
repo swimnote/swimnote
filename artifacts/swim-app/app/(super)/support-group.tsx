@@ -29,8 +29,8 @@ const MENUS = [
   },
   {
     icon: "send" as const,
-    title: "초대/SMS 발송 관리",
-    sub: "운영자·선생님·학부모 초대·재발송·만료 관리",
+    title: "SMS 템플릿·발송 로그 관리",
+    sub: "발송 실패·인증 기록·초대 현황·템플릿 편집",
     path: "/(super)/invite-sms",
     color: "#7C3AED",
     bg: "#EDE9FE",
@@ -38,7 +38,7 @@ const MENUS = [
   {
     icon: "key" as const,
     title: "인증번호 발송 기록",
-    sub: "SMS 발송 성공·실패·재발송 기록",
+    sub: "휴대폰 인증·2FA 인증·재발송 성공·실패 기록",
     path: "/(super)/invite-sms",
     color: "#059669",
     bg: "#D1FAE5",

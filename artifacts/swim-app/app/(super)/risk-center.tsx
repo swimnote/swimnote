@@ -77,7 +77,17 @@ const EXTERNAL_SERVICES = [
   { name: "Cloudflare R2 (스토리지)", status: "normal" },
   { name: "PortOne (PG)",          status: "normal" },
   { name: "Apple Push (APNs)",     status: "normal" },
+  { name: "SMS Provider",          status: "normal" },
 ];
+
+// SMS 리스크 mock 데이터
+const SMS_USAGE_SEED: Record<string, { sent: number; failed: number; blocked: boolean; unpaid: boolean }> = {
+  "op-001": { sent: 320,  failed: 2,  blocked: false, unpaid: false },
+  "op-002": { sent: 1240, failed: 15, blocked: false, unpaid: true  },
+  "op-003": { sent: 501,  failed: 0,  blocked: false, unpaid: true  },
+  "op-004": { sent: 88,   failed: 0,  blocked: false, unpaid: false },
+  "op-005": { sent: 0,    failed: 0,  blocked: false, unpaid: false },
+};
 
 export default function RiskCenterScreen() {
   const { adminUser } = useAuth();
@@ -100,7 +110,13 @@ export default function RiskCenterScreen() {
   const uploadSpike    = useMemo(() => operators.filter(o => o.uploadSpikeFlag), [operators]);
   const policyUnsigned = useMemo(() => operators.filter(o => !o.policyRefundRead || !o.policyPrivacyRead), [operators]);
 
-  const totalRisk = paymentFailed.length + storageDanger.length + deletionPending.length + uploadSpike.length;
+  // SMS 리스크
+  const smsBlockedOps  = useMemo(() => operators.filter(o => SMS_USAGE_SEED[o.id]?.blocked), [operators]);
+  const smsUnpaidOps   = useMemo(() => operators.filter(o => SMS_USAGE_SEED[o.id]?.unpaid), [operators]);
+  const smsTotalFailed = useMemo(() => operators.reduce((acc, o) => acc + (SMS_USAGE_SEED[o.id]?.failed ?? 0), 0), [operators]);
+  const smsFailSpike   = smsTotalFailed >= 10; // 10건 이상이면 급증으로 판단
+
+  const totalRisk = paymentFailed.length + storageDanger.length + deletionPending.length + uploadSpike.length + smsBlockedOps.length + smsUnpaidOps.length;
 
   function deferDeletion(id: string) {
     const op = operators.find(o => o.id === id);
@@ -130,15 +146,18 @@ export default function RiskCenterScreen() {
             </Text>
           </View>
 
-          {/* 리스크 개요 6칸 */}
+          {/* 리스크 개요 */}
           <View style={s.riskGrid}>
             {[
-              { label: "결제 실패", count: paymentFailed.length, color: "#F87171" },
-              { label: "저장 95%↑", count: storageDanger.length, color: "#C084FC" },
-              { label: "삭제 예정", count: deletionPending.length, color: "#60A5FA" },
-              { label: "업로드 급증", count: uploadSpike.length, color: "#FBBF24" },
-              { label: "정책 미확인", count: policyUnsigned.length, color: "#818CF8" },
-              { label: "SLA 초과", count: slaCount, color: "#F87171" },
+              { label: "결제 실패",   count: paymentFailed.length,  color: "#F87171" },
+              { label: "저장 95%↑",  count: storageDanger.length,   color: "#C084FC" },
+              { label: "삭제 예정",   count: deletionPending.length, color: "#60A5FA" },
+              { label: "업로드 급증", count: uploadSpike.length,     color: "#FBBF24" },
+              { label: "정책 미확인", count: policyUnsigned.length,  color: "#818CF8" },
+              { label: "SLA 초과",   count: slaCount,               color: "#F87171" },
+              { label: "SMS 실패",   count: smsTotalFailed,         color: "#FB923C" },
+              { label: "SMS 미납",   count: smsUnpaidOps.length,    color: "#FCD34D" },
+              { label: "SMS 차단",   count: smsBlockedOps.length,   color: "#A78BFA" },
             ].map(item => (
               <View key={item.label} style={s.riskTile}>
                 <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#6B7280" }]}>{item.count}</Text>
@@ -264,6 +283,64 @@ export default function RiskCenterScreen() {
             </View>
           ))}
         </RiskGroup>
+
+        {/* SMS 발송 실패 급증 */}
+        {smsFailSpike && (
+          <RiskGroup title="SMS 발송 실패 급증" icon="alert-circle" color="#EA580C" bg="#FFF7ED"
+            count={1} onViewAll={() => router.push("/(super)/sms-billing" as any)}>
+            <View style={g.item}>
+              <View style={g.itemLeft}>
+                <Text style={g.itemName}>플랫폼 전체 SMS 실패 {smsTotalFailed}건</Text>
+                <Text style={g.itemSub}>임계값(10건) 초과 · SMS Provider 연결 확인 필요</Text>
+              </View>
+              <Pressable style={[g.btn, { backgroundColor: "#FFF7ED" }]}
+                onPress={() => router.push("/(super)/sms-billing" as any)}>
+                <Text style={[g.btnTxt, { color: "#EA580C" }]}>상세</Text>
+              </Pressable>
+            </View>
+          </RiskGroup>
+        )}
+
+        {/* SMS 미납 운영자 */}
+        <RiskGroup title="SMS 미납 운영자" icon="credit-card" color="#D97706" bg="#FEF3C7"
+          count={smsUnpaidOps.length} onViewAll={() => router.push("/(super)/sms-billing" as any)}>
+          {smsUnpaidOps.slice(0, 5).map(op => {
+            const usage = SMS_USAGE_SEED[op.id];
+            const excess = Math.max(0, (usage?.sent ?? 0) - 500);
+            const charge = Math.round(excess * 9.9);
+            return (
+              <View key={op.id} style={g.item}>
+                <View style={g.itemLeft}>
+                  <Text style={g.itemName} numberOfLines={1}>{op.name}</Text>
+                  <Text style={g.itemSub}>발송 {usage?.sent ?? 0}건 · 초과 과금 ₩{charge.toLocaleString()}</Text>
+                </View>
+                <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]}
+                  onPress={() => router.push("/(super)/sms-billing" as any)}>
+                  <Text style={[g.btnTxt, { color: "#D97706" }]}>과금</Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </RiskGroup>
+
+        {/* SMS 차단 운영자 */}
+        {smsBlockedOps.length > 0 && (
+          <RiskGroup title="SMS 차단 운영자" icon="slash" color="#7C3AED" bg="#EDE9FE"
+            count={smsBlockedOps.length} onViewAll={() => router.push("/(super)/sms-billing" as any)}>
+            {smsBlockedOps.slice(0, 5).map(op => (
+              <View key={op.id} style={g.item}>
+                <View style={g.itemLeft}>
+                  <Text style={g.itemName} numberOfLines={1}>{op.name}</Text>
+                  <Text style={g.itemSub}>SMS 발송 차단 상태</Text>
+                </View>
+                <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]}
+                  onPress={() => router.push("/(super)/sms-billing" as any)}>
+                  <Text style={[g.btnTxt, { color: "#7C3AED" }]}>해제</Text>
+                </Pressable>
+              </View>
+            ))}
+          </RiskGroup>
+        )}
 
         {/* 외부 서비스 상태 */}
         <View style={s.serviceCard}>

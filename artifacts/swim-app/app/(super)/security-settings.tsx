@@ -140,6 +140,9 @@ export default function SecuritySettingsScreen() {
   const [sensitiveTrig, setSensitiveTrig] = useState<SensitiveTrigger>("sensitive_only");
   const [twoFAModal,    setTwoFAModal]    = useState(false);
   const [pendingMode,   setPendingMode]   = useState<TwoFAMode | null>(null);
+  const [forceEnabled,  setForceEnabled]  = useState(true);
+  const [showRecoveryCodes, setShowRecoveryCodes] = useState(false);
+  const [otpReenrollModal,  setOtpReenrollModal]  = useState(false);
 
   // ── D. 외부 서비스 ──
   const [services,   setServices]   = useState<ExtService[]>(INITIAL_SERVICES);
@@ -269,7 +272,27 @@ export default function SecuritySettingsScreen() {
 
         {/* ══ C. 2차 인증 ══ */}
         <View style={s.section}>
-          <SectionTitle title="C. 2차 인증 설정" />
+          <SectionTitle title="C. 2차 인증 설정" sub="슈퍼관리자 전용 — 운영자/선생님/학부모 미적용" />
+
+          {/* 강제 여부 */}
+          <View style={s.forceRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.forceLabel}>2차 인증 강제</Text>
+              <Text style={s.forceSub}>비활성화 시 2차 인증 건너뛰기 허용</Text>
+            </View>
+            <Pressable
+              style={[s.forceBadge, forceEnabled ? s.forceBadgeOn : s.forceBadgeOff]}
+              onPress={() => {
+                const next = !forceEnabled;
+                setForceEnabled(next);
+                createLog({ category: "보안", title: `2차 인증 강제 ${next ? "활성" : "비활성"}`, detail: "2FA 강제 설정 변경", actorName, impact: "high" });
+              }}>
+              <Text style={[s.forceBadgeTxt, { color: forceEnabled ? GREEN : DANGER }]}>
+                {forceEnabled ? "강제 ON" : "선택 OFF"}
+              </Text>
+            </Pressable>
+          </View>
+
           <View style={s.currentTwoFa}>
             <Text style={s.currentTwoFaLabel}>현재 방식</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
@@ -302,6 +325,63 @@ export default function SecuritySettingsScreen() {
                 </View>
                 <Text style={[s.triggerLabel, sensitiveTrig === t.key && { color: P }]}>{t.label}</Text>
               </Pressable>
+            ))}
+          </View>
+
+          {/* OTP 재등록 */}
+          {(twoFAMode === "otp" || twoFAMode === "otp_sms_backup") && (
+            <Pressable style={s.actionBtn} onPress={() => setOtpReenrollModal(true)}>
+              <Feather name="refresh-cw" size={15} color="#0891B2" />
+              <Text style={[s.actionBtnTxt, { color: "#0891B2" }]}>OTP 재등록 (QR 갱신)</Text>
+              <Feather name="chevron-right" size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
+            </Pressable>
+          )}
+
+          {/* 복구 코드 */}
+          <Pressable style={s.actionBtn} onPress={() => {
+            setShowRecoveryCodes(v => !v);
+            if (!showRecoveryCodes) createLog({ category: "보안", title: "복구 코드 조회", detail: "백업 코드 목록 열람", actorName, impact: "medium" });
+          }}>
+            <Feather name="key" size={15} color={P} />
+            <Text style={s.actionBtnTxt}>{showRecoveryCodes ? "복구 코드 숨기기" : "복구 코드 보기"}</Text>
+            <Feather name={showRecoveryCodes ? "chevron-up" : "chevron-down"} size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
+          </Pressable>
+          {showRecoveryCodes && (
+            <View style={s.recoveryCodesBox}>
+              <Text style={s.recoveryCodesTitle}>백업 복구 코드 (1회용)</Text>
+              <View style={s.recoveryCodesGrid}>
+                {["JK9X-2M4P","BT7W-8Q3R","LN5C-6Y1V","MR2E-4Z8T","WD6A-0H7J","FK1S-9U3X","QP4N-5L6B","HG8D-2C7M"].map(code => (
+                  <View key={code} style={s.recoveryCodeItem}>
+                    <Text style={s.recoveryCode}>{code}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={s.recoveryCodesHint}>안전한 곳에 보관하세요. 코드당 1회만 사용 가능합니다.</Text>
+              <Pressable style={s.regenBtn} onPress={() => createLog({ category: "보안", title: "복구 코드 재생성", detail: "백업 코드 재발급", actorName, impact: "high" })}>
+                <Feather name="refresh-cw" size={12} color={DANGER} />
+                <Text style={s.regenTxt}>코드 재생성 (기존 코드 무효화)</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* 2차 인증 실패 로그 */}
+          <View style={s.failLogSection}>
+            <Text style={s.failLogTitle}>2차 인증 실패 기록 (최근 3건)</Text>
+            {[
+              { id: "f1", time: "2026-03-22T09:15:00Z", ip: "211.47.22.xxx", device: "Chrome / Windows" },
+              { id: "f2", time: "2026-03-21T22:08:00Z", ip: "61.78.109.xxx", device: "Safari / iPhone" },
+              { id: "f3", time: "2026-03-20T14:55:00Z", ip: "175.211.33.xxx", device: "Chrome / Mac" },
+            ].map(f => (
+              <View key={f.id} style={s.failLogRow}>
+                <Feather name="alert-circle" size={12} color={DANGER} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.failLogDevice}>{f.device}</Text>
+                  <Text style={s.failLogMeta}>{f.ip} · {relTime(f.time)}</Text>
+                </View>
+                <View style={s.failLogBadge}>
+                  <Text style={s.failLogBadgeTxt}>실패</Text>
+                </View>
+              </View>
             ))}
           </View>
         </View>
@@ -501,6 +581,48 @@ export default function SecuritySettingsScreen() {
         </Pressable>
       </Modal>
 
+      {/* ══ OTP 재등록 모달 ══ */}
+      <Modal visible={otpReenrollModal} animationType="fade" transparent statusBarTranslucent
+        onRequestClose={() => setOtpReenrollModal(false)}>
+        <Pressable style={m.backdrop} onPress={() => setOtpReenrollModal(false)}>
+          <Pressable style={m.sheet} onPress={() => {}}>
+            <View style={m.handle} />
+            <Text style={m.modalTitle}>OTP 재등록</Text>
+            <Text style={{ fontSize: 13, color: "#6B7280", fontFamily: "Inter_400Regular" }}>
+              새 QR 코드를 생성하면 기존 OTP 앱과의 연결이 끊깁니다. 새 코드로 재등록 후 사용 가능합니다.
+            </Text>
+            {/* Mock QR Placeholder */}
+            <View style={{ alignItems: "center", gap: 8 }}>
+              <View style={{ width: 140, height: 140, backgroundColor: "#F3F4F6", borderRadius: 14,
+                             alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#E5E7EB" }}>
+                <Feather name="grid" size={80} color="#D1D5DB" />
+              </View>
+              <View style={{ backgroundColor: "#F9FAFB", borderRadius: 8, padding: 10, width: "100%", alignItems: "center" }}>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" }}>비밀 키 (수동 입력용)</Text>
+                <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", letterSpacing: 2, marginTop: 4 }}>
+                  JBSW Y3DP EHPK 3PXP
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEF3C7", padding: 10, borderRadius: 8 }}>
+              <Feather name="alert-triangle" size={14} color={WARN} />
+              <Text style={{ flex: 1, fontSize: 12, color: "#92400E", fontFamily: "Inter_400Regular" }}>Google Authenticator 또는 Authy 앱으로 QR을 스캔하세요.</Text>
+            </View>
+            <View style={m.btnRow}>
+              <Pressable style={m.cancelBtn} onPress={() => setOtpReenrollModal(false)}>
+                <Text style={m.cancelTxt}>취소</Text>
+              </Pressable>
+              <Pressable style={m.confirmBtn} onPress={() => {
+                createLog({ category: "보안", title: "OTP 재등록 완료", detail: "QR 코드 갱신 후 OTP 재등록", actorName, impact: "high" });
+                setOtpReenrollModal(false);
+              }}>
+                <Text style={m.confirmTxt}>등록 완료</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* ══ 2차 인증 변경 확인 모달 ══ */}
       <Modal visible={twoFAModal} animationType="fade" transparent statusBarTranslucent
         onRequestClose={() => { setTwoFAModal(false); setPendingMode(null); }}>
@@ -625,6 +747,35 @@ const s = StyleSheet.create({
   policyChipActive: { backgroundColor: P },
   policyChipTxt:    { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
   policyChipTxtActive:{ color: "#fff" },
+
+  forceRow:           { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
+                        borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  forceLabel:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  forceSub:           { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  forceBadge:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
+  forceBadgeOn:       { borderColor: GREEN, backgroundColor: "#D1FAE5" },
+  forceBadgeOff:      { borderColor: DANGER, backgroundColor: "#FEE2E2" },
+  forceBadgeTxt:      { fontSize: 12, fontFamily: "Inter_700Bold" },
+
+  recoveryCodesBox:   { backgroundColor: "#F9FAFB", borderRadius: 12, padding: 14, gap: 10,
+                        borderWidth: 1, borderColor: "#E5E7EB" },
+  recoveryCodesTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  recoveryCodesGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  recoveryCodeItem:   { backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+                        borderWidth: 1, borderColor: "#E5E7EB" },
+  recoveryCode:       { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827", letterSpacing: 1 },
+  recoveryCodesHint:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  regenBtn:           { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 },
+  regenTxt:           { fontSize: 12, fontFamily: "Inter_600SemiBold", color: DANGER },
+
+  failLogSection:     { borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 10, gap: 8 },
+  failLogTitle:       { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  failLogRow:         { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
+                        borderRadius: 8, backgroundColor: "#FFF5F5", paddingHorizontal: 10 },
+  failLogDevice:      { fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151" },
+  failLogMeta:        { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
+  failLogBadge:       { backgroundColor: "#FEE2E2", borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
+  failLogBadgeTxt:    { fontSize: 10, fontFamily: "Inter_700Bold", color: DANGER },
 });
 
 const m = StyleSheet.create({
