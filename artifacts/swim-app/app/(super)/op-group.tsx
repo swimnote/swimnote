@@ -61,6 +61,14 @@ const MENUS = [
     color: "#D97706",
     bg: "#FEF3C7",
   },
+  {
+    icon: "bell" as const,
+    title: "공지·팝업 관리",
+    sub: "공지 등록·수정·삭제, 대상별 팝업 설정",
+    path: "/(super)/notices",
+    color: "#4F46E5",
+    bg: "#EEF2FF",
+  },
 ];
 
 export default function OpGroupScreen() {

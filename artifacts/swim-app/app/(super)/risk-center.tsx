@@ -116,7 +116,19 @@ export default function RiskCenterScreen() {
   }, [operators]);
   const smsFailSpike     = smsTotalFailed >= 10;
 
-  const totalRisk = paymentFailed.length + storageDanger.length + deletionPending.length + uploadSpike.length + smsBlockedOps.length + smsLowCredit.length;
+  // ── 복구 실패 항목 (긴급 최우선) ──
+  const RECOVERY_FAILURES = useMemo(() => [
+    {
+      id: "rf-001",
+      operatorId: "op-007",
+      operatorName: "서울수영아카데미",
+      snapshotId: "서울수영아카데미_스냅샷_2026-03-21_09-00",
+      failedAt: new Date(Date.now() - 2 * 3600000).toISOString(), // 2시간 전
+      reason: "부분 복구 시도 후 회원 데이터 불일치 감지 (50명 누락)",
+    },
+  ], []);
+
+  const totalRisk = paymentFailed.length + storageDanger.length + deletionPending.length + uploadSpike.length + smsBlockedOps.length + smsLowCredit.length + RECOVERY_FAILURES.length;
 
   function withProcessing(id: string, fn: () => void) {
     setProcessing(id);
@@ -242,6 +254,7 @@ export default function RiskCenterScreen() {
           </View>
           <View style={s.riskGrid}>
             {[
+              { label: "복구 실패",   count: RECOVERY_FAILURES.length, color: "#DC2626" },
               { label: "결제 실패",   count: paymentFailed.length,  color: "#F87171" },
               { label: "저장 95%↑",  count: storageDanger.length,   color: "#C084FC" },
               { label: "삭제 예정",  count: deletionPending.length, color: "#60A5FA" },
@@ -250,7 +263,6 @@ export default function RiskCenterScreen() {
               { label: "SLA 초과",   count: slaCount,               color: "#F87171" },
               { label: "SMS 실패",   count: smsTotalFailed,         color: "#FB923C" },
               { label: "SMS 차단",   count: smsBlockedOps.length,   color: "#A78BFA" },
-              { label: "크레딧 부족", count: smsLowCredit.length,   color: "#FCD34D" },
             ].map(item => (
               <View key={item.label} style={s.riskTile}>
                 <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#6B7280" }]}>{item.count}</Text>
@@ -268,6 +280,40 @@ export default function RiskCenterScreen() {
             </View>
           )}
         </View>
+
+        {/* ══ 복구 실패 — 긴급 최우선 ══ */}
+        <RiskGroup title="복구 실패 (긴급·비상)" icon="alert-octagon" color="#DC2626" bg="#FEE2E2"
+          count={RECOVERY_FAILURES.length}>
+          {RECOVERY_FAILURES.map(rf => (
+            <View key={rf.id} style={[g.item, { borderLeftWidth: 4, borderLeftColor: "#DC2626", backgroundColor: "#FFF5F5" }]}>
+              <View style={g.itemLeft}>
+                <Text style={[g.itemName, { color: "#DC2626" }]} numberOfLines={1}>
+                  [{rf.operatorName}] 복구 실패
+                </Text>
+                <Text style={g.itemSub}>{rf.reason}</Text>
+                <Text style={g.itemSub}>스냅샷: {rf.snapshotId}</Text>
+                <Text style={[g.itemSub, { color: "#DC2626" }]}>
+                  복구에 실패했습니다. 관리자에게 문의해 주세요.
+                </Text>
+              </View>
+              <View style={g.itemActions}>
+                <Pressable
+                  style={[g.btn, { backgroundColor: "#FEE2E2", paddingHorizontal: 10 }]}
+                  onPress={() => {
+                    createLog({
+                      category: "복구", title: `복구 실패 문의: ${rf.operatorName}`,
+                      actorName, impact: "high",
+                      detail: `스냅샷: ${rf.snapshotId} / 실패 사유: ${rf.reason}`,
+                    });
+                    router.push({ pathname: "/(super)/support", params: { type: "recovery" } } as any);
+                  }}>
+                  <Feather name="message-circle" size={12} color="#DC2626" />
+                  <Text style={[g.btnTxt, { color: "#DC2626" }]}>관리자 문의</Text>
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </RiskGroup>
 
         {/* ── 결제 실패 ── */}
         <RiskGroup title="결제 실패 운영자" icon="credit-card" color="#DC2626" bg="#FEE2E2"

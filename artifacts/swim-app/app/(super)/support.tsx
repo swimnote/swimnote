@@ -3,8 +3,8 @@
  * supportStore에서 15+개 티켓 데이터 — API 호출 없음
  */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
@@ -98,6 +98,19 @@ export default function SupportScreen() {
     riskLevel: "medium" as any,
   });
   const [creating, setCreating]          = useState(false);
+
+  // 리스크 센터 복구 실패 → 자동 연결 (type=recovery 파라미터)
+  const params = useLocalSearchParams<{ type?: string; prefill?: string }>();
+  useEffect(() => {
+    if (params.type === "recovery") {
+      setForm(f => ({
+        ...f, type: "recovery", riskLevel: "critical",
+        title: "[긴급] 복구 실패 문의",
+        body: "복구 실패가 발생했습니다. 상세 내용을 확인하고 즉시 조치해 주세요.\n\n[리스크 센터에서 자동 연결됨]",
+      }));
+      setCreateModal(true);
+    }
+  }, [params.type]);
 
   const allTickets        = useSupportStore(s => s.tickets);
   const updateStatus      = useSupportStore(s => s.updateTicketStatus);

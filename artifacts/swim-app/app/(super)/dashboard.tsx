@@ -40,11 +40,12 @@ interface Todo {
 }
 
 const MENUS = [
-  { id: "op",       icon: "briefcase" as const,      title: "운영 관리",   sub: "운영자·구독·저장공간·SMS 과금",  path: "/(super)/op-group",            color: P,         bg: "#EDE9FE" },
+  { id: "op",       icon: "briefcase" as const,      title: "운영 관리",   sub: "운영자·구독·저장공간·공지관리",  path: "/(super)/op-group",            color: P,         bg: "#EDE9FE" },
   { id: "support",  icon: "message-circle" as const, title: "지원 센터",   sub: "고객센터·정책·초대·인증번호",    path: "/(super)/support-group",        color: "#0284C7", bg: "#E0F2FE" },
   { id: "protect",  icon: "shield" as const,         title: "보호·통제",   sub: "킬스위치·백업·플래그·읽기전용", path: "/(super)/protect-group",        color: "#DC2626", bg: "#FEE2E2" },
   { id: "security", icon: "lock" as const,           title: "보안·설정",   sub: "계정·2FA·외부서비스·세션·정책", path: "/(super)/security-settings",    color: "#991B1B", bg: "#FEF2F2" },
   { id: "audit",    icon: "activity" as const,       title: "감사·리스크", sub: "운영로그·리스크·보안·민감작업",  path: "/(super)/audit-group",          color: "#4F46E5", bg: "#EEF2FF" },
+  { id: "billing",  icon: "bar-chart-2" as const,    title: "매출·정산",   sub: "매출·지출·수수료·순이익 통합 관리", path: "/(super)/billing-analytics",  color: "#059669", bg: "#D1FAE5" },
 ];
 
 const POOL_TYPE_LABELS: Record<string, string> = {

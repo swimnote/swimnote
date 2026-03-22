@@ -8,7 +8,7 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useNoticeStore, type NoticeTarget } from "@/store/noticeStore";
+import { useNoticeStore, type NoticeTarget, NOTICE_TYPE_CFG } from "@/store/noticeStore";
 import { useAuth } from "@/context/AuthContext";
 
 const P = "#7C3AED";
@@ -73,6 +73,17 @@ export function NoticePopup() {
             <Text style={[s.targetTxt, { color: cfg.color }]}>{cfg.label}</Text>
           </View>
 
+          {/* 공지 유형 배지 */}
+          {notice.noticeType && (() => {
+            const ntCfg = NOTICE_TYPE_CFG[notice.noticeType];
+            return ntCfg ? (
+              <View style={[s.typeBadge, { backgroundColor: ntCfg.bg, marginBottom: 8 }]}>
+                <Feather name={ntCfg.icon as any} size={11} color={ntCfg.color} />
+                <Text style={[s.typeTxt, { color: ntCfg.color }]}>{ntCfg.label}</Text>
+              </View>
+            ) : null;
+          })()}
+
           {/* 제목 */}
           <Text style={s.title}>{notice.title}</Text>
 
@@ -117,6 +128,9 @@ const s = StyleSheet.create({
   targetBadge:   { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start",
                    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginBottom: 12 },
   targetTxt:     { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  typeBadge:     { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start",
+                   paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  typeTxt:       { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   title:         { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 12 },
   contentScroll: { maxHeight: 200, marginBottom: 12 },
   content:       { fontSize: 14, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 22 },

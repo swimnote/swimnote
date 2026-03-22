@@ -36,6 +36,7 @@ export default function SuperLayout() {
       {/* 신규 추가 스크린 */}
       <Stack.Screen name="revenue-analytics" />
       <Stack.Screen name="cost-analytics" />
+      <Stack.Screen name="billing-analytics" />
       <Stack.Screen name="system-status" />
       <Stack.Screen name="ads" />
       <Stack.Screen name="notices" />

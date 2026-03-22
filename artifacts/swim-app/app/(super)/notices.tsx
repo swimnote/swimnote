@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useNoticeStore, type Notice, type NoticeTarget } from "@/store/noticeStore";
+import { useNoticeStore, type Notice, type NoticeTarget, type NoticeType, NOTICE_TYPE_CFG } from "@/store/noticeStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import { useAuth } from "@/context/AuthContext";
 
@@ -23,18 +23,32 @@ const TARGET_CFG: Record<NoticeTarget, { label: string; color: string; bg: strin
   parent:  { label: "학부모",   color: "#0891B2", bg: "#E0F2FE" },
 };
 
-function NoticeCard({ notice, onEdit, onDelete }: {
+function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
   notice: Notice;
   onEdit: (n: Notice) => void;
   onDelete: (id: string) => void;
+  isLatest?: boolean;
 }) {
   const cfg = TARGET_CFG[notice.target];
+  const ntCfg = NOTICE_TYPE_CFG[notice.noticeType ?? "general"];
   const d = new Date(notice.createdAt);
   const dateStr = isNaN(d.getTime()) ? "—" : d.toLocaleDateString("ko-KR");
 
   return (
-    <View style={nc.card}>
+    <View style={[nc.card, isLatest && nc.cardLatest]}>
+      {isLatest && (
+        <View style={nc.latestBadge}>
+          <Feather name="radio" size={9} color="#059669" />
+          <Text style={nc.latestTxt}>현재 노출 중</Text>
+        </View>
+      )}
       <View style={nc.top}>
+        {/* 공지 유형 */}
+        <View style={[nc.typeBadge, { backgroundColor: ntCfg.bg }]}>
+          <Feather name={ntCfg.icon as any} size={9} color={ntCfg.color} />
+          <Text style={[nc.typeTxt, { color: ntCfg.color }]}>{ntCfg.label}</Text>
+        </View>
+        {/* 대상 */}
         <View style={[nc.targetBadge, { backgroundColor: cfg.bg }]}>
           <Text style={[nc.targetTxt, { color: cfg.color }]}>{cfg.label}</Text>
         </View>
@@ -48,7 +62,7 @@ function NoticeCard({ notice, onEdit, onDelete }: {
       </View>
       <Text style={nc.title} numberOfLines={1}>{notice.title}</Text>
       <Text style={nc.content} numberOfLines={2}>{notice.content}</Text>
-      <Text style={nc.by}>등록: {notice.createdBy}</Text>
+      <Text style={nc.by}>등록: {notice.createdBy} · 노출시작: {notice.showFrom ? new Date(notice.showFrom).toLocaleDateString("ko-KR") : "즉시"}</Text>
       <View style={nc.actions}>
         <Pressable style={[nc.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => onEdit(notice)}>
           <Text style={[nc.btnTxt, { color: P }]}>수정</Text>
@@ -63,7 +77,13 @@ function NoticeCard({ notice, onEdit, onDelete }: {
 
 const nc = StyleSheet.create({
   card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  top:          { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  cardLatest:   { borderColor: "#059669", borderWidth: 1.5 },
+  latestBadge:  { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start",
+                  backgroundColor: "#D1FAE5", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, marginBottom: 6 },
+  latestTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#059669" },
+  typeBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
+  typeTxt:      { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  top:          { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 8, flexWrap: "wrap" },
   targetBadge:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7 },
   targetTxt:    { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   forcedBadge:  { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEE2E2",
@@ -80,10 +100,15 @@ const nc = StyleSheet.create({
 
 interface FormState {
   title: string; content: string;
-  target: NoticeTarget; forcedAck: boolean;
+  target: NoticeTarget; noticeType: NoticeType; showFrom: string; forcedAck: boolean;
 }
 
-const BLANK: FormState = { title: "", content: "", target: "all", forcedAck: true };
+const BLANK: FormState = {
+  title: "", content: "", target: "all",
+  noticeType: "general",
+  showFrom: new Date().toISOString().slice(0, 16), // "YYYY-MM-DDTHH:mm"
+  forcedAck: true,
+};
 
 export default function NoticesScreen() {
   const { adminUser } = useAuth();
@@ -114,18 +139,28 @@ export default function NoticesScreen() {
 
   function openEdit(n: Notice) {
     setEditId(n.id);
-    setForm({ title: n.title, content: n.content, target: n.target, forcedAck: n.forcedAck });
+    setForm({
+      title: n.title, content: n.content, target: n.target,
+      noticeType: n.noticeType ?? "general",
+      showFrom: n.showFrom ? new Date(n.showFrom).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
+      forcedAck: n.forcedAck,
+    });
     setShowModal(true);
   }
 
   function handleSave() {
     if (!form.title.trim() || !form.content.trim()) return;
+    // showFrom을 ISO 문자열로 안전 변환
+    const showFromISO = form.showFrom ? new Date(form.showFrom).toISOString() : new Date().toISOString();
+    const payload = { ...form, showFrom: showFromISO };
     if (editId) {
-      updateNotice(editId, form);
-      createLog({ category: "공지관리", title: `공지 수정: ${form.title}`, actorName, impact: "medium", detail: `대상: ${form.target}` });
+      updateNotice(editId, payload);
+      createLog({ category: "공지관리", title: `공지 수정: ${form.title}`, actorName, impact: "medium",
+        detail: `대상: ${form.target} / 유형: ${form.noticeType}` });
     } else {
-      const n = createNotice({ ...form, createdBy: actorName });
-      createLog({ category: "공지관리", title: `공지 등록: ${n.title}`, actorName, impact: "medium", detail: `대상: ${form.target}, 강제확인: ${form.forcedAck}` });
+      const n = createNotice({ ...payload, createdBy: actorName });
+      createLog({ category: "공지관리", title: `공지 등록: ${n.title}`, actorName, impact: "medium",
+        detail: `대상: ${form.target} / 유형: ${form.noticeType} / 강제확인: ${form.forcedAck}` });
     }
     setShowModal(false);
   }
@@ -183,8 +218,10 @@ export default function NoticesScreen() {
             <Text style={s.emptyTxt}>등록된 공지가 없습니다</Text>
           </View>
         ) : (
-          filtered.map(n => (
-            <NoticeCard key={n.id} notice={n} onEdit={openEdit} onDelete={(id) => setDeleteConfirm(id)} />
+          filtered.map((n, idx) => (
+            <NoticeCard key={n.id} notice={n} onEdit={openEdit}
+              onDelete={(id) => setDeleteConfirm(id)}
+              isLatest={idx === 0 && filterTarget === "all"} />
           ))
         )}
       </ScrollView>
@@ -207,6 +244,17 @@ export default function NoticesScreen() {
               <TextInput style={[m.input, { height: 120, textAlignVertical: "top" }]}
                 value={form.content} onChangeText={v => setForm(f => ({ ...f, content: v }))}
                 placeholder="공지 내용을 입력하세요" multiline />
+              <Text style={m.label}>공지 유형</Text>
+              <View style={m.segRow}>
+                {(Object.keys(NOTICE_TYPE_CFG) as NoticeType[]).map(t => (
+                  <Pressable key={t} style={[m.segBtn, form.noticeType === t && { backgroundColor: NOTICE_TYPE_CFG[t].bg, borderColor: NOTICE_TYPE_CFG[t].color }]}
+                    onPress={() => setForm(f => ({ ...f, noticeType: t }))}>
+                    <Text style={[m.segTxt, form.noticeType === t && { color: NOTICE_TYPE_CFG[t].color }]}>
+                      {NOTICE_TYPE_CFG[t].label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
               <Text style={m.label}>대상</Text>
               <View style={m.segRow}>
                 {(["all","admin","teacher","parent"] as NoticeTarget[]).map(t => (
@@ -218,6 +266,12 @@ export default function NoticesScreen() {
                   </Pressable>
                 ))}
               </View>
+              <Text style={m.label}>노출 시작일시</Text>
+              <TextInput style={m.input} value={form.showFrom}
+                onChangeText={v => setForm(f => ({ ...f, showFrom: v }))}
+                placeholder="YYYY-MM-DDTHH:mm (예: 2026-04-01T09:00)"
+                autoCapitalize="none" />
+              <Text style={m.hint}>입력 형식: 2026-04-01T09:00 — 빈값이면 즉시 노출</Text>
               <Text style={m.label}>강제 확인 여부</Text>
               <View style={m.segRow}>
                 <Pressable style={[m.segBtn, form.forcedAck && m.segActive]}
@@ -300,6 +354,7 @@ const m = StyleSheet.create({
   segTxt:       { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   segActiveTxt: { color: "#fff" },
   footer:       { flexDirection: "row", gap: 8, marginTop: 20 },
+  hint:         { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginBottom: 10, marginTop: -8 },
   cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center" },
   cancelTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
   saveBtn:      { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },

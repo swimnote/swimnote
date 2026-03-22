@@ -135,6 +135,14 @@ export default function SecuritySettingsScreen() {
   const [pwSuccess,    setPwSuccess]    = useState(false);
   const [lastPwChange, setLastPwChange] = useState("2026년 1월 15일");
 
+  // ── B-2. ID 변경 ──
+  const [idModal,       setIdModal]       = useState(false);
+  const [currentId,     setCurrentId]     = useState("superadmin@swimnote.kr");
+  const [newId,         setNewId]         = useState("");
+  const [idVerifyPw,    setIdVerifyPw]    = useState("");
+  const [idError,       setIdError]       = useState("");
+  const [idSuccess,     setIdSuccess]     = useState(false);
+
   // ── C. 2차 인증 ──
   const [twoFAMode,     setTwoFAMode]     = useState<TwoFAMode>("otp");
   const [sensitiveTrig, setSensitiveTrig] = useState<SensitiveTrigger>("sensitive_only");
@@ -165,6 +173,27 @@ export default function SecuritySettingsScreen() {
     setLastPwChange(new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }));
     createLog({ category: "보안", title: "비밀번호 변경", detail: "슈퍼관리자 비밀번호 변경 완료", actorName, impact: "high" });
     setTimeout(() => { setPwModal(false); setPwSuccess(false); setCurrentPw(""); setNewPw(""); setConfirmPw(""); }, 1200);
+  }
+
+  // 로그인 이력 시드 데이터
+  const LOGIN_HISTORY = useMemo(() => [
+    { id: "lh-001", at: "2026-03-22 11:42", ip: "211.234.56.78",  device: "Chrome / macOS",  status: "success" as const, method: "OTP" },
+    { id: "lh-002", at: "2026-03-22 09:17", ip: "211.234.56.78",  device: "Chrome / macOS",  status: "success" as const, method: "OTP" },
+    { id: "lh-003", at: "2026-03-21 20:03", ip: "175.112.34.90",  device: "Safari / iPhone", status: "fail"    as const, method: "OTP", failReason: "OTP 코드 불일치" },
+    { id: "lh-004", at: "2026-03-21 18:55", ip: "175.112.34.90",  device: "Safari / iPhone", status: "fail"    as const, method: "OTP", failReason: "OTP 코드 만료" },
+    { id: "lh-005", at: "2026-03-21 14:30", ip: "211.234.56.78",  device: "Chrome / macOS",  status: "success" as const, method: "OTP" },
+    { id: "lh-006", at: "2026-03-20 10:11", ip: "203.0.113.45",   device: "Edge / Windows",  status: "success" as const, method: "SMS" },
+    { id: "lh-007", at: "2026-03-19 22:47", ip: "198.51.100.22",  device: "Unknown",          status: "block"   as const, method: "비밀번호", failReason: "5회 실패로 자동 차단" },
+  ], []);
+
+  function handleIdChange() {
+    setIdError("");
+    if (!newId.includes("@"))        { setIdError("올바른 이메일 형식을 입력하세요."); return; }
+    if (idVerifyPw !== "admin1234")  { setIdError("비밀번호가 올바르지 않습니다."); return; }
+    createLog({ category: "보안", title: `관리자 ID 변경: ${currentId} → ${newId}`, detail: "슈퍼관리자 로그인 ID 변경", actorName, impact: "high" });
+    setCurrentId(newId);
+    setIdSuccess(true);
+    setTimeout(() => { setIdModal(false); setIdSuccess(false); setNewId(""); setIdVerifyPw(""); }, 1400);
   }
 
   function confirmTwoFA() {
@@ -266,6 +295,21 @@ export default function SecuritySettingsScreen() {
           <Pressable style={s.actionBtn} onPress={() => setPwModal(true)}>
             <Feather name="key" size={15} color={P} />
             <Text style={s.actionBtnTxt}>비밀번호 변경</Text>
+            <Feather name="chevron-right" size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
+          </Pressable>
+        </View>
+
+        {/* ══ B-2. 계정 ID 변경 ══ */}
+        <View style={s.section}>
+          <SectionTitle title="B-2. 관리자 ID 변경" sub="이메일 형식의 로그인 ID" />
+          <View style={s.infoRow}>
+            <Feather name="at-sign" size={14} color={P} />
+            <Text style={s.infoLabel}>현재 ID</Text>
+            <Text style={s.infoValue}>{currentId}</Text>
+          </View>
+          <Pressable style={s.actionBtn} onPress={() => setIdModal(true)}>
+            <Feather name="edit-2" size={15} color={P} />
+            <Text style={s.actionBtnTxt}>ID 변경</Text>
             <Feather name="chevron-right" size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
           </Pressable>
         </View>
@@ -479,6 +523,32 @@ export default function SecuritySettingsScreen() {
             ))}
           </View>
         </View>
+
+        {/* ══ G. 로그인 이력 ══ */}
+        <View style={s.section}>
+          <SectionTitle title="G. 로그인 이력" sub="최근 7건" />
+          {LOGIN_HISTORY.map(log => {
+            const isSuccess = log.status === "success";
+            const isFail    = log.status === "fail";
+            const isBlock   = log.status === "block";
+            const color = isSuccess ? "#16A34A" : isBlock ? "#DC2626" : "#D97706";
+            const bg    = isSuccess ? "#F0FDF4" : isBlock ? "#FEF2F2" : "#FFFBEB";
+            return (
+              <View key={log.id} style={[s.infoRow, { backgroundColor: bg, borderRadius: 10, padding: 10, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, width: "100%" }}>
+                  <Feather name={isSuccess ? "check-circle" : isBlock ? "slash" : "alert-circle"} size={13} color={color} />
+                  <Text style={[s.infoLabel, { color, flex: 1 }]}>{isSuccess ? "로그인 성공" : isBlock ? "계정 차단" : "로그인 실패"}</Text>
+                  <Text style={[s.infoValue, { fontSize: 11 }]}>{log.at}</Text>
+                </View>
+                <Text style={[s.infoValue, { paddingLeft: 21, fontSize: 12 }]}>{log.device} · {log.ip} · {log.method}</Text>
+                {(isFail || isBlock) && log.failReason && (
+                  <Text style={[s.infoValue, { paddingLeft: 21, fontSize: 11, color }]}>{log.failReason}</Text>
+                )}
+              </View>
+            );
+          })}
+        </View>
+
       </ScrollView>
 
       {/* ══ 계정 상세 모달 ══ */}
@@ -575,6 +645,36 @@ export default function SecuritySettingsScreen() {
                     <Text style={m.confirmTxt}>변경</Text>
                   </Pressable>
                 </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ══ ID 변경 모달 ══ */}
+      <Modal visible={idModal} animationType="slide" transparent statusBarTranslucent
+        onRequestClose={() => setIdModal(false)}>
+        <Pressable style={m.backdrop} onPress={() => setIdModal(false)}>
+          <Pressable style={m.sheet} onPress={() => {}}>
+            <Text style={m.sheetTitle}>관리자 ID 변경</Text>
+            <Text style={m.sheetSub}>현재 ID: {currentId}</Text>
+            {idSuccess ? (
+              <View style={{ alignItems: "center", paddingVertical: 20 }}>
+                <Feather name="check-circle" size={40} color="#16A34A" />
+                <Text style={{ marginTop: 10, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#16A34A" }}>ID가 변경되었습니다</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={m.fieldLabel}>새 ID (이메일)</Text>
+                <TextInput style={m.input} value={newId} onChangeText={setNewId}
+                  placeholder="new@swimnote.kr" keyboardType="email-address" autoCapitalize="none" />
+                <Text style={m.fieldLabel}>현재 비밀번호 확인</Text>
+                <TextInput style={m.input} value={idVerifyPw} onChangeText={setIdVerifyPw}
+                  placeholder="비밀번호를 입력하세요" secureTextEntry />
+                {!!idError && <Text style={m.errTxt}>{idError}</Text>}
+                <Pressable style={m.confirmBtn} onPress={handleIdChange}>
+                  <Text style={m.confirmTxt}>ID 변경 확인</Text>
+                </Pressable>
               </>
             )}
           </Pressable>
