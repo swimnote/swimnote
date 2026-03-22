@@ -162,63 +162,73 @@ const sm = StyleSheet.create({
 });
 
 // ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
-type PopupKey = "인원관리" | "수업관리" | "보강관리" | "매출관리" | "데이터관리" | "운영설정" | "플랫폼설정";
+// 5대 카테고리: 운영관리·수업관리·보강관리·매출관리·데이터관리·수업설정·운영설정
+type PopupKey = "운영관리" | "수업관리" | "보강관리" | "매출관리" | "데이터관리" | "수업설정" | "운영설정";
 
 function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   const pending  = stats?.pending_requests ?? 0;
   const makeups  = stats?.pending_makeups ?? 0;
 
   switch (key) {
-    case "인원관리": return [
-      { icon: "users",       label: "회원관리",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/members") },
-      { icon: "user",        label: "학부모관리",  color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/parents") },
-      { icon: "user-check",  label: "선생님관리",  color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/people-teachers") },
-      { icon: "user-x",      label: "미배정관리",  color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/people-pending") },
-      { icon: "check-circle",label: "승인관리",   color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/approvals"), badge: pending },
-      { icon: "mail",        label: "초대관리",   color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/people-pending") },
+    // ─ 운영 관리: 인원 + 구독/결제 통합 ─
+    case "운영관리": return [
+      { icon: "users",       label: "회원 명부",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/members") },
+      { icon: "user",        label: "학부모 계정",  color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/parents") },
+      { icon: "user-check",  label: "선생님 관리",  color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/people-teachers") },
+      { icon: "check-circle",label: "승인 관리",   color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/approvals"), badge: pending },
+      { icon: "send",        label: "초대 내역",   color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/invite-records") },
+      { icon: "credit-card", label: "구독 관리",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/billing") },
+      { icon: "hard-drive",  label: "추가 용량",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/extra-storage") },
+      { icon: "message-square", label: "SMS 크레딧", color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/sms-credit") },
     ];
+    // ─ 수업 관리 ─
     case "수업관리": return [
-      { icon: "calendar",    label: "수업스케줄",  color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/classes") },
-      { icon: "layers",      label: "반관리",     color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/class-management") },
-      { icon: "clipboard",   label: "출결관리",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/attendance") },
-      { icon: "book",        label: "수업일지",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/diary-write") },
-      { icon: "users",       label: "수강생관리",  color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/members") },
-      { icon: "shuffle",     label: "반이동",     color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/class-management") },
+      { icon: "calendar",    label: "수업 스케줄",  color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/classes") },
+      { icon: "layers",      label: "반 관리",     color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/class-management") },
+      { icon: "clipboard",   label: "출결 관리",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/attendance") },
+      { icon: "book",        label: "수업 일지",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/diary-teacher-entries") },
+      { icon: "users",       label: "수강생 관리",  color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/members") },
+      { icon: "shuffle",     label: "반 이동",     color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/class-management") },
     ];
+    // ─ 보강 관리 ─
     case "보강관리": return [
-      { icon: "clock",       label: "보강대기",   color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/makeups"), badge: makeups },
-      { icon: "plus-circle", label: "보강배정",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/makeups") },
-      { icon: "bar-chart-2", label: "보강현황",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/makeups") },
-      { icon: "settings",    label: "보강정책",   color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "clock",       label: "보강 대기",   color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/makeups"), badge: makeups },
+      { icon: "plus-circle", label: "보강 배정",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/makeups") },
+      { icon: "bar-chart-2", label: "보강 현황",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/makeups") },
+      { icon: "settings",    label: "보강 정책",   color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/pool-settings") },
     ];
+    // ─ 매출 관리 ─
     case "매출관리": return [
-      { icon: "trending-up", label: "월별매출",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/admin-revenue") },
-      { icon: "check-square",label: "정산확인",   color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/admin-revenue") },
-      { icon: "calendar",    label: "휴무일관리",  color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/holidays") },
+      { icon: "trending-up", label: "월별 매출",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "check-square",label: "정산 확인",   color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "calendar",    label: "휴무일 관리",  color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/holidays") },
     ];
+    // ─ 데이터 관리: 백업·복구 + 저장공간 + 삭제·보존 통합 ─
     case "데이터관리": return [
-      { icon: "hard-drive",  label: "저장공간현황", color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/data-storage-overview") },
-      { icon: "user",        label: "계정별사용량", color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/data-storage-by-account") },
-      { icon: "pie-chart",   label: "카테고리별\n사용량", color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/data-storage-by-category") },
-      { icon: "list",        label: "이벤트기록",  color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/data-event-logs") },
-      { icon: "database",    label: "데이터관리",  color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/data-management") },
-      { icon: "trash-2",     label: "원본데이터\n삭제", color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/data-delete") },
+      { icon: "rotate-ccw",  label: "백업·복구",   color: "#DC2626", bg: "#FEE2E2", onPress: () => router.push("/(admin)/recovery") },
+      { icon: "list",        label: "이벤트 기록",  color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/data-event-logs") },
+      { icon: "pie-chart",   label: "저장공간 현황", color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/data-storage-overview") },
+      { icon: "users",       label: "계정별 사용량", color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/data-storage-by-account") },
+      { icon: "bar-chart-2", label: "카테고리별\n사용량", color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/data-storage-by-category") },
+      { icon: "archive",     label: "삭제·보존\n정책", color: "#6B7280", bg: "#F3F4F6", onPress: () => router.push("/(admin)/data-delete") },
     ];
-    case "운영설정": return [
-      { icon: "settings",    label: "수업운영설정", color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/pool-settings") },
-      { icon: "refresh-cw",  label: "보강정책설정", color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/pool-settings") },
-      { icon: "shield",      label: "권한설정",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/admin-grant") },
-      { icon: "bell",        label: "알림설정",   color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/notifications") },
+    // ─ 수업 설정 (기존 운영설정 → 이름 변경, 수업 기준/정책만) ─
+    case "수업설정": return [
+      { icon: "settings",    label: "수업운영\n설정",  color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "refresh-cw",  label: "보강정책\n설정",  color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "shield",      label: "권한 설정",    color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/admin-grant") },
+      { icon: "bell",        label: "알림 설정",    color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/notifications") },
       { icon: "award",       label: "레벨/테스트\n설정", color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/pool-settings") },
       { icon: "message-circle", label: "피드백\n기본설정", color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/pool-settings") },
     ];
-    case "플랫폼설정": return [
-      { icon: "credit-card", label: "구독관리",   color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/billing") },
-      { icon: "tag",         label: "화이트라벨",  color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/branding") },
-      { icon: "message-square", label: "SMS서비스\n관리", color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/more") },
-      { icon: "star",        label: "로고/브랜드", color: "#DC2626", bg: "#FEF2F2", onPress: () => router.push("/(admin)/branding") },
-      { icon: "smartphone",  label: "앱기본설정",  color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/more") },
-      { icon: "link",        label: "연결서비스",  color: "#0891B2", bg: "#ECFEFF", onPress: () => router.push("/(admin)/more") },
+    // ─ 운영 설정 (기존 플랫폼설정 → 이름 변경, 브랜드/인프라만) ─
+    case "운영설정": return [
+      { icon: "sliders",     label: "브랜드 설정",  color: "#EC4899", bg: "#FCE7F3", onPress: () => router.push("/(admin)/branding") },
+      { icon: "tag",         label: "화이트라벨",   color: "#7C3AED", bg: "#F5F3FF", onPress: () => router.push("/(admin)/branding") },
+      { icon: "map-pin",     label: "지점 관리",    color: "#0D9488", bg: "#CCFBF1", onPress: () => router.push("/(admin)/branches") },
+      { icon: "settings",    label: "수영장 설정",  color: "#6B7280", bg: "#F3F4F6", onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "smartphone",  label: "앱 기본설정",  color: "#2563EB", bg: "#EFF6FF", onPress: () => router.push("/(admin)/notifications") },
+      { icon: "users",       label: "초대방식\n설정", color: "#059669", bg: "#ECFDF5", onPress: () => router.push("/(admin)/invite-sms") },
     ];
     default: return [];
   }
@@ -232,14 +242,14 @@ const MAIN_ICONS: Array<{
   color: string;
   bg: string;
 }> = [
-  { key: "인원관리",  label: "인원관리",  icon: "users",        color: "#2563EB", bg: "#EFF6FF" },
-  { key: "수업관리",  label: "수업관리",  icon: "calendar",     color: "#7C3AED", bg: "#F5F3FF" },
-  { key: "보강관리",  label: "보강관리",  icon: "rotate-ccw",   color: "#DC2626", bg: "#FEF2F2" },
-  { key: "메신저",    label: "메신저",    icon: "message-circle",color: "#059669", bg: "#ECFDF5" },
-  { key: "매출관리",  label: "매출관리",  icon: "trending-up",  color: "#D97706", bg: "#FFFBEB" },
-  { key: "데이터관리",label: "데이터관리",icon: "hard-drive",   color: "#0891B2", bg: "#ECFEFF" },
-  { key: "운영설정",  label: "운영설정",  icon: "settings",     color: "#EA580C", bg: "#FFF7ED" },
-  { key: "플랫폼설정",label: "플랫폼설정",icon: "smartphone",   color: "#6B7280", bg: "#F9FAFB" },
+  { key: "운영관리",  label: "운영 관리",  icon: "briefcase",    color: "#2563EB", bg: "#EFF6FF" },
+  { key: "수업관리",  label: "수업 관리",  icon: "calendar",     color: "#7C3AED", bg: "#F5F3FF" },
+  { key: "보강관리",  label: "보강 관리",  icon: "rotate-ccw",   color: "#DC2626", bg: "#FEF2F2" },
+  { key: "메신저",    label: "메신저",     icon: "message-circle",color: "#059669", bg: "#ECFDF5" },
+  { key: "매출관리",  label: "매출 관리",  icon: "trending-up",  color: "#D97706", bg: "#FFFBEB" },
+  { key: "데이터관리",label: "데이터 관리",icon: "hard-drive",   color: "#0891B2", bg: "#ECFEFF" },
+  { key: "수업설정",  label: "수업 설정",  icon: "settings",     color: "#EA580C", bg: "#FFF7ED" },
+  { key: "운영설정",  label: "운영 설정",  icon: "sliders",      color: "#6B7280", bg: "#F9FAFB" },
 ];
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
@@ -464,7 +474,7 @@ export default function DashboardScreen() {
                         </View>
                       )}
                       {/* 승인 대기 배지 */}
-                      {item.key === "인원관리" && (stats?.pending_requests ?? 0) > 0 && (
+                      {item.key === "운영관리" && (stats?.pending_requests ?? 0) > 0 && (
                         <View style={s.notiBadge}>
                           <Text style={s.notiBadgeTxt}>{stats.pending_requests}</Text>
                         </View>
@@ -484,7 +494,7 @@ export default function DashboardScreen() {
       <SearchModal visible={showSearch} onClose={() => setShowSearch(false)} token={token} />
 
       {/* ── 팝업들 (7개, 메신저 제외) ── */}
-      {(["인원관리", "수업관리", "보강관리", "매출관리", "데이터관리", "운영설정", "플랫폼설정"] as PopupKey[]).map(key => (
+      {(["운영관리", "수업관리", "보강관리", "매출관리", "데이터관리", "수업설정", "운영설정"] as PopupKey[]).map(key => (
         <IconPopup
           key={key}
           visible={activePopup === key}

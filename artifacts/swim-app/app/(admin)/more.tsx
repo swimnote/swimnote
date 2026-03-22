@@ -1,6 +1,6 @@
 /**
- * 더보기 탭 — 설정 허브
- * 탭: 설정 메뉴 / 활동 로그
+ * 더보기 탭 — 프로필 + 활동 로그 (최소화 버전)
+ * 대부분의 메뉴는 홈 대시보드 5대 카테고리 팝업으로 이동됨
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -39,6 +39,17 @@ const TYPE_LABEL: Record<string, string> = {
   status: "상태", info: "기본정보", class: "반", diary: "일지",
   attendance: "출결", parent: "학부모",
 };
+
+// 바로가기 (대시보드에 없는 보조 메뉴만)
+const SHORTCUTS = [
+  { label: "휴무일 관리",  icon: "x-square"    as const, color: "#EF4444", bg: "#FEE2E2", route: "/(admin)/holidays"        },
+  { label: "데이터 관리",  icon: "hard-drive"  as const, color: "#0891B2", bg: "#ECFEFF", route: "/(admin)/data-management" },
+  { label: "SMS 크레딧",   icon: "message-square" as const, color: "#7C3AED", bg: "#EDE9FE", route: "/(admin)/sms-credit" },
+];
+
+const MISC = [
+  { label: "모드 변경",  icon: "grid" as const, color: "#6B7280", bg: "#F3F4F6", route: "/(admin)/mode" },
+];
 
 export default function MoreScreen() {
   const { token, adminUser, switchRole } = useAuth();
@@ -90,50 +101,6 @@ export default function MoreScreen() {
     if (tab === "활동 로그") loadLogs(0);
   }, [tab]);
 
-  const settingGroups = [
-    {
-      title: "운영",
-      items: [
-        { label: "승인 관리",       icon: "check-circle" as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/approvals"          },
-        { label: "선생님 관리",     icon: "user-check"   as const, color: "#7C3AED", bg: "#F3E8FF", route: "/(admin)/teachers"           },
-        { label: "학부모 계정",     icon: "users"        as const, color: "#2563EB", bg: "#DBEAFE", route: "/(admin)/parents"            },
-        { label: "학부모 초대 내역", icon: "send"         as const, color: "#0891B2", bg: "#ECFEFF", route: "/(admin)/invite-records"    },
-        { label: "백업·복구",       icon: "rotate-ccw"   as const, color: "#DC2626", bg: "#FEE2E2", route: "/(admin)/recovery"          },
-        { label: "추가 용량 구매",  icon: "hard-drive"   as const, color: "#059669", bg: "#D1FAE5", route: "/(admin)/extra-storage"     },
-        { label: "삭제/복구 센터",  icon: "archive"      as const, color: "#6B7280", bg: "#F3F4F6", route: "/(admin)/withdrawn-members"  },
-      ],
-    },
-    {
-      title: "정산 · 일정",
-      items: [
-        { label: "수업 단가표",  icon: "dollar-sign"  as const, color: "#7C3AED", bg: "#EDE9FE", route: "/(admin)/pool-settings" },
-        { label: "휴무일 관리",  icon: "x-square"     as const, color: "#EF4444", bg: "#FEE2E2", route: "/(admin)/holidays"      },
-      ],
-    },
-    {
-      title: "설정",
-      items: [
-        { label: "브랜드 설정",  icon: "sliders"      as const, color: "#EC4899", bg: "#FCE7F3", route: "/(admin)/branding"      },
-        { label: "지점 관리",    icon: "map-pin"      as const, color: "#0D9488", bg: "#CCFBF1", route: "/(admin)/branches"      },
-        { label: "알림 설정",    icon: "bell"         as const, color: "#D97706", bg: "#FEF3C7", route: "/(admin)/notifications" },
-        { label: "수영장 설정",  icon: "settings"     as const, color: "#6B7280", bg: "#F3F4F6", route: "/(admin)/pool-settings" },
-        { label: "데이터 관리",  icon: "hard-drive"   as const, color: "#DC2626", bg: "#FEE2E2", route: "/(admin)/data-management" },
-      ],
-    },
-    {
-      title: "앱 구독",
-      items: [
-        { label: "구독관리",     icon: "credit-card"  as const, color: "#D97706", bg: "#FEF3C7", route: "/(admin)/billing"       },
-      ],
-    },
-    {
-      title: "기타",
-      items: [
-        { label: "모드 변경",    icon: "grid"         as const, color: "#6B7280", bg: "#F3F4F6", route: "/(admin)/mode"          },
-      ],
-    },
-  ];
-
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="더보기" />
@@ -177,31 +144,61 @@ export default function MoreScreen() {
             )}
           </View>
 
-          {/* 설정 그룹 */}
-          {settingGroups.map(group => (
-            <View key={group.title}>
-              <Text style={s.groupTitle}>{group.title}</Text>
-              <View style={[s.groupCard, { backgroundColor: C.card }]}>
-                {group.items.map((item, idx) => (
-                  <Pressable
-                    key={item.label}
-                    style={({ pressed }) => [
-                      s.menuRow,
-                      idx < group.items.length - 1 && s.menuRowBorder,
-                      { opacity: pressed ? 0.7 : 1 },
-                    ]}
-                    onPress={() => router.push(item.route as any)}
-                  >
-                    <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
-                      <Feather name={item.icon} size={18} color={item.color} />
-                    </View>
-                    <Text style={s.menuLabel}>{item.label}</Text>
-                    <Feather name="chevron-right" size={16} color={C.textMuted} style={{ marginLeft: "auto" }} />
-                  </Pressable>
-                ))}
-              </View>
+          {/* 안내 배너 */}
+          <View style={s.infoBanner}>
+            <Feather name="info" size={14} color="#2563EB" />
+            <Text style={s.infoBannerText}>
+              메뉴 대부분은 홈 화면 아이콘(운영 관리·데이터 관리·수업 설정·운영 설정)에서 바로 접근할 수 있습니다.
+            </Text>
+          </View>
+
+          {/* 바로가기 */}
+          <View>
+            <Text style={s.groupTitle}>바로가기</Text>
+            <View style={[s.groupCard, { backgroundColor: C.card }]}>
+              {SHORTCUTS.map((item, idx) => (
+                <Pressable
+                  key={item.label}
+                  style={({ pressed }) => [
+                    s.menuRow,
+                    idx < SHORTCUTS.length - 1 && s.menuRowBorder,
+                    { opacity: pressed ? 0.7 : 1 },
+                  ]}
+                  onPress={() => router.push(item.route as any)}
+                >
+                  <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
+                    <Feather name={item.icon} size={18} color={item.color} />
+                  </View>
+                  <Text style={s.menuLabel}>{item.label}</Text>
+                  <Feather name="chevron-right" size={16} color={C.textMuted} style={{ marginLeft: "auto" }} />
+                </Pressable>
+              ))}
             </View>
-          ))}
+          </View>
+
+          {/* 기타 */}
+          <View>
+            <Text style={s.groupTitle}>기타</Text>
+            <View style={[s.groupCard, { backgroundColor: C.card }]}>
+              {MISC.map((item, idx) => (
+                <Pressable
+                  key={item.label}
+                  style={({ pressed }) => [
+                    s.menuRow,
+                    idx < MISC.length - 1 && s.menuRowBorder,
+                    { opacity: pressed ? 0.7 : 1 },
+                  ]}
+                  onPress={() => router.push(item.route as any)}
+                >
+                  <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
+                    <Feather name={item.icon} size={18} color={item.color} />
+                  </View>
+                  <Text style={s.menuLabel}>{item.label}</Text>
+                  <Feather name="chevron-right" size={16} color={C.textMuted} style={{ marginLeft: "auto" }} />
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </ScrollView>
       ) : (
         /* 활동 로그 탭 */
@@ -352,6 +349,9 @@ const s = StyleSheet.create({
   profileRole:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
   switchBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   switchBtnText:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
+  infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EFF6FF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#BFDBFE" },
+  infoBannerText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#1D4ED8", lineHeight: 18 },
 
   groupTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280", marginBottom: 8, paddingHorizontal: 4 },
   groupCard:  { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
