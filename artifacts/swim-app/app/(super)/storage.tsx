@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useStorageStore } from "@/store/storageStore";
 import { useOperatorsStore } from "@/store/operatorsStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
@@ -84,6 +85,7 @@ export default function StorageScreen() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [ctaModal,      setCtaModal]      = useState<StoragePolicy | null>(null);
   const [overrideLoading, setOverrideLoading] = useState<string | null>(null);
+  const [otpVisible,    setOtpVisible]    = useState(false);
 
   const tab      = storageTab;
   const filtered = useMemo(() => getByTab(), [policies, storageTab]);
@@ -311,15 +313,28 @@ export default function StorageScreen() {
                 <Pressable style={m.cancelBtn} onPress={() => setEditOp(null)}>
                   <Text style={m.cancelTxt}>취소</Text>
                 </Pressable>
-                <Pressable style={[m.saveBtn, { opacity: saving ? 0.6 : 1 }]} onPress={handleSave} disabled={saving}>
-                  {saving ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={m.saveTxt}>용량 추가</Text>}
+                <Pressable style={[m.saveBtn, { opacity: saving ? 0.6 : 1 }]} onPress={() => setOtpVisible(true)} disabled={saving}>
+                  {saving ? <ActivityIndicator color="#fff" size="small" /> : (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Feather name="lock" size={13} color="#fff" />
+                      <Text style={m.saveTxt}>용량 추가</Text>
+                    </View>
+                  )}
                 </Pressable>
               </View>
             </Pressable>
           </Pressable>
         </Modal>
       )}
+
+      {/* 슈퍼관리자 직접 용량 추가 OTP */}
+      <OtpGateModal
+        visible={otpVisible}
+        title="용량 추가 OTP 인증"
+        desc="슈퍼관리자의 직접 용량 부여는 OTP 인증 후에 처리됩니다."
+        onSuccess={() => { setOtpVisible(false); handleSave(); }}
+        onCancel={() => setOtpVisible(false)}
+      />
 
       {/* 과금 유도 CTA 모달 */}
       {ctaModal && (
