@@ -156,7 +156,7 @@ export default function PoolSettingsScreen() {
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
         {error ? (
-          <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+          <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
             <Feather name="alert-circle" size={14} color={C.error} />
             <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
           </View>
@@ -239,10 +239,10 @@ export default function PoolSettingsScreen() {
             </View>
           </View>
           {capacityMsg ? (
-            <View style={[styles.msgBox, { backgroundColor: capacityMsg === "저장되었습니다." ? "#D1FAE5" : "#FEE2E2" }]}>
+            <View style={[styles.msgBox, { backgroundColor: capacityMsg === "저장되었습니다." ? "#DDF2EF" : "#F9DEDA" }]}>
               <Feather name={capacityMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
-                color={capacityMsg === "저장되었습니다." ? "#059669" : C.error} />
-              <Text style={[styles.errText, { color: capacityMsg === "저장되었습니다." ? "#059669" : C.error }]}>{capacityMsg}</Text>
+                color={capacityMsg === "저장되었습니다." ? "#1F8F86" : C.error} />
+              <Text style={[styles.errText, { color: capacityMsg === "저장되었습니다." ? "#1F8F86" : C.error }]}>{capacityMsg}</Text>
             </View>
           ) : null}
           <Pressable
@@ -308,10 +308,10 @@ export default function PoolSettingsScreen() {
               </View>
             ))}
             {pricingMsg ? (
-              <View style={[styles.msgBox, { backgroundColor: pricingMsg === "저장되었습니다." ? "#D1FAE5" : "#FEE2E2" }]}>
+              <View style={[styles.msgBox, { backgroundColor: pricingMsg === "저장되었습니다." ? "#DDF2EF" : "#F9DEDA" }]}>
                 <Feather name={pricingMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
-                  color={pricingMsg === "저장되었습니다." ? "#059669" : C.error} />
-                <Text style={[styles.errText, { color: pricingMsg === "저장되었습니다." ? "#059669" : C.error }]}>{pricingMsg}</Text>
+                  color={pricingMsg === "저장되었습니다." ? "#1F8F86" : C.error} />
+                <Text style={[styles.errText, { color: pricingMsg === "저장되었습니다." ? "#1F8F86" : C.error }]}>{pricingMsg}</Text>
               </View>
             ) : null}
             <Pressable
@@ -325,17 +325,17 @@ export default function PoolSettingsScreen() {
 
         {/* ── 휴무일 관리 바로가기 ─────────────────────────── */}
         <Pressable
-          style={[styles.card, { backgroundColor: "#FEE2E2", shadowColor: C.shadow, flexDirection: "row", alignItems: "center", gap: 12 }]}
+          style={[styles.card, { backgroundColor: "#F9DEDA", shadowColor: C.shadow, flexDirection: "row", alignItems: "center", gap: 12 }]}
           onPress={() => router.push("/(admin)/holidays" as any)}
         >
-          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#EF444420", alignItems: "center", justifyContent: "center" }}>
-            <Feather name="x-square" size={20} color="#EF4444" />
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#D96C6C20", alignItems: "center", justifyContent: "center" }}>
+            <Feather name="x-square" size={20} color="#D96C6C" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.sectionTitle, { color: "#DC2626" }]}>휴무일 관리</Text>
-            <Text style={[styles.hint, { color: "#EF4444" }]}>달력에서 수영장 휴무일을 설정합니다</Text>
+            <Text style={[styles.sectionTitle, { color: "#D96C6C" }]}>휴무일 관리</Text>
+            <Text style={[styles.hint, { color: "#D96C6C" }]}>달력에서 수영장 휴무일을 설정합니다</Text>
           </View>
-          <Feather name="chevron-right" size={18} color="#EF4444" />
+          <Feather name="chevron-right" size={18} color="#D96C6C" />
         </Pressable>
 
         {settings && (
@@ -348,10 +348,10 @@ export default function PoolSettingsScreen() {
             <View style={styles.statusRow}>
               <Text style={[styles.statusLabel, { color: C.textSecondary }]}>승인 상태</Text>
               <View style={[styles.badge, {
-                backgroundColor: settings.approval_status === "approved" ? "#D1FAE5" : "#FEF3C7"
+                backgroundColor: settings.approval_status === "approved" ? "#DDF2EF" : "#FFF1BF"
               }]}>
                 <Text style={[styles.badgeText, {
-                  color: settings.approval_status === "approved" ? "#059669" : "#D97706"
+                  color: settings.approval_status === "approved" ? "#1F8F86" : "#D97706"
                 }]}>
                   {settings.approval_status === "approved" ? "승인됨" : settings.approval_status === "pending" ? "심사 중" : "반려"}
                 </Text>

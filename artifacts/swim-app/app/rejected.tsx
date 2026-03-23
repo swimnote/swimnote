@@ -14,8 +14,8 @@ export default function RejectedScreen() {
   return (
     <View style={[styles.container, { backgroundColor: C.background, paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0), paddingBottom: insets.bottom + 34 }]}>
       <View style={styles.content}>
-        <View style={[styles.iconBox, { backgroundColor: "#FEE2E2" }]}>
-          <Feather name="x-circle" size={40} color="#EF4444" />
+        <View style={[styles.iconBox, { backgroundColor: "#F9DEDA" }]}>
+          <Feather name="x-circle" size={40} color="#D96C6C" />
         </View>
         <Text style={[styles.title, { color: C.text }]}>가입 신청 반려</Text>
         <Text style={[styles.message, { color: C.textSecondary }]}>
@@ -23,7 +23,7 @@ export default function RejectedScreen() {
         </Text>
 
         {pool?.rejection_reason ? (
-          <View style={[styles.reasonCard, { backgroundColor: "#FEE2E2", borderColor: "#FECACA" }]}>
+          <View style={[styles.reasonCard, { backgroundColor: "#F9DEDA", borderColor: "#FECACA" }]}>
             <Text style={[styles.reasonLabel, { color: C.error }]}>반려 사유</Text>
             <Text style={[styles.reasonText, { color: C.text }]}>{pool.rejection_reason}</Text>
           </View>

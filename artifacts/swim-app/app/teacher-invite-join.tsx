@@ -98,7 +98,7 @@ export default function TeacherInviteJoinScreen() {
           </Text>
 
           {tokenError ? (
-            <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+            <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
               <Feather name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{tokenError}</Text>
             </View>
@@ -155,7 +155,7 @@ export default function TeacherInviteJoinScreen() {
           <Text style={[styles.sectionSub, { color: C.textSecondary }]}>가입 후 관리자 승인이 완료되면 이용할 수 있어요</Text>
 
           {formError ? (
-            <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+            <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
               <Feather name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{formError}</Text>
             </View>
@@ -232,7 +232,7 @@ export default function TeacherInviteJoinScreen() {
       {/* ── 완료 단계 ─────────────────────────────────────────── */}
       {step === "done" && (
         <View style={[styles.doneContainer, { paddingBottom: insets.bottom + 40 }]}>
-          <View style={[styles.doneIcon, { backgroundColor: "#D1FAE5" }]}>
+          <View style={[styles.doneIcon, { backgroundColor: "#DDF2EF" }]}>
             <Feather name="check-circle" size={48} color={C.success} />
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입이 완료됐어요!</Text>

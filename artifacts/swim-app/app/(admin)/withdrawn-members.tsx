@@ -119,8 +119,8 @@ export default function WithdrawnMembersScreen() {
   }
 
   const TABS: { key: MainTab; label: string; color: string }[] = [
-    { key: "withdrawn", label: "퇴원자",  color: "#DC2626" },
-    { key: "archived",  label: "아카이브", color: "#6B7280" },
+    { key: "withdrawn", label: "퇴원자",  color: "#D96C6C" },
+    { key: "archived",  label: "아카이브", color: "#6F6B68" },
   ];
 
   return (
@@ -149,13 +149,13 @@ export default function WithdrawnMembersScreen() {
       </View>
 
       {/* 설명 배너 */}
-      <View style={[styles.infoBanner, { backgroundColor: tab === "withdrawn" ? "#FEF2F2" : "#F3F4F6" }]}>
+      <View style={[styles.infoBanner, { backgroundColor: tab === "withdrawn" ? "#FEF2F2" : "#F6F3F1" }]}>
         {tab === "withdrawn" ? (
           <Text style={[styles.infoText, { color: "#991B1B" }]}>
             퇴원자는 과금에 포함되지 않습니다. 최종 퇴원 처리 시 학부모 앱 접근이 차단됩니다. 복구 가능 기간 내에는 관리자가 복구할 수 있습니다.
           </Text>
         ) : (
-          <Text style={[styles.infoText, { color: "#374151" }]}>
+          <Text style={[styles.infoText, { color: "#1F1F1F" }]}>
             아카이브는 과금 제외, 학부모 접근 차단, 기록 보존 상태입니다. 관리자만 열람 가능합니다.
           </Text>
         )}
@@ -255,27 +255,27 @@ export default function WithdrawnMembersScreen() {
             {deleteStep === 1 ? (
               <>
                 <View style={[styles.deleteIcon, { backgroundColor: "#FEF2F2" }]}>
-                  <Feather name="alert-triangle" size={28} color="#DC2626" />
+                  <Feather name="alert-triangle" size={28} color="#D96C6C" />
                 </View>
                 <Text style={styles.deleteTitle}>영구 삭제 확인</Text>
                 <Text style={styles.deleteMsg}>
                   <Text style={{ fontFamily: "Inter_700Bold" }}>{actionTarget.name}</Text>
                   {" "}회원을 영구 삭제합니다.{"\n\n"}
                   출결, 수업일지, 사진, 학부모 연결 등{"\n"}모든 데이터가 삭제되며{" "}
-                  <Text style={{ color: "#DC2626", fontFamily: "Inter_700Bold" }}>복구할 수 없습니다.</Text>
+                  <Text style={{ color: "#D96C6C", fontFamily: "Inter_700Bold" }}>복구할 수 없습니다.</Text>
                 </Text>
                 <View style={styles.deleteBtnRow}>
                   <Pressable style={[styles.deleteBtn, { backgroundColor: C.border }]} onPress={() => { setConfirmAction(null); setActionTarget(null); }}>
                     <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary }}>취소</Text>
                   </Pressable>
-                  <Pressable style={[styles.deleteBtn, { backgroundColor: "#FEE2E2" }]} onPress={() => setDeleteStep(2)}>
-                    <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#DC2626" }}>다음 단계</Text>
+                  <Pressable style={[styles.deleteBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => setDeleteStep(2)}>
+                    <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#D96C6C" }}>다음 단계</Text>
                   </Pressable>
                 </View>
               </>
             ) : (
               <>
-                <View style={[styles.deleteIcon, { backgroundColor: "#DC2626" }]}>
+                <View style={[styles.deleteIcon, { backgroundColor: "#D96C6C" }]}>
                   <Feather name="trash-2" size={28} color="#fff" />
                 </View>
                 <Text style={styles.deleteTitle}>정말 삭제하시겠습니까?</Text>
@@ -287,7 +287,7 @@ export default function WithdrawnMembersScreen() {
                     <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary }}>이전</Text>
                   </Pressable>
                   <Pressable
-                    style={[styles.deleteBtn, { backgroundColor: "#DC2626" }]}
+                    style={[styles.deleteBtn, { backgroundColor: "#D96C6C" }]}
                     onPress={executeAction}
                     disabled={!!saving}
                   >
@@ -324,21 +324,21 @@ function MemberCard({
   return (
     <View style={[styles.card, { backgroundColor: C.card }]}>
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
-        <View style={[styles.avatar, { backgroundColor: tab === "withdrawn" ? "#FEF2F2" : "#F3F4F6" }]}>
-          <Text style={[styles.avatarTxt, { color: tab === "withdrawn" ? "#DC2626" : "#6B7280" }]}>{item.name[0]}</Text>
+        <View style={[styles.avatar, { backgroundColor: tab === "withdrawn" ? "#FEF2F2" : "#F6F3F1" }]}>
+          <Text style={[styles.avatarTxt, { color: tab === "withdrawn" ? "#D96C6C" : "#6F6B68" }]}>{item.name[0]}</Text>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text style={styles.memberName}>{item.name}</Text>
             {tab === "withdrawn" && isAccessBlocked && (
-              <View style={[styles.tagBadge, { backgroundColor: "#DC2626" }]}>
+              <View style={[styles.tagBadge, { backgroundColor: "#D96C6C" }]}>
                 <Feather name="lock" size={9} color="#fff" />
                 <Text style={[styles.tagTxt, { color: "#fff" }]}>접근차단</Text>
               </View>
             )}
             {tab === "archived" && (
-              <View style={[styles.tagBadge, { backgroundColor: "#E5E7EB" }]}>
-                <Text style={[styles.tagTxt, { color: "#6B7280" }]}>아카이브</Text>
+              <View style={[styles.tagBadge, { backgroundColor: "#E9E2DD" }]}>
+                <Text style={[styles.tagTxt, { color: "#6F6B68" }]}>아카이브</Text>
               </View>
             )}
           </View>
@@ -370,25 +370,25 @@ function MemberCard({
             <>
               {!isAccessBlocked && (
                 <Pressable style={[styles.actionBtn, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]} onPress={onFinalWithdraw}>
-                  <Feather name="lock" size={12} color="#DC2626" />
-                  <Text style={[styles.actionBtnTxt, { color: "#DC2626" }]}>최종 퇴원처리</Text>
+                  <Feather name="lock" size={12} color="#D96C6C" />
+                  <Text style={[styles.actionBtnTxt, { color: "#D96C6C" }]}>최종 퇴원처리</Text>
                 </Pressable>
               )}
-              <Pressable style={[styles.actionBtn, { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" }]} onPress={onArchive}>
-                <Feather name="archive" size={12} color="#6B7280" />
-                <Text style={[styles.actionBtnTxt, { color: "#6B7280" }]}>아카이브로 이동</Text>
+              <Pressable style={[styles.actionBtn, { backgroundColor: "#FBF8F6", borderColor: "#E9E2DD" }]} onPress={onArchive}>
+                <Feather name="archive" size={12} color="#6F6B68" />
+                <Text style={[styles.actionBtnTxt, { color: "#6F6B68" }]}>아카이브로 이동</Text>
               </Pressable>
             </>
           )}
           {tab === "archived" && (
             <>
-              <Pressable style={[styles.actionBtn, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]} onPress={onRestore}>
-                <Feather name="rotate-ccw" size={12} color="#1D4ED8" />
-                <Text style={[styles.actionBtnTxt, { color: "#1D4ED8" }]}>복원</Text>
+              <Pressable style={[styles.actionBtn, { backgroundColor: "#DDF2EF", borderColor: "#BFDBFE" }]} onPress={onRestore}>
+                <Feather name="rotate-ccw" size={12} color="#1F8F86" />
+                <Text style={[styles.actionBtnTxt, { color: "#1F8F86" }]}>복원</Text>
               </Pressable>
               <Pressable style={[styles.actionBtn, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]} onPress={onPermanentDelete}>
-                <Feather name="trash-2" size={12} color="#DC2626" />
-                <Text style={[styles.actionBtnTxt, { color: "#DC2626" }]}>영구 삭제</Text>
+                <Feather name="trash-2" size={12} color="#D96C6C" />
+                <Text style={[styles.actionBtnTxt, { color: "#D96C6C" }]}>영구 삭제</Text>
               </Pressable>
             </>
           )}
@@ -399,7 +399,7 @@ function MemberCard({
 }
 
 const styles = StyleSheet.create({
-  tabRow:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  tabRow:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
   tab:         { flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2.5, borderBottomColor: "transparent" },
   tabText:     { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   infoBanner:  { paddingHorizontal: 16, paddingVertical: 8, marginBottom: 8 },
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
   memberSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
   tagBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   tagTxt:      { fontSize: 9, fontFamily: "Inter_700Bold" },
-  attBadge:    { alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 50 },
+  attBadge:    { alignItems: "center", justifyContent: "center", backgroundColor: "#F6F3F1", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 50 },
   attNum:      { fontSize: 16, fontFamily: "Inter_700Bold", color: C.tint },
   attLabel:    { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 1 },
   dateRow:     { marginBottom: 8 },

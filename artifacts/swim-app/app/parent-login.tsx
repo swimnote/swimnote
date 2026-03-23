@@ -45,7 +45,7 @@ export default function ParentLoginScreen() {
         </Pressable>
 
         <View style={styles.header}>
-          <View style={[styles.iconBox, { backgroundColor: "#D1FAE5" }]}>
+          <View style={[styles.iconBox, { backgroundColor: "#DDF2EF" }]}>
             <Feather name="user" size={30} color={C.success} />
           </View>
           <Text style={[styles.title, { color: C.text }]}>학부모 로그인</Text>
@@ -56,7 +56,7 @@ export default function ParentLoginScreen() {
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
           {!!error && (
-            <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+            <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
               <Feather name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>

@@ -29,8 +29,8 @@ function fmtDate(d: string) {
 function TypeBadge({ type }: { type?: string }) {
   const isClass = type === "class";
   return (
-    <View style={[tb.badge, { backgroundColor: isClass ? "#EDE9FE" : "#EFF6FF" }]}>
-      <Text style={[tb.txt, { color: isClass ? "#6D28D9" : "#1D4ED8" }]}>
+    <View style={[tb.badge, { backgroundColor: isClass ? "#EEDDF5" : "#DDF2EF" }]}>
+      <Text style={[tb.txt, { color: isClass ? "#6D28D9" : "#1F8F86" }]}>
         {isClass ? "우리반 공지" : "전체 공지"}
       </Text>
     </View>
@@ -147,11 +147,11 @@ const s = StyleSheet.create({
   root: { flex: 1 },
   filterRow: {
     flexDirection: "row", gap: 8, paddingHorizontal: 20,
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F3F4F6",
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F6F3F1",
   },
   chip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff",
+    borderWidth: 1, borderColor: "#E9E2DD", backgroundColor: "#fff",
   },
   chipTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
   card: {

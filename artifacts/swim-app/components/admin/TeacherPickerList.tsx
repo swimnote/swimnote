@@ -84,15 +84,15 @@ export default function TeacherPickerList({
             {/* 상태 뱃지 */}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               {teacher.uncheckedAtt > 0 && (
-                <View style={[t.badge, { backgroundColor: "#FEF3C7" }]}>
+                <View style={[t.badge, { backgroundColor: "#FFF1BF" }]}>
                   <Feather name="alert-circle" size={10} color="#D97706" />
                   <Text style={[t.badgeText, { color: "#D97706" }]}>출결 {teacher.uncheckedAtt}</Text>
                 </View>
               )}
               {teacher.unwrittenDiary > 0 && (
-                <View style={[t.badge, { backgroundColor: "#FEE2E2" }]}>
-                  <Feather name="edit-3" size={10} color="#EF4444" />
-                  <Text style={[t.badgeText, { color: "#EF4444" }]}>일지 {teacher.unwrittenDiary}</Text>
+                <View style={[t.badge, { backgroundColor: "#F9DEDA" }]}>
+                  <Feather name="edit-3" size={10} color="#D96C6C" />
+                  <Text style={[t.badgeText, { color: "#D96C6C" }]}>일지 {teacher.unwrittenDiary}</Text>
                 </View>
               )}
               <Feather name="chevron-right" size={18} color={C.textMuted} />

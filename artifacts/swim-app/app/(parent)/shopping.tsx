@@ -21,7 +21,7 @@ export default function ShoppingScreen() {
         <Text style={[s.sub, { color: C.textMuted }]}>
           곧 다양한 수영용품과 혜택이{"\n"}제공될 예정입니다.
         </Text>
-        <View style={[s.badge, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+        <View style={[s.badge, { backgroundColor: "#FFF1BF", borderColor: "#FDE68A" }]}>
           <Feather name="clock" size={14} color="#D97706" />
           <Text style={[s.badgeTxt, { color: "#92400E" }]}>Coming Soon</Text>
         </View>
@@ -37,7 +37,7 @@ const s = StyleSheet.create({
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, paddingBottom: 80 },
   icon: { width: 100, height: 100, borderRadius: 30, alignItems: "center", justifyContent: "center" },
   heading: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  sub: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 24, color: "#6B7280" },
+  sub: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 24, color: "#6F6B68" },
   badge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   badgeTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });

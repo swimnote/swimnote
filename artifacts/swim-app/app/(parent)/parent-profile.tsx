@@ -70,7 +70,7 @@ export default function ParentProfileScreen() {
       <View style={f.wrap}>
         <Text style={[f.label, { color: C.textSecondary }]}>{label}</Text>
         <TextInput
-          style={[f.input, { backgroundColor: "#F3F4F6", color: C.text }]}
+          style={[f.input, { backgroundColor: "#F6F3F1", color: C.text }]}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -110,8 +110,8 @@ export default function ParentProfileScreen() {
           </View>
 
           {error ? (
-            <View style={[s.errorBox, { backgroundColor: "#FEE2E2" }]}>
-              <Feather name="alert-circle" size={14} color="#DC2626" />
+            <View style={[s.errorBox, { backgroundColor: "#F9DEDA" }]}>
+              <Feather name="alert-circle" size={14} color="#D96C6C" />
               <Text style={s.errorTxt}>{error}</Text>
             </View>
           ) : null}
@@ -147,7 +147,7 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
   sectionSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: -6 },
   errorBox: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, padding: 12 },
-  errorTxt: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#DC2626", flex: 1 },
+  errorTxt: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#D96C6C", flex: 1 },
   saveBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
   saveBtnTxt: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

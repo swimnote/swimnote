@@ -296,7 +296,7 @@ export default function StudentManagementSheet({
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={readOnly ? (
           <View style={[st.readOnlyBanner, { marginTop: 8 }]}>
-            <Feather name="eye" size={12} color="#6B7280" />
+            <Feather name="eye" size={12} color="#6F6B68" />
             <Text style={st.readOnlyText}>조회 전용 — 배정 기능은 선생님 계정에서 사용하세요</Text>
           </View>
         ) : null}
@@ -325,12 +325,12 @@ export default function StudentManagementSheet({
                       <Text style={st.badgeText}>주{weekly}회</Text>
                     </View>
                   ) : (
-                    <View style={[st.badge, { backgroundColor: "#FEF3C7" }]}>
+                    <View style={[st.badge, { backgroundColor: "#FFF1BF" }]}>
                       <Text style={[st.badgeText, { color: "#92400E" }]}>횟수미설정</Text>
                     </View>
                   )}
-                  <View style={[st.badge, { backgroundColor: "#FEE2E2" }]}>
-                    <Text style={[st.badgeText, { color: "#DC2626" }]}>미배정</Text>
+                  <View style={[st.badge, { backgroundColor: "#F9DEDA" }]}>
+                    <Text style={[st.badgeText, { color: "#D96C6C" }]}>미배정</Text>
                   </View>
                   {remaining != null && (
                     <Text style={st.remaining}>남은배정 {remaining}개</Text>
@@ -373,7 +373,7 @@ export default function StudentManagementSheet({
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={readOnly ? (
           <View style={[st.readOnlyBanner, { marginTop: 8 }]}>
-            <Feather name="eye" size={12} color="#6B7280" />
+            <Feather name="eye" size={12} color="#6F6B68" />
             <Text style={st.readOnlyText}>조회 전용 — 배정 기능은 선생님 계정에서 사용하세요</Text>
           </View>
         ) : null}
@@ -384,7 +384,7 @@ export default function StudentManagementSheet({
           return (
             <View style={st.row}>
               <View style={st.rowAvatarWrap}>
-                <View style={[st.rowAvatar, { backgroundColor: "#FEF3C7" }]}>
+                <View style={[st.rowAvatar, { backgroundColor: "#FFF1BF" }]}>
                   <Text style={[st.rowAvatarText, { color: "#92400E" }]}>{item.student_name[0]}</Text>
                 </View>
               </View>
@@ -392,15 +392,15 @@ export default function StudentManagementSheet({
                 <Text style={st.rowName}>{item.student_name}</Text>
                 <Text style={st.rowSub}>{item.original_class_group_name}</Text>
                 <View style={{ flexDirection: "row", gap: 6, alignItems: "center", marginTop: 1 }}>
-                  <View style={[st.badge, { backgroundColor: "#FEE2E2" }]}>
-                    <Text style={[st.badgeText, { color: "#DC2626" }]}>보강대기</Text>
+                  <View style={[st.badge, { backgroundColor: "#F9DEDA" }]}>
+                    <Text style={[st.badgeText, { color: "#D96C6C" }]}>보강대기</Text>
                   </View>
                   <Text style={st.rowSub}>결석일 {y}.{m}.{d}({DOW})</Text>
                 </View>
               </View>
               {!readOnly && (
                 <Pressable
-                  style={[st.actionBtn, { backgroundColor: "#F59E0B" }]}
+                  style={[st.actionBtn, { backgroundColor: "#E4A93A" }]}
                   onPress={() => startAssignMakeup(item)}
                 >
                   <Text style={st.actionBtnText}>보강배정</Text>
@@ -479,7 +479,7 @@ export default function StudentManagementSheet({
                   <Text style={[st.className, capFull && { color: C.textMuted }]}>{g.name}</Text>
                   <Text style={st.classSub}>{days} · {g.schedule_time}</Text>
                   {gAny.capacity != null && (
-                    <Text style={[st.classCap, capFull && { color: "#DC2626" }]}>
+                    <Text style={[st.classCap, capFull && { color: "#D96C6C" }]}>
                       정원 {g.student_count}/{gAny.capacity}명{capFull ? " · 정원 초과" : ""}
                     </Text>
                   )}
@@ -488,7 +488,7 @@ export default function StudentManagementSheet({
                   <ActivityIndicator color={themeColor} size="small" />
                 ) : (
                   <View style={[st.pickBadge, capFull ? st.pickBadgeFull : { backgroundColor: themeColor }]}>
-                    <Text style={[st.pickBadgeText, capFull && { color: "#DC2626" }]}>
+                    <Text style={[st.pickBadgeText, capFull && { color: "#D96C6C" }]}>
                       {capFull ? "정원초과" : "선택"}
                     </Text>
                   </View>
@@ -543,20 +543,20 @@ export default function StudentManagementSheet({
                   <View style={{ flex: 1 }}>
                     <Text style={[st.className, isFull && { color: C.textMuted }]}>{ec.name}</Text>
                     <Text style={st.classSub}>{days} · {ec.schedule_time}</Text>
-                    <Text style={[st.classCap, isFull && { color: "#DC2626" }]}>
+                    <Text style={[st.classCap, isFull && { color: "#D96C6C" }]}>
                       여석 {ec.available_slots}명{isFull ? " · 정원 초과" : ""}
                     </Text>
                   </View>
                   {isFull ? (
                     <View style={st.pickBadgeFull}>
-                      <Text style={[st.pickBadgeText, { color: "#DC2626" }]}>정원초과</Text>
+                      <Text style={[st.pickBadgeText, { color: "#D96C6C" }]}>정원초과</Text>
                     </View>
                   ) : selected ? (
                     <View style={[st.pickBadge, { backgroundColor: themeColor }]}>
                       <Feather name="check" size={14} color="#fff" />
                     </View>
                   ) : (
-                    <View style={[st.pickBadge, { backgroundColor: "#F3F4F6" }]}>
+                    <View style={[st.pickBadge, { backgroundColor: "#F6F3F1" }]}>
                       <Text style={[st.pickBadgeText, { color: C.textSecondary }]}>선택</Text>
                     </View>
                   )}
@@ -567,7 +567,7 @@ export default function StudentManagementSheet({
         )}
 
         {assignError ? (
-          <Text style={{ color: "#DC2626", fontSize: 13, textAlign: "center", marginBottom: 8 }}>{assignError}</Text>
+          <Text style={{ color: "#D96C6C", fontSize: 13, textAlign: "center", marginBottom: 8 }}>{assignError}</Text>
         ) : null}
 
         <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16 }}>
@@ -610,7 +610,7 @@ export default function StudentManagementSheet({
                   >
                     <Text style={[st.tabBtnText, active && { color: themeColor }]}>{label}</Text>
                     {count > 0 && (
-                      <View style={[st.tabBadge, { backgroundColor: active ? themeColor : "#9CA3AF" }]}>
+                      <View style={[st.tabBadge, { backgroundColor: active ? themeColor : "#9A948F" }]}>
                         <Text style={st.tabBadgeText}>{count}</Text>
                       </View>
                     )}
@@ -695,7 +695,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2,
   },
   badgeText: { fontSize: 11, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  remaining: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#6366F1" },
+  remaining: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#1F8F86" },
   actionBtn: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
     alignItems: "center", justifyContent: "center",
@@ -734,7 +734,7 @@ const st = StyleSheet.create({
   },
   pickBadgeFull: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: "#F9DEDA",
     alignItems: "center", justifyContent: "center",
   },
   pickBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
@@ -747,8 +747,8 @@ const st = StyleSheet.create({
 
   readOnlyBanner: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#F3F4F6", borderRadius: 8,
+    backgroundColor: "#F6F3F1", borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 6, marginBottom: 4,
   },
-  readOnlyText: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", flex: 1 },
+  readOnlyText: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", flex: 1 },
 });

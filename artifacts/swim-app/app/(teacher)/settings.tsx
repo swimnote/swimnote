@@ -81,7 +81,7 @@ export default function TeacherSettingsScreen() {
   const used  = storageUsage?.total_bytes ?? 0;
   const quota = storageUsage?.quota_bytes ?? 5 * 1024 ** 3;
   const pct   = quota > 0 ? Math.min(100, (used / quota) * 100) : 0;
-  const gaugeColor = pct >= 90 ? "#DC2626" : pct >= 70 ? "#F59E0B" : themeColor;
+  const gaugeColor = pct >= 90 ? "#D96C6C" : pct >= 70 ? "#E4A93A" : themeColor;
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
@@ -96,17 +96,17 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 피드백 기본 설정 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#EFF6FF", borderColor: "#93C5FD" }]}
+          style={[s.actionBtn, { backgroundColor: "#DDF2EF", borderColor: "#DDF2EF" }]}
           onPress={() => router.push("/(teacher)/feedback-custom" as any)}
         >
-          <Feather name="edit-3" size={18} color="#3B82F6" />
-          <Text style={[s.actionBtnText, { color: "#3B82F6" }]}>피드백 기본 설정</Text>
-          <Feather name="chevron-right" size={16} color="#3B82F6" />
+          <Feather name="edit-3" size={18} color="#4EA7D8" />
+          <Text style={[s.actionBtnText, { color: "#4EA7D8" }]}>피드백 기본 설정</Text>
+          <Feather name="chevron-right" size={16} color="#4EA7D8" />
         </Pressable>
 
         {/* ── 사진·영상 앨범 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#FFF7ED", borderColor: "#F97316" }]}
+          style={[s.actionBtn, { backgroundColor: "#FFF1BF", borderColor: "#F97316" }]}
           onPress={() => router.push("/(teacher)/photos" as any)}
         >
           <Feather name="camera" size={18} color="#F97316" />
@@ -164,7 +164,7 @@ export default function TeacherSettingsScreen() {
             <Text style={s.cardTitle}>앱 설정</Text>
           </View>
           <View style={{ padding: 16, gap: 10 }}>
-            <View style={[s.infoRow, { backgroundColor: "#F9FAFB", borderRadius: 12, padding: 12 }]}>
+            <View style={[s.infoRow, { backgroundColor: "#FBF8F6", borderRadius: 12, padding: 12 }]}>
               <Feather name="info" size={14} color={C.textMuted} />
               <Text style={[s.switchSub, { flex: 1 }]}>앱 테마 색상은 관리자 페이지에서 설정됩니다</Text>
             </View>
@@ -199,12 +199,12 @@ export default function TeacherSettingsScreen() {
             </View>
 
             {([
-              { icon: "image"          as const, bg: "#FEF3C7", color: "#F59E0B", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
-              { icon: "video"          as const, bg: "#EDE9FE", color: "#7C3AED", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
-              { icon: "message-square" as const, bg: "#DBEAFE", color: "#2563EB", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
-              { icon: "book-open"      as const, bg: "#D1FAE5", color: "#059669", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
-              { icon: "bell"           as const, bg: "#FCE7F3", color: "#EC4899", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
-              { icon: "cpu"            as const, bg: "#F3F4F6", color: "#6B7280", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
+              { icon: "image"          as const, bg: "#FFF1BF", color: "#E4A93A", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
+              { icon: "video"          as const, bg: "#EEDDF5", color: "#7C3AED", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
+              { icon: "message-square" as const, bg: "#DDF2EF", color: "#1F8F86", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
+              { icon: "book-open"      as const, bg: "#DDF2EF", color: "#1F8F86", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
+              { icon: "bell"           as const, bg: "#F6D8E1", color: "#EC4899", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
+              { icon: "cpu"            as const, bg: "#F6F3F1", color: "#6F6B68", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
             ]).map(item => (
               <View key={item.label} style={s.usageRow}>
                 <View style={[s.usageIcon, { backgroundColor: item.bg }]}>
@@ -226,19 +226,19 @@ export default function TeacherSettingsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F3F4F6" },
+  safe:             { flex: 1, backgroundColor: "#F6F3F1" },
   card:             { backgroundColor: C.card, borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   cardTitle:        { fontSize: 15, fontFamily: "Inter_700Bold", color: C.text },
   storageSummary:   { padding: 14, borderRadius: 14, borderWidth: 1 },
   storageUsedLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 2 },
   storageUsedBytes: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  storageQuotaLabel:{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginBottom: 2 },
+  storageQuotaLabel:{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", marginBottom: 2 },
   storageQuotaBytes:{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  gaugeWrap:        { height: 10, backgroundColor: "#E5E7EB", borderRadius: 5, overflow: "hidden" },
+  gaugeWrap:        { height: 10, backgroundColor: "#E9E2DD", borderRadius: 5, overflow: "hidden" },
   gaugeBar:         { height: 10, borderRadius: 5 },
   gaugePct:         { fontSize: 12, fontFamily: "Inter_700Bold" },
-  gaugeRemain:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  gaugeRemain:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
   usageRow:         { flexDirection: "row", alignItems: "center", gap: 12 },
   usageIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   usageLabel:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },

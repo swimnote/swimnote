@@ -50,11 +50,11 @@ interface ActivityLog {
 
 // ── 상태 설정 ──────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  active:    { label: "재원",   color: "#059669", bg: "#D1FAE5" },
-  inactive:  { label: "휴원",   color: "#D97706", bg: "#FEF3C7" },
-  suspended: { label: "휴원",   color: "#D97706", bg: "#FEF3C7" },
-  withdrawn: { label: "퇴원",   color: "#DC2626", bg: "#FEE2E2" },
-  deleted:   { label: "삭제됨", color: "#9CA3AF", bg: "#F9FAFB" },
+  active:    { label: "재원",   color: "#1F8F86", bg: "#DDF2EF" },
+  inactive:  { label: "휴원",   color: "#D97706", bg: "#FFF1BF" },
+  suspended: { label: "휴원",   color: "#D97706", bg: "#FFF1BF" },
+  withdrawn: { label: "퇴원",   color: "#D96C6C", bg: "#F9DEDA" },
+  deleted:   { label: "삭제됨", color: "#9A948F", bg: "#FBF8F6" },
 };
 
 // ── 반 선택 모달 ──────────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ function ClassPickerModal({
             <Text style={cp.title}>반 선택 (최대 {maxSelect}개)</Text>
             <Pressable onPress={onClose}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
           </View>
-          <Text style={[cp.sub, limitErr && { color: "#DC2626" }]}>
+          <Text style={[cp.sub, limitErr && { color: "#D96C6C" }]}>
             {limitErr ? `최대 ${maxSelect}개까지 선택 가능합니다` : `${picked.length}/${maxSelect}개 선택됨`}
           </Text>
           <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
@@ -152,13 +152,13 @@ function EditField({ label, value, onChangeText, placeholder, keyboardType, mult
 const ef = StyleSheet.create({
   wrap: { gap: 6 },
   label: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  input: { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text },
+  input: { backgroundColor: "#FBF8F6", borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text },
   multiline: { minHeight: 80, textAlignVertical: "top" },
 });
 
 // ── 출결 달력 미니 ────────────────────────────────────────────────────────
 function AttendanceMini({ records }: { records: { date: string; status: string }[] }) {
-  const COLORS: Record<string, string> = { present: "#059669", absent: "#DC2626", late: "#D97706", excused: "#7C3AED" };
+  const COLORS: Record<string, string> = { present: "#1F8F86", absent: "#D96C6C", late: "#D97706", excused: "#7C3AED" };
   const LABELS: Record<string, string> = { present: "출", absent: "결", late: "지", excused: "공" };
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
@@ -379,7 +379,7 @@ export default function MemberDetailScreen() {
             <View style={s.sectionHeader}>
               <Text style={s.sectionTitle}>기본 정보 편집</Text>
               {infoChanged && (
-                <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#FEF3C7" }}>
+                <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#FFF1BF" }}>
                   <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#92400E" }}>변경됨</Text>
                 </View>
               )}
@@ -392,7 +392,7 @@ export default function MemberDetailScreen() {
             <EditField label="보호자 연락처2" value={editParentPhone2} onChangeText={v => { setEditParentPhone2(v); setInfoChanged(true); }} keyboardType="phone-pad" placeholder="선택 입력" />
 
             <Pressable
-              style={[s.saveBtn, { backgroundColor: infoChanged ? themeColor : "#9CA3AF" }]}
+              style={[s.saveBtn, { backgroundColor: infoChanged ? themeColor : "#9A948F" }]}
               onPress={saveInfo}
               disabled={saving || !infoChanged}
             >
@@ -458,7 +458,7 @@ export default function MemberDetailScreen() {
             <View style={s.sectionHeader}>
               <Text style={s.sectionTitle}>반 배정</Text>
               {classChanged && (
-                <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#FEF3C7" }}>
+                <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#FFF1BF" }}>
                   <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#92400E" }}>변경됨</Text>
                 </View>
               )}
@@ -483,8 +483,8 @@ export default function MemberDetailScreen() {
             <Text style={s.fieldLabel}>배정된 반 ({assignedIds.length}/{weeklyCount})</Text>
             {assignedClasses.length === 0 ? (
               <View style={s.warnBox}>
-                <Feather name="alert-circle" size={14} color="#DC2626" />
-                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#DC2626" }}>아직 배정된 반이 없습니다</Text>
+                <Feather name="alert-circle" size={14} color="#D96C6C" />
+                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#D96C6C" }}>아직 배정된 반이 없습니다</Text>
               </View>
             ) : (
               <View style={{ gap: 8, marginBottom: 8 }}>
@@ -512,7 +512,7 @@ export default function MemberDetailScreen() {
             </Pressable>
 
             <Pressable
-              style={[s.saveBtn, { backgroundColor: classChanged ? themeColor : "#9CA3AF", marginTop: 12 }]}
+              style={[s.saveBtn, { backgroundColor: classChanged ? themeColor : "#9A948F", marginTop: 12 }]}
               onPress={saveAssignment}
               disabled={saving || !classChanged}
             >
@@ -527,8 +527,8 @@ export default function MemberDetailScreen() {
             <Text style={s.sectionTitle}>최근 출결 현황</Text>
             <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
               {[
-                { label: "출석", color: "#059669", key: "present" },
-                { label: "결석", color: "#DC2626", key: "absent" },
+                { label: "출석", color: "#1F8F86", key: "present" },
+                { label: "결석", color: "#D96C6C", key: "absent" },
                 { label: "지각", color: "#D97706", key: "late" },
                 { label: "공결", color: "#7C3AED", key: "excused" },
               ].map(({ label, color, key }) => {
@@ -552,7 +552,7 @@ export default function MemberDetailScreen() {
             ) : (
               <View style={{ gap: 10 }}>
                 {(data.recent_diaries || []).map(d => (
-                  <View key={d.id} style={{ backgroundColor: "#F9FAFB", borderRadius: 12, padding: 12, gap: 6 }}>
+                  <View key={d.id} style={{ backgroundColor: "#FBF8F6", borderRadius: 12, padding: 12, gap: 6 }}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                       <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text }}>{d.lesson_date}</Text>
                       <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted }}>{d.teacher_name}</Text>
@@ -603,7 +603,7 @@ export default function MemberDetailScreen() {
             <EditField label="특이사항 / 관리자 메모" value={editNotes} onChangeText={v => { setEditNotes(v); setInfoChanged(true); }} placeholder="내부 메모 (학부모에게 노출되지 않음)" multiline />
 
             <Pressable
-              style={[s.saveBtn, { backgroundColor: infoChanged ? themeColor : "#9CA3AF", marginTop: 12 }]}
+              style={[s.saveBtn, { backgroundColor: infoChanged ? themeColor : "#9A948F", marginTop: 12 }]}
               onPress={saveInfo}
               disabled={saving || !infoChanged}
             >
@@ -624,7 +624,7 @@ export default function MemberDetailScreen() {
                 </View>
               )}
               {data.notes && (
-                <View style={{ backgroundColor: "#FEF3C7", padding: 12, borderRadius: 12 }}>
+                <View style={{ backgroundColor: "#FFF1BF", padding: 12, borderRadius: 12 }}>
                   <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#D97706", marginBottom: 4 }}>특이사항</Text>
                   <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.text }}>{data.notes}</Text>
                 </View>
@@ -641,15 +641,15 @@ export default function MemberDetailScreen() {
           <View style={[s.section]}>
             <Text style={s.sectionTitle}>학부모 앱 연결</Text>
             <View style={[s.connCard, {
-              backgroundColor: connStatus === "linked" ? "#D1FAE5" : connStatus === "pending" ? "#FEF3C7" : "#F3F4F6",
+              backgroundColor: connStatus === "linked" ? "#DDF2EF" : connStatus === "pending" ? "#FFF1BF" : "#F6F3F1",
             }]}>
               <Feather
                 name={connStatus === "linked" ? "check-circle" : connStatus === "pending" ? "clock" : "x-circle"}
                 size={24}
-                color={connStatus === "linked" ? "#059669" : connStatus === "pending" ? "#D97706" : C.textMuted}
+                color={connStatus === "linked" ? "#1F8F86" : connStatus === "pending" ? "#D97706" : C.textMuted}
               />
               <View style={{ flex: 1 }}>
-                <Text style={[s.connStatus, { color: connStatus === "linked" ? "#059669" : connStatus === "pending" ? "#D97706" : C.textMuted }]}>
+                <Text style={[s.connStatus, { color: connStatus === "linked" ? "#1F8F86" : connStatus === "pending" ? "#D97706" : C.textMuted }]}>
                   {connStatus === "linked" ? "학부모 앱 연결 완료" : connStatus === "pending" ? "연결 요청 대기 중" : "학부모 앱 미연결"}
                 </Text>
                 {data.parent_account_name && (
@@ -678,14 +678,14 @@ export default function MemberDetailScreen() {
                     <Text style={[s.outlineBtnText, { color: themeColor }]}>복사</Text>
                   </Pressable>
                   <Pressable
-                    style={[s.outlineBtn, { borderColor: "#059669", paddingHorizontal: 12 }]}
+                    style={[s.outlineBtn, { borderColor: "#1F8F86", paddingHorizontal: 12 }]}
                     onPress={async () => {
                       const msg = buildInviteMessage({ poolName, studentName: data.name, inviteCode: data.invite_code!, appUrl: "https://swimnote.kr" });
                       await Share.share({ message: msg });
                     }}
                   >
-                    <Feather name="share-2" size={14} color="#059669" />
-                    <Text style={[s.outlineBtnText, { color: "#059669" }]}>공유</Text>
+                    <Feather name="share-2" size={14} color="#1F8F86" />
+                    <Text style={[s.outlineBtnText, { color: "#1F8F86" }]}>공유</Text>
                   </Pressable>
                 </View>
               </View>
@@ -732,7 +732,7 @@ export default function MemberDetailScreen() {
             ))}
           </View>
 
-          <View style={[s.section, { backgroundColor: "#FEF3C7" }]}>
+          <View style={[s.section, { backgroundColor: "#FFF1BF" }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Feather name="info" size={16} color="#D97706" />
               <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#D97706" }}>개인 결제 내역</Text>
@@ -764,8 +764,8 @@ export default function MemberDetailScreen() {
               <Text style={s.sectionTitle}>변경 이력 ({logs.length}건)</Text>
               {logs.map((log, i) => {
                 const ACTION_META: Record<string, { label: string; color: string }> = {
-                  update: { label: "수정", color: "#2563EB" }, create: { label: "등록", color: "#059669" },
-                  delete: { label: "삭제", color: "#DC2626" }, restore: { label: "복구", color: "#7C3AED" },
+                  update: { label: "수정", color: "#1F8F86" }, create: { label: "등록", color: "#1F8F86" },
+                  delete: { label: "삭제", color: "#D96C6C" }, restore: { label: "복구", color: "#7C3AED" },
                   assign: { label: "반배정", color: "#D97706" },
                 };
                 const TYPE_LABEL: Record<string, string> = {
@@ -791,8 +791,8 @@ export default function MemberDetailScreen() {
                         </View>
                         {(log.before_value || log.after_value) && (
                           <View style={{ marginTop: 6, gap: 3 }}>
-                            {log.before_value && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#DC2626" }}>이전: {log.before_value}</Text>}
-                            {log.after_value && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#059669" }}>변경: {log.after_value}</Text>}
+                            {log.before_value && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C" }}>이전: {log.before_value}</Text>}
+                            {log.after_value && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F8F86" }}>변경: {log.after_value}</Text>}
                           </View>
                         )}
                         {log.note && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 4, fontStyle: "italic" }}>메모: {log.note}</Text>}
@@ -821,13 +821,13 @@ export default function MemberDetailScreen() {
               </View>
             ) : makeups.map((mk: any) => {
               const ST: Record<string, { label: string; color: string; bg: string }> = {
-                waiting:     { label: "대기",   color: "#D97706", bg: "#FEF3C7" },
-                assigned:    { label: "배정",   color: "#2563EB", bg: "#DBEAFE" },
-                transferred: { label: "이동",   color: "#7C3AED", bg: "#EDE9FE" },
-                completed:   { label: "완료",   color: "#059669", bg: "#D1FAE5" },
-                cancelled:   { label: "취소",   color: "#6B7280", bg: "#F3F4F6" },
+                waiting:     { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
+                assigned:    { label: "배정",   color: "#1F8F86", bg: "#DDF2EF" },
+                transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
+                completed:   { label: "완료",   color: "#1F8F86", bg: "#DDF2EF" },
+                cancelled:   { label: "취소",   color: "#6F6B68", bg: "#F6F3F1" },
               };
-              const st = ST[mk.status] || { label: mk.status, color: "#6B7280", bg: "#F3F4F6" };
+              const st = ST[mk.status] || { label: mk.status, color: "#6F6B68", bg: "#F6F3F1" };
               return (
                 <View key={mk.id} style={{ flexDirection: "row", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border, gap: 12 }}>
                   <View style={[{ borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" }, { backgroundColor: st.bg }]}>
@@ -838,7 +838,7 @@ export default function MemberDetailScreen() {
                     <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 2 }}>원반: {mk.original_class_group_name || "미배정"}  담당: {mk.original_teacher_name || "미배정"}</Text>
                     {mk.assigned_class_group_name && <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 1 }}>배정반: {mk.assigned_class_group_name}</Text>}
                     {mk.is_substitute && mk.substitute_teacher_name && (
-                      <Text style={{ fontSize: 12, color: "#059669", marginTop: 2, fontWeight: "600" }}>대리보강: {mk.substitute_teacher_name}</Text>
+                      <Text style={{ fontSize: 12, color: "#1F8F86", marginTop: 2, fontWeight: "600" }}>대리보강: {mk.substitute_teacher_name}</Text>
                     )}
                     {mk.transferred_to_teacher_name && (
                       <Text style={{ fontSize: 12, color: "#7C3AED", marginTop: 1 }}>이동→ {mk.transferred_to_teacher_name}</Text>
@@ -884,8 +884,8 @@ export default function MemberDetailScreen() {
                   </View>
                   {req.content && <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 4 }}>{req.content}</Text>}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
-                    <View style={[{ borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }, { backgroundColor: req.status === "pending" ? "#FEF3C7" : "#D1FAE5" }]}>
-                      <Text style={{ fontSize: 11, fontWeight: "600", color: req.status === "pending" ? "#D97706" : "#059669" }}>{req.status === "pending" ? "처리 대기" : "처리 완료"}</Text>
+                    <View style={[{ borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }, { backgroundColor: req.status === "pending" ? "#FFF1BF" : "#DDF2EF" }]}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: req.status === "pending" ? "#D97706" : "#1F8F86" }}>{req.status === "pending" ? "처리 대기" : "처리 완료"}</Text>
                     </View>
                   </View>
                 </View>
@@ -941,10 +941,10 @@ export default function MemberDetailScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F3F4F6" },
+  safe: { flex: 1, backgroundColor: "#F6F3F1" },
 
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, gap: 10, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
-  backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
   statusDot: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   statusText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
@@ -981,7 +981,7 @@ const s = StyleSheet.create({
   fieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, marginBottom: 4 },
   weekBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
   weekBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  warnBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 12 },
+  warnBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA", padding: 12, borderRadius: 12 },
   classChip: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1.5, gap: 10 },
   className: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 

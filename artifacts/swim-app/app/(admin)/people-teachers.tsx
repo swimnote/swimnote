@@ -182,13 +182,13 @@ export default function PeopleTeachersScreen() {
                       )}
                       {status === "rejected" && (
                         <View style={s.rejectedBadge}>
-                          <Feather name="x-circle" size={10} color="#DC2626" />
+                          <Feather name="x-circle" size={10} color="#D96C6C" />
                           <Text style={s.rejectedBadgeTxt}>거절됨</Text>
                         </View>
                       )}
                       {status === "approved" && (
                         <View style={s.activeBadge}>
-                          <Feather name="check" size={10} color="#059669" />
+                          <Feather name="check" size={10} color="#1F8F86" />
                           <Text style={s.activeBadgeTxt}>승인됨</Text>
                         </View>
                       )}
@@ -211,8 +211,8 @@ export default function PeopleTeachersScreen() {
                     )}
                     {status === "rejected" && (
                       <View style={s.hintRow}>
-                        <Feather name="arrow-right" size={11} color="#DC2626" />
-                        <Text style={[s.hintTxt, { color: "#DC2626" }]}>탭하여 재승인 또는 이력 확인</Text>
+                        <Feather name="arrow-right" size={11} color="#D96C6C" />
+                        <Text style={[s.hintTxt, { color: "#D96C6C" }]}>탭하여 재승인 또는 이력 확인</Text>
                       </View>
                     )}
                   </View>
@@ -237,7 +237,7 @@ function StatChip({ label, warn }: { label: string; warn?: boolean }) {
 
 const s = StyleSheet.create({
   root:             { flex: 1, backgroundColor: C.background },
-  searchBar:        { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#F3F4F6", borderRadius: 10 },
+  searchBar:        { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#F6F3F1", borderRadius: 10 },
   searchInput:      { flex: 1, fontSize: 14, color: C.text },
   filterRow:        { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 8, flexWrap: "wrap" },
   chip:             { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
@@ -249,17 +249,17 @@ const s = StyleSheet.create({
   sub:              { fontSize: 12, color: C.textSecondary, marginTop: 2 },
   sub2:             { fontSize: 11, color: C.textMuted, marginTop: 1 },
   statsRow:         { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
-  statChip:         { backgroundColor: "#F3F4F6", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  statChip:         { backgroundColor: "#F6F3F1", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   statChipTxt:      { fontSize: 11, color: C.textSecondary },
-  warnChip:         { backgroundColor: "#FEE2E2" },
-  warnChipTxt:      { color: "#DC2626" },
-  pendingBadge:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEF3C7", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  warnChip:         { backgroundColor: "#F9DEDA" },
+  warnChipTxt:      { color: "#D96C6C" },
+  pendingBadge:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FFF1BF", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   pendingBadgeTxt:  { fontSize: 11, fontWeight: "600", color: "#D97706" },
-  rejectedBadge:    { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEE2E2", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  rejectedBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#DC2626" },
-  activeBadge:      { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#D1FAE5", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  activeBadgeTxt:   { fontSize: 11, fontWeight: "600", color: "#059669" },
-  subAdminBadge:    { backgroundColor: "#EDE9FE", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  rejectedBadge:    { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F9DEDA", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  rejectedBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#D96C6C" },
+  activeBadge:      { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#DDF2EF", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  activeBadgeTxt:   { fontSize: 11, fontWeight: "600", color: "#1F8F86" },
+  subAdminBadge:    { backgroundColor: "#EEDDF5", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   subAdminBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#7C3AED" },
   hintRow:          { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   hintTxt:          { fontSize: 11, fontWeight: "500" },

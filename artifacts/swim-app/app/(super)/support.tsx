@@ -20,33 +20,33 @@ import { SLA_HOURS } from "@/domain/policies";
 const P = "#7C3AED";
 
 const TYPE_CFG: Record<string, { label: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"]; emergency?: boolean }> = {
-  recovery:   { label: "복구 문의",  color: "#DC2626", bg: "#FEE2E2", icon: "alert-octagon", emergency: true },
-  security:   { label: "보안 문의",  color: "#991B1B", bg: "#FEE2E2", icon: "shield-off",    emergency: true },
-  refund:     { label: "환불",        color: "#DC2626", bg: "#FEE2E2", icon: "rotate-ccw" },
-  payment:    { label: "결제",        color: "#0891B2", bg: "#ECFEFF", icon: "credit-card" },
-  deletion:   { label: "삭제",        color: "#D97706", bg: "#FEF3C7", icon: "trash-2" },
-  policy:     { label: "정책",        color: "#4F46E5", bg: "#EEF2FF", icon: "file-text" },
-  technical:  { label: "기술",        color: P,         bg: "#EDE9FE", icon: "tool" },
-  storage:    { label: "저장공간",    color: "#059669", bg: "#D1FAE5", icon: "hard-drive" },
-  chargeback: { label: "차지백",      color: "#991B1B", bg: "#FEE2E2", icon: "alert-triangle" },
-  other:      { label: "기타",        color: "#6B7280", bg: "#F3F4F6", icon: "help-circle" },
+  recovery:   { label: "복구 문의",  color: "#D96C6C", bg: "#F9DEDA", icon: "alert-octagon", emergency: true },
+  security:   { label: "보안 문의",  color: "#991B1B", bg: "#F9DEDA", icon: "shield-off",    emergency: true },
+  refund:     { label: "환불",        color: "#D96C6C", bg: "#F9DEDA", icon: "rotate-ccw" },
+  payment:    { label: "결제",        color: "#1F8F86", bg: "#ECFEFF", icon: "credit-card" },
+  deletion:   { label: "삭제",        color: "#D97706", bg: "#FFF1BF", icon: "trash-2" },
+  policy:     { label: "정책",        color: "#1F8F86", bg: "#DDF2EF", icon: "file-text" },
+  technical:  { label: "기술",        color: P,         bg: "#EEDDF5", icon: "tool" },
+  storage:    { label: "저장공간",    color: "#1F8F86", bg: "#DDF2EF", icon: "hard-drive" },
+  chargeback: { label: "차지백",      color: "#991B1B", bg: "#F9DEDA", icon: "alert-triangle" },
+  other:      { label: "기타",        color: "#6F6B68", bg: "#F6F3F1", icon: "help-circle" },
 };
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  received:          { label: "접수",     color: "#DC2626", bg: "#FEE2E2" },
-  in_progress:       { label: "처리 중",  color: "#D97706", bg: "#FEF3C7" },
-  on_hold:           { label: "보류",     color: "#6B7280", bg: "#F3F4F6" },
+  received:          { label: "접수",     color: "#D96C6C", bg: "#F9DEDA" },
+  in_progress:       { label: "처리 중",  color: "#D97706", bg: "#FFF1BF" },
+  on_hold:           { label: "보류",     color: "#6F6B68", bg: "#F6F3F1" },
   refund_linked:     { label: "환불연계", color: "#9333EA", bg: "#F3E8FF" },
-  policy_sent:       { label: "정책발송", color: "#0891B2", bg: "#ECFEFF" },
-  need_recheck:      { label: "재확인",   color: "#F59E0B", bg: "#FEF3C7" },
-  escalated_to_tech: { label: "에스컬",   color: P,         bg: "#EDE9FE" },
-  resolved:          { label: "해결됨",   color: "#059669", bg: "#D1FAE5" },
+  policy_sent:       { label: "정책발송", color: "#1F8F86", bg: "#ECFEFF" },
+  need_recheck:      { label: "재확인",   color: "#E4A93A", bg: "#FFF1BF" },
+  escalated_to_tech: { label: "에스컬",   color: P,         bg: "#EEDDF5" },
+  resolved:          { label: "해결됨",   color: "#1F8F86", bg: "#DDF2EF" },
 };
 
 const REQUESTER_CFG: Record<string, { label: string; color: string }> = {
   operator: { label: "운영자",  color: P },
-  teacher:  { label: "선생님",  color: "#059669" },
-  parent:   { label: "학부모",  color: "#0891B2" },
+  teacher:  { label: "선생님",  color: "#1F8F86" },
+  parent:   { label: "학부모",  color: "#1F8F86" },
 };
 
 const TICKET_TYPES = Object.keys(TYPE_CFG);
@@ -195,7 +195,7 @@ export default function SupportScreen() {
   const renderItem = ({ item }: { item: SupportTicket }) => {
     const tc = TYPE_CFG[item.type] ?? TYPE_CFG.other;
     const sc = STATUS_CFG[item.status] ?? STATUS_CFG.received;
-    const rc = REQUESTER_CFG[item.requesterRole] ?? { label: item.requesterRole, color: "#6B7280" };
+    const rc = REQUESTER_CFG[item.requesterRole] ?? { label: item.requesterRole, color: "#6F6B68" };
     const { overdue, label: slaLabel } = getSlaStatus(item);
     const isEmergency = tc.emergency === true;
 
@@ -211,15 +211,15 @@ export default function SupportScreen() {
         </View>
         <View style={s.rowMain}>
           <View style={s.rowTop}>
-            <Text style={[s.subject, isEmergency && { color: "#DC2626" }]} numberOfLines={1}>{item.title}</Text>
+            <Text style={[s.subject, isEmergency && { color: "#D96C6C" }]} numberOfLines={1}>{item.title}</Text>
             {isEmergency && (
               <View style={s.emergencyBadge}>
-                <Feather name="alert-octagon" size={9} color="#DC2626" />
+                <Feather name="alert-octagon" size={9} color="#D96C6C" />
                 <Text style={s.emergencyBadgeTxt}>긴급</Text>
               </View>
             )}
             {overdue && <View style={s.slaTag}><Text style={s.slaTxt}>SLA 초과</Text></View>}
-            {slaLabel && !overdue && <View style={[s.slaTag, { backgroundColor: "#FEF3C7" }]}><Text style={[s.slaTxt, { color: "#D97706" }]}>{slaLabel}</Text></View>}
+            {slaLabel && !overdue && <View style={[s.slaTag, { backgroundColor: "#FFF1BF" }]}><Text style={[s.slaTxt, { color: "#D97706" }]}>{slaLabel}</Text></View>}
           </View>
           <View style={s.rowMeta}>
             <Text style={[s.metaTxt, { color: rc.color }]}>{rc.label}</Text>
@@ -246,7 +246,7 @@ export default function SupportScreen() {
       {/* SLA 알림 배너 */}
       {slaOverdueCount > 0 && (
         <Pressable style={s.slaBanner} onPress={() => setFilterStatus("open")}>
-          <Feather name="alert-circle" size={14} color="#DC2626" />
+          <Feather name="alert-circle" size={14} color="#D96C6C" />
           <Text style={s.slaBannerTxt}>SLA 초과 티켓 <Text style={{ fontFamily: "Inter_700Bold" }}>{slaOverdueCount}건</Text> — 즉시 처리 필요</Text>
         </Pressable>
       )}
@@ -255,16 +255,16 @@ export default function SupportScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.summaryBar} contentContainerStyle={s.summaryContent}>
         {[
-          { k: "all", label: "전체", color: "#374151" },
+          { k: "all", label: "전체", color: "#1F1F1F" },
           ...STATUS_KEYS.map(k => ({ k, label: STATUS_CFG[k].label, color: STATUS_CFG[k].color })),
         ].map(item => {
           const isActive = filterStatus === item.k;
           return (
             <Pressable key={item.k}
-              style={[s.summaryChip, { backgroundColor: isActive ? item.color : "#F3F4F6" }]}
+              style={[s.summaryChip, { backgroundColor: isActive ? item.color : "#F6F3F1" }]}
               onPress={() => setFilterStatus(item.k)}>
-              <Text style={[s.summaryNum, { color: isActive ? "#fff" : "#111827" }]}>{counts[item.k] ?? 0}</Text>
-              <Text style={[s.summaryLabel, { color: isActive ? "rgba(255,255,255,0.8)" : "#9CA3AF" }]}>{item.label}</Text>
+              <Text style={[s.summaryNum, { color: isActive ? "#fff" : "#1F1F1F" }]}>{counts[item.k] ?? 0}</Text>
+              <Text style={[s.summaryLabel, { color: isActive ? "rgba(255,255,255,0.8)" : "#9A948F" }]}>{item.label}</Text>
             </Pressable>
           );
         })}
@@ -297,7 +297,7 @@ export default function SupportScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
           onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
         contentContainerStyle={{ paddingVertical: 4, paddingBottom: 80 }}
-        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F3F4F6" }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F6F3F1" }} />}
         ListEmptyComponent={
           <View style={s.empty}>
             <Feather name="message-circle" size={32} color="#D1D5DB" />
@@ -339,7 +339,7 @@ export default function SupportScreen() {
                 )}
                 <View style={m.infoRow}>
                   <Text style={m.infoLabel}>SLA 마감</Text>
-                  <Text style={[m.infoVal, editTicket.isSlaOverdue && { color: "#DC2626" }]}>
+                  <Text style={[m.infoVal, editTicket.isSlaOverdue && { color: "#D96C6C" }]}>
                     {editTicket.slaDueAt ? new Date(editTicket.slaDueAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
                     {editTicket.isSlaOverdue ? " · 초과됨" : ""}
                   </Text>
@@ -365,13 +365,13 @@ export default function SupportScreen() {
               <View style={m.section}>
                 <Text style={m.label}>담당자</Text>
                 <TextInput style={m.input} value={assignee} onChangeText={setAssignee}
-                  placeholder="담당자 이름" placeholderTextColor="#9CA3AF" />
+                  placeholder="담당자 이름" placeholderTextColor="#9A948F" />
               </View>
 
               <View style={m.section}>
                 <Text style={m.label}>내부 메모</Text>
                 <TextInput style={[m.input, { minHeight: 60 }]} value={internalMemo} onChangeText={setInternalMemo}
-                  multiline placeholder="내부 처리 메모" placeholderTextColor="#9CA3AF" textAlignVertical="top" />
+                  multiline placeholder="내부 처리 메모" placeholderTextColor="#9A948F" textAlignVertical="top" />
               </View>
 
               {editTicket.type === "refund" && (
@@ -436,20 +436,20 @@ export default function SupportScreen() {
                 <View style={m.section}>
                   <Text style={m.label}>요청자 이름</Text>
                   <TextInput style={m.input} value={form.requesterName} onChangeText={v => setForm(f => ({ ...f, requesterName: v }))}
-                    placeholder="이름 (선택)" placeholderTextColor="#9CA3AF" />
+                    placeholder="이름 (선택)" placeholderTextColor="#9A948F" />
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>제목 *</Text>
                   <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))}
-                    placeholder="문의 제목" placeholderTextColor="#9CA3AF" />
+                    placeholder="문의 제목" placeholderTextColor="#9A948F" />
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>내용</Text>
                   <TextInput style={[m.input, { minHeight: 80 }]} value={form.body}
                     onChangeText={v => setForm(f => ({ ...f, body: v }))}
-                    multiline placeholder="문의 내용 (선택)" placeholderTextColor="#9CA3AF" textAlignVertical="top" />
+                    multiline placeholder="문의 내용 (선택)" placeholderTextColor="#9A948F" textAlignVertical="top" />
                 </View>
 
                 <View style={m.btnRow}>
@@ -472,42 +472,42 @@ export default function SupportScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#F5F3FF" },
-  slaBanner:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FCA5A5" },
+  safe:          { flex: 1, backgroundColor: "#EEDDF5" },
+  slaBanner:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FCA5A5" },
   slaBannerTxt:  { fontFamily: "Inter_500Medium", fontSize: 13, color: "#991B1B", flex: 1 },
-  summaryBar:    { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  summaryBar:    { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
   summaryContent:{ paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
   summaryChip:   { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   summaryNum:    { fontSize: 17, fontFamily: "Inter_700Bold" },
   summaryLabel:  { fontSize: 9, fontFamily: "Inter_500Medium", marginTop: 1 },
-  typeBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  typeBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
   typeContent:   { paddingHorizontal: 12, paddingVertical: 7, gap: 6, flexDirection: "row" },
-  typeChip:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+  typeChip:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: "#E9E2DD", backgroundColor: "#fff" },
   typeChipActive:{ backgroundColor: P, borderColor: P },
-  typeChipTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  typeChipTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
   row:           { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
-  rowOverdue:       { borderLeftWidth: 3, borderLeftColor: "#DC2626" },
+  rowOverdue:       { borderLeftWidth: 3, borderLeftColor: "#D96C6C" },
   rowCritical:      { backgroundColor: "#FFF5F5" },
-  rowEmergency:     { backgroundColor: "#FFF1F2", borderLeftWidth: 4, borderLeftColor: "#DC2626" },
-  emergencyStripe:  { position: "absolute", left: 0, top: 0, bottom: 0, width: 4, backgroundColor: "#DC2626", borderRadius: 2 },
-  emergencyBadge:   { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#FEE2E2",
+  rowEmergency:     { backgroundColor: "#FFF1F2", borderLeftWidth: 4, borderLeftColor: "#D96C6C" },
+  emergencyStripe:  { position: "absolute", left: 0, top: 0, bottom: 0, width: 4, backgroundColor: "#D96C6C", borderRadius: 2 },
+  emergencyBadge:   { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#F9DEDA",
                       paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
-  emergencyBadgeTxt:{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#DC2626" },
+  emergencyBadgeTxt:{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#D96C6C" },
   typeIcon:      { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   rowMain:       { flex: 1, gap: 4 },
   rowTop:        { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  subject:       { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  slaTag:        { backgroundColor: "#FEE2E2", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
-  slaTxt:        { fontSize: 9, fontFamily: "Inter_700Bold", color: "#DC2626" },
+  subject:       { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  slaTag:        { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
+  slaTxt:        { fontSize: 9, fontFamily: "Inter_700Bold", color: "#D96C6C" },
   rowMeta:       { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  metaTxt:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  metaTxt:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
   metaDot:       { fontSize: 10, color: "#D1D5DB" },
   rowRight:      { alignItems: "flex-end", gap: 4 },
   badge:         { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   badgeTxt:      { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  assigneeTxt:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  assigneeTxt:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
   empty:         { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
   fab:           { position: "absolute", bottom: 20, right: 16, width: 52, height: 52, borderRadius: 26, backgroundColor: P, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5 },
 });
 
@@ -515,22 +515,22 @@ const m = StyleSheet.create({
   backdrop:   { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
   sheet:      { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "88%", gap: 12 },
   handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  desc:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 20 },
-  infoBox:    { backgroundColor: "#F9FAFB", borderRadius: 10, padding: 12, gap: 6 },
+  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  desc:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 20 },
+  infoBox:    { backgroundColor: "#FBF8F6", borderRadius: 10, padding: 12, gap: 6 },
   infoRow:    { flexDirection: "row", gap: 8 },
-  infoLabel:  { width: 60, fontSize: 12, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
-  infoVal:    { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151" },
+  infoLabel:  { width: 60, fontSize: 12, fontFamily: "Inter_500Medium", color: "#9A948F" },
+  infoVal:    { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
   section:    { gap: 6 },
-  label:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  input:      { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
-  optChip:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
-  optTxt:     { fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
-  linkBtn:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EDE9FE", borderRadius: 10, padding: 12 },
+  label:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  input:      { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  optChip:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#E9E2DD", backgroundColor: "#fff" },
+  optTxt:     { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
+  linkBtn:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12 },
   linkBtnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: P },
   btnRow:     { flexDirection: "row", gap: 10, justifyContent: "flex-end", marginTop: 4 },
-  cancelBtn:  { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },
-  cancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  cancelBtn:  { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
+  cancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   saveBtn:    { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   saveTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

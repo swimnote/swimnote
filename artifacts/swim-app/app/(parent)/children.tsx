@@ -19,7 +19,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
-const CHILD_COLORS = [C.tint, "#059669", "#7C3AED", "#D97706", "#0EA5E9"];
+const CHILD_COLORS = [C.tint, "#1F8F86", "#7C3AED", "#D97706", "#0EA5E9"];
 
 const DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
 function parseScheduleText(days: string, time: string): string {
@@ -80,7 +80,7 @@ export default function ChildrenScreen() {
     return { pending: "검토 중", approved: "승인됨", rejected: "거절됨" }[s] ?? s;
   }
   function statusColor(s: string) {
-    return { pending: "#D97706", approved: "#059669", rejected: "#DC2626" }[s] ?? C.textMuted;
+    return { pending: "#D97706", approved: "#1F8F86", rejected: "#D96C6C" }[s] ?? C.textMuted;
   }
 
   return (
@@ -156,7 +156,7 @@ export default function ChildrenScreen() {
         <View style={[s.formCard, { backgroundColor: C.card }]}>
           <Text style={[s.formLabel, { color: C.textSecondary }]}>자녀 이름 *</Text>
           <TextInput
-            style={[s.input, { backgroundColor: "#F3F4F6", color: C.text }]}
+            style={[s.input, { backgroundColor: "#F6F3F1", color: C.text }]}
             placeholder="자녀 이름을 입력하세요"
             placeholderTextColor={C.textMuted}
             value={childName}
@@ -164,7 +164,7 @@ export default function ChildrenScreen() {
           />
           <Text style={[s.formLabel, { color: C.textSecondary }]}>전달 메모 (선택)</Text>
           <TextInput
-            style={[s.input, s.inputMulti, { backgroundColor: "#F3F4F6", color: C.text }]}
+            style={[s.input, s.inputMulti, { backgroundColor: "#F6F3F1", color: C.text }]}
             placeholder="관리자에게 전달할 내용이 있으면 입력하세요"
             placeholderTextColor={C.textMuted}
             value={memo}

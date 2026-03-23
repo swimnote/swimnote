@@ -98,7 +98,7 @@ export default function PoolApplyScreen() {
 
         <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
           {error ? (
-            <View style={[styles.errorBox, { backgroundColor: "#FEE2E2" }]}>
+            <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
               <Feather name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errorText, { color: C.error }]}>{error}</Text>
             </View>

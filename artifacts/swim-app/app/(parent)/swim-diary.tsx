@@ -70,7 +70,7 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
               </View>
             )}
             {entry.student_note && (
-              <View style={[s.editedBadge, { backgroundColor: "#EDE9FE" }]}>
+              <View style={[s.editedBadge, { backgroundColor: "#EEDDF5" }]}>
                 <Feather name="user" size={9} color="#7C3AED" />
                 <Text style={[s.editedBadgeText, { color: "#7C3AED" }]}>개별 일지</Text>
               </View>
@@ -98,17 +98,17 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
 
           {/* 개별 추가 일지 */}
           {entry.student_note?.note_content && (
-            <View style={[s.noteBox, { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" }]}>
+            <View style={[s.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#DDD6FE" }]}>
               <View style={s.sectionHeader}>
                 <Feather name="user" size={12} color="#7C3AED" />
                 <Text style={s.noteTitle}>우리 아이 개별 일지</Text>
                 {entry.student_note.is_edited && (
-                  <View style={[s.editedBadge, { backgroundColor: "#EDE9FE" }]}>
+                  <View style={[s.editedBadge, { backgroundColor: "#EEDDF5" }]}>
                     <Text style={[s.editedBadgeText, { color: "#7C3AED" }]}>수정됨</Text>
                   </View>
                 )}
               </View>
-              <Text style={[s.sectionValue, { color: "#374151" }]}>{entry.student_note.note_content}</Text>
+              <Text style={[s.sectionValue, { color: "#1F1F1F" }]}>{entry.student_note.note_content}</Text>
             </View>
           )}
         </View>
@@ -193,7 +193,7 @@ const s = StyleSheet.create({
   cardTeacher: { fontSize: 14, fontFamily: "Inter_700Bold" },
   cardPreview: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
 
-  editedBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEF3C7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
+  editedBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FFF1BF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
   editedBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#92400E" },
 
   cardBody: { paddingHorizontal: 14, paddingBottom: 14, gap: 12 },

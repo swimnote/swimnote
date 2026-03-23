@@ -16,7 +16,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
-const CHILD_COLORS = [C.tint, "#059669", "#7C3AED", "#D97706", "#0EA5E9"];
+const CHILD_COLORS = [C.tint, "#1F8F86", "#7C3AED", "#D97706", "#0EA5E9"];
 const DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
 
 function parseScheduleChips(days: string, time: string): string[] {
@@ -133,7 +133,7 @@ export default function ChildProfileScreen() {
             <InfoRow icon="map-pin" label="소속 수영장" value={parentAccount?.pool_name || "수영장"} accentColor={accentColor} />
             {classGroup?.name
               ? <InfoRow icon="users" label="반" value={classGroup.name} accentColor={accentColor} />
-              : <InfoRow icon="users" label="반" value="배정 전" accentColor="#9CA3AF" />
+              : <InfoRow icon="users" label="반" value="배정 전" accentColor="#9A948F" />
             }
             {scheduleChips.length > 0 && (
               <View style={ir.row}>

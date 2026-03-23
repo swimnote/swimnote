@@ -254,10 +254,10 @@ export default function RiskCenterScreen() {
           </View>
           <View style={s.riskGrid}>
             {[
-              { label: "복구 실패",   count: RECOVERY_FAILURES.length, color: "#DC2626" },
+              { label: "복구 실패",   count: RECOVERY_FAILURES.length, color: "#D96C6C" },
               { label: "결제 실패",   count: paymentFailed.length,  color: "#F87171" },
               { label: "저장 95%↑",  count: storageDanger.length,   color: "#C084FC" },
-              { label: "삭제 예정",  count: deletionPending.length, color: "#60A5FA" },
+              { label: "삭제 예정",  count: deletionPending.length, color: "#4EA7D8" },
               { label: "업로드 급증", count: uploadSpike.length,    color: "#FBBF24" },
               { label: "정책 미확인", count: policyUnsigned.length, color: "#818CF8" },
               { label: "SLA 초과",   count: slaCount,               color: "#F87171" },
@@ -265,7 +265,7 @@ export default function RiskCenterScreen() {
               { label: "SMS 차단",   count: smsBlockedOps.length,   color: "#A78BFA" },
             ].map(item => (
               <View key={item.label} style={s.riskTile}>
-                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#6B7280" }]}>{item.count}</Text>
+                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#6F6B68" }]}>{item.count}</Text>
                 <Text style={s.riskLbl}>{item.label}</Text>
               </View>
             ))}
@@ -282,23 +282,23 @@ export default function RiskCenterScreen() {
         </View>
 
         {/* ══ 복구 실패 — 긴급 최우선 ══ */}
-        <RiskGroup title="복구 실패 (긴급·비상)" icon="alert-octagon" color="#DC2626" bg="#FEE2E2"
+        <RiskGroup title="복구 실패 (긴급·비상)" icon="alert-octagon" color="#D96C6C" bg="#F9DEDA"
           count={RECOVERY_FAILURES.length}>
           {RECOVERY_FAILURES.map(rf => (
-            <View key={rf.id} style={[g.item, { borderLeftWidth: 4, borderLeftColor: "#DC2626", backgroundColor: "#FFF5F5" }]}>
+            <View key={rf.id} style={[g.item, { borderLeftWidth: 4, borderLeftColor: "#D96C6C", backgroundColor: "#FFF5F5" }]}>
               <View style={g.itemLeft}>
-                <Text style={[g.itemName, { color: "#DC2626" }]} numberOfLines={1}>
+                <Text style={[g.itemName, { color: "#D96C6C" }]} numberOfLines={1}>
                   [{rf.operatorName}] 복구 실패
                 </Text>
                 <Text style={g.itemSub}>{rf.reason}</Text>
                 <Text style={g.itemSub}>스냅샷: {rf.snapshotId}</Text>
-                <Text style={[g.itemSub, { color: "#DC2626" }]}>
+                <Text style={[g.itemSub, { color: "#D96C6C" }]}>
                   복구에 실패했습니다. 관리자에게 문의해 주세요.
                 </Text>
               </View>
               <View style={g.itemActions}>
                 <Pressable
-                  style={[g.btn, { backgroundColor: "#FEE2E2", paddingHorizontal: 10 }]}
+                  style={[g.btn, { backgroundColor: "#F9DEDA", paddingHorizontal: 10 }]}
                   onPress={() => {
                     createLog({
                       category: "복구", title: `복구 실패 문의: ${rf.operatorName}`,
@@ -307,8 +307,8 @@ export default function RiskCenterScreen() {
                     });
                     router.push({ pathname: "/(super)/support", params: { type: "recovery" } } as any);
                   }}>
-                  <Feather name="message-circle" size={12} color="#DC2626" />
-                  <Text style={[g.btnTxt, { color: "#DC2626" }]}>관리자 문의</Text>
+                  <Feather name="message-circle" size={12} color="#D96C6C" />
+                  <Text style={[g.btnTxt, { color: "#D96C6C" }]}>관리자 문의</Text>
                 </Pressable>
               </View>
             </View>
@@ -316,7 +316,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 결제 실패 ── */}
-        <RiskGroup title="결제 실패 운영자" icon="credit-card" color="#DC2626" bg="#FEE2E2"
+        <RiskGroup title="결제 실패 운영자" icon="credit-card" color="#D96C6C" bg="#F9DEDA"
           count={paymentFailed.length} onViewAll={() => router.push("/(super)/subscriptions" as any)}>
           {paymentFailed.slice(0, 5).map(op => (
             <View key={op.id} style={g.item}>
@@ -325,16 +325,16 @@ export default function RiskCenterScreen() {
                 <Text style={g.itemSub}>{op.representativeName} · {op.billingStatus === "grace" ? "유예 중" : "결제 실패"} · {op.paymentFailCount}회</Text>
               </View>
               <View style={g.itemActions}>
-                <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]} disabled={processing === op.id} onPress={() => applyGraceAction(op)}>
+                <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => applyGraceAction(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>유예</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#DBEAFE" }]} disabled={processing === op.id} onPress={() => rechargeBilling(op)}>
-                  <Text style={[g.btnTxt, { color: "#1D4ED8" }]}>재청구</Text>
+                <Pressable style={[g.btn, { backgroundColor: "#DDF2EF" }]} disabled={processing === op.id} onPress={() => rechargeBilling(op)}>
+                  <Text style={[g.btnTxt, { color: "#1F8F86" }]}>재청구</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#FEE2E2" }]} disabled={processing === op.id} onPress={() => setReadonly(op)}>
-                  <Text style={[g.btnTxt, { color: "#DC2626" }]}>RO</Text>
+                <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === op.id} onPress={() => setReadonly(op)}>
+                  <Text style={[g.btnTxt, { color: "#D96C6C" }]}>RO</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -343,7 +343,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 저장공간 95% 초과 ── */}
-        <RiskGroup title="저장공간 위험 (95%↑)" icon="hard-drive" color={P} bg="#EDE9FE"
+        <RiskGroup title="저장공간 위험 (95%↑)" icon="hard-drive" color={P} bg="#EEDDF5"
           count={storageDanger.length} onViewAll={() => router.push("/(super)/storage" as any)}>
           {storageDanger.slice(0, 5).map(op => {
             const pct = Math.round((op.storageUsedMb / Math.max(op.storageTotalMb, 1)) * 100);
@@ -353,22 +353,22 @@ export default function RiskCenterScreen() {
                   <Text style={g.itemName} numberOfLines={1}>{op.name}</Text>
                   <View style={g.barRow}>
                     <View style={g.barBg}>
-                      <View style={[g.barFill, { width: `${Math.min(pct, 100)}%` as any, backgroundColor: "#DC2626" }]} />
+                      <View style={[g.barFill, { width: `${Math.min(pct, 100)}%` as any, backgroundColor: "#D96C6C" }]} />
                     </View>
-                    <Text style={[g.pctTxt, { color: "#DC2626" }]}>{pct}%</Text>
+                    <Text style={[g.pctTxt, { color: "#D96C6C" }]}>{pct}%</Text>
                   </View>
                 </View>
                 <View style={g.itemActions}>
-                  <Pressable style={[g.btn, { backgroundColor: "#D1FAE5" }]} onPress={() => router.push("/(super)/subscription-products" as any)}>
-                    <Text style={[g.btnTxt, { color: "#059669" }]}>용량↑</Text>
+                  <Pressable style={[g.btn, { backgroundColor: "#DDF2EF" }]} onPress={() => router.push("/(super)/subscription-products" as any)}>
+                    <Text style={[g.btnTxt, { color: "#1F8F86" }]}>용량↑</Text>
                   </Pressable>
-                  <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]} disabled={processing === op.id} onPress={() => allowStorage24h(op)}>
+                  <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => allowStorage24h(op)}>
                     <Text style={[g.btnTxt, { color: "#D97706" }]}>24h</Text>
                   </Pressable>
-                  <Pressable style={[g.btn, { backgroundColor: "#FEE2E2" }]} disabled={processing === op.id} onPress={() => blockUpload(op)}>
-                    <Text style={[g.btnTxt, { color: "#DC2626" }]}>차단</Text>
+                  <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === op.id} onPress={() => blockUpload(op)}>
+                    <Text style={[g.btnTxt, { color: "#D96C6C" }]}>차단</Text>
                   </Pressable>
-                  <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                  <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
                     <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                   </Pressable>
                 </View>
@@ -378,7 +378,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 자동삭제 예정 ── */}
-        <RiskGroup title="자동삭제 예정 (48h)" icon="trash-2" color="#0891B2" bg="#ECFEFF"
+        <RiskGroup title="자동삭제 예정 (48h)" icon="trash-2" color="#1F8F86" bg="#ECFEFF"
           count={deletionPending.length} onViewAll={() => router.push("/(super)/kill-switch" as any)}>
           {deletionPending.slice(0, 5).map(op => (
             <View key={op.id} style={g.item}>
@@ -387,16 +387,16 @@ export default function RiskCenterScreen() {
                 <Text style={g.itemSub}>{op.representativeName} · 삭제 {hoursLeftStr(op.autoDeleteScheduledAt)}</Text>
               </View>
               <View style={g.itemActions}>
-                <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]} disabled={processing === op.id} onPress={() => deferDeletion(op)}>
+                <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => deferDeletion(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>유예</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#D1FAE5" }]} disabled={processing === op.id} onPress={() => cancelDeletion(op)}>
-                  <Text style={[g.btnTxt, { color: "#059669" }]}>해제</Text>
+                <Pressable style={[g.btn, { backgroundColor: "#DDF2EF" }]} disabled={processing === op.id} onPress={() => cancelDeletion(op)}>
+                  <Text style={[g.btnTxt, { color: "#1F8F86" }]}>해제</Text>
                 </Pressable>
                 <Pressable style={[g.btn, { backgroundColor: "#ECFEFF" }]} disabled={processing === op.id} onPress={() => createOpSnapshot(op)}>
-                  <Text style={[g.btnTxt, { color: "#0891B2" }]}>스냅샷</Text>
+                  <Text style={[g.btnTxt, { color: "#1F8F86" }]}>스냅샷</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -405,7 +405,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 업로드 급증 ── */}
-        <RiskGroup title="업로드 급증 탐지" icon="trending-up" color="#D97706" bg="#FEF3C7"
+        <RiskGroup title="업로드 급증 탐지" icon="trending-up" color="#D97706" bg="#FFF1BF"
           count={uploadSpike.length}>
           {uploadSpike.slice(0, 5).map(op => (
             <View key={op.id} style={g.item}>
@@ -414,13 +414,13 @@ export default function RiskCenterScreen() {
                 <Text style={g.itemSub}>{op.representativeName} · 7일 내 {op.uploadGrowth7dMb}MB 급증</Text>
               </View>
               <View style={g.itemActions}>
-                <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#FEE2E2" }]} disabled={processing === op.id} onPress={() => limitUpload(op)}>
-                  <Text style={[g.btnTxt, { color: "#DC2626" }]}>제한</Text>
+                <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === op.id} onPress={() => limitUpload(op)}>
+                  <Text style={[g.btnTxt, { color: "#D96C6C" }]}>제한</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]} disabled={processing === op.id} onPress={() => sendSpikeNotice(op)}>
+                <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => sendSpikeNotice(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>알림</Text>
                 </Pressable>
               </View>
@@ -429,7 +429,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 정책 미확인 ── */}
-        <RiskGroup title="정책 미확인 운영자" icon="file-text" color="#4F46E5" bg="#EEF2FF"
+        <RiskGroup title="정책 미확인 운영자" icon="file-text" color="#1F8F86" bg="#DDF2EF"
           count={policyUnsigned.length} onViewAll={() => router.push("/(super)/policy" as any)}>
           {policyUnsigned.slice(0, 5).map(op => (
             <View key={op.id} style={g.item}>
@@ -442,11 +442,11 @@ export default function RiskCenterScreen() {
                 </Text>
               </View>
               <View style={g.itemActions}>
-                <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]} disabled={processing === op.id} onPress={() => sendPolicyReminder(op)}>
+                <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => sendPolicyReminder(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>재알림</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#EEF2FF" }]} onPress={() => router.push("/(super)/policy" as any)}>
-                  <Text style={[g.btnTxt, { color: "#4F46E5" }]}>상세</Text>
+                <Pressable style={[g.btn, { backgroundColor: "#DDF2EF" }]} onPress={() => router.push("/(super)/policy" as any)}>
+                  <Text style={[g.btnTxt, { color: "#1F8F86" }]}>상세</Text>
                 </Pressable>
               </View>
             </View>
@@ -455,7 +455,7 @@ export default function RiskCenterScreen() {
 
         {/* ── SMS 발송 실패 급증 ── */}
         {smsFailSpike && (
-          <RiskGroup title="SMS 발송 실패 급증" icon="alert-circle" color="#EA580C" bg="#FFF7ED"
+          <RiskGroup title="SMS 발송 실패 급증" icon="alert-circle" color="#EA580C" bg="#FFF1BF"
             count={1} onViewAll={() => router.push("/(super)/sms-billing" as any)}>
             <View style={g.item}>
               <View style={g.itemLeft}>
@@ -463,10 +463,10 @@ export default function RiskCenterScreen() {
                 <Text style={g.itemSub}>임계값(10건) 초과 · Provider 확인 필요</Text>
               </View>
               <View style={g.itemActions}>
-                <Pressable style={[g.btn, { backgroundColor: "#FFF7ED" }]} onPress={() => recheckService("SMS Provider")}>
+                <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} onPress={() => recheckService("SMS Provider")}>
                   <Text style={[g.btnTxt, { color: "#EA580C" }]}>재확인</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#FFF7ED" }]} onPress={() => router.push("/(super)/sms-billing" as any)}>
+                <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} onPress={() => router.push("/(super)/sms-billing" as any)}>
                   <Text style={[g.btnTxt, { color: "#EA580C" }]}>정산</Text>
                 </Pressable>
               </View>
@@ -475,7 +475,7 @@ export default function RiskCenterScreen() {
         )}
 
         {/* ── SMS 크레딧 부족 ── */}
-        <RiskGroup title="SMS 크레딧 부족 운영자" icon="battery" color="#D97706" bg="#FEF3C7"
+        <RiskGroup title="SMS 크레딧 부족 운영자" icon="battery" color="#D97706" bg="#FFF1BF"
           count={smsLowCredit.length} onViewAll={() => router.push("/(super)/sms-billing" as any)}>
           {smsLowCredit.slice(0, 5).map(acc => {
             const op = operators.find(o => o.id === acc.operatorId);
@@ -486,13 +486,13 @@ export default function RiskCenterScreen() {
                   <Text style={g.itemSub}>잔액 {acc.creditBalance}건 · 무료 잔여 {Math.max(0, acc.freeQuotaMonthly - acc.freeUsedMonthly)}건</Text>
                 </View>
                 <View style={g.itemActions}>
-                  <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]} onPress={() => Alert.alert("충전 유도", `${acc.operatorName}에게 크레딧 충전 안내를 발송했습니다.`)}>
+                  <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} onPress={() => Alert.alert("충전 유도", `${acc.operatorName}에게 크레딧 충전 안내를 발송했습니다.`)}>
                     <Text style={[g.btnTxt, { color: "#D97706" }]}>안내</Text>
                   </Pressable>
-                  <Pressable style={[g.btn, { backgroundColor: "#FEE2E2" }]} disabled={processing === acc.operatorId} onPress={() => blockSmsAction(acc.operatorId, acc.operatorName)}>
-                    <Text style={[g.btnTxt, { color: "#DC2626" }]}>차단</Text>
+                  <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === acc.operatorId} onPress={() => blockSmsAction(acc.operatorId, acc.operatorName)}>
+                    <Text style={[g.btnTxt, { color: "#D96C6C" }]}>차단</Text>
                   </Pressable>
-                  <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => router.push("/(super)/sms-billing" as any)}>
+                  <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push("/(super)/sms-billing" as any)}>
                     <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                   </Pressable>
                 </View>
@@ -502,7 +502,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── SMS 차단 운영자 ── */}
-        <RiskGroup title="SMS 차단 운영자" icon="slash" color="#7C3AED" bg="#EDE9FE"
+        <RiskGroup title="SMS 차단 운영자" icon="slash" color="#7C3AED" bg="#EEDDF5"
           count={smsBlockedOps.length} onViewAll={() => router.push("/(super)/sms-billing" as any)}>
           {smsBlockedOps.slice(0, 5).map(acc => (
             <View key={acc.operatorId} style={g.item}>
@@ -511,13 +511,13 @@ export default function RiskCenterScreen() {
                 <Text style={g.itemSub}>잔액 {acc.creditBalance}건 · 발송 차단 상태</Text>
               </View>
               <View style={g.itemActions}>
-                <Pressable style={[g.btn, { backgroundColor: "#D1FAE5" }]} disabled={processing === acc.operatorId} onPress={() => unblockSms(acc.operatorId)}>
-                  <Text style={[g.btnTxt, { color: "#059669" }]}>해제</Text>
+                <Pressable style={[g.btn, { backgroundColor: "#DDF2EF" }]} disabled={processing === acc.operatorId} onPress={() => unblockSms(acc.operatorId)}>
+                  <Text style={[g.btnTxt, { color: "#1F8F86" }]}>해제</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]} onPress={() => Alert.alert("충전 유도", `${acc.operatorName}에 크레딧 충전 안내를 발송했습니다.`)}>
+                <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} onPress={() => Alert.alert("충전 유도", `${acc.operatorName}에 크레딧 충전 안내를 발송했습니다.`)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>안내</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => router.push("/(super)/sms-billing" as any)}>
+                <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push("/(super)/sms-billing" as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -530,32 +530,32 @@ export default function RiskCenterScreen() {
           <Text style={s.serviceTitle}>외부 서비스 상태</Text>
           {EXTERNAL_SERVICES.map(svc => (
             <View key={svc.name} style={s.serviceRow}>
-              <View style={[s.serviceDot, { backgroundColor: svc.status === "normal" ? "#10B981" : "#DC2626" }]} />
+              <View style={[s.serviceDot, { backgroundColor: svc.status === "normal" ? "#2E9B6F" : "#D96C6C" }]} />
               <Text style={s.serviceName}>{svc.name}</Text>
-              <Text style={[s.serviceStatus, { color: svc.status === "normal" ? "#10B981" : "#DC2626" }]}>
+              <Text style={[s.serviceStatus, { color: svc.status === "normal" ? "#2E9B6F" : "#D96C6C" }]}>
                 {svc.status === "normal" ? "정상" : "이상"}
               </Text>
               {svc.status !== "normal" && (
                 <View style={s.serviceActions}>
-                  <Pressable style={[g.btn, { backgroundColor: "#FEF3C7" }]} onPress={() => recheckService(svc.name)}>
+                  <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} onPress={() => recheckService(svc.name)}>
                     <Text style={[g.btnTxt, { color: "#D97706" }]}>재확인</Text>
                   </Pressable>
-                  <Pressable style={[g.btn, { backgroundColor: "#FEE2E2" }]} onPress={() => Alert.alert("장애 공지", `${svc.name} 장애 공지를 발송했습니다.`)}>
-                    <Text style={[g.btnTxt, { color: "#DC2626" }]}>공지</Text>
+                  <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => Alert.alert("장애 공지", `${svc.name} 장애 공지를 발송했습니다.`)}>
+                    <Text style={[g.btnTxt, { color: "#D96C6C" }]}>공지</Text>
                   </Pressable>
                 </View>
               )}
             </View>
           ))}
           <View style={s.backupRow}>
-            <Feather name="database" size={13} color="#6B7280" />
+            <Feather name="database" size={13} color="#6F6B68" />
             <Text style={s.backupTxt}>마지막 플랫폼 백업: {fmtAgo(latestSnap?.createdAt)}</Text>
           </View>
         </View>
 
         {totalRisk === 0 && openCount === 0 && (
           <View style={s.allClear}>
-            <Feather name="check-circle" size={32} color="#10B981" />
+            <Feather name="check-circle" size={32} color="#2E9B6F" />
             <Text style={s.allClearTxt}>오늘 처리할 리스크가 없습니다</Text>
           </View>
         )}
@@ -565,48 +565,48 @@ export default function RiskCenterScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#F5F3FF" },
+  safe:          { flex: 1, backgroundColor: "#EEDDF5" },
   summaryCard:   { backgroundColor: "#1F1235", borderRadius: 14, padding: 16, gap: 12 },
   summaryRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
-  summaryTitle:  { fontSize: 16, fontFamily: "Inter_700Bold", color: "#F9FAFB" },
+  summaryTitle:  { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FBF8F6" },
   riskGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   riskTile:      { flex: 1, minWidth: "28%", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 10, padding: 10, alignItems: "center" },
-  riskNum:       { fontSize: 20, fontFamily: "Inter_700Bold", color: "#6B7280" },
-  riskLbl:       { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9CA3AF", marginTop: 2, textAlign: "center" },
+  riskNum:       { fontSize: 20, fontFamily: "Inter_700Bold", color: "#6F6B68" },
+  riskLbl:       { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9A948F", marginTop: 2, textAlign: "center" },
   supportRow:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(2,132,199,0.12)", borderRadius: 8, padding: 8 },
   supportTxt:    { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#38BDF8" },
   supportLink:   { backgroundColor: "#0284C7", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   supportLinkTxt:{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  serviceCard:   { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E5E7EB" },
-  serviceTitle:  { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 4 },
+  serviceCard:   { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E9E2DD" },
+  serviceTitle:  { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 4 },
   serviceRow:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5 },
   serviceDot:    { width: 8, height: 8, borderRadius: 4 },
-  serviceName:   { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
+  serviceName:   { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
   serviceStatus: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   serviceActions:{ flexDirection: "row", gap: 4 },
-  backupRow:     { flexDirection: "row", alignItems: "center", gap: 6, borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 8, marginTop: 4 },
-  backupTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  backupRow:     { flexDirection: "row", alignItems: "center", gap: 6, borderTopWidth: 1, borderTopColor: "#F6F3F1", paddingTop: 8, marginTop: 4 },
+  backupTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
   allClear:      { alignItems: "center", paddingVertical: 40, gap: 10 },
-  allClearTxt:   { fontSize: 14, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  allClearTxt:   { fontSize: 14, fontFamily: "Inter_500Medium", color: "#6F6B68" },
 });
 
 const g = StyleSheet.create({
-  group:       { backgroundColor: "#fff", borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: "#E5E7EB" },
-  groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#F9FAFB", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  group:       { backgroundColor: "#fff", borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: "#E9E2DD" },
+  groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#FBF8F6", borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   groupIcon:   { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  groupTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  groupTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   countBadge:  { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   countTxt:    { fontSize: 11, fontFamily: "Inter_700Bold" },
   viewAll:     { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  item:        { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F9FAFB" },
+  item:        { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FBF8F6" },
   itemLeft:    { flex: 1, gap: 3, minWidth: 0 },
-  itemName:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  itemSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  itemName:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  itemSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
   itemActions: { flexDirection: "row", gap: 4, flexShrink: 0 },
   btn:         { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, minWidth: 36, alignItems: "center" },
   btnTxt:      { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   barRow:      { flexDirection: "row", alignItems: "center", gap: 6 },
-  barBg:       { flex: 1, height: 4, borderRadius: 2, backgroundColor: "#F3F4F6", overflow: "hidden" },
+  barBg:       { flex: 1, height: 4, borderRadius: 2, backgroundColor: "#F6F3F1", overflow: "hidden" },
   barFill:     { height: 4, borderRadius: 2 },
   pctTxt:      { fontSize: 11, fontFamily: "Inter_700Bold", width: 32, textAlign: "right" },
 });

@@ -17,9 +17,9 @@ import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SmsType, InviteRole, InviteRecord, SmsRecord } from "@/domain/types";
 
 const P = "#7C3AED";
-const DANGER = "#DC2626";
+const DANGER = "#D96C6C";
 const WARN = "#D97706";
-const GREEN = "#059669";
+const GREEN = "#1F8F86";
 
 const TABS = [
   { key: "log",     label: "발송 로그" },
@@ -30,18 +30,18 @@ const TABS = [
 ];
 
 const INVITE_ROLE_CFG: Record<InviteRole, { label: string; color: string; bg: string; icon: string }> = {
-  operator: { label: "운영자", color: "#7C3AED", bg: "#EDE9FE", icon: "briefcase" },
-  teacher:  { label: "선생님", color: "#0891B2", bg: "#ECFEFF", icon: "user" },
-  parent:   { label: "학부모", color: "#059669", bg: "#D1FAE5", icon: "users" },
+  operator: { label: "운영자", color: "#7C3AED", bg: "#EEDDF5", icon: "briefcase" },
+  teacher:  { label: "선생님", color: "#1F8F86", bg: "#ECFEFF", icon: "user" },
+  parent:   { label: "학부모", color: "#1F8F86", bg: "#DDF2EF", icon: "users" },
 };
 const INVITE_STATUS_CFG = {
-  pending:   { label: "대기", color: WARN,    bg: "#FEF3C7" },
-  accepted:  { label: "수락", color: GREEN,   bg: "#D1FAE5" },
-  expired:   { label: "만료", color: "#9CA3AF", bg: "#F3F4F6" },
-  cancelled: { label: "취소", color: DANGER,  bg: "#FEE2E2" },
+  pending:   { label: "대기", color: WARN,    bg: "#FFF1BF" },
+  accepted:  { label: "수락", color: GREEN,   bg: "#DDF2EF" },
+  expired:   { label: "만료", color: "#9A948F", bg: "#F6F3F1" },
+  cancelled: { label: "취소", color: DANGER,  bg: "#F9DEDA" },
 };
 const SMS_TYPE_CFG: Record<SmsType, { label: string; color: string }> = {
-  teacher_invite:   { label: "선생님 초대",  color: "#0891B2" },
+  teacher_invite:   { label: "선생님 초대",  color: "#1F8F86" },
   parent_connect:   { label: "학부모 연결",  color: GREEN },
   phone_verify:     { label: "휴대폰 인증",  color: P },
   policy_reconfirm: { label: "정책 재확인",  color: WARN },
@@ -160,7 +160,7 @@ export default function InviteSmsScreen() {
           { label: "발송 성공",   val: stats.totalSent,   color: GREEN },
           { label: "발송 실패",   val: stats.totalFailed, color: DANGER },
           { label: "대기 초대",   val: stats.pendingInv,  color: WARN },
-          { label: "만료 초대",   val: stats.expiredInv,  color: "#9CA3AF" },
+          { label: "만료 초대",   val: stats.expiredInv,  color: "#9A948F" },
           { label: "인증 실패",   val: stats.authFailed,  color: DANGER },
         ].map(k => (
           <View key={k.label} style={[s.kpiCard, { borderTopColor: k.color }]}>
@@ -292,8 +292,8 @@ export default function InviteSmsScreen() {
                       <Text style={[s.badgeTxt, { color: tc.color }]}>{tc.label}</Text>
                     </View>
                     {!tpl.isActive && (
-                      <View style={[s.badge, { backgroundColor: "#F3F4F6" }]}>
-                        <Text style={[s.badgeTxt, { color: "#9CA3AF" }]}>비활성</Text>
+                      <View style={[s.badge, { backgroundColor: "#F6F3F1" }]}>
+                        <Text style={[s.badgeTxt, { color: "#9A948F" }]}>비활성</Text>
                       </View>
                     )}
                   </View>
@@ -320,8 +320,8 @@ export default function InviteSmsScreen() {
               <Text style={m.label}>본문</Text>
               <TextInput style={[m.input, { minHeight: 100, textAlignVertical: "top" }]}
                 value={tplBody} onChangeText={setTplBody}
-                multiline placeholder="템플릿 본문" placeholderTextColor="#9CA3AF" />
-              <Text style={[m.label, { color: "#9CA3AF" }]}>사용 가능 변수: {"{name}"} {"{pool}"} {"{link}"} {"{code}"} {"{pct}"} {"{date}"}</Text>
+                multiline placeholder="템플릿 본문" placeholderTextColor="#9A948F" />
+              <Text style={[m.label, { color: "#9A948F" }]}>사용 가능 변수: {"{name}"} {"{pool}"} {"{link}"} {"{code}"} {"{pct}"} {"{date}"}</Text>
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setEditTplModal(null)}>
                   <Text style={m.cancelTxt}>취소</Text>
@@ -339,36 +339,36 @@ export default function InviteSmsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#F5F3FF" },
-  tabBar:      { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  safe:        { flex: 1, backgroundColor: "#EEDDF5" },
+  tabBar:      { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
   tab:         { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20 },
-  tabActive:   { backgroundColor: "#EDE9FE" },
-  tabTxt:      { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  tabActive:   { backgroundColor: "#EEDDF5" },
+  tabTxt:      { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68" },
   tabTxtActive:{ color: P, fontFamily: "Inter_700Bold" },
-  kpiBar:      { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
-  kpiCard:     { width: 80, paddingVertical: 8, paddingHorizontal: 8, backgroundColor: "#F9FAFB",
+  kpiBar:      { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
+  kpiCard:     { width: 80, paddingVertical: 8, paddingHorizontal: 8, backgroundColor: "#FBF8F6",
                  borderRadius: 10, borderTopWidth: 2, alignItems: "center", gap: 2 },
   kpiVal:      { fontSize: 17, fontFamily: "Inter_700Bold" },
-  kpiLabel:    { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center" },
+  kpiLabel:    { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center" },
   card:        { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, flexDirection: "row",
                  shadowColor: "#0000001A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 3, elevation: 1 },
   cardIcon:    { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   nameRow:     { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  cardName:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  cardName:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   badge:       { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   badgeTxt:    { fontSize: 10, fontFamily: "Inter_700Bold" },
-  cardMeta:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
-  msgBody:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#374151", marginTop: 4,
-                 backgroundColor: "#F9FAFB", padding: 8, borderRadius: 8, lineHeight: 18 },
+  cardMeta:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  msgBody:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F1F1F", marginTop: 4,
+                 backgroundColor: "#FBF8F6", padding: 8, borderRadius: 8, lineHeight: 18 },
   invActions:  { flexDirection: "row", gap: 8, marginTop: 6 },
   reBtn:       { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6,
-                 borderRadius: 8, backgroundColor: "#EDE9FE" },
+                 borderRadius: 8, backgroundColor: "#EEDDF5" },
   reTxt:       { fontSize: 11, fontFamily: "Inter_600SemiBold", color: P },
-  cancelBtnSm: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FEE2E2" },
+  cancelBtnSm: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F9DEDA" },
   cancelSmTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: DANGER },
   editBtn:     { padding: 8 },
   empty:       { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyTxt:    { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:    { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });
 
 const m = StyleSheet.create({
@@ -376,13 +376,13 @@ const m = StyleSheet.create({
   sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, gap: 12 },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  label:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12,
-               paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  label:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  input:     { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, paddingHorizontal: 12,
+               paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
   btnRow:    { flexDirection: "row", gap: 10, marginTop: 4 },
-  cancelBtn: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6" },
-  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  cancelBtn: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F6F3F1" },
+  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   saveBtn:   { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: P },
   saveTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

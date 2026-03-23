@@ -13,7 +13,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useExtraStorageStore } from '@/store/extraStorageStore'
 import { useOperatorsStore } from '@/store/operatorsStore'
 
-const G = '#059669'
+const G = '#1F8F86'
 
 function fmtMb(mb: number) {
   if (mb < 1024) return `${mb} MB`
@@ -79,27 +79,27 @@ export default function ExtraStorageScreen() {
           <Text style={s.sectionTitle}>현재 저장공간 현황</Text>
           <View style={s.row}><Text style={s.rowLabel}>기본 용량 (플랜)</Text><Text style={s.rowVal}>{fmtMb(planBaseMb)}</Text></View>
           <View style={s.row}><Text style={s.rowLabel}>추가 구매 용량</Text><Text style={[s.rowVal, { color: G }]}>{fmtMb(extraMb)}</Text></View>
-          <View style={[s.row, { borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 8, marginTop: 4 }]}>
-            <Text style={[s.rowLabel, { fontFamily: 'Inter_700Bold', color: '#111827' }]}>총 사용 가능</Text>
-            <Text style={[s.rowVal, { fontFamily: 'Inter_700Bold', color: '#111827' }]}>{fmtMb(totalMb)}</Text>
+          <View style={[s.row, { borderTopWidth: 1, borderTopColor: '#F6F3F1', paddingTop: 8, marginTop: 4 }]}>
+            <Text style={[s.rowLabel, { fontFamily: 'Inter_700Bold', color: '#1F1F1F' }]}>총 사용 가능</Text>
+            <Text style={[s.rowVal, { fontFamily: 'Inter_700Bold', color: '#1F1F1F' }]}>{fmtMb(totalMb)}</Text>
           </View>
           <View style={s.row}><Text style={s.rowLabel}>현재 사용량</Text><Text style={s.rowVal}>{fmtMb(usedMb)} ({usedPct}%)</Text></View>
 
           {/* 사용률 바 */}
           <View style={s.barBg}>
-            <View style={[s.barFill, { width: `${Math.min(usedPct, 100)}%` as any, backgroundColor: usedPct >= 95 ? '#DC2626' : usedPct >= 80 ? '#D97706' : G }]} />
+            <View style={[s.barFill, { width: `${Math.min(usedPct, 100)}%` as any, backgroundColor: usedPct >= 95 ? '#D96C6C' : usedPct >= 80 ? '#D97706' : G }]} />
           </View>
         </View>
 
         {/* 영상 업로드 상태 */}
-        <View style={[s.card, { borderColor: videoUnlocked ? '#D1FAE5' : '#FEE2E2' }]}>
+        <View style={[s.card, { borderColor: videoUnlocked ? '#DDF2EF' : '#F9DEDA' }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={[s.iconBox, { backgroundColor: videoUnlocked ? '#D1FAE5' : '#FEE2E2' }]}>
-              <Feather name={videoUnlocked ? 'video' : 'video-off'} size={20} color={videoUnlocked ? G : '#DC2626'} />
+            <View style={[s.iconBox, { backgroundColor: videoUnlocked ? '#DDF2EF' : '#F9DEDA' }]}>
+              <Feather name={videoUnlocked ? 'video' : 'video-off'} size={20} color={videoUnlocked ? G : '#D96C6C'} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.sectionTitle}>영상 업로드</Text>
-              <Text style={[s.rowLabel, { color: videoUnlocked ? G : '#DC2626', fontFamily: 'Inter_600SemiBold' }]}>
+              <Text style={[s.rowLabel, { color: videoUnlocked ? G : '#D96C6C', fontFamily: 'Inter_600SemiBold' }]}>
                 {videoUnlocked ? '잠금 해제됨' : '잠금 상태'}
               </Text>
             </View>
@@ -126,7 +126,7 @@ export default function ExtraStorageScreen() {
             <View style={s.prodRadio}>
               {selectedProduct === prod.id ? <View style={s.prodRadioInner} /> : null}
             </View>
-            <View style={[s.prodIconBox, { backgroundColor: '#D1FAE5' }]}>
+            <View style={[s.prodIconBox, { backgroundColor: '#DDF2EF' }]}>
               <Feather name="hard-drive" size={22} color={G} />
             </View>
             <View style={{ flex: 1 }}>
@@ -153,7 +153,7 @@ export default function ExtraStorageScreen() {
             <Text style={[s.sectionTitle, { marginTop: 8 }]}>구매 내역</Text>
             {myPurchases.map(p => (
               <View key={p.id} style={s.histCard}>
-                <View style={[s.iconBox, { backgroundColor: '#D1FAE5' }]}>
+                <View style={[s.iconBox, { backgroundColor: '#DDF2EF' }]}>
                   <Feather name="package" size={16} color={G} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -204,43 +204,43 @@ export default function ExtraStorageScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0FDF4' },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#D1FAE5', gap: 8 },
-  sectionTitle: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#111827', marginBottom: 2 },
+  safe: { flex: 1, backgroundColor: '#DFF3EC' },
+  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#DDF2EF', gap: 8 },
+  sectionTitle: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#1F1F1F', marginBottom: 2 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
-  rowLabel: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6B7280' },
-  rowVal: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#111827' },
-  barBg: { height: 8, backgroundColor: '#F3F4F6', borderRadius: 4, overflow: 'hidden', marginTop: 6 },
+  rowLabel: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6F6B68' },
+  rowVal: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#1F1F1F' },
+  barBg: { height: 8, backgroundColor: '#F6F3F1', borderRadius: 4, overflow: 'hidden', marginTop: 6 },
   barFill: { height: '100%', borderRadius: 4 },
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  prodCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 2, borderColor: '#E5E7EB' },
-  prodCardSelected: { borderColor: G, backgroundColor: '#F0FDF4' },
+  prodCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 2, borderColor: '#E9E2DD' },
+  prodCardSelected: { borderColor: G, backgroundColor: '#DFF3EC' },
   prodRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: G, alignItems: 'center', justifyContent: 'center' },
   prodRadioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: G },
   prodIconBox: { width: 46, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  prodName: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#111827' },
+  prodName: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#1F1F1F' },
   prodMb: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: G, marginTop: 2 },
-  prodNote: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#6B7280', marginTop: 2, lineHeight: 15 },
-  prodPrice: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#111827' },
+  prodNote: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#6F6B68', marginTop: 2, lineHeight: 15 },
+  prodPrice: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#1F1F1F' },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: G, borderRadius: 14, padding: 16 },
   primaryBtnDisabled: { backgroundColor: '#D1D5DB' },
   primaryBtnTxt: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
-  histCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E5E7EB' },
-  histName: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' },
-  histSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 2 },
-  histPrice: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#111827' },
+  histCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E9E2DD' },
+  histName: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#1F1F1F' },
+  histSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9A948F', marginTop: 2 },
+  histPrice: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#1F1F1F' },
 })
 
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12, paddingBottom: 40 },
-  title: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#111827' },
-  sub: { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6B7280' },
-  amount: { fontSize: 32, fontFamily: 'Inter_700Bold', color: '#111827', textAlign: 'center' },
-  price: { fontSize: 20, fontFamily: 'Inter_600SemiBold', color: '#059669', textAlign: 'center' },
-  hint: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280', textAlign: 'center', lineHeight: 18 },
-  cancelBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
-  cancelTxt: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
-  confirmBtn: { flex: 2, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#059669' },
+  title: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#1F1F1F' },
+  sub: { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6F6B68' },
+  amount: { fontSize: 32, fontFamily: 'Inter_700Bold', color: '#1F1F1F', textAlign: 'center' },
+  price: { fontSize: 20, fontFamily: 'Inter_600SemiBold', color: '#1F8F86', textAlign: 'center' },
+  hint: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6F6B68', textAlign: 'center', lineHeight: 18 },
+  cancelBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F6F3F1' },
+  cancelTxt: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#6F6B68' },
+  confirmBtn: { flex: 2, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1F8F86' },
   confirmTxt: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
 })

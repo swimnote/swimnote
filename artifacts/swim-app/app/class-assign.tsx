@@ -302,7 +302,7 @@ export default function ClassAssignScreen() {
                 </View>
               )}
             </View>
-            <View style={[s.countBadge, { backgroundColor: capacityOver ? "#FEE2E2" : C.tintLight }]}>
+            <View style={[s.countBadge, { backgroundColor: capacityOver ? "#F9DEDA" : C.tintLight }]}>
               <Text style={[s.countText, { color: capacityOver ? C.error : C.tint }]}>{capacityLabel}</Text>
             </View>
           </View>
@@ -331,7 +331,7 @@ export default function ClassAssignScreen() {
                     label: "해제",
                     icon: "minus-circle",
                     color: C.error,
-                    bg: "#FEE2E2",
+                    bg: "#F9DEDA",
                     loading: saving === item.id,
                     onPress: () => setStatusSelectTarget(item),
                   },
@@ -460,9 +460,9 @@ function RemoveStatusModal({
 }) {
   const C = Colors.light;
   const options: { key: "pending" | "suspended" | "withdrawn"; label: string; sub: string; color: string; bg: string; emoji: string; needsTiming: boolean }[] = [
-    { key: "pending",   label: "대기",  sub: "재등록 대기, 즉시 적용",           color: "#1D4ED8", bg: "#EFF6FF", emoji: "⏳", needsTiming: false },
+    { key: "pending",   label: "대기",  sub: "재등록 대기, 즉시 적용",           color: "#1F8F86", bg: "#DDF2EF", emoji: "⏳", needsTiming: false },
     { key: "suspended", label: "연기",  sub: "일시적 중단, 즉시 적용",           color: "#92400E", bg: "#FFFBEB", emoji: "⏸️", needsTiming: false },
-    { key: "suspended", label: "휴원",  sub: "휴원 처리, 이동 시점 선택 가능",   color: "#B45309", bg: "#FEF3C7", emoji: "🏖️", needsTiming: true  },
+    { key: "suspended", label: "휴원",  sub: "휴원 처리, 이동 시점 선택 가능",   color: "#B45309", bg: "#FFF1BF", emoji: "🏖️", needsTiming: true  },
     { key: "withdrawn", label: "퇴원",  sub: "수강 종료, 이동 시점 선택 가능",   color: "#991B1B", bg: "#FEF2F2", emoji: "🚪", needsTiming: true  },
   ];
   return (
@@ -546,7 +546,7 @@ function TimingPickerModal({
             onPress={() => onSelect("immediate")}
             style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#FEF2F2", borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: "#991B1B40" }}
           >
-            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#F9DEDA", alignItems: "center", justifyContent: "center" }}>
               <Feather name="zap" size={20} color="#991B1B" />
             </View>
             <View style={{ flex: 1 }}>
@@ -561,7 +561,7 @@ function TimingPickerModal({
             onPress={() => onSelect("next_month")}
             style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#FFFBEB", borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: "#B4530940" }}
           >
-            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#FEF3C7", alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#FFF1BF", alignItems: "center", justifyContent: "center" }}>
               <Feather name="calendar" size={20} color="#B45309" />
             </View>
             <View style={{ flex: 1 }}>
@@ -649,7 +649,7 @@ function StudentRow({
           r.btn,
           isAdd
             ? { backgroundColor: disabled ? C.border : C.tint }
-            : { backgroundColor: "#FEE2E2" },
+            : { backgroundColor: "#F9DEDA" },
         ]}
         onPress={!loading && !disabled ? onPress : undefined}
         disabled={loading || disabled}

@@ -185,14 +185,14 @@ function StudentLinkSheet({
     <DraggableSheet visible={visible} onClose={onClose} paddingBottom={insets.bottom + 16}>
       <Text style={s.sheetTitle}>학생 연결 요청</Text>
 
-      <View style={[s.infoBox, { backgroundColor: "#FEF3C7" }]}>
+      <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
         <Feather name="info" size={13} color="#D97706" />
         <Text style={[s.infoText, { color: "#92400E" }]}>연결 요청은 관리자 승인 후 학부모에게 노출됩니다.</Text>
       </View>
 
       {/* 신청 시 입력한 자녀 */}
       {(parent?.requested_children ?? []).length > 0 && (
-        <View style={[s.childRefBox, { backgroundColor: "#EEF2FF" }]}>
+        <View style={[s.childRefBox, { backgroundColor: "#DDF2EF" }]}>
           <View style={s.childRefHeader}>
             <Feather name="user-check" size={13} color="#4338CA" />
             <Text style={[s.childRefLabel, { color: "#4338CA" }]}>가입 신청 시 입력한 자녀</Text>
@@ -207,7 +207,7 @@ function StudentLinkSheet({
       )}
 
       {!!error && (
-        <View style={[s.errBox, { backgroundColor: "#FEE2E2" }]}>
+        <View style={[s.errBox, { backgroundColor: "#F9DEDA" }]}>
           <Text style={[s.errText, { color: C.error }]}>{error}</Text>
         </View>
       )}
@@ -329,7 +329,7 @@ function AddParentSheet({
   return (
     <DraggableSheet visible={visible} onClose={onClose} paddingBottom={insets.bottom + 16}>
       <Text style={s.sheetTitle}>학부모 계정 직접 추가</Text>
-      {!!error && <View style={[s.errBox, { backgroundColor: "#FEE2E2" }]}><Text style={[s.errText, { color: C.error }]}>{error}</Text></View>}
+      {!!error && <View style={[s.errBox, { backgroundColor: "#F9DEDA" }]}><Text style={[s.errText, { color: C.error }]}>{error}</Text></View>}
       <View style={s.field}>
         <Text style={[s.label, { color: C.textSecondary }]}>이름</Text>
         <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={formName} onChangeText={setFormName} placeholder="홍길동" placeholderTextColor={C.textMuted} />
@@ -484,9 +484,9 @@ export default function ParentsScreen() {
 
   const statusBadge = (status: string) => {
     const map: Record<string, { color: string; bg: string; label: string }> = {
-      pending:  { color: C.warning,  bg: "#FEF3C7", label: "승인 대기" },
-      approved: { color: C.success,  bg: "#D1FAE5", label: "승인됨" },
-      rejected: { color: C.error,    bg: "#FEE2E2", label: "거부됨" },
+      pending:  { color: C.warning,  bg: "#FFF1BF", label: "승인 대기" },
+      approved: { color: C.success,  bg: "#DDF2EF", label: "승인됨" },
+      rejected: { color: C.error,    bg: "#F9DEDA", label: "거부됨" },
     };
     const st = map[status] || map["pending"];
     return (

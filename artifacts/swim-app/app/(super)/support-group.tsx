@@ -27,7 +27,7 @@ const MENUS = [
     sub: "환불정책·개인정보·약관 버전·동의 확인",
     path: "/(super)/policy",
     color: "#D97706",
-    bg: "#FEF3C7",
+    bg: "#FFF1BF",
   },
   {
     icon: "edit-3" as const,
@@ -35,14 +35,14 @@ const MENUS = [
     sub: "발송 템플릿 편집·활성/비활성·버전 관리",
     path: "/(super)/invite-sms",
     color: "#7C3AED",
-    bg: "#EDE9FE",
+    bg: "#EEDDF5",
   },
   {
     icon: "list" as const,
     title: "발송 로그 관리",
     sub: "전체 SMS 발송 이력·실패 내역·운영자별 조회",
     path: "/(super)/sms-billing",
-    color: "#0891B2",
+    color: "#1F8F86",
     bg: "#ECFEFF",
   },
   {
@@ -50,8 +50,8 @@ const MENUS = [
     title: "인증번호 발송 기록",
     sub: "휴대폰 인증·2FA 인증·재발송·실패 기록",
     path: "/(super)/sms-billing",
-    color: "#059669",
-    bg: "#D1FAE5",
+    color: "#1F8F86",
+    bg: "#DDF2EF",
   },
 ];
 
@@ -80,7 +80,7 @@ export default function SupportGroupScreen() {
             <Text style={s.summaryLabel}>미처리 문의</Text>
           </View>
           <View style={[s.summaryCard, slaOverdue > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, slaOverdue > 0 && { color: "#DC2626" }]}>{slaOverdue}</Text>
+            <Text style={[s.summaryNum, slaOverdue > 0 && { color: "#D96C6C" }]}>{slaOverdue}</Text>
             <Text style={s.summaryLabel}>SLA 초과</Text>
           </View>
           <View style={[s.summaryCard, pendingInv > 0 && s.summaryAlertPurple]}>
@@ -88,11 +88,11 @@ export default function SupportGroupScreen() {
             <Text style={s.summaryLabel}>대기 초대</Text>
           </View>
           <View style={[s.summaryCard, failedSms > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, failedSms > 0 && { color: "#DC2626" }]}>{failedSms}</Text>
+            <Text style={[s.summaryNum, failedSms > 0 && { color: "#D96C6C" }]}>{failedSms}</Text>
             <Text style={s.summaryLabel}>SMS 실패</Text>
           </View>
           <View style={[s.summaryCard, blockedOps > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, blockedOps > 0 && { color: "#DC2626" }]}>{blockedOps}</Text>
+            <Text style={[s.summaryNum, blockedOps > 0 && { color: "#D96C6C" }]}>{blockedOps}</Text>
             <Text style={s.summaryLabel}>SMS 차단</Text>
           </View>
         </View>
@@ -116,18 +116,18 @@ export default function SupportGroupScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:              { flex: 1, backgroundColor: "#F5F3FF" },
+  safe:              { flex: 1, backgroundColor: "#EEDDF5" },
   summaryRow:        { flexDirection: "row", gap: 5, marginBottom: 6, flexWrap: "wrap" },
   summaryCard:       { flex: 1, minWidth: "18%", backgroundColor: "#fff", borderRadius: 12, padding: 10,
-                       alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB" },
+                       alignItems: "center", borderWidth: 1, borderColor: "#E9E2DD" },
   summaryAlertBlue:  { borderColor: "#BAE6FD", backgroundColor: "#F0F9FF" },
-  summaryAlertPurple:{ borderColor: "#C4B5FD", backgroundColor: "#F5F3FF" },
+  summaryAlertPurple:{ borderColor: "#C4B5FD", backgroundColor: "#EEDDF5" },
   summaryAlertRed:   { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
-  summaryNum:        { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
-  summaryLabel:      { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2, textAlign: "center" },
+  summaryNum:        { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  summaryLabel:      { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2, textAlign: "center" },
   card:              { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
-                       borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
+                       borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E9E2DD" },
   iconBox:           { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cardTitle:         { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
-  cardSub:           { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 3, lineHeight: 17 },
+  cardTitle:         { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  cardSub:           { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 3, lineHeight: 17 },
 });

@@ -47,9 +47,9 @@ type AttStatus = "present" | "absent" | "late";
 type ViewMode  = "daily" | "weekly" | "monthly" | "search" | "makeup";
 
 const STATUS_CONFIG = {
-  present: { label: "출석", color: Colors.light.present, bg: "#D1FAE5", icon: "check-circle" as const },
-  absent:  { label: "결석", color: Colors.light.absent,  bg: "#FEE2E2", icon: "x-circle"    as const },
-  late:    { label: "지각", color: Colors.light.late,    bg: "#FEF3C7", icon: "clock"        as const },
+  present: { label: "출석", color: Colors.light.present, bg: "#DDF2EF", icon: "check-circle" as const },
+  absent:  { label: "결석", color: Colors.light.absent,  bg: "#F9DEDA", icon: "x-circle"    as const },
+  late:    { label: "지각", color: Colors.light.late,    bg: "#FFF1BF", icon: "clock"        as const },
 };
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
 const SEARCH_DAY_OPTIONS = [
@@ -459,8 +459,8 @@ export default function AttendanceScreen() {
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                             <Text style={[a.eligibleName, { color: C.text }]}>{ec.name}</Text>
                             {isSame && (
-                              <View style={[a.sameTag, { backgroundColor: "#DBEAFE" }]}>
-                                <Text style={{ fontSize: 10, color: "#2563EB", fontFamily: "Inter_600SemiBold" }}>담당</Text>
+                              <View style={[a.sameTag, { backgroundColor: "#DDF2EF" }]}>
+                                <Text style={{ fontSize: 10, color: "#1F8F86", fontFamily: "Inter_600SemiBold" }}>담당</Text>
                               </View>
                             )}
                           </View>
@@ -469,7 +469,7 @@ export default function AttendanceScreen() {
                           </Text>
                         </View>
                         <View style={{ alignItems: "flex-end" }}>
-                          <Text style={[a.slotText, { color: ec.available_slots > 0 ? C.tint : "#EF4444" }]}>
+                          <Text style={[a.slotText, { color: ec.available_slots > 0 ? C.tint : "#D96C6C" }]}>
                             여유 {ec.available_slots}명
                           </Text>
                           <Text style={[{ fontSize: 11, color: C.textMuted, fontFamily: "Inter_400Regular" }]}>
@@ -538,14 +538,14 @@ export default function AttendanceScreen() {
                   numberOfLines={2}
                 />
               )}
-              <View style={[a.warnBox, { backgroundColor: "#FEF3C7" }]}>
+              <View style={[a.warnBox, { backgroundColor: "#FFF1BF" }]}>
                 <Feather name="alert-triangle" size={14} color="#D97706" />
                 <Text style={[{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", flex: 1 }]}>
                   소멸 처리 후 보강 기회가 사라집니다. 신중히 처리하세요.
                 </Text>
               </View>
               <Pressable
-                style={[a.confirmBtn, { backgroundColor: extReason ? "#EF4444" : C.border, opacity: extinguishing ? 0.6 : 1 }]}
+                style={[a.confirmBtn, { backgroundColor: extReason ? "#D96C6C" : C.border, opacity: extinguishing ? 0.6 : 1 }]}
                 onPress={doExtinguish}
                 disabled={!extReason || extinguishing || (extReason === "기타" && !extCustom.trim())}
               >
@@ -598,8 +598,8 @@ export default function AttendanceScreen() {
                         {item.original_class_group_name} · {item.original_teacher_name}
                       </Text>
                     </View>
-                    <View style={[a.daysTag, { backgroundColor: days >= 14 ? "#FEE2E2" : "#F3F4F6" }]}>
-                      <Text style={[a.daysTagText, { color: days >= 14 ? "#EF4444" : C.textSecondary }]}>
+                    <View style={[a.daysTag, { backgroundColor: days >= 14 ? "#F9DEDA" : "#F6F3F1" }]}>
+                      <Text style={[a.daysTagText, { color: days >= 14 ? "#D96C6C" : C.textSecondary }]}>
                         {days}일 경과
                       </Text>
                     </View>
@@ -614,11 +614,11 @@ export default function AttendanceScreen() {
                       <Text style={a.mkBtnText}>보강 지정</Text>
                     </Pressable>
                     <Pressable
-                      style={[a.mkBtn, { backgroundColor: "#FEE2E2", borderWidth: 1, borderColor: "#FCA5A5" }]}
+                      style={[a.mkBtn, { backgroundColor: "#F9DEDA", borderWidth: 1, borderColor: "#FCA5A5" }]}
                       onPress={() => openExtinguish(item)}
                     >
-                      <Feather name="x-circle" size={14} color="#EF4444" />
-                      <Text style={[a.mkBtnText, { color: "#EF4444" }]}>결석 소멸</Text>
+                      <Feather name="x-circle" size={14} color="#D96C6C" />
+                      <Text style={[a.mkBtnText, { color: "#D96C6C" }]}>결석 소멸</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -804,7 +804,7 @@ export default function AttendanceScreen() {
                     const isSat = dt.getDay() === 6;
                     return (
                       <View key={d} style={[a.weekDateCell, { borderColor: C.border, backgroundColor: isToday ? C.tintLight : "transparent" }]}>
-                        <Text style={[a.weekDayLabel, { color: isSun ? "#EF4444" : isSat ? "#3B82F6" : C.textSecondary }]}>{DAYS_KO[dt.getDay()]}</Text>
+                        <Text style={[a.weekDayLabel, { color: isSun ? "#D96C6C" : isSat ? "#4EA7D8" : C.textSecondary }]}>{DAYS_KO[dt.getDay()]}</Text>
                         <Text style={[a.weekDateLabel, { color: isToday ? C.tint : C.text }]}>{dt.getDate()}</Text>
                       </View>
                     );

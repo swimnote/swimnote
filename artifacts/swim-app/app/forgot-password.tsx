@@ -81,8 +81,8 @@ export default function ForgotPasswordScreen() {
         {/* 완료 화면 */}
         {step === "done" && (
           <View style={styles.doneWrap}>
-            <View style={[styles.doneIcon, { backgroundColor: "#ECFDF5" }]}>
-              <Feather name="check-circle" size={40} color="#10B981" />
+            <View style={[styles.doneIcon, { backgroundColor: "#DFF3EC" }]}>
+              <Feather name="check-circle" size={40} color="#2E9B6F" />
             </View>
             <Text style={[styles.doneTitle, { color: C.text }]}>비밀번호 변경 완료</Text>
             <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
@@ -100,7 +100,7 @@ export default function ForgotPasswordScreen() {
         {/* 단계 1: 아이디 확인 */}
         {step === "id" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
-            <View style={[styles.iconWrap, { backgroundColor: "#FEF3C7" }]}>
+            <View style={[styles.iconWrap, { backgroundColor: "#FFF1BF" }]}>
               <Feather name="key" size={24} color="#D97706" />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>아이디 확인</Text>
@@ -127,7 +127,7 @@ export default function ForgotPasswordScreen() {
             </View>
 
             {!!error && (
-              <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+              <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
                 <Feather name="alert-circle" size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>
@@ -198,7 +198,7 @@ export default function ForgotPasswordScreen() {
             </View>
 
             {!!error && (
-              <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+              <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
                 <Feather name="alert-circle" size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>
@@ -252,5 +252,5 @@ const styles = StyleSheet.create({
   doneWrap: { alignItems: "center", gap: 16, paddingTop: 40 },
   doneIcon: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   doneTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  doneDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22, color: "#6B7280" },
+  doneDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22, color: "#6F6B68" },
 });

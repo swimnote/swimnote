@@ -45,10 +45,10 @@ interface Props {
 }
 
 const LEVEL_COLORS: Record<SentenceLevel, string> = {
-  beginner:     "#10B981",
-  intermediate: "#3B82F6",
+  beginner:     "#2E9B6F",
+  intermediate: "#4EA7D8",
   advanced:     "#8B5CF6",
-  custom:       "#F59E0B",
+  custom:       "#E4A93A",
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -250,8 +250,8 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 disabled={preview.length === 0}
                 activeOpacity={0.7}
               >
-                <Feather name="trash-2" size={13} color={preview.length === 0 ? C.textMuted : "#EF4444"} />
-                <Text style={[s.previewBtnText, preview.length === 0 ? { color: C.textMuted } : { color: "#EF4444" }]}>전체 삭제</Text>
+                <Feather name="trash-2" size={13} color={preview.length === 0 ? C.textMuted : "#D96C6C"} />
+                <Text style={[s.previewBtnText, preview.length === 0 ? { color: C.textMuted } : { color: "#D96C6C" }]}>전체 삭제</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -346,7 +346,7 @@ const s = StyleSheet.create({
   previewBox: {
     marginHorizontal: 16, marginTop: 10,
     borderWidth: 1.5, borderColor: C.tintLight, borderRadius: 12,
-    backgroundColor: "#F8FAFF", overflow: "hidden",
+    backgroundColor: "#F6F3F1", overflow: "hidden",
   },
   previewHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

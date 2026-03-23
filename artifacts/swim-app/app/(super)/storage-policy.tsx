@@ -24,12 +24,12 @@ interface Policy {
 }
 
 const TIER_META: Record<string, { label: string; color: string; bg: string; memberRange: string }> = {
-  free:            { label: "무료 이용",      color: "#6B7280", bg: "#F3F4F6", memberRange: "50명 이하" },
-  paid_100:        { label: "100명 플랜",     color: "#059669", bg: "#ECFDF5", memberRange: "51 ~ 100명" },
-  paid_300:        { label: "300명 플랜",     color: "#0891B2", bg: "#ECFEFF", memberRange: "101 ~ 300명" },
-  paid_500:        { label: "500명 플랜",     color: "#1D4ED8", bg: "#EFF6FF", memberRange: "301 ~ 500명" },
+  free:            { label: "무료 이용",      color: "#6F6B68", bg: "#F6F3F1", memberRange: "50명 이하" },
+  paid_100:        { label: "100명 플랜",     color: "#1F8F86", bg: "#DFF3EC", memberRange: "51 ~ 100명" },
+  paid_300:        { label: "300명 플랜",     color: "#1F8F86", bg: "#ECFEFF", memberRange: "101 ~ 300명" },
+  paid_500:        { label: "500명 플랜",     color: "#1F8F86", bg: "#DDF2EF", memberRange: "301 ~ 500명" },
   paid_1000:       { label: "1,000명 플랜",  color: PURPLE,    bg: "#F3E8FF", memberRange: "501 ~ 1,000명" },
-  paid_enterprise: { label: "엔터프라이즈",   color: "#DC2626", bg: "#FEF2F2", memberRange: "1,001명 이상" },
+  paid_enterprise: { label: "엔터프라이즈",   color: "#D96C6C", bg: "#FEF2F2", memberRange: "1,001명 이상" },
 };
 
 const TIER_ORDER = ["free", "paid_100", "paid_300", "paid_500", "paid_1000", "paid_enterprise"];
@@ -91,7 +91,7 @@ export default function StoragePolicyScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F5F3FF" }}>
+    <View style={{ flex: 1, backgroundColor: "#EEDDF5" }}>
       <SubScreenHeader title="저장공간 정책 설정" homePath="/(super)/dashboard" />
 
       <View style={[styles.infoBanner, { marginHorizontal: 20 }]}>
@@ -104,7 +104,7 @@ export default function StoragePolicyScreen() {
       <ScrollView showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 12 }}>
         {policies.map(p => {
-          const meta = TIER_META[p.tier] ?? { label: p.tier, color: "#6B7280", bg: "#F3F4F6", memberRange: "" };
+          const meta = TIER_META[p.tier] ?? { label: p.tier, color: "#6F6B68", bg: "#F6F3F1", memberRange: "" };
           return (
             <View key={p.tier} style={[styles.card, { shadowColor: PURPLE + "22" }]}>
               <View style={[styles.cardHeader, { backgroundColor: meta.bg }]}>
@@ -121,19 +121,19 @@ export default function StoragePolicyScreen() {
               <View style={styles.cardBody}>
                 <View style={styles.policyRow}>
                   <View style={styles.policyItem}>
-                    <Feather name="hard-drive" size={14} color="#6B7280" />
+                    <Feather name="hard-drive" size={14} color="#6F6B68" />
                     <Text style={styles.policyKey}>기본 용량</Text>
                     <Text style={[styles.policyVal, { color: meta.color }]}>{fmtGB(p.quota_gb)}</Text>
                   </View>
                   <View style={styles.dividerV} />
                   <View style={styles.policyItem}>
-                    <Feather name="user" size={14} color="#6B7280" />
+                    <Feather name="user" size={14} color="#6F6B68" />
                     <Text style={styles.policyKey}>회원당 평균</Text>
                     <Text style={[styles.policyVal, { color: meta.color }]}>{p.per_member_mb} MB</Text>
                   </View>
                 </View>
-                <View style={[styles.extraRow, { borderColor: "#E5E7EB" }]}>
-                  <Feather name="plus-circle" size={13} color="#9CA3AF" />
+                <View style={[styles.extraRow, { borderColor: "#E9E2DD" }]}>
+                  <Feather name="plus-circle" size={13} color="#9A948F" />
                   <Text style={styles.extraText}>추가 용량 단가</Text>
                   <Text style={[styles.extraPrice, { color: meta.color }]}>{fmtPrice(p.extra_price_per_gb)}</Text>
                 </View>
@@ -160,7 +160,7 @@ export default function StoragePolicyScreen() {
                 {editTarget ? (TIER_META[editTarget.tier]?.label ?? editTarget.tier) : ""} 용량 수정
               </Text>
               <Pressable onPress={() => setEditTarget(null)}>
-                <Feather name="x" size={22} color="#6B7280" />
+                <Feather name="x" size={22} color="#6F6B68" />
               </Pressable>
             </View>
 
@@ -179,7 +179,7 @@ export default function StoragePolicyScreen() {
                   value={form[key as keyof typeof form]}
                   onChangeText={v => setForm(f => ({ ...f, [key]: v }))}
                   placeholder={placeholder}
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="#9A948F"
                   keyboardType={keyboardType}
                 />
               </View>
@@ -197,7 +197,7 @@ export default function StoragePolicyScreen() {
 }
 
 const styles = StyleSheet.create({
-  infoBanner:    { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#EDE9FE",
+  infoBanner:    { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#EEDDF5",
                    borderRadius: 12, padding: 12, marginBottom: 12 },
   infoText:      { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: PURPLE, lineHeight: 18 },
   card:          { backgroundColor: "#fff", borderRadius: 16, overflow: "hidden",
@@ -211,27 +211,27 @@ const styles = StyleSheet.create({
   cardBody:      { padding: 14, gap: 10 },
   policyRow:     { flexDirection: "row", alignItems: "center" },
   policyItem:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
-  policyKey:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", flex: 1 },
+  policyKey:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68", flex: 1 },
   policyVal:     { fontSize: 14, fontFamily: "Inter_700Bold" },
-  dividerV:      { width: 1, height: 32, backgroundColor: "#E5E7EB", marginHorizontal: 10 },
+  dividerV:      { width: 1, height: 32, backgroundColor: "#E9E2DD", marginHorizontal: 10 },
   extraRow:      { flexDirection: "row", alignItems: "center", gap: 6, borderTopWidth: 1, paddingTop: 10 },
-  extraText:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", flex: 1 },
+  extraText:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", flex: 1 },
   extraPrice:    { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  desc:          { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", lineHeight: 16 },
+  desc:          { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", lineHeight: 16 },
   thresholdNote: { flexDirection: "row", gap: 8, alignItems: "flex-start", borderWidth: 1.5,
                    borderRadius: 12, padding: 12, backgroundColor: "#FFFBEB" },
   thresholdText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
   overlay:       { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet:         { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24,
                    padding: 24, gap: 14 },
-  handle:        { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle:        { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
   modalHeader:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   modalTitle:    { fontSize: 20, fontFamily: "Inter_700Bold", color: "#1F1235" },
-  errorText:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#DC2626" },
+  errorText:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#D96C6C" },
   field:         { gap: 5 },
-  fieldLabel:    { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  input:         { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14,
-                   height: 46, fontSize: 15, fontFamily: "Inter_400Regular", color: "#1F2937", backgroundColor: "#F9FAFB" },
+  fieldLabel:    { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  input:         { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 12, paddingHorizontal: 14,
+                   height: 46, fontSize: 15, fontFamily: "Inter_400Regular", color: "#1F2937", backgroundColor: "#FBF8F6" },
   saveBtn:       { height: 50, borderRadius: 14, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center", marginTop: 4 },
   saveBtnText:   { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
 });

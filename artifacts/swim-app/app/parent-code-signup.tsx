@@ -69,8 +69,8 @@ export default function ParentCodeSignupScreen() {
     return (
       <View style={[styles.root, { backgroundColor: C.background }]}>
         <View style={[styles.doneWrap, { paddingTop: insets.top + 60 }]}>
-          <View style={[styles.doneIcon, { backgroundColor: "#ECFDF5" }]}>
-            <Feather name="check-circle" size={40} color="#10B981" />
+          <View style={[styles.doneIcon, { backgroundColor: "#DFF3EC" }]}>
+            <Feather name="check-circle" size={40} color="#2E9B6F" />
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입 완료!</Text>
           <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
@@ -120,8 +120,8 @@ export default function ParentCodeSignupScreen() {
         {/* 단계 1: 코드 입력 */}
         {step === "code" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
-            <View style={[styles.iconWrap, { backgroundColor: "#ECFDF5" }]}>
-              <Feather name="hash" size={24} color="#10B981" />
+            <View style={[styles.iconWrap, { backgroundColor: "#DFF3EC" }]}>
+              <Feather name="hash" size={24} color="#2E9B6F" />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>초대코드 입력</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -147,14 +147,14 @@ export default function ParentCodeSignupScreen() {
             </View>
 
             {!!error && (
-              <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+              <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
                 <Feather name="alert-circle" size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: "#10B981", opacity: pressed || loading ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: "#2E9B6F", opacity: pressed || loading ? 0.85 : 1 }]}
               onPress={verifyCode}
               disabled={loading}
             >
@@ -169,8 +169,8 @@ export default function ParentCodeSignupScreen() {
         {/* 단계 2: 정보 확인 */}
         {step === "confirm" && invite && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
-            <View style={[styles.iconWrap, { backgroundColor: "#ECFDF5" }]}>
-              <Feather name="user-check" size={24} color="#10B981" />
+            <View style={[styles.iconWrap, { backgroundColor: "#DFF3EC" }]}>
+              <Feather name="user-check" size={24} color="#2E9B6F" />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>정보 확인</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -196,7 +196,7 @@ export default function ParentCodeSignupScreen() {
             </View>
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: "#10B981", opacity: pressed ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: "#2E9B6F", opacity: pressed ? 0.85 : 1 }]}
               onPress={() => setStep("account")}
             >
               <Text style={styles.submitBtnText}>맞습니다, 계속</Text>
@@ -276,7 +276,7 @@ export default function ParentCodeSignupScreen() {
             </View>
 
             {!!error && (
-              <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+              <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
                 <Feather name="alert-circle" size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>

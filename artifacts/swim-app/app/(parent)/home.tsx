@@ -85,8 +85,8 @@ function IconCell({
 // ─── 뉴스 카드 ────────────────────────────────────────────────────────────
 function NewsCard({ item, onPress }: { item: NewsItem; onPress: () => void }) {
   const isNotice = item.kind === "notice";
-  const accentColor = isNotice ? "#1D4ED8" : "#059669";
-  const accentBg    = isNotice ? "#EFF6FF" : "#ECFDF5";
+  const accentColor = isNotice ? "#1F8F86" : "#1F8F86";
+  const accentBg    = isNotice ? "#DDF2EF" : "#DFF3EC";
 
   return (
     <Pressable
@@ -195,17 +195,17 @@ export default function ParentHomeScreen() {
   // 기능 아이콘 6개: 수업일지, 출결, 앨범, 공지, 쪽지, 수영정보
   const icons = [
     { icon: "book-open", label: "수업일지", badge: null,
-      color: "#059669", bg: "#ECFDF5", path: "/(parent)/diary" },
+      color: "#1F8F86", bg: "#DFF3EC", path: "/(parent)/diary" },
     { icon: "calendar",  label: "출결",     badge: null,
-      color: "#7C3AED", bg: "#F5F3FF", path: "/(parent)/attendance-history" },
+      color: "#7C3AED", bg: "#EEDDF5", path: "/(parent)/attendance-history" },
     { icon: "image",     label: "앨범",     badge: null,
-      color: "#D97706", bg: "#FFF7ED", path: "/(parent)/photos" },
+      color: "#D97706", bg: "#FFF1BF", path: "/(parent)/photos" },
     { icon: "bell",      label: "공지",     badge: unread.unread_notices,
-      color: "#1D4ED8", bg: "#EFF6FF", path: "/(parent)/notices" },
+      color: "#1F8F86", bg: "#DDF2EF", path: "/(parent)/notices" },
     { icon: "mail",      label: "쪽지",     badge: unread.unread_messages,
       color: "#0EA5E9", bg: "#F0F9FF", path: "/(parent)/messages" },
     { icon: "droplet",   label: "수영정보", badge: null,
-      color: "#1A5CFF", bg: "#EFF6FF", path: "/(parent)/swim-info" },
+      color: "#1F8F86", bg: "#DDF2EF", path: "/(parent)/swim-info" },
   ] as const;
 
   const scheduleText = selectedStudent ? getScheduleText(selectedStudent.class_group) : null;
@@ -421,7 +421,7 @@ const s = StyleSheet.create({
   iconBg: { width: 60, height: 60, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   badge: {
     position: "absolute", top: -5, right: -5,
-    minWidth: 20, height: 20, borderRadius: 10, backgroundColor: "#EF4444",
+    minWidth: 20, height: 20, borderRadius: 10, backgroundColor: "#D96C6C",
     alignItems: "center", justifyContent: "center", paddingHorizontal: 4,
     borderWidth: 2, borderColor: "#fff",
   },
@@ -440,7 +440,7 @@ const s = StyleSheet.create({
   newsDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
   newsTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
   newsBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
-  noteBox: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#F5F3FF", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
+  noteBox: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#EEDDF5", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
   noteTxt: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
   moreLink: { fontSize: 12, fontFamily: "Inter_500Medium" },
 

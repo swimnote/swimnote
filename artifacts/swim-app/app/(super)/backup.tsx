@@ -25,10 +25,10 @@ const TABS = [
 ];
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: "대기 중", color: "#D97706", bg: "#FEF3C7" },
-  running: { label: "진행 중", color: "#0891B2", bg: "#ECFEFF" },
-  done:    { label: "완료",    color: "#059669", bg: "#D1FAE5" },
-  failed:  { label: "실패",    color: "#DC2626", bg: "#FEE2E2" },
+  pending: { label: "대기 중", color: "#D97706", bg: "#FFF1BF" },
+  running: { label: "진행 중", color: "#1F8F86", bg: "#ECFEFF" },
+  done:    { label: "완료",    color: "#1F8F86", bg: "#DDF2EF" },
+  failed:  { label: "실패",    color: "#D96C6C", bg: "#F9DEDA" },
 };
 
 function fmtDateTime(iso: string | null | undefined): string {
@@ -78,7 +78,7 @@ function BackupCard({
           <Text style={[bc.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
         </View>
         {isSnapshot && (
-          <View style={[bc.badge, { backgroundColor: "#EDE9FE" }]}>
+          <View style={[bc.badge, { backgroundColor: "#EEDDF5" }]}>
             <Text style={[bc.badgeTxt, { color: P }]}>스냅샷</Text>
           </View>
         )}
@@ -92,16 +92,16 @@ function BackupCard({
 
       <View style={bc.meta}>
         <View style={bc.metaItem}>
-          <Feather name="hard-drive" size={11} color="#6B7280" />
+          <Feather name="hard-drive" size={11} color="#6F6B68" />
           <Text style={bc.metaVal}>{fmtMb(item.sizeMb)}</Text>
         </View>
         <View style={bc.metaItem}>
-          <Feather name="clock" size={11} color="#6B7280" />
+          <Feather name="clock" size={11} color="#6F6B68" />
           <Text style={bc.metaVal}>{fmtDateTime(item.createdAt)}</Text>
         </View>
         {item.note && (
           <View style={bc.metaItem}>
-            <Feather name="file-text" size={11} color="#6B7280" />
+            <Feather name="file-text" size={11} color="#6F6B68" />
             <Text style={bc.metaVal} numberOfLines={1}>{item.note}</Text>
           </View>
         )}
@@ -109,16 +109,16 @@ function BackupCard({
 
       <View style={bc.actions}>
         {item.status === "done" && (
-          <Pressable style={[bc.btn, { backgroundColor: "#FEE2E2" }]} onPress={() => onRestore(item)}>
-            <Feather name="rotate-ccw" size={12} color="#DC2626" />
-            <Text style={[bc.btnTxt, { color: "#DC2626" }]}>복구</Text>
+          <Pressable style={[bc.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => onRestore(item)}>
+            <Feather name="rotate-ccw" size={12} color="#D96C6C" />
+            <Text style={[bc.btnTxt, { color: "#D96C6C" }]}>복구</Text>
           </Pressable>
         )}
         <Pressable
-          style={[bc.btn, { backgroundColor: isCompareSelected ? "#EDE9FE" : "#F3F4F6" }]}
+          style={[bc.btn, { backgroundColor: isCompareSelected ? "#EEDDF5" : "#F6F3F1" }]}
           onPress={() => onToggleCompare(item)}>
-          <Feather name="shuffle" size={12} color={isCompareSelected ? P : "#6B7280"} />
-          <Text style={[bc.btnTxt, { color: isCompareSelected ? P : "#6B7280" }]}>비교 선택</Text>
+          <Feather name="shuffle" size={12} color={isCompareSelected ? P : "#6F6B68"} />
+          <Text style={[bc.btnTxt, { color: isCompareSelected ? P : "#6F6B68" }]}>비교 선택</Text>
         </Pressable>
       </View>
     </View>
@@ -126,17 +126,17 @@ function BackupCard({
 }
 
 const bc = StyleSheet.create({
-  card:        { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E5E7EB" },
+  card:        { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E9E2DD" },
   cardSelected:{ borderColor: P, borderWidth: 2 },
   top:         { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   badge:       { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
   badgeTxt:    { fontSize: 10, fontFamily: "Inter_700Bold" },
-  type:        { fontSize: 11, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  time:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginLeft: "auto" },
-  name:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 8 },
+  type:        { fontSize: 11, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  time:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginLeft: "auto" },
+  name:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 8 },
   meta:        { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
   metaItem:    { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaVal:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  metaVal:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
   actions:     { flexDirection: "row", gap: 8 },
   btn:         { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7 },
   btnTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold" },
@@ -157,9 +157,9 @@ function RestoreModal({
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FAFB" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
         <View style={rm.header}>
-          <Pressable onPress={onClose}><Feather name="x" size={20} color="#6B7280" /></Pressable>
+          <Pressable onPress={onClose}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
           <Text style={rm.title}>데이터 복구</Text>
           <View style={{ width: 24 }} />
         </View>
@@ -183,13 +183,13 @@ function RestoreModal({
             <Text style={rm.diffTitle}>복구 예정 항목 (diff)</Text>
             {["출결 기록", "일지/메모", "쪽지", "회원 정보", "수업 일정"].map(item => (
               <View key={item} style={rm.diffRow}>
-                <Feather name="check-circle" size={14} color="#059669" />
+                <Feather name="check-circle" size={14} color="#1F8F86" />
                 <Text style={rm.diffItem}>{item}</Text>
               </View>
             ))}
             <View style={rm.diffRow}>
-              <Feather name="x-circle" size={14} color="#DC2626" />
-              <Text style={[rm.diffItem, { color: "#DC2626" }]}>사진/영상 원본 (복구 불가)</Text>
+              <Feather name="x-circle" size={14} color="#D96C6C" />
+              <Text style={[rm.diffItem, { color: "#D96C6C" }]}>사진/영상 원본 (복구 불가)</Text>
             </View>
           </View>
           <View>
@@ -199,7 +199,7 @@ function RestoreModal({
               value={reason}
               onChangeText={setReason}
               placeholder="복구 사유를 입력하세요"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="#9A948F"
               multiline
               numberOfLines={3}
               textAlignVertical="top"
@@ -219,20 +219,20 @@ function RestoreModal({
 }
 
 const rm = StyleSheet.create({
-  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
-  warningBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FEF3C7", borderRadius: 10, padding: 14 },
+  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  warningBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14 },
   warningTxt: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#92400E", lineHeight: 20 },
-  infoBox:    { backgroundColor: "#F9FAFB", borderRadius: 10, padding: 14, gap: 4 },
-  infoLabel:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
-  infoVal:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 6 },
-  diffBox:    { backgroundColor: "#fff", borderRadius: 10, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E5E7EB" },
-  diffTitle:  { fontSize: 12, fontFamily: "Inter_700Bold", color: "#374151", marginBottom: 4 },
+  infoBox:    { backgroundColor: "#FBF8F6", borderRadius: 10, padding: 14, gap: 4 },
+  infoLabel:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  infoVal:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 6 },
+  diffBox:    { backgroundColor: "#fff", borderRadius: 10, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E9E2DD" },
+  diffTitle:  { fontSize: 12, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 4 },
   diffRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
-  diffItem:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151" },
-  inputLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#374151", marginBottom: 6 },
-  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827", height: 90 },
-  confirmBtn: { backgroundColor: "#DC2626", borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
+  diffItem:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  inputLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 6 },
+  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", height: 90 },
+  confirmBtn: { backgroundColor: "#D96C6C", borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   confirmTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
 
@@ -247,7 +247,7 @@ function CompareModal({ items, onClose }: { items: BackupSnapshot[]; onClose: ()
         <View style={cm.sheet}>
           <View style={cm.header}>
             <Text style={cm.title}>스냅샷 비교</Text>
-            <Pressable onPress={onClose}><Feather name="x" size={18} color="#6B7280" /></Pressable>
+            <Pressable onPress={onClose}><Feather name="x" size={18} color="#6F6B68" /></Pressable>
           </View>
           <View style={cm.row}>
             <View style={cm.col}>
@@ -267,10 +267,10 @@ function CompareModal({ items, onClose }: { items: BackupSnapshot[]; onClose: ()
           <View style={cm.diffSection}>
             <Text style={cm.diffTitle}>예상 변경사항 (시뮬레이션)</Text>
             {[
-              ["출결 기록", "+12건",   "#059669"],
-              ["일지",     "+5건",    "#059669"],
-              ["회원 정보", "변경 없음", "#6B7280"],
-              ["사진/영상", "복구 불가", "#DC2626"],
+              ["출결 기록", "+12건",   "#1F8F86"],
+              ["일지",     "+5건",    "#1F8F86"],
+              ["회원 정보", "변경 없음", "#6F6B68"],
+              ["사진/영상", "복구 불가", "#D96C6C"],
             ].map(([k, v, c]) => (
               <View key={k} style={cm.diffRow}>
                 <Text style={cm.diffKey}>{k}</Text>
@@ -292,21 +292,21 @@ const cm = StyleSheet.create({
   backdrop:    { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
   sheet:       { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   header:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  title:       { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
+  title:       { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   row:         { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 },
-  col:         { flex: 1, backgroundColor: "#F9FAFB", borderRadius: 10, padding: 12 },
-  colLabel:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#9CA3AF" },
-  colName:     { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827", marginTop: 4 },
-  colDate:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  col:         { flex: 1, backgroundColor: "#FBF8F6", borderRadius: 10, padding: 12 },
+  colLabel:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#9A948F" },
+  colName:     { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginTop: 4 },
+  colDate:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
   colSize:     { fontSize: 11, fontFamily: "Inter_600SemiBold", color: P, marginTop: 4 },
   divider:     { width: 32, alignItems: "center" },
-  diffSection: { backgroundColor: "#F9FAFB", borderRadius: 10, padding: 14, gap: 8, marginBottom: 16 },
-  diffTitle:   { fontSize: 12, fontFamily: "Inter_700Bold", color: "#374151", marginBottom: 4 },
+  diffSection: { backgroundColor: "#FBF8F6", borderRadius: 10, padding: 14, gap: 8, marginBottom: 16 },
+  diffTitle:   { fontSize: 12, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 4 },
   diffRow:     { flexDirection: "row", justifyContent: "space-between" },
-  diffKey:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#374151" },
+  diffKey:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
   diffVal:     { fontSize: 12, fontFamily: "Inter_700Bold" },
-  closeBtn:    { backgroundColor: "#F3F4F6", borderRadius: 10, padding: 14, alignItems: "center" },
-  closeBtnTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  closeBtn:    { backgroundColor: "#F6F3F1", borderRadius: 10, padding: 14, alignItems: "center" },
+  closeBtnTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
 });
 
 // ── 생성 모달 ─────────────────────────────────────────────────────
@@ -325,9 +325,9 @@ function CreateModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FAFB" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
         <View style={cr.header}>
-          <Pressable onPress={onClose}><Feather name="x" size={20} color="#6B7280" /></Pressable>
+          <Pressable onPress={onClose}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
           <Text style={cr.title}>백업/스냅샷 생성</Text>
           <View style={{ width: 24 }} />
         </View>
@@ -349,14 +349,14 @@ function CreateModal({
             <View>
               <Text style={cr.label}>운영자 ID</Text>
               <TextInput style={cr.input} value={operatorId} onChangeText={setOpId}
-                placeholder="운영자 ID를 입력하세요" placeholderTextColor="#9CA3AF" />
+                placeholder="운영자 ID를 입력하세요" placeholderTextColor="#9A948F" />
             </View>
           )}
 
           <View>
             <Text style={cr.label}>메모 (선택)</Text>
             <TextInput style={cr.input} value={note} onChangeText={setNote}
-              placeholder="이 백업에 대한 메모를 입력하세요" placeholderTextColor="#9CA3AF"
+              placeholder="이 백업에 대한 메모를 입력하세요" placeholderTextColor="#9A948F"
               multiline numberOfLines={2} />
           </View>
 
@@ -372,15 +372,15 @@ function CreateModal({
 }
 
 const cr = StyleSheet.create({
-  header:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:        { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
-  label:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#374151", marginBottom: 8 },
+  header:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  title:        { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  label:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 8 },
   segRow:       { flexDirection: "row", gap: 8 },
-  seg:          { flex: 1, padding: 10, borderRadius: 8, backgroundColor: "#F3F4F6", alignItems: "center" },
+  seg:          { flex: 1, padding: 10, borderRadius: 8, backgroundColor: "#F6F3F1", alignItems: "center" },
   segActive:    { backgroundColor: P },
-  segTxt:       { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  segTxt:       { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   segActiveTxt: { color: "#fff" },
-  input:        { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  input:        { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
   confirmBtn:   { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   confirmTxt:   { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
@@ -480,7 +480,7 @@ export default function BackupScreen() {
 
       {compareItems.length > 0 && (
         <View style={s.compareBar}>
-          <Feather name="info" size={13} color="#0891B2" />
+          <Feather name="info" size={13} color="#1F8F86" />
           <Text style={s.compareBarTxt}>
             {compareItems.length}개 선택됨 — {compareItems.length < 2 ? "1개 더 선택하세요" : "비교 준비됨"}
           </Text>
@@ -545,21 +545,21 @@ export default function BackupScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#F9FAFB" },
+  safe:           { flex: 1, backgroundColor: "#FBF8F6" },
   topBar:         { flexDirection: "row", gap: 8, margin: 16, marginBottom: 0 },
   createBtn:      { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, backgroundColor: P, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   createBtnTxt:   { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
-  compareBtn:     { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, backgroundColor: "#EDE9FE", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  compareBtn:     { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   compareBar:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#ECFEFF", marginHorizontal: 16, marginTop: 10, borderRadius: 8, padding: 10 },
-  compareBarTxt:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#0891B2", flex: 1 },
+  compareBarTxt:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F8F86", flex: 1 },
   clearCompare:   { marginLeft: "auto" },
-  clearCompareTxt:{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#DC2626" },
+  clearCompareTxt:{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
   tabRow:         { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  tab:            { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#F3F4F6" },
+  tab:            { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#F6F3F1" },
   tabActive:      { backgroundColor: P },
-  tabTxt:         { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  tabTxt:         { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   tabActiveTxt:   { color: "#fff" },
   empty:          { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#9CA3AF" },
-  emptySubTxt:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#9A948F" },
+  emptySubTxt:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });

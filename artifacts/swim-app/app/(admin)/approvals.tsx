@@ -28,9 +28,9 @@ const C = Colors.light;
 
 // 매칭 상태 설정
 const MATCH_CFG: Record<MatchStatus, { label: string; color: string; bg: string; icon: string }> = {
-  full_match:  { label: "자동 일치", color: "#059669", bg: "#D1FAE5", icon: "zap"         },
-  phone_only:  { label: "번호만 일치", color: "#D97706", bg: "#FEF3C7", icon: "phone"     },
-  no_match:    { label: "미일치",    color: "#6B7280", bg: "#F3F4F6", icon: "alert-circle" },
+  full_match:  { label: "자동 일치", color: "#1F8F86", bg: "#DDF2EF", icon: "zap"         },
+  phone_only:  { label: "번호만 일치", color: "#D97706", bg: "#FFF1BF", icon: "phone"     },
+  no_match:    { label: "미일치",    color: "#6F6B68", bg: "#F6F3F1", icon: "alert-circle" },
 };
 
 const JOIN_STATUS_CFG: Record<JoinStatus, { label: string }> = {
@@ -117,7 +117,7 @@ function ClassTransferModal({
                   style={[tm.teacherRow, selected === t.userId && { borderColor: C.tint, backgroundColor: C.tintLight }]}
                   onPress={() => setSelected(t.userId)}
                 >
-                  <View style={[tm.avatar, { backgroundColor: selected === t.userId ? C.tint : "#E5E7EB" }]}>
+                  <View style={[tm.avatar, { backgroundColor: selected === t.userId ? C.tint : "#E9E2DD" }]}>
                     <Text style={[tm.avatarText, { color: selected === t.userId ? "#fff" : C.textSecondary }]}>
                       {t.name[0]}
                     </Text>
@@ -133,7 +133,7 @@ function ClassTransferModal({
           )}
 
           <View style={tm.btnRow}>
-            <Pressable style={[tm.btn, { backgroundColor: "#F3F4F6" }]} onPress={onClose}>
+            <Pressable style={[tm.btn, { backgroundColor: "#F6F3F1" }]} onPress={onClose}>
               <Text style={[tm.btnText, { color: C.textSecondary }]}>취소</Text>
             </Pressable>
             <Pressable
@@ -155,7 +155,7 @@ function ClassTransferModal({
 const tm = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 16, maxHeight: "80%" },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   title: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
   sub: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 4, maxWidth: "90%", lineHeight: 18 },
@@ -208,8 +208,8 @@ function TeacherDetailModal({
           <View style={dm.handle} />
           <View style={dm.header}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={[dm.headerAvatar, { backgroundColor: "#DBEAFE" }]}>
-                <Text style={[dm.headerAvatarText, { color: "#2563EB" }]}>{detail.name[0]}</Text>
+              <View style={[dm.headerAvatar, { backgroundColor: "#DDF2EF" }]}>
+                <Text style={[dm.headerAvatarText, { color: "#1F8F86" }]}>{detail.name[0]}</Text>
               </View>
               <View>
                 <Text style={dm.headerName}>{detail.name}</Text>
@@ -271,11 +271,11 @@ function TeacherDetailModal({
             {isApproved && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={dm.approvedActions}>
                 {onRevoke && (
-                  <Pressable style={[dm.smBtn, { borderWidth: 1.5, borderColor: "#DC2626", backgroundColor: "#FEF2F2" }]} onPress={onRevoke} disabled={processing}>
-                    {processing ? <ActivityIndicator color="#DC2626" size="small" /> : (
+                  <Pressable style={[dm.smBtn, { borderWidth: 1.5, borderColor: "#D96C6C", backgroundColor: "#FEF2F2" }]} onPress={onRevoke} disabled={processing}>
+                    {processing ? <ActivityIndicator color="#D96C6C" size="small" /> : (
                       <>
-                        <Feather name="user-minus" size={13} color="#DC2626" />
-                        <Text style={[dm.smBtnText, { color: "#DC2626" }]}>승인 해제</Text>
+                        <Feather name="user-minus" size={13} color="#D96C6C" />
+                        <Text style={[dm.smBtnText, { color: "#D96C6C" }]}>승인 해제</Text>
                       </>
                     )}
                   </Pressable>
@@ -298,7 +298,7 @@ function TeacherDetailModal({
 const dm = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 16, maxHeight: "85%" },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerAvatar: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   headerAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
@@ -576,7 +576,7 @@ export default function ApprovalsScreen() {
             </View>
           )}
           {req.status === "on_hold" && (
-            <View style={[x.autoChip, { backgroundColor: "#FEF3C7" }]}>
+            <View style={[x.autoChip, { backgroundColor: "#FFF1BF" }]}>
               <Text style={[x.autoChipTxt, { color: "#D97706" }]}>보류</Text>
             </View>
           )}
@@ -590,7 +590,7 @@ export default function ApprovalsScreen() {
         ))}
         {lastInvite && (
           <View style={x.inviteHint}>
-            <Feather name="send" size={11} color="#0891B2" />
+            <Feather name="send" size={11} color="#1F8F86" />
             <Text style={x.inviteHintTxt}>
               초대 이력 있음 · {lastInvite.senderName} ·{" "}
               {new Date(lastInvite.createdAt).toLocaleDateString("ko-KR")}
@@ -803,12 +803,12 @@ export default function ApprovalsScreen() {
                 <View style={pd.actions}>
                   {(isPending || isOnHold) && (
                     <>
-                      <Pressable style={[pd.btn, { backgroundColor: "#FEF3C7", borderColor: "#D97706", borderWidth: 1 }]}
+                      <Pressable style={[pd.btn, { backgroundColor: "#FFF1BF", borderColor: "#D97706", borderWidth: 1 }]}
                         onPress={() => handleStoreHold(req.id)}>
                         <Feather name="pause" size={14} color="#D97706" />
                         <Text style={[pd.btnTxt, { color: "#D97706" }]}>보류</Text>
                       </Pressable>
-                      <Pressable style={[pd.btn, { backgroundColor: "#FEE2E2", borderColor: C.error, borderWidth: 1 }]}
+                      <Pressable style={[pd.btn, { backgroundColor: "#F9DEDA", borderColor: C.error, borderWidth: 1 }]}
                         onPress={() => { setStoreParentDetail(null); setStoreRejectTargetId(req.id); }}>
                         <Feather name="x" size={14} color={C.error} />
                         <Text style={[pd.btnTxt, { color: C.error }]}>거절</Text>
@@ -821,16 +821,16 @@ export default function ApprovalsScreen() {
                     </>
                   )}
                   {isApproved && (
-                    <Pressable style={[pd.btn, { flex: 1, backgroundColor: "#FEE2E2", borderColor: "#DC2626", borderWidth: 1 }]}
+                    <Pressable style={[pd.btn, { flex: 1, backgroundColor: "#F9DEDA", borderColor: "#D96C6C", borderWidth: 1 }]}
                       onPress={() => { storeReject(req.id, "승인 해제", actorName); setStoreParentDetail(null); }}>
-                      <Feather name="user-x" size={14} color="#DC2626" />
-                      <Text style={[pd.btnTxt, { color: "#DC2626" }]}>승인 해제</Text>
+                      <Feather name="user-x" size={14} color="#D96C6C" />
+                      <Text style={[pd.btnTxt, { color: "#D96C6C" }]}>승인 해제</Text>
                     </Pressable>
                   )}
                   {req.status === "rejected" && (
                     <>
                       <View style={pd.rejectInfo}>
-                        <Feather name="info" size={13} color="#DC2626" />
+                        <Feather name="info" size={13} color="#D96C6C" />
                         <Text style={pd.rejectInfoTxt}>
                           거절 상태입니다. 재승인하면 가입을 허용합니다.
                         </Text>
@@ -897,22 +897,22 @@ const x = StyleSheet.create({
   childBox:    { gap: 6 },
   matchRow:    { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
   matchTxt:    { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  autoChip:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "#D1FAE5" },
-  autoChipTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#059669" },
+  autoChip:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "#DDF2EF" },
+  autoChipTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#1F8F86" },
   childTitle:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 2 },
   childRow:    { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
   childName:    { fontSize: 13, fontFamily: "Inter_500Medium", color: C.text },
   childYear:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
   inviteHint:   { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2,
                   backgroundColor: "#ECFEFF", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  inviteHintTxt:{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#0891B2", flex: 1 },
+  inviteHintTxt:{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#1F8F86", flex: 1 },
 });
 
 // 학부모 상세 모달 스타일
 const pd = StyleSheet.create({
   overlay:    { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet:      { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 22, gap: 14, maxHeight: "88%" },
-  handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
   header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   avatar:     { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarTxt:  { fontSize: 18, fontFamily: "Inter_700Bold" },
@@ -935,7 +935,7 @@ const pd = StyleSheet.create({
   btn:           { flex: 1, height: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12 },
   btnTxt:        { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   rejectInfo:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FEF2F2", borderRadius: 10, padding: 12 },
-  rejectInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#DC2626", lineHeight: 17 },
+  rejectInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C", lineHeight: 17 },
 });
 
 function PDRow({ label, value }: { label: string; value: string }) {

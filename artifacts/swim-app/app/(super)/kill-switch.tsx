@@ -16,7 +16,7 @@ import { useAuditLogStore } from "@/store/auditLogStore";
 import { useBackupStore } from "@/store/backupStore";
 import type { DeletionReason } from "@/domain/types";
 
-const DANGER = "#DC2626";
+const DANGER = "#D96C6C";
 const WARN   = "#D97706";
 const P      = "#7C3AED";
 
@@ -216,8 +216,8 @@ export default function KillSwitchScreen() {
               </View>
             )}
             {poolId && isTerminated && (
-              <View style={[s.warnBox, { backgroundColor: "#D1FAE5" }]}>
-                <Feather name="check-circle" size={13} color="#059669" />
+              <View style={[s.warnBox, { backgroundColor: "#DDF2EF" }]}>
+                <Feather name="check-circle" size={13} color="#1F8F86" />
                 <Text style={[s.warnTxt, { color: "#065F46" }]}>해지 확정 완료 — 삭제 실행 가능합니다.</Text>
               </View>
             )}
@@ -242,7 +242,7 @@ export default function KillSwitchScreen() {
               );
             })}
             <TextInput style={s.reasonInput} value={reason} onChangeText={setReason}
-              placeholder="상세 사유 입력 (필수)" placeholderTextColor="#9CA3AF" />
+              placeholder="상세 사유 입력 (필수)" placeholderTextColor="#9A948F" />
           </StepCard>
 
           {/* STEP 3: 삭제 방식 */}
@@ -264,10 +264,10 @@ export default function KillSwitchScreen() {
             {deleteMode === "period" && (
               <View style={s.dateRow}>
                 <TextInput style={[s.dateInput, { flex: 1 }]} value={fromDate} onChangeText={setFromDate}
-                  placeholder="시작일 (YYYY-MM-DD)" placeholderTextColor="#9CA3AF" />
+                  placeholder="시작일 (YYYY-MM-DD)" placeholderTextColor="#9A948F" />
                 <Text style={s.dateSep}>~</Text>
                 <TextInput style={[s.dateInput, { flex: 1 }]} value={toDate} onChangeText={setToDate}
-                  placeholder="종료일 (YYYY-MM-DD)" placeholderTextColor="#9CA3AF" />
+                  placeholder="종료일 (YYYY-MM-DD)" placeholderTextColor="#9A948F" />
               </View>
             )}
             {deleteMode === "item" && (
@@ -309,7 +309,7 @@ export default function KillSwitchScreen() {
                 <Text style={s.queueName}>{op.name}</Text>
                 <Text style={[s.queueTimer, { color: DANGER }]}>{hoursLeft(op.autoDeleteScheduledAt)}</Text>
                 {op.isTerminationConfirmed
-                  ? <Text style={[s.queueMeta, { color: '#059669' }]}>해지 확정 ✓</Text>
+                  ? <Text style={[s.queueMeta, { color: '#1F8F86' }]}>해지 확정 ✓</Text>
                   : <Text style={[s.queueMeta, { color: WARN }]}>해지 미확정 ⚠️</Text>
                 }
               </View>
@@ -358,7 +358,7 @@ export default function KillSwitchScreen() {
                 <Text style={s.logMeta}>{l.actorName} · {new Date(l.createdAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</Text>
                 {l.detail ? <Text style={s.logDetail}>{l.detail}</Text> : null}
               </View>
-              <View style={[s.impactBadge, { backgroundColor: l.impact === 'critical' ? '#FEE2E2' : '#FEF3C7' }]}>
+              <View style={[s.impactBadge, { backgroundColor: l.impact === 'critical' ? '#F9DEDA' : '#FFF1BF' }]}>
                 <Text style={[s.impactTxt, { color: l.impact === 'critical' ? DANGER : WARN }]}>{l.impact}</Text>
               </View>
             </View>
@@ -393,9 +393,9 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>A. 삭제 전 스냅샷 강제 생성 (필수)</Text>
                   {snapshotCreated
-                    ? <View style={m.snapshotDone}><Feather name="check-circle" size={14} color="#059669" /><Text style={m.snapshotDoneTxt}>스냅샷 생성 완료</Text></View>
+                    ? <View style={m.snapshotDone}><Feather name="check-circle" size={14} color="#1F8F86" /><Text style={m.snapshotDoneTxt}>스냅샷 생성 완료</Text></View>
                     : <Pressable style={m.snapshotBtn} onPress={doCreateSnapshot}>
-                        <Feather name="archive" size={14} color="#0891B2" />
+                        <Feather name="archive" size={14} color="#1F8F86" />
                         <Text style={m.snapshotBtnTxt}>지금 스냅샷 생성</Text>
                       </Pressable>
                   }
@@ -422,7 +422,7 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>C. 관리자 비밀번호 재입력</Text>
                   <TextInput style={m.pwInput} value={adminPassword} onChangeText={setAdminPassword}
-                    secureTextEntry placeholder="비밀번호 입력" placeholderTextColor="#9CA3AF" />
+                    secureTextEntry placeholder="비밀번호 입력" placeholderTextColor="#9A948F" />
                   <Text style={m.pwHint}>* mock 환경: 'admin1234'</Text>
                 </View>
 
@@ -430,7 +430,7 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>D. '영구삭제' 정확히 입력</Text>
                   <TextInput style={m.confirmInput} value={confirmText} onChangeText={setConfirmText}
-                    placeholder="영구삭제" placeholderTextColor="#9CA3AF" />
+                    placeholder="영구삭제" placeholderTextColor="#9A948F" />
                 </View>
 
                 <View style={m.btnRow}>
@@ -471,54 +471,54 @@ const s = StyleSheet.create({
   dangerBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: DANGER,
                   paddingHorizontal: 14, paddingVertical: 10 },
   bannerTxt:    { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#fff", lineHeight: 16 },
-  tabBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  tabBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
   tab:          { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20 },
-  tabActive:    { backgroundColor: "#FEE2E2" },
-  tabTxt:       { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  tabActive:    { backgroundColor: "#F9DEDA" },
+  tabTxt:       { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68" },
   tabTxtActive: { color: DANGER, fontFamily: "Inter_700Bold" },
 
   stepCard:     { backgroundColor: "#fff", borderRadius: 14, overflow: "hidden",
                   shadowColor: "#0000001A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 3, elevation: 1 },
   stepHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#FFF5F5",
-                  borderBottomWidth: 1, borderBottomColor: "#FEE2E2" },
+                  borderBottomWidth: 1, borderBottomColor: "#F9DEDA" },
   stepBadge:    { width: 24, height: 24, borderRadius: 12, backgroundColor: DANGER, alignItems: "center", justifyContent: "center" },
   stepBadgeTxt: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
-  stepTitle:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#374151", flex: 1 },
+  stepTitle:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F", flex: 1 },
   stepBody:     { padding: 12, gap: 10 },
 
   opChip:       { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB" },
+                  borderWidth: 1.5, borderColor: "#E9E2DD", backgroundColor: "#FBF8F6" },
   opChipActive: { borderColor: DANGER, backgroundColor: "#FFF5F5" },
   opChipDisabled:{ opacity: 0.5 },
-  opChipTxt:    { fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
+  opChipTxt:    { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
 
-  warnBox:      { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FEF3C7",
+  warnBox:      { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFF1BF",
                   padding: 10, borderRadius: 10 },
   warnTxt:      { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
 
   reasonRow:    { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#E5E7EB" },
-  reasonLabel:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  reasonDesc:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
-  reasonInput:  { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                  fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+                  borderWidth: 1.5, borderColor: "#E9E2DD" },
+  reasonLabel:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  reasonDesc:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  reasonInput:  { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12,
+                  fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
 
   modeRow:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#FAFAFA" },
+                  borderWidth: 1.5, borderColor: "#E9E2DD", backgroundColor: "#FAFAFA" },
   modeLabel:    { fontSize: 14, fontFamily: "Inter_700Bold" },
-  modeDesc:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  modeDesc:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
   radio:        { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: "#D1D5DB",
                   alignItems: "center", justifyContent: "center" },
   radioDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" },
   dateRow:      { flexDirection: "row", alignItems: "center", gap: 8 },
-  dateInput:    { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 10,
-                  fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827" },
-  dateSep:      { fontSize: 14, color: "#9CA3AF" },
+  dateInput:    { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 10,
+                  fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  dateSep:      { fontSize: 14, color: "#9A948F" },
   itemWrap:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   itemChip:     { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB" },
+                  borderWidth: 1.5, borderColor: "#E9E2DD", backgroundColor: "#FBF8F6" },
   itemChipActive:{ borderColor: DANGER, backgroundColor: "#FEF2F2" },
-  itemChipTxt:  { fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
+  itemChipTxt:  { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
 
   execBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
                   backgroundColor: DANGER, borderRadius: 14, padding: 16 },
@@ -527,29 +527,29 @@ const s = StyleSheet.create({
   queueCard:    { backgroundColor: "#fff", borderRadius: 12, padding: 14, flexDirection: "row",
                   alignItems: "center", gap: 10,
                   shadowColor: "#0000001A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 2, elevation: 1 },
-  queueName:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  queueName:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   queueTimer:   { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 2 },
   queueMeta:    { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   queueActions: { flexDirection: "row", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" },
-  deferBtn:     { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FEF3C7", minWidth: 60, alignItems: "center" },
+  deferBtn:     { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFF1BF", minWidth: 60, alignItems: "center" },
   deferTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold", color: WARN },
-  cancelScheduleBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F3F4F6" },
-  cancelScheduleTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
-  termBtn:      { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#0891B2" },
+  cancelScheduleBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F6F3F1" },
+  cancelScheduleTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  termBtn:      { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#1F8F86" },
   termTxt:      { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
   logCard:      { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#fff",
                   borderRadius: 10, padding: 12 },
-  logLeft:      { width: 28, height: 28, borderRadius: 8, backgroundColor: "#FEE2E2",
+  logLeft:      { width: 28, height: 28, borderRadius: 8, backgroundColor: "#F9DEDA",
                   alignItems: "center", justifyContent: "center" },
-  logTitle:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  logMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
-  logDetail:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  logTitle:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  logMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  logDetail:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
   impactBadge:  { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, alignSelf: "flex-start" },
   impactTxt:    { fontSize: 10, fontFamily: "Inter_700Bold" },
 
   empty:        { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });
 
 const m = StyleSheet.create({
@@ -561,27 +561,27 @@ const m = StyleSheet.create({
                     paddingHorizontal: 20, paddingVertical: 14 },
   dangerHeaderTxt:{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
   confirmInfo:    { margin: 16, padding: 12, backgroundColor: "#FFF5F5", borderRadius: 12, borderWidth: 1, borderColor: "#FCA5A5" },
-  confirmInfoTxt: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 20 },
+  confirmInfoTxt: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 20 },
   safeSection:    { marginHorizontal: 16, marginBottom: 12, gap: 8 },
-  safeTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#374151" },
+  safeTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   snapshotBtn:    { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10,
-                    backgroundColor: "#ECFEFF", borderWidth: 1.5, borderColor: "#0891B2" },
-  snapshotBtnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#0891B2" },
-  snapshotDone:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, backgroundColor: "#D1FAE5" },
-  snapshotDoneTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#059669" },
+                    backgroundColor: "#ECFEFF", borderWidth: 1.5, borderColor: "#1F8F86" },
+  snapshotBtnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
+  snapshotDone:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, backgroundColor: "#DDF2EF" },
+  snapshotDoneTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
   checkRow:       { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 4 },
   checkbox:       { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB",
                     alignItems: "center", justifyContent: "center", marginTop: 1 },
   checkboxActive: { backgroundColor: DANGER, borderColor: DANGER },
-  checkTxt:       { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 18 },
-  pwInput:        { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                    fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
-  pwHint:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  checkTxt:       { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 18 },
+  pwInput:        { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12,
+                    fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  pwHint:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
   confirmInput:   { borderWidth: 2, borderColor: DANGER, borderRadius: 10, padding: 12,
                     fontSize: 14, fontFamily: "Inter_700Bold", color: DANGER },
   btnRow:         { flexDirection: "row", gap: 10, justifyContent: "flex-end", padding: 16, paddingTop: 8 },
-  cancelBtn:      { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },
-  cancelTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  cancelBtn:      { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
+  cancelTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   deleteBtn:      { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20,
                     paddingVertical: 10, borderRadius: 10, backgroundColor: DANGER },
   deleteTxt:      { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },

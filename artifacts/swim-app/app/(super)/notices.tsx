@@ -17,10 +17,10 @@ import { useAuth } from "@/context/AuthContext";
 const P = "#7C3AED";
 
 const TARGET_CFG: Record<NoticeTarget, { label: string; color: string; bg: string }> = {
-  all:     { label: "전체",     color: "#4F46E5", bg: "#EEF2FF" },
-  admin:   { label: "관리자",   color: P,         bg: "#EDE9FE" },
-  teacher: { label: "선생님",   color: "#059669", bg: "#D1FAE5" },
-  parent:  { label: "학부모",   color: "#0891B2", bg: "#E0F2FE" },
+  all:     { label: "전체",     color: "#1F8F86", bg: "#DDF2EF" },
+  admin:   { label: "관리자",   color: P,         bg: "#EEDDF5" },
+  teacher: { label: "선생님",   color: "#1F8F86", bg: "#DDF2EF" },
+  parent:  { label: "학부모",   color: "#1F8F86", bg: "#E0F2FE" },
 };
 
 function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
@@ -38,7 +38,7 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
     <View style={[nc.card, isLatest && nc.cardLatest]}>
       {isLatest && (
         <View style={nc.latestBadge}>
-          <Feather name="radio" size={9} color="#059669" />
+          <Feather name="radio" size={9} color="#1F8F86" />
           <Text style={nc.latestTxt}>현재 노출 중</Text>
         </View>
       )}
@@ -54,7 +54,7 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
         </View>
         {notice.forcedAck && (
           <View style={nc.forcedBadge}>
-            <Feather name="lock" size={10} color="#DC2626" />
+            <Feather name="lock" size={10} color="#D96C6C" />
             <Text style={nc.forcedTxt}>강제 확인</Text>
           </View>
         )}
@@ -64,11 +64,11 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
       <Text style={nc.content} numberOfLines={2}>{notice.content}</Text>
       <Text style={nc.by}>등록: {notice.createdBy} · 노출시작: {notice.showFrom ? new Date(notice.showFrom).toLocaleDateString("ko-KR") : "즉시"}</Text>
       <View style={nc.actions}>
-        <Pressable style={[nc.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => onEdit(notice)}>
+        <Pressable style={[nc.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => onEdit(notice)}>
           <Text style={[nc.btnTxt, { color: P }]}>수정</Text>
         </Pressable>
-        <Pressable style={[nc.btn, { backgroundColor: "#FEE2E2" }]} onPress={() => onDelete(notice.id)}>
-          <Text style={[nc.btnTxt, { color: "#DC2626" }]}>삭제</Text>
+        <Pressable style={[nc.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => onDelete(notice.id)}>
+          <Text style={[nc.btnTxt, { color: "#D96C6C" }]}>삭제</Text>
         </Pressable>
       </View>
     </View>
@@ -76,23 +76,23 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
 }
 
 const nc = StyleSheet.create({
-  card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  cardLatest:   { borderColor: "#059669", borderWidth: 1.5 },
+  card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E9E2DD" },
+  cardLatest:   { borderColor: "#1F8F86", borderWidth: 1.5 },
   latestBadge:  { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start",
-                  backgroundColor: "#D1FAE5", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, marginBottom: 6 },
-  latestTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#059669" },
+                  backgroundColor: "#DDF2EF", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, marginBottom: 6 },
+  latestTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
   typeBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   typeTxt:      { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   top:          { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 8, flexWrap: "wrap" },
   targetBadge:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7 },
   targetTxt:    { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  forcedBadge:  { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEE2E2",
+  forcedBadge:  { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F9DEDA",
                   paddingHorizontal: 6, paddingVertical: 3, borderRadius: 7 },
-  forcedTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#DC2626" },
-  date:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginLeft: "auto" },
-  title:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 4 },
-  content:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", lineHeight: 18, marginBottom: 6 },
-  by:           { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginBottom: 8 },
+  forcedTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
+  date:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginLeft: "auto" },
+  title:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 4 },
+  content:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", lineHeight: 18, marginBottom: 6 },
+  by:           { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginBottom: 8 },
   actions:      { flexDirection: "row", gap: 6 },
   btn:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   btnTxt:       { fontSize: 12, fontFamily: "Inter_600SemiBold" },
@@ -186,7 +186,7 @@ export default function NoticesScreen() {
 
       {/* 안내 */}
       <View style={s.infoBanner}>
-        <Feather name="bell" size={12} color="#4F46E5" />
+        <Feather name="bell" size={12} color="#1F8F86" />
         <Text style={s.infoTxt}>
           최신 공지 1개가 대상 역할에 맞게 앱 실행 시 팝업으로 노출됩니다. 새 공지 등록 시 이전 공지는 대체됩니다.
         </Text>
@@ -233,7 +233,7 @@ export default function NoticesScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "공지 수정" : "공지 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <Feather name="x" size={20} color="#6B7280" />
+                <Feather name="x" size={20} color="#6F6B68" />
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -302,17 +302,17 @@ export default function NoticesScreen() {
         <View style={m.overlay}>
           <View style={[m.sheet, { maxHeight: 240 }]}>
             <Text style={[m.title, { marginBottom: 12 }]}>공지 삭제</Text>
-            <Text style={{ fontSize: 14, color: "#374151", marginBottom: 8 }}>
+            <Text style={{ fontSize: 14, color: "#1F1F1F", marginBottom: 8 }}>
               이 공지를 삭제하면 앱에서 더 이상 노출되지 않습니다.
             </Text>
-            <Text style={{ fontSize: 13, color: "#DC2626", marginBottom: 20 }}>
+            <Text style={{ fontSize: 13, color: "#D96C6C", marginBottom: 20 }}>
               삭제된 공지는 복구되지 않습니다.
             </Text>
             <View style={m.footer}>
               <Pressable style={m.cancelBtn} onPress={() => setDeleteConfirm(null)}>
                 <Text style={m.cancelTxt}>취소</Text>
               </Pressable>
-              <Pressable style={[m.saveBtn, { backgroundColor: "#DC2626" }]} onPress={() => handleDelete(deleteConfirm!)}>
+              <Pressable style={[m.saveBtn, { backgroundColor: "#D96C6C" }]} onPress={() => handleDelete(deleteConfirm!)}>
                 <Text style={m.saveTxt}>삭제</Text>
               </Pressable>
             </View>
@@ -324,39 +324,39 @@ export default function NoticesScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F9FAFB" },
-  infoBanner:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#EEF2FF",
+  safe:         { flex: 1, backgroundColor: "#FBF8F6" },
+  infoBanner:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#DDF2EF",
                   padding: 10, paddingHorizontal: 16 },
-  infoTxt:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#4F46E5", flex: 1 },
+  infoTxt:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#1F8F86", flex: 1 },
   filterRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  filterBtn:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F3F4F6" },
+  filterBtn:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F6F3F1" },
   filterActive: { backgroundColor: P },
-  filterTxt:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  filterTxt:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   filterActiveTxt: { color: "#fff" },
   addBtn:       { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: P,
                   paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   addTxt:       { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
   empty:        { alignItems: "center", paddingVertical: 48, gap: 10 },
-  emptyTxt:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });
 
 const m = StyleSheet.create({
   overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:        { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "90%" },
   header:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  title:        { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  label:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#374151", marginBottom: 4, marginTop: 12 },
+  title:        { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  label:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 4, marginTop: 12 },
   input:        { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 10, fontSize: 14,
-                  fontFamily: "Inter_400Regular", color: "#111827", backgroundColor: "#F9FAFB" },
+                  fontFamily: "Inter_400Regular", color: "#1F1F1F", backgroundColor: "#FBF8F6" },
   segRow:       { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  segBtn:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F3F4F6" },
+  segBtn:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F6F3F1" },
   segActive:    { backgroundColor: P },
-  segTxt:       { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  segTxt:       { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   segActiveTxt: { color: "#fff" },
   footer:       { flexDirection: "row", gap: 8, marginTop: 20 },
-  hint:         { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginBottom: 10, marginTop: -8 },
-  cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  hint:         { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginBottom: 10, marginTop: -8 },
+  cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   saveBtn:      { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

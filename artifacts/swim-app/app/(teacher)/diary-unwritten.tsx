@@ -149,7 +149,7 @@ export default function DiaryUnwrittenScreen() {
           refreshing={refreshing}
           ListEmptyComponent={
             <View style={u.empty}>
-              <Feather name="check-circle" size={42} color="#10B981" />
+              <Feather name="check-circle" size={42} color="#2E9B6F" />
               <Text style={u.emptyTitle}>모든 수업 일지를 작성했습니다!</Text>
               <Text style={u.emptyDesc}>최근 8주간 미작성 일지가 없습니다.</Text>
             </View>
@@ -193,10 +193,10 @@ const u = StyleSheet.create({
   },
   cardLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   unwrittenBadge: {
-    backgroundColor: "#FEE2E2", borderRadius: 6,
+    backgroundColor: "#F9DEDA", borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 2,
   },
-  unwrittenBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#DC2626" },
+  unwrittenBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#D96C6C" },
   className: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 2 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 3 },
   metaText: { fontSize: 11, color: C.textSecondary, fontFamily: "Inter_400Regular", marginLeft: 2 },

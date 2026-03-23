@@ -154,7 +154,7 @@ export function UnifiedMemberCard({
 
           {/* 퇴원일 */}
           {showWithdrawnDate && student.withdrawn_at && (
-            <Text style={[s.subTxt, { color: "#DC2626" }]}>
+            <Text style={[s.subTxt, { color: "#D96C6C" }]}>
               퇴원 {String(student.withdrawn_at).slice(0, 10)}
             </Text>
           )}
@@ -163,7 +163,7 @@ export function UnifiedMemberCard({
         {/* 우측: 미연결 배지 + 초대 버튼 */}
         <View style={s.right}>
           {isUnlinked && (
-            <View style={[s.badge, { backgroundColor: "#FFF7ED", gap: 3 }]}>
+            <View style={[s.badge, { backgroundColor: "#FFF1BF", gap: 3 }]}>
               <Feather name="user-x" size={9} color="#EA580C" />
               <Text style={[s.badgeTxt, { color: "#EA580C" }]}>미연결</Text>
             </View>

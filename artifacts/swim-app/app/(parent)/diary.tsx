@@ -103,13 +103,13 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
           <View style={ds.metaRow}>
             <Text style={[ds.teacher, { color: C.text }]}>{entry.teacher_name} 선생님</Text>
             {entry.student_note && (
-              <View style={[ds.badge, { backgroundColor: "#EDE9FE" }]}>
+              <View style={[ds.badge, { backgroundColor: "#EEDDF5" }]}>
                 <Feather name="user" size={9} color="#7C3AED" />
                 <Text style={[ds.badgeTxt, { color: "#7C3AED" }]}>개별 일지</Text>
               </View>
             )}
             {entry.is_edited && (
-              <View style={[ds.badge, { backgroundColor: "#F3F4F6" }]}>
+              <View style={[ds.badge, { backgroundColor: "#F6F3F1" }]}>
                 <Text style={[ds.badgeTxt, { color: C.textMuted }]}>수정됨</Text>
               </View>
             )}
@@ -129,12 +129,12 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
           <Text style={[ds.content, { color: C.text }]}>{entry.common_content}</Text>
 
           {entry.student_note?.note_content ? (
-            <View style={[ds.noteBox, { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" }]}>
+            <View style={[ds.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#DDD6FE" }]}>
               <View style={ds.section}>
                 <Feather name="user" size={12} color="#7C3AED" />
                 <Text style={ds.noteTitle}>우리 아이 개별 일지</Text>
               </View>
-              <Text style={[ds.content, { color: "#374151" }]}>{entry.student_note.note_content}</Text>
+              <Text style={[ds.content, { color: "#1F1F1F" }]}>{entry.student_note.note_content}</Text>
             </View>
           ) : null}
         </View>
@@ -144,14 +144,14 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
       <View style={[ds.reactions, { borderTopColor: C.border }]}>
         <Pressable
           onPress={() => toggleReaction("like")}
-          style={[ds.reactionBtn, myReactions.has("like") && { backgroundColor: "#DBEAFE" }]}
+          style={[ds.reactionBtn, myReactions.has("like") && { backgroundColor: "#DDF2EF" }]}
         >
           <Text style={[ds.reactionEmoji, myReactions.has("like") && { transform: [{ scale: 1.2 }] }]}>👍</Text>
-          <Text style={[ds.reactionLabel, { color: myReactions.has("like") ? "#1D4ED8" : C.textSecondary }]}>좋아요</Text>
+          <Text style={[ds.reactionLabel, { color: myReactions.has("like") ? "#1F8F86" : C.textSecondary }]}>좋아요</Text>
         </Pressable>
         <Pressable
           onPress={() => toggleReaction("thank")}
-          style={[ds.reactionBtn, myReactions.has("thank") && { backgroundColor: "#FCE7F3" }]}
+          style={[ds.reactionBtn, myReactions.has("thank") && { backgroundColor: "#F6D8E1" }]}
         >
           <Text style={[ds.reactionEmoji, myReactions.has("thank") && { transform: [{ scale: 1.2 }] }]}>🙏</Text>
           <Text style={[ds.reactionLabel, { color: myReactions.has("thank") ? "#BE185D" : C.textSecondary }]}>감사합니다</Text>

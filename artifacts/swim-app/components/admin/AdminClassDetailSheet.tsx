@@ -267,11 +267,11 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                   <Feather name="user-plus" size={14} color="#fff" />
                   <Text style={sh.actionBtnText}>반배정</Text>
                 </Pressable>
-                <Pressable style={[sh.actionBtn, { backgroundColor: "#10B981" }]} onPress={enterUnregistered}>
+                <Pressable style={[sh.actionBtn, { backgroundColor: "#2E9B6F" }]} onPress={enterUnregistered}>
                   <Feather name="user-x" size={14} color="#fff" />
                   <Text style={sh.actionBtnText}>미등록</Text>
                 </Pressable>
-                <Pressable style={[sh.actionBtn, { backgroundColor: "#F59E0B" }]} onPress={enterTransfer}>
+                <Pressable style={[sh.actionBtn, { backgroundColor: "#E4A93A" }]} onPress={enterTransfer}>
                   <Feather name="repeat" size={14} color="#fff" />
                   <Text style={sh.actionBtnText}>반이동</Text>
                 </Pressable>
@@ -424,7 +424,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               style={[sh.teacherRow, { borderBottomWidth: 1, borderBottomColor: C.border }]}
               onPress={() => handleAssignTeacher({ id: "", name: "" } as any)}
             >
-              <View style={[sh.teacherAvatar, { backgroundColor: "#F3F4F6" }]}>
+              <View style={[sh.teacherAvatar, { backgroundColor: "#F6F3F1" }]}>
                 <Feather name="user-x" size={16} color={C.textMuted} />
               </View>
               <View style={{ flex: 1 }}>
@@ -488,8 +488,8 @@ const sh = StyleSheet.create({
   summaryVal: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.text },
   instructorBtn:{ flexDirection: "row", alignItems: "center", flex: 1 },
   instructorText:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
-  fullBadge:  { backgroundColor: "#FEE2E2", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
-  fullBadgeText:{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#DC2626" },
+  fullBadge:  { backgroundColor: "#F9DEDA", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 },
+  fullBadgeText:{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
 
   actionRow:  { flexDirection: "row", gap: 8, paddingHorizontal: 14, marginBottom: 4 },
   actionBtn:  { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
@@ -502,7 +502,7 @@ const sh = StyleSheet.create({
   sectionCount: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
 
   studentRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10,
-                borderBottomWidth: 1, borderBottomColor: "#F3F4F6", gap: 10 },
+                borderBottomWidth: 1, borderBottomColor: "#F6F3F1", gap: 10 },
   studentAvatar:{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.tint + "20",
                   alignItems: "center", justifyContent: "center" },
   studentAvatarText:{ fontSize: 14, fontFamily: "Inter_700Bold", color: C.tint },
@@ -512,19 +512,19 @@ const sh = StyleSheet.create({
   emptyBox:   { alignItems: "center", paddingVertical: 40, gap: 8 },
   emptyText:  { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
 
-  searchBox:  { flexDirection: "row", alignItems: "center", backgroundColor: "#F3F4F6",
+  searchBox:  { flexDirection: "row", alignItems: "center", backgroundColor: "#F6F3F1",
                 borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, margin: 12, gap: 8 },
   searchInput:{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.text },
 
   listRow:    { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10,
-                borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+                borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   listRowRight:{ flexDirection: "row", alignItems: "center", gap: 6 },
-  unregBadge: { backgroundColor: "#FEF3C7", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  unregBadge: { backgroundColor: "#FFF1BF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   unregBadgeText:{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#D97706" },
   addBtn:     { backgroundColor: C.tint, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
                 minWidth: 48, alignItems: "center" },
   addBtnText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
-  transferBtn:{ backgroundColor: "#F59E0B", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
+  transferBtn:{ backgroundColor: "#E4A93A", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
                 minWidth: 48, alignItems: "center" },
 
   teacherRow:     { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },

@@ -107,7 +107,7 @@ const s = StyleSheet.create({
   countText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.tint },
   deleteBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: "#DC2626", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+    backgroundColor: "#D96C6C", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
   },
   deleteBtnDisabled: { backgroundColor: "#D1D5DB" },
   deleteBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },

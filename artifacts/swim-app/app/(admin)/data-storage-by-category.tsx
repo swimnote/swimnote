@@ -29,12 +29,12 @@ interface AdminStorage {
 }
 
 const CATEGORIES = [
-  { key: "photo_bytes",     icon: "image"          as const, bg: "#FEF3C7", color: "#F59E0B", label: "사진"    },
-  { key: "video_bytes",     icon: "video"          as const, bg: "#EDE9FE", color: "#7C3AED", label: "영상"    },
-  { key: "messenger_bytes", icon: "message-square" as const, bg: "#DBEAFE", color: "#2563EB", label: "메신저"  },
-  { key: "diary_bytes",     icon: "book-open"      as const, bg: "#D1FAE5", color: "#059669", label: "수업기록" },
-  { key: "notice_bytes",    icon: "bell"           as const, bg: "#FCE7F3", color: "#EC4899", label: "공지"    },
-  { key: "system_bytes",    icon: "cpu"            as const, bg: "#F3F4F6", color: "#6B7280", label: "시스템"  },
+  { key: "photo_bytes",     icon: "image"          as const, bg: "#FFF1BF", color: "#E4A93A", label: "사진"    },
+  { key: "video_bytes",     icon: "video"          as const, bg: "#EEDDF5", color: "#7C3AED", label: "영상"    },
+  { key: "messenger_bytes", icon: "message-square" as const, bg: "#DDF2EF", color: "#1F8F86", label: "메신저"  },
+  { key: "diary_bytes",     icon: "book-open"      as const, bg: "#DDF2EF", color: "#1F8F86", label: "수업기록" },
+  { key: "notice_bytes",    icon: "bell"           as const, bg: "#F6D8E1", color: "#EC4899", label: "공지"    },
+  { key: "system_bytes",    icon: "cpu"            as const, bg: "#F6F3F1", color: "#6F6B68", label: "시스템"  },
 ];
 
 export default function DataStorageByCategoryScreen() {
@@ -106,10 +106,10 @@ export default function DataStorageByCategoryScreen() {
 const s = StyleSheet.create({
   card:      { borderRadius: 16, padding: 16, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   iconWrap:  { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  label:     { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  label:     { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   bytes:     { fontSize: 15, fontFamily: "Inter_700Bold" },
-  gaugeWrap: { height: 8, backgroundColor: "#E5E7EB", borderRadius: 4, overflow: "hidden" },
+  gaugeWrap: { height: 8, backgroundColor: "#E9E2DD", borderRadius: 4, overflow: "hidden" },
   gaugeBar:  { height: 8, borderRadius: 4 },
-  pct:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 4 },
+  pct:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 4 },
   totalCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderRadius: 16, borderWidth: 1 },
 });

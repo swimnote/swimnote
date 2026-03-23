@@ -26,8 +26,8 @@ export default function SubscriptionExpiredScreen() {
   return (
     <View style={[styles.container, { backgroundColor: C.background, paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0), paddingBottom: insets.bottom + 34 }]}>
       <View style={styles.content}>
-        <View style={[styles.iconBox, { backgroundColor: "#FEF3C7" }]}>
-          <Feather name="alert-triangle" size={40} color="#F59E0B" />
+        <View style={[styles.iconBox, { backgroundColor: "#FFF1BF" }]}>
+          <Feather name="alert-triangle" size={40} color="#E4A93A" />
         </View>
         <Text style={[styles.title, { color: C.text }]}>{STATUS_LABELS[status] || "구독 오류"}</Text>
         <Text style={[styles.message, { color: C.textSecondary }]}>{STATUS_DESC[status] || "관리자에게 문의해 주세요."}</Text>

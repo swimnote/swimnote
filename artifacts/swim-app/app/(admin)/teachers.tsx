@@ -36,7 +36,7 @@ function dateToKo(dateStr: string): string {
 }
 function parseStartTime(t: string) { return t.split(/[-~]/)[0].trim(); }
 
-const CLASS_COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
+const CLASS_COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
 function classColor(id: string) {
   let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
   return CLASS_COLORS[Math.abs(h) % CLASS_COLORS.length];
@@ -102,7 +102,7 @@ function MonthlyCalendar({
       <View style={{ flexDirection: "row" }}>
         {DAY_KO.map((wd, i) => (
           <View key={wd} style={[mc.weekHeader, { width: CELL }]}>
-            <Text style={[mc.weekHeaderText, i === 0 && { color: "#EF4444" }, i === 6 && { color: C.tint }]}>{wd}</Text>
+            <Text style={[mc.weekHeaderText, i === 0 && { color: "#D96C6C" }, i === 6 && { color: C.tint }]}>{wd}</Text>
           </View>
         ))}
       </View>
@@ -117,7 +117,7 @@ function MonthlyCalendar({
               <Pressable key={dateStr} style={[mc.dayCell, { width: CELL }, isToday && { backgroundColor: C.tintLight, borderRadius: 8 }]}
                 onPress={() => hasClasses(dateStr) ? onSelectDate(dateStr) : undefined}>
                 <View style={[mc.dayNumWrap, isToday && { backgroundColor: C.tint }]}>
-                  <Text style={[mc.dayNum, { color: di === 0 ? "#EF4444" : di === 6 ? C.tint : C.text }, isToday && { color: "#fff" }]}>
+                  <Text style={[mc.dayNum, { color: di === 0 ? "#D96C6C" : di === 6 ? C.tint : C.text }, isToday && { color: "#fff" }]}>
                     {dayNum}
                   </Text>
                 </View>
@@ -137,7 +137,7 @@ function MonthlyCalendar({
 }
 
 const mc = StyleSheet.create({
-  navBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  navBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
   monthTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   weekHeader: { height: 28, alignItems: "center", justifyContent: "center" },
   weekHeaderText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
@@ -469,14 +469,14 @@ export default function TeachersScreen() {
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
                         <Text style={[s.className, { color: C.text }]}>{g.name}</Text>
-                        <View style={[s.diaryBadge, { backgroundColor: hasDiary ? "#D1FAE5" : "#FEF3C7" }]}>
-                          <Text style={[s.diaryBadgeTxt, { color: hasDiary ? "#059669" : "#D97706" }]}>{hasDiary ? "일지 완료" : "일지 미작성"}</Text>
+                        <View style={[s.diaryBadge, { backgroundColor: hasDiary ? "#DDF2EF" : "#FFF1BF" }]}>
+                          <Text style={[s.diaryBadgeTxt, { color: hasDiary ? "#1F8F86" : "#D97706" }]}>{hasDiary ? "일지 완료" : "일지 미작성"}</Text>
                         </View>
                       </View>
                       <View style={{ flexDirection: "row", gap: 12 }}>
                         <Text style={[s.classStat, { color: C.textSecondary }]}>학생 {g.student_count}명</Text>
-                        <Text style={[s.classStat, { color: "#059669" }]}>출석 {present}</Text>
-                        <Text style={[s.classStat, { color: "#EF4444" }]}>결석 {absent}</Text>
+                        <Text style={[s.classStat, { color: "#1F8F86" }]}>출석 {present}</Text>
+                        <Text style={[s.classStat, { color: "#D96C6C" }]}>결석 {absent}</Text>
                       </View>
                     </View>
                     <Feather name="chevron-right" size={18} color={C.textMuted} />
@@ -502,8 +502,8 @@ export default function TeachersScreen() {
                     <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
                       {[
                         { icon: "calendar", val: todayGroups.length, label: "오늘 수업", color: C.tint },
-                        { icon: "alert-circle", val: todayUnchecked, label: "출결 미확인", color: todayUnchecked > 0 ? "#F59E0B" : "#10B981" },
-                        { icon: "edit-3", val: todayUnwritten, label: "일지 미작성", color: todayUnwritten > 0 ? "#F59E0B" : "#10B981" },
+                        { icon: "alert-circle", val: todayUnchecked, label: "출결 미확인", color: todayUnchecked > 0 ? "#E4A93A" : "#2E9B6F" },
+                        { icon: "edit-3", val: todayUnwritten, label: "일지 미작성", color: todayUnwritten > 0 ? "#E4A93A" : "#2E9B6F" },
                       ].map((st, i) => (
                         <View key={i} style={[s.statCard, { backgroundColor: C.card }]}>
                           <Feather name={st.icon as any} size={18} color={st.color} />
@@ -534,8 +534,8 @@ export default function TeachersScreen() {
                           <View style={{ flex: 1 }}>
                             <Text style={[s.timeCardMain, { color: C.text }]}>{count}개 반 · {teacherCount}명 선생님</Text>
                             <View style={{ flexDirection: "row", gap: 8, marginTop: 3 }}>
-                              <Text style={[s.timeCardSub, { color: attDone === count ? "#10B981" : "#F59E0B" }]}>출결 {attDone}/{count}</Text>
-                              <Text style={[s.timeCardSub, { color: diaryDone === count ? "#10B981" : "#F59E0B" }]}>일지 {diaryDone}/{count}</Text>
+                              <Text style={[s.timeCardSub, { color: attDone === count ? "#2E9B6F" : "#E4A93A" }]}>출결 {attDone}/{count}</Text>
+                              <Text style={[s.timeCardSub, { color: diaryDone === count ? "#2E9B6F" : "#E4A93A" }]}>일지 {diaryDone}/{count}</Text>
                             </View>
                           </View>
                           <Feather name="chevron-right" size={18} color={C.textMuted} />
@@ -624,8 +624,8 @@ export default function TeachersScreen() {
                       <Text style={[s.teacherSub, { color: C.textMuted }]}>{t.email}</Text>
                       {t.position && <Text style={[s.teacherSub, { color: C.tint }]}>{t.position}</Text>}
                     </View>
-                    <View style={[s.statusBadge, { backgroundColor: t.is_activated ? "#D1FAE5" : "#FEF3C7" }]}>
-                      <Text style={[s.statusText, { color: t.is_activated ? "#059669" : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
+                    <View style={[s.statusBadge, { backgroundColor: t.is_activated ? "#DDF2EF" : "#FFF1BF" }]}>
+                      <Text style={[s.statusText, { color: t.is_activated ? "#1F8F86" : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
                     </View>
                     <Feather name="edit-2" size={14} color={C.textMuted} />
                   </Pressable>
@@ -653,7 +653,7 @@ export default function TeachersScreen() {
                 <Text style={[s.sheetTitle, { color: C.text }]}>선생님 계정 추가</Text>
                 <Pressable onPress={() => { setShowAdd(false); resetForm(); }}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
               </View>
-              {addError ? <View style={[s.errBox, { backgroundColor: "#FEE2E2" }]}><Text style={[s.errText, { color: "#EF4444" }]}>{addError}</Text></View> : null}
+              {addError ? <View style={[s.errBox, { backgroundColor: "#F9DEDA" }]}><Text style={[s.errText, { color: "#D96C6C" }]}>{addError}</Text></View> : null}
               <View style={s.field}><Text style={[s.label, { color: C.textSecondary }]}>이름 *</Text>
                 <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={form.name} onChangeText={v => setForm(f => ({ ...f, name: v }))} placeholder="선생님 이름" placeholderTextColor={C.textMuted} /></View>
               <View style={s.field}><Text style={[s.label, { color: C.textSecondary }]}>이메일 *</Text>
@@ -683,7 +683,7 @@ export default function TeachersScreen() {
       <Modal visible={!!newTeacher} animationType="fade" transparent presentationStyle="overFullScreen">
         <View style={[s.overlay, { justifyContent: "center" }]}>
           <View style={[s.successCard, { backgroundColor: C.card }]}>
-            <View style={[s.successIcon, { backgroundColor: "#D1FAE5" }]}><Feather name="check-circle" size={36} color="#059669" /></View>
+            <View style={[s.successIcon, { backgroundColor: "#DDF2EF" }]}><Feather name="check-circle" size={36} color="#1F8F86" /></View>
             <Text style={[s.sheetTitle, { color: C.text, textAlign: "center" }]}>계정 생성 완료</Text>
             <Text style={[s.label, { color: C.textSecondary, textAlign: "center" }]}>
               {newTeacher?.teacher.name} 선생님 계정이 생성되었습니다.{"\n"}아래 인증코드를 전달해 주세요.
@@ -717,8 +717,8 @@ export default function TeachersScreen() {
               <Text style={[s.label, { color: C.textMuted }]}>이메일: {selectedTeacherDetail?.email}</Text>
             </View>
             <View style={s.modalActions}>
-              <Pressable style={[s.cancelBtn, { borderColor: "#EF4444" }]} onPress={() => { const t = selectedTeacherDetail; setSelectedTeacherDetail(null); setDeleteTarget(t); }}>
-                <Text style={[s.cancelText, { color: "#EF4444" }]}>삭제</Text>
+              <Pressable style={[s.cancelBtn, { borderColor: "#D96C6C" }]} onPress={() => { const t = selectedTeacherDetail; setSelectedTeacherDetail(null); setDeleteTarget(t); }}>
+                <Text style={[s.cancelText, { color: "#D96C6C" }]}>삭제</Text>
               </Pressable>
               <Pressable style={[s.submitBtn, { backgroundColor: editSaving ? C.textMuted : C.tint }]} onPress={handleSaveTeacher} disabled={editSaving}>
                 <Text style={s.submitText}>{editSaving ? "저장 중…" : "저장"}</Text>
@@ -740,7 +740,7 @@ export default function TeachersScreen() {
               <Pressable style={[s.cancelBtn, { borderColor: C.border }]} onPress={() => setDeleteTarget(null)}>
                 <Text style={[s.cancelText, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
-              <Pressable style={[s.submitBtn, { backgroundColor: "#EF4444" }]} onPress={confirmDeleteTeacher}>
+              <Pressable style={[s.submitBtn, { backgroundColor: "#D96C6C" }]} onPress={confirmDeleteTeacher}>
                 <Text style={s.submitText}>삭제</Text>
               </Pressable>
             </View>

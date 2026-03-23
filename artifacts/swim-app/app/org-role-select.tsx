@@ -132,7 +132,7 @@ export default function OrgRoleSelectScreen() {
           <ActivityIndicator color={C.tint} size="large" style={{ marginTop: 40 }} />
         ) : availableRoles.length === 0 ? (
           <View style={styles.emptyState}>
-            <View style={[styles.emptyIconBox, { backgroundColor: "#FEF3C7" }]}>
+            <View style={[styles.emptyIconBox, { backgroundColor: "#FFF1BF" }]}>
               <Feather name="alert-circle" size={32} color="#D97706" />
             </View>
             <Text style={[styles.emptyTitle, { color: C.text }]}>이용 가능한 권한이 없습니다</Text>

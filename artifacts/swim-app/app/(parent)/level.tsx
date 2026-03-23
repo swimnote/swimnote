@@ -20,8 +20,8 @@ interface LevelRecord {
   teacher_name?: string | null;
 }
 
-const LEVEL_COLORS = ["#EFF6FF", "#F0FDF4", "#FFF7ED", "#FDF4FF", "#FFF1F2"];
-const LEVEL_ACCENTS = ["#2563EB", "#16A34A", "#D97706", "#9333EA", "#E11D48"];
+const LEVEL_COLORS = ["#DDF2EF", "#DFF3EC", "#FFF1BF", "#FDF4FF", "#FFF1F2"];
+const LEVEL_ACCENTS = ["#1F8F86", "#16A34A", "#D97706", "#9333EA", "#E11D48"];
 
 export default function ParentLevelScreen() {
   const insets = useSafeAreaInsets();

@@ -112,7 +112,7 @@ export default function HolidaysScreen() {
         </View>
 
         {/* 안내 */}
-        <View style={[s.infoBox, { backgroundColor: "#FEF3C7" }]}>
+        <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
           <Feather name="info" size={14} color="#D97706" />
           <Text style={s.infoText}>날짜를 누르면 휴무일로 등록됩니다. 다시 누르면 취소됩니다.{"\n"}휴무일에는 수업이 생성되지 않으며, 빠진 수업은 미실시(수영장) 보강으로 이월됩니다.</Text>
         </View>
@@ -122,7 +122,7 @@ export default function HolidaysScreen() {
           {/* 요일 헤더 */}
           <View style={s.weekRow}>
             {weekdays.map(w => (
-              <Text key={w} style={[s.weekLabel, { color: w === "일" ? "#EF4444" : w === "토" ? "#3B82F6" : C.textSecondary }]}>{w}</Text>
+              <Text key={w} style={[s.weekLabel, { color: w === "일" ? "#D96C6C" : w === "토" ? "#4EA7D8" : C.textSecondary }]}>{w}</Text>
             ))}
           </View>
           {/* 날짜 그리드 */}
@@ -145,19 +145,19 @@ export default function HolidaysScreen() {
                   disabled={!!saving}
                 >
                   <View style={[s.dayBox, {
-                    backgroundColor: isHol ? "#EF444415" : "transparent",
-                    borderColor: isHol ? "#EF4444" : "transparent",
+                    backgroundColor: isHol ? "#D96C6C15" : "transparent",
+                    borderColor: isHol ? "#D96C6C" : "transparent",
                     borderWidth: isHol ? 1.5 : 0,
                   }]}>
                     {isSaving ? (
-                      <ActivityIndicator size="small" color="#EF4444" />
+                      <ActivityIndicator size="small" color="#D96C6C" />
                     ) : (
                       <Text style={[s.dayNum, {
-                        color: isHol ? "#EF4444" : isSun ? "#EF4444" : isSat ? "#3B82F6" : C.text,
+                        color: isHol ? "#D96C6C" : isSun ? "#D96C6C" : isSat ? "#4EA7D8" : C.text,
                         fontFamily: isHol ? "Inter_700Bold" : "Inter_400Regular",
                       }]}>{d}</Text>
                     )}
-                    {isHol && <Feather name="x" size={8} color="#EF4444" />}
+                    {isHol && <Feather name="x" size={8} color="#D96C6C" />}
                   </View>
                 </Pressable>
               );
@@ -189,7 +189,7 @@ export default function HolidaysScreen() {
                   style={s.deleteBtn}
                   disabled={!!saving}
                 >
-                  <Feather name="x" size={16} color="#EF4444" />
+                  <Feather name="x" size={16} color="#D96C6C" />
                 </Pressable>
               </View>
             ))}
@@ -211,10 +211,10 @@ export default function HolidaysScreen() {
             placeholderTextColor={C.textMuted}
           />
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable style={[s.modalBtn, { backgroundColor: "#F3F4F6", flex: 1 }]} onPress={() => setReasonModal(false)}>
+            <Pressable style={[s.modalBtn, { backgroundColor: "#F6F3F1", flex: 1 }]} onPress={() => setReasonModal(false)}>
               <Text style={[s.modalBtnText, { color: C.text }]}>취소</Text>
             </Pressable>
-            <Pressable style={[s.modalBtn, { backgroundColor: "#EF4444", flex: 1 }]} onPress={handleAddHoliday}>
+            <Pressable style={[s.modalBtn, { backgroundColor: "#D96C6C", flex: 1 }]} onPress={handleAddHoliday}>
               <Text style={s.modalBtnText}>휴무일 등록</Text>
             </Pressable>
           </View>
@@ -225,14 +225,14 @@ export default function HolidaysScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#F3F4F6" },
+  safe:        { flex: 1, backgroundColor: "#F6F3F1" },
   monthRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 12 },
   navBtn:      { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   monthText:   { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
   infoBox:     { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderRadius: 14 },
   infoText:    { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, color: "#92400E" },
   calCard:     { borderRadius: 18, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  weekRow:     { flexDirection: "row", justifyContent: "space-around", paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  weekRow:     { flexDirection: "row", justifyContent: "space-around", paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
   weekLabel:   { width: "14.28%" as any, textAlign: "center", fontSize: 12, fontFamily: "Inter_600SemiBold" },
   grid:        { flexDirection: "row", flexWrap: "wrap" },
   cell:        { width: "14.28%" as any, alignItems: "center", paddingVertical: 5 },
@@ -242,10 +242,10 @@ const s = StyleSheet.create({
   listTitle:   { fontSize: 15, fontFamily: "Inter_700Bold" },
   emptyText:   { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 16 },
   holidayRow:  { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1 },
-  redDot:      { width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444" },
+  redDot:      { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C" },
   holidayDate: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   holidayReason:{ fontSize: 12, fontFamily: "Inter_400Regular" },
-  deleteBtn:   { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#FEE2E2" },
+  deleteBtn:   { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#F9DEDA" },
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   modalCard:   { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 },
   modalTitle:  { fontSize: 18, fontFamily: "Inter_700Bold" },

@@ -37,7 +37,7 @@ const C = Colors.light;
 const PRIMARY = C.tint;
 const NOTICE_YELLOW_BG = "#FFFBEB";
 const NOTICE_YELLOW_BORDER = "#FDE68A";
-const AMBER_SOFT = "#FEF3C7";
+const AMBER_SOFT = "#FFF1BF";
 const AMBER_TEXT = "#92400E";
 
 /* ─── 타입 ──────────────────────────────────────────────── */
@@ -443,7 +443,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               )}
               {isDirected && (
                 <View style={[s.directedTag, isMine ? s.directedTagRight : s.directedTagLeft]}>
-                  <Feather name="at-sign" size={10} color="#6B7280" />
+                  <Feather name="at-sign" size={10} color="#6F6B68" />
                   <Text style={s.directedTagText}>
                     {isMine
                       ? `${extra.target_user_name}에게만`
@@ -672,8 +672,8 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <View style={s.sheetHandle} />
             <Text style={s.sheetTitle}>첨부</Text>
             <TouchableOpacity style={s.sheetItem} onPress={handleFileAttach} activeOpacity={0.7}>
-              <View style={[s.sheetIcon, { backgroundColor: "#EFF6FF" }]}>
-                <Feather name="paperclip" size={22} color="#3B82F6" />
+              <View style={[s.sheetIcon, { backgroundColor: "#DDF2EF" }]}>
+                <Feather name="paperclip" size={22} color="#4EA7D8" />
               </View>
               <View style={s.sheetItemText}>
                 <Text style={s.sheetItemLabel}>파일 첨부</Text>
@@ -681,8 +681,8 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={s.sheetItem} onPress={handleMemberCard} activeOpacity={0.7}>
-              <View style={[s.sheetIcon, { backgroundColor: "#F0FDF4" }]}>
-                <Feather name="user" size={22} color="#10B981" />
+              <View style={[s.sheetIcon, { backgroundColor: "#DFF3EC" }]}>
+                <Feather name="user" size={22} color="#2E9B6F" />
               </View>
               <View style={s.sheetItemText}>
                 <Text style={s.sheetItemLabel}>내 회원정보 올리기</Text>
@@ -920,8 +920,8 @@ function AttachFileBubble({
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
           <View style={s.fileCard}>
-            <View style={[s.fileIconBox, { backgroundColor: isImage ? "#EFF6FF" : "#F9FAFB" }]}>
-              <Feather name={isImage ? "image" : "file"} size={20} color={isImage ? "#3B82F6" : C.textSecondary} />
+            <View style={[s.fileIconBox, { backgroundColor: isImage ? "#DDF2EF" : "#FBF8F6" }]}>
+              <Feather name={isImage ? "image" : "file"} size={20} color={isImage ? "#4EA7D8" : C.textSecondary} />
             </View>
             <View style={s.fileInfo}>
               <Text style={s.fileName} numberOfLines={1}>{extra.attachment_name || "파일"}</Text>
@@ -963,7 +963,7 @@ const s = StyleSheet.create({
   segBtnActive: { borderBottomWidth: 2, borderBottomColor: PRIMARY },
   segText: { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary },
   segTextActive: { color: PRIMARY, fontFamily: "Inter_600SemiBold" },
-  unreadDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#EF4444", marginTop: -8 },
+  unreadDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#D96C6C", marginTop: -8 },
   staffBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1013,7 +1013,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F6F3F1",
     borderRadius: 8,
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -1093,7 +1093,7 @@ const s = StyleSheet.create({
   targetBadgeText: { flex: 1, fontSize: 12, color: PRIMARY, fontFamily: "Inter_500Medium" },
 
   /* 입력창 */
-  inputArea: { backgroundColor: "#F9FAFB", borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8, paddingHorizontal: 8 },
+  inputArea: { backgroundColor: "#FBF8F6", borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8, paddingHorizontal: 8 },
   noticeInputArea: { backgroundColor: NOTICE_YELLOW_BG, borderTopColor: NOTICE_YELLOW_BORDER },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
   sideBtn: { width: 36, height: 38, justifyContent: "center", alignItems: "center" },

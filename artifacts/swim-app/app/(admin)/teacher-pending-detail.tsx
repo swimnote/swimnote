@@ -51,11 +51,11 @@ const REJECT_PRESETS = [
 ];
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  joinedPendingApproval: { label: "승인 대기",  color: "#D97706", bg: "#FEF3C7", icon: "clock"       },
-  approved:              { label: "승인됨",     color: "#059669", bg: "#D1FAE5", icon: "check-circle" },
-  rejected:              { label: "거절됨",     color: "#DC2626", bg: "#FEE2E2", icon: "x-circle"     },
-  inactive:              { label: "비활성",     color: "#6B7280", bg: "#F3F4F6", icon: "slash"        },
-  invited:               { label: "초대됨",     color: "#0891B2", bg: "#ECFEFF", icon: "mail"         },
+  joinedPendingApproval: { label: "승인 대기",  color: "#D97706", bg: "#FFF1BF", icon: "clock"       },
+  approved:              { label: "승인됨",     color: "#1F8F86", bg: "#DDF2EF", icon: "check-circle" },
+  rejected:              { label: "거절됨",     color: "#D96C6C", bg: "#F9DEDA", icon: "x-circle"     },
+  inactive:              { label: "비활성",     color: "#6F6B68", bg: "#F6F3F1", icon: "slash"        },
+  invited:               { label: "초대됨",     color: "#1F8F86", bg: "#ECFEFF", icon: "mail"         },
 };
 
 function fmtDate(dt?: string | null) {
@@ -228,8 +228,8 @@ export default function TeacherPendingDetailScreen() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>소속 통계</Text>
           <View style={s.statsGrid}>
-            <StatBox label="담당반"   value={data.class_count  ?? 0} icon="layers" color="#1A5CFF" />
-            <StatBox label="담당 회원" value={data.member_count ?? 0} icon="users"  color="#10B981" />
+            <StatBox label="담당반"   value={data.class_count  ?? 0} icon="layers" color="#1F8F86" />
+            <StatBox label="담당 회원" value={data.member_count ?? 0} icon="users"  color="#2E9B6F" />
           </View>
         </View>
 
@@ -237,8 +237,8 @@ export default function TeacherPendingDetailScreen() {
 
         {/* ── 승인 오류 메시지 ── */}
         {!!approveError && (
-          <View style={[s.warnBox, { backgroundColor: "#FEE2E2" }]}>
-            <Feather name="alert-circle" size={14} color="#DC2626" />
+          <View style={[s.warnBox, { backgroundColor: "#F9DEDA" }]}>
+            <Feather name="alert-circle" size={14} color="#D96C6C" />
             <Text style={[s.warnTxt, { color: "#991B1B" }]}>{approveError}</Text>
           </View>
         )}
@@ -256,7 +256,7 @@ export default function TeacherPendingDetailScreen() {
               }}
               disabled={approving}
             >
-              <Feather name="x-circle" size={16} color="#DC2626" />
+              <Feather name="x-circle" size={16} color="#D96C6C" />
               <Text style={s.rejectBtnTxt}>거절</Text>
             </Pressable>
             <Pressable
@@ -285,7 +285,7 @@ export default function TeacherPendingDetailScreen() {
               onPress={() => setShowRejectReasonModal(true)}
               disabled={approving}
             >
-              <Feather name="file-text" size={16} color="#6B7280" />
+              <Feather name="file-text" size={16} color="#6F6B68" />
               <Text style={s.rejectReasonBtnTxt}>거절 사유 보기</Text>
             </Pressable>
             <Pressable
@@ -313,7 +313,7 @@ export default function TeacherPendingDetailScreen() {
             <View style={s.historyList}>
               {approvedDate && (
                 <View style={s.historyItem}>
-                  <View style={[s.historyDot, { backgroundColor: "#059669" }]} />
+                  <View style={[s.historyDot, { backgroundColor: "#1F8F86" }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={s.historyDate}>{approvedDate}</Text>
                     <Text style={s.historyDesc}>승인: 선생님 권한 부여</Text>
@@ -322,7 +322,7 @@ export default function TeacherPendingDetailScreen() {
               )}
               {rejectedDate && (
                 <View style={s.historyItem}>
-                  <View style={[s.historyDot, { backgroundColor: "#DC2626" }]} />
+                  <View style={[s.historyDot, { backgroundColor: "#D96C6C" }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={s.historyDate}>{rejectedDate}</Text>
                     <Text style={s.historyDesc}>
@@ -332,7 +332,7 @@ export default function TeacherPendingDetailScreen() {
                 </View>
               )}
               <View style={s.historyItem}>
-                <View style={[s.historyDot, { backgroundColor: "#6B7280" }]} />
+                <View style={[s.historyDot, { backgroundColor: "#6F6B68" }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.historyDate}>{requestedDate}</Text>
                   <Text style={s.historyDesc}>가입 요청</Text>
@@ -357,20 +357,20 @@ export default function TeacherPendingDetailScreen() {
                 {REJECT_PRESETS.map(p => (
                   <Pressable
                     key={p}
-                    style={[s.presetItem, rejectPreset === p && { backgroundColor: "#FEE2E2", borderColor: "#DC2626" }]}
+                    style={[s.presetItem, rejectPreset === p && { backgroundColor: "#F9DEDA", borderColor: "#D96C6C" }]}
                     onPress={() => { setRejectPreset(p); setRejectError(""); }}
                   >
-                    <View style={[s.presetRadio, rejectPreset === p && { borderColor: "#DC2626" }]}>
-                      {rejectPreset === p && <View style={[s.presetRadioInner, { backgroundColor: "#DC2626" }]} />}
+                    <View style={[s.presetRadio, rejectPreset === p && { borderColor: "#D96C6C" }]}>
+                      {rejectPreset === p && <View style={[s.presetRadioInner, { backgroundColor: "#D96C6C" }]} />}
                     </View>
-                    <Text style={[s.presetTxt, rejectPreset === p && { color: "#DC2626", fontWeight: "700" }]}>{p}</Text>
+                    <Text style={[s.presetTxt, rejectPreset === p && { color: "#D96C6C", fontWeight: "700" }]}>{p}</Text>
                   </Pressable>
                 ))}
               </View>
 
               {rejectPreset === "직접 입력" && (
                 <TextInput
-                  style={[s.customInput, { borderColor: rejectError ? "#DC2626" : C.border }]}
+                  style={[s.customInput, { borderColor: rejectError ? "#D96C6C" : C.border }]}
                   value={rejectCustom}
                   onChangeText={v => { setRejectCustom(v); setRejectError(""); }}
                   placeholder="거절 사유를 입력해주세요"
@@ -383,7 +383,7 @@ export default function TeacherPendingDetailScreen() {
 
               {!!rejectError && (
                 <View style={s.errorRow}>
-                  <Feather name="alert-circle" size={13} color="#DC2626" />
+                  <Feather name="alert-circle" size={13} color="#D96C6C" />
                   <Text style={s.errorTxt}>{rejectError}</Text>
                 </View>
               )}
@@ -416,8 +416,8 @@ export default function TeacherPendingDetailScreen() {
       <Modal visible={showRejectReasonModal} transparent animationType="fade" onRequestClose={() => setShowRejectReasonModal(false)}>
         <Pressable style={s.modalOverlay} onPress={() => setShowRejectReasonModal(false)}>
           <Pressable style={[s.reasonSheet, { paddingBottom: insets.bottom + 24 }]} onPress={e => e.stopPropagation()}>
-            <View style={[s.reasonIconWrap, { backgroundColor: "#FEE2E2" }]}>
-              <Feather name="x-circle" size={28} color="#DC2626" />
+            <View style={[s.reasonIconWrap, { backgroundColor: "#F9DEDA" }]}>
+              <Feather name="x-circle" size={28} color="#D96C6C" />
             </View>
             <Text style={s.reasonTitle}>거절 사유</Text>
             {rejectedDate && (
@@ -476,7 +476,7 @@ const s = StyleSheet.create({
   section:           { backgroundColor: C.card, borderRadius: 16, padding: 16, gap: 10 },
   sectionTitle:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
   sectionDesc:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
-  required:          { color: "#DC2626", fontFamily: "Inter_500Medium" },
+  required:          { color: "#D96C6C", fontFamily: "Inter_500Medium" },
 
   infoRow:           { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   infoLabel:         { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, width: 72 },
@@ -488,7 +488,7 @@ const s = StyleSheet.create({
   statValue:         { fontSize: 24, fontFamily: "Inter_700Bold" },
   statLabel:         { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
 
-  roleCard:          { flexDirection: "row", alignItems: "flex-start", gap: 12, backgroundColor: "#F9FAFB", borderRadius: 14, padding: 14, borderWidth: 1.5, borderColor: C.border },
+  roleCard:          { flexDirection: "row", alignItems: "flex-start", gap: 12, backgroundColor: "#FBF8F6", borderRadius: 14, padding: 14, borderWidth: 1.5, borderColor: C.border },
   roleIconBox:       { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   roleLabel:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 2 },
   roleDesc:          { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, lineHeight: 16 },
@@ -499,10 +499,10 @@ const s = StyleSheet.create({
   warnTxt:           { fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", flex: 1, lineHeight: 18 },
 
   actionRow:         { flexDirection: "row", gap: 10, marginTop: 4 },
-  rejectBtn:         { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#DC2626", backgroundColor: "#FFF5F5" },
-  rejectBtnTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#DC2626" },
-  rejectReasonBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#F9FAFB" },
-  rejectReasonBtnTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  rejectBtn:         { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#D96C6C", backgroundColor: "#FFF5F5" },
+  rejectBtnTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
+  rejectReasonBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#FBF8F6" },
+  rejectReasonBtnTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   approveBtn:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
   approveBtnTxt:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
@@ -530,11 +530,11 @@ const s = StyleSheet.create({
   presetTxt:         { fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, flex: 1 },
   customInput:       { borderWidth: 1.5, borderRadius: 12, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, minHeight: 80, textAlignVertical: "top" },
   errorRow:          { flexDirection: "row", alignItems: "center", gap: 6 },
-  errorTxt:          { fontSize: 12, fontFamily: "Inter_400Regular", color: "#DC2626", flex: 1 },
+  errorTxt:          { fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C", flex: 1 },
   modalActions:      { flexDirection: "row", gap: 10, marginTop: 4 },
   modalCancelBtn:    { flex: 1, height: 50, borderRadius: 12, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   modalCancelTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  modalRejectBtn:    { flex: 1, height: 50, borderRadius: 12, backgroundColor: "#DC2626", alignItems: "center", justifyContent: "center" },
+  modalRejectBtn:    { flex: 1, height: 50, borderRadius: 12, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },
   modalRejectTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
   reasonSheet:       { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14, alignItems: "center" },

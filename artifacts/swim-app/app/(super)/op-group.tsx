@@ -18,14 +18,14 @@ const MENUS = [
     sub: "운영자 목록·제한·해지·플랜 상태·로그",
     path: "/(super)/pools",
     color: P,
-    bg: "#EDE9FE",
+    bg: "#EEDDF5",
   },
   {
     icon: "credit-card" as const,
     title: "구독·결제 관리",
     sub: "플랜·결제실패·환불·차지백·크레딧",
     path: "/(super)/subscriptions",
-    color: "#0891B2",
+    color: "#1F8F86",
     bg: "#ECFEFF",
   },
   {
@@ -34,22 +34,22 @@ const MENUS = [
     sub: "플랜 생성·수정·비활성화·가격",
     path: "/(super)/subscription-products",
     color: "#7C3AED",
-    bg: "#EDE9FE",
+    bg: "#EEDDF5",
   },
   {
     icon: "hard-drive" as const,
     title: "저장공간 관리",
     sub: "사용량·급증·차단·삭제 큐·임시허용",
     path: "/(super)/storage",
-    color: "#059669",
-    bg: "#D1FAE5",
+    color: "#1F8F86",
+    bg: "#DDF2EF",
   },
   {
     icon: "sliders" as const,
     title: "저장공간 정책",
     sub: "자동삭제·차단·급증 임계값 설정",
     path: "/(super)/storage-policy",
-    color: "#0891B2",
+    color: "#1F8F86",
     bg: "#ECFEFF",
   },
   {
@@ -59,15 +59,15 @@ const MENUS = [
     sub: "수영장 관리자 기기 발송 문자 수집·감사·추적",
     path: "/(super)/invite-sms",
     color: "#D97706",
-    bg: "#FEF3C7",
+    bg: "#FFF1BF",
   },
   {
     icon: "bell" as const,
     title: "공지·팝업 관리",
     sub: "공지 등록·수정·삭제, 대상별 팝업 설정",
     path: "/(super)/notices",
-    color: "#4F46E5",
-    bg: "#EEF2FF",
+    color: "#1F8F86",
+    bg: "#DDF2EF",
   },
 ];
 
@@ -91,7 +91,7 @@ export default function OpGroupScreen() {
             <Text style={s.summaryLabel}>승인 대기</Text>
           </View>
           <View style={[s.summaryCard, paymentIssue > 0 && s.summaryAlert]}>
-            <Text style={[s.summaryNum, paymentIssue > 0 && { color: "#DC2626" }]}>{paymentIssue}</Text>
+            <Text style={[s.summaryNum, paymentIssue > 0 && { color: "#D96C6C" }]}>{paymentIssue}</Text>
             <Text style={s.summaryLabel}>결제 이슈</Text>
           </View>
         </View>
@@ -114,16 +114,16 @@ export default function OpGroupScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F5F3FF" },
+  safe:         { flex: 1, backgroundColor: "#EEDDF5" },
   summaryRow:   { flexDirection: "row", gap: 8, marginBottom: 6 },
   summaryCard:  { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center",
-                  borderWidth: 1, borderColor: "#E5E7EB" },
+                  borderWidth: 1, borderColor: "#E9E2DD" },
   summaryAlert: { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
-  summaryNum:   { fontSize: 22, fontFamily: "Inter_700Bold", color: "#111827" },
-  summaryLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 3 },
+  summaryNum:   { fontSize: 22, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  summaryLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 3 },
   card:         { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
-                  borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
+                  borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E9E2DD" },
   iconBox:      { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cardTitle:    { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
-  cardSub:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 3, lineHeight: 17 },
+  cardTitle:    { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  cardSub:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 3, lineHeight: 17 },
 });

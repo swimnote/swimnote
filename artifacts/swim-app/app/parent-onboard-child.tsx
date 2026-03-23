@@ -140,7 +140,7 @@ export default function ParentOnboardChildScreen() {
         </Text>
 
         {!!error && (
-          <View style={[styles.errorBox, { backgroundColor: "#FEE2E2" }]}>
+          <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
             <Feather name="alert-circle" size={13} color={C.error} />
             <Text style={[styles.errorTxt, { color: C.error }]}>{error}</Text>
           </View>
@@ -186,7 +186,7 @@ export default function ParentOnboardChildScreen() {
           {children.map((child, idx) => (
             <View key={idx} style={[styles.childCard, { borderColor: idx === 0 ? C.tint : C.border }]}>
               <View style={styles.childHeader}>
-                <View style={[styles.childBadge, { backgroundColor: idx === 0 ? C.tintLight : "#F3F4F6" }]}>
+                <View style={[styles.childBadge, { backgroundColor: idx === 0 ? C.tintLight : "#F6F3F1" }]}>
                   <Text style={[styles.childBadgeTxt, { color: idx === 0 ? C.tint : C.textSecondary }]}>
                     자녀 {idx + 1}{idx === 0 ? " (필수)" : " (선택)"}
                   </Text>
@@ -238,9 +238,9 @@ export default function ParentOnboardChildScreen() {
         </View>
 
         {/* 자동승인 안내 */}
-        <View style={[styles.autoHint, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
-          <Feather name="zap" size={14} color="#059669" />
-          <Text style={[styles.autoHintTxt, { color: "#059669" }]}>
+        <View style={[styles.autoHint, { backgroundColor: "#DFF3EC", borderColor: "#A7F3D0" }]}>
+          <Feather name="zap" size={14} color="#1F8F86" />
+          <Text style={[styles.autoHintTxt, { color: "#1F8F86" }]}>
             입력한 정보가 학생 명부와 일치하면 즉시 자동 승인됩니다
           </Text>
         </View>
@@ -269,7 +269,7 @@ function StepBar({ current }: { current: number }) {
       {steps.map((s, i) => (
         <React.Fragment key={s}>
           {i > 0 && <View style={[sb.line, { backgroundColor: s <= current ? C.tint : C.border }]} />}
-          <View style={[sb.dot, { backgroundColor: s < current ? "#10B981" : s === current ? C.tint : C.border }]}>
+          <View style={[sb.dot, { backgroundColor: s < current ? "#2E9B6F" : s === current ? C.tint : C.border }]}>
             {s < current
               ? <Feather name="check" size={12} color="#fff" />
               : <Text style={[sb.dotTxt, { color: s === current ? "#fff" : C.textMuted }]}>{s}</Text>

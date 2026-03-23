@@ -16,14 +16,14 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 // ── 프리셋 색상 팔레트 ────────────────────────────────────────────────
 const PALETTE = [
-  { label: "스윔노트 기본", color: "#1A5CFF" },
-  { label: "인디고",         color: "#4F46E5" },
+  { label: "스윔노트 기본", color: "#1F8F86" },
+  { label: "인디고",         color: "#1F8F86" },
   { label: "퍼플",           color: "#7C3AED" },
   { label: "핑크",           color: "#EC4899" },
-  { label: "레드",           color: "#EF4444" },
+  { label: "레드",           color: "#D96C6C" },
   { label: "오렌지",         color: "#F97316" },
   { label: "골드",           color: "#D97706" },
-  { label: "그린",           color: "#059669" },
+  { label: "그린",           color: "#1F8F86" },
   { label: "틸",             color: "#0D9488" },
   { label: "사이언",         color: "#0284C7" },
   { label: "슬레이트",       color: "#475569" },
@@ -67,7 +67,7 @@ export default function BrandingScreen() {
       setSelectedColor(val);
       setHexError("");
     } else {
-      setHexError("올바른 hex 코드를 입력하세요 (예: #1A5CFF)");
+      setHexError("올바른 hex 코드를 입력하세요 (예: #1F8F86)");
     }
   }, []);
 
@@ -160,7 +160,7 @@ export default function BrandingScreen() {
                   <Feather
                     name={i === 0 ? "grid" : i === 1 ? "users" : "check-square"}
                     size={18}
-                    color={i === 0 ? selectedColor : "#9CA3AF"}
+                    color={i === 0 ? selectedColor : "#9A948F"}
                   />
                   <Text style={[styles.previewTabLabel, i === 0 && { color: selectedColor }]}>{tab}</Text>
                 </View>
@@ -199,11 +199,11 @@ export default function BrandingScreen() {
           <View style={styles.hexRow}>
             <View style={[styles.hexPreview, { backgroundColor: isValidHex(hexInput) ? hexInput : "#eee" }]} />
             <TextInput
-              style={[styles.hexInput, hexError ? { borderColor: "#EF4444" } : {}]}
+              style={[styles.hexInput, hexError ? { borderColor: "#D96C6C" } : {}]}
               value={hexInput}
               onChangeText={handleHexChange}
-              placeholder="#1A5CFF"
-              placeholderTextColor="#9CA3AF"
+              placeholder="#1F8F86"
+              placeholderTextColor="#9A948F"
               autoCapitalize="none"
               autoCorrect={false}
               maxLength={7}
@@ -256,7 +256,7 @@ export default function BrandingScreen() {
             value={logoUrl}
             onChangeText={setLogoUrl}
             placeholder="https://example.com/logo.png"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor="#9A948F"
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -269,7 +269,7 @@ export default function BrandingScreen() {
         {/* ── 앱 아이콘 안내 ─────────────────────────────────── */}
         <Section title="앱 아이콘 커스터마이징">
           <View style={styles.infoBox}>
-            <Feather name="info" size={16} color="#4F46E5" style={{ marginTop: 2 }} />
+            <Feather name="info" size={16} color="#1F8F86" style={{ marginTop: 2 }} />
             <Text style={styles.infoText}>
               앱스토어·구글플레이에서 다운로드되는 앱 아이콘은 항상 스윔노트 기본 아이콘으로 표시됩니다.{"\n\n"}
               수영장별 아이콘 변경은 별도의 화이트라벨 빌드가 필요하며, 엔터프라이즈 플랜에서 지원됩니다. 문의: support@swimnote.kr
@@ -306,27 +306,27 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 const styles = StyleSheet.create({
-  safe:            { flex: 1, backgroundColor: "#F8FAFF" },
-  header:          { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  headerTitle:     { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
+  safe:            { flex: 1, backgroundColor: "#F6F3F1" },
+  header:          { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  headerTitle:     { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   resetBtn:        { fontSize: 14, fontFamily: "Inter_500Medium" },
   content:         { padding: 16, gap: 8, paddingBottom: 100 },
 
   section:         { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, gap: 12 },
-  sectionTitle:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#6B7280", letterSpacing: 0.5, textTransform: "uppercase" },
-  sectionDesc:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", lineHeight: 18 },
+  sectionTitle:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#6F6B68", letterSpacing: 0.5, textTransform: "uppercase" },
+  sectionDesc:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68", lineHeight: 18 },
 
   // 미리보기
-  previewCard:     { borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden", backgroundColor: "#fff" },
-  previewHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  previewCard:     { borderRadius: 12, borderWidth: 1, borderColor: "#E9E2DD", overflow: "hidden", backgroundColor: "#fff" },
+  previewHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
   previewBadge:    { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center" },
   previewBadgeText:{ color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" },
-  previewPoolName: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  previewPoolName: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   previewPowered:  { fontSize: 10, fontFamily: "Inter_500Medium", marginTop: 1 },
   previewTabBar:   { flexDirection: "row", backgroundColor: "#fff" },
   previewTab:      { flex: 1, alignItems: "center", paddingVertical: 10, gap: 3 },
-  previewTabLabel: { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
-  previewNote:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center" },
+  previewTabLabel: { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9A948F" },
+  previewNote:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center" },
 
   // 팔레트
   palette:         { flexDirection: "row", flexWrap: "wrap", gap: 10 },
@@ -336,22 +336,22 @@ const styles = StyleSheet.create({
 
   // Hex 입력
   hexRow:          { flexDirection: "row", alignItems: "center", gap: 10 },
-  hexPreview:      { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB" },
-  hexInput:        { flex: 1, height: 40, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Inter_500Medium", fontSize: 14, color: "#111827" },
-  hexError:        { fontSize: 12, color: "#EF4444", fontFamily: "Inter_400Regular" },
-  hint:            { fontSize: 12, color: "#9CA3AF", fontFamily: "Inter_400Regular" },
+  hexPreview:      { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#E9E2DD" },
+  hexInput:        { flex: 1, height: 40, borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Inter_500Medium", fontSize: 14, color: "#1F1F1F" },
+  hexError:        { fontSize: 12, color: "#D96C6C", fontFamily: "Inter_400Regular" },
+  hint:            { fontSize: 12, color: "#9A948F", fontFamily: "Inter_400Regular" },
 
   // 이모지
   emojiGrid:       { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  emojiCell:       { width: 48, height: 48, borderRadius: 10, justifyContent: "center", alignItems: "center", backgroundColor: "#F3F4F6", borderWidth: 2, borderColor: "transparent" },
+  emojiCell:       { width: 48, height: 48, borderRadius: 10, justifyContent: "center", alignItems: "center", backgroundColor: "#F6F3F1", borderWidth: 2, borderColor: "transparent" },
   emoji:           { fontSize: 24 },
-  emojiNone:       { fontSize: 11, color: "#9CA3AF", fontFamily: "Inter_500Medium" },
+  emojiNone:       { fontSize: 11, color: "#9A948F", fontFamily: "Inter_500Medium" },
 
   // URL 입력
-  urlInput:        { height: 44, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Inter_400Regular", fontSize: 14, color: "#111827" },
+  urlInput:        { height: 44, borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Inter_400Regular", fontSize: 14, color: "#1F1F1F" },
 
   // 안내 박스
-  infoBox:         { flexDirection: "row", gap: 10, backgroundColor: "#EDE9FE", borderRadius: 10, padding: 12 },
+  infoBox:         { flexDirection: "row", gap: 10, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12 },
   infoText:        { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: "#4C1D95", lineHeight: 20 },
 
   // 저장 버튼

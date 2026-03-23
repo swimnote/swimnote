@@ -22,17 +22,17 @@ const TABS = ["담당 회원", "출결", "수업일지", "보강"] as const;
 type HubTab = typeof TABS[number];
 
 const ATT_STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  present: { label: "출석", color: "#059669", bg: "#D1FAE5" },
-  absent:  { label: "결석", color: "#DC2626", bg: "#FEE2E2" },
-  late:    { label: "지각", color: "#D97706", bg: "#FEF3C7" },
+  present: { label: "출석", color: "#1F8F86", bg: "#DDF2EF" },
+  absent:  { label: "결석", color: "#D96C6C", bg: "#F9DEDA" },
+  late:    { label: "지각", color: "#D97706", bg: "#FFF1BF" },
 };
 
 const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  waiting:     { label: "대기",   color: "#D97706", bg: "#FEF3C7" },
-  assigned:    { label: "배정",   color: "#2563EB", bg: "#DBEAFE" },
-  transferred: { label: "이동",   color: "#7C3AED", bg: "#EDE9FE" },
-  completed:   { label: "완료",   color: "#059669", bg: "#D1FAE5" },
-  cancelled:   { label: "취소",   color: "#6B7280", bg: "#F3F4F6" },
+  waiting:     { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
+  assigned:    { label: "배정",   color: "#1F8F86", bg: "#DDF2EF" },
+  transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
+  completed:   { label: "완료",   color: "#1F8F86", bg: "#DDF2EF" },
+  cancelled:   { label: "취소",   color: "#6F6B68", bg: "#F6F3F1" },
 };
 
 export default function TeacherHubScreen() {
@@ -125,7 +125,7 @@ export default function TeacherHubScreen() {
             </Pressable>
           );
           if (tab === "출결") {
-            const ast = ATT_STATUS[item.status] || { label: item.status, color: "#6B7280", bg: "#F3F4F6" };
+            const ast = ATT_STATUS[item.status] || { label: item.status, color: "#6F6B68", bg: "#F6F3F1" };
             return (
               <View style={s.card}>
                 <View style={s.row}>
@@ -149,12 +149,12 @@ export default function TeacherHubScreen() {
                   {item.is_edited && <Text style={[s.sub, { color: "#D97706" }]}>수정됨</Text>}
                 </View>
                 <Pressable onPress={() => deleteDiary(item.id)} style={{ padding: 6 }}>
-                  <Feather name="trash-2" size={16} color="#DC2626" />
+                  <Feather name="trash-2" size={16} color="#D96C6C" />
                 </Pressable>
               </View>
             </View>
           );
-          const mst = MK_STATUS[item.status] || { label: item.status, color: "#6B7280", bg: "#F3F4F6" };
+          const mst = MK_STATUS[item.status] || { label: item.status, color: "#6F6B68", bg: "#F6F3F1" };
           return (
             <View style={s.card}>
               <View style={s.row}>
@@ -162,7 +162,7 @@ export default function TeacherHubScreen() {
                   <Text style={s.name}>{item.student_name}</Text>
                   <Text style={s.sub}>결석일: {item.absence_date}  {item.original_class_group_name || ""}</Text>
                   {item.is_substitute && <Text style={[s.sub, { color: "#7C3AED" }]}>대리: {item.substitute_teacher_name}</Text>}
-                  {item.transferred_to_teacher_name && <Text style={[s.sub, { color: "#2563EB" }]}>이동→ {item.transferred_to_teacher_name}</Text>}
+                  {item.transferred_to_teacher_name && <Text style={[s.sub, { color: "#1F8F86" }]}>이동→ {item.transferred_to_teacher_name}</Text>}
                 </View>
                 <View style={[s.badge, { backgroundColor: mst.bg }]}>
                   <Text style={[s.badgeTxt, { color: mst.color }]}>{mst.label}</Text>
@@ -190,7 +190,7 @@ export default function TeacherHubScreen() {
 function Stat({ label, value, warn }: { label: string; value: number; warn?: boolean }) {
   return (
     <View style={{ alignItems: "center" }}>
-      <Text style={[s.statVal, warn && { color: "#DC2626" }]}>{value}</Text>
+      <Text style={[s.statVal, warn && { color: "#D96C6C" }]}>{value}</Text>
       <Text style={s.statLabel}>{label}</Text>
     </View>
   );

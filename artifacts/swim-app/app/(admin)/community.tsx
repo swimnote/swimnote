@@ -79,11 +79,11 @@ export default function CommunityScreen() {
   }
 
   const NOTICE_TYPE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-    general:    { label: "일반",     color: "#374151", bg: "#F3F4F6" },
-    important:  { label: "중요",     color: "#DC2626", bg: "#FEE2E2" },
+    general:    { label: "일반",     color: "#1F1F1F", bg: "#F6F3F1" },
+    important:  { label: "중요",     color: "#D96C6C", bg: "#F9DEDA" },
     event:      { label: "이벤트",   color: "#7C3AED", bg: "#F3E8FF" },
-    class_info: { label: "수업 안내", color: "#2563EB", bg: "#DBEAFE" },
-    fee:        { label: "요금 안내", color: "#D97706", bg: "#FEF3C7" },
+    class_info: { label: "수업 안내", color: "#1F8F86", bg: "#DDF2EF" },
+    fee:        { label: "요금 안내", color: "#D97706", bg: "#FFF1BF" },
   };
 
   return (
@@ -146,9 +146,9 @@ export default function CommunityScreen() {
                     <Text style={[s.typeBadgeText, { color: type.color }]}>{type.label}</Text>
                   </View>
                   {n.is_pinned && (
-                    <View style={[s.typeBadge, { backgroundColor: "#DBEAFE" }]}>
-                      <Feather name="thumbtack" size={11} color="#2563EB" />
-                      <Text style={[s.typeBadgeText, { color: "#2563EB" }]}>고정</Text>
+                    <View style={[s.typeBadge, { backgroundColor: "#DDF2EF" }]}>
+                      <Feather name="thumbtack" size={11} color="#1F8F86" />
+                      <Text style={[s.typeBadgeText, { color: "#1F8F86" }]}>고정</Text>
                     </View>
                   )}
                   <Text style={s.noticeDate}>
@@ -202,24 +202,24 @@ export default function CommunityScreen() {
               </View>
               <View style={s.reqBtns}>
                 <Pressable
-                  style={[s.reqBtn, { backgroundColor: "#FEE2E2", opacity: processingId === r.link_id ? 0.5 : 1 }]}
+                  style={[s.reqBtn, { backgroundColor: "#F9DEDA", opacity: processingId === r.link_id ? 0.5 : 1 }]}
                   onPress={() => r.student && handleRequest(r.link_id, r.student.id, "reject")}
                   disabled={processingId === r.link_id}
                 >
-                  <Feather name="x" size={15} color="#DC2626" />
-                  <Text style={[s.reqBtnText, { color: "#DC2626" }]}>거절</Text>
+                  <Feather name="x" size={15} color="#D96C6C" />
+                  <Text style={[s.reqBtnText, { color: "#D96C6C" }]}>거절</Text>
                 </Pressable>
                 <Pressable
-                  style={[s.reqBtn, { backgroundColor: "#D1FAE5", flex: 1.5, opacity: processingId === r.link_id ? 0.5 : 1 }]}
+                  style={[s.reqBtn, { backgroundColor: "#DDF2EF", flex: 1.5, opacity: processingId === r.link_id ? 0.5 : 1 }]}
                   onPress={() => r.student && handleRequest(r.link_id, r.student.id, "approve")}
                   disabled={processingId === r.link_id}
                 >
                   {processingId === r.link_id ? (
-                    <ActivityIndicator color="#059669" size="small" />
+                    <ActivityIndicator color="#1F8F86" size="small" />
                   ) : (
                     <>
-                      <Feather name="check" size={15} color="#059669" />
-                      <Text style={[s.reqBtnText, { color: "#059669" }]}>승인</Text>
+                      <Feather name="check" size={15} color="#1F8F86" />
+                      <Text style={[s.reqBtnText, { color: "#1F8F86" }]}>승인</Text>
                     </>
                   )}
                 </Pressable>
@@ -260,7 +260,7 @@ const s = StyleSheet.create({
   reqParent: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
   reqPhone: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   reqDate: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
-  reqStudentRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9FAFB", padding: 10, borderRadius: 10 },
+  reqStudentRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FBF8F6", padding: 10, borderRadius: 10 },
   reqStudentLabel: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
   reqStudentName: { fontSize: 14, fontFamily: "Inter_700Bold", color: C.text },
   reqBtns: { flexDirection: "row", gap: 10 },

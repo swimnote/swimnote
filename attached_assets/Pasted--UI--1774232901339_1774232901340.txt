@@ -1,0 +1,266 @@
+[작업 목적]
+현재 스윔노트 앱의 기능, 메뉴 구성, 페이지 구조, 탭 순서, 라우팅, 데이터 연동은 유지한 채, 전체 UI의 색상 체계와 폰트 스타일만 교체해 학부모용으로 부드럽고 신뢰감 있는 디자인으로 통일한다.
+레퍼런스는 사용자가 전달한 앱 이미지의 분위기이며, 핵심 방향은 다음과 같다:
+- 완전 흰색이 아닌 따뜻한 아이보리 배경
+- 강한 원색 사용 금지
+- 파스텔 계열 카드 구분색 사용
+- 메인 액션 컬러는 청록 계열 1개로 통일
+- 텍스트는 진한 검정보다 부드러운 진회색 사용
+- 전체적으로 난잡하지 않고 가시성 높은 구조
+- 기능 변경 금지, 레이아웃 구조 변경 금지, 메뉴 재배치 금지
+
+[절대 금지]
+1. 메뉴 구조 변경 금지
+2. 탭 위치 변경 금지
+3. 라우팅 변경 금지
+4. 기능 추가/삭제 금지
+5. 카드 개수 변경 금지
+6. 데이터 구조 변경 금지
+7. 컴포넌트 동작 방식 변경 금지
+8. 아이콘 체계 임의 교체 금지
+9. 화면 간 연결 수정 금지
+10. 기존 텍스트 문구 임의 수정 금지
+이번 작업은 오직 디자인 토큰과 스타일 교체만 수행한다.
+
+[디자인 컨셉]
+“부드럽고 정돈된 학부모용 수영 앱”
+- 밝고 따뜻한 아이보리 바탕
+- 흰색 카드와 파스텔 보조 카드 혼합
+- 메인 액션은 청록 1색
+- 카드별 색 구분은 연보라, 연하늘, 크림노랑, 연살구, 민트 중 필요한 범위 내에서만 제한적으로 사용
+- 텍스트는 3단계 명도 체계로 통일
+- 그림자는 매우 약하게
+- 테두리는 얇고 부드럽게
+- 전체 색 수를 최소화해서 통일감 유지
+
+[전역 디자인 토큰 생성]
+프로젝트 공통 테마 파일을 만들거나 기존 테마 파일을 정리해 아래 토큰을 전역 적용하라.
+파일명은 프로젝트 구조에 맞게 맞추되, colors / typography / radius / spacing / shadow 토큰을 중앙 관리하도록 구성한다.
+
+[색상 시스템]
+아래 색상값을 기준으로 전체 화면을 통일한다.
+
+1. 기본 배경
+- app background: #F6F3F1
+- secondary soft background: #FBF8F6
+- main white surface/card: #FFFFFF
+
+2. 텍스트
+- primary text: #1F1F1F
+- secondary text: #6F6B68
+- tertiary text / hint / meta: #9A948F
+- text on primary button: #FFFFFF
+
+3. 메인 브랜드 컬러
+- primary action color: #1F8F86
+- primary pressed/active: #18766F
+- primary light background: #DDF2EF
+
+4. 카드 구분색
+- lavender card: #EEDDF5
+- sky card: #DCEEFF
+- butter card: #FFF1BF
+- peach card: #F9DEDA
+- pink soft card: #F6D8E1
+- mint soft card: #DFF3EC
+
+5. 상태 컬러
+- success: #2E9B6F
+- warning: #E4A93A
+- danger: #D96C6C
+- info/water accent: #4EA7D8
+
+6. 라인/경계/분리선
+- border / divider: #E9E2DD
+- disabled background: #D8D2CD
+- disabled text: #8D8782
+
+7. 그림자
+- shadow color rgba(0,0,0,0.05)
+- 그림자는 모든 카드에 강하게 넣지 말고 아주 약하게만 사용
+
+[폰트 시스템]
+가능하면 Pretendard를 우선 적용한다.
+Pretendard 적용이 어려우면 Noto Sans KR로 fallback 처리한다.
+폰트 두께 체계:
+- Bold: 주요 헤더, 큰 제목
+- SemiBold: 카드 제목, 섹션 제목, 버튼 텍스트
+- Medium: 라벨, 상태 텍스트
+- Regular: 본문, 보조 설명
+
+[권장 폰트 크기]
+- large header: 26
+- page title: 20
+- section title: 17
+- card title: 15
+- body: 14~15
+- caption/meta: 12~13
+
+[모서리 / 라운드]
+- small radius: 12
+- default card radius: 16
+- large card radius: 20
+- pill button radius: 999
+
+[간격]
+- 기본 내부 패딩 16
+- 카드 간격 12~16
+- 섹션 상하 간격 20~24
+- 지나치게 촘촘하지 않게 조정
+
+[적용 원칙]
+1. 화면 전체 배경은 흰색 대신 #F6F3F1 사용
+2. 대부분의 정보 카드 기본 바탕은 흰색 사용
+3. 강조 카드만 파스텔 카드색 사용
+4. 한 화면에서 파스텔 카드색은 최대 3개까지만 사용
+5. 한 화면에 모든 카드색을 동시에 다 쓰지 말 것
+6. CTA 버튼은 전부 primary color #1F8F86 계열로 통일
+7. 텍스트는 검정 대신 primary/secondary/tertiary 체계만 사용
+8. 불필요한 진한 테두리 제거
+9. 테두리는 #E9E2DD 얇게 사용
+10. 가시성 우선, 장식보다 정보 전달 우선
+
+[화면별 적용 규칙]
+
+1. 학부모 홈 화면
+목표: 가장 따뜻하고 보기 편한 화면
+- 전체 배경: #F6F3F1
+- 상단 헤더 배경: 동일 배경 또는 흰색 없이 자연스럽게 연결
+- 아이 이름/환영 문구: primary text
+- 상태/보조 문구: secondary text
+- 오늘 수업 카드: sky card (#DCEEFF)
+- 출결/일정 카드: butter card (#FFF1BF)
+- 피드백/일지 카드: lavender card (#EEDDF5)
+- 공지/알림 카드가 있다면: peach card (#F9DEDA)
+- 최근 기록/리스트 카드: white surface
+- 메인 버튼: primary
+- 메인 버튼 텍스트: white
+
+2. 학부모 상세 피드백 화면 / 일지 화면
+목표: 읽기 편하고 정돈된 느낌
+- 전체 배경: #F6F3F1
+- 일지 본문 카드: white surface
+- 선생님 코멘트 강조 영역: pink soft card (#F6D8E1) 또는 peach card
+- 오늘 잘한 점 / 다음 목표 같은 요약 박스: mint soft card (#DFF3EC)
+- 첨부 정보/날짜/작성자 라벨: tertiary text
+- 본문 텍스트: primary text
+- 보조 설명: secondary text
+
+3. 성장기록 / 레벨 / 테스트 화면
+목표: 수영 앱다운 시원한 포인트 추가
+- 전체 배경: #F6F3F1
+- 기본 카드: white surface
+- 기록 강조 수치, 뱃지, 진행 상태: info color #4EA7D8
+- 합격/통과/완료: success
+- 주의/미완료: warning
+- 실패/거절/중요 경고: danger
+- 그래프/포인트 강조가 있으면 물색 계열(info) 우선 사용
+- 파스텔 색 남용 금지, 이 화면은 상대적으로 차분하게 유지
+
+4. 쪽지 / 간단 문의 화면
+목표: 깔끔하고 읽기 편한 대화 느낌
+- 전체 배경: #F6F3F1 또는 #FBF8F6
+- 내가 보낸 말풍선/액션 영역: primary light (#DDF2EF) 또는 primary color 사용
+- 상대방 말풍선: white surface
+- 보조 텍스트: secondary
+- 입력창 배경: white surface
+- 전송 버튼: primary
+
+5. 관리자 화면
+목표: 학부모 화면보다 조금 더 정돈되고 업무형
+- 전체 배경: #F6F3F1 유지
+- 메인 정보 카드: white surface 우선
+- 핵심 요약 카드만 soft card 사용
+- 과한 파스텔 사용 금지
+- 통계/상태 위젯: white + info/success/warning 포인트
+- 액션 버튼은 primary 통일
+
+6. 선생님 화면
+목표: 업무형이지만 너무 딱딱하지 않게
+- 전체 배경: #F6F3F1
+- 리스트/출결 카드: white surface
+- 출석 관련 강조: mint soft card or sky card
+- 보강/주의 관련 강조: butter or peach
+- 작성 완료/성공: success
+- 버튼류: primary
+
+[버튼 스타일]
+모든 주요 버튼에 아래 기준 적용
+- background: #1F8F86
+- text: #FFFFFF
+- radius: pill
+- vertical padding: 12~14
+- pressed state: #18766F
+- disabled background: #D8D2CD
+- disabled text: #8D8782
+보조 버튼은 흰색 배경 + border #E9E2DD + textPrimary 사용 가능하나, 전체적으로 primary 버튼 중심 유지
+
+[카드 스타일]
+- 배경색 기본: white
+- border radius: 16~20
+- border: 1px #E9E2DD 또는 투명
+- 그림자 아주 약하게
+- 카드 내 패딩 16
+- 제목과 설명 간격 명확히
+- 정보량이 많은 카드도 색은 차분하게 유지
+- 같은 섹션 카드가 여러 개면 배경색을 제각각 쓰지 말고 규칙적으로 반복
+
+[텍스트 스타일]
+- 큰 헤더: Bold, #1F1F1F
+- 섹션 제목: SemiBold, #1F1F1F
+- 카드 제목: SemiBold, #1F1F1F
+- 본문: Regular, #6F6B68 또는 #1F1F1F
+- 설명/보조/날짜: Regular/Medium, #9A948F
+줄간격은 답답하지 않게 확보
+
+[하단 탭 / 상단 네비게이션]
+- 기본 배경: #F6F3F1 또는 white surface 중 현재 구조에 맞게 선택
+- 활성 탭 아이콘/텍스트: primary color
+- 비활성 탭 아이콘/텍스트: #9A948F
+- 상단 아이콘도 동일 규칙 적용
+- 탭 구조 자체는 절대 변경 금지
+
+[입력창 / 폼 / 필드]
+- 배경: white surface
+- border: #E9E2DD
+- placeholder: #9A948F
+- input text: #1F1F1F
+- focus state border: #1F8F86
+- 에러 state border/text: #D96C6C
+
+[실제 구현 방식]
+1. 프로젝트 전역 스타일/테마 파일을 만든다
+2. 현재 하드코딩된 색상을 최대한 theme 토큰 참조 방식으로 교체한다
+3. 공통 Button/Card/Text/Input 스타일을 정리해 재사용한다
+4. 기존 화면 구조는 절대 바꾸지 않는다
+5. 화면별로 위 규칙에 따라 색상만 입힌다
+6. 폰트가 프로젝트에 연결 가능하면 Pretendard 적용, 어려우면 Noto Sans KR fallback
+7. 기존 inline style에 박혀 있는 강한 흰색/검정/원색을 위 토큰으로 교체한다
+
+[검수 체크리스트]
+작업 후 아래를 반드시 확인하고 결과를 보고하라.
+1. 메뉴 구성 변경 없음
+2. 라우팅 변경 없음
+3. 기능 동작 이상 없음
+4. 전체 배경이 따뜻한 아이보리로 통일되었는지
+5. 메인 버튼 색상이 전부 청록 계열로 통일되었는지
+6. 카드 구분색이 파스텔 톤으로 정리되었는지
+7. 한 화면에서 색이 3개 이상 난잡하게 섞이지 않는지
+8. 텍스트 대비가 충분해 읽기 쉬운지
+9. 관리자/선생님/학부모 화면이 같은 앱처럼 보이되 역할별 차이는 유지되는지
+10. 기존 기능이나 연결이 깨지지 않았는지
+
+[최종 보고 방식]
+작업 완료 후 아래 형식으로 보고하라.
+- 수정한 전역 테마 파일 경로
+- 수정한 화면 파일 목록
+- 각 화면에 적용한 색상 규칙 요약
+- Pretendard 적용 여부
+- 변경 전후 스크린샷 또는 설명
+- 기능 영향 없음 여부
+- 남아 있는 하드코딩 색상 위치가 있으면 목록화
+
+[중요]
+이번 작업은 ‘디자인 리스킨’이다.
+기능 개선, 구조 개선, 컴포넌트 재설계, 정보 재배열은 하지 말고
+현재 스윔노트의 모든 화면을 하나의 통일된 디자인 시스템으로 정리하는 데 집중하라.

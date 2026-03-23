@@ -24,14 +24,14 @@ interface EventLogItem {
 }
 
 const CAT_META: Record<string, { icon: string; color: string; bg: string }> = {
-  "삭제":     { icon: "trash-2",     color: "#DC2626", bg: "#FEE2E2" },
-  "결제":     { icon: "credit-card", color: "#059669", bg: "#D1FAE5" },
-  "구독":     { icon: "star",        color: "#7C3AED", bg: "#EDE9FE" },
-  "해지":     { icon: "x-circle",    color: "#F59E0B", bg: "#FEF3C7" },
-  "권한":     { icon: "shield",      color: "#2563EB", bg: "#DBEAFE" },
+  "삭제":     { icon: "trash-2",     color: "#D96C6C", bg: "#F9DEDA" },
+  "결제":     { icon: "credit-card", color: "#1F8F86", bg: "#DDF2EF" },
+  "구독":     { icon: "star",        color: "#7C3AED", bg: "#EEDDF5" },
+  "해지":     { icon: "x-circle",    color: "#E4A93A", bg: "#FFF1BF" },
+  "권한":     { icon: "shield",      color: "#1F8F86", bg: "#DDF2EF" },
   "선생님":   { icon: "user-check",  color: "#0D9488", bg: "#CCFBF1" },
-  "저장공간": { icon: "hard-drive",  color: "#EC4899", bg: "#FCE7F3" },
-  "휴무일":   { icon: "calendar",    color: "#6B7280", bg: "#F3F4F6" },
+  "저장공간": { icon: "hard-drive",  color: "#EC4899", bg: "#F6D8E1" },
+  "휴무일":   { icon: "calendar",    color: "#6F6B68", bg: "#F6F3F1" },
 };
 const CATEGORIES = ["전체", "삭제", "결제", "구독", "해지", "권한", "선생님", "저장공간", "휴무일"] as const;
 
@@ -119,7 +119,7 @@ export default function DataEventLogsScreen() {
           loading && logs.length > 0 ? <ActivityIndicator color={themeColor} style={{ marginVertical: 16 }} /> : null
         }
         renderItem={({ item: ev }) => {
-          const meta = CAT_META[ev.category] || { icon: "activity", color: C.textSecondary, bg: "#F3F4F6" };
+          const meta = CAT_META[ev.category] || { icon: "activity", color: C.textSecondary, bg: "#F6F3F1" };
           // 안전한 날짜 파싱 — Invalid Date / NaN:NaN 방지
           const rawDate = ev.created_at;
           const dt = rawDate ? new Date(rawDate) : null;
@@ -163,15 +163,15 @@ export default function DataEventLogsScreen() {
 }
 
 const s = StyleSheet.create({
-  chip:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, width: 76, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+  chip:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, width: 76, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: "#E9E2DD", backgroundColor: "#fff" },
   chipText:  { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   card:      { borderRadius: 16, padding: 14, gap: 6, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   evtIcon:   { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   badge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeText: { fontSize: 11, fontFamily: "Inter_700Bold" },
-  desc:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827", lineHeight: 20 },
-  target:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
-  date:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  time:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
-  actor:     { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
+  desc:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", lineHeight: 20 },
+  target:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
+  date:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  time:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  actor:     { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9A948F" },
 });

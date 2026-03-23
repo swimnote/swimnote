@@ -163,7 +163,7 @@ export default function PhotoUploadScreen() {
         onBack={() => setStep("students")}
         rightSlot={
           <Pressable
-            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#059669" : C.border, opacity: uploading ? 0.6 : 1 }]}
+            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#1F8F86" : C.border, opacity: uploading ? 0.6 : 1 }]}
             onPress={handleUpload}
             disabled={uploading || images.length === 0}
           >
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     position: "absolute", left: 20, right: 20, borderRadius: 16,
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 20, paddingVertical: 14,
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 8, shadowColor: "#1A5CFF40",
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 8, shadowColor: "#1F8F8640",
   },
   selectionText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
   selectionBtn: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 10 },

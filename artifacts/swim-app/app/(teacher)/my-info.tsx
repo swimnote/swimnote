@@ -37,8 +37,8 @@ interface MemberItem {
 }
 
 const DAY_COLORS: Record<string, string> = {
-  월: "#3B82F6", 화: "#8B5CF6", 수: "#059669",
-  목: "#F59E0B", 금: "#EF4444", 토: "#1A5CFF", 일: "#6B7280",
+  월: "#4EA7D8", 화: "#8B5CF6", 수: "#1F8F86",
+  목: "#E4A93A", 금: "#D96C6C", 토: "#1F8F86", 일: "#6F6B68",
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -159,7 +159,7 @@ export default function MyInfoScreen() {
   /* ── 회원 목록 서브뷰 ── */
   if (memberView) {
     const labels: Record<string, string> = { active: "정상회원", suspended: "연기회원", withdrawn: "탈퇴회원" };
-    const colors: Record<string, string> = { active: "#059669", suspended: "#F59E0B", withdrawn: "#DC2626" };
+    const colors: Record<string, string> = { active: "#1F8F86", suspended: "#E4A93A", withdrawn: "#D96C6C" };
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title={labels[memberView]} onBack={() => setMemberView(null)} homePath="/(teacher)/today-schedule" />
@@ -233,7 +233,7 @@ export default function MyInfoScreen() {
               <Text style={s.profileName}>{profile?.name || "-"}</Text>
               {profile?.position ? <Text style={s.profileSub}>{profile.position}</Text> : null}
               <Text style={s.profileSub}>{profile?.phone || "-"}</Text>
-              <Text style={[s.profileSub, { color: "#9CA3AF" }]}>{profile?.email || "-"}</Text>
+              <Text style={[s.profileSub, { color: "#9A948F" }]}>{profile?.email || "-"}</Text>
             </View>
             <Pressable style={[s.editBtn, { borderColor: themeColor }]} onPress={openEdit}>
               <Feather name="edit-2" size={14} color={themeColor} />
@@ -260,7 +260,7 @@ export default function MyInfoScreen() {
                 <Text style={s.permLabel}>보유 역할</Text>
                 <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
                   {adminUser.roles.map((r: string) => (
-                    <View key={r} style={[s.permBadge, { backgroundColor: "#F3F4F6" }]}>
+                    <View key={r} style={[s.permBadge, { backgroundColor: "#F6F3F1" }]}>
                       <Text style={[s.permBadgeText, { color: C.textSecondary }]}>{ROLE_LABEL[r] ?? r}</Text>
                     </View>
                   ))}
@@ -303,9 +303,9 @@ export default function MyInfoScreen() {
             <Text style={s.cardTitle}>회원 현황</Text>
           </View>
           {([
-            { key: "active",    label: "정상회원", count: memStatus.active,    color: "#059669" },
-            { key: "suspended", label: "연기회원", count: memStatus.suspended, color: "#F59E0B" },
-            { key: "withdrawn", label: "탈퇴회원", count: memStatus.withdrawn, color: "#DC2626" },
+            { key: "active",    label: "정상회원", count: memStatus.active,    color: "#1F8F86" },
+            { key: "suspended", label: "연기회원", count: memStatus.suspended, color: "#E4A93A" },
+            { key: "withdrawn", label: "탈퇴회원", count: memStatus.withdrawn, color: "#D96C6C" },
           ] as const).map((row, i) => (
             <Pressable
               key={row.key}
@@ -323,12 +323,12 @@ export default function MyInfoScreen() {
         {/* ── 관리자 모드 전환 ── */}
         {hasMultipleRoles && (
           <Pressable
-            style={[s.actionBtn, { backgroundColor: "#EFF6FF", borderColor: "#6366F1" }]}
+            style={[s.actionBtn, { backgroundColor: "#DDF2EF", borderColor: "#1F8F86" }]}
             onPress={() => setSwitchModalVisible(true)}
           >
-            <Feather name="repeat" size={18} color="#6366F1" />
-            <Text style={[s.actionBtnText, { color: "#6366F1" }]}>모드 전환 (관리자↔선생님)</Text>
-            <Feather name="chevron-right" size={16} color="#6366F1" />
+            <Feather name="repeat" size={18} color="#1F8F86" />
+            <Text style={[s.actionBtnText, { color: "#1F8F86" }]}>모드 전환 (관리자↔선생님)</Text>
+            <Feather name="chevron-right" size={16} color="#1F8F86" />
           </Pressable>
         )}
 
@@ -337,9 +337,9 @@ export default function MyInfoScreen() {
           style={[s.actionBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]}
           onPress={() => { setResignReason(""); setResignMsg(""); setResignVisible(true); }}
         >
-          <Feather name="user-x" size={18} color="#EF4444" />
-          <Text style={[s.actionBtnText, { color: "#EF4444" }]}>선생님 권한 탈퇴 요청</Text>
-          <Feather name="chevron-right" size={16} color="#EF4444" />
+          <Feather name="user-x" size={18} color="#D96C6C" />
+          <Text style={[s.actionBtnText, { color: "#D96C6C" }]}>선생님 권한 탈퇴 요청</Text>
+          <Feather name="chevron-right" size={16} color="#D96C6C" />
         </Pressable>
 
       </ScrollView>
@@ -361,8 +361,8 @@ export default function MyInfoScreen() {
             <Text style={s.inputLabel}>직급 / 직책</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={editPos} onChangeText={setEditPos} placeholder="예: 수석강사" placeholderTextColor={C.textMuted} />
             {editMsg ? (
-              <View style={[s.msgBox, { backgroundColor: editMsg.includes("저장") ? "#D1FAE5" : "#FEE2E2" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: editMsg.includes("저장") ? "#059669" : "#DC2626" }}>{editMsg}</Text>
+              <View style={[s.msgBox, { backgroundColor: editMsg.includes("저장") ? "#DDF2EF" : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: editMsg.includes("저장") ? "#1F8F86" : "#D96C6C" }}>{editMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: themeColor, opacity: editSaving ? 0.7 : 1, marginTop: 16 }]} onPress={saveProfile} disabled={editSaving}>
@@ -387,11 +387,11 @@ export default function MyInfoScreen() {
             <Text style={s.inputLabel}>요청 사유</Text>
             <TextInput style={[s.input, s.textArea, { borderColor: C.border, color: C.text }]} value={resignReason} onChangeText={setResignReason} placeholder="퇴직 사유 또는 권한 종료 이유를 입력해주세요..." placeholderTextColor={C.textMuted} multiline numberOfLines={4} textAlignVertical="top" />
             {resignMsg ? (
-              <View style={[s.msgBox, { backgroundColor: resignMsg.includes("접수") ? "#D1FAE5" : "#FEE2E2" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: resignMsg.includes("접수") ? "#059669" : "#DC2626" }}>{resignMsg}</Text>
+              <View style={[s.msgBox, { backgroundColor: resignMsg.includes("접수") ? "#DDF2EF" : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: resignMsg.includes("접수") ? "#1F8F86" : "#D96C6C" }}>{resignMsg}</Text>
               </View>
             ) : null}
-            <Pressable style={[s.confirmBtn, { backgroundColor: "#EF4444", opacity: resignSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitResign} disabled={resignSaving}>
+            <Pressable style={[s.confirmBtn, { backgroundColor: "#D96C6C", opacity: resignSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitResign} disabled={resignSaving}>
               {resignSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnText}>탈퇴 요청 제출</Text>}
             </Pressable>
           </View>
@@ -425,7 +425,7 @@ export default function MyInfoScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F3F4F6" },
+  safe:             { flex: 1, backgroundColor: "#F6F3F1" },
   card:             { backgroundColor: C.card, borderRadius: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   cardRow:          { flexDirection: "row", alignItems: "center", gap: 14 },
   cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, paddingBottom: 12 },
@@ -470,6 +470,6 @@ const s = StyleSheet.create({
   msgBox:           { padding: 10, borderRadius: 10 },
   confirmBtn:       { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   confirmBtnText:   { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  warnBox:          { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#FEF3C7", padding: 10, borderRadius: 10 },
+  warnBox:          { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#FFF1BF", padding: 10, borderRadius: 10 },
   warnText:         { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E" },
 });

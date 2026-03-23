@@ -80,10 +80,10 @@ function toStudentMember(m: TeacherMember): StudentMember {
 type TabKey = "all" | "unassigned" | "suspend_pending" | "withdraw_pending";
 
 const TAB_CONFIG: { key: TabKey; label: string; color: string }[] = [
-  { key: "all",              label: "전체",   color: "#374151" },
-  { key: "unassigned",       label: "미배정", color: "#DC2626" },
+  { key: "all",              label: "전체",   color: "#1F1F1F" },
+  { key: "unassigned",       label: "미배정", color: "#D96C6C" },
   { key: "suspend_pending",  label: "연기예정", color: "#B45309" },
-  { key: "withdraw_pending", label: "퇴원예정", color: "#6B7280" },
+  { key: "withdraw_pending", label: "퇴원예정", color: "#6F6B68" },
 ];
 
 export default function WaitingListScreen() {
@@ -229,8 +229,8 @@ export default function WaitingListScreen() {
                   {
                     label: item.pending_status_change === "suspended" ? "연기예정 처리" : "퇴원예정 처리",
                     icon: "settings",
-                    color: item.pending_status_change === "suspended" ? "#B45309" : "#DC2626",
-                    bg: item.pending_status_change === "suspended" ? "#FEF3C7" : "#FEF2F2",
+                    color: item.pending_status_change === "suspended" ? "#B45309" : "#D96C6C",
+                    bg: item.pending_status_change === "suspended" ? "#FFF1BF" : "#FEF2F2",
                     onPress: () => setActionTarget(item),
                   },
                 ] : undefined}
@@ -266,8 +266,8 @@ function PendingActionModal({
 }) {
   const isSuspend = member.pending_status_change === "suspended";
   const label = isSuspend ? "연기" : "퇴원";
-  const labelColor = isSuspend ? "#B45309" : "#DC2626";
-  const labelBg = isSuspend ? "#FEF3C7" : "#FEF2F2";
+  const labelColor = isSuspend ? "#B45309" : "#D96C6C";
+  const labelBg = isSuspend ? "#FFF1BF" : "#FEF2F2";
   const labelBgBtn = isSuspend ? "#FFFBEB" : "#FEF2F2";
 
   return (
@@ -289,9 +289,9 @@ function PendingActionModal({
           {/* 이달 말 유지 */}
           <Pressable
             onPress={onKeep}
-            style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#F9FAFB", borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: C.border }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#FBF8F6", borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: C.border }}
           >
-            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" }}>
               <Feather name="calendar" size={20} color={C.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>

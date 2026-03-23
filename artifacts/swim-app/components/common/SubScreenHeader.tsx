@@ -95,7 +95,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F6F3F1",
   },
   placeholder: {
     width: 38,

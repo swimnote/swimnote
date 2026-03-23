@@ -144,7 +144,7 @@ export default function PoolJoinRequestScreen() {
           </View>
 
           {!!error && (
-            <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+            <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
               <Feather name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
@@ -199,7 +199,7 @@ export default function PoolJoinRequestScreen() {
           <Text style={[styles.sectionSub, { color: C.textSecondary }]}>수영장 관리자가 확인 후 승인 처리합니다</Text>
 
           {!!error && (
-            <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+            <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
               <Feather name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
@@ -318,7 +318,7 @@ export default function PoolJoinRequestScreen() {
             </View>
           </View>
 
-          <View style={[styles.noticeBox, { backgroundColor: "#FEF3C7", borderColor: "#FCD34D" }]}>
+          <View style={[styles.noticeBox, { backgroundColor: "#FFF1BF", borderColor: "#FCD34D" }]}>
             <Feather name="info" size={14} color="#D97706" />
             <Text style={[styles.noticeText, { color: "#92400E" }]}>
               가입 요청 후 수영장 관리자가 승인하면{"\n"}
@@ -343,7 +343,7 @@ export default function PoolJoinRequestScreen() {
       {/* ── 완료 단계 ─────────────────────────────────────────── */}
       {step === "done" && (
         <View style={[styles.doneContainer, { paddingBottom: insets.bottom + 40 }]}>
-          <View style={[styles.doneIcon, { backgroundColor: "#D1FAE5" }]}>
+          <View style={[styles.doneIcon, { backgroundColor: "#DDF2EF" }]}>
             <Feather name="check-circle" size={48} color={C.success} />
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입 요청이 접수됐어요!</Text>

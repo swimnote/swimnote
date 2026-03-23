@@ -132,7 +132,7 @@ function StepBar({ current }: { current: number }) {
       {steps.map((s, i) => (
         <React.Fragment key={s}>
           {i > 0 && <View style={[sb.line, { backgroundColor: s <= current ? C.tint : C.border }]} />}
-          <View style={[sb.dot, { backgroundColor: s < current ? "#10B981" : s === current ? C.tint : C.border }]}>
+          <View style={[sb.dot, { backgroundColor: s < current ? "#2E9B6F" : s === current ? C.tint : C.border }]}>
             {s < current
               ? <Feather name="check" size={12} color="#fff" />
               : <Text style={[sb.dotTxt, { color: s === current ? "#fff" : C.textMuted }]}>{s}</Text>

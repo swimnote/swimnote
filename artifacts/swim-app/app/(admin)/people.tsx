@@ -157,8 +157,8 @@ export default function PeopleHubScreen() {
               <HubCard
                 icon="users"
                 title="회원관리"
-                color="#2563EB"
-                bg="#EFF6FF"
+                color="#1F8F86"
+                bg="#DDF2EF"
                 onPress={() => router.push("/(admin)/members")}
                 rows={[
                   { label: "전체", value: summary.totalMembers },
@@ -166,15 +166,15 @@ export default function PeopleHubScreen() {
                   { label: "휴원", value: summary.inactiveMembers },
                 ]}
                 badge={summary.unassignedMembers > 0 ? `미배정 ${summary.unassignedMembers}` : undefined}
-                badgeColor="#EF4444"
+                badgeColor="#D96C6C"
               />
 
               {/* 학부모관리 */}
               <HubCard
                 icon="user"
                 title="학부모관리"
-                color="#059669"
-                bg="#ECFDF5"
+                color="#1F8F86"
+                bg="#DFF3EC"
                 onPress={() => router.push("/(admin)/parents")}
                 rows={[
                   { label: "전체", value: summary.totalParents },
@@ -188,7 +188,7 @@ export default function PeopleHubScreen() {
                 icon="user-check"
                 title="선생님관리"
                 color="#7C3AED"
-                bg="#F5F3FF"
+                bg="#EEDDF5"
                 onPress={() => router.push("/(admin)/people-teachers")}
                 rows={[
                   { label: "전체", value: summary.totalTeachers },
@@ -287,8 +287,8 @@ function HubCard({
 
       {/* 배지 */}
       {badge && (
-        <View style={[s.cardBadge, { backgroundColor: (badgeColor ?? "#EF4444") + "18" }]}>
-          <Text style={[s.cardBadgeTxt, { color: badgeColor ?? "#EF4444" }]}>{badge}</Text>
+        <View style={[s.cardBadge, { backgroundColor: (badgeColor ?? "#D96C6C") + "18" }]}>
+          <Text style={[s.cardBadgeTxt, { color: badgeColor ?? "#D96C6C" }]}>{badge}</Text>
         </View>
       )}
     </Pressable>
@@ -322,7 +322,7 @@ function QuickBtn({
 
 const s = StyleSheet.create({
   root:         { flex: 1, backgroundColor: C.background },
-  badge:        { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  badge:        { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
   badgeTxt:     { color: "#fff", fontSize: 11, fontWeight: "700" },
 
   grid:         { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 24 },
@@ -368,6 +368,6 @@ const s = StyleSheet.create({
   },
   quickIcon:    { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   quickLabel:   { fontSize: 12, fontWeight: "600", color: C.text, textAlign: "center" },
-  quickBadge:   { position: "absolute", top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  quickBadge:   { position: "absolute", top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   quickBadgeTxt:{ color: "#fff", fontSize: 9, fontWeight: "700" },
 });

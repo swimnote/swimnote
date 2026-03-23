@@ -176,7 +176,7 @@ const s = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#E9E2DD",
   },
   header: {
     flexDirection: "row",
@@ -184,7 +184,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: "#F6F3F1",
   },
   headerSpacer: { width: 36 },
   title: {
@@ -200,7 +200,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F6F3F1",
   },
   content: {
     padding: 20,

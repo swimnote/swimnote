@@ -18,10 +18,10 @@ interface AttRecord {
 const C = Colors.light;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  present: { label: "출석",  color: "#059669", bg: "#D1FAE5", icon: "check-circle" },
-  absent:  { label: "결석",  color: "#DC2626", bg: "#FEE2E2", icon: "x-circle" },
-  late:    { label: "지각",  color: "#D97706", bg: "#FEF3C7", icon: "clock" },
-  makeup:  { label: "보강",  color: "#7C3AED", bg: "#EDE9FE", icon: "refresh-cw" },
+  present: { label: "출석",  color: "#1F8F86", bg: "#DDF2EF", icon: "check-circle" },
+  absent:  { label: "결석",  color: "#D96C6C", bg: "#F9DEDA", icon: "x-circle" },
+  late:    { label: "지각",  color: "#D97706", bg: "#FFF1BF", icon: "clock" },
+  makeup:  { label: "보강",  color: "#7C3AED", bg: "#EEDDF5", icon: "refresh-cw" },
 };
 
 type ListItem =
@@ -93,8 +93,8 @@ export default function ParentAttendanceScreen() {
                 </View>
                 <View style={[styles.divider, { backgroundColor: C.border }]} />
                 {[
-                  { label: "출석", value: presentCount, color: "#059669" },
-                  { label: "결석", value: absentCount,  color: "#DC2626" },
+                  { label: "출석", value: presentCount, color: "#1F8F86" },
+                  { label: "결석", value: absentCount,  color: "#D96C6C" },
                   { label: "지각", value: lateCount,    color: "#D97706" },
                   { label: "보강", value: makeupCount,  color: "#7C3AED" },
                 ].map(s => (

@@ -70,8 +70,8 @@ export default function TeacherActivateScreen() {
   if (success) {
     return (
       <View style={[styles.root, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}>
-        <View style={[styles.successIcon, { backgroundColor: "#D1FAE5" }]}>
-          <Feather name="check-circle" size={48} color="#059669" />
+        <View style={[styles.successIcon, { backgroundColor: "#DDF2EF" }]}>
+          <Feather name="check-circle" size={48} color="#1F8F86" />
         </View>
         <Text style={[styles.successTitle, { color: C.text }]}>계정 활성화 완료!</Text>
         <Text style={[styles.successSub, { color: C.textSecondary }]}>잠시 후 이동합니다...</Text>
@@ -91,7 +91,7 @@ export default function TeacherActivateScreen() {
         </Text>
 
         {error ? (
-          <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+          <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
             <Feather name="alert-circle" size={14} color={C.error} />
             <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
           </View>

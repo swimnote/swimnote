@@ -16,16 +16,16 @@ const MENUS = [
     title: "데이터·킬스위치",
     sub: "삭제 예약·유예·4단계 안전장치·실행 로그",
     path: "/(super)/kill-switch",
-    color: "#DC2626",
-    bg: "#FEE2E2",
+    color: "#D96C6C",
+    bg: "#F9DEDA",
   },
   {
     icon: "save" as const,
     title: "백업/복구/스냅샷",
     sub: "스냅샷 목록·단일복구·비교복구·배치잡",
     path: "/(super)/backup",
-    color: "#059669",
-    bg: "#D1FAE5",
+    color: "#1F8F86",
+    bg: "#DDF2EF",
   },
   {
     icon: "toggle-left" as const,
@@ -33,7 +33,7 @@ const MENUS = [
     sub: "ON/OFF 제어·운영자별 예외·롤백·위험 플래그",
     path: "/(super)/feature-flags",
     color: "#7C3AED",
-    bg: "#EDE9FE",
+    bg: "#EEDDF5",
   },
   {
     icon: "lock" as const,
@@ -62,7 +62,7 @@ export default function ProtectGroupScreen() {
         {/* 요약 */}
         <View style={s.summaryRow}>
           <View style={[s.summaryCard, deletionPending > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, deletionPending > 0 && { color: "#DC2626" }]}>{deletionPending}</Text>
+            <Text style={[s.summaryNum, deletionPending > 0 && { color: "#D96C6C" }]}>{deletionPending}</Text>
             <Text style={s.summaryLabel}>삭제 예정</Text>
           </View>
           <View style={[s.summaryCard, readonlyCount > 0 && s.summaryAlertOrange]}>
@@ -70,14 +70,14 @@ export default function ProtectGroupScreen() {
             <Text style={s.summaryLabel}>읽기전용</Text>
           </View>
           <View style={[s.summaryCard, dangerActive > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, dangerActive > 0 && { color: "#DC2626" }]}>{dangerActive}</Text>
+            <Text style={[s.summaryNum, dangerActive > 0 && { color: "#D96C6C" }]}>{dangerActive}</Text>
             <Text style={s.summaryLabel}>위험 플래그 ON</Text>
           </View>
         </View>
 
         {dangerActive > 0 && (
           <View style={s.warningBanner}>
-            <Feather name="alert-triangle" size={14} color="#DC2626" />
+            <Feather name="alert-triangle" size={14} color="#D96C6C" />
             <Text style={s.warningTxt}>위험 플래그 {dangerActive}개가 활성화되어 있습니다. 기능 플래그 화면에서 확인하세요.</Text>
           </View>
         )}
@@ -100,20 +100,20 @@ export default function ProtectGroupScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F5F3FF" },
+  safe:             { flex: 1, backgroundColor: "#EEDDF5" },
   summaryRow:       { flexDirection: "row", gap: 8, marginBottom: 6 },
   summaryCard:      { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center",
-                      borderWidth: 1, borderColor: "#E5E7EB" },
+                      borderWidth: 1, borderColor: "#E9E2DD" },
   summaryAlertRed:  { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
   summaryAlertOrange:{ borderColor: "#FDE68A", backgroundColor: "#FFFBEB" },
-  summaryNum:       { fontSize: 22, fontFamily: "Inter_700Bold", color: "#111827" },
-  summaryLabel:     { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 3, textAlign: "center" },
-  warningBanner:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2",
+  summaryNum:       { fontSize: 22, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  summaryLabel:     { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 3, textAlign: "center" },
+  warningBanner:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA",
                       padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#FCA5A5" },
   warningTxt:       { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#991B1B", lineHeight: 17 },
   card:             { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
-                      borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
+                      borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E9E2DD" },
   iconBox:          { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cardTitle:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
-  cardSub:          { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 3, lineHeight: 17 },
+  cardTitle:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  cardSub:          { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 3, lineHeight: 17 },
 });

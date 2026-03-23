@@ -138,10 +138,10 @@ export default function DiaryIndexScreen() {
         {/* 상단 메타 */}
         <View style={di.cardTop}>
           <Text style={di.cardDate}>{formatDate(item.lesson_date)}</Text>
-          <View style={[di.typeBadge, { backgroundColor: isNote ? "#EDE9FE" : "#EFF6FF" }]}>
+          <View style={[di.typeBadge, { backgroundColor: isNote ? "#EEDDF5" : "#DDF2EF" }]}>
             {isNote
               ? <><Feather name="user" size={10} color="#7C3AED" /><Text style={[di.typeBadgeText, { color: "#7C3AED" }]}>{item.student_name} 추가</Text></>
-              : <><Feather name="users" size={10} color="#2563EB" /><Text style={[di.typeBadgeText, { color: "#2563EB" }]}>반 공통</Text></>
+              : <><Feather name="users" size={10} color="#1F8F86" /><Text style={[di.typeBadgeText, { color: "#1F8F86" }]}>반 공통</Text></>
             }
           </View>
         </View>
@@ -235,7 +235,7 @@ export default function DiaryIndexScreen() {
             style={di.resetBtn}
             onPress={() => { setActiveDay(null); setActiveTime(null); load(searchText, null, null); }}
           >
-            <Feather name="x" size={12} color="#EF4444" />
+            <Feather name="x" size={12} color="#D96C6C" />
             <Text style={di.resetBtnText}>초기화</Text>
           </Pressable>
         )}
@@ -344,7 +344,7 @@ const di = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 6,
     borderRadius: 8, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FCA5A5",
   },
-  resetBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#EF4444" },
+  resetBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
   resultCount: { marginLeft: "auto", fontSize: 12, color: C.textSecondary, fontFamily: "Inter_400Regular" },
 
   picker: {

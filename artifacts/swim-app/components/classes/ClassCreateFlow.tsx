@@ -90,9 +90,9 @@ const sd = StyleSheet.create({
 
 function DayButton({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const isSat = label === "토";
-  const color = selected ? (isSat ? "#DC2626" : C.tint) : C.text;
-  const bg = selected ? (isSat ? "#FEE2E2" : C.tintLight) : C.background;
-  const border = selected ? (isSat ? "#DC2626" : C.tint) : C.border;
+  const color = selected ? (isSat ? "#D96C6C" : C.tint) : C.text;
+  const bg = selected ? (isSat ? "#F9DEDA" : C.tintLight) : C.background;
+  const border = selected ? (isSat ? "#D96C6C" : C.tint) : C.border;
   return (
     <Pressable
       style={[db.btn, { backgroundColor: bg, borderColor: border }]}
@@ -159,7 +159,7 @@ const tr = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   initial: { fontSize: 16, fontFamily: "Inter_700Bold" },
   name: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  badge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: "#FEF3C7" },
+  badge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: "#FFF1BF" },
   badgeText: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#92400E" },
 });
 
@@ -456,7 +456,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                       <Pressable
                         style={[tr.row, {
                           borderColor: C.border,
-                          backgroundColor: selectedTeacher === null ? "#F3F4F6" : C.background,
+                          backgroundColor: selectedTeacher === null ? "#F6F3F1" : C.background,
                         }]}
                         onPress={() => setSelectedTeacher(null)}
                       >
@@ -564,14 +564,14 @@ const ir = StyleSheet.create({
 const fl = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingTop: 16, paddingHorizontal: 24 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 6 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 6 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
   title: { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 6 },
   stepTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 4 },
   stepSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginBottom: 16 },
-  errorRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEE2E2", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginBottom: 8 },
+  errorRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9DEDA", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginBottom: 8 },
   errorText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.error },
-  btnRow: { flexDirection: "row", gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  btnRow: { flexDirection: "row", gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F6F3F1" },
   backBtn: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
   nextBtn: { height: 50, borderRadius: 14, paddingHorizontal: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   nextText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
@@ -596,7 +596,7 @@ const s3 = StyleSheet.create({
 const s4 = StyleSheet.create({
   wrap: { gap: 12 },
   card: { borderRadius: 18, borderWidth: 1.5, overflow: "hidden" },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
   name: { fontSize: 18, fontFamily: "Inter_700Bold" },
   rows: { paddingHorizontal: 16 },
 });

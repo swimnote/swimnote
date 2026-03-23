@@ -18,23 +18,23 @@ const P = "#7C3AED";
 const TABS = ["전체", "운영자관리", "구독", "저장공간", "삭제", "정책", "결제", "보안", "기능플래그", "읽기전용 전환", "고객센터"];
 
 const CAT_CFG: Record<string, { color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
-  운영자관리:      { color: "#D97706", bg: "#FEF3C7", icon: "shield" },
-  구독:            { color: P,         bg: "#EDE9FE", icon: "credit-card" },
-  저장공간:        { color: "#059669", bg: "#D1FAE5", icon: "hard-drive" },
-  삭제:            { color: "#DC2626", bg: "#FEE2E2", icon: "trash-2" },
-  정책:            { color: "#4F46E5", bg: "#EEF2FF", icon: "file-text" },
-  결제:            { color: "#0891B2", bg: "#ECFEFF", icon: "dollar-sign" },
-  보안:            { color: "#991B1B", bg: "#FEE2E2", icon: "lock" },
-  기능플래그:      { color: "#059669", bg: "#D1FAE5", icon: "toggle-left" },
-  "읽기전용 전환": { color: "#7C3AED", bg: "#EDE9FE", icon: "eye-off" },
+  운영자관리:      { color: "#D97706", bg: "#FFF1BF", icon: "shield" },
+  구독:            { color: P,         bg: "#EEDDF5", icon: "credit-card" },
+  저장공간:        { color: "#1F8F86", bg: "#DDF2EF", icon: "hard-drive" },
+  삭제:            { color: "#D96C6C", bg: "#F9DEDA", icon: "trash-2" },
+  정책:            { color: "#1F8F86", bg: "#DDF2EF", icon: "file-text" },
+  결제:            { color: "#1F8F86", bg: "#ECFEFF", icon: "dollar-sign" },
+  보안:            { color: "#991B1B", bg: "#F9DEDA", icon: "lock" },
+  기능플래그:      { color: "#1F8F86", bg: "#DDF2EF", icon: "toggle-left" },
+  "읽기전용 전환": { color: "#7C3AED", bg: "#EEDDF5", icon: "eye-off" },
   고객센터:        { color: "#0284C7", bg: "#E0F2FE", icon: "message-circle" },
 };
 
 const IMPACT_CFG: Record<string, { color: string; label: string }> = {
   critical: { color: "#991B1B", label: "심각" },
-  high:     { color: "#DC2626", label: "높음" },
+  high:     { color: "#D96C6C", label: "높음" },
   medium:   { color: "#D97706", label: "중간" },
-  low:      { color: "#059669", label: "낮음" },
+  low:      { color: "#1F8F86", label: "낮음" },
 };
 
 function safeDate(iso: string | null): Date | null {
@@ -144,7 +144,7 @@ export default function OpLogsScreen() {
         )}
 
         {logs.map(log => {
-          const cfg = CAT_CFG[log.category] ?? { color: "#6B7280", bg: "#F3F4F6", icon: "activity" as const };
+          const cfg = CAT_CFG[log.category] ?? { color: "#6F6B68", bg: "#F6F3F1", icon: "activity" as const };
           const impactCfg = IMPACT_CFG[log.impact] ?? IMPACT_CFG.low;
           const isExpanded = expanded.has(log.id);
           const dateLabel = getDateLabel(log.createdAt);
@@ -244,36 +244,36 @@ export default function OpLogsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F5F3FF" },
-  countBanner:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  countTxt:     { fontFamily: "Inter_400Regular", fontSize: 13, color: "#374151" },
-  tabBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  safe:         { flex: 1, backgroundColor: "#EEDDF5" },
+  countBanner:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  countTxt:     { fontFamily: "Inter_400Regular", fontSize: 13, color: "#1F1F1F" },
+  tabBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
   tabContent:   { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
   tab:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7,
-                  borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+                  borderRadius: 20, borderWidth: 1.5, borderColor: "#E9E2DD", backgroundColor: "#fff" },
   tabAllActive: { backgroundColor: P, borderColor: P },
-  tabTxt:       { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  tabTxt:       { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
   dateDivider:  { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
-  dateLine:     { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
-  dateLabel:    { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
-  logCard:      { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  dateLine:     { flex: 1, height: 1, backgroundColor: "#E9E2DD" },
+  dateLabel:    { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9A948F" },
+  logCard:      { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   logIcon:      { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0 },
   logBody:      { flex: 1, gap: 5 },
   logTop:       { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827", lineHeight: 19 },
-  logSubDesc:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280" },
-  logTime:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", flexShrink: 0 },
+  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", lineHeight: 19 },
+  logSubDesc:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  logTime:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", flexShrink: 0 },
   logMeta:      { flexDirection: "row", alignItems: "center", gap: 5 },
   catBadge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   catTxt:       { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   impactBadge:  { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6 },
   impactTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  logMetaTxt:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  logMetaTxt:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
   logMetaDot:   { fontSize: 10, color: "#D1D5DB" },
-  logDetail:    { backgroundColor: "#F9FAFB", borderRadius: 8, padding: 10, gap: 5 },
+  logDetail:    { backgroundColor: "#FBF8F6", borderRadius: 8, padding: 10, gap: 5 },
   detailRow:    { flexDirection: "row", gap: 8 },
-  detailLabel:  { width: 48, fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
-  detailVal:    { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#374151" },
+  detailLabel:  { width: 48, fontSize: 11, fontFamily: "Inter_500Medium", color: "#9A948F" },
+  detailVal:    { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
   empty:        { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });

@@ -24,8 +24,8 @@ function ApprovalPendingScreen({ status }: { status: JoinStatus }) {
   return (
     <View style={[g.root, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
       <View style={g.content}>
-        <View style={[g.iconBox, { backgroundColor: isRejected ? "#FEE2E2" : "#FEF3C7" }]}>
-          <Feather name={isRejected ? "x-circle" : "clock"} size={40} color={isRejected ? "#DC2626" : "#F59E0B"} />
+        <View style={[g.iconBox, { backgroundColor: isRejected ? "#F9DEDA" : "#FFF1BF" }]}>
+          <Feather name={isRejected ? "x-circle" : "clock"} size={40} color={isRejected ? "#D96C6C" : "#E4A93A"} />
         </View>
 
         <Text style={g.title}>
@@ -44,9 +44,9 @@ function ApprovalPendingScreen({ status }: { status: JoinStatus }) {
 
         {!isRejected && (
           <View style={[g.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
-            <InfoRow icon="check-circle" color="#10B981" text="자녀 정보 일치 시 즉시 자동 승인" />
-            <InfoRow icon="user-check"  color="#1A5CFF" text="관리자 수동 승인 시 알림 발송" />
-            <InfoRow icon="clock"       color="#F59E0B" text="일반적으로 1~2 영업일 이내 처리" />
+            <InfoRow icon="check-circle" color="#2E9B6F" text="자녀 정보 일치 시 즉시 자동 승인" />
+            <InfoRow icon="user-check"  color="#1F8F86" text="관리자 수동 승인 시 알림 발송" />
+            <InfoRow icon="clock"       color="#E4A93A" text="일반적으로 1~2 영업일 이내 처리" />
           </View>
         )}
 

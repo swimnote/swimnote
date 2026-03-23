@@ -89,7 +89,7 @@ function MiniCalendar({
 
       <View style={cal.dayRow}>
         {["일","월","화","수","목","금","토"].map(d => (
-          <Text key={d} style={[cal.dayLabel, d === "일" && { color: "#EF4444" }, d === "토" && { color: "#3B82F6" }]}>{d}</Text>
+          <Text key={d} style={[cal.dayLabel, d === "일" && { color: "#D96C6C" }, d === "토" && { color: "#4EA7D8" }]}>{d}</Text>
         ))}
       </View>
 
@@ -111,8 +111,8 @@ function MiniCalendar({
                 <Text style={[
                   cal.dayNum,
                   isToday  ? { color: "#fff", fontFamily: "Inter_700Bold" } :
-                  isSun    ? { color: "#EF4444" } :
-                  isSat    ? { color: "#3B82F6" } :
+                  isSun    ? { color: "#D96C6C" } :
+                  isSat    ? { color: "#4EA7D8" } :
                              { color: C.text },
                 ]}>
                   {day}
@@ -120,8 +120,8 @@ function MiniCalendar({
               </View>
               {/* 메모 dot 표시 */}
               <View style={cal.dotRow}>
-                {hasText  && <View style={[cal.dot, { backgroundColor: "#F59E0B" }]} />}
-                {hasAudio && <View style={[cal.dot, { backgroundColor: "#3B82F6" }]} />}
+                {hasText  && <View style={[cal.dot, { backgroundColor: "#E4A93A" }]} />}
+                {hasAudio && <View style={[cal.dot, { backgroundColor: "#4EA7D8" }]} />}
               </View>
             </Pressable>
           );
@@ -131,11 +131,11 @@ function MiniCalendar({
       {/* 범례 */}
       <View style={cal.legend}>
         <View style={cal.legendItem}>
-          <View style={[cal.legendDot, { backgroundColor: "#F59E0B" }]} />
+          <View style={[cal.legendDot, { backgroundColor: "#E4A93A" }]} />
           <Text style={cal.legendText}>텍스트 메모</Text>
         </View>
         <View style={cal.legendItem}>
-          <View style={[cal.legendDot, { backgroundColor: "#3B82F6" }]} />
+          <View style={[cal.legendDot, { backgroundColor: "#4EA7D8" }]} />
           <Text style={cal.legendText}>음성 메모</Text>
         </View>
       </View>
@@ -357,7 +357,7 @@ function DailyMemoPage({
         {/* 음성 메모 */}
         <View style={dm.section}>
           <View style={dm.sectionHeader}>
-            <Feather name="mic" size={16} color="#3B82F6" />
+            <Feather name="mic" size={16} color="#4EA7D8" />
             <Text style={[dm.sectionTitle, { color: C.text }]}>음성 메모</Text>
           </View>
 
@@ -368,7 +368,7 @@ function DailyMemoPage({
                 <View style={dm.recPulse}>
                   <View style={dm.recDot} />
                 </View>
-                <Text style={[dm.recTime, { color: "#EF4444" }]}>{recDisplay}</Text>
+                <Text style={[dm.recTime, { color: "#D96C6C" }]}>{recDisplay}</Text>
                 <Text style={[dm.recLabel, { color: C.textSecondary }]}>녹음 중...</Text>
                 <Pressable style={dm.stopBtn} onPress={stopRecording}>
                   <Feather name="square" size={14} color="#fff" />
@@ -380,24 +380,24 @@ function DailyMemoPage({
               <View style={{ gap: 12 }}>
                 <View style={dm.playerRow}>
                   <Pressable
-                    style={[dm.playerBtn, { backgroundColor: "#3B82F6" }]}
+                    style={[dm.playerBtn, { backgroundColor: "#4EA7D8" }]}
                     onPress={playAudio}
                   >
                     <Feather name={playing ? "pause" : "play"} size={18} color="#fff" />
                   </Pressable>
                   <View style={{ flex: 1, gap: 4 }}>
                     <View style={[dm.progressTrack, { backgroundColor: C.border }]}>
-                      <View style={[dm.progressFill, { width: `${progPercent}%` as any, backgroundColor: "#3B82F6" }]} />
+                      <View style={[dm.progressFill, { width: `${progPercent}%` as any, backgroundColor: "#4EA7D8" }]} />
                     </View>
                     <View style={dm.playerMeta}>
-                      <Text style={[dm.playerStatus, { color: playing ? "#3B82F6" : C.textSecondary }]}>
+                      <Text style={[dm.playerStatus, { color: playing ? "#4EA7D8" : C.textSecondary }]}>
                         {playing ? "재생 중" : "재생 가능"}
                       </Text>
-                      {audioUri && <Text style={[dm.playerStatus, { color: "#F59E0B" }]}>새 녹음 (미저장)</Text>}
+                      {audioUri && <Text style={[dm.playerStatus, { color: "#E4A93A" }]}>새 녹음 (미저장)</Text>}
                     </View>
                   </View>
                   <Pressable style={dm.deleteAudioBtn} onPress={deleteAudio}>
-                    <Feather name="trash-2" size={16} color="#EF4444" />
+                    <Feather name="trash-2" size={16} color="#D96C6C" />
                   </Pressable>
                 </View>
                 <Pressable
@@ -411,8 +411,8 @@ function DailyMemoPage({
             ) : (
               /* 음성 없음 → 녹음 시작 */
               <Pressable style={dm.startRecBtn} onPress={startRecording}>
-                <View style={[dm.micCircle, { backgroundColor: "#EFF6FF" }]}>
-                  <Feather name="mic" size={22} color="#3B82F6" />
+                <View style={[dm.micCircle, { backgroundColor: "#DDF2EF" }]}>
+                  <Feather name="mic" size={22} color="#4EA7D8" />
                 </View>
                 <Text style={[dm.startRecText, { color: C.text }]}>녹음 시작</Text>
                 <Text style={[dm.startRecSub, { color: C.textSecondary }]}>탭하면 녹음이 시작됩니다</Text>
@@ -693,8 +693,8 @@ function MemoSheet({
           {isRecording ? (
             <View style={ms.recRow}>
               <View style={ms.recDot} />
-              <Text style={[ms.recTime, { color: "#EF4444" }]}>{recDisplay}</Text>
-              <Pressable style={[ms.recBtn, { backgroundColor: "#EF4444" }]} onPress={stopRecording}>
+              <Text style={[ms.recTime, { color: "#D96C6C" }]}>{recDisplay}</Text>
+              <Pressable style={[ms.recBtn, { backgroundColor: "#D96C6C" }]} onPress={stopRecording}>
                 <Feather name="square" size={14} color="#fff" />
                 <Text style={ms.recBtnText}>중지</Text>
               </Pressable>
@@ -707,7 +707,7 @@ function MemoSheet({
                     <Feather name={playing ? "pause" : "play"} size={14} color="#fff" />
                     <Text style={ms.recBtnText}>{playing ? "일시정지" : "재생"}</Text>
                   </Pressable>
-                  <Pressable style={[ms.recBtn, { backgroundColor: "#F3F4F6" }]} onPress={() => {
+                  <Pressable style={[ms.recBtn, { backgroundColor: "#F6F3F1" }]} onPress={() => {
                     if (sound) { sound.unloadAsync(); setSound(null); }
                     setPlaying(false);
                     setAudioUri(null);
@@ -718,9 +718,9 @@ function MemoSheet({
                   </Pressable>
                 </>
               ) : (
-                <Pressable style={[ms.recBtn, { backgroundColor: "#FEE2E2" }]} onPress={startRecording}>
-                  <Feather name="mic" size={14} color="#EF4444" />
-                  <Text style={[ms.recBtnText, { color: "#EF4444" }]}>녹음 시작</Text>
+                <Pressable style={[ms.recBtn, { backgroundColor: "#F9DEDA" }]} onPress={startRecording}>
+                  <Feather name="mic" size={14} color="#D96C6C" />
+                  <Text style={[ms.recBtnText, { color: "#D96C6C" }]}>녹음 시작</Text>
                 </Pressable>
               )}
             </View>
@@ -855,9 +855,9 @@ function AbsenceModal({
         <View style={ab.handle} />
         {result ? (
           <View style={{ gap: 16, padding: 4 }}>
-            <View style={[ab.resultBox, { backgroundColor: result.startsWith("오류") ? "#FEE2E2" : "#D1FAE5" }]}>
-              <Feather name={result.startsWith("오류") ? "alert-circle" : "check-circle"} size={20} color={result.startsWith("오류") ? "#EF4444" : "#059669"} />
-              <Text style={[ab.resultText, { color: result.startsWith("오류") ? "#DC2626" : "#065F46" }]}>{result}</Text>
+            <View style={[ab.resultBox, { backgroundColor: result.startsWith("오류") ? "#F9DEDA" : "#DDF2EF" }]}>
+              <Feather name={result.startsWith("오류") ? "alert-circle" : "check-circle"} size={20} color={result.startsWith("오류") ? "#D96C6C" : "#1F8F86"} />
+              <Text style={[ab.resultText, { color: result.startsWith("오류") ? "#D96C6C" : "#065F46" }]}>{result}</Text>
             </View>
             <Pressable style={[ab.btn, { backgroundColor: themeColor }]} onPress={() => { onDone(); onClose(); }}>
               <Text style={ab.btnText}>확인</Text>
@@ -866,17 +866,17 @@ function AbsenceModal({
         ) : step === "ask" ? (
           <View style={{ gap: 16 }}>
             <Text style={ab.title}>결근 처리</Text>
-            <View style={[ab.warnBox, { backgroundColor: "#FEF3C7" }]}>
+            <View style={[ab.warnBox, { backgroundColor: "#FFF1BF" }]}>
               <Feather name="alert-triangle" size={16} color="#D97706" />
               <Text style={[ab.warnText, { color: "#92400E" }]}>
                 {item?.name} 수업을 결근 처리합니다.{"\n"}옆 반 이동 수업하는 학생이 있습니까?
               </Text>
             </View>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={[ab.choiceBtn, { backgroundColor: "#F3F4F6", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
-                {loading ? <ActivityIndicator size="small" color="#6B7280" /> : <>
-                  <Feather name="x-circle" size={18} color="#6B7280" />
-                  <Text style={[ab.choiceBtnText, { color: "#374151" }]}>없음</Text>
+              <Pressable style={[ab.choiceBtn, { backgroundColor: "#F6F3F1", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
+                {loading ? <ActivityIndicator size="small" color="#6F6B68" /> : <>
+                  <Feather name="x-circle" size={18} color="#6F6B68" />
+                  <Text style={[ab.choiceBtnText, { color: "#1F1F1F" }]}>없음</Text>
                   <Text style={ab.choiceSub}>전원 미실시(선생님)</Text>
                 </>}
               </Pressable>
@@ -951,35 +951,35 @@ function ScheduleCard({
           <Text style={card.sub}>학생 {item.student_count}명{item.level ? ` · ${item.level}` : ""}</Text>
         </View>
         {item.has_note && (
-          <View style={[card.noteBadge, { backgroundColor: "#FEF3C7" }]}>
+          <View style={[card.noteBadge, { backgroundColor: "#FFF1BF" }]}>
             <Feather name="edit-3" size={10} color="#D97706" />
             <Text style={card.noteBadgeText}>메모</Text>
           </View>
         )}
       </View>
       <View style={card.statusRow}>
-        <View style={[card.badge, { backgroundColor: attDone ? "#D1FAE5" : attPartial ? "#FEF3C7" : "#F3F4F6" }]}>
+        <View style={[card.badge, { backgroundColor: attDone ? "#DDF2EF" : attPartial ? "#FFF1BF" : "#F6F3F1" }]}>
           <Feather name={attDone ? "check-circle" : "circle"} size={11}
-            color={attDone ? "#059669" : attPartial ? "#D97706" : "#9CA3AF"} />
-          <Text style={[card.badgeText, { color: attDone ? "#059669" : attPartial ? "#D97706" : "#6B7280" }]}>
+            color={attDone ? "#1F8F86" : attPartial ? "#D97706" : "#9A948F"} />
+          <Text style={[card.badgeText, { color: attDone ? "#1F8F86" : attPartial ? "#D97706" : "#6F6B68" }]}>
             {noAtt ? "출결 미시작" : `출결 ${item.att_present}/${item.att_total}`}
           </Text>
         </View>
-        <View style={[card.badge, { backgroundColor: item.diary_done ? "#D1FAE5" : "#FEF3C7" }]}>
-          <Feather name={item.diary_done ? "check-circle" : "edit"} size={11} color={item.diary_done ? "#059669" : "#D97706"} />
-          <Text style={[card.badgeText, { color: item.diary_done ? "#059669" : "#D97706" }]}>
+        <View style={[card.badge, { backgroundColor: item.diary_done ? "#DDF2EF" : "#FFF1BF" }]}>
+          <Feather name={item.diary_done ? "check-circle" : "edit"} size={11} color={item.diary_done ? "#1F8F86" : "#D97706"} />
+          <Text style={[card.badgeText, { color: item.diary_done ? "#1F8F86" : "#D97706" }]}>
             {item.diary_done ? "일지 완료" : "일지 미작성"}
           </Text>
         </View>
       </View>
       <View style={card.btnRow}>
-        <Pressable style={[card.actionBtn, { borderColor: attDone ? "#059669" : C.border }]} onPress={onAttendance}>
-          <Feather name="check-square" size={14} color={attDone ? "#059669" : C.textSecondary} />
-          <Text style={[card.actionText, { color: attDone ? "#059669" : C.textSecondary }]}>출결</Text>
+        <Pressable style={[card.actionBtn, { borderColor: attDone ? "#1F8F86" : C.border }]} onPress={onAttendance}>
+          <Feather name="check-square" size={14} color={attDone ? "#1F8F86" : C.textSecondary} />
+          <Text style={[card.actionText, { color: attDone ? "#1F8F86" : C.textSecondary }]}>출결</Text>
         </Pressable>
-        <Pressable style={[card.actionBtn, { borderColor: item.diary_done ? "#059669" : C.border }]} onPress={onDiary}>
-          <Feather name="book" size={14} color={item.diary_done ? "#059669" : C.textSecondary} />
-          <Text style={[card.actionText, { color: item.diary_done ? "#059669" : C.textSecondary }]}>일지</Text>
+        <Pressable style={[card.actionBtn, { borderColor: item.diary_done ? "#1F8F86" : C.border }]} onPress={onDiary}>
+          <Feather name="book" size={14} color={item.diary_done ? "#1F8F86" : C.textSecondary} />
+          <Text style={[card.actionText, { color: item.diary_done ? "#1F8F86" : C.textSecondary }]}>일지</Text>
         </Pressable>
         <Pressable style={[card.actionBtn, { borderColor: item.has_note ? "#D97706" : C.border }]} onPress={onMemo}>
           <Feather name="edit-3" size={14} color={item.has_note ? "#D97706" : C.textSecondary} />
@@ -987,9 +987,9 @@ function ScheduleCard({
             {item.has_note ? "메모 수정" : "개인메모"}
           </Text>
         </Pressable>
-        <Pressable style={[card.actionBtn, { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]} onPress={onAbsence}>
-          <Feather name="user-x" size={14} color="#EF4444" />
-          <Text style={[card.actionText, { color: "#EF4444" }]}>결근</Text>
+        <Pressable style={[card.actionBtn, { borderColor: "#D96C6C", backgroundColor: "#FEF2F2" }]} onPress={onAbsence}>
+          <Feather name="user-x" size={14} color="#D96C6C" />
+          <Text style={[card.actionText, { color: "#D96C6C" }]}>결근</Text>
         </Pressable>
       </View>
     </View>
@@ -1091,11 +1091,11 @@ const um = StyleSheet.create({
   title: { fontSize: 17, fontFamily: "Inter_700Bold", flex: 1 },
   countBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   countTxt: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  closeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  closeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
   empty: { alignItems: "center", gap: 10, paddingVertical: 40 },
   emptyTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
   item: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
-  itemDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#2563EB" },
+  itemDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#1F8F86" },
   itemName: { fontSize: 14, fontFamily: "Inter_700Bold" },
   itemContent: { fontSize: 13, fontFamily: "Inter_400Regular" },
   itemMeta: { fontSize: 12, fontFamily: "Inter_400Regular" },
@@ -1176,8 +1176,8 @@ export default function TodayScheduleScreen() {
       key: "students",
       label: "회원관리",
       icon: "users",
-      color: "#059669",
-      bg: "#D1FAE5",
+      color: "#1F8F86",
+      bg: "#DDF2EF",
       onPress: () => router.push("/(teacher)/students" as any),
     },
     {
@@ -1185,7 +1185,7 @@ export default function TodayScheduleScreen() {
       label: "보강관리",
       icon: "refresh-cw",
       color: "#7C3AED",
-      bg: "#EDE9FE",
+      bg: "#EEDDF5",
       badge: (overview?.makeup_count ?? 0) > 0 ? overview!.makeup_count : null,
       onPress: () => router.push("/(teacher)/makeups" as any),
     },
@@ -1194,7 +1194,7 @@ export default function TodayScheduleScreen() {
       label: "쪽지",
       icon: "mail",
       color: "#D97706",
-      bg: "#FEF3C7",
+      bg: "#FFF1BF",
       badge: (overview?.unread_messages ?? 0) > 0 ? overview!.unread_messages : null,
       onPress: () => setNotePopupVisible(true),
     },
@@ -1202,15 +1202,15 @@ export default function TodayScheduleScreen() {
       key: "messenger",
       label: "메신저",
       icon: "message-circle",
-      color: "#2563EB",
-      bg: "#DBEAFE",
+      color: "#1F8F86",
+      bg: "#DDF2EF",
       onPress: () => router.push("/(teacher)/messenger" as any),
     },
     {
       key: "revenue",
       label: "정산",
       icon: "dollar-sign",
-      color: "#0891B2",
+      color: "#1F8F86",
       bg: "#CFFAFE",
       onPress: () => router.push("/(teacher)/revenue" as any),
     },
@@ -1219,15 +1219,15 @@ export default function TodayScheduleScreen() {
       label: "내정보",
       icon: "user",
       color: "#DB2777",
-      bg: "#FCE7F3",
+      bg: "#F6D8E1",
       onPress: () => router.push("/(teacher)/my-info" as any),
     },
     {
       key: "settings",
       label: "설정",
       icon: "settings",
-      color: "#6B7280",
-      bg: "#F3F4F6",
+      color: "#6F6B68",
+      bg: "#F6F3F1",
       onPress: () => router.push("/(teacher)/settings" as any),
     },
   ];
@@ -1280,7 +1280,7 @@ export default function TodayScheduleScreen() {
           style={h.logoutBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Feather name="log-out" size={18} color="#6B7280" />
+          <Feather name="log-out" size={18} color="#6F6B68" />
         </Pressable>
       </View>
 
@@ -1344,11 +1344,11 @@ export default function TodayScheduleScreen() {
               const isSat = i === 6;
               return (
                 <View key={i} style={h.miniCell}>
-                  <Text style={[h.miniDayName, isSun && { color: "#EF4444" }, isSat && { color: "#3B82F6" }]}>
+                  <Text style={[h.miniDayName, isSun && { color: "#D96C6C" }, isSat && { color: "#4EA7D8" }]}>
                     {dn}
                   </Text>
                   <View style={[h.miniCircle, isToday && h.miniCircleToday]}>
-                    <Text style={[h.miniDate, isToday && h.miniDateToday, isSun && !isToday && { color: "#EF4444" }, isSat && !isToday && { color: "#3B82F6" }]}>
+                    <Text style={[h.miniDate, isToday && h.miniDateToday, isSun && !isToday && { color: "#D96C6C" }, isSat && !isToday && { color: "#4EA7D8" }]}>
                       {d.getDate()}
                     </Text>
                   </View>
@@ -1387,7 +1387,7 @@ export default function TodayScheduleScreen() {
                 const attDone = item.att_present >= item.student_count && item.student_count > 0;
                 const attPartial = item.att_present > 0 && !attDone;
                 const dotColor = item.att_total === 0 ? "transparent"
-                  : attDone ? "#10B981" : attPartial ? "#F59E0B" : "#EF4444";
+                  : attDone ? "#2E9B6F" : attPartial ? "#E4A93A" : "#D96C6C";
                 return (
                   <Pressable key={item.id}
                     style={[h.chip, { backgroundColor: themeColor + "12" }]}
@@ -1442,11 +1442,11 @@ export default function TodayScheduleScreen() {
 
 /* ── StyleSheets ─────────────────────────────────── */
 const h = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#F3F4F6" },
+  safe:           { flex: 1, backgroundColor: "#F6F3F1" },
   header:         { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 14, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   poolName:       { fontSize: 18, fontFamily: "Inter_700Bold" },
   greeting:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  logoutBtn:      { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  logoutBtn:      { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
   switchChip:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   switchChipTxt:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   scroll:         { padding: 12, gap: 8 },
@@ -1492,10 +1492,10 @@ const h = StyleSheet.create({
   /* 미니 주간 달력 (애플 스타일) */
   miniWeek:         { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 6 },
   miniCell:         { flex: 1, alignItems: "center", gap: 5 },
-  miniDayName:      { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9CA3AF", letterSpacing: 0.3 },
+  miniDayName:      { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9A948F", letterSpacing: 0.3 },
   miniCircle:       { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   miniCircleToday:  { backgroundColor: "#1C1C1E" },
-  miniDate:         { fontSize: 14, fontFamily: "Inter_500Medium", color: "#111827" },
+  miniDate:         { fontSize: 14, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
   miniDateToday:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
   miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
   /* 기능 메뉴 그리드 */
@@ -1503,7 +1503,7 @@ const h = StyleSheet.create({
   grid:           { flexDirection: "row", flexWrap: "wrap" },
   gridItem:       { width: "25%", alignItems: "center", gap: 5, paddingVertical: 8 },
   gridIconWrap:   { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", position: "relative" },
-  gridBadge:      { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  gridBadge:      { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
   gridBadgeTxt:   { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" },
   gridLabel:      { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.text, textAlign: "center" },
 });
@@ -1532,12 +1532,12 @@ const ms = StyleSheet.create({
   sheetHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
   sheetSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
   textArea:   { borderWidth: 1.5, borderRadius: 12, padding: 12, minHeight: 110, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text },
   audioBox:   { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 12, padding: 12 },
   audioLabel: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
   recRow:     { flexDirection: "row", alignItems: "center", gap: 8 },
-  recDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444" },
+  recDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C" },
   recTime:    { fontSize: 14, fontFamily: "Inter_700Bold", minWidth: 36 },
   recBtn:     { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
   recBtnText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
@@ -1576,7 +1576,7 @@ const sm = StyleSheet.create({
 const ab = StyleSheet.create({
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
   sheet:       { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14, maxHeight: "85%" },
-  handle:      { width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  handle:      { width: 36, height: 4, backgroundColor: "#E9E2DD", borderRadius: 2, alignSelf: "center", marginBottom: 4 },
   title:       { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
   warnBox:     { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderRadius: 14 },
   warnText:    { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
@@ -1604,10 +1604,10 @@ const dm = StyleSheet.create({
   audioBox:     { borderWidth: 1.5, borderRadius: 14, padding: 16, gap: 0 },
   recordingRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   recPulse:     { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
-  recDot:       { width: 10, height: 10, borderRadius: 5, backgroundColor: "#EF4444" },
+  recDot:       { width: 10, height: 10, borderRadius: 5, backgroundColor: "#D96C6C" },
   recTime:      { fontSize: 16, fontFamily: "Inter_700Bold", minWidth: 44 },
   recLabel:     { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
-  stopBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: "#EF4444" },
+  stopBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: "#D96C6C" },
   stopBtnText:  { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
   playerRow:    { flexDirection: "row", alignItems: "center", gap: 12 },
   playerBtn:    { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
@@ -1615,7 +1615,7 @@ const dm = StyleSheet.create({
   progressFill: { height: 4, borderRadius: 2 },
   playerMeta:   { flexDirection: "row", gap: 10 },
   playerStatus: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  deleteAudioBtn:{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#FEE2E2" },
+  deleteAudioBtn:{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#F9DEDA" },
   rerecordBtn:  { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
   rerecordText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   startRecBtn:  { alignItems: "center", gap: 8, paddingVertical: 16 },

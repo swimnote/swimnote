@@ -50,7 +50,7 @@ const PERM_LABELS: { key: keyof Permissions; label: string; desc: string; icon: 
 
 const ROLES: Record<string, { label: string; color: string; bg: string }> = {
   super_admin:    { label: "슈퍼관리자",  color: "#7C3AED", bg: "#F3E8FF" },
-  platform_admin: { label: "플랫폼관리자",color: "#3B82F6", bg: "#DBEAFE" },
+  platform_admin: { label: "플랫폼관리자",color: "#4EA7D8", bg: "#DDF2EF" },
 };
 
 const SEED_USERS: PlatformUser[] = [
@@ -153,8 +153,8 @@ export default function UsersScreen() {
       <View style={{ gap: 8 }}>
         {PERM_LABELS.map(({ key, label, desc, icon }) => (
           <View key={key} style={[ps.row, { opacity: disabled ? 0.5 : 1 }]}>
-            <View style={[ps.icon, { backgroundColor: perms[key] ? "#EFF6FF" : "#F3F4F6" }]}>
-              <Feather name={icon as any} size={15} color={perms[key] ? "#3B82F6" : "#9CA3AF"} />
+            <View style={[ps.icon, { backgroundColor: perms[key] ? "#DDF2EF" : "#F6F3F1" }]}>
+              <Feather name={icon as any} size={15} color={perms[key] ? "#4EA7D8" : "#9A948F"} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[ps.permLabel, { color: C.text }]}>{label}</Text>
@@ -163,7 +163,7 @@ export default function UsersScreen() {
             <Switch
               value={perms[key]}
               onValueChange={(v) => { if (!disabled) setPerms({ ...perms, [key]: v }); }}
-              trackColor={{ false: "#D1D5DB", true: "#3B82F6" }}
+              trackColor={{ false: "#D1D5DB", true: "#4EA7D8" }}
               thumbColor="#fff"
               disabled={disabled}
             />
@@ -240,7 +240,7 @@ export default function UsersScreen() {
                   <Pressable
                     style={({ pressed }) => [styles.editBtn, { opacity: pressed ? 0.6 : 1 }]}
                     onPress={() => openEdit(item)}>
-                    <Feather name="sliders" size={16} color="#3B82F6" />
+                    <Feather name="sliders" size={16} color="#4EA7D8" />
                   </Pressable>
                 )}
               </View>
@@ -297,7 +297,7 @@ export default function UsersScreen() {
             onPress={() => setEditTarget(null)}>
             <Text style={[styles.cancelBtnText, { color: C.textSecondary }]}>취소</Text>
           </Pressable>
-          <Pressable style={({ pressed }) => [styles.saveBtn, { flex: 1, backgroundColor: "#3B82F6", opacity: pressed ? 0.85 : 1 }]}
+          <Pressable style={({ pressed }) => [styles.saveBtn, { flex: 1, backgroundColor: "#4EA7D8", opacity: pressed ? 0.85 : 1 }]}
             onPress={handleSavePermissions}>
             <Text style={styles.saveBtnText}>저장</Text>
           </Pressable>
@@ -312,8 +312,8 @@ const ps = StyleSheet.create({
   icon:         { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   permLabel:    { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   permDesc:     { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
-  badge:        { backgroundColor: "#DBEAFE", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeText:    { fontSize: 10, fontFamily: "Inter_500Medium", color: "#1E40AF" },
+  badge:        { backgroundColor: "#DDF2EF", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  badgeText:    { fontSize: 10, fontFamily: "Inter_500Medium", color: "#18766F" },
   noPerm:       { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 6, fontStyle: "italic" },
   superTag:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   superTagText: { fontSize: 11, fontFamily: "Inter_500Medium" },
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   userEmail:       { fontSize: 12, fontFamily: "Inter_400Regular" },
   roleBadge:       { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   roleText:        { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  editBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#EFF6FF",
+  editBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#DDF2EF",
                      alignItems: "center", justifyContent: "center" },
   empty:           { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText:       { fontSize: 15, fontFamily: "Inter_400Regular" },

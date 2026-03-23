@@ -77,7 +77,7 @@ function getHourRange(groups: TeacherClassGroup[]): number[] {
   const maxH = Math.min(22, Math.max(...hours));
   return Array.from({ length: maxH - minH + 1 }, (_, i) => i + minH);
 }
-const COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
+const COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
 function classColor(id: string) {
   let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
   return COLORS[Math.abs(h) % COLORS.length];
@@ -151,15 +151,15 @@ function WeeklyTimetable({ groups, onSelectClass, selectionMode, selectedIds, to
 const wt = StyleSheet.create({
   outer:        { flex: 1 },
   headerRow:    { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
-  header:       { backgroundColor: "#F9FAFB" },
+  header:       { backgroundColor: "#FBF8F6" },
   dayHeader:    { height: 36, alignItems: "center", justifyContent: "center",
-                  borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#F9FAFB" },
+                  borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#FBF8F6" },
   dayHeaderText:{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text },
-  row:          { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  row:          { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   timeCell:     { width: TIME_W, alignItems: "center", justifyContent: "flex-start",
                   paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border },
   timeText:     { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
-  cell:         { borderLeftWidth: 1, borderLeftColor: "#F3F4F6", padding: 2, gap: 2 },
+  cell:         { borderLeftWidth: 1, borderLeftColor: "#F6F3F1", padding: 2, gap: 2 },
   classCard:    { flex: 1, borderRadius: 6, padding: 4, minHeight: 48, justifyContent: "center" },
   cardName:     { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#fff", lineHeight: 12 },
   cardTime:     { fontSize: 8, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)", marginTop: 2 },
@@ -231,7 +231,7 @@ function MonthlyCalendar({
         {WEEKDAY_NAMES.map((wd, i) => (
           <View key={wd} style={[mc.weekHeader, { width: CELL_W }]}>
             <Text style={[mc.weekHeaderText,
-              i === 0 && { color: "#EF4444" },
+              i === 0 && { color: "#D96C6C" },
               i === 6 && { color: themeColor },
             ]}>{wd}</Text>
           </View>
@@ -260,7 +260,7 @@ function MonthlyCalendar({
                 style={[
                   mc.dayCell, { width: CELL_W, height: CELL_H },
                   isSelected && { backgroundColor: themeColor + "18", borderRadius: 8 },
-                  isMultiPicked && { backgroundColor: "#10B981" + "20", borderRadius: 8, borderWidth: 1.5, borderColor: "#10B981" },
+                  isMultiPicked && { backgroundColor: "#2E9B6F" + "20", borderRadius: 8, borderWidth: 1.5, borderColor: "#2E9B6F" },
                   isToday && !isSelected && !isMultiPicked && { backgroundColor: themeColor + "0C" },
                   isHoliday && !isMultiPicked && { backgroundColor: "#FEF2F2" },
                 ]}
@@ -268,7 +268,7 @@ function MonthlyCalendar({
 
                 {isMultiPicked && (
                   <View style={{ position: "absolute", top: 3, right: 3, width: 14, height: 14, borderRadius: 7,
-                    backgroundColor: "#10B981", alignItems: "center", justifyContent: "center" }}>
+                    backgroundColor: "#2E9B6F", alignItems: "center", justifyContent: "center" }}>
                     <Feather name="check" size={9} color="#fff" />
                   </View>
                 )}
@@ -278,7 +278,7 @@ function MonthlyCalendar({
                   isSelected && !isToday && { backgroundColor: themeColor + "30" },
                 ]}>
                   <Text style={[mc.dayNum,
-                    isSun || isHoliday ? { color: "#EF4444" } : isSat ? { color: themeColor } : {},
+                    isSun || isHoliday ? { color: "#D96C6C" } : isSat ? { color: themeColor } : {},
                     isToday && { color: "#fff" },
                   ]}>{dayNum}</Text>
                 </View>
@@ -322,7 +322,7 @@ function MonthlyCalendar({
 const mc = StyleSheet.create({
   root:           { paddingHorizontal: 16, paddingBottom: 8 },
   monthNav:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
-  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
   monthTitle:     { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
   weekRow:        { flexDirection: "row" },
   weekHeader:     { height: 28, alignItems: "center", justifyContent: "center" },
@@ -330,7 +330,7 @@ const mc = StyleSheet.create({
   dayCell:        { alignItems: "center", paddingTop: 4, paddingHorizontal: 1 },
   dayNumWrap:     { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   dayNum:         { fontSize: 12, fontFamily: "Inter_500Medium", color: C.text },
-  memoDot:        { width: 4, height: 4, borderRadius: 2, backgroundColor: "#F59E0B", marginTop: 1 },
+  memoDot:        { width: 4, height: 4, borderRadius: 2, backgroundColor: "#E4A93A", marginTop: 1 },
   timePills:      { flexDirection: "column", alignItems: "center", gap: 1, marginTop: 2, width: "100%" },
   timePill:       { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, alignItems: "center" },
   timePillText:   { fontSize: 9, fontFamily: "Inter_600SemiBold" },
@@ -339,7 +339,7 @@ const mc = StyleSheet.create({
   strikeLine:     { height: 1.5, backgroundColor: "rgba(0,0,0,0.28)", borderRadius: 1,
                     marginHorizontal: 1 },
   moreTxt:        { fontSize: 8, fontFamily: "Inter_400Regular", color: C.textMuted },
-  holidayTag:     { fontSize: 9, fontFamily: "Inter_700Bold", color: "#EF4444", marginTop: 2 },
+  holidayTag:     { fontSize: 9, fontFamily: "Inter_700Bold", color: "#D96C6C", marginTop: 2 },
 });
 
 // ─── 날짜 상세 팝업 (월간 → 날짜 클릭) ──────────────────────────
@@ -464,7 +464,7 @@ function DaySheet({
             <Text style={dy.dateSub}>{classes.length > 0 ? `수업 ${classes.length}개` : "수업 없음"}</Text>
           </View>
           <View style={dy.headerActions}>
-            <Pressable style={[dy.headerBtn, { backgroundColor: "#EEF2FF" }]} onPress={onOpenMakeup}>
+            <Pressable style={[dy.headerBtn, { backgroundColor: "#DDF2EF" }]} onPress={onOpenMakeup}>
               <Feather name="repeat" size={13} color="#4338CA" />
               <Text style={[dy.headerBtnTxt, { color: "#4338CA" }]}>보강</Text>
             </Pressable>
@@ -527,7 +527,7 @@ function DaySheet({
                         </Text>
                         {attCnt > 0 && (
                           <View style={dy.attBadge}>
-                            <Feather name="check" size={9} color="#059669" />
+                            <Feather name="check" size={9} color="#1F8F86" />
                             <Text style={dy.attBadgeTxt}>출결 {attCnt}</Text>
                           </View>
                         )}
@@ -593,10 +593,10 @@ function DaySheet({
               <Text style={dy.audioLabel}>음성 메모</Text>
               <View style={{ flex: 1 }} />
               {isRecording ? (
-                <Pressable style={[dy.audioBtn, { backgroundColor: "#FEE2E2" }]}
+                <Pressable style={[dy.audioBtn, { backgroundColor: "#F9DEDA" }]}
                   onPress={stopAndSaveRecording}>
-                  <Feather name="stop-circle" size={15} color="#EF4444" />
-                  <Text style={[dy.audioBtnTxt, { color: "#EF4444" }]}>저장</Text>
+                  <Feather name="stop-circle" size={15} color="#D96C6C" />
+                  <Text style={[dy.audioBtnTxt, { color: "#D96C6C" }]}>저장</Text>
                 </Pressable>
               ) : (
                 <Pressable style={[dy.audioBtn, { backgroundColor: themeColor + "1A" }]}
@@ -628,13 +628,13 @@ function DaySheet({
                         style={[dy.audioPlayBtn, isThis && { backgroundColor: themeColor + "30" }]}
                         onPress={() => playAudio(item.uri)}>
                         <Feather name={isThis ? "volume-2" : "play"} size={14}
-                          color={isThis ? themeColor : "#059669"} />
-                        <Text style={[dy.audioBtnTxt, { color: isThis ? themeColor : "#059669" }]}>
+                          color={isThis ? themeColor : "#1F8F86"} />
+                        <Text style={[dy.audioBtnTxt, { color: isThis ? themeColor : "#1F8F86" }]}>
                           {isThis ? "재생중" : "재생"}
                         </Text>
                       </Pressable>
                       <Pressable style={dy.audioDelBtn} onPress={() => deleteAudioItem(item.uri)}>
-                        <Feather name="trash-2" size={13} color="#EF4444" />
+                        <Feather name="trash-2" size={13} color="#D96C6C" />
                       </Pressable>
                     </View>
                   );
@@ -671,19 +671,19 @@ const dy = StyleSheet.create({
                     paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
   emptyActionTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   classCard:      { flexDirection: "row", alignItems: "center", gap: 10,
-                    backgroundColor: "#F9FAFB", borderRadius: 12, padding: 12,
+                    backgroundColor: "#FBF8F6", borderRadius: 12, padding: 12,
                     borderWidth: 1, borderColor: C.border },
-  classCardDone:  { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB", opacity: 0.8 },
+  classCardDone:  { backgroundColor: "#F6F3F1", borderColor: "#E9E2DD", opacity: 0.8 },
   colorBar:       { width: 3, height: 40, borderRadius: 2 },
   classTime:      { fontSize: 14, fontFamily: "Inter_700Bold", color: C.text },
   className:      { fontSize: 14, fontFamily: "Inter_500Medium", color: C.text, flex: 1 },
   strikeText:     { textDecorationLine: "line-through", color: C.textMuted },
   classSub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
   attBadge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
-                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#D1FAE5" },
-  attBadgeTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#059669" },
+                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#DDF2EF" },
+  attBadgeTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
   diaryBadge:     { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
-                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#EDE9FE" },
+                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#EEDDF5" },
   diaryBadgeTxt:  { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#7C3AED" },
   memoSection:    { marginHorizontal: 16, padding: 14, backgroundColor: "#FFFBEB",
                     borderRadius: 12, borderWidth: 1, borderColor: "#FDE68A" },
@@ -697,7 +697,7 @@ const dy = StyleSheet.create({
   memoInput:      { borderWidth: 1, borderColor: "#FDE68A", borderRadius: 8, padding: 10,
                     fontSize: 14, fontFamily: "Inter_400Regular", color: C.text,
                     backgroundColor: "#fff", minHeight: 80, textAlignVertical: "top" },
-  memoCancelBtn:  { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: "#F3F4F6",
+  memoCancelBtn:  { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: "#F6F3F1",
                     alignItems: "center" },
   memoCancelBtnTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
   memoSaveBtn:    { flex: 2, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
@@ -710,12 +710,12 @@ const dy = StyleSheet.create({
                     paddingVertical: 6, borderRadius: 8 },
   audioBtnTxt:    { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   audioDelBtn:    { width: 28, height: 28, alignItems: "center", justifyContent: "center",
-                    borderRadius: 7, backgroundColor: "#FEE2E2" },
+                    borderRadius: 7, backgroundColor: "#F9DEDA" },
   audioPlayBtn:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8,
-                    paddingVertical: 5, borderRadius: 7, backgroundColor: "#F0FDF4" },
+                    paddingVertical: 5, borderRadius: 7, backgroundColor: "#DFF3EC" },
   recordingIndicator: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
-  recordingDot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444" },
-  recordingTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#EF4444" },
+  recordingDot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C" },
+  recordingTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#D96C6C" },
   audioListBox:   { marginTop: 10, gap: 6 },
   audioListItem:  { flexDirection: "row", alignItems: "center", gap: 6,
                     backgroundColor: "#FFFBEB", borderRadius: 8, padding: 8,
@@ -755,30 +755,30 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
           </Pressable>
         </View>
         <View style={cds.actionRow}>
-          <Pressable style={[cds.actionBtn, { backgroundColor: "#EEF2FF" }]}
+          <Pressable style={[cds.actionBtn, { backgroundColor: "#DDF2EF" }]}
             onPress={() => onNavigateTo?.(() => router.push(`/class-assign?classId=${group.id}` as any))}>
             <Feather name="users" size={13} color="#4338CA" />
             <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
           </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: "#F0FDF4" }]}
+          <Pressable style={[cds.actionBtn, { backgroundColor: "#DFF3EC" }]}
             onPress={() => { onClose(); setTimeout(() => onOpenUnreg?.(), 200); }}>
-            <Feather name="user-plus" size={13} color="#059669" />
-            <Text style={[cds.actionText, { color: "#059669" }]}>미등록</Text>
+            <Feather name="user-plus" size={13} color="#1F8F86" />
+            <Text style={[cds.actionText, { color: "#1F8F86" }]}>미등록</Text>
           </Pressable>
           <Pressable style={[cds.actionBtn, { backgroundColor: "#FFF1F2" }]}
             onPress={() => { onClose(); setTimeout(() => onOpenRemove?.(), 200); }}>
             <Feather name="log-out" size={13} color="#E11D48" />
             <Text style={[cds.actionText, { color: "#E11D48" }]}>반이동</Text>
           </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: attDone ? "#D1FAE5" : "#FEE2E2" }]}
+          <Pressable style={[cds.actionBtn, { backgroundColor: attDone ? "#DDF2EF" : "#F9DEDA" }]}
             onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: group.id} } as any))}>
-            <Feather name="check-square" size={13} color={attDone ? "#059669" : "#DC2626"} />
-            <Text style={[cds.actionText, { color: attDone ? "#059669" : "#DC2626" }]}>출결</Text>
+            <Feather name="check-square" size={13} color={attDone ? "#1F8F86" : "#D96C6C"} />
+            <Text style={[cds.actionText, { color: attDone ? "#1F8F86" : "#D96C6C" }]}>출결</Text>
           </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#D1FAE5" : "#FEF3C7" }]}
+          <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#DDF2EF" : "#FFF1BF" }]}
             onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any))}>
-            <Feather name="edit-3" size={13} color={diarDone ? "#059669" : "#D97706"} />
-            <Text style={[cds.actionText, { color: diarDone ? "#059669" : "#D97706" }]}>수업일지</Text>
+            <Feather name="edit-3" size={13} color={diarDone ? "#1F8F86" : "#D97706"} />
+            <Text style={[cds.actionText, { color: diarDone ? "#1F8F86" : "#D97706" }]}>수업일지</Text>
           </Pressable>
           <Pressable style={[cds.actionBtn, { backgroundColor: "#FEF9C3" }]}
             onPress={() => { onClose(); setTimeout(() => onOpenExtra?.(), 200); }}>
@@ -842,7 +842,7 @@ const cds = StyleSheet.create({
   studentScroll:{ flexShrink: 1 },
   studentRow:   { flexDirection: "row", alignItems: "center", gap: 10,
                   paddingHorizontal: 16, paddingVertical: 10,
-                  borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+                  borderTopWidth: 1, borderTopColor: "#F6F3F1" },
   avatar:       { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   avatarText:   { fontSize: 14, fontFamily: "Inter_700Bold" },
   studentName:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
@@ -978,7 +978,7 @@ const em = StyleSheet.create({
   field:       { gap: 6 },
   label:       { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
   input:       { borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-                 fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, backgroundColor: "#F9FAFB" },
+                 fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, backgroundColor: "#FBF8F6" },
   checkbox:    { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: C.border,
                  backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   stuRow:      { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
@@ -987,7 +987,7 @@ const em = StyleSheet.create({
   addBtn:      { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   createBtn:   { paddingVertical: 14, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   createBtnText:{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-  error:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#DC2626", textAlign: "center" },
+  error:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#D96C6C", textAlign: "center" },
 });
 
 // ─── 메인 스크린 ─────────────────────────────────────────────────
@@ -1263,20 +1263,20 @@ export default function MyScheduleScreen() {
         <SubScreenHeader title={g.name} subtitle={`${g.schedule_days} · ${g.schedule_time}`}
           onBack={() => setSelectedGroup(null)} homePath="/(teacher)/today-schedule" />
         <View style={s.subHeader}>
-          <Pressable style={[s.subActionBtn, { backgroundColor: "#EEF2FF" }]}
+          <Pressable style={[s.subActionBtn, { backgroundColor: "#DDF2EF" }]}
             onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
             <Feather name="users" size={13} color="#4338CA" />
             <Text style={[s.subActionText, { color: "#4338CA" }]}>반배정</Text>
           </Pressable>
-          <Pressable style={[s.subActionBtn, { backgroundColor: attDone ? "#D1FAE5" : "#FEE2E2" }]}
+          <Pressable style={[s.subActionBtn, { backgroundColor: attDone ? "#DDF2EF" : "#F9DEDA" }]}
             onPress={() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: g.id} } as any)}>
-            <Feather name="check-square" size={13} color={attDone ? "#059669" : "#DC2626"} />
-            <Text style={[s.subActionText, { color: attDone ? "#059669" : "#DC2626" }]}>출결</Text>
+            <Feather name="check-square" size={13} color={attDone ? "#1F8F86" : "#D96C6C"} />
+            <Text style={[s.subActionText, { color: attDone ? "#1F8F86" : "#D96C6C" }]}>출결</Text>
           </Pressable>
-          <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#D1FAE5" : "#FEF3C7" }]}
+          <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#DDF2EF" : "#FFF1BF" }]}
             onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name} } as any)}>
-            <Feather name="edit-3" size={13} color={diarDone ? "#059669" : "#D97706"} />
-            <Text style={[s.subActionText, { color: diarDone ? "#059669" : "#D97706" }]}>수업일지</Text>
+            <Feather name="edit-3" size={13} color={diarDone ? "#1F8F86" : "#D97706"} />
+            <Text style={[s.subActionText, { color: diarDone ? "#1F8F86" : "#D97706" }]}>수업일지</Text>
           </Pressable>
           <Pressable style={[s.subActionBtn, { backgroundColor: "#FEF9C3" }]}
             onPress={() => setShowExtraModal(true)}>
@@ -1312,12 +1312,12 @@ export default function MyScheduleScreen() {
                   {item.birth_year && <Text style={s.studentSub}>{item.birth_year}년생 · {item.schedule_labels||""}</Text>}
                 </View>
                 {item.parent_user_id ? (
-                  <View style={[s.connBadge, { backgroundColor: "#D1FAE5" }]}>
-                    <Feather name="check-circle" size={10} color="#059669" />
-                    <Text style={[s.connText, { color: "#059669" }]}>연결</Text>
+                  <View style={[s.connBadge, { backgroundColor: "#DDF2EF" }]}>
+                    <Feather name="check-circle" size={10} color="#1F8F86" />
+                    <Text style={[s.connText, { color: "#1F8F86" }]}>연결</Text>
                   </View>
                 ) : item.status === "pending_parent_link" ? (
-                  <View style={[s.connBadge, { backgroundColor: "#FFF7ED" }]}>
+                  <View style={[s.connBadge, { backgroundColor: "#FFF1BF" }]}>
                     <Feather name="clock" size={10} color="#EA580C" />
                     <Text style={[s.connText, { color: "#EA580C" }]}>대기</Text>
                   </View>
@@ -1350,21 +1350,21 @@ export default function MyScheduleScreen() {
           <View style={s.rightBtns}>
             {selectionMode ? (
               <>
-                <Pressable style={[s.selBtn, { backgroundColor: selectedDates.size > 0 ? "#EF4444" : "#9CA3AF" }]}
+                <Pressable style={[s.selBtn, { backgroundColor: selectedDates.size > 0 ? "#D96C6C" : "#9A948F" }]}
                   onPress={() => { if (selectedDates.size > 0) setShowDeleteConfirm(true); }}
                   disabled={deleting || selectedDates.size === 0}>
                   {deleting
                     ? <ActivityIndicator size="small" color="#fff" />
                     : <><Feather name="trash-2" size={13} color="#fff" /><Text style={s.selBtnText}>메모삭제{selectedDates.size > 0 ? ` (${selectedDates.size})` : ""}</Text></>}
                 </Pressable>
-                <Pressable style={[s.selBtn, { backgroundColor: "#6B7280" }]}
+                <Pressable style={[s.selBtn, { backgroundColor: "#6F6B68" }]}
                   onPress={() => { setSelectionMode(false); setSelectedIds(new Set()); setSelectedDates(new Set()); }}>
                   <Text style={s.selBtnText}>취소</Text>
                 </Pressable>
               </>
             ) : (
               <>
-                <Pressable style={[s.selBtn, { backgroundColor: "#F3F4F6" }]} onPress={() => setSelectionMode(true)}>
+                <Pressable style={[s.selBtn, { backgroundColor: "#F6F3F1" }]} onPress={() => setSelectionMode(true)}>
                   <Feather name="check-square" size={13} color={C.textSecondary} />
                   <Text style={[s.selBtnText, { color: C.textSecondary }]}>선택</Text>
                 </Pressable>
@@ -1559,12 +1559,12 @@ export default function MyScheduleScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F3F4F6" },
+  safe:         { flex: 1, backgroundColor: "#F6F3F1" },
   titleArea:    { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border,
                   paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   titleRow:     { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  title:        { fontSize: 20, fontFamily: "Inter_700Bold", color: "#111827" },
-  titleSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  title:        { fontSize: 20, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  titleSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
   rightBtns:    { flexDirection: "row", gap: 4, alignItems: "center" },
   selBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10 },
   selBtnText:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
@@ -1665,8 +1665,8 @@ function UnregisteredPickerModal({ token, classGroupId, themeColor, onClose, onA
                   <Text style={um.name}>{item.name}</Text>
                   <Text style={um.phone}>{item.parent_phone || "-"}</Text>
                   <Text style={[um.invTag,
-                    item.invite_status === "invited" ? { color: "#2563EB" } :
-                    item.invite_status === "joined"  ? { color: "#059669" } : { color: "#6B7280" }
+                    item.invite_status === "invited" ? { color: "#1F8F86" } :
+                    item.invite_status === "joined"  ? { color: "#1F8F86" } : { color: "#6F6B68" }
                   ]}>{INVITE_LABEL[item.invite_status || "none"]}</Text>
                 </View>
                 <Pressable style={[um.assignBtn, { backgroundColor: themeColor }]}
@@ -1699,10 +1699,10 @@ const um = StyleSheet.create({
   title:       { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
   sub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
   searchBar:   { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
-                 marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#F3F4F6", borderRadius: 10 },
+                 marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#F6F3F1", borderRadius: 10 },
   searchInput: { flex: 1, fontSize: 14, color: C.text, fontFamily: "Inter_400Regular" },
   list:        { flexShrink: 1 },
-  row:         { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  row:         { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#F6F3F1" },
   name:        { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
   phone:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   invTag:      { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
@@ -1844,16 +1844,16 @@ const rm = StyleSheet.create({
   title:       { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
   sub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
   searchBar:   { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
-                 marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#F3F4F6", borderRadius: 10 },
+                 marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#F6F3F1", borderRadius: 10 },
   searchInput: { flex: 1, fontSize: 14, color: C.text, fontFamily: "Inter_400Regular" },
   list:        { flexShrink: 1 },
-  row:         { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  row:         { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#F6F3F1" },
   name:        { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
   weeklyBadge: { fontSize: 12, fontFamily: "Inter_700Bold", color: C.tint, marginTop: 2 },
   classSub:    { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
   moveBtn:     { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, minWidth: 52, alignItems: "center" },
   moveTxt:     { fontSize: 13, fontFamily: "Inter_700Bold" },
-  pickRow:     { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 16, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  pickRow:     { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 16, borderTopWidth: 1, borderTopColor: "#F6F3F1" },
   pickName:    { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
   pickSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
   empty:       { alignItems: "center", paddingVertical: 40, gap: 8 },

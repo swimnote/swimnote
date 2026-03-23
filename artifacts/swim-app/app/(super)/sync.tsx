@@ -181,7 +181,7 @@ export default function SuperSyncScreen() {
           <Text style={[s.sectionTitle, { color: C.text }]}>동기화 현황</Text>
           <View style={s.statRow}>
             <StatCard label="대기중"  value={stats.pending}  icon="clock"         color="#D97706" sub="sync_status=pending" />
-            <StatCard label="완료"    value={stats.synced}   icon="check-circle"  color="#059669" sub="sync_status=synced" />
+            <StatCard label="완료"    value={stats.synced}   icon="check-circle"  color="#1F8F86" sub="sync_status=synced" />
           </View>
           <View style={s.statRow}>
             <StatCard label="총 변경분" value={stats.total}    icon="database"  color={ACCENT}   sub="누적 기록" />
@@ -241,12 +241,12 @@ export default function SuperSyncScreen() {
                 <View key={row.table_name}>
                   {idx > 0 && <View style={[s.divider, { backgroundColor: C.border }]} />}
                   <View style={s.tableRow}>
-                    <View style={[s.tableIcon, { backgroundColor: "#FFF7ED" }]}>
+                    <View style={[s.tableIcon, { backgroundColor: "#FFF1BF" }]}>
                       <Feather name="table" size={13} color="#D97706" />
                     </View>
                     <Text style={[s.tableName, { color: C.text }]}>{row.table_name}</Text>
-                    <View style={[s.pendingBadge, { backgroundColor: row.pending > 0 ? "#FEF3C7" : "#D1FAE5" }]}>
-                      <Text style={[s.pendingBadgeTxt, { color: row.pending > 0 ? "#D97706" : "#059669" }]}>
+                    <View style={[s.pendingBadge, { backgroundColor: row.pending > 0 ? "#FFF1BF" : "#DDF2EF" }]}>
+                      <Text style={[s.pendingBadgeTxt, { color: row.pending > 0 ? "#D97706" : "#1F8F86" }]}>
                         {fmtNum(row.pending)}건
                       </Text>
                     </View>
@@ -271,7 +271,7 @@ export default function SuperSyncScreen() {
                     </View>
                     <View style={{ alignItems: "flex-end", gap: 3 }}>
                       {t.pending > 0 && (
-                        <View style={[s.pendingBadge, { backgroundColor: "#FEF3C7" }]}>
+                        <View style={[s.pendingBadge, { backgroundColor: "#FFF1BF" }]}>
                           <Text style={[s.pendingBadgeTxt, { color: "#D97706" }]}>대기 {fmtNum(t.pending)}</Text>
                         </View>
                       )}
@@ -299,9 +299,9 @@ export default function SuperSyncScreen() {
                   <View key={snap.id}>
                     {idx > 0 && <View style={[s.divider, { backgroundColor: C.border }]} />}
                     <View style={s.snapRow}>
-                      <View style={[s.snapIcon, { backgroundColor: isFull ? "#EFF6FF" : "#ECFDF5" }]}>
+                      <View style={[s.snapIcon, { backgroundColor: isFull ? "#DDF2EF" : "#DFF3EC" }]}>
                         <Feather name={isFull ? "archive" : "git-commit"} size={13}
-                          color={isFull ? "#1D4ED8" : "#059669"} />
+                          color={isFull ? "#1F8F86" : "#1F8F86"} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[s.snapType, { color: C.text }]}>

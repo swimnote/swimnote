@@ -28,9 +28,9 @@ interface ActivityLog {
 }
 
 const ACTION_META: Record<string, { label: string; icon: string; color: string }> = {
-  update:  { label: "정보 수정",  icon: "edit-2",      color: "#2563EB" },
-  create:  { label: "신규 등록",  icon: "plus-circle", color: "#059669" },
-  delete:  { label: "삭제",       icon: "trash-2",     color: "#DC2626" },
+  update:  { label: "정보 수정",  icon: "edit-2",      color: "#1F8F86" },
+  create:  { label: "신규 등록",  icon: "plus-circle", color: "#1F8F86" },
+  delete:  { label: "삭제",       icon: "trash-2",     color: "#D96C6C" },
   restore: { label: "복구",       icon: "rotate-ccw",  color: "#7C3AED" },
   assign:  { label: "반 배정",    icon: "link",        color: "#D97706" },
 };
@@ -42,13 +42,13 @@ const TYPE_LABEL: Record<string, string> = {
 
 // 바로가기 (대시보드에 없는 보조 메뉴만)
 const SHORTCUTS = [
-  { label: "휴무일 관리",  icon: "x-square"   as const, color: "#EF4444", bg: "#FEE2E2", route: "/(admin)/holidays"        },
-  { label: "데이터 관리",  icon: "hard-drive" as const, color: "#0891B2", bg: "#ECFEFF", route: "/(admin)/data-management" },
-  { label: "초대 안내 기록", icon: "send"       as const, color: "#0891B2", bg: "#ECFEFF", route: "/(admin)/invite-records"  },
+  { label: "휴무일 관리",  icon: "x-square"   as const, color: "#D96C6C", bg: "#F9DEDA", route: "/(admin)/holidays"        },
+  { label: "데이터 관리",  icon: "hard-drive" as const, color: "#1F8F86", bg: "#ECFEFF", route: "/(admin)/data-management" },
+  { label: "초대 안내 기록", icon: "send"       as const, color: "#1F8F86", bg: "#ECFEFF", route: "/(admin)/invite-records"  },
 ];
 
 const MISC = [
-  { label: "모드 변경",  icon: "grid" as const, color: "#6B7280", bg: "#F3F4F6", route: "/(admin)/mode" },
+  { label: "모드 변경",  icon: "grid" as const, color: "#6F6B68", bg: "#F6F3F1", route: "/(admin)/mode" },
 ];
 
 export default function MoreScreen() {
@@ -146,7 +146,7 @@ export default function MoreScreen() {
 
           {/* 안내 배너 */}
           <View style={s.infoBanner}>
-            <Feather name="info" size={14} color="#2563EB" />
+            <Feather name="info" size={14} color="#1F8F86" />
             <Text style={s.infoBannerText}>
               메뉴 대부분은 홈 화면 아이콘(운영 관리·데이터 관리·수업 설정·운영 설정)에서 바로 접근할 수 있습니다.
             </Text>
@@ -254,13 +254,13 @@ export default function MoreScreen() {
                     {log.before_value && (
                       <View style={s.logValueRow}>
                         <Text style={s.logValueLabel}>변경 전</Text>
-                        <Text style={[s.logValue, { color: "#DC2626" }]}>{log.before_value}</Text>
+                        <Text style={[s.logValue, { color: "#D96C6C" }]}>{log.before_value}</Text>
                       </View>
                     )}
                     {log.after_value && (
                       <View style={s.logValueRow}>
                         <Text style={s.logValueLabel}>변경 후</Text>
-                        <Text style={[s.logValue, { color: "#059669" }]}>{log.after_value}</Text>
+                        <Text style={[s.logValue, { color: "#1F8F86" }]}>{log.after_value}</Text>
                       </View>
                     )}
                   </View>
@@ -325,57 +325,57 @@ export default function MoreScreen() {
 const sm = StyleSheet.create({
   overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:           { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:           { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:             { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 4 },
+  title:           { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  sub:             { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68", marginBottom: 4 },
   roleRow:         { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 14 },
   roleIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   roleLabel:       { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  roleSub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  roleSub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
   activeBadge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   activeBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  closeBtn:        { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6" },
-  closeBtnText:    { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  closeBtn:        { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F6F3F1" },
+  closeBtnText:    { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
 });
 
 const s = StyleSheet.create({
-  tabBar:   { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  tabBar:   { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
   tabItem:  { flex: 1, paddingVertical: 14, alignItems: "center" },
   tabText:  { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
   profileCard:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   profileAvatar:  { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   profileInitial: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  profileName:    { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
-  profileRole:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  profileName:    { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  profileRole:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
   switchBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   switchBtnText:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
-  infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EFF6FF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#BFDBFE" },
-  infoBannerText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#1D4ED8", lineHeight: 18 },
+  infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#DDF2EF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#BFDBFE" },
+  infoBannerText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F8F86", lineHeight: 18 },
 
-  groupTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280", marginBottom: 8, paddingHorizontal: 4 },
+  groupTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68", marginBottom: 8, paddingHorizontal: 4 },
   groupCard:  { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   menuRow:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },
-  menuRowBorder: { borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  menuRowBorder: { borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   menuIcon:   { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  menuLabel:  { fontSize: 15, fontFamily: "Inter_500Medium", color: "#111827" },
+  menuLabel:  { fontSize: 15, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
 
   empty:      { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyText:  { fontSize: 15, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyText:  { fontSize: 15, fontFamily: "Inter_400Regular", color: "#9A948F" },
 
   logCard:       { borderRadius: 16, padding: 14, gap: 8, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   logHeader:     { flexDirection: "row", alignItems: "center", gap: 10 },
   logIcon:       { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  logName:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
+  logName:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   logAction:     { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 1 },
-  logDate:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  logTime:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
-  logChange:     { backgroundColor: "#F9FAFB", borderRadius: 10, padding: 10, gap: 4 },
+  logDate:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  logTime:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  logChange:     { backgroundColor: "#FBF8F6", borderRadius: 10, padding: 10, gap: 4 },
   logValueRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
-  logValueLabel: { width: 50, fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  logValueLabel: { width: 50, fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
   logValue:      { flex: 1, fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  logNote:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", fontStyle: "italic" },
+  logNote:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", fontStyle: "italic" },
   logFooter:     { flexDirection: "row", alignItems: "center", gap: 4 },
-  logActor:      { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
-  logActorRole:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  logActor:      { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9A948F" },
+  logActorRole:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });

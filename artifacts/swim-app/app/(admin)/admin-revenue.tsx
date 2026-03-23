@@ -266,7 +266,7 @@ function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
               <Text style={[hm.optTitle, { color: C.textMuted }]}>기본 자동 옵션</Text>
               <View style={hm.optRow}>
                 <Pressable
-                  style={[hm.optBtn, autoPublic && { backgroundColor: "#FEF3C7", borderColor: "#F59E0B" }]}
+                  style={[hm.optBtn, autoPublic && { backgroundColor: "#FFF1BF", borderColor: "#E4A93A" }]}
                   onPress={toggleAutoPublic}
                 >
                   <Feather name={autoPublic ? "check-square" : "square"} size={18}
@@ -277,13 +277,13 @@ function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
                   </View>
                 </Pressable>
                 <Pressable
-                  style={[hm.optBtn, autoSunday && { backgroundColor: "#FEE2E2", borderColor: "#EF4444" }]}
+                  style={[hm.optBtn, autoSunday && { backgroundColor: "#F9DEDA", borderColor: "#D96C6C" }]}
                   onPress={toggleAutoSunday}
                 >
                   <Feather name={autoSunday ? "check-square" : "square"} size={18}
-                    color={autoSunday ? "#EF4444" : C.textMuted} />
+                    color={autoSunday ? "#D96C6C" : C.textMuted} />
                   <View>
-                    <Text style={[hm.optBtnLabel, { color: autoSunday ? "#EF4444" : C.text }]}>일요일 자동</Text>
+                    <Text style={[hm.optBtnLabel, { color: autoSunday ? "#D96C6C" : C.text }]}>일요일 자동</Text>
                     <Text style={[hm.optBtnSub, { color: C.textMuted }]}>매주 일요일 전체</Text>
                   </View>
                 </Pressable>
@@ -315,7 +315,7 @@ function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
                       key={wd}
                       style={[
                         hm.weekdayBtn,
-                        allSel ? { backgroundColor: isSun ? "#EF4444" : isSat ? themeColor : C.text }
+                        allSel ? { backgroundColor: isSun ? "#D96C6C" : isSat ? themeColor : C.text }
                                : { backgroundColor: C.background, borderWidth: 1, borderColor: C.border },
                       ]}
                       onPress={() => toggleWeekday(i)}
@@ -323,7 +323,7 @@ function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
                       <Text style={[
                         hm.weekdayBtnTxt,
                         allSel ? { color: "#fff" }
-                               : { color: isSun ? "#EF4444" : isSat ? themeColor : C.text },
+                               : { color: isSun ? "#D96C6C" : isSat ? themeColor : C.text },
                       ]}>{wd}</Text>
                     </Pressable>
                   );
@@ -342,7 +342,7 @@ function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
                     <View key={wd} style={[hm.calHeaderCell, { width: CELL }]}>
                       <Text style={[
                         hm.calHeaderTxt,
-                        i === 0 && { color: "#EF4444" },
+                        i === 0 && { color: "#D96C6C" },
                         i === 6 && { color: themeColor },
                       ]}>{wd}</Text>
                     </View>
@@ -367,12 +367,12 @@ function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
                         >
                           <View style={[
                             hm.dayCircle,
-                            isHoli && { backgroundColor: isSun || isPubH ? "#EF4444" : "#374151" },
+                            isHoli && { backgroundColor: isSun || isPubH ? "#D96C6C" : "#1F1F1F" },
                           ]}>
                             <Text style={[
                               hm.dayNum,
                               isHoli ? { color: "#fff" }
-                                     : isSun || isPubH ? { color: "#EF4444" }
+                                     : isSun || isPubH ? { color: "#D96C6C" }
                                      : isSat ? { color: themeColor }
                                      : { color: C.text },
                             ]}>{dayNum}</Text>
@@ -389,11 +389,11 @@ function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
                 {/* 범례 */}
                 <View style={hm.legend}>
                   <View style={hm.legendItem}>
-                    <View style={[hm.legendDot, { backgroundColor: "#EF4444" }]} />
+                    <View style={[hm.legendDot, { backgroundColor: "#D96C6C" }]} />
                     <Text style={[hm.legendTxt, { color: C.textMuted }]}>공휴일·일요일</Text>
                   </View>
                   <View style={hm.legendItem}>
-                    <View style={[hm.legendDot, { backgroundColor: "#374151" }]} />
+                    <View style={[hm.legendDot, { backgroundColor: "#1F1F1F" }]} />
                     <Text style={[hm.legendTxt, { color: C.textMuted }]}>지정 휴무일</Text>
                   </View>
                 </View>
@@ -470,10 +470,10 @@ function formatWon(n: number) { return n.toLocaleString("ko-KR") + "원"; }
    AdminRevenueScreen
 ──────────────────────────────────────────────── */
 const STATUS_COLOR: Record<SettlementStatus, { bg: string; text: string }> = {
-  "미정산":    { bg: "#F3F4F6", text: "#6B7280" },
-  "저장됨":    { bg: "#DBEAFE", text: "#2563EB" },
-  "제출완료":  { bg: "#D1FAE5", text: "#059669" },
-  "관리자확인": { bg: "#EDE9FE", text: "#7C3AED" },
+  "미정산":    { bg: "#F6F3F1", text: "#6F6B68" },
+  "저장됨":    { bg: "#DDF2EF", text: "#1F8F86" },
+  "제출완료":  { bg: "#DDF2EF", text: "#1F8F86" },
+  "관리자확인": { bg: "#EEDDF5", text: "#7C3AED" },
 };
 
 export default function AdminRevenueScreen() {
@@ -575,7 +575,7 @@ export default function AdminRevenueScreen() {
         </View>
 
         <Pressable
-          style={[s.holiBtn, { backgroundColor: "#FEF3C7", borderColor: "#F59E0B" }]}
+          style={[s.holiBtn, { backgroundColor: "#FFF1BF", borderColor: "#E4A93A" }]}
           onPress={() => setHoliModal(true)}
         >
           <Feather name="calendar" size={14} color="#D97706" />
@@ -594,20 +594,20 @@ export default function AdminRevenueScreen() {
         >
           {/* ── 바로가기 버튼 ── */}
           <View style={s.quickRow}>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#EDE9FE" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: "#EEDDF5" }]}
               onPress={() => router.push("/(admin)/makeups" as any)}>
               <Feather name="rotate-ccw" size={16} color="#7C3AED" />
               <Text style={[s.quickLabel, { color: "#7C3AED" }]}>보강 이월</Text>
             </Pressable>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#DBEAFE" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: "#DDF2EF" }]}
               onPress={() => router.push("/(admin)/pool-settings" as any)}>
-              <Feather name="dollar-sign" size={16} color="#2563EB" />
-              <Text style={[s.quickLabel, { color: "#2563EB" }]}>단가표</Text>
+              <Feather name="dollar-sign" size={16} color="#1F8F86" />
+              <Text style={[s.quickLabel, { color: "#1F8F86" }]}>단가표</Text>
             </Pressable>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#D1FAE5" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: "#DDF2EF" }]}
               onPress={() => router.push("/(admin)/holidays" as any)}>
-              <Feather name="list" size={16} color="#059669" />
-              <Text style={[s.quickLabel, { color: "#059669" }]}>휴무 목록</Text>
+              <Feather name="list" size={16} color="#1F8F86" />
+              <Text style={[s.quickLabel, { color: "#1F8F86" }]}>휴무 목록</Text>
             </Pressable>
           </View>
 
@@ -693,13 +693,13 @@ export default function AdminRevenueScreen() {
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>보강</Text>
                     </View>
                     <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#059669" }]}>
+                      <Text style={[s.statBoxVal, { color: "#1F8F86" }]}>
                         {report?.trial_count ?? "—"}
                       </Text>
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>체험</Text>
                     </View>
                     <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#2563EB" }]}>
+                      <Text style={[s.statBoxVal, { color: "#1F8F86" }]}>
                         {report?.transfer_count ?? "—"}
                       </Text>
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>이동</Text>
@@ -711,7 +711,7 @@ export default function AdminRevenueScreen() {
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>연기</Text>
                     </View>
                     <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#EF4444" }]}>
+                      <Text style={[s.statBoxVal, { color: "#D96C6C" }]}>
                         {report?.withdrawn_count ?? "—"}
                       </Text>
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>탈퇴</Text>
@@ -777,7 +777,7 @@ export default function AdminRevenueScreen() {
               현재 월 정산을 마무리하고{"\n"}다음 달 수업 일정을 새로 생성합니다.{"\n"}보강 이월도 함께 처리됩니다.
             </Text>
             <View style={s.modalBtns}>
-              <Pressable style={[s.modalBtn, { backgroundColor: "#F3F4F6" }]} onPress={() => setNextMonthModal(false)}>
+              <Pressable style={[s.modalBtn, { backgroundColor: "#F6F3F1" }]} onPress={() => setNextMonthModal(false)}>
                 <Text style={[s.modalBtnTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable
@@ -852,7 +852,7 @@ const s = StyleSheet.create({
   statusBadge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   statsGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  statBox:        { minWidth: "20%", flex: 1, backgroundColor: "#F9FAFB", borderRadius: 10, padding: 8, alignItems: "center", gap: 2 },
+  statBox:        { minWidth: "20%", flex: 1, backgroundColor: "#FBF8F6", borderRadius: 10, padding: 8, alignItems: "center", gap: 2 },
   statBoxVal:     { fontSize: 16, fontFamily: "Inter_700Bold" },
   statBoxLabel:   { fontSize: 10, fontFamily: "Inter_400Regular" },
 
@@ -909,7 +909,7 @@ const hm = StyleSheet.create({
   calCell: { height: 56, alignItems: "center", paddingTop: 4, gap: 2 },
   dayCircle: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   dayNum: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  holiLabel: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#EF4444" },
+  holiLabel: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#D96C6C" },
 
   legend: { flexDirection: "row", gap: 14, justifyContent: "center", paddingTop: 8 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },

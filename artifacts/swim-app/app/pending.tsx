@@ -58,8 +58,8 @@ export default function PendingScreen() {
     >
       <View style={styles.content}>
         {/* 상태 아이콘 */}
-        <View style={[styles.iconBox, { backgroundColor: isRejected ? "#FEE2E2" : "#FEF3C7" }]}>
-          <Feather name={isRejected ? "x-circle" : "clock"} size={40} color={isRejected ? "#DC2626" : "#F59E0B"} />
+        <View style={[styles.iconBox, { backgroundColor: isRejected ? "#F9DEDA" : "#FFF1BF" }]}>
+          <Feather name={isRejected ? "x-circle" : "clock"} size={40} color={isRejected ? "#D96C6C" : "#E4A93A"} />
         </View>
 
         <Text style={[styles.title, { color: C.text }]}>
@@ -80,23 +80,23 @@ export default function PendingScreen() {
         {/* 안내 카드 */}
         {!isRejected && (
           <View style={[styles.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
-            <InfoRow icon="check-circle" color="#10B981" text="자녀 정보 일치 시 즉시 자동 승인" />
-            <InfoRow icon="user-check"  color="#1A5CFF" text="관리자 수동 승인 시 SMS 알림 발송" />
-            <InfoRow icon="clock"       color="#F59E0B" text="일반적으로 1~2 영업일 이내 처리" />
+            <InfoRow icon="check-circle" color="#2E9B6F" text="자녀 정보 일치 시 즉시 자동 승인" />
+            <InfoRow icon="user-check"  color="#1F8F86" text="관리자 수동 승인 시 SMS 알림 발송" />
+            <InfoRow icon="clock"       color="#E4A93A" text="일반적으로 1~2 영업일 이내 처리" />
           </View>
         )}
 
         {/* 거절 사유 */}
         {isRejected && currentReq?.rejectReason && (
           <View style={[styles.infoCard, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
-            <InfoRow icon="alert-circle" color="#DC2626" text={`거절 사유: ${currentReq.rejectReason}`} />
+            <InfoRow icon="alert-circle" color="#D96C6C" text={`거절 사유: ${currentReq.rejectReason}`} />
           </View>
         )}
 
         {/* 대기 안내 배너 */}
         <View style={[styles.waitBanner, { backgroundColor: isRejected ? "#FEF2F2" : C.tintLight }]}>
-          <Feather name="info" size={14} color={isRejected ? "#DC2626" : C.tint} />
-          <Text style={[styles.waitTxt, { color: isRejected ? "#DC2626" : C.tint }]}>
+          <Feather name="info" size={14} color={isRejected ? "#D96C6C" : C.tint} />
+          <Text style={[styles.waitTxt, { color: isRejected ? "#D96C6C" : C.tint }]}>
             {isRejected
               ? "문의: 수영장에 직접 연락해 주세요"
               : "승인 후 자동으로 홈 화면으로 이동합니다"}

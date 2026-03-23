@@ -59,8 +59,8 @@ function getDayClasses(groups: TeacherClassGroup[], day: string) {
 }
 
 const CLASS_COLORS = [
-  "#6366F1","#EC4899","#14B8A6","#F59E0B","#8B5CF6",
-  "#10B981","#3B82F6","#EF4444","#F97316","#06B6D4",
+  "#1F8F86","#EC4899","#14B8A6","#E4A93A","#8B5CF6",
+  "#2E9B6F","#4EA7D8","#D96C6C","#F97316","#06B6D4",
 ];
 function classColor(id: string) {
   let n = 0; for (let i = 0; i < id.length; i++) n += id.charCodeAt(i);
@@ -205,14 +205,14 @@ export function WeeklySchedule({
                   </Text>
                   {!inactive && (
                     <View style={ws.dots}>
-                      <View style={[ws.dot, { backgroundColor: attDone ? "#D1FAE5" : "#FEE2E2" }]}>
-                        <Feather name={attDone ? "check" : "x"} size={7} color={attDone ? "#059669" : "#DC2626"} />
+                      <View style={[ws.dot, { backgroundColor: attDone ? "#DDF2EF" : "#F9DEDA" }]}>
+                        <Feather name={attDone ? "check" : "x"} size={7} color={attDone ? "#1F8F86" : "#D96C6C"} />
                       </View>
-                      <View style={[ws.dot, { backgroundColor: diaryDone ? "#D1FAE5" : "#FEF3C7" }]}>
-                        <Feather name={diaryDone ? "check" : "edit-3"} size={7} color={diaryDone ? "#059669" : "#D97706"} />
+                      <View style={[ws.dot, { backgroundColor: diaryDone ? "#DDF2EF" : "#FFF1BF" }]}>
+                        <Feather name={diaryDone ? "check" : "edit-3"} size={7} color={diaryDone ? "#1F8F86" : "#D97706"} />
                       </View>
                       {hasPhotos && (
-                        <View style={[ws.dot, { backgroundColor: "#EDE9FE" }]}>
+                        <View style={[ws.dot, { backgroundColor: "#EEDDF5" }]}>
                           <Feather name="camera" size={7} color="#7C3AED" />
                         </View>
                       )}
@@ -310,7 +310,7 @@ const ws = StyleSheet.create({
     borderWidth: 1, backgroundColor: C.card,
     overflow: "hidden", minHeight: 44,
   },
-  slotInactive: { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" },
+  slotInactive: { backgroundColor: "#FBF8F6", borderColor: "#E9E2DD" },
 
   colorBar: { width: 4, alignSelf: "stretch" },
 

@@ -77,7 +77,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
 
       {/* 거절/비활성 사유 */}
       {meta.rejectionReason ? (
-        <View style={[s.rejectNote, { backgroundColor: "#FEE2E2", borderTopColor: C.border }]}>
+        <View style={[s.rejectNote, { backgroundColor: "#F9DEDA", borderTopColor: C.border }]}>
           <Feather name="alert-circle" size={12} color={C.error} />
           <Text style={[s.rejectNoteText, { color: C.error }]} numberOfLines={2}>
             거절 사유: {meta.rejectionReason}
@@ -142,10 +142,10 @@ const s = StyleSheet.create({
   },
   avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
   info: { flex: 1, gap: 2 },
-  name: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280" },
-  sub2: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  date: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  name: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  sub:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  sub2: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  date: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
   badge: {
     flexDirection: "row",
     alignItems: "center",

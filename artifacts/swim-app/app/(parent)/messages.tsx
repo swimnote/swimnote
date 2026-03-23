@@ -189,7 +189,7 @@ export default function MessagesScreen() {
                             <Text style={[s.msgAction, { color: C.tint }]}>복구</Text>
                           </TouchableOpacity>
                           <TouchableOpacity onPress={() => hardDelete(msg.id)}>
-                            <Text style={[s.msgAction, { color: "#EF4444" }]}>영구삭제</Text>
+                            <Text style={[s.msgAction, { color: "#D96C6C" }]}>영구삭제</Text>
                           </TouchableOpacity>
                         </>
                       )}
@@ -205,7 +205,7 @@ export default function MessagesScreen() {
         {diaryId ? (
           <View style={[s.inputRow, { borderTopColor: C.border, paddingBottom: insets.bottom + 8 }]}>
             <TextInput
-              style={[s.input, { backgroundColor: "#F3F4F6", color: C.text }]}
+              style={[s.input, { backgroundColor: "#F6F3F1", color: C.text }]}
               placeholder="쪽지 내용을 입력하세요"
               placeholderTextColor={C.textMuted}
               value={input}

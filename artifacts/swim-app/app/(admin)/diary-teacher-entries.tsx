@@ -186,12 +186,12 @@ export default function DiaryTeacherEntriesScreen() {
               <Text style={de.cardDate}>{formatDate(item.lesson_date)}</Text>
               <View style={de.badgeRow}>
                 {item.is_edited && (
-                  <View style={[de.badge, { backgroundColor: "#FEF3C7" }]}>
+                  <View style={[de.badge, { backgroundColor: "#FFF1BF" }]}>
                     <Text style={[de.badgeText, { color: "#92400E" }]}>수정됨</Text>
                   </View>
                 )}
                 {Number(item.note_count) > 0 && (
-                  <View style={[de.badge, { backgroundColor: "#EDE9FE" }]}>
+                  <View style={[de.badge, { backgroundColor: "#EEDDF5" }]}>
                     <Text style={[de.badgeText, { color: "#7C3AED" }]}>개별 {item.note_count}명</Text>
                   </View>
                 )}
@@ -270,10 +270,10 @@ export default function DiaryTeacherEntriesScreen() {
 
       {/* 삭제 완료 메시지 */}
       {deleteMsg && (
-        <View style={[de.msg, { backgroundColor: deleteMsg.includes("실패") ? "#FEE2E2" : "#D1FAE5" }]}>
+        <View style={[de.msg, { backgroundColor: deleteMsg.includes("실패") ? "#F9DEDA" : "#DDF2EF" }]}>
           <Feather name={deleteMsg.includes("실패") ? "alert-circle" : "check-circle"} size={13}
-            color={deleteMsg.includes("실패") ? C.error : "#059669"} />
-          <Text style={[de.msgText, { color: deleteMsg.includes("실패") ? C.error : "#059669" }]}>{deleteMsg}</Text>
+            color={deleteMsg.includes("실패") ? C.error : "#1F8F86"} />
+          <Text style={[de.msgText, { color: deleteMsg.includes("실패") ? C.error : "#1F8F86" }]}>{deleteMsg}</Text>
         </View>
       )}
 
@@ -310,7 +310,7 @@ export default function DiaryTeacherEntriesScreen() {
             </Text>
 
             <Pressable
-              style={[de.modeBtn, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}
+              style={[de.modeBtn, { backgroundColor: "#FFF1BF", borderColor: "#FDE68A" }]}
               onPress={() => handleModeSelect("photo_only")}
             >
               <Feather name="image" size={18} color="#B45309" />
@@ -321,7 +321,7 @@ export default function DiaryTeacherEntriesScreen() {
             </Pressable>
 
             <Pressable
-              style={[de.modeBtn, { backgroundColor: "#FEE2E2", borderColor: "#FCA5A5" }]}
+              style={[de.modeBtn, { backgroundColor: "#F9DEDA", borderColor: "#FCA5A5" }]}
               onPress={() => handleModeSelect("full")}
             >
               <Feather name="trash-2" size={18} color={C.error} />
@@ -363,7 +363,7 @@ const de = StyleSheet.create({
   toolbarBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
   toolbarBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   toolbarDeleteBtn: { gap: 4 },
-  toolbarDeleteText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#DC2626" },
+  toolbarDeleteText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
 
   infoBar: {
     flexDirection: "row", alignItems: "center", gap: 6,

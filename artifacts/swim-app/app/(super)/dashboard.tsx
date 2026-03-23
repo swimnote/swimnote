@@ -40,12 +40,12 @@ interface Todo {
 }
 
 const MENUS = [
-  { id: "op",       icon: "briefcase" as const,      title: "운영 관리",   sub: "운영자·구독·저장공간·공지관리",  path: "/(super)/op-group",            color: P,         bg: "#EDE9FE" },
+  { id: "op",       icon: "briefcase" as const,      title: "운영 관리",   sub: "운영자·구독·저장공간·공지관리",  path: "/(super)/op-group",            color: P,         bg: "#EEDDF5" },
   { id: "support",  icon: "message-circle" as const, title: "지원 센터",   sub: "고객센터·정책·초대·인증번호",    path: "/(super)/support-group",        color: "#0284C7", bg: "#E0F2FE" },
-  { id: "protect",  icon: "shield" as const,         title: "보호·통제",   sub: "킬스위치·백업·플래그·읽기전용", path: "/(super)/protect-group",        color: "#DC2626", bg: "#FEE2E2" },
+  { id: "protect",  icon: "shield" as const,         title: "보호·통제",   sub: "킬스위치·백업·플래그·읽기전용", path: "/(super)/protect-group",        color: "#D96C6C", bg: "#F9DEDA" },
   { id: "security", icon: "lock" as const,           title: "보안·설정",   sub: "계정·2FA·외부서비스·세션·정책", path: "/(super)/security-settings",    color: "#991B1B", bg: "#FEF2F2" },
-  { id: "audit",    icon: "activity" as const,       title: "감사·리스크", sub: "운영로그·리스크·보안·민감작업",  path: "/(super)/audit-group",          color: "#4F46E5", bg: "#EEF2FF" },
-  { id: "billing",  icon: "bar-chart-2" as const,    title: "매출·정산",   sub: "매출·지출·수수료·순이익 통합 관리", path: "/(super)/billing-analytics",  color: "#059669", bg: "#D1FAE5" },
+  { id: "audit",    icon: "activity" as const,       title: "감사·리스크", sub: "운영로그·리스크·보안·민감작업",  path: "/(super)/audit-group",          color: "#1F8F86", bg: "#DDF2EF" },
+  { id: "billing",  icon: "bar-chart-2" as const,    title: "매출·정산",   sub: "매출·지출·수수료·순이익 통합 관리", path: "/(super)/billing-analytics",  color: "#1F8F86", bg: "#DDF2EF" },
 ];
 
 const POOL_TYPE_LABELS: Record<string, string> = {
@@ -91,25 +91,25 @@ function TodoRow({
       </View>
       <View style={tr.actions}>
         {item.todo_type === "pending_approval" && <>
-          <Pressable style={[tr.btn, { backgroundColor: "#D1FAE5" }]} onPress={() => onAction("approve", item.id)}>
-            <Text style={[tr.btnTxt, { color: "#059669" }]}>승인</Text>
+          <Pressable style={[tr.btn, { backgroundColor: "#DDF2EF" }]} onPress={() => onAction("approve", item.id)}>
+            <Text style={[tr.btnTxt, { color: "#1F8F86" }]}>승인</Text>
           </Pressable>
-          <Pressable style={[tr.btn, { backgroundColor: "#FEE2E2" }]} onPress={() => onAction("reject", item.id)}>
-            <Text style={[tr.btnTxt, { color: "#DC2626" }]}>반려</Text>
+          <Pressable style={[tr.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => onAction("reject", item.id)}>
+            <Text style={[tr.btnTxt, { color: "#D96C6C" }]}>반려</Text>
           </Pressable>
         </>}
         {item.todo_type === "deletion_pending" && (
           <Pressable style={[tr.btn, { backgroundColor: "#ECFEFF" }]} onPress={() => onAction("defer", item.id)}>
-            <Text style={[tr.btnTxt, { color: "#0891B2" }]}>유예</Text>
+            <Text style={[tr.btnTxt, { color: "#1F8F86" }]}>유예</Text>
           </Pressable>
         )}
         {item.todo_type === "policy_unsigned" && (
-          <Pressable style={[tr.btn, { backgroundColor: "#EEF2FF" }]} onPress={() => onAction("policy_reminder", item.id)}>
-            <Text style={[tr.btnTxt, { color: "#4F46E5" }]}>재알림</Text>
+          <Pressable style={[tr.btn, { backgroundColor: "#DDF2EF" }]} onPress={() => onAction("policy_reminder", item.id)}>
+            <Text style={[tr.btnTxt, { color: "#1F8F86" }]}>재알림</Text>
           </Pressable>
         )}
-        <Pressable style={[tr.btn, { backgroundColor: "#F3F4F6" }]} onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
-          <Text style={[tr.btnTxt, { color: "#374151" }]}>상세</Text>
+        <Pressable style={[tr.btn, { backgroundColor: "#F6F3F1" }]} onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
+          <Text style={[tr.btnTxt, { color: "#1F1F1F" }]}>상세</Text>
         </Pressable>
       </View>
     </View>
@@ -119,8 +119,8 @@ function TodoRow({
 const tr = StyleSheet.create({
   row:     { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8,
              paddingLeft: 10, borderLeftWidth: 3, marginBottom: 4 },
-  name:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  sub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  name:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  sub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
   actions: { flexDirection: "row", gap: 4 },
   btn:     { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6 },
   btnTxt:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
@@ -149,7 +149,7 @@ function TodoSection({
         <View style={[ts.badge, { backgroundColor: color }]}>
           <Text style={ts.badgeTxt}>{count}</Text>
         </View>
-        <Feather name={open ? "chevron-up" : "chevron-down"} size={14} color="#9CA3AF" style={{ marginLeft: "auto" }} />
+        <Feather name={open ? "chevron-up" : "chevron-down"} size={14} color="#9A948F" style={{ marginLeft: "auto" }} />
       </Pressable>
       {open && (
         <View style={ts.body}>
@@ -167,10 +167,10 @@ function TodoSection({
 
 const ts = StyleSheet.create({
   wrap:     { backgroundColor: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden",
-              borderWidth: 1, borderColor: "#E5E7EB" },
+              borderWidth: 1, borderColor: "#E9E2DD" },
   header:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 12 },
   iconWrap: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  title:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  title:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   badge:    { borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
   badgeTxt: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" },
   body:     { paddingHorizontal: 12, paddingBottom: 8 },
@@ -290,7 +290,7 @@ export default function SuperDashboard() {
         <View style={{ flexDirection: "row", gap: 8 }}>
           {totalAlerts > 0 && (
             <Pressable style={s.alertPill} onPress={() => router.push("/(super)/risk-center" as any)}>
-              <Feather name="alert-circle" size={13} color="#DC2626" />
+              <Feather name="alert-circle" size={13} color="#D96C6C" />
               <Text style={s.alertPillTxt}>{totalAlerts}건 처리 필요</Text>
             </Pressable>
           )}
@@ -324,7 +324,7 @@ export default function SuperDashboard() {
               <Pressable key={i} style={[s.statCard, item.alert && item.v > 0 && s.statAlert]}
                 onPress={() => router.push(item.path as any)}>
                 {item.alert && item.v > 0 && <View style={s.alertDot} />}
-                <Text style={[s.statNum, item.alert && item.v > 0 && { color: "#DC2626" }]}>{item.v}</Text>
+                <Text style={[s.statNum, item.alert && item.v > 0 && { color: "#D96C6C" }]}>{item.v}</Text>
                 <Text style={s.statLabel}>{item.label}</Text>
               </Pressable>
             ))}
@@ -335,7 +335,7 @@ export default function SuperDashboard() {
         {!loading && todoCount > 0 && (
           <View style={s.todoSection}>
             <View style={s.todoHeader}>
-              <Feather name="clipboard" size={15} color="#111827" />
+              <Feather name="clipboard" size={15} color="#1F1F1F" />
               <Text style={s.todoHeaderTxt}>오늘 처리할 일</Text>
               <View style={s.todoBadge}>
                 <Text style={s.todoBadgeTxt}>{todoCount}</Text>
@@ -345,10 +345,10 @@ export default function SuperDashboard() {
             {/* 결제 실패 */}
             <TodoSection
               title="결제 실패" count={todo?.payment_failed.length ?? 0}
-              color="#DC2626" bg="#FEE2E2" icon="credit-card"
+              color="#D96C6C" bg="#F9DEDA" icon="credit-card"
               items={todo?.payment_failed ?? []}
               renderItem={(item: TodoItem) => (
-                <TodoRow item={item} color="#DC2626" onAction={doAction} />
+                <TodoRow item={item} color="#D96C6C" onAction={doAction} />
               )}
               path="/(super)/subscriptions"
             />
@@ -356,7 +356,7 @@ export default function SuperDashboard() {
             {/* 저장공간 위험 */}
             <TodoSection
               title="저장 95% 초과" count={todo?.storage_danger.length ?? 0}
-              color={P} bg="#EDE9FE" icon="hard-drive"
+              color={P} bg="#EEDDF5" icon="hard-drive"
               items={todo?.storage_danger ?? []}
               renderItem={(item: TodoItem) => (
                 <TodoRow item={item} color={P} onAction={doAction} />
@@ -367,10 +367,10 @@ export default function SuperDashboard() {
             {/* 자동삭제 예정 */}
             <TodoSection
               title="24h 내 자동삭제" count={todo?.deletion_pending.length ?? 0}
-              color="#0891B2" bg="#ECFEFF" icon="clock"
+              color="#1F8F86" bg="#ECFEFF" icon="clock"
               items={todo?.deletion_pending ?? []}
               renderItem={(item: TodoItem) => (
-                <TodoRow item={item} color="#0891B2" onAction={doAction} />
+                <TodoRow item={item} color="#1F8F86" onAction={doAction} />
               )}
               path="/(super)/risk-center"
             />
@@ -378,10 +378,10 @@ export default function SuperDashboard() {
             {/* 정책 미확인 */}
             <TodoSection
               title="정책 미확인" count={todo?.policy_unsigned.length ?? 0}
-              color="#4F46E5" bg="#EEF2FF" icon="file-text"
+              color="#1F8F86" bg="#DDF2EF" icon="file-text"
               items={todo?.policy_unsigned ?? []}
               renderItem={(item: TodoItem) => (
-                <TodoRow item={item} color="#4F46E5" onAction={doAction} />
+                <TodoRow item={item} color="#1F8F86" onAction={doAction} />
               )}
               path="/(super)/policy"
             />
@@ -390,7 +390,7 @@ export default function SuperDashboard() {
             {(todo?.security_events.length ?? 0) > 0 && (
               <TodoSection
                 title="보안 이벤트 (24h)" count={todo?.security_events.length ?? 0}
-                color="#991B1B" bg="#FEE2E2" icon="shield"
+                color="#991B1B" bg="#F9DEDA" icon="shield"
                 items={todo?.security_events ?? []}
                 renderItem={(item: TodoItem) => (
                   <View style={[tr.row, { borderLeftColor: "#991B1B" }]}>
@@ -398,7 +398,7 @@ export default function SuperDashboard() {
                       <Text style={tr.name} numberOfLines={1}>{item.pool_name ?? item.name ?? "플랫폼"}</Text>
                       <Text style={tr.sub} numberOfLines={1}>{item.description ?? ""} · {relStr(item.created_at)}</Text>
                     </View>
-                    <Pressable style={[tr.btn, { backgroundColor: "#FEE2E2" }]}
+                    <Pressable style={[tr.btn, { backgroundColor: "#F9DEDA" }]}
                       onPress={() => router.push("/(super)/op-logs" as any)}>
                       <Text style={[tr.btnTxt, { color: "#991B1B" }]}>로그</Text>
                     </Pressable>
@@ -422,7 +422,7 @@ export default function SuperDashboard() {
                   </Text>
                 </View>
                 {(todo?.support_overdue_count ?? 0) > 0 && (
-                  <View style={[ts.badge, { backgroundColor: "#DC2626" }]}>
+                  <View style={[ts.badge, { backgroundColor: "#D96C6C" }]}>
                     <Text style={ts.badgeTxt}>{todo?.support_overdue_count}</Text>
                   </View>
                 )}
@@ -438,15 +438,15 @@ export default function SuperDashboard() {
             <Pressable style={s.riskHeader} onPress={() => router.push("/(super)/risk-center" as any)}>
               <Feather name="shield" size={15} color="#9333EA" />
               <Text style={s.riskHeaderTxt}>리스크 요약</Text>
-              <Feather name="chevron-right" size={14} color="#6B7280" style={{ marginLeft: "auto" }} />
+              <Feather name="chevron-right" size={14} color="#6F6B68" style={{ marginLeft: "auto" }} />
             </Pressable>
             <View style={s.riskGrid}>
               {[
-                { label: "결제 리스크",    v: riskSummary.paymentRisk,    color: "#DC2626", path: "/(super)/subscriptions" },
+                { label: "결제 리스크",    v: riskSummary.paymentRisk,    color: "#D96C6C", path: "/(super)/subscriptions" },
                 { label: "저장공간 리스크", v: riskSummary.storageRisk,    color: "#D97706", path: "/(super)/storage" },
-                { label: "삭제 예정",      v: riskSummary.deletionPending, color: "#0891B2", path: "/(super)/risk-center" },
-                { label: "정책 미확인",    v: riskSummary.policyUnsigned,  color: "#4F46E5", path: "/(super)/policy" },
-                { label: "SLA 초과",       v: riskSummary.slaOverdue,      color: "#DC2626", path: "/(super)/support" },
+                { label: "삭제 예정",      v: riskSummary.deletionPending, color: "#1F8F86", path: "/(super)/risk-center" },
+                { label: "정책 미확인",    v: riskSummary.policyUnsigned,  color: "#1F8F86", path: "/(super)/policy" },
+                { label: "SLA 초과",       v: riskSummary.slaOverdue,      color: "#D96C6C", path: "/(super)/support" },
                 { label: "보안 이벤트",    v: riskSummary.securityEvents,  color: "#991B1B", path: "/(super)/op-logs" },
               ].map((item) => (
                 <Pressable key={item.label} style={s.riskCard}
@@ -464,9 +464,9 @@ export default function SuperDashboard() {
         {!loading && (
           <View style={s.auditSection}>
             <Pressable style={s.auditHeader} onPress={() => router.push("/(super)/op-logs" as any)}>
-              <Feather name="activity" size={15} color="#4F46E5" />
+              <Feather name="activity" size={15} color="#1F8F86" />
               <Text style={s.auditHeaderTxt}>최근 감사 로그</Text>
-              <Feather name="chevron-right" size={14} color="#6B7280" style={{ marginLeft: "auto" }} />
+              <Feather name="chevron-right" size={14} color="#6F6B68" style={{ marginLeft: "auto" }} />
             </Pressable>
             {recentLogs.length === 0 ? (
               <View style={s.auditEmpty}>
@@ -509,7 +509,7 @@ export default function SuperDashboard() {
         </View>
 
         <View style={s.footer}>
-          <Feather name="user" size={13} color="#9CA3AF" />
+          <Feather name="user" size={13} color="#9A948F" />
           <Text style={s.footerTxt}>{adminUser?.name ?? "슈퍼관리자"} · 슈퍼관리자 계정</Text>
         </View>
       </ScrollView>
@@ -521,11 +521,11 @@ const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#0F0A1E" },
   header:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                    paddingHorizontal: 18, paddingTop: 14, paddingBottom: 14 },
-  headerTitle:   { fontSize: 22, fontFamily: "Inter_700Bold", color: "#F9FAFB" },
-  headerSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
-  alertPill:     { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#FEE2E2",
+  headerTitle:   { fontSize: 22, fontFamily: "Inter_700Bold", color: "#FBF8F6" },
+  headerSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
+  alertPill:     { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#F9DEDA",
                    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6 },
-  alertPillTxt:  { fontSize: 11, fontFamily: "Inter_700Bold", color: "#DC2626" },
+  alertPillTxt:  { fontSize: 11, fontFamily: "Inter_700Bold", color: "#D96C6C" },
   avatarCircle:  { width: 34, height: 34, borderRadius: 17, backgroundColor: P,
                    alignItems: "center", justifyContent: "center" },
   avatarTxt:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
@@ -537,37 +537,37 @@ const s = StyleSheet.create({
                    borderWidth: 1, borderColor: "#2D1B4E", position: "relative" },
   statAlert:     { borderColor: "#450A0A", backgroundColor: "#1C0A0A" },
   alertDot:      { position: "absolute", top: 8, right: 8, width: 7, height: 7,
-                   borderRadius: 3.5, backgroundColor: "#DC2626" },
-  statNum:       { fontSize: 24, fontFamily: "Inter_700Bold", color: "#F9FAFB" },
-  statLabel:     { fontSize: 10, fontFamily: "Inter_500Medium", color: "#6B7280", marginTop: 2, lineHeight: 14 },
+                   borderRadius: 3.5, backgroundColor: "#D96C6C" },
+  statNum:       { fontSize: 24, fontFamily: "Inter_700Bold", color: "#FBF8F6" },
+  statLabel:     { fontSize: 10, fontFamily: "Inter_500Medium", color: "#6F6B68", marginTop: 2, lineHeight: 14 },
 
   // 처리 큐 영역
   todoSection:   { marginHorizontal: 14, marginBottom: 14 },
   todoHeader:    { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  todoHeaderTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#F9FAFB", flex: 1 },
-  todoBadge:     { backgroundColor: "#DC2626", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+  todoHeaderTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FBF8F6", flex: 1 },
+  todoBadge:     { backgroundColor: "#D96C6C", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
   todoBadgeTxt:  { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
 
   supportBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff",
-                   borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#E5E7EB",
+                   borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#E9E2DD",
                    marginBottom: 10 },
-  supportTitle:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  supportSub:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  supportTitle:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  supportSub:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
 
   menuSection:   { paddingHorizontal: 14 },
   menuGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   menuCard:      { width: "47.5%", backgroundColor: "#1A1030", borderRadius: 16, padding: 16,
                    borderWidth: 1, borderColor: "#2D1B4E", gap: 8 },
   menuIconBox:   { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  menuTitle:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#F9FAFB" },
-  menuSub:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280", lineHeight: 15 },
+  menuTitle:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FBF8F6" },
+  menuSub:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68", lineHeight: 15 },
 
   // 반려 모달
   overlay:       { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
   rejectSheet:   { backgroundColor: "#fff", borderRadius: 20, padding: 20, margin: 16 },
-  rejectTitle:   { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 12 },
+  rejectTitle:   { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 12 },
   rejectInput:   { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 12,
-                   fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827", minHeight: 80,
+                   fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", minHeight: 80,
                    textAlignVertical: "top" },
   rejectBtn:     { borderRadius: 10, paddingVertical: 12, alignItems: "center" },
 
@@ -575,29 +575,29 @@ const s = StyleSheet.create({
   riskSection:   { marginHorizontal: 14, marginBottom: 14, backgroundColor: "#1A1030",
                    borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#2D1B4E" },
   riskHeader:    { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  riskHeaderTxt: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#F9FAFB", flex: 1 },
+  riskHeaderTxt: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FBF8F6", flex: 1 },
   riskGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   riskCard:      { width: "30.5%", backgroundColor: "#0F0A1E", borderRadius: 10, padding: 10,
                    borderWidth: 1, borderColor: "#2D1B4E", position: "relative", minHeight: 60 },
-  riskNum:       { fontSize: 22, fontFamily: "Inter_700Bold", color: "#F9FAFB" },
-  riskLabel:     { fontSize: 9, fontFamily: "Inter_500Medium", color: "#6B7280", marginTop: 3, lineHeight: 13 },
+  riskNum:       { fontSize: 22, fontFamily: "Inter_700Bold", color: "#FBF8F6" },
+  riskLabel:     { fontSize: 9, fontFamily: "Inter_500Medium", color: "#6F6B68", marginTop: 3, lineHeight: 13 },
   riskDot:       { position: "absolute", top: 6, right: 6, width: 6, height: 6, borderRadius: 3 },
 
   // 감사 로그
   auditSection:  { marginHorizontal: 14, marginBottom: 14, backgroundColor: "#1A1030",
                    borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#2D1B4E" },
   auditHeader:   { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  auditHeaderTxt:{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#F9FAFB", flex: 1 },
+  auditHeaderTxt:{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#FBF8F6", flex: 1 },
   auditRow:      { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 7,
                    borderBottomWidth: 1, borderBottomColor: "#2D1B4E" },
   auditCatBadge: { backgroundColor: "#2D1B4E", borderRadius: 5, paddingHorizontal: 7,
                    paddingVertical: 3, minWidth: 50, alignItems: "center" },
-  auditCatTxt:   { fontSize: 9, fontFamily: "Inter_700Bold", color: "#9CA3AF" },
-  auditDesc:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#F9FAFB" },
-  auditMeta:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 1 },
+  auditCatTxt:   { fontSize: 9, fontFamily: "Inter_700Bold", color: "#9A948F" },
+  auditDesc:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#FBF8F6" },
+  auditMeta:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 1 },
   auditEmpty:    { paddingVertical: 12, alignItems: "center" },
-  auditEmptyTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#4B5563" },
+  auditEmptyTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" },
 
   footer:        { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center", paddingTop: 24 },
-  footerTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#4B5563" },
+  footerTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
 });

@@ -55,7 +55,7 @@ function getBirthAge(birthYear?: string | null): string {
 }
 
 function colorFromId(id: string, fallback: string): string {
-  const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16"];
+  const COLORS = ["#4EA7D8", "#2E9B6F", "#E4A93A", "#D96C6C", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16"];
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
   return COLORS[Math.abs(h) % COLORS.length];
@@ -164,8 +164,8 @@ export default function StudentDetailScreen() {
                 <Text style={[s.statusText, { color: primaryBadge.color }]}>{primaryBadge.label}</Text>
               </View>
               {weeklyChanging ? (
-                <View style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#F3F4F6" }]}>
-                  <ActivityIndicator size={10} color="#9CA3AF" />
+                <View style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#F6F3F1" }]}>
+                  <ActivityIndicator size={10} color="#9A948F" />
                 </View>
               ) : weeklyBadge ? (
                 <Pressable
@@ -177,11 +177,11 @@ export default function StudentDetailScreen() {
                 </Pressable>
               ) : (
                 <Pressable
-                  style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB", borderStyle: "dashed" }]}
+                  style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#F6F3F1", borderWidth: 1, borderColor: "#D1D5DB", borderStyle: "dashed" }]}
                   onPress={() => setShowWeeklyPicker(true)}
                 >
-                  <Feather name="plus" size={10} color="#6B7280" />
-                  <Text style={[s.statusText, { color: "#6B7280", marginLeft: 3 }]}>주 횟수</Text>
+                  <Feather name="plus" size={10} color="#6F6B68" />
+                  <Text style={[s.statusText, { color: "#6F6B68", marginLeft: 3 }]}>주 횟수</Text>
                 </Pressable>
               )}
               {pendingBadge && (
@@ -226,7 +226,7 @@ export default function StudentDetailScreen() {
               value={student.registration_path === "admin_created" ? "관리자 직접" : "학부모 요청"} />
             <InfoRow icon="link" label="학부모 연결"
               value={student.parent_user_id ? "연결됨" : student.status === "pending_parent_link" ? "대기 중" : "미연결"}
-              valueColor={student.parent_user_id ? "#059669" : student.status === "pending_parent_link" ? "#EA580C" : "#6B7280"} />
+              valueColor={student.parent_user_id ? "#1F8F86" : student.status === "pending_parent_link" ? "#EA580C" : "#6F6B68"} />
           </View>
         </View>
 
@@ -300,16 +300,16 @@ export default function StudentDetailScreen() {
             <View style={[s.card, s.attRow]}>
               <AttBox label="전체" value={attStat.total} color={themeColor} />
               <View style={s.attDivider} />
-              <AttBox label="출석" value={attStat.present} color="#059669" />
+              <AttBox label="출석" value={attStat.present} color="#1F8F86" />
               <View style={s.attDivider} />
-              <AttBox label="결석" value={attStat.absent} color="#DC2626" />
+              <AttBox label="결석" value={attStat.absent} color="#D96C6C" />
               <View style={s.attDivider} />
               <AttBox label="지각" value={attStat.late} color="#D97706" />
               <View style={s.attDivider} />
               <AttBox
                 label="출석률"
                 value={attStat.total > 0 ? `${Math.round((attStat.present / attStat.total) * 100)}%` : "-"}
-                color={attStat.total > 0 && (attStat.present / attStat.total) >= 0.8 ? "#059669" : "#D97706"}
+                color={attStat.total > 0 && (attStat.present / attStat.total) >= 0.8 ? "#1F8F86" : "#D97706"}
               />
             </View>
           </View>
@@ -406,15 +406,15 @@ const s = StyleSheet.create({
 
   pickerOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 32 },
   pickerSheet:    { width: "100%", borderRadius: 20, padding: 24, gap: 16 },
-  pickerTitle:    { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827", textAlign: "center" },
-  pickerSub:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center", marginTop: -8 },
+  pickerTitle:    { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F", textAlign: "center" },
+  pickerSub:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center", marginTop: -8 },
   pickerOptions:  { flexDirection: "row", gap: 10 },
   pickerOption:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
                     paddingVertical: 14, borderRadius: 14, borderWidth: 2 },
   pickerOptionText: { fontSize: 16, fontFamily: "Inter_700Bold" },
   pickerCancel:   { alignItems: "center", paddingVertical: 12, borderRadius: 12,
-                    borderWidth: 1.5, borderColor: "#E5E7EB" },
-  pickerCancelText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+                    borderWidth: 1.5, borderColor: "#E9E2DD" },
+  pickerCancelText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
 
   section:        { gap: 8 },
   sectionTitle:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, paddingLeft: 4 },
@@ -432,11 +432,11 @@ const s = StyleSheet.create({
 
   infoRow:        { flexDirection: "row", alignItems: "center", gap: 8,
                     paddingHorizontal: 16, paddingVertical: 12,
-                    borderBottomWidth: 1, borderBottomColor: "#F9FAFB" },
+                    borderBottomWidth: 1, borderBottomColor: "#FBF8F6" },
   infoLabel:      { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, width: 80 },
   infoValue:      { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: C.text, textAlign: "right" },
 
-  divider:        { height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 14 },
+  divider:        { height: 1, backgroundColor: "#F6F3F1", marginHorizontal: 14 },
 
   classRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
   colorBar:       { width: 4, height: 40, borderRadius: 2 },

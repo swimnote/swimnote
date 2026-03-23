@@ -14,10 +14,10 @@ import { useAuth } from "@/context/AuthContext";
 const P = "#7C3AED";
 
 const TARGET_CFG: Record<NoticeTarget, { label: string; color: string; bg: string }> = {
-  all:     { label: "전체 공지",   color: "#4F46E5", bg: "#EEF2FF" },
-  admin:   { label: "관리자 공지", color: P,         bg: "#EDE9FE" },
-  teacher: { label: "선생님 공지", color: "#059669", bg: "#D1FAE5" },
-  parent:  { label: "학부모 공지", color: "#0891B2", bg: "#E0F2FE" },
+  all:     { label: "전체 공지",   color: "#1F8F86", bg: "#DDF2EF" },
+  admin:   { label: "관리자 공지", color: P,         bg: "#EEDDF5" },
+  teacher: { label: "선생님 공지", color: "#1F8F86", bg: "#DDF2EF" },
+  parent:  { label: "학부모 공지", color: "#1F8F86", bg: "#E0F2FE" },
 };
 
 export function NoticePopup() {
@@ -100,7 +100,7 @@ export function NoticePopup() {
           {/* 강제 확인 안내 */}
           {notice.forcedAck && (
             <View style={s.forceBanner}>
-              <Feather name="alert-circle" size={11} color="#DC2626" />
+              <Feather name="alert-circle" size={11} color="#D96C6C" />
               <Text style={s.forceTxt}>이 공지는 반드시 확인 후 진행해야 합니다.</Text>
             </View>
           )}
@@ -131,16 +131,16 @@ const s = StyleSheet.create({
   typeBadge:     { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start",
                    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   typeTxt:       { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  title:         { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 12 },
+  title:         { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 12 },
   contentScroll: { maxHeight: 200, marginBottom: 12 },
-  content:       { fontSize: 14, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 22 },
-  date:          { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginBottom: 10 },
-  forceBanner:   { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#FEE2E2",
+  content:       { fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 22 },
+  date:          { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginBottom: 10 },
+  forceBanner:   { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#F9DEDA",
                    borderRadius: 8, padding: 8, marginBottom: 14 },
-  forceTxt:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#DC2626", flex: 1 },
+  forceTxt:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#D96C6C", flex: 1 },
   btnRow:        { flexDirection: "row", gap: 8 },
-  dismissBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center" },
-  dismissTxt:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  dismissBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#F6F3F1", alignItems: "center" },
+  dismissTxt:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   confirmBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: P, alignItems: "center" },
   confirmTxt:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

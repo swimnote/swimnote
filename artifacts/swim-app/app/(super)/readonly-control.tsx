@@ -47,15 +47,15 @@ function PlatformSection({
   return (
     <View style={[ps.card, enabled && ps.cardActive]}>
       <View style={ps.top}>
-        <View style={[ps.iconBox, { backgroundColor: enabled ? "#FEE2E2" : "#F3F4F6" }]}>
-          <Feather name="globe" size={20} color={enabled ? "#DC2626" : "#6B7280"} />
+        <View style={[ps.iconBox, { backgroundColor: enabled ? "#F9DEDA" : "#F6F3F1" }]}>
+          <Feather name="globe" size={20} color={enabled ? "#D96C6C" : "#6F6B68"} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={ps.title}>플랫폼 전체 읽기전용</Text>
           <Text style={ps.sub}>모든 운영자의 쓰기 기능을 일시 중단합니다</Text>
         </View>
-        <View style={[ps.badge, { backgroundColor: enabled ? "#FEE2E2" : "#D1FAE5" }]}>
-          <Text style={[ps.badgeTxt, { color: enabled ? "#DC2626" : "#059669" }]}>
+        <View style={[ps.badge, { backgroundColor: enabled ? "#F9DEDA" : "#DDF2EF" }]}>
+          <Text style={[ps.badgeTxt, { color: enabled ? "#D96C6C" : "#1F8F86" }]}>
             {enabled ? "활성화 중" : "정상 운영"}
           </Text>
         </View>
@@ -64,7 +64,7 @@ function PlatformSection({
       {enabled && (
         <>
           <View style={ps.warningBanner}>
-            <Feather name="alert-triangle" size={14} color="#DC2626" />
+            <Feather name="alert-triangle" size={14} color="#D96C6C" />
             <Text style={ps.warningTxt}>플랫폼 전체가 읽기전용 상태입니다. 모든 운영자의 데이터 입력이 차단됩니다.</Text>
           </View>
           {reason && <Text style={ps.reasonTxt}>사유: {reason}</Text>}
@@ -72,10 +72,10 @@ function PlatformSection({
       )}
 
       <Pressable
-        style={[ps.btn, enabled ? { backgroundColor: "#D1FAE5" } : { backgroundColor: "#FEE2E2" }]}
+        style={[ps.btn, enabled ? { backgroundColor: "#DDF2EF" } : { backgroundColor: "#F9DEDA" }]}
         onPress={() => { setInputReason(""); setShowModal(true); }}>
-        <Feather name={enabled ? "unlock" : "lock"} size={14} color={enabled ? "#059669" : "#DC2626"} />
-        <Text style={[ps.btnTxt, { color: enabled ? "#059669" : "#DC2626" }]}>
+        <Feather name={enabled ? "unlock" : "lock"} size={14} color={enabled ? "#1F8F86" : "#D96C6C"} />
+        <Text style={[ps.btnTxt, { color: enabled ? "#1F8F86" : "#D96C6C" }]}>
           {enabled ? "읽기전용 해제" : "읽기전용 활성화"}
         </Text>
       </Pressable>
@@ -98,15 +98,15 @@ function PlatformSection({
               placeholder="변경 사유를 입력하세요"
               multiline numberOfLines={3}
               textAlignVertical="top"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="#9A948F"
             />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-              <Pressable style={[pm.actionBtn, { flex: 1, backgroundColor: "#F3F4F6" }]}
+              <Pressable style={[pm.actionBtn, { flex: 1, backgroundColor: "#F6F3F1" }]}
                 onPress={() => { setShowModal(false); setInputReason(""); }}>
-                <Text style={{ color: "#374151", fontFamily: "Inter_600SemiBold" }}>취소</Text>
+                <Text style={{ color: "#1F1F1F", fontFamily: "Inter_600SemiBold" }}>취소</Text>
               </Pressable>
               <Pressable
-                style={[pm.actionBtn, { flex: 1, backgroundColor: enabled ? "#059669" : "#DC2626" },
+                style={[pm.actionBtn, { flex: 1, backgroundColor: enabled ? "#1F8F86" : "#D96C6C" },
                   !inputReason.trim() && { opacity: 0.4 }]}
                 onPress={() => {
                   if (!inputReason.trim()) return;
@@ -126,15 +126,15 @@ function PlatformSection({
 }
 
 const ps = StyleSheet.create({
-  card:          { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#E5E7EB" },
-  cardActive:    { borderColor: "#DC2626", borderWidth: 2, backgroundColor: "#FFF5F5" },
+  card:          { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#E9E2DD" },
+  cardActive:    { borderColor: "#D96C6C", borderWidth: 2, backgroundColor: "#FFF5F5" },
   top:           { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   iconBox:       { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  title:         { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:           { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  title:         { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  sub:           { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
   badge:         { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   badgeTxt:      { fontSize: 11, fontFamily: "Inter_700Bold" },
-  warningBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FEE2E2", borderRadius: 8, padding: 10, marginBottom: 8 },
+  warningBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#F9DEDA", borderRadius: 8, padding: 10, marginBottom: 8 },
   warningTxt:    { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#991B1B", lineHeight: 18 },
   reasonTxt:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#D97706", marginBottom: 8 },
   btn:           { borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12 },
@@ -144,11 +144,11 @@ const ps = StyleSheet.create({
 const pm = StyleSheet.create({
   overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:      { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 12 },
-  warningBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEF3C7", borderRadius: 8, padding: 10, marginBottom: 12 },
+  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 12 },
+  warningBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF1BF", borderRadius: 8, padding: 10, marginBottom: 12 },
   warningTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#92400E" },
-  label:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#374151", marginBottom: 6 },
-  input:      { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827", height: 80 },
+  label:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 6 },
+  input:      { backgroundColor: "#FBF8F6", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F", height: 80 },
   actionBtn:  { borderRadius: 8, padding: 12, alignItems: "center" },
 });
 
@@ -221,9 +221,9 @@ export default function ReadonlyControlScreen() {
   }
 
   const SCOPE_INFO = [
-    { scope: "플랫폼 전체", color: "#DC2626", bg: "#FEE2E2", icon: "globe" as const, desc: "모든 운영자에 동시 적용. 긴급 상황 시 사용." },
-    { scope: "운영자별",    color: "#D97706", bg: "#FEF3C7", icon: "users" as const, desc: "특정 운영자의 쓰기 기능만 차단. 개별 조치 시 사용." },
-    { scope: "기능별",      color: "#4F46E5", bg: "#EEF2FF", icon: "toggle-left" as const, desc: "기능 플래그와 연동. 특정 기능 읽기전용 전환." },
+    { scope: "플랫폼 전체", color: "#D96C6C", bg: "#F9DEDA", icon: "globe" as const, desc: "모든 운영자에 동시 적용. 긴급 상황 시 사용." },
+    { scope: "운영자별",    color: "#D97706", bg: "#FFF1BF", icon: "users" as const, desc: "특정 운영자의 쓰기 기능만 차단. 개별 조치 시 사용." },
+    { scope: "기능별",      color: "#1F8F86", bg: "#DDF2EF", icon: "toggle-left" as const, desc: "기능 플래그와 연동. 특정 기능 읽기전용 전환." },
   ];
 
   return (
@@ -260,8 +260,8 @@ export default function ReadonlyControlScreen() {
           <View style={s.sectionHeader}>
             <Feather name="users" size={15} color="#D97706" />
             <Text style={s.sectionTitle}>운영자별 읽기전용</Text>
-            <View style={[s.countBadge, { backgroundColor: readonlyOperators.length > 0 ? "#FEF3C7" : "#F3F4F6" }]}>
-              <Text style={[s.countTxt, { color: readonlyOperators.length > 0 ? "#D97706" : "#9CA3AF" }]}>
+            <View style={[s.countBadge, { backgroundColor: readonlyOperators.length > 0 ? "#FFF1BF" : "#F6F3F1" }]}>
+              <Text style={[s.countTxt, { color: readonlyOperators.length > 0 ? "#D97706" : "#9A948F" }]}>
                 {readonlyOperators.length}개
               </Text>
             </View>
@@ -279,7 +279,7 @@ export default function ReadonlyControlScreen() {
                   <Text style={or.sub}>{op.representativeName}</Text>
                 </View>
                 <Pressable style={or.releaseBtn} onPress={() => releaseOperator({ id: op.id, name: op.name })}>
-                  <Feather name="unlock" size={12} color="#059669" />
+                  <Feather name="unlock" size={12} color="#1F8F86" />
                   <Text style={or.releaseTxt}>해제</Text>
                 </Pressable>
               </View>
@@ -290,7 +290,7 @@ export default function ReadonlyControlScreen() {
         {/* 기능별 읽기전용 (기능 플래그) */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Feather name="toggle-left" size={15} color="#4F46E5" />
+            <Feather name="toggle-left" size={15} color="#1F8F86" />
             <Text style={s.sectionTitle}>기능별 읽기전용 (기능 플래그)</Text>
           </View>
           {globalFlags.filter(f => !f.enabled).length === 0 ? (
@@ -304,8 +304,8 @@ export default function ReadonlyControlScreen() {
                   <Text style={or.name}>{f.name}</Text>
                   <Text style={or.sub}>{f.description ?? ""}</Text>
                 </View>
-                <View style={[lr.badge, { backgroundColor: "#FEE2E2" }]}>
-                  <Text style={[lr.badgeTxt, { color: "#DC2626" }]}>비활성</Text>
+                <View style={[lr.badge, { backgroundColor: "#F9DEDA" }]}>
+                  <Text style={[lr.badgeTxt, { color: "#D96C6C" }]}>비활성</Text>
                 </View>
               </View>
             ))
@@ -315,7 +315,7 @@ export default function ReadonlyControlScreen() {
         {/* 최근 제어 로그 */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Feather name="activity" size={15} color="#6B7280" />
+            <Feather name="activity" size={15} color="#6F6B68" />
             <Text style={s.sectionTitle}>최근 읽기전용 제어 로그</Text>
           </View>
           {recentLogs.length === 0 ? (
@@ -327,13 +327,13 @@ export default function ReadonlyControlScreen() {
               const isActivate = log.title.includes("활성화") || log.title.includes("설정");
               return (
                 <View key={log.id} style={lr.row}>
-                  <View style={[lr.dot, { backgroundColor: isActivate ? "#DC2626" : "#059669" }]} />
+                  <View style={[lr.dot, { backgroundColor: isActivate ? "#D96C6C" : "#1F8F86" }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={lr.desc} numberOfLines={1}>{log.title}</Text>
                     <Text style={lr.time}>{log.actorName} · {fmtRelative(log.createdAt)}</Text>
                   </View>
-                  <View style={[lr.badge, { backgroundColor: isActivate ? "#FEE2E2" : "#D1FAE5" }]}>
-                    <Text style={[lr.badgeTxt, { color: isActivate ? "#DC2626" : "#059669" }]}>
+                  <View style={[lr.badge, { backgroundColor: isActivate ? "#F9DEDA" : "#DDF2EF" }]}>
+                    <Text style={[lr.badgeTxt, { color: isActivate ? "#D96C6C" : "#1F8F86" }]}>
                       {isActivate ? "활성화" : "해제"}
                     </Text>
                   </View>
@@ -348,34 +348,34 @@ export default function ReadonlyControlScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F9FAFB" },
+  safe:         { flex: 1, backgroundColor: "#FBF8F6" },
   scopeRow:     { flexDirection: "row", gap: 8 },
-  scopeCard:    { flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E5E7EB" },
+  scopeCard:    { flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E9E2DD" },
   scopeIcon:    { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", marginBottom: 6 },
-  scopeLabel:   { fontSize: 11, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 4 },
-  scopeDesc:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280", lineHeight: 14 },
-  section:      { backgroundColor: "#fff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
+  scopeLabel:   { fontSize: 11, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 4 },
+  scopeDesc:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68", lineHeight: 14 },
+  section:      { backgroundColor: "#fff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E9E2DD" },
   sectionHeader:{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", flex: 1 },
+  sectionTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", flex: 1 },
   countBadge:   { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   countTxt:     { fontSize: 11, fontFamily: "Inter_700Bold" },
   emptyRow:     { paddingVertical: 16, alignItems: "center" },
-  emptyTxt:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });
 
 const or = StyleSheet.create({
-  row:        { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  name:       { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  sub:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
-  releaseBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#D1FAE5", borderRadius: 7, paddingHorizontal: 10, paddingVertical: 6 },
-  releaseTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#059669" },
+  row:        { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  name:       { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  sub:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
+  releaseBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#DDF2EF", borderRadius: 7, paddingHorizontal: 10, paddingVertical: 6 },
+  releaseTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
 });
 
 const lr = StyleSheet.create({
-  row:      { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  row:      { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   dot:      { width: 8, height: 8, borderRadius: 4 },
-  desc:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151" },
-  time:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  desc:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
+  time:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
   badge:    { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
   badgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold" },
 });

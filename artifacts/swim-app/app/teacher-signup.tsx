@@ -73,8 +73,8 @@ export default function TeacherSignupScreen() {
     return (
       <View style={[styles.root, { backgroundColor: C.background }]}>
         <View style={[styles.doneWrap, { paddingTop: insets.top + 60 }]}>
-          <View style={[styles.doneIcon, { backgroundColor: "#ECFDF5" }]}>
-            <Feather name="check-circle" size={40} color="#10B981" />
+          <View style={[styles.doneIcon, { backgroundColor: "#DFF3EC" }]}>
+            <Feather name="check-circle" size={40} color="#2E9B6F" />
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입 요청 완료!</Text>
           <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
@@ -288,7 +288,7 @@ export default function TeacherSignupScreen() {
             </View>
 
             {!!error && (
-              <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+              <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
                 <Feather name="alert-circle" size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>

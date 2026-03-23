@@ -110,7 +110,7 @@ export default function ClassManagementScreen() {
       >
 
       {error ? (
-        <View style={[s.errBox, { backgroundColor: "#FEE2E2", marginHorizontal: 16 }]}>
+        <View style={[s.errBox, { backgroundColor: "#F9DEDA", marginHorizontal: 16 }]}>
           <Feather name="alert-circle" size={14} color={C.error} />
           <Text style={[s.errText, { color: C.error }]}>{error}</Text>
         </View>
@@ -132,12 +132,12 @@ export default function ClassManagementScreen() {
 
           {/* 이달 출결 */}
           <View style={s.sectionHeader}>
-            <Feather name="calendar" size={15} color="#059669" />
+            <Feather name="calendar" size={15} color="#1F8F86" />
             <Text style={[s.sectionTitle, { color: C.text }]}>{monthLabel} 출결</Text>
           </View>
           <View style={s.statsRow}>
-            <StatBox label="출석" value={data.attendance.month_present} color="#059669" />
-            <StatBox label="결석" value={data.attendance.month_absent} color="#EF4444" />
+            <StatBox label="출석" value={data.attendance.month_present} color="#1F8F86" />
+            <StatBox label="결석" value={data.attendance.month_absent} color="#D96C6C" />
             <StatBox label="오늘 총" value={data.attendance.today_total} />
             <StatBox label="오늘 출석" value={data.attendance.today_present} color={C.tint} />
           </View>
@@ -148,10 +148,10 @@ export default function ClassManagementScreen() {
             <Text style={[s.sectionTitle, { color: C.text }]}>{monthLabel} 보강</Text>
           </View>
           <View style={s.statsRow}>
-            <StatBox label="대기" value={data.makeups.pending} color={data.makeups.pending > 0 ? "#EF4444" : C.textSecondary} />
+            <StatBox label="대기" value={data.makeups.pending} color={data.makeups.pending > 0 ? "#D96C6C" : C.textSecondary} />
             <StatBox label="배정됨" value={data.makeups.assigned} color="#D97706" />
-            <StatBox label="완료" value={data.makeups.completed} color="#059669" />
-            <StatBox label="소멸" value={data.makeups.extinguished} color="#6B7280" />
+            <StatBox label="완료" value={data.makeups.completed} color="#1F8F86" />
+            <StatBox label="소멸" value={data.makeups.extinguished} color="#6F6B68" />
           </View>
 
           {/* 반 목록 */}
@@ -188,7 +188,7 @@ export default function ClassManagementScreen() {
             </View>
           ) : sortedClasses.map(cls => {
             const fill = cls.capacity ? Math.min(1, cls.student_count / cls.capacity) : 0;
-            const fillColor = fill >= 1 ? "#EF4444" : fill >= 0.8 ? "#D97706" : "#059669";
+            const fillColor = fill >= 1 ? "#D96C6C" : fill >= 0.8 ? "#D97706" : "#1F8F86";
             return (
               <View key={cls.id} style={[s.classCard, { backgroundColor: C.card }]}>
                 <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>

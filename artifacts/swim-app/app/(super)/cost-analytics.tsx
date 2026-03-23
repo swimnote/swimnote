@@ -60,12 +60,12 @@ export default function CostAnalyticsScreen() {
     const tax      = rev * UNIT_COSTS.tax_rate;
     const other    = UNIT_COSTS.other_monthly * mult;
     return [
-      { label: "데이터베이스",  icon: "database",    amount: db,      note: "DB 호스팅 비용",            color: "#4F46E5" },
+      { label: "데이터베이스",  icon: "database",    amount: db,      note: "DB 호스팅 비용",            color: "#1F8F86" },
       { label: "스토리지",      icon: "hard-drive",  amount: storage, note: `${PLATFORM_METRICS.totalStorageGb}GB × ${fmtKRW(UNIT_COSTS.storage_per_gb)}/GB`, color: "#7C3AED" },
-      { label: "트래픽",        icon: "wifi",        amount: traffic, note: `${PLATFORM_METRICS.totalTrafficGb}GB × ${fmtKRW(UNIT_COSTS.traffic_per_gb)}/GB`, color: "#0891B2" },
-      { label: "PG 수수료",     icon: "credit-card", amount: pg,      note: `매출 × ${(UNIT_COSTS.pg_fee_rate*100).toFixed(1)}%`,                            color: "#DC2626" },
+      { label: "트래픽",        icon: "wifi",        amount: traffic, note: `${PLATFORM_METRICS.totalTrafficGb}GB × ${fmtKRW(UNIT_COSTS.traffic_per_gb)}/GB`, color: "#1F8F86" },
+      { label: "PG 수수료",     icon: "credit-card", amount: pg,      note: `매출 × ${(UNIT_COSTS.pg_fee_rate*100).toFixed(1)}%`,                            color: "#D96C6C" },
       { label: "세금 추정",     icon: "percent",     amount: tax,     note: `매출 × ${(UNIT_COSTS.tax_rate*100).toFixed(0)}% 추정`,                           color: "#D97706" },
-      { label: "기타 운영비",   icon: "box",         amount: other,   note: "도메인·이메일·모니터링 등", color: "#6B7280" },
+      { label: "기타 운영비",   icon: "box",         amount: other,   note: "도메인·이메일·모니터링 등", color: "#6F6B68" },
     ];
   }, [period, billingRecords]);
 
@@ -108,13 +108,13 @@ export default function CostAnalyticsScreen() {
 
         {/* 요약 카드 */}
         <View style={s.summaryRow}>
-          <View style={[s.summaryCard, { borderColor: "#EDE9FE" }]}>
+          <View style={[s.summaryCard, { borderColor: "#EEDDF5" }]}>
             <Text style={s.summaryLabel}>총 지출</Text>
-            <Text style={[s.summaryValue, { color: "#DC2626" }]}>{fmtKRW(totalCost)}</Text>
+            <Text style={[s.summaryValue, { color: "#D96C6C" }]}>{fmtKRW(totalCost)}</Text>
           </View>
-          <View style={[s.summaryCard, { borderColor: "#D1FAE5" }]}>
+          <View style={[s.summaryCard, { borderColor: "#DDF2EF" }]}>
             <Text style={s.summaryLabel}>순이익</Text>
-            <Text style={[s.summaryValue, { color: netProfit >= 0 ? "#059669" : "#DC2626" }]}>{fmtKRW(netProfit)}</Text>
+            <Text style={[s.summaryValue, { color: netProfit >= 0 ? "#1F8F86" : "#D96C6C" }]}>{fmtKRW(netProfit)}</Text>
           </View>
         </View>
 
@@ -162,18 +162,18 @@ export default function CostAnalyticsScreen() {
         </View>
 
         {/* 수익성 요약 */}
-        <View style={[s.profitBox, { borderColor: netProfit >= 0 ? "#D1FAE5" : "#FEE2E2" }]}>
+        <View style={[s.profitBox, { borderColor: netProfit >= 0 ? "#DDF2EF" : "#F9DEDA" }]}>
           <View style={s.profitRow}>
             <Text style={s.profitLabel}>매출 (추정)</Text>
-            <Text style={[s.profitVal, { color: "#059669" }]}>{fmtKRW(revenue)}</Text>
+            <Text style={[s.profitVal, { color: "#1F8F86" }]}>{fmtKRW(revenue)}</Text>
           </View>
           <View style={s.profitRow}>
             <Text style={s.profitLabel}>총 지출</Text>
-            <Text style={[s.profitVal, { color: "#DC2626" }]}>− {fmtKRW(totalCost)}</Text>
+            <Text style={[s.profitVal, { color: "#D96C6C" }]}>− {fmtKRW(totalCost)}</Text>
           </View>
-          <View style={[s.profitRow, { borderTopWidth: 1, borderTopColor: "#E5E7EB", marginTop: 8, paddingTop: 8 }]}>
+          <View style={[s.profitRow, { borderTopWidth: 1, borderTopColor: "#E9E2DD", marginTop: 8, paddingTop: 8 }]}>
             <Text style={[s.profitLabel, { fontFamily: "Inter_700Bold" }]}>순이익</Text>
-            <Text style={[s.profitVal, { fontFamily: "Inter_700Bold", color: netProfit >= 0 ? "#059669" : "#DC2626" }]}>
+            <Text style={[s.profitVal, { fontFamily: "Inter_700Bold", color: netProfit >= 0 ? "#1F8F86" : "#D96C6C" }]}>
               {netProfit >= 0 ? "" : "−"}{fmtKRW(Math.abs(netProfit))}
             </Text>
           </View>
@@ -184,38 +184,38 @@ export default function CostAnalyticsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#F9FAFB" },
+  safe:          { flex: 1, backgroundColor: "#FBF8F6" },
   tabRow:        { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, backgroundColor: "#fff",
-                   borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#F3F4F6" },
+                   borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#F6F3F1" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  tabTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   tabTxtActive:  { color: "#fff" },
-  mockBanner:    { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FEF3C7",
+  mockBanner:    { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFF1BF",
                    borderRadius: 8, padding: 10, marginTop: 4 },
   mockTxt:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#D97706", flex: 1 },
   summaryRow:    { flexDirection: "row", gap: 10 },
   summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 14,
                    borderWidth: 1, alignItems: "center" },
-  summaryLabel:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 4 },
+  summaryLabel:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginBottom: 4 },
   summaryValue:  { fontSize: 20, fontFamily: "Inter_700Bold" },
   sectionHdr:    { flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  sectionTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   costRow:       { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff",
-                   borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+                   borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E9E2DD" },
   costIcon:      { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  costLabel:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  costNote:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
+  costLabel:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  costNote:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
   costAmt:       { fontSize: 14, fontFamily: "Inter_700Bold" },
-  costPct:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  barWrap:       { flexDirection: "row", height: 14, borderRadius: 7, overflow: "hidden", backgroundColor: "#F3F4F6" },
+  costPct:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  barWrap:       { flexDirection: "row", height: 14, borderRadius: 7, overflow: "hidden", backgroundColor: "#F6F3F1" },
   barSeg:        { height: 14 },
   legendRow:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   legendItem:    { flexDirection: "row", alignItems: "center", gap: 4 },
   legendDot:     { width: 8, height: 8, borderRadius: 4 },
-  legendTxt:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  legendTxt:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68" },
   profitBox:     { backgroundColor: "#fff", borderRadius: 12, padding: 16, borderWidth: 1 },
   profitRow:     { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  profitLabel:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151" },
+  profitLabel:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
   profitVal:     { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

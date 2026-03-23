@@ -138,8 +138,8 @@ export default function BranchesScreen() {
     return initials[Math.floor(code / 588)] ?? name[0];
   };
 
-  const CARD_COLORS = ["#EFF6FF","#F0FDF4","#FFF7ED","#FDF4FF","#FFF1F2","#ECFDF5"];
-  const TEXT_COLORS = ["#1D4ED8","#15803D","#C2410C","#7C3AED","#BE123C","#059669"];
+  const CARD_COLORS = ["#DDF2EF","#DFF3EC","#FFF1BF","#FDF4FF","#FFF1F2","#DFF3EC"];
+  const TEXT_COLORS = ["#1F8F86","#15803D","#C2410C","#7C3AED","#BE123C","#1F8F86"];
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
   emptySubText: { fontSize: 13, fontFamily: "Inter_400Regular" },
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
   errorText: { fontSize: 13, fontFamily: "Inter_400Regular" },

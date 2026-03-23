@@ -31,10 +31,10 @@ const C = Colors.light;
 const MAX_PER_CATEGORY = 100;
 
 const LEVEL_COLORS: Record<SentenceLevel, string> = {
-  beginner:     "#10B981",
-  intermediate: "#3B82F6",
+  beginner:     "#2E9B6F",
+  intermediate: "#4EA7D8",
   advanced:     "#8B5CF6",
-  custom:       "#F59E0B",
+  custom:       "#E4A93A",
 };
 
 const LEVEL_KEYS: SentenceLevel[] = ["beginner", "intermediate", "advanced", "custom"];
@@ -133,10 +133,10 @@ export default function FeedbackCustomScreen() {
         <Text style={[s.rowText, { color: C.text }]} numberOfLines={3}>{item.template_text}</Text>
         <View style={s.rowActions}>
           <Pressable style={s.rowBtn} onPress={() => openEdit(item)} hitSlop={6}>
-            <Feather name="edit-2" size={15} color="#3B82F6" />
+            <Feather name="edit-2" size={15} color="#4EA7D8" />
           </Pressable>
           <Pressable style={[s.rowBtn, { backgroundColor: "#FEF2F2" }]} onPress={() => setDeleteTarget(item)} hitSlop={6}>
-            <Feather name="trash-2" size={15} color="#EF4444" />
+            <Feather name="trash-2" size={15} color="#D96C6C" />
           </Pressable>
         </View>
       </View>
@@ -151,7 +151,7 @@ export default function FeedbackCustomScreen() {
         homePath="/(teacher)/today-schedule"
         rightSlot={
           <Pressable style={s.resetAllBtn} onPress={() => setResetAllVisible(true)}>
-            <Feather name="refresh-ccw" size={13} color="#EF4444" />
+            <Feather name="refresh-ccw" size={13} color="#D96C6C" />
             <Text style={s.resetAllBtnText}>전체 초기화</Text>
           </Pressable>
         }
@@ -189,17 +189,17 @@ export default function FeedbackCustomScreen() {
 
       {/* 카테고리 컨트롤 */}
       <View style={s.catControl}>
-        <Text style={[s.countText, { color: isFull ? "#EF4444" : C.textSecondary }]}>
+        <Text style={[s.countText, { color: isFull ? "#D96C6C" : C.textSecondary }]}>
           현재 {currentCount} / {MAX_PER_CATEGORY}
         </Text>
         <View style={s.catBtns}>
           <Pressable style={s.catBtn} onPress={openLabel}>
-            <Feather name="tag" size={13} color="#6B7280" />
+            <Feather name="tag" size={13} color="#6F6B68" />
             <Text style={s.catBtnText}>이름 변경</Text>
           </Pressable>
           <Pressable style={[s.catBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]} onPress={() => setResetCatVisible(true)}>
-            <Feather name="rotate-ccw" size={13} color="#EF4444" />
-            <Text style={[s.catBtnText, { color: "#EF4444" }]}>초기화</Text>
+            <Feather name="rotate-ccw" size={13} color="#D96C6C" />
+            <Text style={[s.catBtnText, { color: "#D96C6C" }]}>초기화</Text>
           </Pressable>
         </View>
       </View>
@@ -226,7 +226,7 @@ export default function FeedbackCustomScreen() {
       {/* 문장 추가 버튼 */}
       <View style={[s.addBtnWrap, { paddingBottom: insets.bottom + 16 }]}>
         <Pressable
-          style={[s.addBtn, { backgroundColor: isFull ? "#9CA3AF" : themeColor }]}
+          style={[s.addBtn, { backgroundColor: isFull ? "#9A948F" : themeColor }]}
           onPress={openAdd}
           disabled={isFull}
         >
@@ -244,7 +244,7 @@ export default function FeedbackCustomScreen() {
             <Text style={s.modalTitle}>문장 추가</Text>
             <Text style={s.modalSub}>{labels[activeTab]} 카테고리에 추가됩니다.</Text>
             <TextInput
-              style={[s.textInput, { borderColor: addError ? "#EF4444" : C.border }]}
+              style={[s.textInput, { borderColor: addError ? "#D96C6C" : C.border }]}
               value={addText}
               onChangeText={t => { setAddText(t); setAddError(""); }}
               placeholder="문장을 입력하세요 (최대 100자)"
@@ -274,7 +274,7 @@ export default function FeedbackCustomScreen() {
           <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
             <Text style={s.modalTitle}>문장 수정</Text>
             <TextInput
-              style={[s.textInput, { borderColor: editError ? "#EF4444" : C.border }]}
+              style={[s.textInput, { borderColor: editError ? "#D96C6C" : C.border }]}
               value={editText}
               onChangeText={t => { setEditText(t); setEditError(""); }}
               placeholder="문장을 입력하세요 (최대 100자)"
@@ -305,7 +305,7 @@ export default function FeedbackCustomScreen() {
             <Text style={s.modalTitle}>카테고리 이름 변경</Text>
             <Text style={s.modalSub}>내부 분류 키는 변경되지 않으며, 표시 이름만 바뀝니다.</Text>
             <TextInput
-              style={[s.textInput, { borderColor: labelError ? "#EF4444" : C.border }]}
+              style={[s.textInput, { borderColor: labelError ? "#D96C6C" : C.border }]}
               value={labelText}
               onChangeText={t => { setLabelText(t); setLabelError(""); }}
               placeholder="카테고리 이름 (최대 20자)"
@@ -376,7 +376,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 10,
     borderBottomWidth: 1, borderBottomColor: C.border, gap: 10,
   },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
   subTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
 
   resetAllBtn: {
@@ -384,7 +384,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: 8, borderWidth: 1, borderColor: "#FCA5A5", backgroundColor: "#FEF2F2",
   },
-  resetAllBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#EF4444" },
+  resetAllBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
 
   descBox: {
     flexDirection: "row", alignItems: "flex-start", gap: 8,
@@ -417,7 +417,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
     borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
-  catBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  catBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
 
   listContent: { paddingHorizontal: 14, paddingTop: 8, gap: 8 },
 
@@ -434,7 +434,7 @@ const s = StyleSheet.create({
   rowActions: { flexDirection: "row", gap: 6, flexShrink: 0 },
   rowBtn: {
     width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center",
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#DDF2EF",
   },
 
   emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 10 },
@@ -467,7 +467,7 @@ const s = StyleSheet.create({
     backgroundColor: C.background,
   },
   charCount: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "right", marginTop: -6 },
-  errorText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#EF4444" },
+  errorText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#D96C6C" },
   modalBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
   modalBtn: {
     flex: 1, height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center",

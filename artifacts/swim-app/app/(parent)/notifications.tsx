@@ -24,8 +24,8 @@ interface Notification {
 }
 
 const TYPE_CONFIG: Record<string, { icon: "book-open" | "image" | "bell"; color: string; bg: string }> = {
-  diary_upload: { icon: "book-open", color: "#059669", bg: "#D1FAE5" },
-  photo_upload: { icon: "image", color: "#1A5CFF", bg: "#EEF3FF" },
+  diary_upload: { icon: "book-open", color: "#1F8F86", bg: "#DDF2EF" },
+  photo_upload: { icon: "image", color: "#1F8F86", bg: "#DDF2EF" },
 };
 
 function timeAgo(iso: string): string {
@@ -99,11 +99,11 @@ export default function ParentNotificationsScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color="#059669" style={{ marginTop: 60 }} />
+        <ActivityIndicator color="#1F8F86" style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 10 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchNotifications(); }} tintColor="#059669" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchNotifications(); }} tintColor="#1F8F86" />}
           showsVerticalScrollIndicator={false}
         >
           {notifications.length === 0 && (
@@ -121,7 +121,7 @@ export default function ParentNotificationsScreen() {
                 key={n.id}
                 style={({ pressed }) => [
                   styles.card,
-                  { backgroundColor: n.is_read ? C.card : "#D1FAE530", shadowColor: C.shadow, opacity: pressed ? 0.9 : 1 }
+                  { backgroundColor: n.is_read ? C.card : "#DDF2EF30", shadowColor: C.shadow, opacity: pressed ? 0.9 : 1 }
                 ]}
                 onPress={() => handlePress(n)}
               >
@@ -134,7 +134,7 @@ export default function ParentNotificationsScreen() {
                   <Text style={[styles.cardTime, { color: C.textMuted }]}>{timeAgo(n.created_at)}</Text>
                 </View>
                 <View style={styles.cardRight}>
-                  {!n.is_read && <View style={[styles.dot, { backgroundColor: "#059669" }]} />}
+                  {!n.is_read && <View style={[styles.dot, { backgroundColor: "#1F8F86" }]} />}
                   <Pressable onPress={() => deleteNotif(n.id)} hitSlop={8}>
                     <Feather name="x" size={14} color={C.textMuted} />
                   </Pressable>

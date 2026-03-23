@@ -33,15 +33,15 @@ const TABS = [
 type Tab = typeof TABS[number]["key"];
 
 const ROLE_CFG: Record<InviteRole, { label: string; color: string; bg: string; icon: string }> = {
-  operator: { label: "운영자", color: "#7C3AED", bg: "#EDE9FE", icon: "briefcase" },
-  teacher:  { label: "선생님", color: "#0891B2", bg: "#ECFEFF", icon: "user" },
-  parent:   { label: "학부모", color: "#059669", bg: "#D1FAE5", icon: "users" },
+  operator: { label: "운영자", color: "#7C3AED", bg: "#EEDDF5", icon: "briefcase" },
+  teacher:  { label: "선생님", color: "#1F8F86", bg: "#ECFEFF", icon: "user" },
+  parent:   { label: "학부모", color: "#1F8F86", bg: "#DDF2EF", icon: "users" },
 };
 const STATUS_CFG = {
-  pending:   { label: "대기", color: "#D97706", bg: "#FEF3C7" },
-  accepted:  { label: "수락", color: "#059669", bg: "#D1FAE5" },
-  expired:   { label: "만료", color: "#9CA3AF", bg: "#F3F4F6" },
-  cancelled: { label: "취소", color: "#DC2626", bg: "#FEE2E2" },
+  pending:   { label: "대기", color: "#D97706", bg: "#FFF1BF" },
+  accepted:  { label: "수락", color: "#1F8F86", bg: "#DDF2EF" },
+  expired:   { label: "만료", color: "#9A948F", bg: "#F6F3F1" },
+  cancelled: { label: "취소", color: "#D96C6C", bg: "#F9DEDA" },
 };
 
 function fmtDate(iso: string) {
@@ -147,11 +147,11 @@ export default function OperatorInviteSmsScreen() {
             <Text style={s.quotaLabel}>이번 달 발송</Text>
           </View>
           <View style={s.quotaItem}>
-            <Text style={[s.quotaNum, { color: freeLeft > 0 ? "#059669" : "#D97706" }]}>{freeLeft.toLocaleString()}</Text>
+            <Text style={[s.quotaNum, { color: freeLeft > 0 ? "#1F8F86" : "#D97706" }]}>{freeLeft.toLocaleString()}</Text>
             <Text style={s.quotaLabel}>무료 잔여</Text>
           </View>
           <View style={[s.quotaItem, excess > 0 && { backgroundColor: "#FFF5F5" }]}>
-            <Text style={[s.quotaNum, excess > 0 && { color: "#DC2626" }]}>{excess}</Text>
+            <Text style={[s.quotaNum, excess > 0 && { color: "#D96C6C" }]}>{excess}</Text>
             <Text style={s.quotaLabel}>초과 건수</Text>
           </View>
           <View style={[s.quotaItem, charge > 0 && { backgroundColor: "#FFFBEB" }]}>
@@ -163,7 +163,7 @@ export default function OperatorInviteSmsScreen() {
         </View>
         {MY_USAGE.blocked && (
           <View style={s.blockedBanner}>
-            <Feather name="alert-circle" size={13} color="#DC2626" />
+            <Feather name="alert-circle" size={13} color="#D96C6C" />
             <Text style={s.blockedTxt}>현재 SMS 발송이 차단되어 있습니다. 관리자에게 문의하세요.</Text>
           </View>
         )}
@@ -174,7 +174,7 @@ export default function OperatorInviteSmsScreen() {
         {TABS.map(t => (
           <Pressable key={t.key} style={[s.tabItem, tab === t.key && { borderBottomColor: themeColor, borderBottomWidth: 2 }]}
             onPress={() => setTab(t.key)}>
-            <Text style={[s.tabTxt, { color: tab === t.key ? themeColor : "#6B7280" }]}>{t.label}</Text>
+            <Text style={[s.tabTxt, { color: tab === t.key ? themeColor : "#6F6B68" }]}>{t.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -186,7 +186,7 @@ export default function OperatorInviteSmsScreen() {
 
           <Pressable style={s.sendCard} onPress={() => { setInvRole("teacher"); setModal(true); }}>
             <View style={[s.sendIcon, { backgroundColor: "#ECFEFF" }]}>
-              <Feather name="user" size={22} color="#0891B2" />
+              <Feather name="user" size={22} color="#1F8F86" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.sendTitle}>선생님 초대 SMS 발송</Text>
@@ -196,8 +196,8 @@ export default function OperatorInviteSmsScreen() {
           </Pressable>
 
           <Pressable style={s.sendCard} onPress={() => { setInvRole("parent"); setModal(true); }}>
-            <View style={[s.sendIcon, { backgroundColor: "#D1FAE5" }]}>
-              <Feather name="users" size={22} color="#059669" />
+            <View style={[s.sendIcon, { backgroundColor: "#DDF2EF" }]}>
+              <Feather name="users" size={22} color="#1F8F86" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.sendTitle}>학부모 연결 요청 SMS 발송</Text>
@@ -207,15 +207,15 @@ export default function OperatorInviteSmsScreen() {
           </Pressable>
 
           <View style={s.infoBox}>
-            <Feather name="info" size={13} color="#6B7280" />
+            <Feather name="info" size={13} color="#6F6B68" />
             <Text style={s.infoTxt}>무료 {FREE_QUOTA}건/월 제공 · 초과 시 ₩{SMS_UNIT_PRICE}/건 과금</Text>
           </View>
 
           {MY_USAGE.failed > 0 && (
             <Pressable style={s.failWarning} onPress={() => setTab("failed")}>
-              <Feather name="alert-triangle" size={13} color="#DC2626" />
+              <Feather name="alert-triangle" size={13} color="#D96C6C" />
               <Text style={s.failWarningTxt}>발송 실패 {MY_USAGE.failed}건 있음 → 실패 내역 보기</Text>
-              <Feather name="chevron-right" size={13} color="#DC2626" />
+              <Feather name="chevron-right" size={13} color="#D96C6C" />
             </Pressable>
           )}
         </ScrollView>
@@ -254,19 +254,19 @@ export default function OperatorInviteSmsScreen() {
                   <Text style={s.invMeta}>{inv.recipientPhone}</Text>
                   <Text style={s.invMeta}>발송: {fmtDate(inv.createdAt)} · 만료: {fmtDate(inv.expiresAt)}</Text>
                   <View style={s.invActions}>
-                    <Pressable style={[s.actionBtn, { backgroundColor: "#EDE9FE" }]} onPress={() => doResend(inv)}>
+                    <Pressable style={[s.actionBtn, { backgroundColor: "#EEDDF5" }]} onPress={() => doResend(inv)}>
                       <Feather name="refresh-cw" size={11} color="#7C3AED" />
                       <Text style={[s.actionTxt, { color: "#7C3AED" }]}>재발송</Text>
                     </Pressable>
                     {inv.status === "pending" && (
-                      <Pressable style={[s.actionBtn, { backgroundColor: "#FEE2E2" }]} onPress={() => doCancel(inv)}>
-                        <Text style={[s.actionTxt, { color: "#DC2626" }]}>취소</Text>
+                      <Pressable style={[s.actionBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => doCancel(inv)}>
+                        <Text style={[s.actionTxt, { color: "#D96C6C" }]}>취소</Text>
                       </Pressable>
                     )}
-                    <Pressable style={[s.actionBtn, { backgroundColor: "#F3F4F6" }]}
+                    <Pressable style={[s.actionBtn, { backgroundColor: "#F6F3F1" }]}
                       onPress={() => {/* mock: 링크 복사 */}}>
-                      <Feather name="link" size={11} color="#6B7280" />
-                      <Text style={[s.actionTxt, { color: "#6B7280" }]}>링크 복사</Text>
+                      <Feather name="link" size={11} color="#6F6B68" />
+                      <Text style={[s.actionTxt, { color: "#6F6B68" }]}>링크 복사</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -289,19 +289,19 @@ export default function OperatorInviteSmsScreen() {
             </View>
           }
           renderItem={({ item: r }) => (
-            <View style={[s.invCard, { borderLeftWidth: 3, borderLeftColor: "#DC2626" }]}>
-              <View style={[s.invIcon, { backgroundColor: "#FEE2E2" }]}>
-                <Feather name="x-circle" size={16} color="#DC2626" />
+            <View style={[s.invCard, { borderLeftWidth: 3, borderLeftColor: "#D96C6C" }]}>
+              <View style={[s.invIcon, { backgroundColor: "#F9DEDA" }]}>
+                <Feather name="x-circle" size={16} color="#D96C6C" />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={s.nameRow}>
                   <Text style={s.invName}>{r.recipientName}</Text>
-                  <View style={[s.badge, { backgroundColor: "#FEE2E2" }]}>
-                    <Text style={[s.badgeTxt, { color: "#DC2626" }]}>실패</Text>
+                  <View style={[s.badge, { backgroundColor: "#F9DEDA" }]}>
+                    <Text style={[s.badgeTxt, { color: "#D96C6C" }]}>실패</Text>
                   </View>
                 </View>
                 <Text style={s.invMeta}>{r.recipientPhone} · {fmtDate(r.sentAt)}</Text>
-                {r.failReason && <Text style={[s.invMeta, { color: "#DC2626" }]}>사유: {r.failReason}</Text>}
+                {r.failReason && <Text style={[s.invMeta, { color: "#D96C6C" }]}>사유: {r.failReason}</Text>}
                 <Text style={s.invMeta} numberOfLines={1}>{r.message}</Text>
               </View>
             </View>
@@ -322,7 +322,7 @@ export default function OperatorInviteSmsScreen() {
                 return (
                   <Pressable key={r} style={[m.roleBtn, invRole === r && { backgroundColor: rc.bg, borderColor: rc.color }]}
                     onPress={() => setInvRole(r)}>
-                    <Feather name={rc.icon as any} size={14} color={invRole === r ? rc.color : "#9CA3AF"} />
+                    <Feather name={rc.icon as any} size={14} color={invRole === r ? rc.color : "#9A948F"} />
                     <Text style={[m.roleTxt, invRole === r && { color: rc.color }]}>{rc.label}</Text>
                   </Pressable>
                 );
@@ -331,18 +331,18 @@ export default function OperatorInviteSmsScreen() {
 
             <Text style={m.label}>이름 *</Text>
             <TextInput style={m.input} value={invName} onChangeText={setInvName}
-              placeholder="받는 사람 이름" placeholderTextColor="#9CA3AF" />
+              placeholder="받는 사람 이름" placeholderTextColor="#9A948F" />
 
             <Text style={m.label}>휴대폰 번호 *</Text>
             <TextInput style={m.input} value={invPhone} onChangeText={setInvPhone}
-              placeholder="010-0000-0000" keyboardType="phone-pad" placeholderTextColor="#9CA3AF" />
+              placeholder="010-0000-0000" keyboardType="phone-pad" placeholderTextColor="#9A948F" />
 
             <Text style={m.label}>메모 (선택)</Text>
             <TextInput style={m.input} value={invNote} onChangeText={setInvNote}
-              placeholder="내부 메모" placeholderTextColor="#9CA3AF" />
+              placeholder="내부 메모" placeholderTextColor="#9A948F" />
 
             <View style={m.infoRow}>
-              <Feather name="info" size={12} color="#6B7280" />
+              <Feather name="info" size={12} color="#6F6B68" />
               <Text style={m.infoTxt}>무료 잔여 {freeLeft}건 · 초과 시 ₩{SMS_UNIT_PRICE}/건 과금</Text>
             </View>
 
@@ -365,43 +365,43 @@ export default function OperatorInviteSmsScreen() {
 
 const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: "#F5F9FF" },
-  quotaCard:    { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", padding: 14, gap: 8 },
+  quotaCard:    { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", padding: 14, gap: 8 },
   quotaRow:     { flexDirection: "row", gap: 6 },
-  quotaItem:    { flex: 1, backgroundColor: "#F9FAFB", borderRadius: 10, padding: 10, alignItems: "center",
-                  borderWidth: 1, borderColor: "#E5E7EB" },
-  quotaNum:     { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
-  quotaLabel:   { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2, textAlign: "center" },
-  blockedBanner:{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEE2E2",
+  quotaItem:    { flex: 1, backgroundColor: "#FBF8F6", borderRadius: 10, padding: 10, alignItems: "center",
+                  borderWidth: 1, borderColor: "#E9E2DD" },
+  quotaNum:     { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  quotaLabel:   { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2, textAlign: "center" },
+  blockedBanner:{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9DEDA",
                   borderRadius: 8, padding: 8 },
-  blockedTxt:   { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#DC2626" },
-  tabBar:       { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  blockedTxt:   { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#D96C6C" },
+  tabBar:       { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
   tabItem:      { flex: 1, paddingVertical: 13, alignItems: "center" },
   tabTxt:       { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   sendCard:     { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
-                  borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
+                  borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E9E2DD" },
   sendIcon:     { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  sendTitle:    { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
-  sendSub:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 3 },
-  infoBox:      { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9FAFB",
-                  borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#E5E7EB" },
-  infoTxt:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  sendTitle:    { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  sendSub:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 3 },
+  infoBox:      { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FBF8F6",
+                  borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#E9E2DD" },
+  infoTxt:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" },
   failWarning:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF5F5",
                   borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#FCA5A5" },
-  failWarningTxt:{ flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#DC2626" },
+  failWarningTxt:{ flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#D96C6C" },
   invCard:      { flexDirection: "row", gap: 10, backgroundColor: "#fff",
-                  borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+                  borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E9E2DD" },
   invIcon:      { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   nameRow:      { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  invName:      { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  invName:      { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   badge:        { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   badgeTxt:     { fontSize: 10, fontFamily: "Inter_700Bold" },
-  invMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  invMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
   invActions:   { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
   actionBtn:    { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   actionTxt:    { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   empty:        { alignItems: "center", paddingVertical: 60, gap: 10 },
-  emptyTxt:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });
 
 const m = StyleSheet.create({
@@ -409,20 +409,20 @@ const m = StyleSheet.create({
   sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, gap: 12 },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
+  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   roleRow:   { flexDirection: "row", gap: 8 },
   roleBtn:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-               paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: "#E5E7EB" },
-  roleTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#9CA3AF" },
-  label:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12,
-               paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
-  infoRow:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9FAFB",
+               paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: "#E9E2DD" },
+  roleTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#9A948F" },
+  label:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  input:     { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, paddingHorizontal: 12,
+               paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  infoRow:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FBF8F6",
                padding: 10, borderRadius: 8 },
-  infoTxt:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  infoTxt:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
   btnRow:    { flexDirection: "row", gap: 10, marginTop: 4 },
-  cancelBtn: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6" },
-  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  cancelBtn: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F6F3F1" },
+  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   sendBtn:   { flex: 1.5, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
                height: 46, borderRadius: 12 },
   sendTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },

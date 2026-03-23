@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontFamily: "Inter_700Bold",
-    color: "#111827",
+    color: "#1F1F1F",
     letterSpacing: -0.3,
   },
   subtitle: {
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#E9E2DD",
     marginHorizontal: 0,
   },
 });

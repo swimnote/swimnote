@@ -87,7 +87,7 @@ function AuditModal({ diaryId, token, onClose }: { diaryId: string; token: strin
               {logs.map(log => (
                 <View key={log.id} style={[a.logCard, { backgroundColor: C.background }]}>
                   <View style={a.logHeader}>
-                    <View style={[a.logBadge, { backgroundColor: log.action_type === "delete" ? "#FEE2E2" : log.action_type === "update" ? "#FEF3C7" : "#D1FAE5" }]}>
+                    <View style={[a.logBadge, { backgroundColor: log.action_type === "delete" ? "#F9DEDA" : log.action_type === "update" ? "#FFF1BF" : "#DDF2EF" }]}>
                       <Text style={[a.logBadgeText, { color: log.action_type === "delete" ? C.error : log.action_type === "update" ? C.warning : C.success }]}>
                         {actionLabel[log.action_type]}
                       </Text>
@@ -102,7 +102,7 @@ function AuditModal({ diaryId, token, onClose }: { diaryId: string; token: strin
                     </View>
                   )}
                   {log.after_content && (
-                    <View style={[a.logContent, { backgroundColor: "#F0FDF4", borderColor: "#86EFAC" }]}>
+                    <View style={[a.logContent, { backgroundColor: "#DFF3EC", borderColor: "#86EFAC" }]}>
                       <Text style={a.logContentLabel}>수정 후</Text>
                       <Text style={[a.logContentText, { color: C.text }]}>{log.after_content}</Text>
                     </View>
@@ -666,7 +666,7 @@ export default function TeacherDiaryScreen() {
 
                   {/* 기존 노트 목록 */}
                   {activeNotes.map(note => (
-                    <View key={note.id} style={[s.editNoteItem, { backgroundColor: "#F5F3FF", borderColor: "#C4B5FD" }]}>
+                    <View key={note.id} style={[s.editNoteItem, { backgroundColor: "#EEDDF5", borderColor: "#C4B5FD" }]}>
                       <View style={s.editNoteHeader}>
                         <Text style={s.noteName}>{note.student_name}</Text>
                         <Pressable onPress={() => markNoteDeleted(note.id)}>
@@ -689,13 +689,13 @@ export default function TeacherDiaryScreen() {
 
                   {/* 새로 추가된 노트 */}
                   {editNewNotes.map((note, idx) => (
-                    <View key={idx} style={[s.editNoteItem, { backgroundColor: "#ECFDF5", borderColor: "#6EE7B7" }]}>
+                    <View key={idx} style={[s.editNoteItem, { backgroundColor: "#DFF3EC", borderColor: "#6EE7B7" }]}>
                       <View style={s.editNoteHeader}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <View style={[s.statusBadge, { backgroundColor: "#D1FAE5" }]}>
-                            <Text style={[s.statusBadgeText, { color: "#059669" }]}>신규</Text>
+                          <View style={[s.statusBadge, { backgroundColor: "#DDF2EF" }]}>
+                            <Text style={[s.statusBadgeText, { color: "#1F8F86" }]}>신규</Text>
                           </View>
-                          <Text style={[s.noteName, { color: "#059669" }]}>{note.student_name}</Text>
+                          <Text style={[s.noteName, { color: "#1F8F86" }]}>{note.student_name}</Text>
                         </View>
                         <Pressable onPress={() => removeNewNote(idx)}>
                           <Feather name="x-circle" size={15} color={C.error} />
@@ -721,7 +721,7 @@ export default function TeacherDiaryScreen() {
                             <Pressable
                               key={st.id}
                               style={[s.studentChip, { backgroundColor: C.background, borderColor: C.border },
-                                editAddStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}
+                                editAddStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#EEDDF5" }]}
                               onPress={() => {
                                 if (editAddStudent?.id === st.id) { setEditAddStudent(null); setEditAddInput(""); }
                                 else { setEditAddStudent(st); setEditAddInput(""); }
@@ -738,7 +738,7 @@ export default function TeacherDiaryScreen() {
 
                       {/* 선택된 학생 노트 입력 */}
                       {editAddStudent && (
-                        <View style={[s.noteInput, { backgroundColor: "#F5F3FF", borderColor: "#8B5CF6" }]}>
+                        <View style={[s.noteInput, { backgroundColor: "#EEDDF5", borderColor: "#8B5CF6" }]}>
                           <Text style={[s.noteName, { color: "#8B5CF6", marginBottom: 6 }]}>{editAddStudent.name} 추가 일지</Text>
                           <TextInput
                             style={[s.noteTextarea, { borderColor: "#8B5CF6", color: C.text }]}
@@ -771,7 +771,7 @@ export default function TeacherDiaryScreen() {
               {/* 저장 버튼 */}
               <View style={s.footer}>
                 {editError && (
-                  <View style={[s.inlineError, { backgroundColor: "#FEE2E2" }]}>
+                  <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
                     <Feather name="alert-circle" size={13} color={C.error} />
                     <Text style={[s.inlineErrorText, { color: C.error }]}>{editError}</Text>
                   </View>
@@ -841,7 +841,7 @@ export default function TeacherDiaryScreen() {
             <ScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
               {myDiaryExists && (
-                <View style={[s.infoBox, { backgroundColor: "#FEF3C7" }]}>
+                <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
                   <Feather name="alert-circle" size={13} color="#D97706" />
                   <Text style={s.infoText}>오늘 이미 일지가 작성되어 있습니다. 수정은 "지난 일지"에서 할 수 있습니다.</Text>
                 </View>
@@ -901,22 +901,22 @@ export default function TeacherDiaryScreen() {
                 {/* 반 전체 사진/영상 업로드 */}
                 <View style={s.mediaRow}>
                   <Pressable
-                    style={[s.mediaBtn, { backgroundColor: "#FEF3C7" }]}
+                    style={[s.mediaBtn, { backgroundColor: "#FFF1BF" }]}
                     onPress={() => uploadGroupMedia("photo")}
                     disabled={mediaUploading === "group"}
                   >
                     {mediaUploading === "group"
-                      ? <ActivityIndicator size="small" color="#F59E0B" />
-                      : <><Feather name="image" size={14} color="#F59E0B" /><Text style={[s.mediaBtnText, { color: "#F59E0B" }]}>반 사진 추가</Text></>
+                      ? <ActivityIndicator size="small" color="#E4A93A" />
+                      : <><Feather name="image" size={14} color="#E4A93A" /><Text style={[s.mediaBtnText, { color: "#E4A93A" }]}>반 사진 추가</Text></>
                     }
                   </Pressable>
                   <Pressable
-                    style={[s.mediaBtn, { backgroundColor: "#D1FAE5" }]}
+                    style={[s.mediaBtn, { backgroundColor: "#DDF2EF" }]}
                     onPress={() => uploadGroupMedia("video")}
                     disabled={mediaUploading === "group"}
                   >
-                    <Feather name="video" size={14} color="#059669" />
-                    <Text style={[s.mediaBtnText, { color: "#059669" }]}>반 영상 추가</Text>
+                    <Feather name="video" size={14} color="#1F8F86" />
+                    <Text style={[s.mediaBtnText, { color: "#1F8F86" }]}>반 영상 추가</Text>
                   </Pressable>
                 </View>
                 {groupMedia.length > 0 && (
@@ -925,9 +925,9 @@ export default function TeacherDiaryScreen() {
                       <View key={i} style={s.mediaThumb}>
                         {m.kind === "photo"
                           ? <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={20}
-                              color={m.uploaded ? "#059669" : m.error ? "#EF4444" : "#F59E0B"} />
+                              color={m.uploaded ? "#1F8F86" : m.error ? "#D96C6C" : "#E4A93A"} />
                           : <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={20}
-                              color={m.uploaded ? "#059669" : m.error ? "#EF4444" : "#059669"} />
+                              color={m.uploaded ? "#1F8F86" : m.error ? "#D96C6C" : "#1F8F86"} />
                         }
                         {m.uploading && <ActivityIndicator size="small" color={C.tint} style={{ position: "absolute" }} />}
                       </View>
@@ -950,7 +950,7 @@ export default function TeacherDiaryScreen() {
                   const st: StudentOption = { id: note.student_id, name: note.student_name };
                   const stMedia = studentMedia[note.student_id] || [];
                   return (
-                    <View key={note.student_id} style={[s.noteItem, { backgroundColor: "#F5F3FF" }]}>
+                    <View key={note.student_id} style={[s.noteItem, { backgroundColor: "#EEDDF5" }]}>
                       <View style={{ flex: 1, gap: 4 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                           <Text style={s.noteName}>{note.student_name}</Text>
@@ -962,7 +962,7 @@ export default function TeacherDiaryScreen() {
                         {/* 개별 사진/영상 업로드 */}
                         <View style={[s.mediaRow, { marginTop: 2 }]}>
                           <Pressable
-                            style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]}
+                            style={[s.mediaBtn, { backgroundColor: "#EEDDF5" }]}
                             onPress={() => uploadStudentMedia(st, "photo")}
                             disabled={mediaUploading === note.student_id}
                           >
@@ -972,7 +972,7 @@ export default function TeacherDiaryScreen() {
                             }
                           </Pressable>
                           <Pressable
-                            style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]}
+                            style={[s.mediaBtn, { backgroundColor: "#EEDDF5" }]}
                             onPress={() => uploadStudentMedia(st, "video")}
                             disabled={mediaUploading === note.student_id}
                           >
@@ -987,7 +987,7 @@ export default function TeacherDiaryScreen() {
                                 <Feather
                                   name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : (m.kind === "photo" ? "image" : "video")}
                                   size={16}
-                                  color={m.uploaded ? "#059669" : m.error ? "#EF4444" : "#7C3AED"}
+                                  color={m.uploaded ? "#1F8F86" : m.error ? "#D96C6C" : "#7C3AED"}
                                 />
                               </View>
                             ))}
@@ -1010,7 +1010,7 @@ export default function TeacherDiaryScreen() {
                       <Pressable
                         key={st.id}
                         style={[s.studentChip, { backgroundColor: C.background, borderColor: C.border },
-                          addNoteStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#F5F3FF" }]}
+                          addNoteStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#EEDDF5" }]}
                         onPress={() => {
                           if (addNoteStudent?.id === st.id) { setAddNoteStudent(null); setNoteInput(""); }
                           else { setAddNoteStudent(st); setNoteInput(""); }
@@ -1026,7 +1026,7 @@ export default function TeacherDiaryScreen() {
                 )}
 
                 {addNoteStudent && (
-                  <View style={[s.noteInput, { backgroundColor: "#F5F3FF", borderColor: "#8B5CF6" }]}>
+                  <View style={[s.noteInput, { backgroundColor: "#EEDDF5", borderColor: "#8B5CF6" }]}>
                     <Text style={[s.noteName, { color: "#8B5CF6", marginBottom: 6 }]}>{addNoteStudent.name} 추가 일지</Text>
                     <TextInput
                       style={[s.noteTextarea, { borderColor: "#8B5CF6", color: C.text }]}
@@ -1062,16 +1062,16 @@ export default function TeacherDiaryScreen() {
             {/* 저장 버튼 */}
             <View style={s.footer}>
               {formError && (
-                <View style={[s.inlineError, { backgroundColor: "#FEE2E2" }]}>
+                <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
                   <Feather name="alert-circle" size={13} color={C.error} />
                   <Text style={[s.inlineErrorText, { color: C.error }]}>{formError}</Text>
                 </View>
               )}
               {saveMsg && (
-                <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#D1FAE5" : "#FEE2E2" }]}>
+                <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#DDF2EF" : "#F9DEDA" }]}>
                   <Feather name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
-                    color={saveMsg.type === "success" ? "#059669" : C.error} />
-                  <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? "#059669" : C.error }]}>
+                    color={saveMsg.type === "success" ? "#1F8F86" : C.error} />
+                  <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? "#1F8F86" : C.error }]}>
                     {saveMsg.text}
                   </Text>
                 </View>
@@ -1125,20 +1125,20 @@ export default function TeacherDiaryScreen() {
                       {/* 배지 행 */}
                       <View style={s.badgeRow}>
                         {item.is_edited && (
-                          <View style={[s.statusBadge, { backgroundColor: "#FEF3C7" }]}>
+                          <View style={[s.statusBadge, { backgroundColor: "#FFF1BF" }]}>
                             <Text style={[s.statusBadgeText, { color: "#92400E" }]}>수정됨</Text>
                           </View>
                         )}
                         {item.note_count && Number(item.note_count) > 0 && (
-                          <View style={[s.statusBadge, { backgroundColor: "#EDE9FE" }]}>
+                          <View style={[s.statusBadge, { backgroundColor: "#EEDDF5" }]}>
                             <Feather name="user" size={10} color="#7C3AED" />
                             <Text style={[s.statusBadgeText, { color: "#7C3AED" }]}>개별 {item.note_count}명</Text>
                           </View>
                         )}
                         {isMine && (
-                          <View style={[s.statusBadge, { backgroundColor: "#EFF6FF", marginLeft: "auto" }]}>
-                            <Feather name="edit-2" size={10} color="#3B82F6" />
-                            <Text style={[s.statusBadgeText, { color: "#3B82F6" }]}>탭하여 수정</Text>
+                          <View style={[s.statusBadge, { backgroundColor: "#DDF2EF", marginLeft: "auto" }]}>
+                            <Feather name="edit-2" size={10} color="#4EA7D8" />
+                            <Text style={[s.statusBadgeText, { color: "#4EA7D8" }]}>탭하여 수정</Text>
                           </View>
                         )}
                       </View>
@@ -1178,7 +1178,7 @@ export default function TeacherDiaryScreen() {
         <Modal visible={!!deleteTarget} transparent animationType="fade" onRequestClose={() => setDeleteTarget(null)}>
           <View style={s.delOverlay}>
             <View style={[s.delSheet, { backgroundColor: C.card }]}>
-              <View style={[s.delIconWrap, { backgroundColor: "#FEE2E2" }]}>
+              <View style={[s.delIconWrap, { backgroundColor: "#F9DEDA" }]}>
                 <Feather name="trash-2" size={26} color={C.error} />
               </View>
               <Text style={[s.delTitle, { color: C.text }]}>일지 삭제</Text>
@@ -1186,7 +1186,7 @@ export default function TeacherDiaryScreen() {
                 이 일지를 삭제하시겠습니까?{"\n"}삭제된 일지는 관리자만 확인할 수 있습니다.
               </Text>
               {deleteError && (
-                <View style={[s.inlineError, { backgroundColor: "#FEE2E2" }]}>
+                <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
                   <Feather name="alert-circle" size={13} color={C.error} />
                   <Text style={[s.inlineErrorText, { color: C.error }]}>{deleteError}</Text>
                 </View>
@@ -1245,14 +1245,14 @@ export default function TeacherDiaryScreen() {
 
 // ── 스타일 ────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F3F4F6" },
+  safe:         { flex: 1, backgroundColor: "#F6F3F1" },
   titleRow:     { paddingHorizontal: 16, paddingVertical: 10 },
   title:        { fontSize: 20, fontFamily: "Inter_700Bold" },
 
-  subHeader:    { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  backBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
-  subTitle:     { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
-  subSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
+  subHeader:    { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  backBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
+  subTitle:     { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  subSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
   tabBtn:       { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   tabBtnText:   { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 
@@ -1268,7 +1268,7 @@ const s = StyleSheet.create({
   cardHeader:   { flexDirection: "row", alignItems: "center", gap: 8 },
   cardIcon:     { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   cardTitle:    { fontSize: 14, fontFamily: "Inter_700Bold", flex: 1 },
-  cardSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  cardSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
 
   templateBtn:  { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, alignSelf: "flex-start" },
   templateBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
@@ -1279,7 +1279,7 @@ const s = StyleSheet.create({
 
   textarea:     { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: "#fff" },
   textareaFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
-  charCount:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  charCount:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
   sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: C.tintLight, backgroundColor: "#F0F5FF" },
   sentencePickBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.tint },
 
@@ -1293,7 +1293,7 @@ const s = StyleSheet.create({
   editNoteItem: { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   editNoteHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   noteName:     { fontSize: 12, fontFamily: "Inter_700Bold", color: "#7C3AED" },
-  noteContent:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 18 },
+  noteContent:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 18 },
   noteInput:    { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
   noteTextarea: { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: "#fff" },
   noteBtn:      { flex: 1, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
@@ -1302,9 +1302,9 @@ const s = StyleSheet.create({
   mediaBtn:     { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
   mediaBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   mediaPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
-  mediaThumb:   { width: 36, height: 36, borderRadius: 8, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  mediaThumb:   { width: 36, height: 36, borderRadius: 8, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
 
-  footer:       { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  footer:       { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E9E2DD" },
   cancelBtnFt:  { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   cancelBtnFtText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   saveBtn:      { flexDirection: "row", height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 8 },
@@ -1312,7 +1312,7 @@ const s = StyleSheet.create({
 
   diaryList:    { padding: 12, gap: 10, paddingBottom: 120 },
   diaryCard:    { borderRadius: 14, padding: 14, gap: 8 },
-  diaryCardEditable: { borderWidth: 1.5, borderColor: "#DBEAFE" },
+  diaryCardEditable: { borderWidth: 1.5, borderColor: "#DDF2EF" },
   badgeRow:     { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   statusBadge:  { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
   statusBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
@@ -1323,7 +1323,7 @@ const s = StyleSheet.create({
   iconBtn:      { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
 
   emptyBox:     { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
 
   inlineError:  { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, borderRadius: 10 },
   inlineErrorText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", lineHeight: 17 },
@@ -1339,15 +1339,15 @@ const s = StyleSheet.create({
 const a = StyleSheet.create({
   overlay:  { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet:    { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "85%", minHeight: "50%" },
-  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
   sheetTitle:  { fontSize: 16, fontFamily: "Inter_700Bold" },
   logCard:  { borderRadius: 12, padding: 12, gap: 8 },
   logHeader: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   logBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   logBadgeText: { fontSize: 11, fontFamily: "Inter_700Bold" },
-  logTarget: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  logMeta:   { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "right" },
+  logTarget: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  logMeta:   { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", textAlign: "right" },
   logContent: { borderRadius: 8, borderWidth: 1, padding: 10, gap: 4 },
-  logContentLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  logContentLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   logContentText:  { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
 });

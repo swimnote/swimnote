@@ -20,20 +20,20 @@ import { formatDateSafe, calcPercent } from "@/domain/formatters";
 const P = "#7C3AED";
 
 const FILTER_CHIPS: { key: OperatorFilter; label: string; color: string; bg: string }[] = [
-  { key: "all",              label: "전체",         color: "#374151", bg: "#F3F4F6" },
-  { key: "pending",          label: "승인 대기",     color: "#D97706", bg: "#FEF3C7" },
-  { key: "payment_failed",   label: "결제 실패",     color: "#DC2626", bg: "#FEE2E2" },
-  { key: "storage95",        label: "저장 95%↑",    color: P,         bg: "#EDE9FE" },
-  { key: "deletion_pending", label: "삭제 예정",     color: "#0891B2", bg: "#ECFEFF" },
-  { key: "credit",           label: "크레딧 보유",   color: "#059669", bg: "#D1FAE5" },
-  { key: "new_this_week",    label: "이번 주 신규", color: "#6B7280", bg: "#F3F4F6" },
-  { key: "free_over10",      label: "무료 체험",     color: "#6B7280", bg: "#F3F4F6" },
-  { key: "policy_unsigned",  label: "정책 미확인",   color: "#4F46E5", bg: "#EEF2FF" },
-  { key: "upload_spike",     label: "업로드 급증",   color: "#D97706", bg: "#FEF3C7" },
-  { key: "refund_repeat",    label: "반복 환불",     color: "#DC2626", bg: "#FEE2E2" },
-  { key: "solo_coach",       label: "🧑‍🏫 1인 코치",  color: "#059669", bg: "#D1FAE5" },
-  { key: "franchise",        label: "🏢 프랜차이즈", color: P,         bg: "#EDE9FE" },
-  { key: "readonly",         label: "읽기전용",      color: "#7C3AED", bg: "#EDE9FE" },
+  { key: "all",              label: "전체",         color: "#1F1F1F", bg: "#F6F3F1" },
+  { key: "pending",          label: "승인 대기",     color: "#D97706", bg: "#FFF1BF" },
+  { key: "payment_failed",   label: "결제 실패",     color: "#D96C6C", bg: "#F9DEDA" },
+  { key: "storage95",        label: "저장 95%↑",    color: P,         bg: "#EEDDF5" },
+  { key: "deletion_pending", label: "삭제 예정",     color: "#1F8F86", bg: "#ECFEFF" },
+  { key: "credit",           label: "크레딧 보유",   color: "#1F8F86", bg: "#DDF2EF" },
+  { key: "new_this_week",    label: "이번 주 신규", color: "#6F6B68", bg: "#F6F3F1" },
+  { key: "free_over10",      label: "무료 체험",     color: "#6F6B68", bg: "#F6F3F1" },
+  { key: "policy_unsigned",  label: "정책 미확인",   color: "#1F8F86", bg: "#DDF2EF" },
+  { key: "upload_spike",     label: "업로드 급증",   color: "#D97706", bg: "#FFF1BF" },
+  { key: "refund_repeat",    label: "반복 환불",     color: "#D96C6C", bg: "#F9DEDA" },
+  { key: "solo_coach",       label: "🧑‍🏫 1인 코치",  color: "#1F8F86", bg: "#DDF2EF" },
+  { key: "franchise",        label: "🏢 프랜차이즈", color: P,         bg: "#EEDDF5" },
+  { key: "readonly",         label: "읽기전용",      color: "#7C3AED", bg: "#EEDDF5" },
 ];
 
 const SORT_OPTS = [
@@ -45,38 +45,38 @@ const SORT_OPTS = [
 ];
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  pending:    { label: "대기",   color: "#D97706", bg: "#FEF3C7" },
-  active:     { label: "운영",   color: "#059669", bg: "#D1FAE5" },
-  rejected:   { label: "반려",   color: "#DC2626", bg: "#FEE2E2" },
-  cancelled:  { label: "해지",   color: "#6B7280", bg: "#F3F4F6" },
-  readonly:   { label: "읽기전용", color: "#7C3AED", bg: "#EDE9FE" },
-  restricted: { label: "제한",   color: "#DC2626", bg: "#FEE2E2" },
+  pending:    { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
+  active:     { label: "운영",   color: "#1F8F86", bg: "#DDF2EF" },
+  rejected:   { label: "반려",   color: "#D96C6C", bg: "#F9DEDA" },
+  cancelled:  { label: "해지",   color: "#6F6B68", bg: "#F6F3F1" },
+  readonly:   { label: "읽기전용", color: "#7C3AED", bg: "#EEDDF5" },
+  restricted: { label: "제한",   color: "#D96C6C", bg: "#F9DEDA" },
 };
 
 const BILLING_CFG: Record<string, { label: string; color: string }> = {
-  active:                { label: "정상",  color: "#059669" },
-  payment_failed:        { label: "실패",  color: "#DC2626" },
+  active:                { label: "정상",  color: "#1F8F86" },
+  payment_failed:        { label: "실패",  color: "#D96C6C" },
   grace:                 { label: "유예",  color: "#D97706" },
-  cancelled:             { label: "해지",  color: "#6B7280" },
-  auto_delete_scheduled: { label: "삭제예정", color: "#0891B2" },
+  cancelled:             { label: "해지",  color: "#6F6B68" },
+  auto_delete_scheduled: { label: "삭제예정", color: "#1F8F86" },
   readonly:              { label: "읽기전용", color: "#7C3AED" },
-  free:                  { label: "무료",  color: "#4F46E5" },
+  free:                  { label: "무료",  color: "#1F8F86" },
 };
 
 const TYPE_CFG: Record<string, { label: string; color: string }> = {
-  swimming_pool: { label: "수영장",    color: "#0891B2" },
-  solo_coach:    { label: "1인 코치",  color: "#059669" },
+  swimming_pool: { label: "수영장",    color: "#1F8F86" },
+  solo_coach:    { label: "1인 코치",  color: "#1F8F86" },
   rental_team:   { label: "대관팀",    color: "#D97706" },
   franchise:     { label: "프랜차이즈", color: P },
 };
 
 const BULK_ACTIONS = [
-  { key: "approve",         label: "승인",       color: "#059669", bg: "#D1FAE5" },
-  { key: "reject",          label: "반려",       color: "#DC2626", bg: "#FEE2E2" },
-  { key: "readonly_on",     label: "읽기전용",   color: "#7C3AED", bg: "#EDE9FE" },
-  { key: "block_upload",    label: "업로드 차단", color: "#D97706", bg: "#FEF3C7" },
-  { key: "policy_reminder", label: "정책 재알림", color: "#4F46E5", bg: "#EEF2FF" },
-  { key: "terminate",       label: "종료",       color: "#7F1D1D", bg: "#FEE2E2" },
+  { key: "approve",         label: "승인",       color: "#1F8F86", bg: "#DDF2EF" },
+  { key: "reject",          label: "반려",       color: "#D96C6C", bg: "#F9DEDA" },
+  { key: "readonly_on",     label: "읽기전용",   color: "#7C3AED", bg: "#EEDDF5" },
+  { key: "block_upload",    label: "업로드 차단", color: "#D97706", bg: "#FFF1BF" },
+  { key: "policy_reminder", label: "정책 재알림", color: "#1F8F86", bg: "#DDF2EF" },
+  { key: "terminate",       label: "종료",       color: "#7F1D1D", bg: "#F9DEDA" },
 ];
 
 export default function SuperPoolsScreen() {
@@ -179,13 +179,13 @@ export default function SuperPoolsScreen() {
   const renderItem = ({ item }: { item: Operator }) => {
     const isSelected = selected.has(item.id);
     const sCfg   = STATUS_CFG[item.status] ?? STATUS_CFG.pending;
-    const bCfg   = BILLING_CFG[item.billingStatus] ?? { label: item.billingStatus, color: "#6B7280" };
-    const tCfg   = TYPE_CFG[item.type] ?? { label: "수영장", color: "#0891B2" };
+    const bCfg   = BILLING_CFG[item.billingStatus] ?? { label: item.billingStatus, color: "#6F6B68" };
+    const tCfg   = TYPE_CFG[item.type] ?? { label: "수영장", color: "#1F8F86" };
     const pct    = Math.round((item.storageUsedMb / Math.max(item.storageTotalMb, 1)) * 100);
     const pctStr = `${pct}%`;
     const isDanger  = item.storageBlocked95;
     const isWarn    = item.storageWarning80 && !isDanger;
-    const barColor  = isDanger ? "#DC2626" : isWarn ? "#F59E0B" : "#10B981";
+    const barColor  = isDanger ? "#D96C6C" : isWarn ? "#E4A93A" : "#2E9B6F";
     const loginStr  = item.lastLoginAt ? formatDateSafe(item.lastLoginAt) : "—";
     const isPending = item.status === 'pending';
     const isDeletion = !!item.autoDeleteScheduledAt;
@@ -215,11 +215,11 @@ export default function SuperPoolsScreen() {
             </View>
             {isDeletion && (
               <View style={[s.badge, { backgroundColor: "#ECFEFF" }]}>
-                <Text style={[s.badgeTxt, { color: "#0891B2" }]}>삭제예정</Text>
+                <Text style={[s.badgeTxt, { color: "#1F8F86" }]}>삭제예정</Text>
               </View>
             )}
             {item.uploadSpikeFlag && (
-              <View style={[s.badge, { backgroundColor: "#FEF3C7" }]}>
+              <View style={[s.badge, { backgroundColor: "#FFF1BF" }]}>
                 <Text style={[s.badgeTxt, { color: "#D97706" }]}>업로드급증</Text>
               </View>
             )}
@@ -241,7 +241,7 @@ export default function SuperPoolsScreen() {
               <View style={[s.storageBarFill,
                 { width: `${Math.min(pct, 100)}%` as any, backgroundColor: barColor }]} />
             </View>
-            <Text style={[s.storagePct, { color: isDanger ? "#DC2626" : "#6B7280" }]}>{pctStr}</Text>
+            <Text style={[s.storagePct, { color: isDanger ? "#D96C6C" : "#6F6B68" }]}>{pctStr}</Text>
           </View>
 
           <View style={s.rowBottom}>
@@ -256,18 +256,18 @@ export default function SuperPoolsScreen() {
           <View style={s.actions}>
             {isPending && (
               <>
-                <Pressable style={[s.actBtn, { backgroundColor: "#D1FAE5" }]} onPress={() => quickAction(item, "approve")}>
-                  <Text style={[s.actTxt, { color: "#059669" }]}>승인</Text>
+                <Pressable style={[s.actBtn, { backgroundColor: "#DDF2EF" }]} onPress={() => quickAction(item, "approve")}>
+                  <Text style={[s.actTxt, { color: "#1F8F86" }]}>승인</Text>
                 </Pressable>
-                <Pressable style={[s.actBtn, { backgroundColor: "#FEE2E2" }]} onPress={() => quickAction(item, "reject")}>
-                  <Text style={[s.actTxt, { color: "#DC2626" }]}>반려</Text>
+                <Pressable style={[s.actBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => quickAction(item, "reject")}>
+                  <Text style={[s.actTxt, { color: "#D96C6C" }]}>반려</Text>
                 </Pressable>
               </>
             )}
             {!isPending && (
-              <Pressable style={[s.actBtn, { backgroundColor: "#F3F4F6" }]}
+              <Pressable style={[s.actBtn, { backgroundColor: "#F6F3F1" }]}
                 onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
-                <Text style={[s.actTxt, { color: "#374151" }]}>상세</Text>
+                <Text style={[s.actTxt, { color: "#1F1F1F" }]}>상세</Text>
               </Pressable>
             )}
           </View>
@@ -290,12 +290,12 @@ export default function SuperPoolsScreen() {
                 placeholder="반려 사유" multiline numberOfLines={2} />
             )}
             <View style={s.sheetBtns}>
-              <Pressable style={[s.sheetBtn, { backgroundColor: "#F3F4F6" }]} onPress={() => setBulkModal(null)}>
-                <Text style={{ color: "#374151", fontFamily: "Inter_600SemiBold" }}>취소</Text>
+              <Pressable style={[s.sheetBtn, { backgroundColor: "#F6F3F1" }]} onPress={() => setBulkModal(null)}>
+                <Text style={{ color: "#1F1F1F", fontFamily: "Inter_600SemiBold" }}>취소</Text>
               </Pressable>
-              <Pressable style={[s.sheetBtn, { backgroundColor: BULK_ACTIONS.find(a => a.key === bulkModal)?.bg ?? "#F3F4F6" }]}
+              <Pressable style={[s.sheetBtn, { backgroundColor: BULK_ACTIONS.find(a => a.key === bulkModal)?.bg ?? "#F6F3F1" }]}
                 disabled={processing} onPress={() => executeBulk(bulkModal!)}>
-                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? "#374151", fontFamily: "Inter_600SemiBold" }}>
+                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? "#1F1F1F", fontFamily: "Inter_600SemiBold" }}>
                   확인
                 </Text>
               </Pressable>
@@ -309,12 +309,12 @@ export default function SuperPoolsScreen() {
       {/* 검색 + 정렬 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
-          <Feather name="search" size={14} color="#9CA3AF" />
+          <Feather name="search" size={14} color="#9A948F" />
           <TextInput style={s.searchInput} value={search} onChangeText={setSearch}
-            placeholder="운영자명, 코드, 담당자 검색" placeholderTextColor="#9CA3AF" />
+            placeholder="운영자명, 코드, 담당자 검색" placeholderTextColor="#9A948F" />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch("")}>
-              <Feather name="x" size={14} color="#9CA3AF" />
+              <Feather name="x" size={14} color="#9A948F" />
             </Pressable>
           )}
         </View>
@@ -359,7 +359,7 @@ export default function SuperPoolsScreen() {
           )}
           <Pressable style={[s.multiBtn, multiSelect && s.multiBtnActive]}
             onPress={() => { setMultiSelect(!multiSelect); setSelected(new Set()); }}>
-            <Feather name="check-square" size={14} color={multiSelect ? P : "#6B7280"} />
+            <Feather name="check-square" size={14} color={multiSelect ? P : "#6F6B68"} />
             <Text style={[s.multiBtnTxt, multiSelect && { color: P }]}>
               {multiSelect ? "완료" : "다중선택"}
             </Text>
@@ -390,54 +390,54 @@ const s = StyleSheet.create({
   safe:              { flex: 1, backgroundColor: "#fff" },
   overlay:           { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
   sheet:             { backgroundColor: "#fff", borderRadius: 16, padding: 20, width: "85%", gap: 12 },
-  sheetTitle:        { fontFamily: "Inter_700Bold", fontSize: 16, color: "#111827" },
-  sheetInput:        { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10, color: "#111827", fontFamily: "Inter_400Regular", minHeight: 60 },
+  sheetTitle:        { fontFamily: "Inter_700Bold", fontSize: 16, color: "#1F1F1F" },
+  sheetInput:        { borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 8, padding: 10, color: "#1F1F1F", fontFamily: "Inter_400Regular", minHeight: 60 },
   sheetBtns:         { flexDirection: "row", gap: 10 },
   sheetBtn:          { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
   searchRow:         { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
-  searchBox:         { flexDirection: "row", alignItems: "center", backgroundColor: "#F9FAFB", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
-  searchInput:       { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, color: "#111827" },
-  sortChip:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#F3F4F6", marginRight: 6 },
-  sortChipActive:    { backgroundColor: "#EDE9FE" },
-  sortChipTxt:       { fontFamily: "Inter_400Regular", fontSize: 12, color: "#6B7280" },
+  searchBox:         { flexDirection: "row", alignItems: "center", backgroundColor: "#FBF8F6", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
+  searchInput:       { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, color: "#1F1F1F" },
+  sortChip:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#F6F3F1", marginRight: 6 },
+  sortChipActive:    { backgroundColor: "#EEDDF5" },
+  sortChipTxt:       { fontFamily: "Inter_400Regular", fontSize: 12, color: "#6F6B68" },
   sortChipTxtActive: { color: P, fontFamily: "Inter_600SemiBold" },
   chipsScroll:       { maxHeight: 40 },
   chipsContent:      { paddingHorizontal: 16, gap: 6 },
-  chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#F3F4F6", marginRight: 6 },
-  chipTxt:           { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6B7280" },
-  listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  listCount:         { fontFamily: "Inter_400Regular", fontSize: 13, color: "#374151" },
+  chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#F6F3F1", marginRight: 6 },
+  chipTxt:           { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6F6B68" },
+  listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  listCount:         { fontFamily: "Inter_400Regular", fontSize: 13, color: "#1F1F1F" },
   listHeaderRight:   { flexDirection: "row", alignItems: "center", gap: 8 },
   bulkBtn:           { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
   bulkTxt:           { fontFamily: "Inter_600SemiBold", fontSize: 11 },
-  multiBtn:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#F3F4F6" },
-  multiBtnActive:    { backgroundColor: "#EDE9FE" },
-  multiBtnTxt:       { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6B7280" },
-  row:               { backgroundColor: "#fff", marginHorizontal: 16, marginVertical: 4, borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "flex-start", borderWidth: 1, borderColor: "#F3F4F6" },
-  rowSelected:       { borderColor: P, backgroundColor: "#F5F3FF" },
+  multiBtn:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#F6F3F1" },
+  multiBtnActive:    { backgroundColor: "#EEDDF5" },
+  multiBtnTxt:       { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6F6B68" },
+  row:               { backgroundColor: "#fff", marginHorizontal: 16, marginVertical: 4, borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "flex-start", borderWidth: 1, borderColor: "#F6F3F1" },
+  rowSelected:       { borderColor: P, backgroundColor: "#EEDDF5" },
   rowDanger:         { borderColor: "#BAE6FD" },
   rowStorageDanger:  { borderColor: "#FCA5A5" },
   checkbox:          { width: 22, height: 22, borderRadius: 5, borderWidth: 2, borderColor: "#D1D5DB", alignItems: "center", justifyContent: "center", marginRight: 10, marginTop: 2 },
   checkboxChecked:   { backgroundColor: P, borderColor: P },
   rowMain:           { flex: 1, gap: 4 },
   rowTop:            { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  rowName:           { fontFamily: "Inter_700Bold", fontSize: 15, color: "#111827", flex: 1 },
+  rowName:           { fontFamily: "Inter_700Bold", fontSize: 15, color: "#1F1F1F", flex: 1 },
   badge:             { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   badgeTxt:          { fontFamily: "Inter_600SemiBold", fontSize: 10 },
   rowMeta:           { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  rowOwner:          { fontFamily: "Inter_400Regular", fontSize: 12, color: "#6B7280" },
+  rowOwner:          { fontFamily: "Inter_400Regular", fontSize: 12, color: "#6F6B68" },
   rowDot:            { color: "#D1D5DB", fontSize: 10 },
-  metaTag:           { fontFamily: "Inter_400Regular", fontSize: 12, color: "#374151" },
+  metaTag:           { fontFamily: "Inter_400Regular", fontSize: 12, color: "#1F1F1F" },
   storageRow:        { flexDirection: "row", alignItems: "center", gap: 6 },
-  storageBarBg:      { flex: 1, height: 4, backgroundColor: "#F3F4F6", borderRadius: 2, overflow: "hidden" },
+  storageBarBg:      { flex: 1, height: 4, backgroundColor: "#F6F3F1", borderRadius: 2, overflow: "hidden" },
   storageBarFill:    { height: 4, borderRadius: 2 },
   storagePct:        { fontFamily: "Inter_600SemiBold", fontSize: 11, minWidth: 34, textAlign: "right" },
   rowBottom:         { flexDirection: "row", alignItems: "center", gap: 4 },
   billingBadge:      { fontFamily: "Inter_600SemiBold", fontSize: 11 },
-  loginDate:         { fontFamily: "Inter_400Regular", fontSize: 11, color: "#9CA3AF" },
+  loginDate:         { fontFamily: "Inter_400Regular", fontSize: 11, color: "#9A948F" },
   actions:           { flexDirection: "column", gap: 4, marginLeft: 8 },
   actBtn:            { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7 },
   actTxt:            { fontFamily: "Inter_600SemiBold", fontSize: 11 },
   empty:             { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyTxt:          { fontFamily: "Inter_400Regular", fontSize: 14, color: "#9CA3AF" },
+  emptyTxt:          { fontFamily: "Inter_400Regular", fontSize: 14, color: "#9A948F" },
 });

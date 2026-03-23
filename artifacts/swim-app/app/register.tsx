@@ -144,7 +144,7 @@ export default function RegisterScreen() {
 
             <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
               {error ? (
-                <View style={[styles.errorBox, { backgroundColor: "#FEE2E2" }]}>
+                <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
                   <Feather name="alert-circle" size={14} color={C.error} />
                   <Text style={[styles.errorText, { color: C.error }]}>{error}</Text>
                 </View>
@@ -177,7 +177,7 @@ export default function RegisterScreen() {
 
               {form.phone.trim() ? (
                 <View style={styles.phoneBadge}>
-                  <Feather name="shield" size={13} color="#0891B2" />
+                  <Feather name="shield" size={13} color="#1F8F86" />
                   <Text style={styles.phoneBadgeTxt}>휴대폰 번호 입력 시 SMS 인증 단계가 추가됩니다</Text>
                 </View>
               ) : null}
@@ -208,7 +208,7 @@ export default function RegisterScreen() {
           <>
             <View style={styles.header}>
               <View style={styles.verifyIcon}>
-                <Feather name="smartphone" size={28} color="#0891B2" />
+                <Feather name="smartphone" size={28} color="#1F8F86" />
               </View>
               <Text style={[styles.title, { color: C.text }]}>휴대폰 인증</Text>
               <Text style={[styles.subtitle, { color: C.textSecondary }]}>{form.phone} 로 인증번호를 발송했습니다</Text>
@@ -216,13 +216,13 @@ export default function RegisterScreen() {
 
             <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
               {codeError ? (
-                <View style={[styles.errorBox, { backgroundColor: "#FEE2E2" }]}>
+                <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
                   <Feather name="alert-circle" size={14} color={C.error} />
                   <Text style={[styles.errorText, { color: C.error }]}>{codeError}</Text>
                 </View>
               ) : null}
               {error ? (
-                <View style={[styles.errorBox, { backgroundColor: "#FEE2E2" }]}>
+                <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
                   <Feather name="alert-circle" size={14} color={C.error} />
                   <Text style={[styles.errorText, { color: C.error }]}>{error}</Text>
                 </View>
@@ -232,7 +232,7 @@ export default function RegisterScreen() {
                 <View style={styles.codeLabelRow}>
                   <Text style={[styles.label, { color: C.textSecondary }]}>인증번호 6자리</Text>
                   {timerActive && (
-                    <Text style={[styles.timerTxt, { color: timer < 30 ? "#DC2626" : "#0891B2" }]}>
+                    <Text style={[styles.timerTxt, { color: timer < 30 ? "#D96C6C" : "#1F8F86" }]}>
                       {fmtTimer(timer)}
                     </Text>
                   )}
@@ -268,7 +268,7 @@ export default function RegisterScreen() {
               </View>
 
               <Pressable
-                style={({ pressed }) => [styles.btn, { backgroundColor: "#0891B2", opacity: (verifyCode.length === 6 && !loading) ? (pressed ? 0.85 : 1) : 0.4 }]}
+                style={({ pressed }) => [styles.btn, { backgroundColor: "#1F8F86", opacity: (verifyCode.length === 6 && !loading) ? (pressed ? 0.85 : 1) : 0.4 }]}
                 onPress={handleVerify}
                 disabled={verifyCode.length !== 6 || loading}
               >
@@ -283,7 +283,7 @@ export default function RegisterScreen() {
                 onPress={sendCode}
                 disabled={timerActive || resendCount >= 5}
               >
-                <Feather name="refresh-cw" size={13} color="#0891B2" />
+                <Feather name="refresh-cw" size={13} color="#1F8F86" />
                 <Text style={styles.resendTxt}>
                   {resendCount >= 5 ? "재발송 한도 초과" : "인증번호 재발송"}
                   {resendCount > 0 ? ` (${resendCount}/5)` : ""}
@@ -310,24 +310,24 @@ const styles = StyleSheet.create({
   field:           { gap: 6 },
   codeLabelRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   timerTxt:        { fontSize: 14, fontFamily: "Inter_700Bold" },
-  expiredTxt:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#9CA3AF" },
+  expiredTxt:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#9A948F" },
   label:           { fontSize: 13, fontFamily: "Inter_500Medium" },
   inputBox:        { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 48 },
   inputIcon:       { marginRight: 8 },
   input:           { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
   phoneBadge:      { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#ECFEFF",
                      padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "#BAE6FD" },
-  phoneBadgeTxt:   { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#0891B2" },
+  phoneBadgeTxt:   { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F8F86" },
   mockHint:        { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFFBEB",
                      padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "#FDE68A" },
   mockHintTxt:     { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#D97706" },
-  verifyPolicies:  { backgroundColor: "#F9FAFB", borderRadius: 10, padding: 12, gap: 4,
-                     borderWidth: 1, borderColor: "#E5E7EB" },
-  policyTxt:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  verifyPolicies:  { backgroundColor: "#FBF8F6", borderRadius: 10, padding: 12, gap: 4,
+                     borderWidth: 1, borderColor: "#E9E2DD" },
+  policyTxt:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" },
   btn:             { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 4 },
   btnText:         { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
   resendBtn:       { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
-  resendTxt:       { fontSize: 14, fontFamily: "Inter_500Medium", color: "#0891B2" },
+  resendTxt:       { fontSize: 14, fontFamily: "Inter_500Medium", color: "#1F8F86" },
   footer:          { flexDirection: "row", justifyContent: "center", alignItems: "center" },
   footerText:      { fontSize: 14, fontFamily: "Inter_400Regular" },
   footerLink:      { fontSize: 14, fontFamily: "Inter_600SemiBold" },

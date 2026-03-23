@@ -31,14 +31,14 @@ const C = Colors.light;
 
 const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "all",          label: "전체",   icon: "list" },
-  { key: "normal",       label: "정상",   icon: "check-circle",  activeColor: "#059669", activeBg: "#D1FAE5" },
-  { key: "unassigned",   label: "미배정", icon: "alert-circle",  activeColor: "#DC2626", activeBg: "#FEE2E2" },
+  { key: "normal",       label: "정상",   icon: "check-circle",  activeColor: "#1F8F86", activeBg: "#DDF2EF" },
+  { key: "unassigned",   label: "미배정", icon: "alert-circle",  activeColor: "#D96C6C", activeBg: "#F9DEDA" },
   { key: "weekly_1",     label: "주1회",  icon: "sun",           activeColor: WEEKLY_BADGE[1].color, activeBg: WEEKLY_BADGE[1].bg },
   { key: "weekly_2",     label: "주2회",  icon: "wind",          activeColor: WEEKLY_BADGE[2].color, activeBg: WEEKLY_BADGE[2].bg },
   { key: "weekly_3",     label: "주3회",  icon: "zap",           activeColor: WEEKLY_BADGE[3].color, activeBg: WEEKLY_BADGE[3].bg },
-  { key: "unlinked",     label: "미연결", icon: "user-x",        activeColor: "#EA580C", activeBg: "#FFF7ED" },
-  { key: "suspended",    label: "휴원",   icon: "pause-circle",  activeColor: "#B45309", activeBg: "#FEF3C7" },
-  { key: "withdrawn",    label: "퇴원",   icon: "log-out",       activeColor: "#6B7280", activeBg: "#F3F4F6" },
+  { key: "unlinked",     label: "미연결", icon: "user-x",        activeColor: "#EA580C", activeBg: "#FFF1BF" },
+  { key: "suspended",    label: "휴원",   icon: "pause-circle",  activeColor: "#B45309", activeBg: "#FFF1BF" },
+  { key: "withdrawn",    label: "퇴원",   icon: "log-out",       activeColor: "#6F6B68", activeBg: "#F6F3F1" },
 ];
 
 // ── 초대문구 보기 모달 ───────────────────────────────────────────
@@ -113,11 +113,11 @@ function InviteModal({ student, poolName, onClose }: { student: StudentMember; p
               <Feather name="copy" size={14} color={C.tint} />
               <Text style={[inv.btnText, { color: C.tint }]}>복사하기</Text>
             </Pressable>
-            <Pressable style={[inv.btn, { backgroundColor: "#D1FAE5" }]} onPress={async () => {
+            <Pressable style={[inv.btn, { backgroundColor: "#DDF2EF" }]} onPress={async () => {
               await Share.share({ message: msg });
             }}>
-              <Feather name="share-2" size={14} color="#059669" />
-              <Text style={[inv.btnText, { color: "#059669" }]}>공유하기</Text>
+              <Feather name="share-2" size={14} color="#1F8F86" />
+              <Text style={[inv.btnText, { color: "#1F8F86" }]}>공유하기</Text>
             </Pressable>
           </View>
         </View>
@@ -175,7 +175,7 @@ function DuplicateModal({
             ))}
           </View>
           <View style={dup.btnRow}>
-            <Pressable style={[dup.btn, { backgroundColor: "#FEF3C7" }]} onPress={onForceCreate}>
+            <Pressable style={[dup.btn, { backgroundColor: "#FFF1BF" }]} onPress={onForceCreate}>
               <Text style={[dup.btnText, { color: "#92400E" }]}>새 회원으로 등록</Text>
             </Pressable>
             <Pressable style={[dup.btn, { backgroundColor: C.background, borderWidth: 1, borderColor: C.border }]} onPress={onCancel}>
@@ -190,7 +190,7 @@ function DuplicateModal({
 const dup = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 },
   sheet: { backgroundColor: C.card, borderRadius: 20, padding: 24, gap: 14, alignItems: "center" },
-  icon: { width: 60, height: 60, borderRadius: 20, backgroundColor: "#FEF3C7", alignItems: "center", justifyContent: "center" },
+  icon: { width: 60, height: 60, borderRadius: 20, backgroundColor: "#FFF1BF", alignItems: "center", justifyContent: "center" },
   title: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
   sub: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center" },
   list: { width: "100%", gap: 8 },
@@ -348,10 +348,10 @@ function RegisterModal({
 const reg = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 14 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
-  errorRow: { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#FEE2E2", padding: 10, borderRadius: 10 },
+  errorRow: { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#F9DEDA", padding: 10, borderRadius: 10 },
   errorText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.error },
   field: { gap: 6, marginBottom: 12 },
   label: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
@@ -485,7 +485,7 @@ export default function MembersScreen() {
               <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
             </Pressable>
             <Pressable
-              style={[ms.actionBtn, { backgroundColor: "#6B7280" }]}
+              style={[ms.actionBtn, { backgroundColor: "#6F6B68" }]}
               onPress={() => router.push("/(admin)/approvals" as any)}
             >
               <Feather name="check-circle" size={14} color="#fff" />
@@ -575,7 +575,7 @@ export default function MembersScreen() {
                     label: "삭제",
                     icon: "trash-2",
                     color: C.error,
-                    bg: "#FEE2E2",
+                    bg: "#F9DEDA",
                     onPress: () => handleDelete(item.id, item.name),
                     loading: deletingId === item.id,
                   },
@@ -669,7 +669,7 @@ const ms = StyleSheet.create({
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 16, marginBottom: 4 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
   list: { paddingTop: 10 },
-  suspendedBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FEF3C7", borderRadius: 12, padding: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#FDE68A" },
+  suspendedBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 12, padding: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#FDE68A" },
   suspendedBannerTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#92400E", marginBottom: 3 },
   suspendedBannerBody: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
 });

@@ -370,9 +370,9 @@ export default function TeacherAttendanceScreen() {
         />
         <View style={s.subHeader}>
           <View style={{ flex: 1 }} />
-          <Pressable style={[s.allPresentBtn, { backgroundColor: "#D1FAE5" }]} onPress={markAll}>
-            <Feather name="check-circle" size={14} color="#059669" />
-            <Text style={[s.allPresentText, { color: "#059669" }]}>모두출석</Text>
+          <Pressable style={[s.allPresentBtn, { backgroundColor: "#DDF2EF" }]} onPress={markAll}>
+            <Feather name="check-circle" size={14} color="#1F8F86" />
+            <Text style={[s.allPresentText, { color: "#1F8F86" }]}>모두출석</Text>
           </Pressable>
           <Pressable
             style={[s.applyBtn, { backgroundColor: themeColor, opacity: saving ? 0.6 : 1 }]}
@@ -393,8 +393,8 @@ export default function TeacherAttendanceScreen() {
         </View>
 
         {saveMsg ? (
-          <View style={[s.saveMsg, { backgroundColor: saveMsg.includes("저장") ? "#D1FAE5" : "#FEF3C7" }]}>
-            <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: saveMsg.includes("저장") ? "#059669" : "#92400E" }}>{saveMsg}</Text>
+          <View style={[s.saveMsg, { backgroundColor: saveMsg.includes("저장") ? "#DDF2EF" : "#FFF1BF" }]}>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: saveMsg.includes("저장") ? "#1F8F86" : "#92400E" }}>{saveMsg}</Text>
           </View>
         ) : null}
 
@@ -414,10 +414,10 @@ export default function TeacherAttendanceScreen() {
             return (
               <View style={[s.attRow, { backgroundColor: C.card }]}>
                 <View style={[s.attAvatar, {
-                  backgroundColor: cur === "present" ? "#D1FAE5" : cur === "absent" ? "#FEE2E2" : themeColor + "15"
+                  backgroundColor: cur === "present" ? "#DDF2EF" : cur === "absent" ? "#F9DEDA" : themeColor + "15"
                 }]}>
                   <Text style={[s.attAvatarText, {
-                    color: cur === "present" ? "#059669" : cur === "absent" ? "#DC2626" : themeColor
+                    color: cur === "present" ? "#1F8F86" : cur === "absent" ? "#D96C6C" : themeColor
                   }]}>{item.name[0]}</Text>
                 </View>
                 <Pressable style={{ flex: 1 }} onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id } } as any)}>
@@ -425,16 +425,16 @@ export default function TeacherAttendanceScreen() {
                 </Pressable>
                 <View style={s.attBtns}>
                   <Pressable
-                    style={[s.attBtn, { backgroundColor: cur === "present" ? "#059669" : "#F3F4F6", borderColor: cur === "present" ? "#059669" : "#E5E7EB" }]}
+                    style={[s.attBtn, { backgroundColor: cur === "present" ? "#1F8F86" : "#F6F3F1", borderColor: cur === "present" ? "#1F8F86" : "#E9E2DD" }]}
                     onPress={() => saveOne(item.id, "present")}
                   >
-                    <Text style={[s.attBtnText, { color: cur === "present" ? "#fff" : "#374151" }]}>출석</Text>
+                    <Text style={[s.attBtnText, { color: cur === "present" ? "#fff" : "#1F1F1F" }]}>출석</Text>
                   </Pressable>
                   <Pressable
-                    style={[s.attBtn, { backgroundColor: cur === "absent" ? "#DC2626" : "#F3F4F6", borderColor: cur === "absent" ? "#DC2626" : "#E5E7EB" }]}
+                    style={[s.attBtn, { backgroundColor: cur === "absent" ? "#D96C6C" : "#F6F3F1", borderColor: cur === "absent" ? "#D96C6C" : "#E9E2DD" }]}
                     onPress={() => saveOne(item.id, "absent")}
                   >
-                    <Text style={[s.attBtnText, { color: cur === "absent" ? "#fff" : "#374151" }]}>결석</Text>
+                    <Text style={[s.attBtnText, { color: cur === "absent" ? "#fff" : "#1F1F1F" }]}>결석</Text>
                   </Pressable>
                 </View>
               </View>
@@ -514,7 +514,7 @@ export default function TeacherAttendanceScreen() {
               refreshControl={<RefreshControl refreshing={makeupRefresh} onRefresh={() => { setMakeupRefresh(true); loadMakeups(); }} />}
               ListEmptyComponent={
                 <View style={s.emptyBox}>
-                  <Feather name="check-circle" size={40} color="#D1FAE5" />
+                  <Feather name="check-circle" size={40} color="#DDF2EF" />
                   <Text style={[s.emptyText, { marginTop: 8 }]}>보강 대기 중인 학생이 없습니다</Text>
                 </View>
               }
@@ -524,9 +524,9 @@ export default function TeacherAttendanceScreen() {
                 return (
                   <View style={[s.mkCard, { backgroundColor: C.card }]}>
                     <View style={{ flex: 1 }}>
-                      <Text style={[s.mkName, { color: isOld ? "#DC2626" : C.text }]}>
+                      <Text style={[s.mkName, { color: isOld ? "#D96C6C" : C.text }]}>
                         {mk.student_name}
-                        {isOld && <Text style={{ fontSize: 11, color: "#DC2626" }}>  ({diff}일 경과)</Text>}
+                        {isOld && <Text style={{ fontSize: 11, color: "#D96C6C" }}>  ({diff}일 경과)</Text>}
                       </Text>
                       <Text style={s.mkSub}>{mk.original_class_group_name}</Text>
                       <Text style={s.mkSub}>결석일: {mk.absence_date}{mk.absence_time ? ` ${mk.absence_time}` : ""}</Text>
@@ -539,10 +539,10 @@ export default function TeacherAttendanceScreen() {
                         <Text style={s.mkActionBtnText}>보강 지정</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[s.mkActionBtn, { backgroundColor: "#F3F4F6" }]}
+                        style={[s.mkActionBtn, { backgroundColor: "#F6F3F1" }]}
                         onPress={() => openExtinguish(mk)}
                       >
-                        <Text style={[s.mkActionBtnText, { color: "#6B7280" }]}>소멸</Text>
+                        <Text style={[s.mkActionBtnText, { color: "#6F6B68" }]}>소멸</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -595,8 +595,8 @@ export default function TeacherAttendanceScreen() {
                         </View>
                         <Text style={s.eligSub}>{ec.schedule_days} {ec.schedule_time} · {ec.instructor}</Text>
                       </View>
-                      <View style={[s.slotBadge, { backgroundColor: ec.available_slots > 0 ? "#D1FAE5" : "#FEE2E2" }]}>
-                        <Text style={[s.slotText, { color: ec.available_slots > 0 ? "#059669" : "#DC2626" }]}>
+                      <View style={[s.slotBadge, { backgroundColor: ec.available_slots > 0 ? "#DDF2EF" : "#F9DEDA" }]}>
+                        <Text style={[s.slotText, { color: ec.available_slots > 0 ? "#1F8F86" : "#D96C6C" }]}>
                           {ec.current_members}/{ec.capacity}
                         </Text>
                       </View>
@@ -644,10 +644,10 @@ export default function TeacherAttendanceScreen() {
             {(["보강원하지않음", "무단결석", "기타"] as const).map(r => (
               <TouchableOpacity
                 key={r}
-                style={[s.reasonRow, extReason === r && { backgroundColor: "#FEF3C7" }]}
+                style={[s.reasonRow, extReason === r && { backgroundColor: "#FFF1BF" }]}
                 onPress={() => setExtReason(r)}
               >
-                <View style={[s.radioCircle, extReason === r && { borderColor: "#F59E0B", backgroundColor: "#F59E0B" }]} />
+                <View style={[s.radioCircle, extReason === r && { borderColor: "#E4A93A", backgroundColor: "#E4A93A" }]} />
                 <Text style={[s.reasonText, { color: C.text }]}>{r}</Text>
               </TouchableOpacity>
             ))}
@@ -664,7 +664,7 @@ export default function TeacherAttendanceScreen() {
             {extError ? <Text style={s.errText}>{extError}</Text> : null}
 
             <Pressable
-              style={[s.confirmBtn, { backgroundColor: "#EF4444", opacity: extLoading ? 0.7 : 1, marginTop: 16 }]}
+              style={[s.confirmBtn, { backgroundColor: "#D96C6C", opacity: extLoading ? 0.7 : 1, marginTop: 16 }]}
               onPress={confirmExtinguish}
               disabled={extLoading}
             >
@@ -681,20 +681,20 @@ export default function TeacherAttendanceScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#F3F4F6" },
+  safe:        { flex: 1, backgroundColor: "#F6F3F1" },
 
-  subTabBar:   { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  subTabBar:   { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
   subTabBtn:   { flex: 1, alignItems: "center", paddingVertical: 12 },
   subTabLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
   titleRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
-  title:       { fontSize: 20, fontFamily: "Inter_700Bold", color: "#111827" },
-  dateBadge:   { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  title:       { fontSize: 20, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  dateBadge:   { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68" },
 
-  subHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  backBtn:     { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
-  subTitle:    { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
-  subSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
+  subHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  backBtn:     { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
+  subTitle:    { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  subSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
 
   allPresentBtn:  { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
   allPresentText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
@@ -703,56 +703,56 @@ const s = StyleSheet.create({
 
   attSummary:         { flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
   attSummaryText:     { flex: 1, fontSize: 13, fontFamily: "Inter_700Bold" },
-  attSummaryPresent:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#059669" },
-  attSummaryAbsent:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#DC2626" },
-  attSummaryUnchecked:{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
+  attSummaryPresent:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F8F86" },
+  attSummaryAbsent:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#D96C6C" },
+  attSummaryUnchecked:{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#9A948F" },
 
   saveMsg:     { marginHorizontal: 12, marginTop: 6, padding: 10, borderRadius: 10, alignItems: "center" },
   studentList: { padding: 12, gap: 8, paddingBottom: 100 },
   attRow:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14 },
   attAvatar:   { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   attAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  attName:     { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  attName:     { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   attBtns:     { flexDirection: "row", gap: 6 },
   attBtn:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
   attBtnText:  { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
   emptyBox:    { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyText:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyText:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
 
-  footer:      { padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  footer:      { padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E9E2DD" },
   doneBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 50, borderRadius: 14 },
   doneBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
 
   mkCard:      { borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
   mkName:      { fontSize: 15, fontFamily: "Inter_700Bold" },
-  mkSub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  mkSub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
   mkActionBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, alignItems: "center" },
   mkActionBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
   modalOverlay:{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   modalBox:    { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  modalTitle:  { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
-  modalSub:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  modalTitle:  { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  modalSub:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68" },
 
-  sectionLabel:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280", marginBottom: 6 },
-  eligRow:     { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: "#E5E7EB", marginBottom: 8 },
+  sectionLabel:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68", marginBottom: 6 },
+  eligRow:     { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: "#E9E2DD", marginBottom: 8 },
   eligName:    { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  eligSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  eligSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
   slotBadge:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   slotText:    { fontSize: 13, fontFamily: "Inter_700Bold" },
-  sameTeacherBadge: { backgroundColor: "#EFF6FF", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  sameTeacherText:  { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#3B82F6" },
+  sameTeacherBadge: { backgroundColor: "#DDF2EF", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  sameTeacherText:  { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#4EA7D8" },
 
-  warnBox:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEF3C7", padding: 10, borderRadius: 10 },
+  warnBox:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF1BF", padding: 10, borderRadius: 10 },
   warnText:    { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#92400E" },
   reasonRow:   { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, marginBottom: 6 },
   radioCircle: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#D1D5DB" },
   reasonText:  { fontSize: 14, fontFamily: "Inter_500Medium" },
   customInput: { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 4, minHeight: 44 },
 
-  errText:     { color: "#EF4444", fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 6 },
+  errText:     { color: "#D96C6C", fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 6 },
   confirmBtn:  { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   confirmBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
 });

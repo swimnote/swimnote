@@ -17,8 +17,8 @@ const MENUS = [
     title: "운영 로그·감사",
     sub: "결제·삭제·승인·보안 이벤트 전체 로그",
     path: "/(super)/op-logs",
-    color: "#4F46E5",
-    bg: "#EEF2FF",
+    color: "#1F8F86",
+    bg: "#DDF2EF",
   },
   {
     icon: "shield" as const,
@@ -33,15 +33,15 @@ const MENUS = [
     title: "보안 이벤트 로그",
     sub: "로그인 실패·IP 차단·권한 이상 탐지",
     path: "/(super)/op-logs",
-    color: "#DC2626",
-    bg: "#FEE2E2",
+    color: "#D96C6C",
+    bg: "#F9DEDA",
   },
   {
     icon: "eye" as const,
     title: "민감 작업 로그",
     sub: "킬스위치·권한변경·플랜변경·강제해지 기록",
     path: "/(super)/op-logs",
-    color: "#0891B2",
+    color: "#1F8F86",
     bg: "#ECFEFF",
   },
 ];
@@ -73,15 +73,15 @@ export default function AuditGroupScreen() {
             <Text style={s.summaryLabel}>오늘 로그</Text>
           </View>
           <View style={[s.summaryCard, criticalLogs > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, criticalLogs > 0 && { color: "#DC2626" }]}>{criticalLogs}</Text>
+            <Text style={[s.summaryNum, criticalLogs > 0 && { color: "#D96C6C" }]}>{criticalLogs}</Text>
             <Text style={s.summaryLabel}>심각 이벤트</Text>
           </View>
           <View style={[s.summaryCard, riskSummary.securityEvents > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, riskSummary.securityEvents > 0 && { color: "#DC2626" }]}>{riskSummary.securityEvents}</Text>
+            <Text style={[s.summaryNum, riskSummary.securityEvents > 0 && { color: "#D96C6C" }]}>{riskSummary.securityEvents}</Text>
             <Text style={s.summaryLabel}>보안 이벤트</Text>
           </View>
           <View style={[s.summaryCard, smsFailLogs > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, smsFailLogs > 0 && { color: "#DC2626" }]}>{smsFailLogs}</Text>
+            <Text style={[s.summaryNum, smsFailLogs > 0 && { color: "#D96C6C" }]}>{smsFailLogs}</Text>
             <Text style={s.summaryLabel}>SMS 실패</Text>
           </View>
         </View>
@@ -90,7 +90,7 @@ export default function AuditGroupScreen() {
         {allLogs.slice(0, 3).map(log => (
           <View key={log.id} style={s.logRow}>
             <View style={[s.catBadge, log.impact === 'critical' && s.catBadgeCritical]}>
-              <Text style={[s.catTxt, log.impact === 'critical' && { color: "#DC2626" }]}>{log.category}</Text>
+              <Text style={[s.catTxt, log.impact === 'critical' && { color: "#D96C6C" }]}>{log.category}</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.logTitle} numberOfLines={1}>{log.title}</Text>
@@ -123,26 +123,26 @@ export default function AuditGroupScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:            { flex: 1, backgroundColor: "#F5F3FF" },
+  safe:            { flex: 1, backgroundColor: "#EEDDF5" },
   summaryRow:      { flexDirection: "row", gap: 6, marginBottom: 6 },
   summaryCard:     { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 10,
-                     alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB" },
+                     alignItems: "center", borderWidth: 1, borderColor: "#E9E2DD" },
   summaryAlertRed: { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
-  summaryNum:      { fontSize: 20, fontFamily: "Inter_700Bold", color: "#111827" },
-  summaryLabel:    { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2, textAlign: "center" },
+  summaryNum:      { fontSize: 20, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  summaryLabel:    { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2, textAlign: "center" },
   logRow:          { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff",
-                     borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E5E7EB" },
-  catBadge:        { backgroundColor: "#EEF2FF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
-  catBadgeCritical:{ backgroundColor: "#FEE2E2" },
-  catTxt:          { fontSize: 10, fontFamily: "Inter_700Bold", color: "#4F46E5" },
-  logTitle:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  logMeta:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+                     borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E9E2DD" },
+  catBadge:        { backgroundColor: "#DDF2EF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
+  catBadgeCritical:{ backgroundColor: "#F9DEDA" },
+  catTxt:          { fontSize: 10, fontFamily: "Inter_700Bold", color: "#1F8F86" },
+  logTitle:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  logMeta:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
   viewAllBtn:      { alignItems: "center", paddingVertical: 10 },
-  viewAllTxt:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#4F46E5" },
-  divider:         { height: 1, backgroundColor: "#E5E7EB", marginVertical: 4 },
+  viewAllTxt:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
+  divider:         { height: 1, backgroundColor: "#E9E2DD", marginVertical: 4 },
   card:            { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
-                     borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
+                     borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E9E2DD" },
   iconBox:         { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cardTitle:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
-  cardSub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 3, lineHeight: 17 },
+  cardTitle:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  cardSub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 3, lineHeight: 17 },
 });

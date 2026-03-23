@@ -27,9 +27,9 @@ interface Props {
 }
 
 const OPTIONS = [
-  { key: "active" as ActionStatus,    label: "정상",  sub: "active 상태로 복귀 (반 배정 유지)",    color: "#059669", bg: "#D1FAE5", emoji: "✅", hasTiming: false },
-  { key: "unassigned" as ActionStatus, label: "미배정", sub: "반 배정 해제, 미배정 대기 상태",      color: "#DC2626", bg: "#FEE2E2", emoji: "📋", hasTiming: false },
-  { key: "suspended" as ActionStatus,  label: "연기",  sub: "휴원 처리, 이동 시점 선택 가능",       color: "#B45309", bg: "#FEF3C7", emoji: "⏸️", hasTiming: true  },
+  { key: "active" as ActionStatus,    label: "정상",  sub: "active 상태로 복귀 (반 배정 유지)",    color: "#1F8F86", bg: "#DDF2EF", emoji: "✅", hasTiming: false },
+  { key: "unassigned" as ActionStatus, label: "미배정", sub: "반 배정 해제, 미배정 대기 상태",      color: "#D96C6C", bg: "#F9DEDA", emoji: "📋", hasTiming: false },
+  { key: "suspended" as ActionStatus,  label: "연기",  sub: "휴원 처리, 이동 시점 선택 가능",       color: "#B45309", bg: "#FFF1BF", emoji: "⏸️", hasTiming: true  },
   { key: "withdrawn" as ActionStatus,  label: "퇴원",  sub: "수강 종료, 이동 시점 선택 가능",       color: "#991B1B", bg: "#FEF2F2", emoji: "🚪", hasTiming: true  },
 ];
 
@@ -106,18 +106,18 @@ export function MemberStatusChangeModal({
             {/* 현재 상태 + 예약 배지 */}
             <View style={{ flexDirection: "row", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
               {currentStatus === "active" && (
-                <View style={[m.badge, { backgroundColor: "#D1FAE5" }]}>
-                  <Text style={[m.badgeText, { color: "#059669" }]}>현재: 정상</Text>
+                <View style={[m.badge, { backgroundColor: "#DDF2EF" }]}>
+                  <Text style={[m.badgeText, { color: "#1F8F86" }]}>현재: 정상</Text>
                 </View>
               )}
               {currentStatus === "suspended" && (
-                <View style={[m.badge, { backgroundColor: "#FEF3C7" }]}>
+                <View style={[m.badge, { backgroundColor: "#FFF1BF" }]}>
                   <Text style={[m.badgeText, { color: "#B45309" }]}>현재: 휴원</Text>
                 </View>
               )}
               {currentStatus === "withdrawn" && (
-                <View style={[m.badge, { backgroundColor: "#F3F4F6" }]}>
-                  <Text style={[m.badgeText, { color: "#6B7280" }]}>현재: 퇴원</Text>
+                <View style={[m.badge, { backgroundColor: "#F6F3F1" }]}>
+                  <Text style={[m.badgeText, { color: "#6F6B68" }]}>현재: 퇴원</Text>
                 </View>
               )}
               {pendingStatusChange === "suspended" && pendingEffectiveMode === "next_month" && (
@@ -127,14 +127,14 @@ export function MemberStatusChangeModal({
               )}
               {pendingStatusChange === "withdrawn" && pendingEffectiveMode === "next_month" && (
                 <View style={[m.badge, { backgroundColor: "#FFF1F2" }]}>
-                  <Text style={[m.badgeText, { color: "#DC2626" }]}>퇴원예정</Text>
+                  <Text style={[m.badgeText, { color: "#D96C6C" }]}>퇴원예정</Text>
                 </View>
               )}
             </View>
 
             {error && (
               <View style={m.errorBox}>
-                <Feather name="alert-circle" size={14} color="#DC2626" />
+                <Feather name="alert-circle" size={14} color="#D96C6C" />
                 <Text style={m.errorText}>{error}</Text>
               </View>
             )}
@@ -169,7 +169,7 @@ export function MemberStatusChangeModal({
 
             {error && (
               <View style={m.errorBox}>
-                <Feather name="alert-circle" size={14} color="#DC2626" />
+                <Feather name="alert-circle" size={14} color="#D96C6C" />
                 <Text style={m.errorText}>{error}</Text>
               </View>
             )}
@@ -179,7 +179,7 @@ export function MemberStatusChangeModal({
               <Pressable
                 onPress={() => doChange(pickedStatus!, "immediate")}
                 style={[m.option, { backgroundColor: "#FEF2F2", borderColor: "#991B1B40" }]}>
-                <View style={[m.optIcon, { backgroundColor: "#FEE2E2" }]}>
+                <View style={[m.optIcon, { backgroundColor: "#F9DEDA" }]}>
                   <Feather name="zap" size={20} color="#991B1B" />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -191,7 +191,7 @@ export function MemberStatusChangeModal({
               {/* 다음 달 이동 */}
               <Pressable
                 onPress={() => doChange(pickedStatus!, "next_month")}
-                style={[m.option, { backgroundColor: "#F0FDF4", borderColor: "#16A34A40" }]}>
+                style={[m.option, { backgroundColor: "#DFF3EC", borderColor: "#16A34A40" }]}>
                 <View style={[m.optIcon, { backgroundColor: "#DCFCE7" }]}>
                   <Feather name="calendar" size={20} color="#16A34A" />
                 </View>
@@ -221,8 +221,8 @@ const m = StyleSheet.create({
   sub:        { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center", marginBottom: 16 },
   badge:      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeText:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  errorBox:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEE2E2", borderRadius: 10, padding: 10, marginBottom: 12 },
-  errorText:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "#DC2626", flex: 1 },
+  errorBox:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9DEDA", borderRadius: 10, padding: 10, marginBottom: 12 },
+  errorText:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C", flex: 1 },
   option:     { flexDirection: "row", alignItems: "center", gap: 14, borderRadius: 14, padding: 14, borderWidth: 1.5 },
   optIcon:    { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   optLabel:   { fontSize: 15, fontFamily: "Inter_700Bold" },

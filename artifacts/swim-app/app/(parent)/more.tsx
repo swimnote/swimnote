@@ -33,11 +33,11 @@ function MenuItem({
       style={({ pressed }) => [s.menuItem, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
       onPress={onPress}
     >
-      <View style={[s.menuIcon, { backgroundColor: danger ? "#FEE2E2" : C.tintLight }]}>
-        <Feather name={icon} size={18} color={danger ? "#DC2626" : C.tint} />
+      <View style={[s.menuIcon, { backgroundColor: danger ? "#F9DEDA" : C.tintLight }]}>
+        <Feather name={icon} size={18} color={danger ? "#D96C6C" : C.tint} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={[s.menuLabel, { color: danger ? "#DC2626" : C.text }]}>{label}</Text>
+        <Text style={[s.menuLabel, { color: danger ? "#D96C6C" : C.text }]}>{label}</Text>
         {sub ? <Text style={[s.menuSub, { color: C.textMuted }]}>{sub}</Text> : null}
       </View>
       {!danger && <Feather name="chevron-right" size={16} color={C.textMuted} />}

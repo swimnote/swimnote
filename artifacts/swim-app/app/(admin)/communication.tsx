@@ -116,7 +116,7 @@ export default function CommunicationScreen() {
           tab === "공지사항" ? (
             <Pressable
               onPress={() => setShowCreate(true)}
-              style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#F3F4F6" }}
+              style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#F6F3F1" }}
             >
               <Feather name="plus" size={20} color={themeColor} />
             </Pressable>
@@ -161,7 +161,7 @@ export default function CommunicationScreen() {
                     {item.content ? <Text style={s.sub2} numberOfLines={2}>{item.content}</Text> : null}
                   </View>
                   <Pressable onPress={() => deleteNotice(item.id)} style={{ padding: 6 }}>
-                    <Feather name="trash-2" size={16} color="#DC2626" />
+                    <Feather name="trash-2" size={16} color="#D96C6C" />
                   </Pressable>
                 </View>
               </View>
@@ -175,8 +175,8 @@ export default function CommunicationScreen() {
                   <Pressable style={[s.actBtn, { backgroundColor: themeColor }]} onPress={() => handleApprove(item.id, "approve")}>
                     <Text style={s.actBtnTxt}>승인</Text>
                   </Pressable>
-                  <Pressable style={[s.actBtn, { backgroundColor: "#FEE2E2" }]} onPress={() => handleApprove(item.id, "reject")}>
-                    <Text style={[s.actBtnTxt, { color: "#DC2626" }]}>거절</Text>
+                  <Pressable style={[s.actBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => handleApprove(item.id, "reject")}>
+                    <Text style={[s.actBtnTxt, { color: "#D96C6C" }]}>거절</Text>
                   </Pressable>
                 </View>
               </View>
@@ -190,7 +190,7 @@ export default function CommunicationScreen() {
                     {item.common_content && <Text style={s.sub2} numberOfLines={2}>{item.common_content}</Text>}
                   </View>
                   {item.is_edited && (
-                    <View style={[s.badge, { backgroundColor: "#FEF3C7" }]}>
+                    <View style={[s.badge, { backgroundColor: "#FFF1BF" }]}>
                       <Text style={[s.badgeTxt, { color: "#D97706" }]}>수정됨</Text>
                     </View>
                   )}
@@ -237,11 +237,11 @@ export default function CommunicationScreen() {
             <Text style={{ fontSize: 17, fontWeight: "700", color: C.text, textAlign: "center" }}>공지 삭제</Text>
             <Text style={{ color: C.textSecondary, textAlign: "center", fontSize: 14 }}>삭제된 공지는 복구할 수 없습니다.{"\n"}삭제하시겠습니까?</Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center" }}
+              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F6F3F1", alignItems: "center" }}
                 onPress={() => setDeleteTarget(null)}>
                 <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
               </Pressable>
-              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#DC2626", alignItems: "center" }}
+              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#D96C6C", alignItems: "center" }}
                 onPress={confirmDelete}>
                 <Text style={{ fontWeight: "700", color: "#fff" }}>삭제</Text>
               </Pressable>
@@ -261,11 +261,11 @@ export default function CommunicationScreen() {
               {approveTarget?.action === "approve" ? "이 요청을 승인하시겠습니까?" : "이 요청을 거절하시겠습니까?"}
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center" }}
+              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F6F3F1", alignItems: "center" }}
                 onPress={() => setApproveTarget(null)}>
                 <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
               </Pressable>
-              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: approveTarget?.action === "reject" ? "#DC2626" : C.tint, alignItems: "center" }}
+              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: approveTarget?.action === "reject" ? "#D96C6C" : C.tint, alignItems: "center" }}
                 onPress={confirmApprove}>
                 <Text style={{ fontWeight: "700", color: "#fff" }}>
                   {approveTarget?.action === "approve" ? "승인" : "거절"}

@@ -41,10 +41,10 @@ const STATUS_LABEL: Record<string, string> = {
   completed: "완료",
 };
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
-  pending:   { bg: "#FEF3C7", text: "#D97706" },
-  approved:  { bg: "#D1FAE5", text: "#059669" },
-  rejected:  { bg: "#FEE2E2", text: "#DC2626" },
-  completed: { bg: "#EDE9FE", text: "#7C3AED" },
+  pending:   { bg: "#FFF1BF", text: "#D97706" },
+  approved:  { bg: "#DDF2EF", text: "#1F8F86" },
+  rejected:  { bg: "#F9DEDA", text: "#D96C6C" },
+  completed: { bg: "#EEDDF5", text: "#7C3AED" },
 };
 
 function fmtDate(s: string) {
@@ -151,8 +151,8 @@ export default function MakeupsScreen() {
         ) : null}
         {item.makeup_date ? (
           <View style={s.infoRow}>
-            <Feather name="check-circle" size={13} color="#059669" />
-            <Text style={[s.infoTxt, { color: "#059669" }]}>
+            <Feather name="check-circle" size={13} color="#1F8F86" />
+            <Text style={[s.infoTxt, { color: "#1F8F86" }]}>
               보강일: {fmtDate(item.makeup_date)}
               {item.makeup_class_name ? ` · ${item.makeup_class_name}` : ""}
             </Text>
@@ -162,13 +162,13 @@ export default function MakeupsScreen() {
         {isPending && (
           <>
             <View style={s.btnRow}>
-              <Pressable style={[s.actionBtn, { backgroundColor: "#D1FAE5" }]} onPress={() => handleApprove(item.id)}>
-                <Feather name="check" size={14} color="#059669" />
-                <Text style={[s.actionTxt, { color: "#059669" }]}>승인</Text>
+              <Pressable style={[s.actionBtn, { backgroundColor: "#DDF2EF" }]} onPress={() => handleApprove(item.id)}>
+                <Feather name="check" size={14} color="#1F8F86" />
+                <Text style={[s.actionTxt, { color: "#1F8F86" }]}>승인</Text>
               </Pressable>
-              <Pressable style={[s.actionBtn, { backgroundColor: "#FEE2E2" }]} onPress={() => handleReject(item.id)}>
-                <Feather name="x" size={14} color="#DC2626" />
-                <Text style={[s.actionTxt, { color: "#DC2626" }]}>거절</Text>
+              <Pressable style={[s.actionBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => handleReject(item.id)}>
+                <Feather name="x" size={14} color="#D96C6C" />
+                <Text style={[s.actionTxt, { color: "#D96C6C" }]}>거절</Text>
               </Pressable>
             </View>
             <Pressable style={[s.assignBtn, { borderColor: themeColor }]} onPress={handleAssign}>
@@ -261,11 +261,11 @@ export default function MakeupsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#F3F4F6" },
+  safe:        { flex: 1, backgroundColor: "#F6F3F1" },
   tabRow:      { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   tabBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
   tabTxt:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  tabBadge:    { width: 16, height: 16, borderRadius: 8, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
+  tabBadge:    { width: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },
   tabBadgeTxt: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" },
   list:        { padding: 14, gap: 10 },
   groupLabel:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 6, marginTop: 4 },

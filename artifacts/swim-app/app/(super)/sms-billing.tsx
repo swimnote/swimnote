@@ -17,14 +17,14 @@ import { useOperatorsStore } from "@/store/operatorsStore";
 
 const P = "#7C3AED";
 const WARN = "#D97706";
-const DANGER = "#DC2626";
-const GREEN = "#059669";
+const DANGER = "#D96C6C";
+const GREEN = "#1F8F86";
 
 const SMS_TYPE_COLORS = {
-  invite:  { label: "초대",  color: "#0891B2", bg: "#ECFEFF" },
-  auth:    { label: "인증",  color: P,         bg: "#EDE9FE" },
-  notice:  { label: "안내",  color: GREEN,     bg: "#D1FAE5" },
-  warning: { label: "경고",  color: DANGER,    bg: "#FEE2E2" },
+  invite:  { label: "초대",  color: "#1F8F86", bg: "#ECFEFF" },
+  auth:    { label: "인증",  color: P,         bg: "#EEDDF5" },
+  notice:  { label: "안내",  color: GREEN,     bg: "#DDF2EF" },
+  warning: { label: "경고",  color: DANGER,    bg: "#F9DEDA" },
 };
 
 type SortKey = "balance" | "purchased" | "used" | "name";
@@ -108,11 +108,11 @@ export default function SmsBillingScreen() {
         <View style={s.summaryGrid}>
           {[
             { num: totalPurchased.toLocaleString() + "건", label: "총 크레딧 판매", color: P },
-            { num: `₩${totalSales.toLocaleString()}`,      label: "총 판매 금액",   color: "#0891B2" },
+            { num: `₩${totalSales.toLocaleString()}`,      label: "총 판매 금액",   color: "#1F8F86" },
             { num: totalFreeUsed.toLocaleString() + "건",  label: "무료 제공 사용", color: GREEN },
             { num: totalPaidUsed.toLocaleString() + "건",  label: "유료 크레딧 사용", color: WARN },
-            { num: totalBalance.toLocaleString() + "건",   label: "전체 잔여 크레딧", color: "#6B7280" },
-            { num: String(blockedCount),                    label: "차단 운영자",    color: blockedCount > 0 ? DANGER : "#6B7280" },
+            { num: totalBalance.toLocaleString() + "건",   label: "전체 잔여 크레딧", color: "#6F6B68" },
+            { num: String(blockedCount),                    label: "차단 운영자",    color: blockedCount > 0 ? DANGER : "#6F6B68" },
           ].map(({ num, label, color }) => (
             <View key={label} style={s.summaryCard}>
               <Text style={[s.summaryNum, { color }]}>{num}</Text>
@@ -130,7 +130,7 @@ export default function SmsBillingScreen() {
               <View key={pkg.id} style={s.pkgRow}>
                 <Text style={s.pkgName}>{pkg.name}</Text>
                 <Text style={s.pkgDetail}>{pkg.creditCount}건 / ₩{pkg.price.toLocaleString()}</Text>
-                <Text style={[s.pkgCnt, { color: cnt > 0 ? P : "#9CA3AF" }]}>{cnt}건 판매</Text>
+                <Text style={[s.pkgCnt, { color: cnt > 0 ? P : "#9A948F" }]}>{cnt}건 판매</Text>
               </View>
             );
           })}
@@ -231,18 +231,18 @@ export default function SmsBillingScreen() {
                   <Text style={[m.rowLabel, { fontFamily: "Inter_600SemiBold", marginBottom: 6 }]}>조치</Text>
                   <View style={{ gap: 8 }}>
                     <View style={{ flexDirection: "row", gap: 8 }}>
-                      <Pressable style={[m.actionBtn, { flex: 1, backgroundColor: acc.smsBlocked ? "#D1FAE5" : "#FEE2E2" }]}
+                      <Pressable style={[m.actionBtn, { flex: 1, backgroundColor: acc.smsBlocked ? "#DDF2EF" : "#F9DEDA" }]}
                         onPress={() => { setBlocked(acc.operatorId, !acc.smsBlocked, actorName); }}>
                         <Feather name={acc.smsBlocked ? "unlock" : "slash"} size={13} color={acc.smsBlocked ? GREEN : DANGER} />
                         <Text style={[m.actionTxt, { color: acc.smsBlocked ? GREEN : DANGER }]}>{acc.smsBlocked ? "차단 해제" : "발송 차단"}</Text>
                       </Pressable>
                       <Pressable style={[m.actionBtn, { flex: 1, backgroundColor: "#F0F9FF" }]}
                         onPress={() => { setAllowOverage(acc.operatorId, !acc.allowOverage, actorName); }}>
-                        <Feather name="toggle-left" size={13} color="#0891B2" />
-                        <Text style={[m.actionTxt, { color: "#0891B2" }]}>초과 {acc.allowOverage ? "불허" : "허용"}</Text>
+                        <Feather name="toggle-left" size={13} color="#1F8F86" />
+                        <Text style={[m.actionTxt, { color: "#1F8F86" }]}>초과 {acc.allowOverage ? "불허" : "허용"}</Text>
                       </Pressable>
                     </View>
-                    <Pressable style={[m.actionBtn, { backgroundColor: "#EDE9FE" }]}
+                    <Pressable style={[m.actionBtn, { backgroundColor: "#EEDDF5" }]}
                       onPress={() => { setDetail(null); setQuotaInput(String(acc.freeQuotaMonthly)); setQuotaModal(acc.operatorId); }}>
                       <Feather name="gift" size={13} color={P} />
                       <Text style={[m.actionTxt, { color: P }]}>무료 제공량 변경 (현재 {acc.freeQuotaMonthly}건)</Text>
@@ -308,7 +308,7 @@ export default function SmsBillingScreen() {
               placeholder="새 단가 (예: 9.9)"
               keyboardType="decimal-pad"
             />
-            <Text style={{ fontSize: 12, color: "#6B7280", fontFamily: "Inter_400Regular" }}>
+            <Text style={{ fontSize: 12, color: "#6F6B68", fontFamily: "Inter_400Regular" }}>
               변경 시 모든 운영자에게 즉시 적용됩니다.
             </Text>
             <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
@@ -326,35 +326,35 @@ const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: "#FFFBEB" },
   monthHeader:  { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#FDE68A" },
   monthLabel:   { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#92400E" },
-  priceBtn:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#FEF3C7" },
+  priceBtn:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#FFF1BF" },
   priceBtnTxt:  { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#D97706" },
   summaryGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  summaryCard:  { flex: 1, minWidth: "30%", backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB" },
+  summaryCard:  { flex: 1, minWidth: "30%", backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", borderWidth: 1, borderColor: "#E9E2DD" },
   summaryNum:   { fontSize: 16, fontFamily: "Inter_700Bold" },
-  summaryLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 3, textAlign: "center" },
-  card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },
-  cardTitle:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 4 },
+  summaryLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 3, textAlign: "center" },
+  card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E9E2DD", gap: 8 },
+  cardTitle:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 4 },
   pkgRow:       { flexDirection: "row", alignItems: "center", gap: 8 },
-  pkgName:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827", width: 90 },
-  pkgDetail:    { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  pkgName:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", width: 90 },
+  pkgDetail:    { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" },
   pkgCnt:       { fontSize: 12, fontFamily: "Inter_700Bold" },
   sortRow:      { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  sortLabel:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280" },
-  sortBtn:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: "#F3F4F6" },
+  sortLabel:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  sortBtn:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: "#F6F3F1" },
   sortBtnActive:{ backgroundColor: P },
-  sortBtnTxt:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
-  opCard:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },
+  sortBtnTxt:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  opCard:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E9E2DD", gap: 8 },
   opCardBlocked:{ borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
   opTop:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  opName:       { flex: 1, fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
-  blockedBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "#FEE2E2" },
+  opName:       { flex: 1, fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  blockedBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "#F9DEDA" },
   blockedTxt:   { fontSize: 10, fontFamily: "Inter_700Bold", color: DANGER },
-  noBadge:      { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "#F3F4F6" },
-  noBadgeTxt:   { fontSize: 10, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  noBadge:      { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "#F6F3F1" },
+  noBadgeTxt:   { fontSize: 10, fontFamily: "Inter_500Medium", color: "#6F6B68" },
   opGrid:       { flexDirection: "row", gap: 4 },
-  opStat:       { flex: 1, alignItems: "center", backgroundColor: "#F9FAFB", borderRadius: 10, padding: 8 },
-  opStatVal:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
-  opStatLabel:  { fontSize: 9, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  opStat:       { flex: 1, alignItems: "center", backgroundColor: "#FBF8F6", borderRadius: 10, padding: 8 },
+  opStatVal:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  opStatLabel:  { fontSize: 9, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
   typeRow:      { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   typeBadge:    { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   typeTxt:      { fontSize: 11, fontFamily: "Inter_600SemiBold" },
@@ -363,23 +363,23 @@ const s = StyleSheet.create({
 const m = StyleSheet.create({
   overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   sheet:      { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 10, paddingBottom: 40, maxHeight: "85%" },
-  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:        { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  sub:        { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68" },
   row:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 5 },
-  rowLabel:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280" },
-  rowVal:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  divider:    { height: 1, backgroundColor: "#F3F4F6", marginVertical: 6 },
+  rowLabel:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  rowVal:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  divider:    { height: 1, backgroundColor: "#F6F3F1", marginVertical: 6 },
   actionBtn:  { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, padding: 12 },
   actionTxt:  { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   histRow:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
-  histPkg:    { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151" },
+  histPkg:    { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
   histCredit: { fontSize: 12, fontFamily: "Inter_700Bold", color: GREEN },
-  histPrice:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280", width: 80, textAlign: "right" },
-  input:      { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, padding: 12, fontSize: 15, fontFamily: "Inter_400Regular", color: "#111827" },
-  cancelBtn:  { flex: 1, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6" },
-  cancelTxt:  { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  histPrice:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68", width: 80, textAlign: "right" },
+  input:      { backgroundColor: "#FBF8F6", borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 12, padding: 12, fontSize: 15, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  cancelBtn:  { flex: 1, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F6F3F1" },
+  cancelTxt:  { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   confirmBtn: { flex: 2, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: P },
   confirmTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-  closeBtn:   { height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6", marginTop: 6 },
-  closeTxt:   { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  closeBtn:   { height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F6F3F1", marginTop: 6 },
+  closeTxt:   { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
 });

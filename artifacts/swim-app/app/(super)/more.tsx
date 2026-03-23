@@ -20,11 +20,11 @@ const PURPLE = "#7C3AED";
 
 const ICON_COLOR_MAP: Record<string, { bg: string; icon: string }> = {
   purple:  { bg: "#F3E8FF", icon: PURPLE },
-  blue:    { bg: "#E0F2FE", icon: "#0891B2" },
-  green:   { bg: "#D1FAE5", icon: "#059669" },
-  red:     { bg: "#FEE2E2", icon: "#DC2626" },
-  orange:  { bg: "#FEF3C7", icon: "#D97706" },
-  indigo:  { bg: "#EEF2FF", icon: "#4F46E5" },
+  blue:    { bg: "#E0F2FE", icon: "#1F8F86" },
+  green:   { bg: "#DDF2EF", icon: "#1F8F86" },
+  red:     { bg: "#F9DEDA", icon: "#D96C6C" },
+  orange:  { bg: "#FFF1BF", icon: "#D97706" },
+  indigo:  { bg: "#DDF2EF", icon: "#1F8F86" },
   slate:   { bg: "#F1F5F9", icon: "#475569" },
   teal:    { bg: "#CCFBF1", icon: "#0D9488" },
   rose:    { bg: "#FFE4E6", icon: "#E11D48" },

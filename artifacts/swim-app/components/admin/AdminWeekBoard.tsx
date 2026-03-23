@@ -13,7 +13,7 @@ const COL_W = 56;
 const TIME_W = 44;
 const ROW_H = 60;
 
-const CLASS_COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
+const CLASS_COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
 
 function classColor(id: string) {
   let h = 0;
@@ -60,7 +60,7 @@ export default function AdminWeekBoard({ classGroups, onCellPress }: Props) {
       <View>
         {/* 요일 헤더 */}
         <View style={wb.headerRow}>
-          <View style={[wb.timeCell, { backgroundColor: "#F9FAFB" }]} />
+          <View style={[wb.timeCell, { backgroundColor: "#FBF8F6" }]} />
           {COLS.map(day => (
             <View key={day} style={[wb.dayHeader, { width: COL_W }]}>
               <Text style={wb.dayHeaderText}>{day}</Text>
@@ -105,15 +105,15 @@ export default function AdminWeekBoard({ classGroups, onCellPress }: Props) {
 
 const wb = StyleSheet.create({
   headerRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
-  dayHeader: { height: 36, alignItems: "center", justifyContent: "center", borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#F9FAFB" },
+  dayHeader: { height: 36, alignItems: "center", justifyContent: "center", borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#FBF8F6" },
   dayHeaderText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text },
-  row: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  row: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   timeCell: { width: TIME_W, alignItems: "center", justifyContent: "flex-start", paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border },
   timeText: { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
-  cell: { borderLeftWidth: 1, borderLeftColor: "#F3F4F6", padding: 2, gap: 2 },
+  cell: { borderLeftWidth: 1, borderLeftColor: "#F6F3F1", padding: 2, gap: 2 },
   classChip: { borderRadius: 5, padding: 3, minHeight: 26, justifyContent: "center" },
   chipName: { fontSize: 8, fontFamily: "Inter_600SemiBold", color: "#fff", lineHeight: 10 },
   chipCount: { fontSize: 7, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)", marginTop: 1 },
   emptyCell: { flex: 1, alignItems: "center", justifyContent: "center" },
-  emptyCellText: { fontSize: 16, color: "#E5E7EB", fontFamily: "Inter_400Regular" },
+  emptyCellText: { fontSize: 16, color: "#E9E2DD", fontFamily: "Inter_400Regular" },
 });

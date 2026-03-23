@@ -63,7 +63,7 @@ function getHourRange(groups: TeacherClassGroup[]): number[] {
   const maxH = Math.min(22, Math.max(...hours));
   return Array.from({ length: maxH - minH + 1 }, (_, i) => i + minH);
 }
-const COLORS = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
+const COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
 function classColor(id: string) {
   let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
   return COLORS[Math.abs(h) % COLORS.length];
@@ -129,15 +129,15 @@ function WeeklyTimetable({ groups, onSelectClass }: {
 const wt = StyleSheet.create({
   outer:         { flex: 1 },
   headerRow:     { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
-  header:        { backgroundColor: "#F9FAFB" },
+  header:        { backgroundColor: "#FBF8F6" },
   dayHeader:     { height: 36, alignItems: "center", justifyContent: "center",
-                   borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#F9FAFB" },
+                   borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#FBF8F6" },
   dayHeaderText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text },
-  row:           { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  row:           { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   timeCell:      { width: TIME_W, alignItems: "center", justifyContent: "flex-start",
                    paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border },
   timeText:      { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
-  cell:          { borderLeftWidth: 1, borderLeftColor: "#F3F4F6", padding: 2, gap: 2 },
+  cell:          { borderLeftWidth: 1, borderLeftColor: "#F6F3F1", padding: 2, gap: 2 },
   classCard:     { flex: 1, borderRadius: 6, padding: 4, minHeight: 48, justifyContent: "center" },
   cardName:      { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#fff", lineHeight: 12 },
   cardTime:      { fontSize: 8, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)", marginTop: 2 },
@@ -201,7 +201,7 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
         {WEEKDAY_NAMES.map((wd, i) => (
           <View key={wd} style={[mc.weekHeader, { width: CELL_W }]}>
             <Text style={[mc.weekHeaderText,
-              i === 0 && { color: "#EF4444" },
+              i === 0 && { color: "#D96C6C" },
               i === 6 && { color: themeColor },
             ]}>{wd}</Text>
           </View>
@@ -238,7 +238,7 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
                   isSelected && !isToday && { backgroundColor: themeColor + "30" },
                 ]}>
                   <Text style={[mc.dayNum,
-                    (isSun || isHoliday) ? { color: "#EF4444" } : isSat ? { color: themeColor } : {},
+                    (isSun || isHoliday) ? { color: "#D96C6C" } : isSat ? { color: themeColor } : {},
                     isToday && { color: "#fff" },
                   ]}>{dayNum}</Text>
                 </View>
@@ -275,7 +275,7 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
 const mc = StyleSheet.create({
   root:           { paddingHorizontal: 16, paddingBottom: 8 },
   monthNav:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
-  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
   monthTitle:     { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
   weekRow:        { flexDirection: "row" },
   weekHeader:     { height: 28, alignItems: "center", justifyContent: "center" },
@@ -289,7 +289,7 @@ const mc = StyleSheet.create({
   strikeOverlay:  { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "center" },
   strikeLine:     { height: 1.5, backgroundColor: "rgba(0,0,0,0.28)", borderRadius: 1, marginHorizontal: 1 },
   moreTxt:        { fontSize: 8, fontFamily: "Inter_400Regular", color: C.textMuted },
-  holidayTag:     { fontSize: 9, fontFamily: "Inter_700Bold", color: "#EF4444", marginTop: 2 },
+  holidayTag:     { fontSize: 9, fontFamily: "Inter_700Bold", color: "#D96C6C", marginTop: 2 },
 });
 
 // ─── 날짜 상세 팝업 ─────────────────────────────────────────────
@@ -317,7 +317,7 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
               <Text style={dy.dateSub}>{classes.length > 0 ? `수업 ${classes.length}개` : "수업 없음"}</Text>
             </View>
             <View style={dy.headerActions}>
-              <Pressable style={[dy.headerBtn, { backgroundColor: "#EEF2FF" }]} onPress={onOpenMakeup}>
+              <Pressable style={[dy.headerBtn, { backgroundColor: "#DDF2EF" }]} onPress={onOpenMakeup}>
                 <Feather name="repeat" size={13} color="#4338CA" />
                 <Text style={[dy.headerBtnTxt, { color: "#4338CA" }]}>보강</Text>
               </Pressable>
@@ -358,13 +358,13 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
                           <Text style={dy.classSub}>{g.student_count}명</Text>
                           {!!g.instructor && (
                             <View style={dy.instructorBadge}>
-                              <Feather name="user" size={9} color="#6B7280" />
+                              <Feather name="user" size={9} color="#6F6B68" />
                               <Text style={dy.instructorTxt}>{g.instructor}</Text>
                             </View>
                           )}
                           {attCnt > 0 && (
                             <View style={dy.attBadge}>
-                              <Feather name="check" size={9} color="#059669" />
+                              <Feather name="check" size={9} color="#1F8F86" />
                               <Text style={dy.attBadgeTxt}>출결 {attCnt}</Text>
                             </View>
                           )}
@@ -404,18 +404,18 @@ const dy = StyleSheet.create({
                     paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
   emptyActionTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   classCard:      { flexDirection: "row", alignItems: "center", gap: 10,
-                    backgroundColor: "#F9FAFB", borderRadius: 12, padding: 12,
+                    backgroundColor: "#FBF8F6", borderRadius: 12, padding: 12,
                     borderWidth: 1, borderColor: C.border },
   colorBar:       { width: 3, height: 40, borderRadius: 2 },
   classTime:      { fontSize: 14, fontFamily: "Inter_700Bold", color: C.text },
   className:      { fontSize: 14, fontFamily: "Inter_500Medium", color: C.text, flex: 1 },
   classSub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
   instructorBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
-                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#F3F4F6" },
-  instructorTxt:  { fontSize: 10, fontFamily: "Inter_500Medium", color: "#6B7280" },
+                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#F6F3F1" },
+  instructorTxt:  { fontSize: 10, fontFamily: "Inter_500Medium", color: "#6F6B68" },
   attBadge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
-                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#D1FAE5" },
-  attBadgeTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#059669" },
+                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#DDF2EF" },
+  attBadgeTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
 });
 
 // ══════════════════ 메인 스크린 ══════════════════════════════════
@@ -569,7 +569,7 @@ export default function ClassesScreen() {
             </Text>
           </View>
           <View style={s.rightBtns}>
-            <Pressable style={[s.iconBtn, { backgroundColor: "#EDE9FE" }]}
+            <Pressable style={[s.iconBtn, { backgroundColor: "#EEDDF5" }]}
               onPress={() => router.push("/(admin)/makeups" as any)}>
               <Feather name="rotate-ccw" size={13} color="#7C3AED" />
               <Text style={[s.iconBtnTxt, { color: "#7C3AED" }]}>보강</Text>
@@ -715,13 +715,13 @@ export default function ClassesScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#F3F4F6" },
+  safe:        { flex: 1, backgroundColor: "#F6F3F1" },
 
   titleArea:   { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border,
                  paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   titleRow:    { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  title:       { fontSize: 20, fontFamily: "Inter_700Bold", color: "#111827" },
-  titleSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  title:       { fontSize: 20, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  titleSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
 
   rightBtns:   { flexDirection: "row", gap: 4, alignItems: "center" },
   iconBtn:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10 },

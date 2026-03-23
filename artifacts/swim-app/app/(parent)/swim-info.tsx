@@ -49,16 +49,16 @@ const SECTIONS: Section[] = [
     key: "introduction",
     icon: "map-pin",
     label: "수영장 소개",
-    color: "#1D4ED8",
-    bg: "#EFF6FF",
+    color: "#1F8F86",
+    bg: "#DDF2EF",
     placeholder: "수영장 소개 정보가 등록되면 여기에 표시됩니다.",
   },
   {
     key: "tuition_info",
     icon: "credit-card",
     label: "수업료 안내",
-    color: "#059669",
-    bg: "#ECFDF5",
+    color: "#1F8F86",
+    bg: "#DFF3EC",
     placeholder: "수업료 안내 정보가 등록되면 여기에 표시됩니다.",
   },
   {
@@ -66,7 +66,7 @@ const SECTIONS: Section[] = [
     icon: "award",
     label: "레벨 테스트 안내",
     color: "#7C3AED",
-    bg: "#F5F3FF",
+    bg: "#EEDDF5",
     placeholder: "레벨 테스트 안내 정보가 등록되면 여기에 표시됩니다.",
   },
   {
@@ -74,7 +74,7 @@ const SECTIONS: Section[] = [
     icon: "gift",
     label: "이벤트/소식",
     color: "#D97706",
-    bg: "#FFF7ED",
+    bg: "#FFF1BF",
     placeholder: "이벤트 및 소식이 등록되면 여기에 표시됩니다.",
   },
   {

@@ -14,7 +14,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useSmsCreditStore, CREDIT_PACKAGES } from '@/store/smsCreditStore'
 import { useSmsStore } from '@/store/smsStore'
 
-const P = '#0891B2'
+const P = '#1F8F86'
 const TABS = ['현황', '크레딧 충전', '문자 발송', '발송 이력', '실패 내역'] as const
 type Tab = typeof TABS[number]
 
@@ -152,12 +152,12 @@ export default function SmsCreditScreen() {
           <>
             {/* 요약 카드 */}
             <View style={s.summaryGrid}>
-              <View style={[s.summaryCard, { backgroundColor: freeRemaining > 100 ? '#ECFEFF' : '#FEF3C7' }]}>
+              <View style={[s.summaryCard, { backgroundColor: freeRemaining > 100 ? '#ECFEFF' : '#FFF1BF' }]}>
                 <Text style={s.summaryVal}>{Math.max(0, freeRemaining)}</Text>
                 <Text style={s.summaryLabel}>무료 잔여</Text>
               </View>
-              <View style={[s.summaryCard, { backgroundColor: creditBalance > 0 ? '#F0FDF4' : '#FEF2F2' }]}>
-                <Text style={[s.summaryVal, { color: creditBalance > 0 ? '#059669' : '#DC2626' }]}>{creditBalance.toLocaleString()}</Text>
+              <View style={[s.summaryCard, { backgroundColor: creditBalance > 0 ? '#DFF3EC' : '#FEF2F2' }]}>
+                <Text style={[s.summaryVal, { color: creditBalance > 0 ? '#1F8F86' : '#D96C6C' }]}>{creditBalance.toLocaleString()}</Text>
                 <Text style={s.summaryLabel}>크레딧 잔액</Text>
               </View>
               <View style={s.summaryCard}>
@@ -165,7 +165,7 @@ export default function SmsCreditScreen() {
                 <Text style={s.summaryLabel}>이번 달 발송</Text>
               </View>
               <View style={[s.summaryCard, { backgroundColor: failedRecords.length > 0 ? '#FEF2F2' : '#fff' }]}>
-                <Text style={[s.summaryVal, { color: failedRecords.length > 0 ? '#DC2626' : '#111827' }]}>{failedRecords.length}</Text>
+                <Text style={[s.summaryVal, { color: failedRecords.length > 0 ? '#D96C6C' : '#1F1F1F' }]}>{failedRecords.length}</Text>
                 <Text style={s.summaryLabel}>실패</Text>
               </View>
             </View>
@@ -175,13 +175,13 @@ export default function SmsCreditScreen() {
               <Text style={s.sectionTitle}>크레딧 상세</Text>
               <View style={s.row}><Text style={s.rowLabel}>월 무료 제공</Text><Text style={s.rowVal}>{account?.freeQuotaMonthly ?? 500}건</Text></View>
               <View style={s.row}><Text style={s.rowLabel}>무료 사용</Text><Text style={s.rowVal}>{account?.freeUsedMonthly ?? 0}건</Text></View>
-              <View style={s.row}><Text style={s.rowLabel}>무료 잔여</Text><Text style={[s.rowVal, { color: freeRemaining > 0 ? '#059669' : '#DC2626', fontFamily: 'Inter_700Bold' }]}>{Math.max(0, freeRemaining)}건</Text></View>
+              <View style={s.row}><Text style={s.rowLabel}>무료 잔여</Text><Text style={[s.rowVal, { color: freeRemaining > 0 ? '#1F8F86' : '#D96C6C', fontFamily: 'Inter_700Bold' }]}>{Math.max(0, freeRemaining)}건</Text></View>
               <View style={[s.divider, { marginVertical: 8 }]} />
-              <View style={s.row}><Text style={s.rowLabel}>크레딧 잔액</Text><Text style={[s.rowVal, { color: creditBalance > 0 ? '#059669' : '#DC2626', fontFamily: 'Inter_700Bold' }]}>{creditBalance.toLocaleString()}건</Text></View>
+              <View style={s.row}><Text style={s.rowLabel}>크레딧 잔액</Text><Text style={[s.rowVal, { color: creditBalance > 0 ? '#1F8F86' : '#D96C6C', fontFamily: 'Inter_700Bold' }]}>{creditBalance.toLocaleString()}건</Text></View>
               <View style={s.row}><Text style={s.rowLabel}>총 구매 크레딧</Text><Text style={s.rowVal}>{account?.creditPurchasedTotal.toLocaleString() ?? 0}건</Text></View>
               <View style={s.row}><Text style={s.rowLabel}>총 유료 사용</Text><Text style={s.rowVal}>{account?.creditUsedTotal.toLocaleString() ?? 0}건</Text></View>
-              <View style={s.row}><Text style={s.rowLabel}>초과 발송 허용</Text><Text style={[s.rowVal, { color: account?.allowOverage ? '#059669' : '#6B7280' }]}>{account?.allowOverage ? 'ON' : 'OFF'}</Text></View>
-              <View style={s.row}><Text style={s.rowLabel}>발송 상태</Text><Text style={[s.rowVal, { color: isBlocked ? '#DC2626' : '#059669', fontFamily: 'Inter_700Bold' }]}>{isBlocked ? '차단됨' : '정상'}</Text></View>
+              <View style={s.row}><Text style={s.rowLabel}>초과 발송 허용</Text><Text style={[s.rowVal, { color: account?.allowOverage ? '#1F8F86' : '#6F6B68' }]}>{account?.allowOverage ? 'ON' : 'OFF'}</Text></View>
+              <View style={s.row}><Text style={s.rowLabel}>발송 상태</Text><Text style={[s.rowVal, { color: isBlocked ? '#D96C6C' : '#1F8F86', fontFamily: 'Inter_700Bold' }]}>{isBlocked ? '차단됨' : '정상'}</Text></View>
             </View>
 
             {/* 유형별 현황 */}
@@ -266,7 +266,7 @@ export default function SmsCreditScreen() {
           <>
             {isBlocked && (
               <View style={s.alertBox}>
-                <Feather name="alert-circle" size={16} color="#DC2626" />
+                <Feather name="alert-circle" size={16} color="#D96C6C" />
                 <Text style={s.alertTxt}>크레딧 부족으로 발송이 차단되었습니다. 먼저 크레딧을 충전하세요.</Text>
               </View>
             )}
@@ -275,8 +275,8 @@ export default function SmsCreditScreen() {
             {(
               [
                 { type: 'teacher_invite', label: '선생님 초대', icon: 'user-plus', color: '#7C3AED', desc: '선생님을 초대하는 SMS 발송' },
-                { type: 'parent_connect', label: '학부모 연결', icon: 'users', color: '#0891B2', desc: '학부모 계정 연결 요청 SMS' },
-                { type: 'notice', label: '안내 문자', icon: 'info', color: '#059669', desc: '공지·안내 문자 발송' },
+                { type: 'parent_connect', label: '학부모 연결', icon: 'users', color: '#1F8F86', desc: '학부모 계정 연결 요청 SMS' },
+                { type: 'notice', label: '안내 문자', icon: 'info', color: '#1F8F86', desc: '공지·안내 문자 발송' },
                 { type: 'warning', label: '경고 문자', icon: 'alert-triangle', color: '#D97706', desc: '경고·주의 문자 발송' },
               ] as const
             ).map(item => (
@@ -331,15 +331,15 @@ export default function SmsCreditScreen() {
           failedRecords.length === 0
             ? <View style={s.empty}><Feather name="check-circle" size={36} color="#D1D5DB" /><Text style={s.emptyTxt}>실패 내역이 없습니다</Text></View>
             : failedRecords.map(r => (
-              <View key={r.id} style={[s.logCard, { borderLeftColor: '#DC2626', borderLeftWidth: 3 }]}>
+              <View key={r.id} style={[s.logCard, { borderLeftColor: '#D96C6C', borderLeftWidth: 3 }]}>
                 <View style={s.logTop}>
                   <View style={[s.typeBadge, { backgroundColor: '#FEF2F2' }]}>
-                    <Text style={[s.typeBadgeTxt, { color: '#DC2626' }]}>{SMS_TYPE_LABEL[r.type] ?? r.type}</Text>
+                    <Text style={[s.typeBadgeTxt, { color: '#D96C6C' }]}>{SMS_TYPE_LABEL[r.type] ?? r.type}</Text>
                   </View>
                   <Text style={s.logDate}>{fmtDate(r.sentAt)}</Text>
                 </View>
                 <Text style={s.logName}>{r.recipientName} · {r.recipientPhone}</Text>
-                <Text style={[s.logMsg, { color: '#DC2626' }]}>실패 사유: {r.failReason ?? '알 수 없음'}</Text>
+                <Text style={[s.logMsg, { color: '#D96C6C' }]}>실패 사유: {r.failReason ?? '알 수 없음'}</Text>
               </View>
             ))
         )}
@@ -379,7 +379,7 @@ export default function SmsCreditScreen() {
           <Pressable style={m.sheet} onPress={e => e.stopPropagation()}>
             {sendDone ? (
               <>
-                <Feather name="check-circle" size={40} color="#059669" style={{ alignSelf: 'center', marginBottom: 12 }} />
+                <Feather name="check-circle" size={40} color="#1F8F86" style={{ alignSelf: 'center', marginBottom: 12 }} />
                 <Text style={[m.title, { textAlign: 'center' }]}>발송 완료</Text>
                 <Text style={[m.sub, { textAlign: 'center' }]}>{sendName}님께 SMS를 발송했습니다.</Text>
                 <Pressable style={[m.confirmBtn, { marginTop: 16 }]} onPress={resetSendModal}>
@@ -410,72 +410,72 @@ export default function SmsCreditScreen() {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F0F9FF' },
-  blockBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#DC2626', padding: 12, paddingHorizontal: 16 },
+  blockBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#D96C6C', padding: 12, paddingHorizontal: 16 },
   blockTxt: { flex: 1, color: '#fff', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   tabScroll: { maxHeight: 52, borderBottomWidth: 1, borderBottomColor: '#E0F2FE' },
   tabChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E0F2FE', alignSelf: 'flex-start', marginVertical: 8 },
   tabChipActive: { backgroundColor: P, borderColor: P },
-  tabChipTxt: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
+  tabChipTxt: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#6F6B68' },
   tabChipTxtActive: { color: '#fff' },
   card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E0F2FE', gap: 8 },
-  sectionTitle: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#111827', marginBottom: 2 },
+  sectionTitle: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#1F1F1F', marginBottom: 2 },
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   summaryCard: { flex: 1, minWidth: '45%', backgroundColor: '#fff', borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#E0F2FE' },
-  summaryVal: { fontSize: 24, fontFamily: 'Inter_700Bold', color: '#111827' },
-  summaryLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#6B7280', marginTop: 3 },
+  summaryVal: { fontSize: 24, fontFamily: 'Inter_700Bold', color: '#1F1F1F' },
+  summaryLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#6F6B68', marginTop: 3 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
-  rowLabel: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6B7280' },
-  rowVal: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#111827' },
-  divider: { height: 1, backgroundColor: '#F3F4F6' },
+  rowLabel: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6F6B68' },
+  rowVal: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#1F1F1F' },
+  divider: { height: 1, backgroundColor: '#F6F3F1' },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: P, borderRadius: 14, padding: 16, marginTop: 4 },
   primaryBtnTxt: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
   bigBalanceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 4 },
-  bigBalance: { fontSize: 40, fontFamily: 'Inter_700Bold', color: '#111827' },
-  bigBalanceUnit: { fontSize: 18, fontFamily: 'Inter_400Regular', color: '#6B7280' },
-  balanceSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280' },
+  bigBalance: { fontSize: 40, fontFamily: 'Inter_700Bold', color: '#1F1F1F' },
+  bigBalanceUnit: { fontSize: 18, fontFamily: 'Inter_400Regular', color: '#6F6B68' },
+  balanceSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6F6B68' },
   pkgCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 2, borderColor: '#E0F2FE' },
   pkgCardSelected: { borderColor: P, backgroundColor: '#F0F9FF' },
   pkgRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: P, alignItems: 'center', justifyContent: 'center' },
   pkgRadioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: P },
-  pkgName: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#111827' },
-  pkgDetail: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280', marginTop: 2 },
+  pkgName: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#1F1F1F' },
+  pkgDetail: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6F6B68', marginTop: 2 },
   pkgPrice: { fontSize: 16, fontFamily: 'Inter_700Bold', color: P },
   histCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E0F2FE' },
-  histPkg: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' },
-  histSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9CA3AF', marginTop: 2 },
-  histCredit: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#059669' },
-  histPrice: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280' },
+  histPkg: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#1F1F1F' },
+  histSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#9A948F', marginTop: 2 },
+  histCredit: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#1F8F86' },
+  histPrice: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6F6B68' },
   alertBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FCA5A5' },
   alertTxt: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', color: '#991B1B', lineHeight: 18 },
   sendTypeCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#E0F2FE' },
   sendTypeIcon: { width: 46, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  sendTypeLabel: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#111827' },
-  sendTypeSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280', marginTop: 2 },
-  infoTxt: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6B7280', lineHeight: 22 },
+  sendTypeLabel: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#1F1F1F' },
+  sendTypeSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6F6B68', marginTop: 2 },
+  infoTxt: { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6F6B68', lineHeight: 22 },
   logCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E0F2FE', gap: 6 },
   logTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   typeBadgeTxt: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  logDate: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
-  logName: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#111827' },
-  logMsg: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280', lineHeight: 17 },
-  logBy: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
+  logDate: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9A948F' },
+  logName: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#1F1F1F' },
+  logMsg: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6F6B68', lineHeight: 17 },
+  logBy: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#9A948F' },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyTxt: { fontSize: 15, fontFamily: 'Inter_400Regular', color: '#9CA3AF' },
+  emptyTxt: { fontSize: 15, fontFamily: 'Inter_400Regular', color: '#9A948F' },
 })
 
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12, paddingBottom: 40 },
-  title: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#111827' },
-  sub: { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6B7280' },
-  amount: { fontSize: 32, fontFamily: 'Inter_700Bold', color: '#111827', textAlign: 'center' },
+  title: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#1F1F1F' },
+  sub: { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#6F6B68' },
+  amount: { fontSize: 32, fontFamily: 'Inter_700Bold', color: '#1F1F1F', textAlign: 'center' },
   price: { fontSize: 20, fontFamily: 'Inter_600SemiBold', color: P, textAlign: 'center' },
-  hint: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280', textAlign: 'center' },
-  label: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#374151', marginTop: 4 },
-  input: { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'Inter_400Regular', color: '#111827' },
-  cancelBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
-  cancelTxt: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
+  hint: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6F6B68', textAlign: 'center' },
+  label: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#1F1F1F', marginTop: 4 },
+  input: { backgroundColor: '#FBF8F6', borderWidth: 1, borderColor: '#E9E2DD', borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'Inter_400Regular', color: '#1F1F1F' },
+  cancelBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F6F3F1' },
+  cancelTxt: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#6F6B68' },
   confirmBtn: { flex: 2, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: P },
   confirmTxt: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
 })

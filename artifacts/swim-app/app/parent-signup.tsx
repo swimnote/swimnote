@@ -109,8 +109,8 @@ export default function ParentSignupScreen() {
         {step === "form" && (
           <>
             <View style={styles.header}>
-              <View style={[styles.iconBox, { backgroundColor: "#FEF3C7" }]}>
-                <Feather name="heart" size={28} color="#F59E0B" />
+              <View style={[styles.iconBox, { backgroundColor: "#FFF1BF" }]}>
+                <Feather name="heart" size={28} color="#E4A93A" />
               </View>
               <Text style={[styles.title, { color: C.text }]}>학부모 가입</Text>
               <Text style={[styles.sub, { color: C.textSecondary }]}>
@@ -120,7 +120,7 @@ export default function ParentSignupScreen() {
 
             <View style={[styles.card, { backgroundColor: C.card }]}>
               {!!error && (
-                <View style={[styles.errorBox, { backgroundColor: "#FEE2E2" }]}>
+                <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
                   <Feather name="alert-circle" size={13} color={C.error} />
                   <Text style={[styles.errorTxt, { color: C.error }]}>{error}</Text>
                 </View>
@@ -224,8 +224,8 @@ export default function ParentSignupScreen() {
         {step === "verify" && (
           <>
             <View style={styles.header}>
-              <View style={[styles.iconBox, { backgroundColor: "#ECFDF5" }]}>
-                <Feather name="smartphone" size={28} color="#10B981" />
+              <View style={[styles.iconBox, { backgroundColor: "#DFF3EC" }]}>
+                <Feather name="smartphone" size={28} color="#2E9B6F" />
               </View>
               <Text style={[styles.title, { color: C.text }]}>휴대폰 인증</Text>
               <Text style={[styles.sub, { color: C.textSecondary }]}>
@@ -236,7 +236,7 @@ export default function ParentSignupScreen() {
 
             <View style={[styles.card, { backgroundColor: C.card }]}>
               {!!codeError && (
-                <View style={[styles.errorBox, { backgroundColor: "#FEE2E2" }]}>
+                <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
                   <Feather name="alert-circle" size={13} color={C.error} />
                   <Text style={[styles.errorTxt, { color: C.error }]}>{codeError}</Text>
                 </View>

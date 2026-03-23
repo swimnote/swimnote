@@ -47,14 +47,14 @@ function fmtSize(mb: number) {
 }
 
 const TYPE_CFG: Record<string, { color: string; bg: string; label: string; icon: string }> = {
-  auto:           { color: "#059669", bg: "#D1FAE5", label: "자동",    icon: "clock"      },
-  manual:         { color: "#2563EB", bg: "#DBEAFE", label: "수동",    icon: "save"       },
-  before_restore: { color: "#D97706", bg: "#FEF3C7", label: "복구 전", icon: "rotate-ccw" },
-  before_delete:  { color: "#DC2626", bg: "#FEE2E2", label: "삭제 전", icon: "alert-triangle" },
+  auto:           { color: "#1F8F86", bg: "#DDF2EF", label: "자동",    icon: "clock"      },
+  manual:         { color: "#1F8F86", bg: "#DDF2EF", label: "수동",    icon: "save"       },
+  before_restore: { color: "#D97706", bg: "#FFF1BF", label: "복구 전", icon: "rotate-ccw" },
+  before_delete:  { color: "#D96C6C", bg: "#F9DEDA", label: "삭제 전", icon: "alert-triangle" },
 };
 
 function snapTypeChip(snap: BackupSnapshot) {
-  return TYPE_CFG[snap.snapshotType ?? "manual"] ?? { color: "#6B7280", bg: "#F3F4F6", label: "기타", icon: "archive" };
+  return TYPE_CFG[snap.snapshotType ?? "manual"] ?? { color: "#6F6B68", bg: "#F6F3F1", label: "기타", icon: "archive" };
 }
 
 // ── 스냅샷 삭제 확인 모달 (2단계) ────────────────────────────────
@@ -91,12 +91,12 @@ function SnapshotDeleteModal({
       <Pressable style={rm.backdrop} onPress={onClose} />
       <View style={rm.sheet}>
         <View style={rm.header}>
-          <Feather name="trash-2" size={20} color="#DC2626" />
+          <Feather name="trash-2" size={20} color="#D96C6C" />
           <Text style={rm.title}>스냅샷 삭제</Text>
           <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
         </View>
 
-        <View style={[rm.targetBox, { backgroundColor: "#FEE2E2" }]}>
+        <View style={[rm.targetBox, { backgroundColor: "#F9DEDA" }]}>
           <Text style={rm.targetLabel}>삭제할 스냅샷</Text>
           {snap.snapshotName && (
             <Text style={[rm.targetTime, { fontFamily: "Inter_600SemiBold", marginBottom: 2 }]}>{snap.snapshotName}</Text>
@@ -108,7 +108,7 @@ function SnapshotDeleteModal({
         {step === 1 ? (
           <>
             <View style={[rm.checkRow, { backgroundColor: "#FEF2F2" }]}>
-              <Feather name="alert-triangle" size={14} color="#DC2626" />
+              <Feather name="alert-triangle" size={14} color="#D96C6C" />
               <Text style={[rm.checkTxt, { color: "#991B1B" }]}>
                 데이터 유지를 위하여 백업 데이터를 삭제할 경우 이전 데이터는 영원히 복구할 수 없습니다.
               </Text>
@@ -117,15 +117,15 @@ function SnapshotDeleteModal({
               <Pressable style={[rm.btn, { backgroundColor: C.background, borderWidth: 1, borderColor: C.border }]} onPress={onClose}>
                 <Text style={[rm.btnTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
-              <Pressable style={[rm.btn, { backgroundColor: "#FEE2E2", flex: 1.5 }]} onPress={() => setStep(2)}>
-                <Feather name="trash-2" size={14} color="#DC2626" />
-                <Text style={[rm.btnTxt, { color: "#DC2626" }]}>계속 (2/2)</Text>
+              <Pressable style={[rm.btn, { backgroundColor: "#F9DEDA", flex: 1.5 }]} onPress={() => setStep(2)}>
+                <Feather name="trash-2" size={14} color="#D96C6C" />
+                <Text style={[rm.btnTxt, { color: "#D96C6C" }]}>계속 (2/2)</Text>
               </Pressable>
             </View>
           </>
         ) : (
           <>
-            <View style={[rm.checkRow, { backgroundColor: "#F9FAFB" }]}>
+            <View style={[rm.checkRow, { backgroundColor: "#FBF8F6" }]}>
               <Switch value={confirmed} onValueChange={setConfirmed} />
               <Text style={rm.checkTxt}>
                 이 스냅샷이 영구 삭제됨을 이해했으며, 삭제 이후 이전 데이터 복구가 불가능함을 확인합니다.
@@ -136,7 +136,7 @@ function SnapshotDeleteModal({
                 <Text style={[rm.btnTxt, { color: C.textSecondary }]}>뒤로</Text>
               </Pressable>
               <Pressable
-                style={[rm.btn, { backgroundColor: confirmed ? "#DC2626" : "#9CA3AF", flex: 1.5 }]}
+                style={[rm.btn, { backgroundColor: confirmed ? "#D96C6C" : "#9A948F", flex: 1.5 }]}
                 onPress={execDelete}
                 disabled={!confirmed}
               >
@@ -212,18 +212,18 @@ function SnapshotCard({
               <Text style={s.restoreBtnTxt}>이 시점으로 복구</Text>
             </Pressable>
             <Pressable
-              style={[s.restoreBtn, { backgroundColor: "#EFF6FF", flex: 0.65 }]}
+              style={[s.restoreBtn, { backgroundColor: "#DDF2EF", flex: 0.65 }]}
               onPress={handleCompare}
             >
-              <Feather name="git-branch" size={14} color="#2563EB" />
-              <Text style={[s.restoreBtnTxt, { color: "#2563EB" }]}>비교</Text>
+              <Feather name="git-branch" size={14} color="#1F8F86" />
+              <Text style={[s.restoreBtnTxt, { color: "#1F8F86" }]}>비교</Text>
             </Pressable>
             <Pressable
-              style={[s.restoreBtn, { backgroundColor: "#FEE2E2", flex: 0.55 }]}
+              style={[s.restoreBtn, { backgroundColor: "#F9DEDA", flex: 0.55 }]}
               onPress={() => onDelete(snap)}
             >
-              <Feather name="trash-2" size={14} color="#DC2626" />
-              <Text style={[s.restoreBtnTxt, { color: "#DC2626" }]}>삭제</Text>
+              <Feather name="trash-2" size={14} color="#D96C6C" />
+              <Text style={[s.restoreBtnTxt, { color: "#D96C6C" }]}>삭제</Text>
             </Pressable>
           </View>
         </View>
@@ -291,7 +291,7 @@ function RestoreModal({
       <Pressable style={rm.backdrop} onPress={onClose} />
       <View style={rm.sheet}>
         <View style={rm.header}>
-          <Feather name="alert-triangle" size={20} color="#DC2626" />
+          <Feather name="alert-triangle" size={20} color="#D96C6C" />
           <Text style={rm.title}>복구 실행 확인</Text>
           <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
         </View>
@@ -329,7 +329,7 @@ function RestoreModal({
 
           {/* 덮어쓰기 경고 */}
           <View style={[rm.overwriteBox, { marginTop: 8 }]}>
-            <Feather name="alert-triangle" size={13} color="#DC2626" />
+            <Feather name="alert-triangle" size={13} color="#D96C6C" />
             <Text style={rm.overwriteTxt}>
               복구 실행 시 현재 데이터가 모두 이 시점으로 덮어쓰여집니다. 이 시점 이후 입력·수정된 데이터는 복구되지 않습니다.
             </Text>
@@ -339,7 +339,7 @@ function RestoreModal({
           <Text style={[rm.sectionTitle, { marginTop: 12 }]}>복구 대상 데이터 종류</Text>
           {AFFECTED_ITEMS.map(item => (
             <View key={item.label} style={rm.affectedRow}>
-              <Feather name={item.icon} size={13} color="#2563EB" />
+              <Feather name={item.icon} size={13} color="#1F8F86" />
               <View style={{ flex: 1 }}>
                 <Text style={rm.affectedLabel}>{item.label}</Text>
                 <Text style={rm.affectedDetail}>{item.detail}</Text>
@@ -350,7 +350,7 @@ function RestoreModal({
           {/* 복구 제외 */}
           <Text style={[rm.sectionTitle, { color: "#D97706", marginTop: 10 }]}>복구 제외 / 미보장</Text>
           {EXCLUDED_ITEMS.map(item => (
-            <View key={item.label} style={[rm.affectedRow, { borderLeftColor: "#FEF3C7" }]}>
+            <View key={item.label} style={[rm.affectedRow, { borderLeftColor: "#FFF1BF" }]}>
               <Feather name={item.icon} size={13} color="#D97706" />
               <View style={{ flex: 1 }}>
                 <Text style={[rm.affectedLabel, { color: "#D97706" }]}>{item.label}</Text>
@@ -379,7 +379,7 @@ function RestoreModal({
             <Text style={[rm.btnTxt, { color: C.textSecondary }]}>취소</Text>
           </Pressable>
           <Pressable
-            style={[rm.btn, { backgroundColor: check1 && check2 ? "#DC2626" : "#9CA3AF", flex: 1.5 }]}
+            style={[rm.btn, { backgroundColor: check1 && check2 ? "#D96C6C" : "#9A948F", flex: 1.5 }]}
             onPress={execRestore}
             disabled={running || !check1 || !check2}
           >
@@ -460,11 +460,11 @@ export default function RecoveryScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* 상태 요약 */}
-        <View style={[s.statusCard, { backgroundColor: latestSnap ? "#D1FAE5" : "#FEE2E2" }]}>
+        <View style={[s.statusCard, { backgroundColor: latestSnap ? "#DDF2EF" : "#F9DEDA" }]}>
           <Feather name={latestSnap ? "shield" : "alert-circle"} size={18}
-            color={latestSnap ? "#059669" : "#DC2626"} />
+            color={latestSnap ? "#1F8F86" : "#D96C6C"} />
           <View style={{ flex: 1 }}>
-            <Text style={[s.statusTitle, { color: latestSnap ? "#059669" : "#DC2626" }]}>
+            <Text style={[s.statusTitle, { color: latestSnap ? "#1F8F86" : "#D96C6C" }]}>
               {latestSnap ? "최근 백업 있음" : "백업 없음"}
             </Text>
             {latestSnap && (
@@ -472,7 +472,7 @@ export default function RecoveryScreen() {
             )}
           </View>
           <Pressable
-            style={[s.manualBtn, { backgroundColor: creating ? "#D1FAE5" : C.tint }]}
+            style={[s.manualBtn, { backgroundColor: creating ? "#DDF2EF" : C.tint }]}
             onPress={handleManualSnapshot}
             disabled={creating}
           >
@@ -487,9 +487,9 @@ export default function RecoveryScreen() {
         </View>
 
         {/* 자동 백업 정책 안내 */}
-        <View style={[s.autoBackupBox, { backgroundColor: "#F0FDF4" }]}>
+        <View style={[s.autoBackupBox, { backgroundColor: "#DFF3EC" }]}>
           <View style={s.autoBackupRow}>
-            <Feather name="clock" size={14} color="#059669" />
+            <Feather name="clock" size={14} color="#1F8F86" />
             <Text style={s.autoBackupTitle}>자동 백업 정책</Text>
           </View>
           <Text style={s.autoBackupLine}>• 자동 백업 주기: <Text style={{ fontFamily: "Inter_600SemiBold" }}>1시간</Text></Text>
@@ -510,21 +510,21 @@ export default function RecoveryScreen() {
         {/* 복구 완료 배너 */}
         {doneSnap && (
           <View style={s.doneBanner}>
-            <Feather name="check-circle" size={14} color="#059669" />
+            <Feather name="check-circle" size={14} color="#1F8F86" />
             <Text style={s.doneTxt}>복구가 실행 중입니다. 완료 후 화면을 새로고침하세요.</Text>
           </View>
         )}
 
         {/* 삭제 완료 배너 */}
         {doneDelete && (
-          <View style={[s.doneBanner, { backgroundColor: "#FEE2E2" }]}>
-            <Feather name="trash-2" size={14} color="#DC2626" />
+          <View style={[s.doneBanner, { backgroundColor: "#F9DEDA" }]}>
+            <Feather name="trash-2" size={14} color="#D96C6C" />
             <Text style={[s.doneTxt, { color: "#991B1B" }]}>스냅샷이 영구 삭제되었습니다.</Text>
           </View>
         )}
 
         {/* 복구 원칙 안내 */}
-        <View style={[s.infoBox, { backgroundColor: "#EFF6FF" }]}>
+        <View style={[s.infoBox, { backgroundColor: "#DDF2EF" }]}>
           <Text style={s.infoTitle}>복구 데이터 정책</Text>
           <Text style={s.infoLine}>• 회원 정보·승인 상태·반/수업 설정·출결·일지 텍스트·설정값 복구 가능</Text>
           <Text style={s.infoLine}>• 사진·영상 원본 복구는 보장되지 않습니다</Text>
@@ -533,7 +533,7 @@ export default function RecoveryScreen() {
         </View>
 
         {/* 역할 안내 */}
-        <View style={[s.infoBox, { backgroundColor: "#FFF7ED" }]}>
+        <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
           <Feather name="info" size={13} color="#D97706" />
           <View style={{ flex: 1, marginLeft: 6 }}>
             <Text style={[s.infoTitle, { color: "#D97706" }]}>역할 안내</Text>
@@ -550,10 +550,10 @@ export default function RecoveryScreen() {
             {myJobs.slice(0, 3).map(job => (
               <View key={job.id} style={[s.jobRow, { backgroundColor: C.card }]}>
                 <View style={[s.jobStatus, {
-                  backgroundColor: job.status === "done" ? "#D1FAE5" : job.status === "running" ? "#DBEAFE" : "#FEF3C7",
+                  backgroundColor: job.status === "done" ? "#DDF2EF" : job.status === "running" ? "#DDF2EF" : "#FFF1BF",
                 }]}>
                   <Text style={[s.jobStatusTxt, {
-                    color: job.status === "done" ? "#059669" : job.status === "running" ? "#2563EB" : "#D97706",
+                    color: job.status === "done" ? "#1F8F86" : job.status === "running" ? "#1F8F86" : "#D97706",
                   }]}>{job.status === "done" ? "완료" : job.status === "running" ? "실행 중" : "대기"}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
@@ -630,25 +630,25 @@ const s = StyleSheet.create({
 
   statusCard:   { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
   statusTitle:  { fontSize: 14, fontFamily: "Inter_700Bold" },
-  statusSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#374151", marginTop: 2 },
+  statusSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F1F1F", marginTop: 2 },
   manualBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12,
                   paddingVertical: 8, borderRadius: 10 },
   manualBtnTxt: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
 
   doneBanner:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 12,
-                  backgroundColor: "#D1FAE5", borderRadius: 12 },
+                  backgroundColor: "#DDF2EF", borderRadius: 12 },
   doneTxt:      { fontSize: 13, fontFamily: "Inter_500Medium", color: "#065F46", flex: 1 },
 
   infoBox:      { borderRadius: 12, padding: 14, gap: 4, flexDirection: "row" },
-  infoTitle:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1E40AF", marginBottom: 4 },
-  infoLine:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#1E40AF", lineHeight: 18 },
+  infoTitle:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#18766F", marginBottom: 4 },
+  infoLine:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#18766F", lineHeight: 18 },
 
   section:      { gap: 8 },
   sectionTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: C.textSecondary },
 
   autoBackupBox:  { marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: 12, gap: 4 },
   autoBackupRow:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  autoBackupTitle:{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#059669" },
+  autoBackupTitle:{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F8F86" },
   autoBackupLine: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#166534", lineHeight: 18 },
 
   snapCard:     { backgroundColor: C.card, borderRadius: 14, overflow: "hidden" },
@@ -667,10 +667,10 @@ const s = StyleSheet.create({
   snapBody:     { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
   includesTitle:{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
   tagsRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  tag:          { backgroundColor: "#EFF6FF", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  tagTxt:       { fontSize: 10, fontFamily: "Inter_500Medium", color: "#2563EB" },
+  tag:          { backgroundColor: "#DDF2EF", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  tagTxt:       { fontSize: 10, fontFamily: "Inter_500Medium", color: "#1F8F86" },
   excludeBox:   { flexDirection: "row", alignItems: "center", gap: 6,
-                  backgroundColor: "#FEF3C7", padding: 8, borderRadius: 8 },
+                  backgroundColor: "#FFF1BF", padding: 8, borderRadius: 8 },
   excludeTxt:   { fontSize: 11, fontFamily: "Inter_500Medium", color: "#92400E" },
   restoreBtn:   { flexDirection: "row", alignItems: "center", justifyContent: "center",
                   gap: 8, paddingVertical: 12, borderRadius: 12 },
@@ -696,11 +696,11 @@ const rm = StyleSheet.create({
   sheet:        { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
                   padding: 20, gap: 10, maxHeight: "90%" },
   header:       { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
-  title:        { flex: 1, fontSize: 17, fontFamily: "Inter_700Bold", color: "#DC2626" },
+  title:        { flex: 1, fontSize: 17, fontFamily: "Inter_700Bold", color: "#D96C6C" },
 
-  targetBox:    { backgroundColor: "#FEE2E2", borderRadius: 12, padding: 14, gap: 4 },
-  targetLabel:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#DC2626" },
-  targetTime:   { fontSize: 16, fontFamily: "Inter_700Bold", color: "#DC2626" },
+  targetBox:    { backgroundColor: "#F9DEDA", borderRadius: 12, padding: 14, gap: 4 },
+  targetLabel:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
+  targetTime:   { fontSize: 16, fontFamily: "Inter_700Bold", color: "#D96C6C" },
   targetNote:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#991B1B" },
 
   previewBox:   { backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 14, gap: 8 },
@@ -716,12 +716,12 @@ const rm = StyleSheet.create({
 
   sectionTitle: { fontSize: 12, fontFamily: "Inter_700Bold", color: C.textSecondary, marginTop: 4 },
   affectedRow:  { flexDirection: "row", gap: 10, paddingVertical: 6,
-                  borderLeftWidth: 2, borderLeftColor: "#DBEAFE", paddingLeft: 10 },
+                  borderLeftWidth: 2, borderLeftColor: "#DDF2EF", paddingLeft: 10 },
   affectedLabel:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
   affectedDetail:{ fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, lineHeight: 16 },
 
   checkRow:     { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4,
-                  backgroundColor: "#F9FAFB", borderRadius: 10, padding: 10 },
+                  backgroundColor: "#FBF8F6", borderRadius: 10, padding: 10 },
   checkTxt:     { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: C.text, lineHeight: 18 },
 
   btnRow:       { flexDirection: "row", gap: 10, marginTop: 6 },

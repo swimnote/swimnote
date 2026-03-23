@@ -131,19 +131,19 @@ export default function PolicyScreen() {
             <Pressable style={s.actionRow} onPress={() => { setVersionKey(tab); setTab("versions"); }}>
               <Feather name="git-branch" size={16} color={P} />
               <Text style={s.actionTxt}>버전 이력 확인</Text>
-              <Feather name="chevron-right" size={15} color="#9CA3AF" />
+              <Feather name="chevron-right" size={15} color="#9A948F" />
             </Pressable>
             <View style={s.divider} />
             <Pressable style={s.actionRow} onPress={() => { setUnsignedKey(tab); setTab("unsigned"); }}>
-              <Feather name="alert-circle" size={16} color="#DC2626" />
-              <Text style={[s.actionTxt, { color: "#DC2626" }]}>미동의 운영자 확인</Text>
-              <Feather name="chevron-right" size={15} color="#9CA3AF" />
+              <Feather name="alert-circle" size={16} color="#D96C6C" />
+              <Text style={[s.actionTxt, { color: "#D96C6C" }]}>미동의 운영자 확인</Text>
+              <Feather name="chevron-right" size={15} color="#9A948F" />
             </Pressable>
             <View style={s.divider} />
             <Pressable style={s.actionRow} onPress={() => { setVersionKey(tab); setVersionModal(true); }}>
-              <Feather name="plus-circle" size={16} color="#059669" />
-              <Text style={[s.actionTxt, { color: "#059669" }]}>새 버전 저장</Text>
-              <Feather name="chevron-right" size={15} color="#9CA3AF" />
+              <Feather name="plus-circle" size={16} color="#1F8F86" />
+              <Text style={[s.actionTxt, { color: "#1F8F86" }]}>새 버전 저장</Text>
+              <Feather name="chevron-right" size={15} color="#9A948F" />
             </Pressable>
           </View>
         </ScrollView>
@@ -211,7 +211,7 @@ export default function PolicyScreen() {
             ListHeaderComponent={
               unsignedOperators.length > 0 ? (
                 <View style={s.unsignedHeader}>
-                  <Feather name="alert-circle" size={14} color="#DC2626" />
+                  <Feather name="alert-circle" size={14} color="#D96C6C" />
                   <Text style={s.unsignedHeaderTxt}>
                     {TABS.find(t => t.key === unsignedKey)?.label} 미동의 운영자 {unsignedOperators.length}명
                   </Text>
@@ -228,17 +228,17 @@ export default function PolicyScreen() {
                     <Text style={s.unsignedSub}>{item.representativeName} · {fmtDate(item.createdAt)} 가입</Text>
                   </View>
                 </View>
-                <View style={[s.unsignedBadge, { backgroundColor: item.isApproved ? "#D1FAE5" : "#FEF3C7" }]}>
-                  <Text style={[s.unsignedBadgeTxt, { color: item.isApproved ? "#059669" : "#D97706" }]}>
+                <View style={[s.unsignedBadge, { backgroundColor: item.isApproved ? "#DDF2EF" : "#FFF1BF" }]}>
+                  <Text style={[s.unsignedBadgeTxt, { color: item.isApproved ? "#1F8F86" : "#D97706" }]}>
                     {item.isApproved ? "승인" : "대기"}
                   </Text>
                 </View>
-                <Feather name="chevron-right" size={14} color="#9CA3AF" />
+                <Feather name="chevron-right" size={14} color="#9A948F" />
               </Pressable>
             )}
             ListEmptyComponent={
               <View style={s.empty}>
-                <Feather name="check-circle" size={28} color="#10B981" />
+                <Feather name="check-circle" size={28} color="#2E9B6F" />
                 <Text style={s.emptyTxt}>모든 운영자가 동의했습니다</Text>
               </View>
             }
@@ -256,13 +256,13 @@ export default function PolicyScreen() {
               <View style={m.section}>
                 <Text style={m.label}>버전 번호 *</Text>
                 <TextInput style={m.input} value={newVer} onChangeText={setNewVer}
-                  placeholder="예: 2.1.0" placeholderTextColor="#9CA3AF" />
+                  placeholder="예: 2.1.0" placeholderTextColor="#9A948F" />
               </View>
               <View style={m.section}>
                 <Text style={m.label}>내용 *</Text>
                 <TextInput style={[m.input, { minHeight: 100 }]} value={newVal}
                   onChangeText={setNewVal} multiline placeholder="정책 내용"
-                  placeholderTextColor="#9CA3AF" textAlignVertical="top" />
+                  placeholderTextColor="#9A948F" textAlignVertical="top" />
               </View>
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setVersionModal(false)}>
@@ -282,56 +282,56 @@ export default function PolicyScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:            { flex: 1, backgroundColor: "#F5F3FF" },
-  tabBar:          { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  safe:            { flex: 1, backgroundColor: "#EEDDF5" },
+  tabBar:          { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
   tabContent:      { paddingHorizontal: 12, paddingVertical: 6, gap: 4, flexDirection: "row" },
   tab:             { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  tabActive:       { backgroundColor: "#EDE9FE" },
-  tabTxt:          { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  tabActive:       { backgroundColor: "#EEDDF5" },
+  tabTxt:          { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68" },
   tabTxtActive:    { color: P, fontFamily: "Inter_700Bold" },
-  subTabBar:       { flexGrow: 0, backgroundColor: "#F9FAFB", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  subTabBar:       { flexGrow: 0, backgroundColor: "#FBF8F6", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
   subTabContent:   { paddingHorizontal: 12, paddingVertical: 6, gap: 4, flexDirection: "row" },
   subTab:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
-  subTabActive:    { backgroundColor: "#EDE9FE" },
-  subTabTxt:       { fontSize: 12, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
+  subTabActive:    { backgroundColor: "#EEDDF5" },
+  subTabTxt:       { fontSize: 12, fontFamily: "Inter_500Medium", color: "#9A948F" },
   policyCard:      { backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 12,
-                     borderWidth: 1, borderColor: "#E5E7EB" },
+                     borderWidth: 1, borderColor: "#E9E2DD" },
   policyHeader:    { flexDirection: "row", alignItems: "center", gap: 10 },
-  policyIconBg:    { width: 34, height: 34, borderRadius: 10, backgroundColor: "#EDE9FE",
+  policyIconBg:    { width: 34, height: 34, borderRadius: 10, backgroundColor: "#EEDDF5",
                      alignItems: "center", justifyContent: "center" },
-  policyTitle:     { flex: 1, fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
-  activeBadge:     { backgroundColor: "#D1FAE5", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  activeBadgeTxt:  { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#059669" },
-  policyBody:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 22 },
-  actionCard:      { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden" },
+  policyTitle:     { flex: 1, fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  activeBadge:     { backgroundColor: "#DDF2EF", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  activeBadgeTxt:  { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
+  policyBody:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 22 },
+  actionCard:      { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E9E2DD", overflow: "hidden" },
   actionRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
-  actionTxt:       { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: "#374151" },
-  divider:         { height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 14 },
+  actionTxt:       { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
+  divider:         { height: 1, backgroundColor: "#F6F3F1", marginHorizontal: 14 },
   addVerBtn:       { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: P,
                      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9,
                      alignSelf: "flex-start", marginBottom: 10 },
   addVerTxt:       { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
   verRow:          { flexDirection: "row", alignItems: "flex-start", gap: 10,
                      backgroundColor: "#fff", borderRadius: 12, padding: 14,
-                     borderWidth: 1, borderColor: "#E5E7EB" },
-  verBadge:        { backgroundColor: "#EDE9FE", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+                     borderWidth: 1, borderColor: "#E9E2DD" },
+  verBadge:        { backgroundColor: "#EEDDF5", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   verBadgeTxt:     { fontSize: 11, fontFamily: "Inter_700Bold", color: P },
-  verPreview:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 18 },
-  verMeta:         { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 4 },
+  verPreview:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 18 },
+  verMeta:         { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 4 },
   unsignedHeader:  { flexDirection: "row", alignItems: "center", gap: 8,
                      backgroundColor: "#FEF2F2", borderRadius: 10, padding: 12, marginBottom: 6 },
-  unsignedHeaderTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#DC2626" },
+  unsignedHeaderTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
   unsignedRow:     { flexDirection: "row", alignItems: "center", gap: 10,
                      backgroundColor: "#fff", borderRadius: 12, padding: 14,
-                     borderWidth: 1, borderColor: "#E5E7EB" },
+                     borderWidth: 1, borderColor: "#E9E2DD" },
   unsignedLeft:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
-  unsignedBullet:  { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#DC2626", flexShrink: 0 },
-  unsignedName:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  unsignedSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  unsignedBullet:  { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#D96C6C", flexShrink: 0 },
+  unsignedName:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  unsignedSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
   unsignedBadge:   { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   unsignedBadgeTxt:{ fontSize: 10, fontFamily: "Inter_500Medium" },
   empty:           { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:        { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:        { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });
 
 const m = StyleSheet.create({
@@ -340,15 +340,15 @@ const m = StyleSheet.create({
                borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40,
                maxHeight: "80%", gap: 14 },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: -8 },
+  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  sub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: -8 },
   section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-               fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  label:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  input:     { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12,
+               fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },
-  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
+  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   saveBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   saveTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

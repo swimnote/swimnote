@@ -53,11 +53,11 @@ export default function ParentOnboardNicknameScreen() {
     >
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 20) }]}>
         <View style={styles.stepRow}>
-          <View style={[styles.step, { backgroundColor: "#10B981" }]}>
+          <View style={[styles.step, { backgroundColor: "#2E9B6F" }]}>
             <Feather name="check" size={14} color="#fff" />
           </View>
-          <View style={[styles.stepLine, { backgroundColor: "#10B981" }]} />
-          <View style={[styles.step, { backgroundColor: "#10B981" }]}>
+          <View style={[styles.stepLine, { backgroundColor: "#2E9B6F" }]} />
+          <View style={[styles.step, { backgroundColor: "#2E9B6F" }]}>
             <Feather name="check" size={14} color="#fff" />
           </View>
           <View style={[styles.stepLine, { backgroundColor: C.tint }]} />
@@ -131,8 +131,8 @@ export default function ParentOnboardNicknameScreen() {
         </View>
 
         {!!error && (
-          <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
-            <Text style={[styles.errText, { color: "#EF4444" }]}>{error}</Text>
+          <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
+            <Text style={[styles.errText, { color: "#D96C6C" }]}>{error}</Text>
           </View>
         )}
 

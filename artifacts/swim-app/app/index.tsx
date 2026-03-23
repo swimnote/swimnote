@@ -137,7 +137,7 @@ export default function LoginScreen() {
           </View>
 
           {!!error && (
-            <View style={[styles.errBox, { backgroundColor: "#FEE2E2" }]}>
+            <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
               <Feather name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
@@ -191,7 +191,7 @@ export default function LoginScreen() {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowNotFoundModal(false)}>
           <Pressable style={[styles.modalCard, { backgroundColor: C.card }]} onPress={e => e.stopPropagation()}>
-            <View style={[styles.modalIconWrap, { backgroundColor: "#FEF3C7" }]}>
+            <View style={[styles.modalIconWrap, { backgroundColor: "#FFF1BF" }]}>
               <Feather name="user-x" size={26} color="#D97706" />
             </View>
             <Text style={[styles.modalTitle, { color: C.text }]}>가입된 계정이 없습니다</Text>
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, paddingHorizontal: 20, gap: 20 },
   logoArea: { alignItems: "center", gap: 8, paddingBottom: 4 },
-  logoBox: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", shadowColor: "#1A5CFF", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },
+  logoBox: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", shadowColor: "#1F8F86", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },
   appName: { fontSize: 26, fontFamily: "Inter_700Bold", marginTop: 4 },
   appSub: { fontSize: 14, fontFamily: "Inter_500Medium" },
   appDesc: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 2 },

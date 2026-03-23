@@ -60,8 +60,8 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 </Text>
                 <Text style={[p.subInfo, { color: C.textMuted }]}>{cg?.schedule_days}</Text>
               </View>
-              <View style={[p.badge, { backgroundColor: diary ? "#D1FAE5" : "#FEF3C7" }]}>
-                <Text style={[p.badgeText, { color: diary ? "#059669" : "#D97706" }]}>
+              <View style={[p.badge, { backgroundColor: diary ? "#DDF2EF" : "#FFF1BF" }]}>
+                <Text style={[p.badgeText, { color: diary ? "#1F8F86" : "#D97706" }]}>
                   {diary ? "일지 완료" : "일지 미작성"}
                 </Text>
               </View>
@@ -69,8 +69,8 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
             <View style={[p.statRow, { borderTopColor: C.border }]}>
               {[
                 { val: students.length, label: "총 학생", color: C.text },
-                { val: present, label: "출석", color: "#059669" },
-                { val: absent, label: "결석", color: "#EF4444" },
+                { val: present, label: "출석", color: "#1F8F86" },
+                { val: absent, label: "결석", color: "#D96C6C" },
                 { val: students.filter(s => s.has_makeup).length, label: "보강", color: C.tint },
               ].map((st, i) => (
                 <React.Fragment key={i}>
@@ -107,11 +107,11 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                       <Feather name="user" size={15} color={C.tint} />
                     </View>
                     <Text style={[p.listName, { color: C.text }]}>{s.name}</Text>
-                    {s.has_makeup && <StatusBadge label="보강" bg="#EDE9FE" color="#7C3AED" />}
+                    {s.has_makeup && <StatusBadge label="보강" bg="#EEDDF5" color="#7C3AED" />}
                     <StatusBadge
                       label={s.status === "active" ? "정상" : s.status}
-                      bg={s.status === "active" ? "#D1FAE5" : "#FEF3C7"}
-                      color={s.status === "active" ? "#059669" : "#D97706"}
+                      bg={s.status === "active" ? "#DDF2EF" : "#FFF1BF"}
+                      color={s.status === "active" ? "#1F8F86" : "#D97706"}
                     />
                   </View>
                 ))
@@ -123,15 +123,15 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 ? <Text style={[p.empty, { color: C.textMuted }]}>출결 기록이 없습니다</Text>
                 : attendance.map(a => (
                   <View key={a.student_id} style={[p.listRow, { backgroundColor: C.card }]}>
-                    <View style={[p.avatar, { backgroundColor: a.status === "present" ? "#D1FAE5" : "#FEE2E2" }]}>
-                      <Feather name={a.status === "present" ? "check" : "x"} size={13} color={a.status === "present" ? "#059669" : "#EF4444"} />
+                    <View style={[p.avatar, { backgroundColor: a.status === "present" ? "#DDF2EF" : "#F9DEDA" }]}>
+                      <Feather name={a.status === "present" ? "check" : "x"} size={13} color={a.status === "present" ? "#1F8F86" : "#D96C6C"} />
                     </View>
                     <Text style={[p.listName, { color: C.text }]}>{a.student_name}</Text>
-                    {a.has_makeup && <StatusBadge label="보강" bg="#EDE9FE" color="#7C3AED" />}
+                    {a.has_makeup && <StatusBadge label="보강" bg="#EEDDF5" color="#7C3AED" />}
                     <StatusBadge
                       label={a.status === "present" ? "출석" : a.status === "absent" ? "결석" : a.status}
-                      bg={a.status === "present" ? "#D1FAE5" : a.status === "absent" ? "#FEE2E2" : "#F3F4F6"}
-                      color={a.status === "present" ? "#059669" : a.status === "absent" ? "#EF4444" : C.textSecondary}
+                      bg={a.status === "present" ? "#DDF2EF" : a.status === "absent" ? "#F9DEDA" : "#F6F3F1"}
+                      color={a.status === "present" ? "#1F8F86" : a.status === "absent" ? "#D96C6C" : C.textSecondary}
                     />
                   </View>
                 ))
@@ -166,12 +166,12 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 ? <Text style={[p.empty, { color: C.textMuted }]}>결석자가 없습니다</Text>
                 : absentList.map(a => (
                   <View key={a.student_id} style={[p.listRow, { backgroundColor: C.card }]}>
-                    <View style={[p.avatar, { backgroundColor: "#FEE2E2" }]}>
-                      <Feather name="x" size={13} color="#EF4444" />
+                    <View style={[p.avatar, { backgroundColor: "#F9DEDA" }]}>
+                      <Feather name="x" size={13} color="#D96C6C" />
                     </View>
                     <Text style={[p.listName, { color: C.text }]}>{a.student_name}</Text>
-                    {a.has_makeup && <StatusBadge label="보강" bg="#EDE9FE" color="#7C3AED" />}
-                    <StatusBadge label="결석" bg="#FEE2E2" color="#EF4444" />
+                    {a.has_makeup && <StatusBadge label="보강" bg="#EEDDF5" color="#7C3AED" />}
+                    <StatusBadge label="결석" bg="#F9DEDA" color="#D96C6C" />
                   </View>
                 ));
             })()}

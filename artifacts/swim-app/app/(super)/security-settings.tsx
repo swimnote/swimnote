@@ -21,9 +21,9 @@ import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SuperAdminAccount, SuperAdminRole, SuperAdminSession } from "@/domain/types";
 
 const P = "#7C3AED";
-const DANGER = "#DC2626";
+const DANGER = "#D96C6C";
 const WARN = "#D97706";
-const GREEN = "#059669";
+const GREEN = "#1F8F86";
 
 // ─── 헬퍼 ────────────────────────────────────────────────────────────────────
 function isAccountLocked(acc: SuperAdminAccount): boolean {
@@ -74,9 +74,9 @@ const INITIAL_SERVICES: ExtService[] = [
   { id: "email",     name: "Email Provider",   icon: "mail",          status: "disconnected", lastChecked: "3시간 전", note: "SMTP 연결 실패" },
 ];
 const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string }> = {
-  connected:    { label: "정상",  color: GREEN,  bg: "#D1FAE5" },
-  warning:      { label: "경고",  color: WARN,   bg: "#FEF3C7" },
-  disconnected: { label: "끊김",  color: DANGER, bg: "#FEE2E2" },
+  connected:    { label: "정상",  color: GREEN,  bg: "#DDF2EF" },
+  warning:      { label: "경고",  color: WARN,   bg: "#FFF1BF" },
+  disconnected: { label: "끊김",  color: DANGER, bg: "#F9DEDA" },
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -100,8 +100,8 @@ function SectionTitle({ title, sub }: { title: string; sub?: string }) {
   );
 }
 const st = StyleSheet.create({
-  title: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  title: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  sub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });
 
 // ─── 메인 ─────────────────────────────────────────────────────────────────────
@@ -253,8 +253,8 @@ export default function SecuritySettingsScreen() {
             const locked = isAccountLocked(acc);
             return (
               <Pressable key={acc.id} style={s.accountCard} onPress={() => setAccountDetail(acc.id)}>
-                <View style={[s.accountAvatar, { backgroundColor: acc.isActive ? "#EDE9FE" : "#F3F4F6" }]}>
-                  <Text style={[s.accountAvatarTxt, { color: acc.isActive ? P : "#9CA3AF" }]}>{acc.name[0]}</Text>
+                <View style={[s.accountAvatar, { backgroundColor: acc.isActive ? "#EEDDF5" : "#F6F3F1" }]}>
+                  <Text style={[s.accountAvatarTxt, { color: acc.isActive ? P : "#9A948F" }]}>{acc.name[0]}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={s.accountNameRow}>
@@ -267,7 +267,7 @@ export default function SecuritySettingsScreen() {
                     <View style={s.roleBadge}><Text style={s.roleTxt}>{ROLE_LABELS[acc.role] ?? acc.role}</Text></View>
                     {acc.twoFactorEnabled
                       ? <View style={s.twoFaBadgeOn}><Feather name="shield" size={9} color={GREEN} /><Text style={s.twoFaTxtOn}>2FA</Text></View>
-                      : <View style={s.twoFaBadgeOff}><Feather name="shield-off" size={9} color="#9CA3AF" /><Text style={s.twoFaTxtOff}>2FA 없음</Text></View>}
+                      : <View style={s.twoFaBadgeOff}><Feather name="shield-off" size={9} color="#9A948F" /><Text style={s.twoFaTxtOff}>2FA 없음</Text></View>}
                     {acc.loginFailCount > 0 && (
                       <View style={s.failBadge}><Text style={s.failTxt}>실패 {acc.loginFailCount}회</Text></View>
                     )}
@@ -288,7 +288,7 @@ export default function SecuritySettingsScreen() {
             <Text style={s.infoValue}>{lastPwChange}</Text>
           </View>
           <View style={s.infoRow}>
-            <Feather name="info" size={14} color="#6B7280" />
+            <Feather name="info" size={14} color="#6F6B68" />
             <Text style={s.infoLabel}>비밀번호 정책</Text>
             <Text style={s.infoValue}>8자 이상 · 영문+숫자+특수문자</Text>
           </View>
@@ -375,8 +375,8 @@ export default function SecuritySettingsScreen() {
           {/* OTP 재등록 */}
           {(twoFAMode === "otp" || twoFAMode === "otp_sms_backup") && (
             <Pressable style={s.actionBtn} onPress={() => setOtpReenrollModal(true)}>
-              <Feather name="refresh-cw" size={15} color="#0891B2" />
-              <Text style={[s.actionBtnTxt, { color: "#0891B2" }]}>OTP 재등록 (QR 갱신)</Text>
+              <Feather name="refresh-cw" size={15} color="#1F8F86" />
+              <Text style={[s.actionBtnTxt, { color: "#1F8F86" }]}>OTP 재등록 (QR 갱신)</Text>
               <Feather name="chevron-right" size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
             </Pressable>
           )}
@@ -467,8 +467,8 @@ export default function SecuritySettingsScreen() {
           )}
           {allSessions.map(sess => (
             <View key={sess.id} style={s.sessionRow}>
-              <View style={[s.sessionIconBox, { backgroundColor: "#F3F4F6" }]}>
-                <Feather name="monitor" size={14} color="#6B7280" />
+              <View style={[s.sessionIconBox, { backgroundColor: "#F6F3F1" }]}>
+                <Feather name="monitor" size={14} color="#6F6B68" />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -518,7 +518,7 @@ export default function SecuritySettingsScreen() {
             {REAUTH_ACTIONS.map(act => (
               <View key={act} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 }}>
                 <Feather name="check-circle" size={12} color={P} />
-                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#374151" }}>{act}</Text>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F" }}>{act}</Text>
               </View>
             ))}
           </View>
@@ -531,8 +531,8 @@ export default function SecuritySettingsScreen() {
             const isSuccess = log.status === "success";
             const isFail    = log.status === "fail";
             const isBlock   = log.status === "block";
-            const color = isSuccess ? "#16A34A" : isBlock ? "#DC2626" : "#D97706";
-            const bg    = isSuccess ? "#F0FDF4" : isBlock ? "#FEF2F2" : "#FFFBEB";
+            const color = isSuccess ? "#16A34A" : isBlock ? "#D96C6C" : "#D97706";
+            const bg    = isSuccess ? "#DFF3EC" : isBlock ? "#FEF2F2" : "#FFFBEB";
             return (
               <View key={log.id} style={[s.infoRow, { backgroundColor: bg, borderRadius: 10, padding: 10, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, width: "100%" }}>
@@ -559,8 +559,8 @@ export default function SecuritySettingsScreen() {
             <Pressable style={m.sheet} onPress={() => {}}>
               <View style={m.handle} />
               <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-                <View style={[m.avatar, { backgroundColor: detailAcc.isActive ? "#EDE9FE" : "#F3F4F6" }]}>
-                  <Text style={[m.avatarTxt, { color: detailAcc.isActive ? P : "#9CA3AF" }]}>{detailAcc.name[0]}</Text>
+                <View style={[m.avatar, { backgroundColor: detailAcc.isActive ? "#EEDDF5" : "#F6F3F1" }]}>
+                  <Text style={[m.avatarTxt, { color: detailAcc.isActive ? P : "#9A948F" }]}>{detailAcc.name[0]}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={m.modalName}>{detailAcc.name}</Text>
@@ -572,7 +572,7 @@ export default function SecuritySettingsScreen() {
                 {([
                   ["권한 등급",   ROLE_LABELS[detailAcc.role] ?? detailAcc.role,                                  undefined],
                   ["2차 인증",    detailAcc.twoFactorEnabled ? "활성" : "비활성",                                  detailAcc.twoFactorEnabled ? GREEN : DANGER],
-                  ["계정 상태",   detailAcc.isActive ? "활성" : "비활성",                                          detailAcc.isActive ? GREEN : "#6B7280"],
+                  ["계정 상태",   detailAcc.isActive ? "활성" : "비활성",                                          detailAcc.isActive ? GREEN : "#6F6B68"],
                   ["로그인 실패", `${detailAcc.loginFailCount}회`,                                                  detailAcc.loginFailCount > 0 ? DANGER : undefined],
                   ["마지막 로그인", relTime(detailAcc.lastLoginAt),                                                 undefined],
                   ["마지막 IP",   detailAcc.lastLoginIp ?? "—",                                                    undefined],
@@ -586,20 +586,20 @@ export default function SecuritySettingsScreen() {
 
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 {isAccountLocked(detailAcc) ? (
-                  <Pressable style={[m.actBtn, { backgroundColor: "#D1FAE5" }]} onPress={() => doUnlock(detailAcc.id)}>
+                  <Pressable style={[m.actBtn, { backgroundColor: "#DDF2EF" }]} onPress={() => doUnlock(detailAcc.id)}>
                     <Feather name="unlock" size={14} color={GREEN} />
                     <Text style={[m.actBtnTxt, { color: GREEN }]}>잠금 해제</Text>
                   </Pressable>
                 ) : (
-                  <Pressable style={[m.actBtn, { backgroundColor: "#FEE2E2" }]} onPress={() => doLock(detailAcc.id)}>
+                  <Pressable style={[m.actBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => doLock(detailAcc.id)}>
                     <Feather name="lock" size={14} color={DANGER} />
                     <Text style={[m.actBtnTxt, { color: DANGER }]}>잠금 ({lockMinutes}분)</Text>
                   </Pressable>
                 )}
                 {detailAcc.loginFailCount > 0 && (
-                  <Pressable style={[m.actBtn, { backgroundColor: "#EEF2FF" }]} onPress={() => doResetFail(detailAcc.id)}>
-                    <Feather name="refresh-cw" size={14} color="#4F46E5" />
-                    <Text style={[m.actBtnTxt, { color: "#4F46E5" }]}>실패 초기화</Text>
+                  <Pressable style={[m.actBtn, { backgroundColor: "#DDF2EF" }]} onPress={() => doResetFail(detailAcc.id)}>
+                    <Feather name="refresh-cw" size={14} color="#1F8F86" />
+                    <Text style={[m.actBtnTxt, { color: "#1F8F86" }]}>실패 초기화</Text>
                   </Pressable>
                 )}
               </View>
@@ -627,14 +627,14 @@ export default function SecuritySettingsScreen() {
             ) : (
               <>
                 <TextInput style={m.input} value={currentPw} onChangeText={setCurrentPw}
-                  placeholder="현재 비밀번호" placeholderTextColor="#9CA3AF" secureTextEntry />
+                  placeholder="현재 비밀번호" placeholderTextColor="#9A948F" secureTextEntry />
                 <TextInput style={m.input} value={newPw} onChangeText={setNewPw}
-                  placeholder="새 비밀번호 (8자 이상)" placeholderTextColor="#9CA3AF" secureTextEntry />
+                  placeholder="새 비밀번호 (8자 이상)" placeholderTextColor="#9A948F" secureTextEntry />
                 <TextInput style={m.input} value={confirmPw} onChangeText={setConfirmPw}
-                  placeholder="새 비밀번호 확인" placeholderTextColor="#9CA3AF" secureTextEntry />
+                  placeholder="새 비밀번호 확인" placeholderTextColor="#9A948F" secureTextEntry />
                 {pwError ? <Text style={{ fontSize: 12, color: DANGER, fontFamily: "Inter_400Regular" }}>{pwError}</Text> : null}
-                <View style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 10 }}>
-                  <Text style={{ fontSize: 11, color: "#6B7280", fontFamily: "Inter_400Regular" }}>정책: 8자 이상 · 영문+숫자+특수문자 포함</Text>
+                <View style={{ backgroundColor: "#F6F3F1", borderRadius: 8, padding: 10 }}>
+                  <Text style={{ fontSize: 11, color: "#6F6B68", fontFamily: "Inter_400Regular" }}>정책: 8자 이상 · 영문+숫자+특수문자 포함</Text>
                 </View>
                 <View style={m.btnRow}>
                   <Pressable style={m.cancelBtn} onPress={() => { setPwModal(false); setPwError(""); }}>
@@ -688,23 +688,23 @@ export default function SecuritySettingsScreen() {
           <Pressable style={m.sheet} onPress={() => {}}>
             <View style={m.handle} />
             <Text style={m.modalTitle}>OTP 재등록</Text>
-            <Text style={{ fontSize: 13, color: "#6B7280", fontFamily: "Inter_400Regular" }}>
+            <Text style={{ fontSize: 13, color: "#6F6B68", fontFamily: "Inter_400Regular" }}>
               새 QR 코드를 생성하면 기존 OTP 앱과의 연결이 끊깁니다. 새 코드로 재등록 후 사용 가능합니다.
             </Text>
             {/* Mock QR Placeholder */}
             <View style={{ alignItems: "center", gap: 8 }}>
-              <View style={{ width: 140, height: 140, backgroundColor: "#F3F4F6", borderRadius: 14,
-                             alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#E5E7EB" }}>
+              <View style={{ width: 140, height: 140, backgroundColor: "#F6F3F1", borderRadius: 14,
+                             alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#E9E2DD" }}>
                 <Feather name="grid" size={80} color="#D1D5DB" />
               </View>
-              <View style={{ backgroundColor: "#F9FAFB", borderRadius: 8, padding: 10, width: "100%", alignItems: "center" }}>
-                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" }}>비밀 키 (수동 입력용)</Text>
-                <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", letterSpacing: 2, marginTop: 4 }}>
+              <View style={{ backgroundColor: "#FBF8F6", borderRadius: 8, padding: 10, width: "100%", alignItems: "center" }}>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" }}>비밀 키 (수동 입력용)</Text>
+                <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", letterSpacing: 2, marginTop: 4 }}>
                   JBSW Y3DP EHPK 3PXP
                 </Text>
               </View>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEF3C7", padding: 10, borderRadius: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF1BF", padding: 10, borderRadius: 8 }}>
               <Feather name="alert-triangle" size={14} color={WARN} />
               <Text style={{ flex: 1, fontSize: 12, color: "#92400E", fontFamily: "Inter_400Regular" }}>Google Authenticator 또는 Authy 앱으로 QR을 스캔하세요.</Text>
             </View>
@@ -730,13 +730,13 @@ export default function SecuritySettingsScreen() {
           <Pressable style={m.sheet} onPress={() => {}}>
             <View style={m.handle} />
             <Text style={m.modalTitle}>2차 인증 방식 변경</Text>
-            <Text style={{ fontSize: 13, color: "#6B7280", fontFamily: "Inter_400Regular" }}>
+            <Text style={{ fontSize: 13, color: "#6F6B68", fontFamily: "Inter_400Regular" }}>
               {TWO_FA_OPTIONS.find(o => o.key === twoFAMode)?.label}
               {" → "}
               {TWO_FA_OPTIONS.find(o => o.key === pendingMode)?.label}
             </Text>
             {pendingMode === "disabled" && (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 10, borderRadius: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA", padding: 10, borderRadius: 8 }}>
                 <Feather name="alert-triangle" size={14} color={DANGER} />
                 <Text style={{ flex: 1, fontSize: 12, color: DANGER, fontFamily: "Inter_400Regular" }}>2차 인증 비활성화는 보안 위험을 높입니다.</Text>
               </View>
@@ -759,122 +759,122 @@ export default function SecuritySettingsScreen() {
 
 // ─── StyleSheet ──────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F5F3FF" },
+  safe:             { flex: 1, backgroundColor: "#EEDDF5" },
   section:          { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 10,
-                      borderWidth: 1, borderColor: "#E5E7EB" },
-  emptyTxt:         { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center", paddingVertical: 12 },
+                      borderWidth: 1, borderColor: "#E9E2DD" },
+  emptyTxt:         { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F", textAlign: "center", paddingVertical: 12 },
 
   infoRow:          { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
-                      borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  infoLabel:        { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
-  infoValue:        { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280" },
+                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  infoLabel:        { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
+  infoValue:        { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" },
   actionBtn:        { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12,
-                      paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#F5F3FF",
+                      paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#EEDDF5",
                       borderWidth: 1, borderColor: "#DDD6FE" },
   actionBtnTxt:     { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: P },
 
   accountCard:      { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
-                      borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   accountAvatar:    { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   accountAvatarTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
   accountNameRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
-  accountName:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  accountEmail:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  accountName:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  accountEmail:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
   accountMetaRow:   { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" },
-  roleBadge:        { backgroundColor: "#EDE9FE", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  roleBadge:        { backgroundColor: "#EEDDF5", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   roleTxt:          { fontSize: 10, fontFamily: "Inter_700Bold", color: P },
-  twoFaBadgeOn:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#D1FAE5",
+  twoFaBadgeOn:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#DDF2EF",
                       borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
   twoFaTxtOn:       { fontSize: 9, fontFamily: "Inter_700Bold", color: GREEN },
-  twoFaBadgeOff:    { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F3F4F6",
+  twoFaBadgeOff:    { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F6F3F1",
                       borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
-  twoFaTxtOff:      { fontSize: 9, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  failBadge:        { backgroundColor: "#FEE2E2", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  twoFaTxtOff:      { fontSize: 9, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  failBadge:        { backgroundColor: "#F9DEDA", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   failTxt:          { fontSize: 9, fontFamily: "Inter_700Bold", color: DANGER },
-  lockedBadge:      { backgroundColor: "#FEE2E2", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  lockedBadge:      { backgroundColor: "#F9DEDA", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   lockedTxt:        { fontSize: 10, fontFamily: "Inter_700Bold", color: DANGER },
-  inactiveBadge:    { backgroundColor: "#F3F4F6", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
-  inactiveTxt:      { fontSize: 10, fontFamily: "Inter_700Bold", color: "#9CA3AF" },
+  inactiveBadge:    { backgroundColor: "#F6F3F1", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  inactiveTxt:      { fontSize: 10, fontFamily: "Inter_700Bold", color: "#9A948F" },
 
   currentTwoFa:     { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8,
-                      borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  currentTwoFaLabel:{ flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
+                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  currentTwoFaLabel:{ flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
   currentTwoFaTxt:  { fontSize: 13, fontFamily: "Inter_700Bold" },
   twoFaOption:      { flexDirection: "row", alignItems: "center", gap: 12, padding: 12,
-                      borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
-  twoFaOptionActive:{ borderColor: P, backgroundColor: "#F5F3FF" },
+                      borderRadius: 10, borderWidth: 1, borderColor: "#E9E2DD" },
+  twoFaOptionActive:{ borderColor: P, backgroundColor: "#EEDDF5" },
   twoFaRadio:       { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#D1D5DB",
                       alignItems: "center", justifyContent: "center" },
   twoFaRadioActive: { borderColor: P },
   twoFaRadioDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: P },
-  twoFaOptLabel:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  twoFaOptDesc:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
-  triggerSection:   { borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 10, gap: 8 },
-  triggerHeader:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  twoFaOptLabel:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  twoFaOptDesc:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  triggerSection:   { borderTopWidth: 1, borderTopColor: "#F6F3F1", paddingTop: 10, gap: 8 },
+  triggerHeader:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   triggerRow:       { flexDirection: "row", alignItems: "center", gap: 10 },
-  triggerLabel:     { fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
+  triggerLabel:     { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
 
   serviceRow:       { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
-                      borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   serviceIconBox:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  serviceName:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  serviceName:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   statusBadge:      { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   statusTxt:        { fontSize: 10, fontFamily: "Inter_700Bold" },
-  serviceLastChecked:{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  serviceLastChecked:{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
   serviceNote:      { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
-  refreshBtn:       { width: 32, height: 32, borderRadius: 8, backgroundColor: "#EDE9FE",
+  refreshBtn:       { width: 32, height: 32, borderRadius: 8, backgroundColor: "#EEDDF5",
                       alignItems: "center", justifyContent: "center" },
 
   sessionRow:       { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
-                      borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   sessionIconBox:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  sessionDevice:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  sessionOwner:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280",
-                      backgroundColor: "#F3F4F6", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  sessionMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
-  sessionTime:      { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
-  terminateBtn:     { backgroundColor: "#FEE2E2", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  sessionDevice:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  sessionOwner:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68",
+                      backgroundColor: "#F6F3F1", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  sessionMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
+  sessionTime:      { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+  terminateBtn:     { backgroundColor: "#F9DEDA", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   terminateTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold", color: DANGER },
 
   policyRow:        { flexDirection: "row", alignItems: "center", paddingVertical: 8,
-                      borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#374151" },
-  policyBtn:        { width: 30, height: 30, borderRadius: 8, backgroundColor: "#F3F4F6",
+                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
+  policyBtn:        { width: 30, height: 30, borderRadius: 8, backgroundColor: "#F6F3F1",
                       alignItems: "center", justifyContent: "center" },
-  policyBtnTxt:     { fontSize: 18, fontFamily: "Inter_700Bold", color: "#374151", lineHeight: 22 },
-  policyVal:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", minWidth: 32, textAlign: "center" },
-  policyChip:       { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F3F4F6" },
+  policyBtnTxt:     { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F", lineHeight: 22 },
+  policyVal:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", minWidth: 32, textAlign: "center" },
+  policyChip:       { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F6F3F1" },
   policyChipActive: { backgroundColor: P },
-  policyChipTxt:    { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  policyChipTxt:    { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
   policyChipTxtActive:{ color: "#fff" },
 
   forceRow:           { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
-                        borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  forceLabel:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  forceSub:           { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+                        borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  forceLabel:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  forceSub:           { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
   forceBadge:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
-  forceBadgeOn:       { borderColor: GREEN, backgroundColor: "#D1FAE5" },
-  forceBadgeOff:      { borderColor: DANGER, backgroundColor: "#FEE2E2" },
+  forceBadgeOn:       { borderColor: GREEN, backgroundColor: "#DDF2EF" },
+  forceBadgeOff:      { borderColor: DANGER, backgroundColor: "#F9DEDA" },
   forceBadgeTxt:      { fontSize: 12, fontFamily: "Inter_700Bold" },
 
-  recoveryCodesBox:   { backgroundColor: "#F9FAFB", borderRadius: 12, padding: 14, gap: 10,
-                        borderWidth: 1, borderColor: "#E5E7EB" },
-  recoveryCodesTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  recoveryCodesBox:   { backgroundColor: "#FBF8F6", borderRadius: 12, padding: 14, gap: 10,
+                        borderWidth: 1, borderColor: "#E9E2DD" },
+  recoveryCodesTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   recoveryCodesGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   recoveryCodeItem:   { backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
-                        borderWidth: 1, borderColor: "#E5E7EB" },
-  recoveryCode:       { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827", letterSpacing: 1 },
-  recoveryCodesHint:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+                        borderWidth: 1, borderColor: "#E9E2DD" },
+  recoveryCode:       { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F", letterSpacing: 1 },
+  recoveryCodesHint:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
   regenBtn:           { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 },
   regenTxt:           { fontSize: 12, fontFamily: "Inter_600SemiBold", color: DANGER },
 
-  failLogSection:     { borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 10, gap: 8 },
-  failLogTitle:       { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  failLogSection:     { borderTopWidth: 1, borderTopColor: "#F6F3F1", paddingTop: 10, gap: 8 },
+  failLogTitle:       { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   failLogRow:         { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
                         borderRadius: 8, backgroundColor: "#FFF5F5", paddingHorizontal: 10 },
-  failLogDevice:      { fontSize: 12, fontFamily: "Inter_500Medium", color: "#374151" },
-  failLogMeta:        { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
-  failLogBadge:       { backgroundColor: "#FEE2E2", borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
+  failLogDevice:      { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
+  failLogMeta:        { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+  failLogBadge:       { backgroundColor: "#F9DEDA", borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
   failLogBadgeTxt:    { fontSize: 10, fontFamily: "Inter_700Bold", color: DANGER },
 });
 
@@ -885,24 +885,24 @@ const m = StyleSheet.create({
   handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
   avatar:     { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center" },
   avatarTxt:  { fontSize: 22, fontFamily: "Inter_700Bold" },
-  modalName:  { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
-  modalEmail: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  modalName:  { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  modalEmail: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
   detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  detailItem: { width: "47%", backgroundColor: "#F9FAFB", borderRadius: 10, padding: 10,
-                borderWidth: 1, borderColor: "#E5E7EB" },
-  detailKey:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  detailVal:  { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginTop: 3 },
+  detailItem: { width: "47%", backgroundColor: "#FBF8F6", borderRadius: 10, padding: 10,
+                borderWidth: 1, borderColor: "#E9E2DD" },
+  detailKey:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  detailVal:  { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginTop: 3 },
   actBtn:     { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14,
                 paddingVertical: 10, borderRadius: 10 },
   actBtnTxt:  { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  closeBtn:   { backgroundColor: "#F3F4F6", borderRadius: 12, paddingVertical: 13, alignItems: "center" },
-  closeTxt:   { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#374151" },
-  input:      { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  closeBtn:   { backgroundColor: "#F6F3F1", borderRadius: 12, paddingVertical: 13, alignItems: "center" },
+  closeTxt:   { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  input:      { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12,
+                fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
   btnRow:     { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn:  { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6" },
-  cancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#374151" },
+  cancelBtn:  { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
+  cancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   confirmBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   confirmTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });
