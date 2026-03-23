@@ -278,6 +278,7 @@ export default function ParentHomeScreen() {
 
       <ScrollView
         ref={scrollRef}
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
