@@ -37,6 +37,31 @@ async function getPoolSlug(poolId: string): Promise<string> {
   return pool?.name_en || sanitizePoolName(pool?.name || "pool");
 }
 
+/** 저장공간 실시간 체크 — 100% 초과 시 upload_blocked 자동 설정 후 true 반환 */
+async function checkStorageLimit(poolId: string): Promise<{ blocked: boolean; pct: number }> {
+  const [meta] = (await db.execute(sql`
+    SELECT p.upload_blocked, sp.storage_gb, ps.extra_storage_gb
+    FROM swimming_pools p
+    LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+    LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = p.id
+    WHERE p.id = ${poolId} LIMIT 1
+  `)).rows as any[];
+  if (meta?.upload_blocked) return { blocked: true, pct: 100 };
+
+  const [usage] = (await db.execute(sql`
+    SELECT COALESCE(SUM(file_size_bytes), 0) AS used_bytes
+    FROM student_photos WHERE swimming_pool_id = ${poolId}
+  `)).rows as any[];
+  const quotaBytes = (Number(meta?.storage_gb ?? 0.1) + Number(meta?.extra_storage_gb ?? 0)) * 1024 ** 3;
+  const usedBytes  = Number(usage?.used_bytes ?? 0);
+  const pct = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
+  if (pct >= 100) {
+    await db.execute(sql`UPDATE swimming_pools SET upload_blocked = true WHERE id = ${poolId}`);
+    return { blocked: true, pct };
+  }
+  return { blocked: false, pct };
+}
+
 // ── 권한 헬퍼 ──────────────────────────────────────────────────────────
 
 /** teacher가 해당 class를 담당하는지 확인 */
@@ -235,6 +260,15 @@ router.post(
         if (!classRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
       }
 
+      // ── 저장공간 실시간 체크 ────────────────────────────────────────
+      if (user.swimming_pool_id) {
+        const { blocked, pct } = await checkStorageLimit(user.swimming_pool_id);
+        if (blocked) {
+          res.status(403).json({ error: "저장공간이 가득 차 업로드가 제한됩니다.", code: "UPLOAD_BLOCKED", storage_pct: pct }); return;
+        }
+        if (pct >= 80) res.setHeader("X-Storage-Pct", `${pct}`);
+      }
+
       const poolSlug = await getPoolSlug(user.swimming_pool_id);
       const client = getClient();
       const inserted: any[] = [];
@@ -328,6 +362,15 @@ router.post(
       if (role === "pool_admin") {
         const classRows = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_id} AND swimming_pool_id = ${user.swimming_pool_id}`);
         if (!classRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+      }
+
+      // ── 저장공간 실시간 체크 ────────────────────────────────────────
+      if (user.swimming_pool_id) {
+        const { blocked, pct } = await checkStorageLimit(user.swimming_pool_id);
+        if (blocked) {
+          res.status(403).json({ error: "저장공간이 가득 차 업로드가 제한됩니다.", code: "UPLOAD_BLOCKED", storage_pct: pct }); return;
+        }
+        if (pct >= 80) res.setHeader("X-Storage-Pct", `${pct}`);
       }
 
       const poolSlug = await getPoolSlug(user.swimming_pool_id);

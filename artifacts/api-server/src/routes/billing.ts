@@ -109,7 +109,7 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
 
     const [poolRow] = (await db.execute(sql`
       SELECT is_readonly, upload_blocked, readonly_reason, payment_failed_at,
-             subscription_status, subscription_tier
+             subscription_status, subscription_tier, first_payment_used
       FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `)).rows as any[];
 
@@ -120,16 +120,25 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       daysUntilDeletion = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86_400_000));
     }
 
+    const currentPlan = plans.find((p: any) => p.tier === (sub?.tier ?? poolRow?.subscription_tier));
+    const memberLimit = Number(currentPlan?.member_limit ?? 5);
+    const storageQuotaGb = Number(currentPlan?.storage_gb ?? 0.1);
+    const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
+    const storageUsedPct = storageQuotaGb > 0 ? Math.round((storageUsedGb / storageQuotaGb) * 100) : 0;
+    const firstPaymentUsed = !!poolRow?.first_payment_used;
+
     res.json({
       subscription: sub ?? null,
       card: card ?? null,
       member_count: memberCount,
-      member_limit: Number(sub?.member_limit ?? plans.find((p: any) => p.tier === poolRow?.subscription_tier)?.member_limit ?? 5),
+      member_limit: memberLimit,
       plans,
-      storage_used_gb: +(usedBytes / (1024 ** 3)).toFixed(3),
-      storage_quota_gb: Number(storagePolicyRow?.quota_gb ?? 5),
+      storage_used_gb: storageUsedGb,
+      storage_quota_gb: storageQuotaGb,
+      storage_used_pct: storageUsedPct,
       extra_price_per_gb: Number(storagePolicyRow?.extra_price_per_gb ?? 500),
       payment_provider: getPaymentProvider().name,
+      first_payment_used: firstPaymentUsed,
       // 결제 실패 / 읽기전용 상태
       is_readonly: !!poolRow?.is_readonly,
       upload_blocked: !!poolRow?.upload_blocked,
@@ -240,10 +249,17 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
       res.status(400).json({ error: "결제 카드를 먼저 등록해주세요." }); return;
     }
 
+    // first_payment_used 확인 (최초 50% 할인 여부)
+    const [poolMeta] = (await db.execute(sql`
+      SELECT first_payment_used FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `)).rows as any[];
+    const isFirstPayment = !poolMeta?.first_payment_used;
+
     const today    = new Date();
     const todayStr = today.toISOString().split("T")[0];
     let proAmt = 0;
     let nextBilling = addOneMonth(today);
+    let actualCharge = 0;
 
     // 기존 유료 구독 → 업그레이드 일할 계산
     if (sub?.tier && sub.tier !== "free" && sub.tier !== tier && sub.next_billing_at) {
@@ -274,21 +290,34 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
         }
       }
     } else if (newPlan.price_per_month > 0 && card) {
-      // 신규 유료 구독 결제
+      // 신규 유료 구독 결제 — 최초 결제 50% 할인 적용
+      const discountedPrice = isFirstPayment
+        ? Math.round(newPlan.price_per_month * 0.5)
+        : newPlan.price_per_month;
+      actualCharge = discountedPrice;
+
       const orderId = `ord_sub_${Date.now()}`;
       const result = await getPaymentProvider().charge({
-        billingKey: card.billing_key, amount: newPlan.price_per_month,
-        orderName: `${newPlan.name} 구독`,
+        billingKey: card.billing_key, amount: discountedPrice,
+        orderName: isFirstPayment ? `${newPlan.name} 구독 (첫 결제 50% 할인)` : `${newPlan.name} 구독`,
         orderId, poolId,
       });
       await recordPayment({
-        poolId, amount: newPlan.price_per_month, status: result.success ? "success" : "failed",
+        poolId, amount: discountedPrice, status: result.success ? "success" : "failed",
         type: "subscription",
-        description: `${newPlan.name} 월 구독 결제`,
+        description: isFirstPayment
+          ? `${newPlan.name} 월 구독 결제 — 첫 결제 50% 할인 (정상가 ${newPlan.price_per_month.toLocaleString()}원)`
+          : `${newPlan.name} 월 구독 결제`,
         periodStart: todayStr, periodEnd: nextBilling,
       });
       if (!result.success) {
         res.status(402).json({ error: "구독 결제 실패: " + result.errorMessage }); return;
+      }
+      // 최초 결제 성공 시 플래그 설정
+      if (isFirstPayment) {
+        await db.execute(sql`
+          UPDATE swimming_pools SET first_payment_used = true WHERE id = ${poolId}
+        `);
       }
     }
 
@@ -316,7 +345,7 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
       metadata: { tier, plan_name: newPlan.name, price: newPlan.price_per_month, prorate_amount: proAmt },
     }).catch(console.error);
 
-    res.json({ success: true, prorate_amount: proAmt, next_billing_at: nextBilling });
+    res.json({ success: true, prorate_amount: proAmt, next_billing_at: nextBilling, is_first_payment: isFirstPayment && actualCharge > 0, discounted_amount: actualCharge });
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ error: err?.message ?? "구독 처리 중 오류가 발생했습니다." });

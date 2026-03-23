@@ -64,8 +64,11 @@ export interface PoolInfo {
   used_storage_bytes?: number;
   base_storage_gb?: number;
   extra_storage_gb?: number;
+  storage_used_pct?: number;
   // 삭제까지 남은 일수 (결제 실패 시)
   days_until_deletion?: number | null;
+  // 최초 결제 할인 여부
+  first_payment_used?: boolean;
 }
 
 export interface OwnedPool {

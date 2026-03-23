@@ -24,24 +24,49 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
     const poolId = req.user?.poolId;
     if (poolId) {
       const [poolRow] = (await db.execute(sql`
-        SELECT p.upload_blocked, p.used_storage_bytes, p.extra_storage_gb,
-               sp.storage_gb
+        SELECT p.upload_blocked, sp.storage_gb, ps.extra_storage_gb
         FROM swimming_pools p
         LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+        LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = p.id
         WHERE p.id = ${poolId} LIMIT 1
       `)).rows as any[];
+
+      // upload_blocked 플래그 확인 (결제 실패 또는 100% 초과로 설정)
       if (poolRow?.upload_blocked) {
         res.status(403).json({
-          error: "저장공간이 가득 차 업로드가 제한됩니다. 추가 용량을 구매하거나 플랜을 업그레이드해주세요.",
+          error: "저장공간이 가득 차 업로드가 제한됩니다.",
           code: "UPLOAD_BLOCKED",
+          storage_full: true,
         });
         return;
       }
-      // 90% 이상 시 경고 헤더 추가 (업로드는 허용)
+
+      // 실시간 저장공간 계산 (student_photos 기준)
+      const [usageRow] = (await db.execute(sql`
+        SELECT COALESCE(SUM(file_size_bytes), 0) AS used_bytes
+        FROM student_photos WHERE swimming_pool_id = ${poolId}
+      `)).rows as any[];
       const quotaBytes = (Number(poolRow?.storage_gb ?? 0.1) + Number(poolRow?.extra_storage_gb ?? 0)) * 1024 ** 3;
-      const usedBytes = Number(poolRow?.used_storage_bytes ?? 0);
+      const usedBytes  = Number(usageRow?.used_bytes ?? 0);
       const pct = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
-      if (pct >= 90) res.setHeader("X-Storage-Warning", `${pct}%`);
+
+      // 100% 이상: upload_blocked 자동 설정 + 차단
+      if (pct >= 100) {
+        await db.execute(sql`
+          UPDATE swimming_pools SET upload_blocked = true WHERE id = ${poolId}
+        `);
+        res.status(403).json({
+          error: "저장공간이 가득 차 업로드가 제한됩니다.",
+          code: "UPLOAD_BLOCKED",
+          storage_pct: pct,
+          storage_full: true,
+        });
+        return;
+      }
+
+      // 경고 헤더 설정 (80% / 90%)
+      if (pct >= 80) res.setHeader("X-Storage-Warning", `${pct}`);
+      if (pct >= 80) res.setHeader("X-Storage-Pct", `${pct}`);
     }
     const client = getClient();
     const urls: string[] = [];

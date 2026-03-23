@@ -372,9 +372,10 @@ export default function MembersScreen() {
   const insets          = useSafeAreaInsets();
   const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
 
-  const [students,       setStudents]       = useState<StudentMember[]>([]);
-  const [loading,        setLoading]        = useState(true);
-  const [refreshing,     setRefreshing]     = useState(false);
+  const [students,          setStudents]          = useState<StudentMember[]>([]);
+  const [loading,           setLoading]           = useState(true);
+  const [refreshing,        setRefreshing]        = useState(false);
+  const [showMemberLimitModal, setShowMemberLimitModal] = useState(false);
   const [filter,         setFilter]         = useState<StudentFilterKey>(
     (filterParam as StudentFilterKey) ?? "all"
   );
@@ -470,8 +471,16 @@ export default function MembersScreen() {
   }));
 
   const poolName = (pool as any)?.name || "수영장";
+  const memberCount = pool?.member_count ?? 0;
+  const memberLimit = pool?.member_limit ?? 9999;
+  const isMemberLimitReached = memberCount >= memberLimit;
 
   const filteredIds = filtered.map(s => s.id);
+
+  function handleAddMember() {
+    if (isMemberLimitReached) { setShowMemberLimitModal(true); return; }
+    setShowRegister(true);
+  }
 
   const header = (
     <>
@@ -480,8 +489,8 @@ export default function MembersScreen() {
       <View style={ms.actionRow}>
         {!sel.selectionMode ? (
           <>
-            <Pressable style={[ms.actionBtn, { backgroundColor: themeColor }]} onPress={() => setShowRegister(true)}>
-              <Feather name="user-plus" size={14} color="#fff" />
+            <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? "#9A948F" : themeColor }]} onPress={handleAddMember}>
+              <Feather name={isMemberLimitReached ? "lock" : "user-plus"} size={14} color="#fff" />
               <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
             </Pressable>
             <Pressable
@@ -656,6 +665,17 @@ export default function MembersScreen() {
         message={infoModal ?? ""}
         confirmText="확인"
         onConfirm={() => setInfoModal(null)}
+      />
+
+      {/* 회원 수 한도 초과 모달 */}
+      <ConfirmModal
+        visible={showMemberLimitModal}
+        title="등록 가능 인원 초과"
+        message={`등록 가능 인원(${memberLimit}명)을 초과했습니다.\n상위 플랜으로 업그레이드해주세요.`}
+        confirmText="플랜 업그레이드"
+        cancelText="닫기"
+        onConfirm={() => { setShowMemberLimitModal(false); router.push("/(admin)/billing" as any); }}
+        onCancel={() => setShowMemberLimitModal(false)}
       />
     </>
   );
