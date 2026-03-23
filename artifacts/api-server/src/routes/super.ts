@@ -1278,7 +1278,7 @@ async function ensurePlansTables() {
     { tier: "starter",         name: "스타터",              price: 2900,   limit: 30,   storage: 0.6 },
     { tier: "basic",           name: "베이직",              price: 3900,   limit: 50,   storage: 1 },
     { tier: "standard",        name: "스탠다드",            price: 9900,   limit: 100,  storage: 5 },
-    { tier: "growth",          name: "그로스",              price: 29000,  limit: 300,  storage: 20 },
+    { tier: "growth",          name: "어드밴스",             price: 29000,  limit: 300,  storage: 20 },
     { tier: "pro",             name: "프로",                price: 59000,  limit: 500,  storage: 40 },
     { tier: "max",             name: "맥스",                price: 99000,  limit: 1000, storage: 100 },
     { tier: "enterprise_2000", name: "엔터프라이즈 2000",   price: 179000, limit: 2000, storage: 250 },
