@@ -770,7 +770,17 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
       const [statsRow] = (await db.execute(sql`
         SELECT
           COUNT(*) FILTER (WHERE status NOT IN ('withdrawn','deleted'))::int AS total_members,
-          COUNT(*) FILTER (WHERE status NOT IN ('withdrawn','deleted') AND (class_group_id IS NULL OR class_group_id = ''))::int AS unassigned_members,
+          COUNT(*) FILTER (WHERE
+            status NOT IN ('suspended','withdrawn','deleted') AND
+            (
+              jsonb_array_length(COALESCE(assigned_class_ids, '[]'::jsonb)) = 0 OR
+              jsonb_array_length(COALESCE(assigned_class_ids, '[]'::jsonb)) < COALESCE(weekly_count, 1)
+            )
+          )::int AS unassigned_members,
+          COUNT(*) FILTER (WHERE
+            status NOT IN ('withdrawn','deleted') AND
+            parent_user_id IS NULL
+          )::int AS unlinked_members,
           COUNT(*) FILTER (WHERE status = 'withdrawn')::int AS withdrawn_members,
           COUNT(*) FILTER (WHERE status = 'deleted')::int AS deleted_members,
           COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days' AND status NOT IN ('withdrawn','deleted'))::int AS new_this_week
@@ -838,9 +848,10 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
       `)).rows;
 
       res.json({
-        total_members:   statsRow?.total_members   ?? 0,
-        unassigned:      statsRow?.unassigned_members ?? 0,
-        withdrawn:       statsRow?.withdrawn_members ?? 0,
+        total_members:    statsRow?.total_members    ?? 0,
+        unassigned:       statsRow?.unassigned_members ?? 0,
+        unlinked_members: statsRow?.unlinked_members  ?? 0,
+        withdrawn:        statsRow?.withdrawn_members ?? 0,
         deleted_members: statsRow?.deleted_members ?? 0,
         new_this_week:   statsRow?.new_this_week ?? 0,
         today_present:   attRow?.today_present ?? 0,

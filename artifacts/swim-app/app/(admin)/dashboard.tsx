@@ -632,6 +632,32 @@ export default function DashboardScreen() {
               </View>
             </View>
 
+            {/* ── 미배정 / 학부모미연결 분리 카운트 ── */}
+            {stats && (
+              <Pressable style={s.splitStatRow} onPress={() => router.push("/(admin)/members")}>
+                <View style={s.splitStatItem}>
+                  <View style={[s.splitStatIcon, { backgroundColor: "#FEE2E2" }]}>
+                    <Feather name="alert-circle" size={14} color="#DC2626" />
+                  </View>
+                  <View>
+                    <Text style={[s.splitStatNum, { color: "#DC2626" }]}>{stats.unassigned ?? 0}명</Text>
+                    <Text style={s.splitStatLabel}>수업 미배정</Text>
+                  </View>
+                </View>
+                <View style={s.splitStatDivider} />
+                <View style={s.splitStatItem}>
+                  <View style={[s.splitStatIcon, { backgroundColor: "#FFF1BF" }]}>
+                    <Feather name="user-x" size={14} color="#EA580C" />
+                  </View>
+                  <View>
+                    <Text style={[s.splitStatNum, { color: "#EA580C" }]}>{stats.unlinked_members ?? 0}명</Text>
+                    <Text style={s.splitStatLabel}>학부모미연결</Text>
+                  </View>
+                </View>
+                <Feather name="chevron-right" size={14} color={C.textMuted} style={{ marginLeft: "auto" }} />
+              </Pressable>
+            )}
+
             {/* ── 처리 필요 알림 ── */}
             {stats && (stats.pending_requests > 0 || (stats.pending_makeups ?? 0) > 0) && (
               <View style={s.alertCard}>
@@ -813,6 +839,14 @@ const s = StyleSheet.create({
   statNum:  { fontSize: 22, fontFamily: "Inter_700Bold" },
   statName: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   statDivider: { width: 1, height: 36, backgroundColor: C.border },
+
+  /* 미배정/학부모미연결 분리 카운트 행 */
+  splitStatRow:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.card, borderRadius: 14, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  splitStatItem:   { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  splitStatIcon:   { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  splitStatNum:    { fontSize: 16, fontFamily: "Inter_700Bold" },
+  splitStatLabel:  { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  splitStatDivider: { width: 1, height: 32, backgroundColor: C.border },
 
   /* 회원추가 퀵버튼 */
   addMemberBtn:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#1F8F86", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },

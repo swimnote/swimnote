@@ -1,10 +1,10 @@
 /**
  * UnifiedMemberCard — 모든 화면에서 사용하는 단일 공통 회원 카드
  *
- * 표시 항목 (스펙에 따라 위치/순서 고정):
- * 이름 | 대표 상태 배지(1) | 주횟수 배지(1) | 예약 배지(0~1)
- * 배정 반 | 선생님 | 보호자 | 미연결 배지
- * 하단 액션 버튼 (문맥별로 외부에서 주입)
+ * 두 가지 독립 상태 배지 (절대 합치지 말 것):
+ *   assignment_status  : 수업 미배정 여부 → nameRow psBadge (or 우측 보조 배지)
+ *   parent_conn_status : 학부모미연결 여부 → 우측 별도 배지
+ * → 두 배지는 동시에 표시 가능 (미배정 + 학부모미연결)
  */
 import { Feather } from "@expo/vector-icons";
 import React from "react";
@@ -68,7 +68,16 @@ export function UnifiedMemberCard({
   const psBadge  = PRIMARY_STATUS_BADGE[ps];
   const wcBadge  = WEEKLY_BADGE[wc];
   const pending  = getMemberPendingBadge(student);
+
+  // ── 두 독립 상태 (절대 합치지 말 것) ──────────────────────────
+  // assignment_status: 수업 미배정 여부 (suspended/withdrawn 포함, 모든 상태에서 독립 계산)
+  const _ids = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
+  const _wc  = typeof student.weekly_count === "number" && student.weekly_count > 0 ? student.weekly_count : 1;
+  const isClassUnassigned = !(_ids.length > 0 && _ids.length >= _wc);
+  // parent_connection_status: 학부모 앱 미연결 여부 (assignment_status와 완전 독립)
   const isUnlinked = !student.parent_user_id;
+  // psBadge가 이미 "미배정"을 표시하는 경우 우측 보조 배지 중복 방지
+  const showRightUnassigned = isClassUnassigned && ps !== "unassigned";
 
   const instructors = (student.assignedClasses || [])
     .map(c => c.instructor)
@@ -160,8 +169,14 @@ export function UnifiedMemberCard({
           )}
         </View>
 
-        {/* 우측: 미연결 배지 + 초대 버튼 */}
+        {/* 우측: 미배정 보조 배지 (suspended/withdrawn이면서 미배정) + 학부모미연결 배지 (완전 독립) */}
         <View style={s.right}>
+          {showRightUnassigned && (
+            <View style={[s.badge, { backgroundColor: "#FEE2E2", gap: 3 }]}>
+              <Feather name="alert-circle" size={9} color="#DC2626" />
+              <Text style={[s.badgeTxt, { color: "#DC2626" }]}>미배정</Text>
+            </View>
+          )}
           {isUnlinked && (
             <View style={[s.badge, { backgroundColor: "#FFF1BF", gap: 3 }]}>
               <Feather name="user-x" size={9} color="#EA580C" />
