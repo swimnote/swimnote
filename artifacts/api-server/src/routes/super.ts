@@ -1261,14 +1261,31 @@ router.delete(
 // 구독 상품 테이블 보장
 // ════════════════════════════════════════════════════════════════
 async function ensurePlansTables() {
-  // subscription_plans 실제 스키마: tier(PK), name, price_per_month, member_limit, storage_gb
+  // subscription_plans: tier(PK), name, price_per_month, member_limit, storage_gb, is_active
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS subscription_plans (
-      tier          TEXT PRIMARY KEY,
-      name          TEXT NOT NULL,
+      tier            TEXT PRIMARY KEY,
+      name            TEXT NOT NULL,
       price_per_month INTEGER NOT NULL DEFAULT 0,
-      member_limit  INTEGER NOT NULL DEFAULT 9999,
-      storage_gb    NUMERIC NOT NULL DEFAULT 5
+      member_limit    INTEGER NOT NULL DEFAULT 9999,
+      storage_gb      NUMERIC NOT NULL DEFAULT 5,
+      is_active       BOOLEAN NOT NULL DEFAULT TRUE
+    )
+  `).catch(() => {});
+  // 기존 테이블에 is_active 컬럼이 없는 경우 추가
+  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`).catch(() => {});
+
+  // revenue_logs 테이블 (billing.ts와 동일 — 누가 먼저 실행해도 안전)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS revenue_logs (
+      id             TEXT PRIMARY KEY,
+      pool_id        TEXT NOT NULL,
+      plan_id        TEXT NOT NULL,
+      amount         INTEGER NOT NULL DEFAULT 0,
+      payment_method TEXT NOT NULL DEFAULT 'store',
+      store_fee      INTEGER NOT NULL DEFAULT 0,
+      net_revenue    INTEGER NOT NULL DEFAULT 0,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `).catch(() => {});
 
@@ -1385,9 +1402,17 @@ router.put("/super/plans/:id", requireAuth, requireRole("super_admin"), async (r
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-router.patch("/super/plans/:id/toggle", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
-  // subscription_plans에 is_active 컬럼 없음 — 삭제/비활성화 기능 미지원
-  res.json({ ok: true });
+router.patch("/super/plans/:id/toggle", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  try {
+    await ensurePlansTables();
+    const rows = (await db.execute(sql`
+      UPDATE subscription_plans SET is_active = NOT is_active WHERE tier = ${id}
+      RETURNING tier, name, is_active
+    `)).rows as any[];
+    if (!rows.length) { res.status(404).json({ error: "플랜을 찾을 수 없습니다." }); return; }
+    res.json({ ok: true, plan: rows[0] });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 // ════════════════════════════════════════════════════════════════

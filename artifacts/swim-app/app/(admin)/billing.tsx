@@ -59,8 +59,6 @@ const PLAN_SKU: Record<string, string> = {
 
 const PAYMENT_FAILED_STATUSES = new Set(["payment_failed", "pending_deletion", "deleted"]);
 
-function discountedPrice(price: number): number { return Math.round(price * 0.5); }
-
 export default function BillingScreen() {
   const { token, refreshPool } = useAuth();
   const { themeColor } = useBrand();
@@ -147,8 +145,12 @@ export default function BillingScreen() {
       });
       const d = await r.json();
       if (!r.ok) { showConfirm("구독 실패", d.error ?? "구독 변경에 실패했습니다.", () => {}); return; }
-      if (d.is_first_payment && d.discounted_amount > 0) {
-        showConfirm("첫 결제 완료!", `50% 할인이 적용되어 ₩${d.discounted_amount.toLocaleString()}이 결제되었습니다.`, () => {});
+      if (d.change_type === "downgrade" && d.applies_at) {
+        showConfirm("다운그레이드 예약", d.message ?? `${d.applies_at} 이후 플랜이 변경됩니다.`, () => {});
+      } else if (d.change_type === "upgrade") {
+        showConfirm("업그레이드 완료", "플랜이 즉시 변경되었습니다.", () => {});
+      } else if (d.change_type === "new") {
+        showConfirm("구독 시작", "구독이 시작되었습니다.", () => {});
       }
       await load(); await refreshPool();
     } finally { setSubscribing(null); }
@@ -170,7 +172,6 @@ export default function BillingScreen() {
   const currentTier     = status?.tier ?? "free";
   const isPaymentFailed = PAYMENT_FAILED_STATUSES.has(billingInfo?.subscription_status ?? "");
   const daysLeft        = billingInfo?.days_until_deletion;
-  const isFirstPayment  = !(billingInfo?.first_payment_used ?? true);
   const storagePct      = billingInfo?.storage_used_pct ?? 0;
   const storageColor    = storagePct >= 100 ? "#DC2626" : storagePct >= 90 ? "#D97706" : storagePct >= 80 ? "#F59E0B" : themeColor;
 
@@ -369,18 +370,14 @@ export default function BillingScreen() {
 
         {/* ── 구독 플랜 ── */}
         <Section title={currentTier === "max" ? "엔터프라이즈 업그레이드" : "구독 플랜"}>
-          {isFirstPayment && (
-            <View style={s.discountBanner}>
-              <Feather name="tag" size={14} color="#059669" />
-              <Text style={s.discountBannerText}>첫 결제 50% 할인 — 아직 할인이 남아 있습니다!</Text>
-            </View>
-          )}
           <View style={{ gap: 10 }}>
             {visiblePlans.map(p => {
-              const isCurrent = p.tier === currentTier;
-              const pc        = PLAN_COLOR[p.tier] ?? themeColor;
-              const firstPrice = isFirstPayment ? discountedPrice(p.price_per_month) : null;
+              const isCurrent    = p.tier === currentTier;
+              const pc           = PLAN_COLOR[p.tier] ?? themeColor;
               const isEnterprise = p.tier.startsWith("enterprise_");
+              const currentPrice = plans.find(pl => pl.tier === currentTier)?.price_per_month ?? 0;
+              const isUpgrade    = p.price_per_month > currentPrice;
+              const isDowngrade  = p.price_per_month < currentPrice && currentPrice > 0;
               return (
                 <View key={p.tier} style={[s.planCard, isCurrent && { borderColor: pc, borderWidth: 2 }, isEnterprise && s.enterpriseCard]}>
                   <View style={{ flex: 1 }}>
@@ -390,39 +387,26 @@ export default function BillingScreen() {
                       {isEnterprise && !isCurrent && <View style={[s.currentTag, { backgroundColor: "#B45309" }]}><Text style={s.currentTagText}>엔터프라이즈</Text></View>}
                       {PLAN_SKU[p.tier] && <Text style={s.skuBadge}>{PLAN_SKU[p.tier]}</Text>}
                     </View>
-                    {p.price_per_month === 0 ? (
-                      <Text style={s.planCardPrice}>무료</Text>
-                    ) : firstPrice && !isCurrent ? (
-                      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
-                        <Text style={[s.planCardPrice, { color: "#059669" }]}>
-                          첫 결제 ₩{firstPrice.toLocaleString()}
-                        </Text>
-                        <Text style={s.planCardPriceOrig}>이후 ₩{p.price_per_month.toLocaleString()}/월</Text>
-                      </View>
-                    ) : (
-                      <Text style={s.planCardPrice}>₩{p.price_per_month.toLocaleString()}/월</Text>
-                    )}
+                    <Text style={s.planCardPrice}>
+                      {p.price_per_month === 0 ? "무료" : `₩${p.price_per_month.toLocaleString()}/월`}
+                    </Text>
                     <Text style={s.planCardMeta}>최대 {p.member_limit.toLocaleString()}명 · {p.storage_gb >= 1 ? `${p.storage_gb}GB` : `${Math.round(p.storage_gb * 1024)}MB`}</Text>
                   </View>
                   {!isCurrent && p.price_per_month > 0 && (
                     <Pressable
                       onPress={() => {
                         if (!card) { showConfirm("카드 필요", "결제 카드를 먼저 등록해주세요.", () => {}); return; }
-                        const priceLabel = firstPrice
-                          ? `첫 결제 ₩${firstPrice.toLocaleString()} (이후 ₩${p.price_per_month.toLocaleString()}/월)`
-                          : `₩${p.price_per_month.toLocaleString()}/월`;
-                        showConfirm(
-                          `${p.name}으로 변경`,
-                          `${priceLabel}\n업그레이드 시 일할 금액이 즉시 결제됩니다.`,
-                          () => subscribe(p.tier)
-                        );
+                        const msg = isDowngrade
+                          ? `₩${p.price_per_month.toLocaleString()}/월\n다운그레이드는 현재 결제 주기 종료 후 적용됩니다.`
+                          : `₩${p.price_per_month.toLocaleString()}/월\n업그레이드 시 전체 월 금액이 즉시 결제됩니다.`;
+                        showConfirm(`${p.name}으로 변경`, msg, () => subscribe(p.tier));
                       }}
                       disabled={!!subscribing}
-                      style={[s.subscribeBtn, { backgroundColor: pc }]}
+                      style={[s.subscribeBtn, { backgroundColor: isDowngrade ? "#6B7280" : pc }]}
                     >
                       {subscribing === p.tier
                         ? <ActivityIndicator size="small" color="#fff" />
-                        : <Text style={s.subscribeBtnText}>{isEnterprise ? "업그레이드" : "변경"}</Text>
+                        : <Text style={s.subscribeBtnText}>{isDowngrade ? "다운그레이드" : isEnterprise ? "업그레이드" : "업그레이드"}</Text>
                       }
                     </Pressable>
                   )}
@@ -530,7 +514,6 @@ const s = StyleSheet.create({
   enterpriseCard:   { backgroundColor: "#FFFBEB" },
   planCardName:     { fontSize: 14, fontWeight: "700" },
   planCardPrice:    { fontSize: 15, fontWeight: "700", color: "#1F1F1F", marginTop: 2 },
-  planCardPriceOrig:{ fontSize: 12, color: "#9A948F", textDecorationLine: "line-through" as any },
   planCardMeta:     { fontSize: 12, color: "#6F6B68" },
   currentTag:       { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   currentTagText:   { color: "#fff", fontSize: 10, fontWeight: "600" },
@@ -538,8 +521,6 @@ const s = StyleSheet.create({
   subscribeBtn:     { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, minWidth: 60, alignItems: "center" },
   subscribeBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
   enterpriseNote:   { fontSize: 11, color: "#9A948F", lineHeight: 16 },
-  discountBanner:   { flexDirection: "row", gap: 8, alignItems: "center", backgroundColor: "#ECFDF5", borderRadius: 10, padding: 10 },
-  discountBannerText:{ fontSize: 13, fontWeight: "600", color: "#059669", flex: 1 },
   // 내역
   histRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   histDesc:         { fontSize: 13, fontWeight: "500", color: "#1F1F1F" },
