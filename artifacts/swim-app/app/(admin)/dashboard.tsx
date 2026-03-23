@@ -7,7 +7,7 @@ import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Dimensions, Modal, Platform, Pressable,
+  ActivityIndicator, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +17,10 @@ import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { IconPopup, type PopupItem } from "@/components/admin/IconPopup";
 import { PaymentBanner } from "@/components/common/PaymentBanner";
+import {
+  WeeklyCount, WEEKLY_BADGE,
+  normalizePhone, isValidPhone, isValidBirthYear,
+} from "@/utils/studentUtils";
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
@@ -255,6 +259,183 @@ const MAIN_ICONS: Array<{
   { key: "운영설정",  label: "운영 설정",  icon: "sliders",      color: "#6F6B68", bg: "#FBF8F6" },
 ];
 
+// ── 관리자 홈 퀵등록 모달 ─────────────────────────────────────────────────────
+function AdminQuickRegisterModal({
+  visible, token, poolName, onClose, onSuccess,
+}: {
+  visible: boolean;
+  token: string | null;
+  poolName: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [name,        setName]        = useState("");
+  const [birthYear,   setBirthYear]   = useState("");
+  const [parentName,  setParentName]  = useState("");
+  const [parentPhone, setParentPhone] = useState("");
+  const [weekly,      setWeekly]      = useState<WeeklyCount>(1);
+  const [saving,      setSaving]      = useState(false);
+  const [error,       setError]       = useState("");
+  const [done,        setDone]        = useState(false);
+  const [doneName,    setDoneName]    = useState("");
+
+  function reset() {
+    setName(""); setBirthYear(""); setParentName(""); setParentPhone("");
+    setWeekly(1); setSaving(false); setError(""); setDone(false); setDoneName("");
+  }
+
+  function handleClose() { reset(); onClose(); }
+
+  function validate(): string | null {
+    if (!name.trim()) return "학생 이름을 입력해주세요.";
+    if (birthYear && !isValidBirthYear(birthYear)) return "출생년도가 올바르지 않습니다. (예: 2015)";
+    if (parentPhone && !isValidPhone(parentPhone)) return "보호자 전화번호 형식이 올바르지 않습니다.";
+    return null;
+  }
+
+  async function submit() {
+    const e = validate();
+    if (e) { setError(e); return; }
+    setSaving(true); setError("");
+    try {
+      const res = await apiRequest(token, "/students", {
+        method: "POST",
+        body: JSON.stringify({
+          name: name.trim(),
+          birth_year: birthYear || undefined,
+          parent_name: parentName || undefined,
+          parent_phone: parentPhone ? normalizePhone(parentPhone) : undefined,
+          weekly_count: weekly,
+          registration_path: "admin_created",
+          force_create: false,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || data.error || "오류가 발생했습니다.");
+        return;
+      }
+      setDoneName(data.name || name.trim());
+      setDone(true);
+      onSuccess();
+    } catch { setError("네트워크 오류가 발생했습니다."); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+      <KeyboardAvoidingView style={qr.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={qr.sheet}>
+          <View style={qr.handle} />
+          {done ? (
+            /* ── 완료 화면 ── */
+            <View style={qr.doneWrap}>
+              <View style={[qr.doneIcon, { backgroundColor: "#1F8F86" + "18" }]}>
+                <Feather name="check-circle" size={36} color="#1F8F86" />
+              </View>
+              <Text style={qr.doneTitle}>등록 완료</Text>
+              <Text style={qr.doneSub}>{doneName} 학생이{"\n"}정식 회원으로 등록됐습니다.</Text>
+              <Text style={[qr.doneSub, { fontSize: 12, color: C.textMuted }]}>
+                회원 관리에서 초대코드를 확인할 수 있습니다.
+              </Text>
+              <Pressable style={[qr.saveBtn, { backgroundColor: "#1F8F86" }]} onPress={handleClose}>
+                <Text style={qr.saveBtnTxt}>확인</Text>
+              </Pressable>
+            </View>
+          ) : (
+            /* ── 입력 폼 ── */
+            <>
+              <View style={qr.header}>
+                <Text style={qr.title}>어린이 직접 등록</Text>
+                <Pressable onPress={handleClose}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
+              </View>
+              {error ? (
+                <View style={qr.errorRow}>
+                  <Feather name="alert-circle" size={14} color={C.error} />
+                  <Text style={qr.errorTxt}>{error}</Text>
+                </View>
+              ) : null}
+              <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                <View style={qr.field}>
+                  <Text style={qr.label}>학생 이름 *</Text>
+                  <TextInput style={qr.input} value={name} onChangeText={setName} placeholder="홍길동" placeholderTextColor={C.textMuted} />
+                </View>
+                <View style={qr.field}>
+                  <Text style={qr.label}>출생년도 (중복 체크에 사용)</Text>
+                  <TextInput style={qr.input} value={birthYear} onChangeText={setBirthYear} placeholder="예: 2015" placeholderTextColor={C.textMuted} keyboardType="number-pad" maxLength={4} />
+                </View>
+                <View style={qr.field}>
+                  <Text style={qr.label}>보호자 이름</Text>
+                  <TextInput style={qr.input} value={parentName} onChangeText={setParentName} placeholder="김보호 (선택)" placeholderTextColor={C.textMuted} />
+                </View>
+                <View style={qr.field}>
+                  <Text style={qr.label}>보호자 전화번호</Text>
+                  <TextInput style={qr.input} value={parentPhone} onChangeText={setParentPhone} placeholder="010-1234-5678" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
+                </View>
+                <View style={qr.field}>
+                  <Text style={qr.label}>주 수업 횟수</Text>
+                  <View style={qr.weekRow}>
+                    {([1, 2, 3] as WeeklyCount[]).map(w => {
+                      const badge = WEEKLY_BADGE[w];
+                      return (
+                        <Pressable
+                          key={w}
+                          style={[qr.weekBtn, { backgroundColor: weekly === w ? badge.bg : C.background, borderColor: weekly === w ? badge.color : C.border }]}
+                          onPress={() => setWeekly(w)}
+                        >
+                          <Text style={[qr.weekBtnTxt, { color: weekly === w ? badge.color : C.textSecondary }]}>{badge.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
+              <View style={qr.notice}>
+                <Feather name="info" size={13} color={C.textMuted} />
+                <Text style={qr.noticeTxt}>등록 후 초대코드가 생성됩니다. 보호자에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
+              </View>
+              <Pressable
+                style={[qr.saveBtn, { backgroundColor: "#1F8F86", opacity: saving ? 0.7 : 1 }]}
+                onPress={submit}
+                disabled={saving}
+              >
+                {saving
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={qr.saveBtnTxt}>등록하기</Text>
+                }
+              </Pressable>
+            </>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const qr = StyleSheet.create({
+  overlay:    { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet:      { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 14, maxHeight: "92%" },
+  handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
+  header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  title:      { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
+  errorRow:   { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#F9DEDA", padding: 10, borderRadius: 10 },
+  errorTxt:   { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.error },
+  field:      { gap: 6, marginBottom: 12 },
+  label:      { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  input:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text, borderColor: C.border, backgroundColor: C.background },
+  weekRow:    { flexDirection: "row", gap: 10 },
+  weekBtn:    { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
+  weekBtnTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  notice:     { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
+  noticeTxt:  { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, lineHeight: 18 },
+  saveBtn:    { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
+  saveBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  doneWrap:   { alignItems: "center", gap: 14, paddingVertical: 20 },
+  doneIcon:   { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center" },
+  doneTitle:  { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
+  doneSub:    { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 },
+});
+
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 export default function DashboardScreen() {
   const { adminUser, pool, logout, token, switchRole, setLastUsedRole } = useAuth();
@@ -267,6 +448,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
   const [activePopup, setActivePopup] = useState<PopupKey | null>(null);
   const [switching, setSwitching] = useState(false);
 
@@ -510,12 +692,36 @@ export default function DashboardScreen() {
               </View>
             </View>
 
+            {/* ── 회원추가 퀵버튼 ── */}
+            <Pressable
+              style={({ pressed }) => [s.addMemberBtn, { backgroundColor: themeColor, opacity: pressed ? 0.82 : 1 }]}
+              onPress={() => setShowRegister(true)}
+            >
+              <View style={[s.addMemberIconWrap, { backgroundColor: "rgba(255,255,255,0.22)" }]}>
+                <Feather name="user-plus" size={20} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.addMemberLabel}>회원추가</Text>
+                <Text style={s.addMemberSub}>어린이 즉시 등록 → 바로 반영</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
+            </Pressable>
+
           </>
         )}
       </ScrollView>
 
       {/* ── 검색 모달 ── */}
       <SearchModal visible={showSearch} onClose={() => setShowSearch(false)} token={token} />
+
+      {/* ── 회원 퀵등록 모달 ── */}
+      <AdminQuickRegisterModal
+        visible={showRegister}
+        token={token}
+        poolName={pool?.name || ""}
+        onClose={() => setShowRegister(false)}
+        onSuccess={() => { fetchStats(); }}
+      />
 
       {/* ── 팝업들 (7개, 메신저 제외) ── */}
       {(["운영관리", "수업관리", "보강관리", "매출관리", "데이터관리", "수업설정", "운영설정"] as PopupKey[]).map(key => (
@@ -607,4 +813,10 @@ const s = StyleSheet.create({
   statNum:  { fontSize: 22, fontFamily: "Inter_700Bold" },
   statName: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   statDivider: { width: 1, height: 36, backgroundColor: C.border },
+
+  /* 회원추가 퀵버튼 */
+  addMemberBtn:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#1F8F86", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
+  addMemberIconWrap: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  addMemberLabel:    { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  addMemberSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
 });
