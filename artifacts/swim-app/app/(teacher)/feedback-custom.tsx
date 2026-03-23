@@ -147,7 +147,7 @@ export default function FeedbackCustomScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader
         title="피드백 커스텀"
-        onBack={() => router.navigate("/(teacher)/settings" as any)}
+        onBack={() => router.back()}
         homePath="/(teacher)/today-schedule"
         rightSlot={
           <Pressable style={s.resetAllBtn} onPress={() => setResetAllVisible(true)}>

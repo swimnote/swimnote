@@ -794,7 +794,7 @@ router.get("/teacher/overview",
 
       // 보강 대기 수
       const makeupCount = await db.execute(sql`
-        SELECT COUNT(*) AS cnt FROM makeups
+        SELECT COUNT(*) AS cnt FROM makeup_sessions
         WHERE class_group_id IN (${sql.raw(classIdList)}) AND status = 'waiting'
       `);
 

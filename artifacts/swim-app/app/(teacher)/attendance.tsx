@@ -238,14 +238,14 @@ export default function TeacherAttendanceScreen() {
         setSaveMsg("저장되었습니다.");
         setTimeout(() => {
           setSaveMsg("");
-          if (fromMySchedule) router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
+          if (fromMySchedule) router.back();
           else setSelectedGroup(null);
         }, 600);
       } else {
         setSaveMsg("출결이 저장되었습니다.");
         setTimeout(() => {
           setSaveMsg("");
-          if (fromMySchedule) router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
+          if (fromMySchedule) router.back();
           else setSelectedGroup(null);
         }, 1200);
       }
@@ -361,7 +361,7 @@ export default function TeacherAttendanceScreen() {
           subtitle={`${date} · ${group.schedule_time}`}
           onBack={() => {
             if (params.classGroupId) {
-              router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
+              router.back();
             } else {
               setSelectedGroup(null); setSaveMsg("");
             }

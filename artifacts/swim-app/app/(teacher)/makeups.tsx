@@ -147,7 +147,7 @@ export default function MakeupsScreen() {
   }
 
   function handleAssign() {
-    router.push("/(teacher)/my-schedule" as any);
+    router.back();
   }
 
   function renderCard(item: MakeupRequest) {
