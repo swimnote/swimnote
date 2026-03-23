@@ -13,6 +13,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useNoticeStore, type Notice, type NoticeTarget, type NoticeType, NOTICE_TYPE_CFG } from "@/store/noticeStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import { useAuth } from "@/context/AuthContext";
+import { OtpGateModal } from "@/components/common/OtpGateModal";
 
 const P = "#7C3AED";
 
@@ -126,6 +127,7 @@ export default function NoticesScreen() {
   const [form, setForm] = useState<FormState>(BLANK);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterTarget, setFilterTarget] = useState<"all" | NoticeTarget>("all");
+  const [otpVisible, setOtpVisible] = useState(false);
 
   const filtered = useMemo(() => {
     if (filterTarget === "all") return notices;
@@ -290,13 +292,24 @@ export default function NoticesScreen() {
                 <Text style={m.cancelTxt}>취소</Text>
               </Pressable>
               <Pressable style={[m.saveBtn, (!form.title.trim() || !form.content.trim()) && { opacity: 0.4 }]}
-                onPress={handleSave} disabled={!form.title.trim() || !form.content.trim()}>
-                <Text style={m.saveTxt}>{editId ? "저장" : "등록"}</Text>
+                onPress={() => setOtpVisible(true)} disabled={!form.title.trim() || !form.content.trim()}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Feather name="lock" size={13} color="#fff" />
+                  <Text style={m.saveTxt}>{editId ? "저장" : "등록"}</Text>
+                </View>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
+
+      <OtpGateModal
+        visible={otpVisible}
+        title={editId ? "공지 수정 OTP 인증" : "공지 등록 OTP 인증"}
+        desc="공지 등록·수정은 OTP 인증 후에 적용됩니다."
+        onSuccess={() => { setOtpVisible(false); handleSave(); }}
+        onCancel={() => setOtpVisible(false)}
+      />
 
       {/* 삭제 확인 */}
       <Modal visible={!!deleteConfirm} transparent animationType="fade">
