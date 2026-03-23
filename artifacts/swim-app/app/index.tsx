@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
+  ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -81,10 +81,11 @@ export default function LoginScreen() {
       >
         {/* ── 로고 ── */}
         <View style={styles.logoArea}>
-          <View style={[styles.logoBox, { backgroundColor: C.tint }]}>
-            <Feather name="droplet" size={34} color="#fff" />
-          </View>
-          <Text style={[styles.appName, { color: C.text }]}>{LOGIN_LABELS.appName}</Text>
+          <Image
+            source={require("../assets/images/swimnote-logo.png")}
+            style={styles.logoImage}
+            resizeMode="cover"
+          />
           <Text style={[styles.appSub, { color: C.textSecondary }]}>{LOGIN_LABELS.appSub}</Text>
           <Text style={[styles.appDesc, { color: C.textMuted }]}>
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
@@ -224,8 +225,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, paddingHorizontal: 20, gap: 20 },
   logoArea: { alignItems: "center", gap: 8, paddingBottom: 4 },
-  logoBox: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", shadowColor: "#1F8F86", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },
-  appName: { fontSize: 26, fontFamily: "Inter_700Bold", marginTop: 4 },
+  logoImage: { width: 120, height: 120, borderRadius: 28, shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.22, shadowRadius: 16, elevation: 8 },
   appSub: { fontSize: 14, fontFamily: "Inter_500Medium" },
   appDesc: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 2 },
   card: { borderRadius: 20, padding: 22, gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 },
