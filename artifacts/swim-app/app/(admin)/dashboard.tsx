@@ -217,7 +217,7 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "refresh-cw",  label: "보강정책\n설정",  color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/makeup-policy") },
       { icon: "shield",      label: "권한 설정",    color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/admin-grant") },
       { icon: "bell",        label: "알림 설정",    color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/notifications") },
-      { icon: "award",       label: "레벨/테스트\n설정", color: "#1F8F86", bg: "#ECFEFF", onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "award",       label: "레벨/테스트\n설정", color: "#1F8F86", bg: "#ECFEFF", onPress: () => router.push("/(admin)/level-settings" as any) },
       { icon: "message-circle", label: "피드백\n기본설정", color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/pool-settings") },
     ];
     // ─ 운영 설정 (기존 플랫폼설정 → 이름 변경, 브랜드/인프라만) ─

@@ -2161,4 +2161,150 @@ router.get("/settlement-summary", requireAuth, requireRole("super_admin","pool_a
   }
 );
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 레벨 시스템
+// ══════════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_LEVELS = Array.from({ length: 10 }, (_, i) => ({
+  level_order: i + 1,
+  level_name: String(i + 1),
+  level_description: "",
+  learning_content: "",
+  promotion_test_rule: "",
+  badge_type: "text",
+  badge_label: String(i + 1),
+  badge_color: "#1F8F86",
+  badge_text_color: "#FFFFFF",
+  is_active: true,
+  is_custom: false,
+}));
+
+// GET /admin/level-settings — pool 레벨 설정 조회 (없으면 기본 1~10 반환)
+router.get("/level-settings", requireAuth, requireRole("super_admin","pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = req.user!.poolId || req.query.poolId as string;
+    if (!poolId) { res.status(400).json({ error: "수영장 정보 없음" }); return; }
+    const rows = await db.execute(sql`
+      SELECT level_order, level_name, level_description, learning_content,
+             promotion_test_rule, badge_type, badge_label, badge_color, badge_text_color, is_active
+      FROM pool_level_settings WHERE pool_id = ${poolId}
+      ORDER BY level_order ASC
+    `);
+    if (rows.rows.length === 0) {
+      res.json(DEFAULT_LEVELS);
+    } else {
+      const custom = rows.rows as any[];
+      const merged = DEFAULT_LEVELS.map(def => {
+        const c = custom.find((r: any) => r.level_order === def.level_order);
+        return c ? { ...def, ...c, is_custom: true } : def;
+      });
+      res.json(merged);
+    }
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// PUT /admin/level-settings — pool 레벨 설정 저장 (전체 upsert)
+router.put("/level-settings", requireAuth, requireRole("super_admin","pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = req.user!.poolId || req.body.poolId;
+    if (!poolId) { res.status(400).json({ error: "수영장 정보 없음" }); return; }
+    const levels: any[] = req.body.levels;
+    if (!Array.isArray(levels)) { res.status(400).json({ error: "levels 필드 필요" }); return; }
+    for (const lv of levels) {
+      await db.execute(sql`
+        INSERT INTO pool_level_settings (
+          pool_id, level_order, level_name, level_description, learning_content,
+          promotion_test_rule, badge_type, badge_label, badge_color, badge_text_color, is_active, updated_at
+        ) VALUES (
+          ${poolId}, ${lv.level_order}, ${lv.level_name ?? String(lv.level_order)},
+          ${lv.level_description ?? ""}, ${lv.learning_content ?? ""},
+          ${lv.promotion_test_rule ?? ""}, ${lv.badge_type ?? "text"},
+          ${lv.badge_label ?? String(lv.level_order)}, ${lv.badge_color ?? "#1F8F86"},
+          ${lv.badge_text_color ?? "#FFFFFF"}, ${lv.is_active !== false}, NOW()
+        )
+        ON CONFLICT (pool_id, level_order) DO UPDATE SET
+          level_name = EXCLUDED.level_name,
+          level_description = EXCLUDED.level_description,
+          learning_content = EXCLUDED.learning_content,
+          promotion_test_rule = EXCLUDED.promotion_test_rule,
+          badge_type = EXCLUDED.badge_type,
+          badge_label = EXCLUDED.badge_label,
+          badge_color = EXCLUDED.badge_color,
+          badge_text_color = EXCLUDED.badge_text_color,
+          is_active = EXCLUDED.is_active,
+          updated_at = NOW()
+      `);
+    }
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// GET /admin/students/:id/level — 학생 현재 레벨 상세 조회
+router.get("/students/:id/level", requireAuth, requireRole("super_admin","pool_admin","teacher"), async (req: AuthRequest, res) => {
+  try {
+    const studRow = await db.execute(sql`
+      SELECT s.id, s.name, s.current_level_order, s.swimming_pool_id,
+             sl.level as level_name_hist
+      FROM students s
+      LEFT JOIN student_levels sl ON sl.student_id = s.id
+      WHERE s.id = ${req.params.id}
+      ORDER BY sl.created_at DESC
+      LIMIT 1
+    `);
+    const student = studRow.rows[0] as any;
+    if (!student) { res.status(404).json({ error: "학생 없음" }); return; }
+    const poolId = student.swimming_pool_id;
+    const currentOrder = student.current_level_order;
+    const levelRows = await db.execute(sql`
+      SELECT level_order, level_name, level_description, learning_content,
+             promotion_test_rule, badge_type, badge_label, badge_color, badge_text_color
+      FROM pool_level_settings WHERE pool_id = ${poolId}
+      ORDER BY level_order ASC
+    `);
+    const levelDefs = levelRows.rows.length > 0
+      ? (levelRows.rows as any[])
+      : DEFAULT_LEVELS;
+    const currentDef = currentOrder
+      ? (levelDefs.find((l: any) => l.level_order === currentOrder) ?? null)
+      : null;
+    const nextDef = currentOrder
+      ? (levelDefs.find((l: any) => l.level_order === currentOrder + 1) ?? null)
+      : null;
+    res.json({
+      current_level_order: currentOrder ?? null,
+      current_level: currentDef,
+      next_level: nextDef,
+      all_levels: levelDefs,
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// PATCH /admin/students/:id/level — 학생 레벨 변경 (관리자/선생님)
+router.patch("/students/:id/level", requireAuth, requireRole("super_admin","pool_admin","teacher"), async (req: AuthRequest, res) => {
+  try {
+    const { level_order, note } = req.body;
+    if (level_order == null) { res.status(400).json({ error: "level_order 필요" }); return; }
+    const studRow = await db.execute(sql`SELECT name, swimming_pool_id FROM students WHERE id = ${req.params.id}`);
+    const student = studRow.rows[0] as any;
+    if (!student) { res.status(404).json({ error: "학생 없음" }); return; }
+    const poolId = student.swimming_pool_id;
+    const lvRow = await db.execute(sql`
+      SELECT level_name FROM pool_level_settings WHERE pool_id = ${poolId} AND level_order = ${level_order}
+    `);
+    const lvName = (lvRow.rows[0] as any)?.level_name ?? String(level_order);
+    await db.execute(sql`
+      UPDATE students SET current_level_order = ${level_order}, updated_at = NOW() WHERE id = ${req.params.id}
+    `);
+    const actorName = req.user!.name || "관리자";
+    await db.execute(sql`
+      INSERT INTO student_levels (id, student_id, swimming_pool_id, level, level_order, achieved_date, note, teacher_name, created_at)
+      VALUES (gen_random_uuid()::text, ${req.params.id}, ${poolId}, ${lvName}, ${level_order},
+              to_char(now(), 'YYYY-MM-DD'), ${note ?? null}, ${actorName}, NOW())
+    `);
+    res.json({ ok: true, level_order, level_name: lvName });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
 export default router;
+

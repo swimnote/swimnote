@@ -20,7 +20,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
+import { LevelBadge, type LevelDef } from "@/components/common/LevelBadge";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
 
@@ -121,22 +123,30 @@ function SectionCard({ section, content }: { section: Section; content?: string 
   );
 }
 
+interface LevelInfo { current_level_order: number | null; current_level: LevelDef | null; next_level: LevelDef | null; }
+
 export default function SwimInfoScreen() {
   const { token } = useAuth();
+  const { selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
   const [info, setInfo] = useState<PoolInfo | null>(null);
+  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const r = await apiRequest(token, "/parent/pool-info");
-        if (r.ok) setInfo(await r.json());
+        const [poolRes, lvRes] = await Promise.all([
+          apiRequest(token, "/parent/pool-info"),
+          selectedStudent?.id ? apiRequest(token, `/parent/students/${selectedStudent.id}/level-info`) : Promise.resolve(null),
+        ]);
+        if (poolRes.ok) setInfo(await poolRes.json());
         else setInfo({});
+        if (lvRes?.ok) setLevelInfo(await lvRes.json());
       } catch { setInfo({}); }
       finally { setLoading(false); }
     })();
-  }, []);
+  }, [selectedStudent?.id]);
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
@@ -169,6 +179,45 @@ export default function SwimInfoScreen() {
                   </View>
                 )}
               </View>
+            </View>
+          )}
+
+          {/* 자녀 현재 레벨 카드 */}
+          {selectedStudent && levelInfo && (
+            <View style={[sl.levelCard, { backgroundColor: C.card }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <LevelBadge level={levelInfo.current_level ?? null} size="md" />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary }}>
+                    {selectedStudent.name}의 현재 레벨
+                  </Text>
+                  <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: C.text, marginTop: 2 }}>
+                    {levelInfo.current_level?.level_name ?? "미지정"}
+                  </Text>
+                  {levelInfo.current_level?.level_description ? (
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 }} numberOfLines={2}>
+                      {levelInfo.current_level.level_description}
+                    </Text>
+                  ) : null}
+                </View>
+                {levelInfo.next_level && (
+                  <View style={{ alignItems: "center", gap: 2 }}>
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: C.textMuted }}>다음 목표</Text>
+                    <LevelBadge level={levelInfo.next_level} size="sm" />
+                    <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: C.textSecondary }}>
+                      {levelInfo.next_level.level_name}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {levelInfo.current_level?.promotion_test_rule ? (
+                <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#D97706" }}>승급 기준</Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.text, marginTop: 4, lineHeight: 20 }}>
+                    {levelInfo.current_level.promotion_test_rule}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           )}
 
@@ -209,6 +258,14 @@ const s = StyleSheet.create({
     flexDirection: "row", gap: 8, alignItems: "flex-start",
   },
   noticeTxt: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, flex: 1 },
+});
+
+const sl = StyleSheet.create({
+  levelCard: {
+    borderRadius: 16, padding: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+    borderWidth: 1, borderColor: "#E9E2DD",
+  },
 });
 
 const cs = StyleSheet.create({

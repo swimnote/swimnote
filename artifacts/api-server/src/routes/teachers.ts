@@ -646,4 +646,68 @@ router.get("/teacher/me/members", requireAuth,
   }
 );
 
+
+// ── 학생 레벨 조회/변경 (선생님) ─────────────────────────────────────────────
+const DEFAULT_LEVELS_T = Array.from({ length: 10 }, (_, i) => ({
+  level_order: i + 1,
+  level_name: String(i + 1),
+  level_description: "",
+  learning_content: "",
+  promotion_test_rule: "",
+  badge_type: "text",
+  badge_label: String(i + 1),
+  badge_color: "#1F8F86",
+  badge_text_color: "#FFFFFF",
+}));
+
+router.get("/teacher/students/:id/level", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const studRow = await db.execute(sql`
+      SELECT s.id, s.name, s.current_level_order, s.swimming_pool_id
+      FROM students s WHERE s.id = ${req.params.id}
+    `);
+    const student = studRow.rows[0] as any;
+    if (!student) { res.status(404).json({ error: "학생 없음" }); return; }
+    const poolId = student.swimming_pool_id;
+    const currentOrder = student.current_level_order;
+    const levelRows = await db.execute(sql`
+      SELECT level_order, level_name, level_description, learning_content,
+             promotion_test_rule, badge_type, badge_label, badge_color, badge_text_color
+      FROM pool_level_settings WHERE pool_id = ${poolId}
+      ORDER BY level_order ASC
+    `);
+    const levelDefs = levelRows.rows.length > 0 ? (levelRows.rows as any[]) : DEFAULT_LEVELS_T;
+    const currentDef = currentOrder ? (levelDefs.find((l: any) => l.level_order === currentOrder) ?? null) : null;
+    res.json({ current_level_order: currentOrder ?? null, current_level: currentDef, all_levels: levelDefs });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+router.patch("/teacher/students/:id/level", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { level_order, note } = req.body;
+    if (level_order == null) { res.status(400).json({ error: "level_order 필요" }); return; }
+    const userId = req.user!.userId;
+    const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+    const actorName = (userRow.rows[0] as any)?.name || "선생님";
+    const studRow = await db.execute(sql`SELECT name, swimming_pool_id FROM students WHERE id = ${req.params.id}`);
+    const student = studRow.rows[0] as any;
+    if (!student) { res.status(404).json({ error: "학생 없음" }); return; }
+    const poolId = student.swimming_pool_id;
+    const lvRow = await db.execute(sql`
+      SELECT level_name FROM pool_level_settings WHERE pool_id = ${poolId} AND level_order = ${level_order}
+    `);
+    const lvName = (lvRow.rows[0] as any)?.level_name ?? String(level_order);
+    await db.execute(sql`
+      UPDATE students SET current_level_order = ${level_order}, updated_at = NOW() WHERE id = ${req.params.id}
+    `);
+    await db.execute(sql`
+      INSERT INTO student_levels (id, student_id, swimming_pool_id, level, level_order, achieved_date, note, teacher_name, created_at)
+      VALUES (gen_random_uuid()::text, ${req.params.id}, ${poolId}, ${lvName}, ${level_order},
+              to_char(now(), 'YYYY-MM-DD'), ${note ?? null}, ${actorName}, NOW())
+    `);
+    res.json({ ok: true, level_order, level_name: lvName });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
 export default router;
+

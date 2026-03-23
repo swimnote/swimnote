@@ -329,6 +329,42 @@ router.get("/students/:id/levels", requireAuth, requireParent, async (req: AuthR
   } catch (err) { res.status(500).json({ error: "서버 오류" }); }
 });
 
+// GET /parent/students/:id/level-info — 현재 레벨 + 레벨 설명/학습내용/승급기준
+const DEFAULT_LEVELS_P = Array.from({ length: 10 }, (_, i) => ({
+  level_order: i + 1, level_name: String(i + 1),
+  level_description: "", learning_content: "", promotion_test_rule: "",
+  badge_type: "text", badge_label: String(i + 1),
+  badge_color: "#1F8F86", badge_text_color: "#FFFFFF",
+}));
+
+router.get("/students/:id/level-info", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(
+        eq(parentStudentsTable.parent_id, req.user!.userId),
+        eq(parentStudentsTable.student_id, req.params.id),
+        eq(parentStudentsTable.status, "approved")
+      )).limit(1);
+    if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+    const studRow = await db.execute(sql`
+      SELECT current_level_order, swimming_pool_id FROM students WHERE id = ${req.params.id}
+    `);
+    const student = studRow.rows[0] as any;
+    const poolId = student?.swimming_pool_id;
+    const currentOrder = student?.current_level_order ?? null;
+    const levelRows = await db.execute(sql`
+      SELECT level_order, level_name, level_description, learning_content,
+             promotion_test_rule, badge_type, badge_label, badge_color, badge_text_color
+      FROM pool_level_settings WHERE pool_id = ${poolId}
+      ORDER BY level_order ASC
+    `);
+    const levelDefs = levelRows.rows.length > 0 ? (levelRows.rows as any[]) : DEFAULT_LEVELS_P;
+    const currentDef = currentOrder ? (levelDefs.find((l: any) => l.level_order === currentOrder) ?? null) : null;
+    const nextDef = currentOrder ? (levelDefs.find((l: any) => l.level_order === currentOrder + 1) ?? null) : null;
+    res.json({ current_level_order: currentOrder, current_level: currentDef, next_level: nextDef, all_levels: levelDefs });
+  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
 // ── 반응 (좋아요/감사합니다) ───────────────────────────────────────────────
 router.get("/diary/:diaryId/reactions", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {

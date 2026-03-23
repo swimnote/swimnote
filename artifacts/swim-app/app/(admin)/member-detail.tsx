@@ -18,6 +18,7 @@ import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal }   from "@/components/common/ConfirmModal";
 import { MemberStatusChangeModal } from "@/components/common/MemberStatusChangeModal";
+import { LevelBadge, type LevelDef } from "@/components/common/LevelBadge";
 import {
   StudentMember, WeeklyCount, WEEKLY_BADGE,
   getStudentConnectionStatus, buildInviteMessage,
@@ -216,6 +217,12 @@ export default function MemberDetailScreen() {
   const [assignedIds, setAssignedIds] = useState<string[]>([]);
   const [classChanged, setClassChanged] = useState(false);
 
+  // 레벨
+  interface LevelInfo { current_level_order: number | null; current_level: LevelDef | null; all_levels: LevelDef[]; }
+  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
+  const [showLevelPicker, setShowLevelPicker] = useState(false);
+  const [levelChanging, setLevelChanging] = useState(false);
+
   const load = useCallback(async () => {
     if (!id) return;
     try {
@@ -250,8 +257,32 @@ export default function MemberDetailScreen() {
     } catch (e) { console.error(e); }
   }, [id, token]);
 
+  const loadLevel = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await apiRequest(token, `/admin/students/${id}/level`);
+      if (res.ok) setLevelInfo(await res.json());
+    } catch {}
+  }, [id, token]);
+
+  async function handleLevelChange(levelOrder: number) {
+    if (!id) return;
+    setLevelChanging(true);
+    setShowLevelPicker(false);
+    try {
+      const res = await apiRequest(token, `/admin/students/${id}/level`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level_order: levelOrder }),
+      });
+      if (res.ok) { await loadLevel(); }
+    } catch {}
+    finally { setLevelChanging(false); }
+  }
+
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (activeTab === "활동로그") loadLogs(); }, [activeTab, loadLogs]);
+  useEffect(() => { if (activeTab === "레벨/평가") loadLevel(); }, [activeTab, loadLevel]);
   useEffect(() => {
     if (activeTab === "보강" && id) {
       apiRequest(token, `/admin/makeups/student/${id}`).then(r => r.ok ? r.json() : []).then(setMakeups);
@@ -574,63 +605,105 @@ export default function MemberDetailScreen() {
       {/* ═══ 레벨/평가 ═══ */}
       {activeTab === "레벨/평가" && (
         <ScrollView contentContainerStyle={s.tabContent} showsVerticalScrollIndicator={false}>
-          <View style={[s.section]}>
-            <Text style={s.sectionTitle}>수영 레벨 및 특이사항</Text>
+          {/* 현재 레벨 카드 */}
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>현재 레벨</Text>
+            <View style={[s.infoCard, { backgroundColor: C.card }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 16, padding: 16 }}>
+                {levelChanging
+                  ? <ActivityIndicator size="large" color={themeColor} />
+                  : <LevelBadge level={levelInfo?.current_level ?? null} size="lg" />
+                }
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary }}>현재 레벨</Text>
+                  <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: C.text, marginTop: 2 }}>
+                    {levelInfo?.current_level?.level_name ?? "미지정"}
+                  </Text>
+                  {levelInfo?.current_level?.level_description ? (
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 4 }}>
+                      {levelInfo.current_level.level_description}
+                    </Text>
+                  ) : null}
+                </View>
+                <Pressable
+                  style={[{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: themeColor, flexDirection: "row", alignItems: "center", gap: 5 }]}
+                  onPress={() => setShowLevelPicker(true)}
+                >
+                  <Feather name="edit-2" size={13} color={themeColor} />
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: themeColor }}>변경</Text>
+                </Pressable>
+              </View>
 
-            {/* 빠른 레벨 선택 */}
-            <Text style={s.fieldLabel}>현재 레벨</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-              {["초급", "중급", "상급", "자유형", "배영", "평영", "접영", "4영법"].map(level => {
-                const active = editMemo?.includes(level);
-                return (
-                  <Pressable key={level}
-                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: active ? themeColor : C.border, backgroundColor: active ? themeColor + "15" : C.background }}
-                    onPress={() => {
-                      if (active) {
-                        setEditMemo(editMemo.replace(level, "").trim());
-                      } else {
-                        setEditMemo((editMemo ? editMemo + " " : "") + level);
-                      }
-                      setInfoChanged(true);
-                    }}>
-                    <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: active ? themeColor : C.textSecondary }}>{level}</Text>
-                  </Pressable>
-                );
-              })}
+              {/* 학습 내용 */}
+              {levelInfo?.current_level?.learning_content ? (
+                <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
+                  <View style={{ height: 1, backgroundColor: C.border, marginBottom: 12 }} />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 6 }}>이 레벨에서 배우는 내용</Text>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, lineHeight: 22 }}>
+                    {levelInfo.current_level.learning_content}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* 다음 레벨 승급 기준 */}
+              {levelInfo?.current_level?.promotion_test_rule ? (
+                <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
+                  {!levelInfo?.current_level?.learning_content && <View style={{ height: 1, backgroundColor: C.border, marginBottom: 12 }} />}
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 6 }}>승급 기준</Text>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, lineHeight: 22 }}>
+                    {levelInfo.current_level.promotion_test_rule}
+                  </Text>
+                </View>
+              ) : null}
             </View>
-
-            <EditField label="레벨 메모 (직접 입력)" value={editMemo} onChangeText={v => { setEditMemo(v); setInfoChanged(true); }} placeholder="예: 자유형 50m 완주, 접영 연습 중" multiline />
-            <EditField label="특이사항 / 관리자 메모" value={editNotes} onChangeText={v => { setEditNotes(v); setInfoChanged(true); }} placeholder="내부 메모 (학부모에게 노출되지 않음)" multiline />
-
-            <Pressable
-              style={[s.saveBtn, { backgroundColor: infoChanged ? themeColor : "#9A948F", marginTop: 12 }]}
-              onPress={saveInfo}
-              disabled={saving || !infoChanged}
-            >
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-                <><Feather name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>평가 저장</Text></>
-              )}
-            </Pressable>
           </View>
 
-          {/* 현재 저장된 내용 미리보기 */}
-          {(data.memo || data.notes) && (
-            <View style={[s.section]}>
-              <Text style={s.sectionTitle}>저장된 내용</Text>
-              {data.memo && (
-                <View style={{ backgroundColor: themeColor + "10", padding: 12, borderRadius: 12, marginBottom: 8 }}>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: themeColor, marginBottom: 4 }}>레벨 메모</Text>
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.text }}>{data.memo}</Text>
+          {/* 레벨 전체 목록 */}
+          {levelInfo?.all_levels && levelInfo.all_levels.length > 0 && (
+            <View style={s.section}>
+              <Text style={s.sectionTitle}>전체 레벨 구조</Text>
+              <View style={[s.infoCard, { backgroundColor: C.card, padding: 12 }]}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {levelInfo.all_levels.map(lv => {
+                    const isCurrent = lv.level_order === levelInfo.current_level_order;
+                    return (
+                      <Pressable
+                        key={lv.level_order}
+                        style={{
+                          alignItems: "center", gap: 4, padding: 8, borderRadius: 10,
+                          borderWidth: 1.5,
+                          borderColor: isCurrent ? themeColor : C.border,
+                          backgroundColor: isCurrent ? themeColor + "10" : C.background,
+                        }}
+                        onPress={() => handleLevelChange(lv.level_order)}
+                      >
+                        <LevelBadge level={lv} size="sm" />
+                        <Text style={{ fontSize: 11, fontFamily: isCurrent ? "Inter_700Bold" : "Inter_400Regular", color: isCurrent ? themeColor : C.textSecondary }}>
+                          {lv.level_name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
-              )}
-              {data.notes && (
-                <View style={{ backgroundColor: "#FFF1BF", padding: 12, borderRadius: 12 }}>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#D97706", marginBottom: 4 }}>특이사항</Text>
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.text }}>{data.notes}</Text>
-                </View>
-              )}
+              </View>
             </View>
           )}
+
+          {/* 특이사항 메모 */}
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>특이사항 / 관리자 메모</Text>
+            <View style={[s.infoCard, { backgroundColor: C.card, padding: 14, gap: 10 }]}>
+              <EditField label="" value={editNotes} onChangeText={v => { setEditNotes(v); setInfoChanged(true); }} placeholder="내부 메모 (학부모에게 노출되지 않음)" multiline />
+              <Pressable
+                style={[s.saveBtn, { backgroundColor: infoChanged ? themeColor : "#9A948F" }]}
+                onPress={saveInfo} disabled={saving || !infoChanged}
+              >
+                {saving ? <ActivityIndicator color="#fff" size="small" /> : (
+                  <><Feather name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>메모 저장</Text></>
+                )}
+              </Pressable>
+            </View>
+          </View>
         </ScrollView>
       )}
 
@@ -909,6 +982,41 @@ export default function MemberDetailScreen() {
         />
       )}
 
+      {/* 레벨 선택 모달 */}
+      <Modal visible={showLevelPicker} transparent animationType="slide" onRequestClose={() => setShowLevelPicker(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onPress={() => setShowLevelPicker(false)}>
+          <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 24, width: "100%", maxHeight: 480, gap: 16 }}
+            onStartShouldSetResponder={() => true}>
+            <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: C.text, textAlign: "center" }}>레벨 선택</Text>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                {(levelInfo?.all_levels ?? []).map(lv => {
+                  const isCurrent = lv.level_order === levelInfo?.current_level_order;
+                  return (
+                    <Pressable
+                      key={lv.level_order}
+                      style={{ alignItems: "center", gap: 6, padding: 10, borderRadius: 12,
+                        borderWidth: 1.5, borderColor: isCurrent ? themeColor : C.border,
+                        backgroundColor: isCurrent ? themeColor + "10" : C.background }}
+                      onPress={() => handleLevelChange(lv.level_order)}
+                    >
+                      <LevelBadge level={lv} size="md" />
+                      <Text style={{ fontSize: 12, fontFamily: isCurrent ? "Inter_700Bold" : "Inter_500Medium",
+                        color: isCurrent ? themeColor : C.text }}>{lv.level_name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+            <Pressable style={{ alignItems: "center", paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: C.border }}
+              onPress={() => setShowLevelPicker(false)}>
+              <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary }}>취소</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
       {/* 반 선택 모달 */}
       {showPicker && (
         <ClassPickerModal
@@ -974,6 +1082,7 @@ const s = StyleSheet.create({
   changeStatusBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: C.tint },
   changeStatusText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
+  infoCard: { borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: C.border },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
   infoLabel: { width: 90, fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
   infoValue: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: C.text },

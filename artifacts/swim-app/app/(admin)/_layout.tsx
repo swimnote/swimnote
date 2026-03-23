@@ -102,6 +102,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="people-pending"    options={{ href: null }} />
       <Tabs.Screen name="makeups"                    options={{ href: null }} />
       <Tabs.Screen name="makeup-policy"              options={{ href: null }} />
+      <Tabs.Screen name="level-settings"             options={{ href: null }} />
       <Tabs.Screen name="settlement"                 options={{ href: null }} />
       <Tabs.Screen name="holidays"                   options={{ href: null }} />
       <Tabs.Screen name="class-management"           options={{ href: null }} />

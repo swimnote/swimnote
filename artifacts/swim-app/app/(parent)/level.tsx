@@ -7,6 +7,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
+import { LevelBadge, type LevelDef } from "@/components/common/LevelBadge";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
@@ -20,6 +21,13 @@ interface LevelRecord {
   teacher_name?: string | null;
 }
 
+interface LevelInfo {
+  current_level_order: number | null;
+  current_level: LevelDef | null;
+  next_level: LevelDef | null;
+  all_levels: LevelDef[];
+}
+
 const LEVEL_COLORS = ["#DDF2EF", "#DFF3EC", "#FFF1BF", "#FDF4FF", "#FFF1F2"];
 const LEVEL_ACCENTS = ["#1F8F86", "#16A34A", "#D97706", "#9333EA", "#E11D48"];
 
@@ -28,24 +36,29 @@ export default function ParentLevelScreen() {
   const { token } = useAuth();
   const { selectedStudent } = useParent();
   const [records, setRecords] = useState<LevelRecord[]>([]);
+  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   async function fetchLevels() {
     if (!selectedStudent?.id) { setLoading(false); return; }
     try {
-      const res = await apiRequest(token, `/parent/students/${selectedStudent.id}/levels`);
-      if (res.ok) {
-        const data = await res.json();
+      const [histRes, infoRes] = await Promise.all([
+        apiRequest(token, `/parent/students/${selectedStudent.id}/levels`),
+        apiRequest(token, `/parent/students/${selectedStudent.id}/level-info`),
+      ]);
+      if (histRes.ok) {
+        const data = await histRes.json();
         setRecords(Array.isArray(data) ? data : []);
       }
+      if (infoRes.ok) setLevelInfo(await infoRes.json());
     } catch { }
     finally { setLoading(false); setRefreshing(false); }
   }
 
   useEffect(() => { setLoading(true); fetchLevels(); }, [selectedStudent?.id]);
 
-  const current = records[0];
+  const currentLevel = levelInfo?.current_level;
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
@@ -70,11 +83,15 @@ export default function ParentLevelScreen() {
           {/* 현재 레벨 카드 */}
           <View style={[s.currentCard, { backgroundColor: C.tint }]}>
             <Text style={s.currentLabel}>현재 레벨</Text>
-            {current ? (
+            {currentLevel ? (
+              <View style={{ alignItems: "center", gap: 8 }}>
+                <LevelBadge level={currentLevel} size="lg" />
+                <Text style={s.currentLevelName}>{currentLevel.level_name}</Text>
+              </View>
+            ) : records[0] ? (
               <>
-                <Text style={s.currentLevel}>{current.level}</Text>
-                <Text style={s.currentDate}>달성일: {current.achieved_date}</Text>
-                {current.note ? <Text style={s.currentNote}>{current.note}</Text> : null}
+                <Text style={s.currentLevel}>{records[0].level}</Text>
+                <Text style={s.currentDate}>달성일: {records[0].achieved_date}</Text>
               </>
             ) : (
               <>
@@ -83,6 +100,58 @@ export default function ParentLevelScreen() {
               </>
             )}
           </View>
+
+          {/* 현재 레벨 설명 카드 */}
+          {currentLevel && (currentLevel.level_description || currentLevel.learning_content || currentLevel.promotion_test_rule) && (
+            <View style={[s.descCard, { backgroundColor: C.card }]}>
+              {currentLevel.level_description ? (
+                <View style={s.descBlock}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <Feather name="info" size={14} color={C.tint} />
+                    <Text style={[s.descTitle, { color: C.tint }]}>레벨 소개</Text>
+                  </View>
+                  <Text style={[s.descText, { color: C.text }]}>{currentLevel.level_description}</Text>
+                </View>
+              ) : null}
+
+              {currentLevel.learning_content ? (
+                <View style={[s.descBlock, currentLevel.level_description && s.descBorderTop]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <Feather name="book-open" size={14} color="#3B82F6" />
+                    <Text style={[s.descTitle, { color: "#3B82F6" }]}>이 레벨에서 배우는 내용</Text>
+                  </View>
+                  <Text style={[s.descText, { color: C.text }]}>{currentLevel.learning_content}</Text>
+                </View>
+              ) : null}
+
+              {currentLevel.promotion_test_rule ? (
+                <View style={[s.descBlock, (currentLevel.level_description || currentLevel.learning_content) && s.descBorderTop]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <Feather name="award" size={14} color="#D97706" />
+                    <Text style={[s.descTitle, { color: "#D97706" }]}>다음 레벨 승급 기준</Text>
+                  </View>
+                  <Text style={[s.descText, { color: C.text }]}>{currentLevel.promotion_test_rule}</Text>
+                </View>
+              ) : null}
+            </View>
+          )}
+
+          {/* 다음 레벨 안내 */}
+          {levelInfo?.next_level && (
+            <View style={[s.nextCard, { backgroundColor: "#FFFBEB", borderColor: "#FEF3C7" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="arrow-right-circle" size={18} color="#D97706" />
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#D97706" }}>
+                  다음 목표: 레벨 {levelInfo.next_level.level_name}
+                </Text>
+              </View>
+              {levelInfo.next_level.promotion_test_rule ? (
+                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#92400E", marginTop: 6, lineHeight: 20 }}>
+                  {levelInfo.next_level.promotion_test_rule}
+                </Text>
+              ) : null}
+            </View>
+          )}
 
           {/* 성장 타임라인 */}
           {records.length > 0 ? (
@@ -131,22 +200,28 @@ export default function ParentLevelScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 20, paddingBottom: 12,
-  },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold", flex: 1 },
-  childChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
-  childChipTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   currentCard: {
-    borderRadius: 24, padding: 28, alignItems: "center", gap: 6,
+    borderRadius: 24, padding: 28, alignItems: "center", gap: 8,
     shadowColor: "#0000002A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 4,
   },
   currentLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.8)" },
   currentLevel: { fontSize: 52, fontFamily: "Inter_700Bold", color: "#fff", marginTop: 4 },
+  currentLevelName: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff" },
   currentDate: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)" },
-  currentNote: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.9)", textAlign: "center", marginTop: 4 },
+
+  descCard: {
+    marginTop: 14, borderRadius: 16,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
+  },
+  descBlock: { padding: 14 },
+  descBorderTop: { borderTopWidth: 1, borderTopColor: "#F0EDE9" },
+  descTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  descText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
+
+  nextCard: {
+    marginTop: 12, borderRadius: 14, padding: 14, borderWidth: 1,
+  },
+
   sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   timelineRow: { flexDirection: "row", gap: 12 },
   timelineLeft: { alignItems: "center", width: 16 },

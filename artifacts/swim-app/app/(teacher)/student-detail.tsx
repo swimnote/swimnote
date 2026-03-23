@@ -9,19 +9,21 @@
  * - 기본정보 / 수업정보 / 출결 현황 섹션
  * - 상태 배지 (대표 상태 + 예약 상태)
  * - 상태 변경 버튼 → MemberStatusChangeModal 공통 팝업
+ * - 레벨 뱃지 + 레벨 변경 기능
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView,
-  StyleSheet, Text, View,
+  StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { MemberStatusChangeModal } from "@/components/common/MemberStatusChangeModal";
+import { LevelBadge, type LevelDef } from "@/components/common/LevelBadge";
 import {
   getPrimaryStatus, PRIMARY_STATUS_BADGE, getMemberPendingBadge,
   getEffectiveWeekly, WEEKLY_BADGE,
@@ -46,6 +48,12 @@ interface AttendanceStat {
   total: number; present: number; absent: number; late: number;
 }
 
+interface LevelInfo {
+  current_level_order: number | null;
+  current_level: LevelDef | null;
+  all_levels: LevelDef[];
+}
+
 function getBirthAge(birthYear?: string | null): string {
   if (!birthYear) return "";
   const y = parseInt(birthYear);
@@ -68,18 +76,23 @@ export default function StudentDetailScreen() {
 
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [attStat, setAttStat] = useState<AttendanceStat | null>(null);
+  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showWeeklyPicker, setShowWeeklyPicker] = useState(false);
   const [weeklyChanging, setWeeklyChanging] = useState(false);
+  const [showLevelPicker, setShowLevelPicker] = useState(false);
+  const [levelChanging, setLevelChanging] = useState(false);
+  const [levelNote, setLevelNote] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const [stRes, attRes] = await Promise.all([
+      const [stRes, attRes, lvRes] = await Promise.all([
         apiRequest(token, `/students/${id}`),
         apiRequest(token, `/students/${id}/attendance`),
+        apiRequest(token, `/teacher/students/${id}/level`),
       ]);
       if (stRes.ok) setStudent(await stRes.json());
       if (attRes.ok) {
@@ -90,6 +103,7 @@ export default function StudentDetailScreen() {
         const late = arr.filter(a => a.status === "late").length;
         setAttStat({ total, present, absent, late });
       }
+      if (lvRes.ok) setLevelInfo(await lvRes.json());
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [id, token]);
@@ -110,6 +124,24 @@ export default function StudentDetailScreen() {
       }
     } catch (e) { console.error(e); }
     finally { setWeeklyChanging(false); }
+  }
+
+  async function handleLevelChange(levelOrder: number) {
+    if (!id) return;
+    setLevelChanging(true);
+    setShowLevelPicker(false);
+    try {
+      const res = await apiRequest(token, `/teacher/students/${id}/level`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level_order: levelOrder, note: levelNote || null }),
+      });
+      if (res.ok) {
+        setLevelNote("");
+        await load();
+      }
+    } catch (e) { console.error(e); }
+    finally { setLevelChanging(false); }
   }
 
   if (loading) {
@@ -148,8 +180,15 @@ export default function StudentDetailScreen() {
 
         {/* ── 프로필 헤더 카드 ────────────────────────────────── */}
         <View style={s.profileCard}>
-          <View style={[s.avatarWrap, { backgroundColor: themeColor + "18" }]}>
-            <Text style={[s.avatarText, { color: themeColor }]}>{student.name[0]}</Text>
+          <View style={{ alignItems: "center", gap: 6 }}>
+            <View style={[s.avatarWrap, { backgroundColor: themeColor + "18" }]}>
+              <Text style={[s.avatarText, { color: themeColor }]}>{student.name[0]}</Text>
+            </View>
+            {/* 레벨 뱃지 */}
+            {levelChanging
+              ? <ActivityIndicator size="small" color={themeColor} />
+              : <LevelBadge level={levelInfo?.current_level ?? null} size="sm" showName />
+            }
           </View>
 
           <View style={{ flex: 1 }}>
@@ -189,6 +228,36 @@ export default function StudentDetailScreen() {
                   <Text style={[s.statusText, { color: pendingBadge.color }]}>{pendingBadge.label}</Text>
                 </View>
               )}
+            </View>
+          </View>
+        </View>
+
+        {/* ── 레벨 관리 카드 ────────────────────────────────── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>수영 레벨</Text>
+          <View style={s.card}>
+            <View style={s.statusRow}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <LevelBadge level={levelInfo?.current_level ?? null} size="md" />
+                <View>
+                  <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Inter_400Regular" }}>현재 레벨</Text>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: C.text, marginTop: 2 }}>
+                    {levelInfo?.current_level?.level_name ?? "미지정"}
+                  </Text>
+                  {levelInfo?.current_level?.level_description ? (
+                    <Text style={{ fontSize: 11, color: C.textSecondary, fontFamily: "Inter_400Regular", marginTop: 2 }} numberOfLines={1}>
+                      {levelInfo.current_level.level_description}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+              <Pressable
+                style={[s.changeBtn, { borderColor: themeColor }]}
+                onPress={() => setShowLevelPicker(true)}
+              >
+                <Feather name="edit-2" size={14} color={themeColor} />
+                <Text style={[s.changeBtnText, { color: themeColor }]}>레벨 변경</Text>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -360,6 +429,55 @@ export default function StudentDetailScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* ── 레벨 선택 모달 ──────────────────────────────────── */}
+      <Modal visible={showLevelPicker} transparent animationType="slide" onRequestClose={() => setShowLevelPicker(false)}>
+        <Pressable style={s.pickerOverlay} onPress={() => setShowLevelPicker(false)}>
+          <View style={[s.pickerSheet, { backgroundColor: C.card, maxHeight: 520 }]}
+            onStartShouldSetResponder={() => true}>
+            <Text style={s.pickerTitle}>레벨 변경</Text>
+            <Text style={s.pickerSub}>{student.name} 학생의 현재 레벨을 선택하세요</Text>
+            <View style={{ maxHeight: 260, overflow: "hidden" }}>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 4 }}>
+                  {(levelInfo?.all_levels ?? []).map(lv => {
+                    const isCurrent = lv.level_order === levelInfo?.current_level_order;
+                    return (
+                      <Pressable
+                        key={lv.level_order}
+                        style={[
+                          s.levelPickerItem,
+                          isCurrent && { borderColor: themeColor, backgroundColor: themeColor + "10" }
+                        ]}
+                        onPress={() => handleLevelChange(lv.level_order)}
+                      >
+                        <LevelBadge level={lv} size="sm" />
+                        <Text style={[s.levelPickerLabel, isCurrent && { color: themeColor }]}>
+                          {lv.level_name}
+                        </Text>
+                        {isCurrent && <Feather name="check" size={12} color={themeColor} />}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <Text style={s.pickerSub}>변경 메모 (선택)</Text>
+              <TextInput
+                style={s.noteInput}
+                value={levelNote}
+                onChangeText={setLevelNote}
+                placeholder="예: 자유형 25m 완주 달성"
+                placeholderTextColor={C.textMuted}
+              />
+            </View>
+            <Pressable style={s.pickerCancel} onPress={() => setShowLevelPicker(false)}>
+              <Text style={s.pickerCancelText}>취소</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -415,6 +533,19 @@ const s = StyleSheet.create({
   pickerCancel:   { alignItems: "center", paddingVertical: 12, borderRadius: 12,
                     borderWidth: 1.5, borderColor: "#E9E2DD" },
   pickerCancelText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+
+  levelPickerItem: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+    borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background,
+  },
+  levelPickerLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
+
+  noteInput: {
+    borderWidth: 1, borderColor: C.border, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8,
+    fontSize: 13, fontFamily: "Inter_400Regular", color: C.text,
+  },
 
   section:        { gap: 8 },
   sectionTitle:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, paddingLeft: 4 },
