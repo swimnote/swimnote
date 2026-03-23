@@ -2070,4 +2070,95 @@ router.get("/class-groups/:id/detail", requireAuth, requireRole("super_admin", "
   }
 );
 
+// GET /admin/settlement-summary — 이번달 정산 요약 (주간횟수별 학생수×단가)
+router.get("/settlement-summary", requireAuth, requireRole("super_admin","pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return;  }
+      const { month } = req.query; // optional YYYY-MM
+      const targetMonth = (month as string) || new Date().toISOString().slice(0, 7);
+
+      // 활성 회원 주간횟수별 집계
+      const studentRows = (await db.execute(sql.raw(`
+        SELECT
+          LEAST(COALESCE(weekly_count, 1), 3) AS wc,
+          COUNT(*)::int AS cnt
+        FROM students
+        WHERE swimming_pool_id = '${poolId}'
+          AND status NOT IN ('withdrawn','deleted')
+          AND (class_group_id IS NOT NULL)
+        GROUP BY LEAST(COALESCE(weekly_count, 1), 3)
+        ORDER BY wc
+      `))).rows as any[];
+
+      // 기타 수업 회원 (is_one_time=true 반에 배정된 활성 학생)
+      const extraRows = (await db.execute(sql.raw(`
+        SELECT cg.name AS class_name, COUNT(s.id)::int AS student_count
+        FROM class_groups cg
+        JOIN students s ON s.class_group_id = cg.id AND s.status NOT IN ('withdrawn','deleted')
+        WHERE cg.swimming_pool_id = '${poolId}'
+          AND cg.is_deleted = false
+          AND cg.is_one_time = true
+        GROUP BY cg.name
+        ORDER BY cg.name
+      `))).rows as any[];
+
+      // 단가표 조회
+      const pricingRows = (await db.execute(sql.raw(`
+        SELECT type_key, type_name, monthly_fee, sessions_per_month
+        FROM pool_class_pricing
+        WHERE pool_id = '${poolId}' AND is_active = true
+        ORDER BY type_key
+      `))).rows as any[];
+      const pricingMap: Record<string, any> = {};
+      for (const p of pricingRows) pricingMap[p.type_key] = p;
+
+      const WC_KEY: Record<number, string> = { 1: "weekly_1", 2: "weekly_2", 3: "weekly_3" };
+      const WC_LABEL: Record<number, string> = { 1: "주1회", 2: "주2회", 3: "주3회 이상" };
+
+      let totalSessions = 0;
+      let totalRevenue = 0;
+
+      const groups = studentRows.map((row: any) => {
+        const wc: number = Number(row.wc) || 1;
+        const cnt: number = row.cnt || 0;
+        const key = WC_KEY[wc] || "weekly_1";
+        const pricing = pricingMap[key];
+        const monthlyFee: number = pricing ? Number(pricing.monthly_fee) : 0;
+        const sessions = cnt * wc;
+        const subtotal = cnt * monthlyFee;
+        totalSessions += sessions;
+        totalRevenue += subtotal;
+        return {
+          type_key:      key,
+          label:         WC_LABEL[wc] || `주${wc}회`,
+          student_count: cnt,
+          weekly_count:  wc,
+          monthly_fee:   monthlyFee,
+          sessions,
+          subtotal,
+        };
+      });
+
+      // 기타 수업 — 단가 미설정으로 처리 (조회만)
+      const extraClasses = extraRows.map((r: any) => ({
+        class_name:    r.class_name,
+        student_count: r.student_count,
+      }));
+
+      const hasPricing = pricingRows.length > 0;
+
+      res.json({
+        month:          targetMonth,
+        groups,
+        extra_classes:  extraClasses,
+        total_sessions: totalSessions,
+        total_revenue:  totalRevenue,
+        has_pricing:    hasPricing,
+      });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 export default router;

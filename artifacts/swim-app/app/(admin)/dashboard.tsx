@@ -200,7 +200,7 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
     // ─ 매출 관리 ─
     case "매출관리": return [
       { icon: "trending-up", label: "월별 매출",   color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/admin-revenue") },
-      { icon: "check-square",label: "정산 확인",   color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "check-square",label: "정산 확인",   color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/settlement") },
       { icon: "calendar",    label: "휴무일 관리",  color: "#1F8F86", bg: "#ECFEFF", onPress: () => router.push("/(admin)/holidays") },
     ];
     // ─ 데이터 관리: 백업·복구 + 저장공간 + 삭제·보존 통합 ─
