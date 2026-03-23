@@ -1,6 +1,6 @@
 /**
  * 보강 시스템 메인 화면
- * 탭: 결석자 리스트 / 담당선생님 보강 / 다른선생님 보강 / 완료 기록
+ * 탭: 결석자 리스트 / 담당 보강 / 다른선생님 / 완료 기록 / 만료
  * 실 DB: /admin/makeups, /admin/makeups/eligible-classes,
  *         /admin/makeups/:id/assign, /transfer, /complete, /cancel, /revert
  */
@@ -20,7 +20,7 @@ import { useBrand } from "@/context/BrandContext";
 
 const C = Colors.light;
 const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
-const TABS = ["결석자 리스트", "담당 보강", "다른선생님", "완료 기록"] as const;
+const TABS = ["결석자 리스트", "담당 보강", "다른선생님", "완료 기록", "만료"] as const;
 type MkTab = typeof TABS[number];
 
 const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = {
@@ -29,6 +29,7 @@ const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = 
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
   completed:   { label: "완료",   color: "#1F8F86", bg: "#DDF2EF" },
   cancelled:   { label: "취소",   color: "#6F6B68", bg: "#F6F3F1" },
+  expired:     { label: "만료",   color: "#9CA3AF", bg: "#F3F4F6" },
 };
 
 type ConfirmAction = {
@@ -59,6 +60,7 @@ export default function MakeupsScreen() {
     "담당 보강":     "assigned",
     "다른선생님":    "transferred",
     "완료 기록":     "completed",
+    "만료":          "expired",
   };
 
   const load = useCallback(async () => {
@@ -143,7 +145,17 @@ export default function MakeupsScreen() {
 
   return (
     <View style={s.root}>
-      <SubScreenHeader title="보강 관리" />
+      <SubScreenHeader
+        title="보강 관리"
+        rightSlot={
+          <Pressable
+            onPress={() => router.push("/(admin)/makeup-policy" as any)}
+            style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, backgroundColor: "#EEDDF5" }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "700", color: "#7C3AED" }}>정책 설정</Text>
+          </Pressable>
+        }
+      />
 
       {/* 탭 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}
@@ -167,7 +179,11 @@ export default function MakeupsScreen() {
           ListEmptyComponent={
             <View style={s.empty}>
               <Feather name="check-circle" size={40} color={C.border} />
-              <Text style={s.emptyTxt}>{tab === "결석자 리스트" ? "처리할 결석자가 없습니다" : "항목이 없습니다"}</Text>
+              <Text style={s.emptyTxt}>
+                {tab === "결석자 리스트" ? "처리할 결석자가 없습니다"
+                  : tab === "만료" ? "만료된 보강권이 없습니다"
+                  : "항목이 없습니다"}
+              </Text>
             </View>
           }
           renderItem={({ item }) => (
@@ -239,6 +255,18 @@ export default function MakeupsScreen() {
   );
 }
 
+function formatExpireAt(expireAt: string | null): { text: string; color: string } | null {
+  if (!expireAt) return null;
+  const d = new Date(expireAt);
+  const now = new Date();
+  const diffDays = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (diffDays < 0) return { text: `만료됨 (${dateStr})`, color: "#9CA3AF" };
+  if (diffDays <= 7) return { text: `만료 D-${diffDays} (${dateStr})`, color: "#D96C6C" };
+  if (diffDays <= 14) return { text: `만료 D-${diffDays} (${dateStr})`, color: "#D97706" };
+  return { text: `만료일: ${dateStr}`, color: "#6F6B68" };
+}
+
 function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, onRevert, onCancel, onMemberPress }: {
   item: any; tab: MkTab; themeColor: string;
   onAssign: () => void; onTransfer: () => void;
@@ -246,6 +274,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
   onMemberPress: () => void;
 }) {
   const st = MK_STATUS[item.status] || { label: item.status, color: "#6F6B68", bg: "#F6F3F1" };
+  const expireInfo = formatExpireAt(item.expire_at);
   return (
     <View style={s.card}>
       <View style={s.row}>
@@ -261,6 +290,9 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
           )}
           {item.is_substitute && item.substitute_teacher_name && (
             <Text style={[s.sub, { color: "#1F8F86", fontWeight: "600" }]}>대리보강: {item.substitute_teacher_name}</Text>
+          )}
+          {expireInfo && (
+            <Text style={[s.sub, { color: expireInfo.color, fontWeight: "600" }]}>{expireInfo.text}</Text>
           )}
           {item.note && <Text style={s.sub}>메모: {item.note}</Text>}
         </View>
@@ -323,6 +355,16 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
           <Feather name="user-check" size={12} color="#1F8F86" />
           <Text style={s.completedTxt}>
             대리 진행: {item.substitute_teacher_name} 선생님
+          </Text>
+        </View>
+      )}
+
+      {/* 만료 탭 — 읽기 전용 */}
+      {tab === "만료" && (
+        <View style={[s.completedBanner, { backgroundColor: "#F3F4F6" }]}>
+          <Feather name="clock" size={12} color="#9CA3AF" />
+          <Text style={[s.completedTxt, { color: "#6B7280" }]}>
+            보강권 만료됨{item.expire_at ? ` · ${new Date(item.expire_at).toLocaleDateString("ko-KR")}` : ""}
           </Text>
         </View>
       )}

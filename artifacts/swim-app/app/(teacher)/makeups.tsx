@@ -294,6 +294,19 @@ export default function MakeupsScreen() {
                             <Text style={[s.infoTxt, { color: "#1F8F86" }]}>배정반: {mk.assigned_class_group_name}</Text>
                           </View>
                         )}
+                        {mk.expire_at && (() => {
+                          const d = new Date(mk.expire_at);
+                          const diffDays = Math.ceil((d.getTime() - Date.now()) / 86400000);
+                          const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+                          const col = diffDays <= 7 ? "#D96C6C" : diffDays <= 14 ? "#D97706" : "#6F6B68";
+                          const label = diffDays < 0 ? `만료됨(${ds})` : diffDays <= 14 ? `만료 D-${diffDays}(${ds})` : `만료일: ${ds}`;
+                          return (
+                            <View style={s.infoRow}>
+                              <Feather name="clock" size={12} color={col} />
+                              <Text style={[s.infoTxt, { color: col, fontWeight: "600" }]}>{label}</Text>
+                            </View>
+                          );
+                        })()}
                       </View>
                       <View style={{ backgroundColor: "#EEDDF5", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
                         <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#7C3AED" }}>대리보강</Text>

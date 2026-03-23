@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const makeupSessionsTable = pgTable("makeup_sessions", {
@@ -18,6 +18,9 @@ export const makeupSessionsTable = pgTable("makeup_sessions", {
   absence_time:          text("absence_time"),
 
   status: text("status").notNull().default("waiting"),
+
+  expire_at:       timestamp("expire_at"),
+  weekly_frequency: integer("weekly_frequency").default(1),
 
   assigned_class_group_id:   text("assigned_class_group_id"),
   assigned_class_group_name: text("assigned_class_group_name"),

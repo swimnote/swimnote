@@ -18,6 +18,13 @@ export const swimmingPoolsTable = pgTable("swimming_pools", {
   subscription_start_at: timestamp("subscription_start_at"),
   subscription_end_at: timestamp("subscription_end_at"),
   default_capacity: integer("default_capacity").default(20),
+
+  make_up_expiry_type:    text("make_up_expiry_type").default("end_of_month"),
+  make_up_expiry_days:    integer("make_up_expiry_days"),
+  make_up_limit_weekly_1: integer("make_up_limit_weekly_1").default(2),
+  make_up_limit_weekly_2: integer("make_up_limit_weekly_2").default(4),
+  make_up_limit_weekly_3: integer("make_up_limit_weekly_3").default(5),
+
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

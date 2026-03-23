@@ -1260,6 +1260,15 @@ router.get("/makeups", requireAuth, requireRole("super_admin","pool_admin","teac
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      // 만료 자동 처리: waiting 상태 중 expire_at 지난 것 → expired
+      await db.execute(sql.raw(`
+        UPDATE makeup_sessions
+        SET status = 'expired'
+        WHERE swimming_pool_id = '${poolId}'
+          AND status = 'waiting'
+          AND expire_at IS NOT NULL
+          AND expire_at < NOW()
+      `));
       const { status, student_id, teacher_id, assigned_teacher_id } = req.query;
       const conditions: string[] = [`swimming_pool_id = '${poolId}'`];
       if (status) conditions.push(`status = '${status}'`);
@@ -1610,6 +1619,57 @@ router.patch("/class-settings", requireAuth, requireRole("super_admin","pool_adm
         WHERE id = ${poolId}
       `);
       res.json({ success: true, default_capacity: Number(default_capacity) });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// GET /admin/makeup-policy — 보강 정책 조회
+router.get("/makeup-policy", requireAuth, requireRole("super_admin","pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const [row] = (await db.execute(sql.raw(`
+        SELECT make_up_expiry_type, make_up_expiry_days,
+               make_up_limit_weekly_1, make_up_limit_weekly_2, make_up_limit_weekly_3
+        FROM swimming_pools WHERE id = '${poolId}' LIMIT 1
+      `))).rows as any[];
+      res.json({
+        expiry_type:    row?.make_up_expiry_type    ?? "end_of_month",
+        expiry_days:    row?.make_up_expiry_days    ?? null,
+        limit_weekly_1: row?.make_up_limit_weekly_1 ?? 2,
+        limit_weekly_2: row?.make_up_limit_weekly_2 ?? 4,
+        limit_weekly_3: row?.make_up_limit_weekly_3 ?? 5,
+      });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// PUT /admin/makeup-policy — 보강 정책 저장
+router.put("/makeup-policy", requireAuth, requireRole("super_admin","pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const { expiry_type, expiry_days, limit_weekly_1, limit_weekly_2, limit_weekly_3 } = req.body;
+      const validTypes = ["end_of_month","next_month_end","fixed_days"];
+      if (!validTypes.includes(expiry_type)) {
+        res.status(400).json({ error: "올바른 만료 유형 필요" }); return;
+      }
+      if (expiry_type === "fixed_days" && (!expiry_days || isNaN(Number(expiry_days)))) {
+        res.status(400).json({ error: "fixed_days 선택 시 만료일수 필요" }); return;
+      }
+      await db.execute(sql.raw(`
+        UPDATE swimming_pools SET
+          make_up_expiry_type    = '${expiry_type}',
+          make_up_expiry_days    = ${expiry_type === "fixed_days" ? Number(expiry_days) : "NULL"},
+          make_up_limit_weekly_1 = ${Number(limit_weekly_1) || 2},
+          make_up_limit_weekly_2 = ${Number(limit_weekly_2) || 4},
+          make_up_limit_weekly_3 = ${Number(limit_weekly_3) || 5},
+          updated_at = now()
+        WHERE id = '${poolId}'
+      `));
+      res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );

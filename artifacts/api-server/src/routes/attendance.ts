@@ -246,6 +246,23 @@ router.get("/search", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+function calcExpireAt(expiryType: string | null, expiryDays: number | null, absenceDate: string): string | null {
+  const base = new Date(absenceDate);
+  if (expiryType === "fixed_days" && expiryDays && expiryDays > 0) {
+    base.setDate(base.getDate() + expiryDays);
+    return base.toISOString();
+  }
+  if (expiryType === "end_of_month") {
+    const y = base.getFullYear(), m = base.getMonth();
+    return new Date(y, m + 1, 0, 23, 59, 59).toISOString();
+  }
+  if (expiryType === "next_month_end") {
+    const y = base.getFullYear(), m = base.getMonth();
+    return new Date(y, m + 2, 0, 23, 59, 59).toISOString();
+  }
+  return null;
+}
+
 async function autoCreateMakeup(
   poolId: string,
   studentId: string,
@@ -257,12 +274,38 @@ async function autoCreateMakeup(
   if (previousStatus === "absent") return;
   const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, studentId)).limit(1);
   if (!student) return;
-  const [existing] = await (db as any).execute(sql`
+  const [existing] = ((await (db as any).execute(sql`
     SELECT id FROM makeup_sessions
-    WHERE student_id = ${studentId} AND absence_date = ${date} AND status != 'cancelled'
+    WHERE student_id = ${studentId} AND absence_date = ${date} AND status NOT IN ('cancelled','expired')
     LIMIT 1
-  `).then((r: any) => r.rows as any[]);
+  `)) as any).rows as any[];
   if (existing) return;
+
+  // 풀 정책 조회
+  const [poolRow] = ((await (db as any).execute(sql`
+    SELECT make_up_expiry_type, make_up_expiry_days,
+           make_up_limit_weekly_1, make_up_limit_weekly_2, make_up_limit_weekly_3
+    FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+  `)) as any).rows as any[];
+
+  const weeklyCount: number = (student as any).weekly_count ?? 1;
+  const expiryType: string | null = poolRow?.make_up_expiry_type ?? "end_of_month";
+  const expiryDays: number | null = poolRow?.make_up_expiry_days ?? null;
+  const expireAt: string | null = calcExpireAt(expiryType, expiryDays, date);
+
+  // 주간 보강 한도 체크
+  const limitKey = weeklyCount >= 3 ? "make_up_limit_weekly_3" : weeklyCount === 2 ? "make_up_limit_weekly_2" : "make_up_limit_weekly_1";
+  const maxPerMonth: number = poolRow?.[limitKey] ?? (weeklyCount >= 3 ? 5 : weeklyCount === 2 ? 4 : 2);
+  const monthPrefix = date.slice(0, 7); // YYYY-MM
+  const [countRow] = ((await (db as any).execute(sql`
+    SELECT COUNT(*)::int AS cnt FROM makeup_sessions
+    WHERE student_id = ${studentId}
+      AND absence_date LIKE ${monthPrefix + "%"}
+      AND status NOT IN ('cancelled','expired')
+  `)) as any).rows as any[];
+  const currentCount: number = countRow?.cnt ?? 0;
+  if (currentCount >= maxPerMonth) return; // 한도 초과 시 자동 생성 안함
+
   let teacherId: string | null = null;
   let teacherName: string | null = null;
   let cgName: string | null = null;
@@ -281,11 +324,13 @@ async function autoCreateMakeup(
       id, swimming_pool_id, student_id, student_name,
       original_class_group_id, original_class_group_name,
       original_teacher_id, original_teacher_name,
-      absence_date, absence_attendance_id, status
+      absence_date, absence_attendance_id, status,
+      expire_at, weekly_frequency
     ) VALUES (
       ${mkId}, ${poolId}, ${studentId}, ${student.name},
       ${cgId || null}, ${cgName}, ${teacherId}, ${teacherName},
-      ${date}, ${attendanceId}, 'waiting'
+      ${date}, ${attendanceId}, 'waiting',
+      ${expireAt}, ${weeklyCount}
     )
   `);
 }
