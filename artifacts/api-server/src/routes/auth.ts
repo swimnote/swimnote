@@ -105,6 +105,29 @@ router.post("/register", async (req, res) => {
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── 슈퍼매니저 계정 생성 (super_admin 전용) ───────────────────────────
+router.post("/create-super-manager", requireAuth, async (req: AuthRequest, res) => {
+  if (!req.user || !["super_admin", "platform_admin"].includes(req.user.role)) {
+    return err(res, 403, "권한이 없습니다.");
+  }
+  const { name, email, password } = req.body;
+  if (!name || !email || !password) return err(res, 400, "이름, 이메일, 비밀번호는 필수입니다.");
+  if (password.length < 8) return err(res, 400, "비밀번호는 8자 이상이어야 합니다.");
+  try {
+    const [existing] = await db.select().from(usersTable)
+      .where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
+    if (existing) return err(res, 400, "이미 사용 중인 이메일입니다.");
+    const password_hash = await hashPassword(password);
+    const id = `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const [user] = await db.insert(usersTable).values({
+      id, email: email.trim().toLowerCase(), password_hash, name: name.trim(),
+      phone: null, role: "super_manager",
+    }).returning();
+    const { password_hash: _, ...safeUser } = user;
+    res.status(201).json({ success: true, user: safeUser });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
 // ── 선생님 계정 OTP 활성화 ────────────────────────────────────────────
 router.post("/activate-teacher", async (req, res) => {
   const { teacher_id, otp } = req.body;

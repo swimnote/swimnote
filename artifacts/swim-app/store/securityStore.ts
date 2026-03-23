@@ -91,7 +91,7 @@ interface SecurityState {
   changeRole: (adminId: string, role: SuperAdminRole, actorName: string) => void
   toggleActive: (adminId: string, actorName: string) => void
   resetFailCount: (adminId: string) => void
-  addSuperManager: (name: string, email: string) => void
+  addSuperManager: (name: string, email: string, id?: string) => void
   deleteSuperManager: (adminId: string) => void
 }
 
@@ -149,12 +149,12 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
       ),
     })),
 
-  addSuperManager: (name, email) =>
+  addSuperManager: (name, email, id) =>
     set(s => ({
       accounts: [
         ...s.accounts,
         {
-          id: `sm-${Date.now()}`,
+          id: id ?? `sm-${Date.now()}`,
           name,
           email,
           role: 'super_manager' as SuperAdminRole,

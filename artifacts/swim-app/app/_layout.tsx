@@ -21,6 +21,7 @@ const queryClient = new QueryClient();
 const ROLE_HOME_MAP: Record<string, string> = {
   super_admin: "/(super)/dashboard",
   platform_admin: "/(super)/dashboard",
+  super_manager: "/(super)/dashboard",
   pool_admin: "/(admin)/dashboard",
   sub_admin: "/(admin)/dashboard",
   teacher: "/(teacher)/today-schedule",
@@ -62,7 +63,7 @@ function BrandSync() {
   useEffect(() => {
     if (!kind) { resetBrand(); return; }
     if (kind === "admin") {
-      if (adminUser?.role === "super_admin" || adminUser?.role === "platform_admin") {
+      if (adminUser?.role === "super_admin" || adminUser?.role === "platform_admin" || adminUser?.role === "super_manager") {
         setBrand({ poolName: null, themeColor: DEFAULT_THEME_COLOR, logoUrl: null, logoEmoji: null });
         return;
       }

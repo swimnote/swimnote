@@ -14,7 +14,7 @@ import {
   Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useSecurityStore } from "@/store/securityStore";
@@ -108,7 +108,7 @@ const st = StyleSheet.create({
 
 // ─── 메인 ─────────────────────────────────────────────────────────────────────
 export default function SecuritySettingsScreen() {
-  const { adminUser } = useAuth();
+  const { adminUser, token } = useAuth();
   const actorName = adminUser?.name ?? "슈퍼관리자";
   const createLog = useAuditLogStore(s => s.createLog);
 
@@ -132,14 +132,24 @@ export default function SecuritySettingsScreen() {
   const [smDeleteId,   setSmDeleteId]   = useState<string | null>(null);
   const smDeleteTarget = useMemo(() => accounts.find(a => a.id === smDeleteId), [accounts, smDeleteId]);
 
-  function handleAddSuperManager() {
+  async function handleAddSuperManager() {
     setSmError("");
     if (!smName.trim())          { setSmError("이름을 입력하세요."); return; }
     if (!smEmail.includes("@"))  { setSmError("올바른 이메일 형식을 입력하세요."); return; }
     if (smPw.length < 8)         { setSmError("초기 비밀번호는 8자 이상이어야 합니다."); return; }
     if (accounts.some(a => a.email === smEmail)) { setSmError("이미 등록된 이메일입니다."); return; }
-    addSuperManager(smName.trim(), smEmail.trim());
-    createLog({ category: "보안", title: `슈퍼매니저 추가: ${smName.trim()}`, detail: `${smEmail.trim()} 읽기전용 계정 등록`, actorName, impact: "high" });
+    try {
+      const res = await apiRequest(token, "/auth/create-super-manager", {
+        method: "POST",
+        body: JSON.stringify({ name: smName.trim(), email: smEmail.trim(), password: smPw }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSmError(data.error || data.message || "계정 생성에 실패했습니다."); return; }
+      addSuperManager(smName.trim(), smEmail.trim(), data.user?.id);
+    } catch {
+      addSuperManager(smName.trim(), smEmail.trim());
+    }
+    createLog({ category: "보안", title: `슈퍼매니저 추가: ${smName.trim()}`, detail: `${smEmail.trim()} 계정 등록`, actorName, impact: "high" });
     setSmSuccess(true);
     setTimeout(() => { setSmAddModal(false); setSmSuccess(false); setSmName(""); setSmEmail(""); setSmPw(""); }, 1200);
   }
