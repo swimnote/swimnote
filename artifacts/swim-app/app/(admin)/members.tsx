@@ -617,7 +617,7 @@ export default function MembersScreen() {
           </Pressable>
         )}
       </View>
-      <FilterChips<StudentFilterKey> chips={chipsWithCount} active={filter} onChange={setFilter} wrap />
+      <FilterChips<StudentFilterKey> chips={chipsWithCount} active={filter} onChange={setFilter} wrap wrapCols={3} />
     </>
   );
 
