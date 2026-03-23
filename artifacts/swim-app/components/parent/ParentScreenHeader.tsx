@@ -1,12 +1,12 @@
 /**
  * ParentScreenHeader — 학부모 전용 공통 헤더
  *
- * - 뒤로가기: navigation.goBack() (직전 학부모 화면)
- * - 홈 버튼: router.replace("/(parent)/home") (항상 학부모 홈으로)
+ * - 뒤로가기: router.back() — 글로벌 라우터 히스토리 기준 직전 화면 복귀
+ * - 홈 버튼: router.replace("/(parent)/home") — 사용자가 명시적으로 눌렀을 때만
  * - 관리자/선생님 라우트와 절대 연결되지 않음
  */
 import { Feather } from "@expo/vector-icons";
-import { router, useNavigation } from "expo-router";
+import { canGoBack, router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,13 +32,12 @@ export function ParentScreenHeader({
   onBack,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
 
   const handleBack = () => {
     if (onBack) { onBack(); return; }
-    if (navigation.canGoBack()) {
-      navigation.goBack();
+    if (canGoBack()) {
+      router.back();
     } else {
       router.replace("/(parent)/home" as any);
     }

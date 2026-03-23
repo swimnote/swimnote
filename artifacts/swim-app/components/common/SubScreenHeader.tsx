@@ -4,11 +4,16 @@
  * - 가운데: 화면 제목
  * - 오른쪽: 홈 버튼 + rightSlot (동시에 표시 가능)
  *
- * 뒤로가기: navigation.goBack() — 바로 직전 화면으로
- * 홈 버튼: router.navigate("/(admin)/dashboard") — 관리자 홈으로 즉시 이동
+ * 뒤로가기: router.back() — 글로벌 라우터 히스토리 기반 직전 화면 복귀
+ *           (canGoBack()으로 히스토리 여부 확인 후 없으면 homePath로 이동)
+ * 홈 버튼: router.navigate(homePath) — 사용자가 명시적으로 눌렀을 때만 이동
+ *
+ * 주의: useNavigation().canGoBack()은 로컬(탭) 네비게이터 기준이라
+ *       admin/teacher Tabs 내 화면에서 항상 false 반환 → 홈 강제 이동 버그 발생.
+ *       expo-router의 canGoBack()은 글로벌 히스토리 기준이라 올바르게 동작.
  */
 import { Feather } from "@expo/vector-icons";
-import { router, useNavigation } from "expo-router";
+import { canGoBack, router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -34,15 +39,14 @@ export function SubScreenHeader({
   homePath = "/(admin)/dashboard",
 }: SubScreenHeaderProps) {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
 
   const handleBack = () => {
     if (onBack) {
       onBack();
     } else {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
+      if (canGoBack()) {
+        router.back();
       } else {
         router.navigate(homePath as any);
       }
