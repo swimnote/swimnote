@@ -258,7 +258,7 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onTog
           onPress={(e) => { e.stopPropagation(); onToggleActive(); }}
           hitSlop={8}
         >
-          <Feather name={inactive ? "eye-off" : "eye"} size={14} color={inactive ? C.textMuted : C.tint} />
+          <Feather name={inactive ? "toggle-left" : "toggle-right"} size={18} color={inactive ? "#9CA3AF" : C.tint} />
         </Pressable>
         <Feather name={expanded ? "chevron-up" : "chevron-down"} size={18} color={C.textSecondary} style={{ marginLeft: 4 }} />
       </Pressable>
