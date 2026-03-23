@@ -42,9 +42,11 @@ const TYPE_LABEL: Record<string, string> = {
 
 // 바로가기 (대시보드에 없는 보조 메뉴만)
 const SHORTCUTS = [
-  { label: "휴무일 관리",  icon: "x-square"   as const, color: "#D96C6C", bg: "#F9DEDA", route: "/(admin)/holidays"        },
-  { label: "데이터 관리",  icon: "hard-drive" as const, color: "#1F8F86", bg: "#ECFEFF", route: "/(admin)/data-management" },
-  { label: "초대 안내 기록", icon: "send"       as const, color: "#1F8F86", bg: "#ECFEFF", route: "/(admin)/invite-records"  },
+  { label: "휴무일 관리",      icon: "x-square"   as const, color: "#D96C6C", bg: "#F9DEDA", route: "/(admin)/holidays"                    },
+  { label: "데이터 관리",      icon: "hard-drive" as const, color: "#1F8F86", bg: "#ECFEFF", route: "/(admin)/data-management"             },
+  { label: "초대 안내 기록",   icon: "send"       as const, color: "#1F8F86", bg: "#ECFEFF", route: "/(admin)/invite-records"              },
+  { label: "푸시 알림 설정",   icon: "bell"       as const, color: "#7C3AED", bg: "#F3EDFE", route: "/(admin)/push-notification-settings"  },
+  { label: "푸시 발송 설정",   icon: "send"       as const, color: "#7C3AED", bg: "#F3EDFE", route: "/(admin)/push-message-settings"       },
 ];
 
 const MISC = [

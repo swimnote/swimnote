@@ -14,6 +14,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { genFilename } from "../utils/filename.js";
+import { sendPushToUser, sendPushToPoolAdmins, sendPushToPoolTeachers } from "../lib/push-service.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -132,6 +133,17 @@ router.post(
           (${pool_id}, ${userId}, ${senderName}, ${role}, 'text', 'talk', ${msgType}, ${content.trim()}, ${extraData}::jsonb)
         RETURNING *
       `);
+
+      // 특정 유저 멘션(@) 메시지 → 해당 유저에게 푸시
+      if (target_user_id && target_user_id !== userId) {
+        sendPushToUser(
+          target_user_id, false, "messenger",
+          `💬 ${senderName}님의 메시지`,
+          content.trim().slice(0, 100),
+          { type: "messenger", poolId: pool_id },
+          `msg_${pool_id}`
+        ).catch(() => {});
+      }
 
       return res.status(201).json({ success: true, message: rows.rows[0] });
     } catch (e: any) {

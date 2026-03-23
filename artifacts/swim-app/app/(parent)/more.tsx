@@ -88,6 +88,12 @@ export default function ParentMoreScreen() {
           onPress={() => router.push("/(parent)/children" as any)}
         />
         <MenuItem
+          icon="bell"
+          label="푸시 알림 설정"
+          sub="공지·수업·일지·사진 알림 on/off"
+          onPress={() => router.push("/(parent)/push-settings" as any)}
+        />
+        <MenuItem
           icon="file-text"
           label="이용약관"
           onPress={() => {}}

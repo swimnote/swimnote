@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { noticesTable, usersTable, studentsTable, parentAccountsTable, parentStudentsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { sendPushToPoolParents, sendPushToClassParents } from "../lib/push-service.js";
 
 const router = Router();
 
@@ -59,6 +60,32 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       student_name: studentName,
       image_urls: imgs,
     }).returning();
+
+    // 공지 등록 시 학부모에게 푸시 알림 (비동기, 실패해도 응답에 영향 없음)
+    try {
+      const poolSettings = await db.execute(sql`
+        SELECT COALESCE(tpl_notice, '📢 새 공지사항이 등록되었습니다.') AS template
+        FROM pool_push_settings WHERE pool_id = ${poolId} LIMIT 1
+      `);
+      const tpl = (poolSettings.rows[0] as any)?.template ?? "📢 새 공지사항이 등록되었습니다.";
+      const pushBody = `[${user?.name || "관리자"}] ${title}`;
+
+      if (notice_type === "individual" && student_id) {
+        // 개인 공지 → 해당 학생의 학부모에게만
+        const parentRows = await db.execute(sql`
+          SELECT parent_id AS parent_account_id FROM parent_students
+          WHERE student_id = ${student_id} AND status = 'approved'
+        `);
+        for (const p of parentRows.rows as any[]) {
+          const { sendPushToUser } = await import("../lib/push-service.js");
+          await sendPushToUser(p.parent_account_id, true, "notice", "📢 공지사항", pushBody, { noticeId: id }, `notice_${id}`);
+        }
+      } else {
+        // 일반 공지 → 수영장 전체 학부모
+        await sendPushToPoolParents(poolId, "notice", "📢 공지사항", pushBody, { noticeId: id }, `notice_${id}`);
+      }
+    } catch { /* 푸시 실패는 무시 */ }
+
     res.status(201).json({ success: true, ...notice });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });

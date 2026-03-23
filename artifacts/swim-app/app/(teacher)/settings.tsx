@@ -59,10 +59,29 @@ export default function TeacherSettingsScreen() {
   const [notiMakeup,   setNotiMakeup]   = useState(true);
   const [notiDiary,    setNotiDiary]    = useState(true);
 
+  const savePushSetting = useCallback(async (key: string, value: boolean) => {
+    try {
+      await apiRequest(token, "/push-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: { [key]: value } }),
+      });
+    } catch { /* ignore */ }
+  }, [token]);
+
   const load = useCallback(async () => {
     try {
-      const res = await apiRequest(token, "/teacher/me/storage");
-      if (res.ok) setStorageUsage(await res.json());
+      const [storageRes, pushRes] = await Promise.all([
+        apiRequest(token, "/teacher/me/storage"),
+        apiRequest(token, "/push-settings"),
+      ]);
+      if (storageRes.ok) setStorageUsage(await storageRes.json());
+      if (pushRes.ok) {
+        const { settings } = await pushRes.json();
+        if (settings.messenger !== undefined)       setNotiMessage(Boolean(settings.messenger));
+        if (settings.makeup_request !== undefined)  setNotiMakeup(Boolean(settings.makeup_request));
+        if (settings.diary_reminder !== undefined)  setNotiDiary(Boolean(settings.diary_reminder));
+      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
@@ -127,7 +146,8 @@ export default function TeacherSettingsScreen() {
                 <Text style={s.switchSub}>새 메시지 수신 시 알림</Text>
               </View>
               <Switch
-                value={notiMessage} onValueChange={setNotiMessage}
+                value={notiMessage}
+                onValueChange={v => { setNotiMessage(v); savePushSetting("messenger", v); }}
                 trackColor={{ false: C.border, true: themeColor + "80" }}
                 thumbColor={notiMessage ? themeColor : C.textMuted}
               />
@@ -138,7 +158,8 @@ export default function TeacherSettingsScreen() {
                 <Text style={s.switchSub}>새 보강 요청 수신 시 알림</Text>
               </View>
               <Switch
-                value={notiMakeup} onValueChange={setNotiMakeup}
+                value={notiMakeup}
+                onValueChange={v => { setNotiMakeup(v); savePushSetting("makeup_request", v); }}
                 trackColor={{ false: C.border, true: themeColor + "80" }}
                 thumbColor={notiMakeup ? themeColor : C.textMuted}
               />
@@ -149,7 +170,8 @@ export default function TeacherSettingsScreen() {
                 <Text style={s.switchSub}>미작성 일지 알림</Text>
               </View>
               <Switch
-                value={notiDiary} onValueChange={setNotiDiary}
+                value={notiDiary}
+                onValueChange={v => { setNotiDiary(v); savePushSetting("diary_reminder", v); }}
                 trackColor={{ false: C.border, true: themeColor + "80" }}
                 thumbColor={notiDiary ? themeColor : C.textMuted}
               />

@@ -18,6 +18,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { usersTable, parentAccountsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { sendPushToClassParents, sendPushToUser } from "../lib/push-service.js";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { genFilename, sanitizePoolName } from "../utils/filename.js";
 
@@ -257,6 +258,25 @@ router.post(
         inserted.push({ ...rows.rows[0], file_url: `/api/photos/${id}/file` });
       }
 
+      // 반 전체 앨범 업로드 → 해당 반 학부모에게 푸시 알림
+      if (inserted.length > 0) {
+        const pSettings = await db.execute(sql`
+          SELECT COALESCE(tpl_photo, '📸 새 사진이 업로드되었습니다.') AS tpl
+          FROM pool_push_settings WHERE pool_id = ${user.swimming_pool_id} LIMIT 1
+        `).catch(() => ({ rows: [] }));
+        const tpl = (pSettings.rows[0] as any)?.tpl ?? "📸 새 사진이 업로드되었습니다.";
+        // 5분 내 diary 푸시가 발송된 경우 photo 푸시 스킵 (중복 방지)
+        sendPushToClassParents(
+          class_id,
+          "photo_upload",
+          "📸 사진 업로드",
+          tpl,
+          { type: "photo", classId: class_id },
+          `photo_group_${class_id}_${Date.now()}`,
+          true
+        ).catch(() => {});
+      }
+
       res.status(201).json({ count: inserted.length, photos: inserted });
     } catch (err) {
       console.error(err);
@@ -330,6 +350,24 @@ router.post(
           RETURNING *
         `);
         inserted.push({ ...rows.rows[0], file_url: `/api/photos/${id}/file` });
+      }
+
+      // 개인 앨범 업로드 → 해당 학생 학부모에게 푸시 알림
+      if (inserted.length > 0) {
+        const pSettings = await db.execute(sql`
+          SELECT COALESCE(tpl_photo, '📸 새 사진이 업로드되었습니다.') AS tpl
+          FROM pool_push_settings WHERE pool_id = ${user.swimming_pool_id} LIMIT 1
+        `).catch(() => ({ rows: [] }));
+        const tpl = (pSettings.rows[0] as any)?.tpl ?? "📸 새 사진이 업로드되었습니다.";
+        const parentRows = await db.execute(sql`
+          SELECT parent_id AS parent_account_id FROM parent_students
+          WHERE student_id = ${student_id} AND status = 'approved'
+        `).catch(() => ({ rows: [] }));
+        for (const p of parentRows.rows as any[]) {
+          sendPushToUser(p.parent_account_id, true, "photo_upload", "📸 사진 업로드", tpl,
+            { type: "photo", studentId: student_id }, `photo_private_${student_id}_${Date.now()}`
+          ).catch(() => {});
+        }
       }
 
       res.status(201).json({ count: inserted.length, photos: inserted });

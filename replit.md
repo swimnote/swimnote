@@ -130,6 +130,31 @@ The platform is built as a pnpm workspace monorepo using TypeScript. It leverage
   - **대시보드 확장** (`(super)/dashboard.tsx`): 메뉴 13개(구독 상품 설정·저장공간 정책·백업/복구·읽기전용 제어 추가), 리스크 요약 6지표, 최근 감사 로그 5건, 병렬 데이터 페칭.
   - **버그 수정**: `useAuth()` `user` → `adminUser` (AuthContextType 실제 필드명), Feather `"git-compare"` → `"shuffle"` (유효 아이콘).
 
+- **푸시 알림 시스템 MVP (2026-03)**:
+  - **중앙화된 push-service** (`artifacts/api-server/src/lib/push-service.ts`):
+    - `sendRawPush(tokens, title, body, data)` — Expo Push API 직접 호출
+    - `checkPushEnabled(userId, notifType, isParent)` — `push_settings` 테이블 ON/OFF 조회 (기본값 true)
+    - `sendPushToUser(userId, isParent, type, ...)`, `sendPushToClassParents(classId, ...)`, `sendPushToPoolParents(poolId, ...)`, `sendPushToPoolAdmins(poolId, ...)`, `sendPushToPoolTeachers(poolId, ...)`
+    - `initPushTables()` — `push_settings`, `pool_push_settings`, `push_logs`, `push_scheduled_sent` 테이블 자동 생성 + 부분 유니크 인덱스
+  - **DB 테이블**:
+    - `push_settings`: 유저/학부모별 알림 타입(notice/class_reminder/diary_upload/photo_upload/messenger/makeup_request/diary_reminder) ON/OFF 저장. 부분 인덱스로 NULL UNIQUE 문제 해결.
+    - `pool_push_settings`: 수영장별 전날 알림 시간(`prev_day_push_time`), 당일 알림 오프셋(`same_day_push_offset`), 메시지 템플릿 5종
+    - `push_logs`: 모든 푸시 발송/스킵/실패 로그
+    - `push_scheduled_sent`: 예약 푸시 중복 방지 (날짜+시간+pool+class 키)
+  - **예약 스케줄러** (`artifacts/api-server/src/jobs/push-scheduler.ts`): node-cron 매 분 실행. 전날 알림(pool별 설정 시간에 발송) + 당일 알림(수업 N시간 전, ±1분 허용).
+  - **기존 라우트 푸시 연동**:
+    - `routes/notices.ts`: POST 공지 등록 → 풀 전체 학부모 또는 개인 학부모에게 pool 템플릿 기반 푸시
+    - `routes/diary.ts`: `sendDiaryPush()` → push-service `sendPushToClassParents()` 교체, 인앱 알림 + Expo 푸시 통합
+    - `routes/photos.ts`: 그룹/개인 앨범 업로드 → 학부모 푸시 (일지 5분 내 발송 시 중복 스킵)
+    - `routes/messenger.ts`: @멘션(`directed_message`) → 해당 유저 푸시
+  - **푸시 설정 API** (`routes/push-settings.ts`): `GET/PUT /push-settings` (본인 ON/OFF), `GET/PUT /push-settings/pool` (관리자 전용), `GET /push-settings/logs`
+  - **프론트엔드 화면**:
+    - `(parent)/push-settings.tsx`: 공지/수업/일지/사진 4개 토글, API 연동
+    - `(teacher)/settings.tsx`: 기존 Switch에 `PUT /push-settings` API 연동 추가 (messenger/makeup_request/diary_reminder)
+    - `(admin)/push-notification-settings.tsx`: 관리자 수신 알림 ON/OFF (결제는 필수)
+    - `(admin)/push-message-settings.tsx`: 전날/당일 알림 시간 선택 + 메시지 템플릿 5종 편집
+  - **진입점**: parent more.tsx → 푸시 알림 설정, admin more.tsx SHORTCUTS → 푸시 알림/발송 설정 2개 추가
+
 ### System Design Choices
 - **API Design**: RESTful API endpoints with clear responsibilities, consistent JSON response formats (success/failure), and strong authentication/authorization middleware.
 - **Database Schema**: PostgreSQL with Drizzle ORM, featuring key tables for swimming pools, users, students, classes, attendance, photos, and activity logs, all designed with `swimming_pool_id` for multi-tenancy.

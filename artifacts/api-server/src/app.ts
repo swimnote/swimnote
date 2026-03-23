@@ -1,6 +1,8 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import router from "./routes";
+import { initPushTables } from "./lib/push-service.js";
+import { startPushScheduler } from "./jobs/push-scheduler.js";
 
 const app: Express = express();
 
@@ -21,5 +23,13 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error("[Global Error]", err);
   res.status(500).json({ success: false, message: err.message || "서버 오류가 발생했습니다.", error: err.message });
 });
+
+// 푸시 알림 시스템 초기화
+initPushTables()
+  .then(() => {
+    startPushScheduler();
+    console.log("[app] 푸시 알림 시스템 초기화 완료");
+  })
+  .catch(e => console.error("[app] 푸시 초기화 오류:", e));
 
 export default app;

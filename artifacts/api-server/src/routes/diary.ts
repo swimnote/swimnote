@@ -70,6 +70,7 @@ async function logAudit({
 
 async function sendDiaryPush(classId: string, diaryId: string, className: string, poolId: string) {
   try {
+    // 인앱 알림 생성 (notifications 테이블)
     const parentRows = await db.execute(sql`
       SELECT DISTINCT pa.id AS parent_account_id
       FROM students s
@@ -88,25 +89,23 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
         ON CONFLICT DO NOTHING
       `);
     }
-    const tokenRows = await db.execute(sql`
-      SELECT DISTINCT pt.token FROM push_tokens pt
-      JOIN students s ON s.class_group_id = ${classId}
-      JOIN parent_students ps ON ps.student_id = s.id AND ps.parent_id = pt.parent_account_id
-      WHERE s.status != 'deleted' AND ps.status = 'approved' AND pt.token IS NOT NULL AND pt.token != ''
-    `);
-    const tokens = (tokenRows.rows as any[]).map((r: any) => r.token).filter(Boolean);
-    if (tokens.length > 0) {
-      await fetch("https://exp.host/--/api/v2/push/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(tokens.map((t: string) => ({
-          to: t, title: "📒 새 수업 일지",
-          body: `${className} 수업 일지가 작성되었습니다`,
-          data: { type: "diary_upload", diaryId, classId },
-        }))),
-      }).catch(() => {});
-    }
-  } catch (e) { console.error("푸시 알림 오류:", e); }
+
+    // 푸시 알림 발송 (pool 템플릿 + 개별 ON/OFF 설정 적용)
+    const pSettings = await db.execute(sql`
+      SELECT COALESCE(tpl_diary, '📒 새 수업 일지가 작성되었습니다.') AS tpl
+      FROM pool_push_settings WHERE pool_id = ${poolId} LIMIT 1
+    `).catch(() => ({ rows: [] }));
+    const tpl = (pSettings.rows[0] as any)?.tpl ?? "📒 새 수업 일지가 작성되었습니다.";
+    const { sendPushToClassParents } = await import("../lib/push-service.js");
+    await sendPushToClassParents(
+      classId,
+      "diary_upload",
+      "📒 새 수업 일지",
+      tpl,
+      { type: "diary_upload", diaryId, classId },
+      `diary_${diaryId}`
+    );
+  } catch (e) { console.error("[diary] 푸시 알림 오류:", e); }
 }
 
 // ════════════════════════════════════════════════════════════════════════

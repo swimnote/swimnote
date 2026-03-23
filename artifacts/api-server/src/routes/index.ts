@@ -33,6 +33,7 @@ import killSwitchRouter from "./kill-switch.js";
 import unregisteredRouter from "./unregistered.js";
 import superSyncRouter from "./super-sync.js";
 import superRouter from "./super.js";
+import pushSettingsRouter from "./push-settings.js";
 
 const router: IRouter = Router();
 
@@ -70,5 +71,6 @@ router.use("/", killSwitchRouter);
 router.use("/", unregisteredRouter);
 router.use("/", superSyncRouter);
 router.use("/", superRouter);
+router.use("/", pushSettingsRouter);
 
 export default router;
