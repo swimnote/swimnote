@@ -655,6 +655,21 @@ export default function DashboardScreen() {
               </View>
             )}
 
+            {/* ── 회원추가 퀵버튼 ── */}
+            <Pressable
+              style={({ pressed }) => [s.addMemberBtn, { backgroundColor: themeColor, opacity: pressed ? 0.82 : 1 }]}
+              onPress={() => setShowRegister(true)}
+            >
+              <View style={[s.addMemberIconWrap, { backgroundColor: "rgba(255,255,255,0.22)" }]}>
+                <Feather name="user-plus" size={20} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.addMemberLabel}>회원추가</Text>
+                <Text style={s.addMemberSub}>어린이 즉시 등록 → 바로 반영</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
+            </Pressable>
+
             {/* ── 메인 아이콘 8개 (4×2 그리드) ── */}
             <View>
               <Text style={s.sectionLabel}>관리 메뉴</Text>
@@ -691,21 +706,6 @@ export default function DashboardScreen() {
                 ))}
               </View>
             </View>
-
-            {/* ── 회원추가 퀵버튼 ── */}
-            <Pressable
-              style={({ pressed }) => [s.addMemberBtn, { backgroundColor: themeColor, opacity: pressed ? 0.82 : 1 }]}
-              onPress={() => setShowRegister(true)}
-            >
-              <View style={[s.addMemberIconWrap, { backgroundColor: "rgba(255,255,255,0.22)" }]}>
-                <Feather name="user-plus" size={20} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.addMemberLabel}>회원추가</Text>
-                <Text style={s.addMemberSub}>어린이 즉시 등록 → 바로 반영</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
-            </Pressable>
 
           </>
         )}
