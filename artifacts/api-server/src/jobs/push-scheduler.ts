@@ -60,10 +60,9 @@ async function runPrevDaySchedule(): Promise<void> {
       const classes = await db.execute(sql`
         SELECT DISTINCT cg.id AS class_id, cg.name AS class_name
         FROM class_groups cg
-        JOIN class_schedules cs ON cs.class_group_id = cg.id
         WHERE cg.swimming_pool_id = ${pool_id}
-          AND cg.is_active = true
-          AND cs.day_of_week = ${tomorrowDayKr}
+          AND cg.is_deleted = false
+          AND cg.schedule_days LIKE ${"%" + tomorrowDayKr + "%"}
       `);
 
       for (const cls of classes.rows as any[]) {
@@ -112,12 +111,11 @@ async function runSameDaySchedule(): Promise<void> {
       // 오늘 이 수영장의 수업 목록 (시작 시간)
       const classes = await db.execute(sql`
         SELECT DISTINCT cg.id AS class_id, cg.name AS class_name,
-               cs.start_time
+               cg.schedule_time AS start_time
         FROM class_groups cg
-        JOIN class_schedules cs ON cs.class_group_id = cg.id
         WHERE cg.swimming_pool_id = ${pool_id}
-          AND cg.is_active = true
-          AND cs.day_of_week = ${todayDayKr}
+          AND cg.is_deleted = false
+          AND cg.schedule_days LIKE ${"%" + todayDayKr + "%"}
       `);
 
       for (const cls of classes.rows as any[]) {

@@ -22,12 +22,12 @@ async function getPoolId(userId: string): Promise<string | null> {
 // GET /pricing?pool_id=
 router.get("/pricing", requireAuth, requireRole("pool_admin", "teacher", "super_admin"), async (req: AuthRequest, res: Response) => {
   try {
-    const { pool_id } = req.query as { pool_id: string };
-    const { userId, role } = req.user!;
+    const { userId, role, poolId: tokenPoolId } = req.user!;
+    const pool_id = (req.query.pool_id as string) || tokenPoolId || undefined;
     if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
     if (role !== "super_admin") {
       const userPoolId = await getPoolId(userId!);
-      if (userPoolId !== pool_id) return err(res, 403, "권한이 없습니다.");
+      if (userPoolId && userPoolId !== pool_id) return err(res, 403, "권한이 없습니다.");
     }
     const rows = await db.execute(sql`
       SELECT * FROM pool_class_pricing WHERE pool_id = ${pool_id} ORDER BY 

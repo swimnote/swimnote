@@ -65,8 +65,7 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
       `);
       groups = rows.rows as any[];
     } else if (role === "pool_admin") {
-      const poolRow = await db.execute(sql`SELECT id FROM swimming_pools WHERE admin_user_id = ${user.userId}`);
-      const poolId = (poolRow.rows[0] as any)?.id;
+      const poolId = user.poolId;
       if (!poolId) { res.json([]); return; }
       const rows = await db.execute(sql`
         SELECT * FROM class_groups

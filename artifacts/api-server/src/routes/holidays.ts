@@ -24,12 +24,13 @@ async function getPoolId(userId: string): Promise<string | null> {
 // GET /holidays?pool_id=&month=YYYY-MM
 router.get("/holidays", requireAuth, requireRole("pool_admin", "teacher", "super_admin"), async (req: AuthRequest, res: Response) => {
   try {
-    const { pool_id, month } = req.query as { pool_id: string; month?: string };
-    const { userId, role } = req.user!;
+    const { month } = req.query as { month?: string };
+    const { userId, role, poolId: tokenPoolId } = req.user!;
+    const pool_id = (req.query.pool_id as string) || tokenPoolId || undefined;
     if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
     if (role !== "super_admin") {
       const up = await getPoolId(userId!);
-      if (up !== pool_id) return err(res, 403, "권한이 없습니다.");
+      if (up && up !== pool_id) return err(res, 403, "권한이 없습니다.");
     }
     let whereClause = sql`pool_id = ${pool_id}`;
     if (month) whereClause = sql`${whereClause} AND holiday_date LIKE ${month + '%'}`;

@@ -25,8 +25,9 @@ async function getPoolId(userId: string): Promise<string | null> {
 // GET /extra-classes?pool_id=&teacher_id=&month=YYYY-MM
 router.get("/extra-classes", requireAuth, requireRole("pool_admin", "teacher", "super_admin"), async (req: AuthRequest, res: Response) => {
   try {
-    const { pool_id, teacher_id, month } = req.query as Record<string, string>;
-    const { userId, role } = req.user!;
+    const { teacher_id, month } = req.query as Record<string, string>;
+    const { userId, role, poolId: tokenPoolId } = req.user!;
+    const pool_id = (req.query.pool_id as string) || tokenPoolId || undefined;
     if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
 
     let clause = sql`ec.pool_id = ${pool_id}`;

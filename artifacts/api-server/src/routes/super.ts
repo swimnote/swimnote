@@ -1343,7 +1343,7 @@ async function ensurePlansTables() {
 router.get("/super/plans", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
   try {
     await ensurePlansTables();
-    const rows = (await db.execute(sql`SELECT * FROM subscription_plans ORDER BY monthly_price ASC`)).rows;
+    const rows = (await db.execute(sql`SELECT * FROM subscription_plans ORDER BY price_per_month ASC`)).rows;
     res.json({ plans: rows });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });

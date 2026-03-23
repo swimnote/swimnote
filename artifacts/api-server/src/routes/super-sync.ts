@@ -12,9 +12,9 @@
  */
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { dataChangeLogsTable, backupSnapshotsTable, swimmingPoolsTable } from "@workspace/db/schema";
-import { eq, sql, desc } from "drizzle-orm";
-import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { backupSnapshotsTable } from "@workspace/db/schema";
+import { sql, desc } from "drizzle-orm";
+import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { runIncrementalSync, runFullSnapshot } from "../jobs/backup-batch.js";
 
 const router = Router();
@@ -29,40 +29,39 @@ function superOnly(req: AuthRequest, res: any, next: any) {
 // ─── 통계 개요 ────────────────────────────────────────────────────────────
 router.get("/super/sync/stats", requireAuth, superOnly, async (_req: AuthRequest, res) => {
   try {
-    const [pendingRow] = await db.execute(sql`
+    const pendingRow = (await db.execute(sql`
       SELECT COUNT(*) AS cnt FROM data_change_logs WHERE sync_status = 'pending'
-    `);
-    const [syncedRow] = await db.execute(sql`
+    `)).rows[0] as any;
+    const syncedRow = (await db.execute(sql`
       SELECT COUNT(*) AS cnt FROM data_change_logs WHERE sync_status = 'synced'
-    `);
-    const [totalRow] = await db.execute(sql`
+    `)).rows[0] as any;
+    const totalRow = (await db.execute(sql`
       SELECT COUNT(*) AS cnt FROM data_change_logs
-    `);
-    const [snapshotRow] = await db.execute(sql`
+    `)).rows[0] as any;
+    const snapshotRow = (await db.execute(sql`
       SELECT COUNT(*) AS cnt FROM backup_snapshots
-    `);
-    const [lastSyncRow] = await db.execute(sql`
+    `)).rows[0] as any;
+    const lastSyncRow = (await db.execute(sql`
       SELECT MAX(synced_at) AS last_at FROM data_change_logs WHERE sync_status = 'synced'
-    `);
-    const [lastSnapshotRow] = await db.execute(sql`
+    `)).rows[0] as any;
+    const lastSnapshotRow = (await db.execute(sql`
       SELECT MAX(created_at) AS last_at FROM backup_snapshots WHERE snapshot_type = 'full'
-    `);
+    `)).rows[0] as any;
 
-    // 테이블별 pending 건수
-    const tableStats = await db.execute(sql`
+    const tableStats = (await db.execute(sql`
       SELECT table_name, COUNT(*) AS cnt
       FROM data_change_logs WHERE sync_status = 'pending'
       GROUP BY table_name ORDER BY cnt DESC
-    `);
+    `)).rows as any[];
 
     res.json({
-      pending:           Number((pendingRow as any).cnt),
-      synced:            Number((syncedRow as any).cnt),
-      total:             Number((totalRow as any).cnt),
-      snapshots:         Number((snapshotRow as any).cnt),
-      last_synced_at:    (lastSyncRow as any).last_at || null,
-      last_snapshot_at:  (lastSnapshotRow as any).last_at || null,
-      by_table:          (tableStats as any[]).map(r => ({ table_name: r.table_name, pending: Number(r.cnt) })),
+      pending:           Number(pendingRow?.cnt ?? 0),
+      synced:            Number(syncedRow?.cnt ?? 0),
+      total:             Number(totalRow?.cnt ?? 0),
+      snapshots:         Number(snapshotRow?.cnt ?? 0),
+      last_synced_at:    lastSyncRow?.last_at || null,
+      last_snapshot_at:  lastSnapshotRow?.last_at || null,
+      by_table:          tableStats.map(r => ({ table_name: r.table_name, pending: Number(r.cnt) })),
     });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
@@ -70,7 +69,7 @@ router.get("/super/sync/stats", requireAuth, superOnly, async (_req: AuthRequest
 // ─── 테넌트별 요약 ────────────────────────────────────────────────────────
 router.get("/super/sync/tenants", requireAuth, superOnly, async (_req: AuthRequest, res) => {
   try {
-    const rows = await db.execute(sql`
+    const rows = (await db.execute(sql`
       SELECT
         d.tenant_id,
         p.name AS pool_name,
@@ -81,8 +80,8 @@ router.get("/super/sync/tenants", requireAuth, superOnly, async (_req: AuthReque
       LEFT JOIN swimming_pools p ON p.id = d.tenant_id
       GROUP BY d.tenant_id, p.name
       ORDER BY pending DESC
-    `);
-    res.json((rows as any[]).map(r => ({
+    `)).rows as any[];
+    res.json(rows.map(r => ({
       tenant_id:      r.tenant_id,
       pool_name:      r.pool_name || r.tenant_id,
       pending:        Number(r.pending),
@@ -100,7 +99,7 @@ router.get("/super/sync/changes", requireAuth, superOnly, async (req: AuthReques
   const status = (req.query.status as string) || "pending";
 
   try {
-    const rows = await db.execute(sql`
+    const rows = (await db.execute(sql`
       SELECT d.id, d.tenant_id, p.name AS pool_name,
              d.table_name, d.record_id, d.change_type,
              d.sync_status, d.created_at, d.synced_at
@@ -109,13 +108,13 @@ router.get("/super/sync/changes", requireAuth, superOnly, async (req: AuthReques
       WHERE d.sync_status = ${status}
       ORDER BY d.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
-    `);
-    const [cnt] = await db.execute(sql`
+    `)).rows as any[];
+    const cnt = (await db.execute(sql`
       SELECT COUNT(*) AS total FROM data_change_logs WHERE sync_status = ${status}
-    `);
+    `)).rows[0] as any;
     res.json({
       data:  rows,
-      total: Number((cnt as any).total),
+      total: Number(cnt?.total ?? 0),
       page, limit,
     });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
