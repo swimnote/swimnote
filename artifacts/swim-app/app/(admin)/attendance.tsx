@@ -738,6 +738,12 @@ export default function AttendanceScreen() {
                 </Text>
               </View>
             }
+            ListHeaderComponent={
+              <View style={a.readonlyBanner}>
+                <Feather name="info" size={13} color="#6F6B68" />
+                <Text style={a.readonlyBannerTxt}>출결 체크는 선생님 모드에서만 처리 가능합니다 (관리자: 읽기 전용)</Text>
+              </View>
+            }
             renderItem={({ item }) => {
               const status = dailyAtt[item.id];
               return (
@@ -756,23 +762,9 @@ export default function AttendanceScreen() {
                       <Text style={[a.noStatus, { color: C.textMuted }]}>미체크</Text>
                     )}
                   </View>
-                  <View style={a.attBtns}>
-                    {(["present", "late", "absent"] as AttStatus[]).map(st => (
-                      <Pressable
-                        key={st}
-                        style={[a.attBtn, {
-                          backgroundColor: status === st ? STATUS_CONFIG[st].bg    : C.background,
-                          borderColor:     status === st ? STATUS_CONFIG[st].color : C.border,
-                        }]}
-                        onPress={() => markAttendance(item.id, st)}
-                        disabled={savingId === item.id}
-                      >
-                        {savingId === item.id
-                          ? <ActivityIndicator size="small" color={C.tint} />
-                          : <Feather name={STATUS_CONFIG[st].icon} size={16} color={status === st ? STATUS_CONFIG[st].color : C.textMuted} />
-                        }
-                      </Pressable>
-                    ))}
+                  <View style={a.readonlyTag}>
+                    <Feather name="lock" size={11} color="#9A948F" />
+                    <Text style={a.readonlyTagTxt}>선생님 전용</Text>
                   </View>
                 </View>
               );
@@ -914,6 +906,10 @@ const a = StyleSheet.create({
   noStatus:   { fontSize: 12, fontFamily: "Inter_400Regular" },
   attBtns:    { flexDirection: "row", gap: 8 },
   attBtn:     { width: 36, height: 36, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  readonlyTag:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F6F3F1", borderWidth: 1, borderColor: "#E9E2DD" },
+  readonlyTagTxt:  { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9A948F" },
+  readonlyBanner:  { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF9E6", borderRadius: 10, padding: 10, marginHorizontal: 0, marginBottom: 8 },
+  readonlyBannerTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", flex: 1 },
 
   empty:     { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },

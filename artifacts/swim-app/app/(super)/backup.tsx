@@ -385,6 +385,60 @@ const cr = StyleSheet.create({
   confirmTxt:   { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
 
+// ── 복구 결과 모달 ────────────────────────────────────────────────
+function RestoreResultModal({
+  result,
+  onClose,
+}: {
+  result: { success: boolean; detail: string; target: string } | null;
+  onClose: () => void;
+}) {
+  if (!result) return null;
+  const ok = result.success;
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onClose}>
+      <View style={rr.overlay}>
+        <Pressable style={rr.backdrop} onPress={onClose} />
+        <View style={rr.card}>
+          <View style={[rr.iconCircle, { backgroundColor: ok ? "#DFF3EC" : "#F9DEDA" }]}>
+            <Feather name={ok ? "check-circle" : "alert-circle"} size={36} color={ok ? "#2E9B6F" : "#D96C6C"} />
+          </View>
+          <Text style={[rr.title, { color: ok ? "#2E9B6F" : "#D96C6C" }]}>
+            {ok ? "복구 완료" : "복구 실패"}
+          </Text>
+          <Text style={rr.target}>{result.target}</Text>
+          <Text style={rr.detail}>{result.detail}</Text>
+          {!ok && (
+            <View style={rr.contactBox}>
+              <Feather name="phone-call" size={14} color={P} />
+              <Text style={rr.contactTxt}>
+                고객지원 메뉴에서 긴급 문의를 등록하세요.{"\n"}복구 실패 사유는 감사 로그에 자동 기록됩니다.
+              </Text>
+            </View>
+          )}
+          <Pressable style={[rr.closeBtn, { backgroundColor: ok ? "#2E9B6F" : "#D96C6C" }]} onPress={onClose}>
+            <Text style={rr.closeBtnTxt}>확인</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const rr = StyleSheet.create({
+  overlay:    { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)" },
+  backdrop:   { ...StyleSheet.absoluteFillObject },
+  card:       { backgroundColor: "#fff", borderRadius: 20, padding: 24, width: "85%", alignItems: "center", gap: 12, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 12, elevation: 8 },
+  iconCircle: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center" },
+  title:      { fontSize: 20, fontFamily: "Inter_700Bold" },
+  target:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  detail:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F", textAlign: "center", lineHeight: 20 },
+  contactBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12, width: "100%" },
+  contactTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#5B21B6", flex: 1, lineHeight: 18 },
+  closeBtn:   { borderRadius: 12, paddingHorizontal: 32, paddingVertical: 12, marginTop: 4 },
+  closeBtnTxt:{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+});
+
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────
 export default function BackupScreen() {
   const { adminUser } = useAuth();
@@ -403,6 +457,7 @@ export default function BackupScreen() {
   const [compareItems,   setCompareItems]   = useState<BackupSnapshot[]>([]);
   const [operating,      setOperating]      = useState(false);
   const [showCompare,    setShowCompare]    = useState(false);
+  const [restoreResult,  setRestoreResult]  = useState<{ success: boolean; detail: string; target: string } | null>(null);
 
   const filtered = useMemo(() => {
     if (activeTab === "snapshot") return snapshots.filter(b => b.bucket === "operator_snapshot");
@@ -430,11 +485,25 @@ export default function BackupScreen() {
   function handleRestore(reason: string) {
     if (!restoreTarget) return;
     setOperating(true);
+    const targetName = restoreTarget.operatorName || "플랫폼 전체";
+
+    // 실패 상태 백업은 복구 불가
+    if (restoreTarget.status === "failed") {
+      setRestoreTarget(null);
+      setOperating(false);
+      setRestoreResult({
+        success: false,
+        detail: "선택한 백업이 실패 상태입니다. 다른 정상 백업 시점을 선택하거나 고객센터에 긴급 문의를 등록하세요.",
+        target: targetName,
+      });
+      return;
+    }
+
     try {
       const job = createRestoreJob({
         snapshotId: restoreTarget.id,
         operatorId: restoreTarget.operatorId,
-        operatorName: restoreTarget.operatorName || "플랫폼",
+        operatorName: targetName,
         mode: "single",
         note: reason,
         actorName,
@@ -442,13 +511,27 @@ export default function BackupScreen() {
       startRestore(job.id);
       createLog({
         category: '백업',
-        title: `데이터 복구 실행: ${restoreTarget.operatorName || "플랫폼"}`,
+        title: `데이터 복구 실행: ${targetName}`,
         actorName,
         impact: 'critical',
         detail: reason,
       });
       setRestoreTarget(null);
-      Alert.alert("복구 완료", "데이터 복구가 기록되었습니다.\n(미디어 원본은 복구되지 않습니다.)");
+      setRestoreResult({ success: true, detail: reason, target: targetName });
+    } catch (e) {
+      setRestoreTarget(null);
+      createLog({
+        category: '백업',
+        title: `복구 실패: ${targetName}`,
+        actorName,
+        impact: 'critical',
+        detail: `사유: ${(e as Error)?.message ?? "알 수 없는 오류"}`,
+      });
+      setRestoreResult({
+        success: false,
+        detail: "복구 처리 중 예기치 않은 오류가 발생했습니다. 고객센터에 긴급 문의를 등록하세요.",
+        target: targetName,
+      });
     } finally { setOperating(false); }
   }
 
@@ -540,6 +623,11 @@ export default function BackupScreen() {
       {showCompare && compareItems.length === 2 && (
         <CompareModal items={compareItems} onClose={() => setShowCompare(false)} />
       )}
+
+      <RestoreResultModal
+        result={restoreResult}
+        onClose={() => setRestoreResult(null)}
+      />
     </SafeAreaView>
   );
 }

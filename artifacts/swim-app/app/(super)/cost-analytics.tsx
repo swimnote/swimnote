@@ -7,7 +7,7 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 
@@ -46,6 +46,7 @@ function getPeriodMultiplier(period: Period): number {
 interface CostItem { label: string; icon: React.ComponentProps<typeof Feather>["name"]; amount: number; note: string; color: string }
 
 export default function CostAnalyticsScreen() {
+  const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<Period>("month");
   const billingRecords = useSubscriptionStore(s => s.billingRecords);
 
@@ -98,7 +99,7 @@ export default function CostAnalyticsScreen() {
         ))}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, gap: 14 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 14 }}>
 
         {/* mock 알림 */}
         <View style={s.mockBanner}>

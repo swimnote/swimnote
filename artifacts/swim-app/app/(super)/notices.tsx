@@ -8,7 +8,7 @@ import React, { useMemo, useState } from "react";
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useNoticeStore, type Notice, type NoticeTarget, type NoticeType, NOTICE_TYPE_CFG } from "@/store/noticeStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
@@ -111,6 +111,7 @@ const BLANK: FormState = {
 };
 
 export default function NoticesScreen() {
+  const insets = useSafeAreaInsets();
   const { adminUser } = useAuth();
   const actorName = adminUser?.name ?? "슈퍼관리자";
 
@@ -211,7 +212,7 @@ export default function NoticesScreen() {
       </View>
 
       {/* 목록 */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, gap: 10 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {filtered.length === 0 ? (
           <View style={s.empty}>
             <Feather name="bell-off" size={36} color="#D1D5DB" />

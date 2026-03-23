@@ -7,7 +7,7 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import { useAuth } from "@/context/AuthContext";
@@ -115,6 +115,7 @@ const sc = StyleSheet.create({
 });
 
 export default function SystemStatusScreen() {
+  const insets = useSafeAreaInsets();
   const { adminUser } = useAuth();
   const actorName = adminUser?.name ?? "슈퍼관리자";
   const createLog = useAuditLogStore(s => s.createLog);
@@ -182,7 +183,7 @@ export default function SystemStatusScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={P} />}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, gap: 14 }}>
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 14 }}>
 
         {Object.entries(categorized).map(([category, items]) => (
           <View key={category} style={{ gap: 8 }}>

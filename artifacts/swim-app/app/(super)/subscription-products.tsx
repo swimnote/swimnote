@@ -10,7 +10,7 @@ import {
   Pressable, RefreshControl, ScrollView,
   StyleSheet, Switch, Text, TextInput, View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
@@ -323,6 +323,7 @@ const fm = StyleSheet.create({
 
 // ── 메인 ─────────────────────────────────────────────────────────
 export default function SubscriptionProductsScreen() {
+  const insets = useSafeAreaInsets();
   const { adminUser } = useAuth();
   const actorName = adminUser?.name ?? "슈퍼관리자";
 
@@ -431,7 +432,7 @@ export default function SubscriptionProductsScreen() {
             renderItem={({ item }) => (
               <PlanCard plan={item} onEdit={p => { setEditPlan(p); setShowPlanForm(true); }} onToggle={handlePlanToggle} />
             )}
-            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+            contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 16 }}
             refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
               onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
             ListHeaderComponent={
@@ -452,7 +453,7 @@ export default function SubscriptionProductsScreen() {
             <Text style={s.createBtnTxt}>새 추가 용량 상품 생성</Text>
           </Pressable>
 
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 16 }}
             refreshControl={<RefreshControl refreshing={refreshing} tintColor={G}
               onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
 

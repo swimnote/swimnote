@@ -40,6 +40,7 @@ export default function ChildrenScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [requests, setRequests] = useState<StudentRequest[]>([]);
   const [childName, setChildName] = useState("");
+  const [childBirth, setChildBirth] = useState("");
   const [memo, setMemo] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitConfirm, setSubmitConfirm] = useState(false);
@@ -66,10 +67,14 @@ export default function ChildrenScreen() {
     try {
       const res = await apiRequest(token, "/parent/student-requests", {
         method: "POST",
-        body: JSON.stringify({ child_name: childName.trim(), memo: memo.trim() || null }),
+        body: JSON.stringify({
+          child_name: childName.trim(),
+          child_birth_date: childBirth.trim() || null,
+          memo: memo.trim() || null,
+        }),
       });
       if (res.ok) {
-        setChildName(""); setMemo("");
+        setChildName(""); setChildBirth(""); setMemo("");
         await fetchRequests();
         setSubmitDone(true);
       }
@@ -162,6 +167,16 @@ export default function ChildrenScreen() {
             value={childName}
             onChangeText={setChildName}
           />
+          <Text style={[s.formLabel, { color: C.textSecondary }]}>생년월일 (YYYY-MM-DD)</Text>
+          <TextInput
+            style={[s.input, { backgroundColor: "#F6F3F1", color: C.text }]}
+            placeholder="예: 2017-03-20"
+            placeholderTextColor={C.textMuted}
+            value={childBirth}
+            onChangeText={t => setChildBirth(t.replace(/[^0-9-]/g, ""))}
+            keyboardType="numbers-and-punctuation"
+            maxLength={10}
+          />
           <Text style={[s.formLabel, { color: C.textSecondary }]}>전달 메모 (선택)</Text>
           <TextInput
             style={[s.input, s.inputMulti, { backgroundColor: "#F6F3F1", color: C.text }]}
@@ -188,7 +203,7 @@ export default function ChildrenScreen() {
       <ConfirmModal
         visible={submitConfirm}
         title="자녀 연결 요청"
-        message={`'${childName}' 이름으로 연결을 요청합니다.\n관리자가 확인 후 연결됩니다.`}
+        message={`이름: ${childName}${childBirth ? `\n생년월일: ${childBirth}` : ""}\n\n관리자가 확인 후 연결됩니다.`}
         confirmText="요청"
         onConfirm={async () => { setSubmitConfirm(false); await submitRequest(); }}
         onCancel={() => setSubmitConfirm(false)}
