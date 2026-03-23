@@ -100,6 +100,14 @@ The platform is built as a pnpm workspace monorepo using TypeScript. It leverage
     - `app/_layout.tsx` — 멀티풀 라우팅 삽입: pool_admin 검증 후 `/pools/my-pools` 조회, 복수 풀이고 `lastUsedTenant` 없으면 `/pool-select`로 리다이렉트. `APP_ROOTS`에 `pool-select` 추가.
   - **대시보드**: "화이트라벨" 메뉴 → `/(admin)/white-label` 라우트 연결. "지점 관리" → "수영장 관리"로 명칭 변경 (`layers` 아이콘).
 
+- **초대방식 설정 재구축 (Invite System Rebuild, 2026-03)**:
+  - **SMS 과금 구조 완전 제거**: `FREE_QUOTA`, `SMS_UNIT_PRICE`, `MY_USAGE`, 과금 카드 UI 등 전부 삭제.
+  - **기기 기본 문자앱 연동**: `Linking.openURL(sms:...)` 방식으로 iOS(`sms:phone&body=...`) / Android(`sms:phone?body=...`) 플랫폼 분기 처리.
+  - **`inviteRecordStore.ts` 확장**: `parentTemplateBody` / `iosLink` / `androidLink` 편집 가능 상태 추가. `setParentTemplate()`, `resetParentTemplate()`, `setAppLinks()` 액션. `resolveTemplate()` 공용 변수 치환 헬퍼. `buildTeacherMessage`/`buildGuardianMessage` 서명 업데이트(iosLink, androidLink 인자 추가).
+  - **고정 선생님 템플릿**: `TEACHER_TEMPLATE_FIXED` 상수. 관리자는 미리보기 + "문자앱 테스트 열기" 버튼만 제공.
+  - **수정 가능 학부모 템플릿**: 변수 삽입 버튼(`{수영장이름}` / `{학생이름}` / `{iOS링크}` / `{Android링크}`), 텍스트 입력, 미리보기(홍길동 기준), 저장, 초기화(ConfirmModal 확인).
+  - **`(admin)/invite-sms.tsx` 전면 재설계**: 탭 2개 — "초대 설정"(A.안내배너/B.선생님고정/C.학부모편집/D.앱링크) + "초대 기록"(filterType 필터+FlatList+재발송 버튼).
+
 - **슈퍼관리자 운영 콘솔 풀 MVP (2026-03)**:
   - **Zustand 스토어** (`store/index.ts`): 9개 슬라이스 — operatorsStore, billingStore, storageStore, riskStore, supportStore, auditLogStore, featureFlagStore, readonlyStore, backupStore.
   - **유틸리티** (`utils/super-utils.ts`): `safeDate`, `fmtDate`, `fmtRelative`, `fmtBytes`, `createAuditLog`, `IMPACT_CFG` 공유 헬퍼.

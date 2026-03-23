@@ -15,49 +15,63 @@ export interface InviteRecord {
   senderName: string
   senderRole: 'operator' | 'teacher'
   targetType: InviteTargetType
-  targetName: string        // 대상 이름
-  targetPhone: string       // 대상 휴대폰 번호
-  studentName?: string      // 학부모 안내 시 자녀 이름
-  messageBody: string       // 문자 본문 (재안내 시 재사용)
-  callCount: number         // 호출 횟수
-  createdAt: string         // 안내 생성 시각
-  lastReSentAt?: string     // 마지막 재안내 시각
+  targetName: string
+  targetPhone: string
+  studentName?: string
+  messageBody: string
+  callCount: number
+  createdAt: string
+  lastReSentAt?: string
 }
 
-// ── 공용 앱 링크 (수영장별 아님) ────────────────────────────────
-const APP_IOS     = 'https://apps.apple.com/app/swimnote/id0000000000'
-const APP_ANDROID = 'https://play.google.com/store/apps/details?id=com.swimnote'
+// ── 기본 앱 링크 ──────────────────────────────────────────────────
+export const DEFAULT_IOS_LINK     = 'https://apps.apple.com/app/swimnote/id0000000000'
+export const DEFAULT_ANDROID_LINK = 'https://play.google.com/store/apps/details?id=com.swimnote'
 
-// ── 학부모 초대 문자 템플릿 ───────────────────────────────────────
-export function buildGuardianMessage(operatorName: string, studentName: string): string {
-  return `[스윔노트] 안녕하세요.
-${operatorName}에서 초대드립니다.
+// ── 선생님 고정 템플릿 (수정 불가) ──────────────────────────────────
+export const TEACHER_TEMPLATE_FIXED =
+  '{수영장이름} 수영장에서 선생님으로 초대했습니다. 링크를 확인해주세요.\n{iOS링크}\n{Android링크}'
 
-📱 스윔노트 설치:
-• iPhone: ${APP_IOS}
-• Android: ${APP_ANDROID}
+// ── 학부모 기본 템플릿 ────────────────────────────────────────────
+export const DEFAULT_PARENT_TEMPLATE =
+  '{수영장이름}에서 스윔노트를 이용할 수 있도록 {학생이름} 학부모님을 초대합니다.\n앱을 설치한 뒤 링크를 확인해주세요.\n{iOS링크}\n{Android링크}'
 
-앱 설치 후 수영장 검색에서 "${operatorName}"을 찾아 가입해 주세요.
-
-✅ 학부모 승인 기준 (수영장 등록 정보와 동일하게 입력):
-• 자녀 이름: ${studentName}
-• 자녀 생년월일
-• 보호자 휴대폰 번호`
+// ── 변수 치환 헬퍼 ────────────────────────────────────────────────
+export function resolveTemplate(
+  template: string,
+  vars: {
+    poolName: string
+    studentName?: string
+    iosLink: string
+    androidLink: string
+  }
+): string {
+  return template
+    .replace(/\{수영장이름\}/g, vars.poolName)
+    .replace(/\{학생이름\}/g, vars.studentName ?? '')
+    .replace(/\{iOS링크\}/g, vars.iosLink)
+    .replace(/\{Android링크\}/g, vars.androidLink)
 }
 
-// ── 선생님 초대 문자 템플릿 ───────────────────────────────────────
-export function buildTeacherMessage(operatorName: string, phone: string): string {
-  return `[스윔노트] 안녕하세요.
-${operatorName} 선생님으로 등록하셨습니다.
+// ── buildGuardianMessage: 저장된 템플릿 기반 (역호환) ─────────────
+export function buildGuardianMessage(
+  operatorName: string,
+  studentName: string,
+  template = DEFAULT_PARENT_TEMPLATE,
+  iosLink = DEFAULT_IOS_LINK,
+  androidLink = DEFAULT_ANDROID_LINK
+): string {
+  return resolveTemplate(template, { poolName: operatorName, studentName, iosLink, androidLink })
+}
 
-📱 스윔노트 설치:
-• iPhone: ${APP_IOS}
-• Android: ${APP_ANDROID}
-
-가입 시 이 번호(${phone})로 등록하시고,
-앱에서 "${operatorName}"을 검색하여 가입해 주세요.
-
-✅ 가입 완료 후 수영장 관리자 승인 또는 자동 연결됩니다.`
+// ── buildTeacherMessage: 고정 템플릿 ─────────────────────────────
+export function buildTeacherMessage(
+  operatorName: string,
+  _phone: string,
+  iosLink = DEFAULT_IOS_LINK,
+  androidLink = DEFAULT_ANDROID_LINK
+): string {
+  return resolveTemplate(TEACHER_TEMPLATE_FIXED, { poolName: operatorName, iosLink, androidLink })
 }
 
 const dAgo = (d: number, h = 0) =>
@@ -115,12 +129,40 @@ const SEED: InviteRecord[] = [
 
 interface InviteRecordState {
   records: InviteRecord[]
+
+  // ── 설정 ────────────────────────────────────────────────────────
+  parentTemplateBody: string
+  iosLink: string
+  androidLink: string
+
+  // ── 설정 actions ─────────────────────────────────────────────────
+  setParentTemplate: (body: string) => void
+  resetParentTemplate: () => void
+  setAppLinks: (ios: string, android: string) => void
+
+  // ── 기록 actions ─────────────────────────────────────────────────
   addRecord: (rec: Omit<InviteRecord, 'id' | 'createdAt' | 'callCount'>) => InviteRecord
   reNotify: (id: string) => void
 }
 
-export const useInviteRecordStore = create<InviteRecordState>((set) => ({
+export const useInviteRecordStore = create<InviteRecordState>((set, get) => ({
   records: SEED,
+
+  parentTemplateBody: DEFAULT_PARENT_TEMPLATE,
+  iosLink: DEFAULT_IOS_LINK,
+  androidLink: DEFAULT_ANDROID_LINK,
+
+  setParentTemplate(body) {
+    set({ parentTemplateBody: body })
+  },
+
+  resetParentTemplate() {
+    set({ parentTemplateBody: DEFAULT_PARENT_TEMPLATE })
+  },
+
+  setAppLinks(ios, android) {
+    set({ iosLink: ios, androidLink: android })
+  },
 
   addRecord(rec) {
     const newRec: InviteRecord = {

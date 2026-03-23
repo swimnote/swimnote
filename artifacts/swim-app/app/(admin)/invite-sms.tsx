@@ -1,429 +1,483 @@
 /**
- * (admin)/invite-sms.tsx — 초대·문자 관리 (운영자 모드)
- * 운영자가 선생님·학부모를 초대하고 SMS 발송 현황을 조회하는 화면.
- * 발송 주체: 운영자 / 과금 대상: 운영자
+ * (admin)/invite-sms.tsx — 초대방식 설정
+ * SMS 과금/크레딧 구조 완전 제거.
+ * 기기 기본 문자앱 호출 + 수신번호·본문 자동완성 방식.
+ * 탭: 초대 설정 | 초대 기록
  */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  Alert, FlatList, Linking, Modal, Pressable, ScrollView,
+  FlatList, Linking, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Clipboard from "expo-clipboard";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useBrand } from "@/context/BrandContext";
-import { useSmsStore } from "@/store/smsStore";
-import { useAuditLogStore } from "@/store/auditLogStore";
-import type { InviteRole, InviteRecord, SmsType } from "@/domain/types";
-import { buildGuardianMessage, buildTeacherMessage } from "@/store/inviteRecordStore";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
+import {
+  useInviteRecordStore,
+  resolveTemplate,
+  TEACHER_TEMPLATE_FIXED,
+  DEFAULT_PARENT_TEMPLATE,
+  InviteRecord,
+  InviteTargetType,
+} from "@/store/inviteRecordStore";
 
-const FREE_QUOTA = 500;
-const SMS_UNIT_PRICE = 9.9;
-// 이번 달 이 운영자의 mock 사용량 (op-001 기준)
-const MY_USAGE = { sent: 320, failed: 2, blocked: false };
+const GREEN = "#1F8F86";
 
-const TABS = [
-  { key: "send",    label: "초대 발송" },
-  { key: "pending", label: "대기 초대" },
-  { key: "failed",  label: "실패 내역" },
-] as const;
+const PARENT_VARS = [
+  { label: "{수영장이름}", value: "{수영장이름}" },
+  { label: "{학생이름}",   value: "{학생이름}" },
+  { label: "{iOS링크}",    value: "{iOS링크}" },
+  { label: "{Android링크}", value: "{Android링크}" },
+];
 
-type Tab = typeof TABS[number]["key"];
-
-const ROLE_CFG: Record<InviteRole, { label: string; color: string; bg: string; icon: string }> = {
-  operator: { label: "운영자", color: "#7C3AED", bg: "#EEDDF5", icon: "briefcase" },
-  teacher:  { label: "선생님", color: "#1F8F86", bg: "#ECFEFF", icon: "user" },
-  parent:   { label: "학부모", color: "#1F8F86", bg: "#DDF2EF", icon: "users" },
-};
-const STATUS_CFG = {
-  pending:   { label: "대기", color: "#D97706", bg: "#FFF1BF" },
-  accepted:  { label: "수락", color: "#1F8F86", bg: "#DDF2EF" },
-  expired:   { label: "만료", color: "#9A948F", bg: "#F6F3F1" },
-  cancelled: { label: "취소", color: "#D96C6C", bg: "#F9DEDA" },
-};
+type Tab = "settings" | "records";
 
 function fmtDate(iso: string) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
-  return d.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("ko-KR", {
+    month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
 }
 
-export default function OperatorInviteSmsScreen() {
-  const { adminUser, pool } = useAuth();
-  const { themeColor } = useBrand();
-  const actorName = adminUser?.name ?? "운영자";
+const TYPE_CFG: Record<InviteTargetType, { label: string; icon: string; color: string; bg: string }> = {
+  guardian: { label: "학부모", icon: "users",      color: GREEN,     bg: "#DDF2EF" },
+  teacher:  { label: "선생님", icon: "user-check",  color: "#7C3AED", bg: "#EEDDF5" },
+};
 
-  const invites      = useSmsStore(s => s.invites);
-  const records      = useSmsStore(s => s.records);
-  const createInvite = useSmsStore(s => s.createInvite);
-  const resendInvite = useSmsStore(s => s.resendInvite);
-  const cancelInvite = useSmsStore(s => s.cancelInvite);
-  const createLog    = useAuditLogStore(s => s.createLog);
+export default function InviteSmsScreen() {
+  const { pool } = useAuth();
+  const insets   = useSafeAreaInsets();
+  const poolName = pool?.name ?? "우리 수영장";
 
-  const [tab, setTab] = useState<Tab>("send");
-  const [modal, setModal] = useState(false);
-  const [invRole, setInvRole] = useState<InviteRole>("teacher");
-  const [invName, setInvName] = useState("");
-  const [invPhone, setInvPhone] = useState("");
-  const [invNote, setInvNote] = useState("");
+  const {
+    parentTemplateBody, iosLink, androidLink,
+    setParentTemplate, resetParentTemplate, setAppLinks,
+    records, reNotify,
+  } = useInviteRecordStore();
 
-  // 이번 달 통계
-  const excess   = Math.max(0, MY_USAGE.sent - FREE_QUOTA);
-  const charge   = Math.round(excess * SMS_UNIT_PRICE);
-  const freeLeft = Math.max(0, FREE_QUOTA - MY_USAGE.sent);
+  const [tab, setTab]             = useState<Tab>("settings");
+  const [editBody, setEditBody]   = useState(parentTemplateBody);
+  const [dirty, setDirty]         = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [editIos, setEditIos]         = useState(iosLink);
+  const [editAndroid, setEditAndroid] = useState(androidLink);
+  const [linkDirty, setLinkDirty]     = useState(false);
+  const [showReset, setShowReset]     = useState(false);
+  const [filterType, setFilterType]   = useState<"all" | InviteTargetType>("all");
 
-  // teacher/parent 초대만 표시
-  const myInvites  = useMemo(() => invites.filter(i => i.role !== "operator"), [invites]);
-  const pending    = useMemo(() => myInvites.filter(i => i.status === "pending" || i.status === "expired"), [myInvites]);
-  const failedSms  = useMemo(() => records.filter(r => r.status === "failed"), [records]);
+  const teacherPreview = resolveTemplate(TEACHER_TEMPLATE_FIXED, {
+    poolName, iosLink, androidLink,
+  });
 
-  async function doSend() {
-    if (!invName.trim() || !invPhone.trim()) return;
-    const poolName = pool?.name ?? "우리 수영장";
-    const rawPhone = invPhone.replace(/\D/g, "");
-    const inviteMsg = invRole === "teacher"
-      ? buildTeacherMessage(poolName, invPhone)
-      : buildGuardianMessage(poolName, invName);
-    const smsUrl = `sms:${rawPhone}?body=${encodeURIComponent(inviteMsg)}`;
-    createInvite({
-      role: invRole,
-      recipientName: invName,
-      recipientPhone: invPhone,
-      operatorId: "op-001",
-      operatorName: actorName,
-      actorName,
-      note: invNote,
-    });
-    createLog({
-      category: "SMS",
-      title: `운영자 초대 발송: ${invName} (${ROLE_CFG[invRole].label})`,
-      detail: `전화: ${invPhone} / 역할: ${ROLE_CFG[invRole].label}`,
-      actorName,
-      impact: "low",
-    });
-    setModal(false);
-    setInvName(""); setInvPhone(""); setInvNote("");
-    setTab("pending");
-    try {
-      const can = await Linking.canOpenURL(smsUrl);
-      if (can) await Linking.openURL(smsUrl);
-      else Alert.alert("알림", "문자 앱을 열 수 없습니다. 초대 내역에서 메시지를 복사해 직접 발송해 주세요.");
-    } catch { /* ignore */ }
+  const parentPreview = resolveTemplate(editBody, {
+    poolName, studentName: "홍길동", iosLink, androidLink,
+  });
+
+  function insertVar(v: string) {
+    setEditBody(prev => prev + v);
+    setDirty(true);
   }
 
-  function doResend(inv: InviteRecord) {
-    resendInvite(inv.id, actorName);
-    createLog({
-      category: "SMS",
-      title: `초대 재발송: ${inv.recipientName}`,
-      detail: `역할: ${ROLE_CFG[inv.role].label}`,
-      actorName,
-      impact: "low",
-    });
+  function saveTemplate() {
+    setParentTemplate(editBody);
+    setDirty(false);
   }
 
-  function doCancel(inv: InviteRecord) {
-    cancelInvite(inv.id, actorName);
-    createLog({
-      category: "SMS",
-      title: `초대 취소: ${inv.recipientName}`,
-      detail: `역할: ${ROLE_CFG[inv.role].label}`,
-      actorName,
-      impact: "low",
-    });
+  function saveLinks() {
+    setAppLinks(editIos.trim(), editAndroid.trim());
+    setLinkDirty(false);
   }
+
+  function doReset() {
+    resetParentTemplate();
+    setEditBody(DEFAULT_PARENT_TEMPLATE);
+    setDirty(false);
+    setShowReset(false);
+  }
+
+  async function openTeacherSms() {
+    const body = teacherPreview;
+    const url  = Platform.OS === "ios"
+      ? `sms:&body=${encodeURIComponent(body)}`
+      : `sms:?body=${encodeURIComponent(body)}`;
+    const can = await Linking.canOpenURL(url);
+    if (can) await Linking.openURL(url);
+  }
+
+  async function doReNotify(rec: InviteRecord) {
+    reNotify(rec.id);
+    const rawPhone = rec.targetPhone.replace(/\D/g, "");
+    const url      = Platform.OS === "ios"
+      ? `sms:${rawPhone}&body=${encodeURIComponent(rec.messageBody)}`
+      : `sms:${rawPhone}?body=${encodeURIComponent(rec.messageBody)}`;
+    const can = await Linking.canOpenURL(url);
+    if (can) await Linking.openURL(url);
+  }
+
+  const filteredRecs = useMemo(() =>
+    filterType === "all" ? records : records.filter(r => r.targetType === filterType),
+    [records, filterType]
+  );
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="초대·문자 관리" />
+      <SubScreenHeader title="초대방식 설정" homePath="/(admin)/dashboard" />
 
-      {/* 이번 달 사용량 카드 */}
-      <View style={s.quotaCard}>
-        <View style={s.quotaRow}>
-          <View style={s.quotaItem}>
-            <Text style={s.quotaNum}>{MY_USAGE.sent.toLocaleString()}</Text>
-            <Text style={s.quotaLabel}>이번 달 발송</Text>
-          </View>
-          <View style={s.quotaItem}>
-            <Text style={[s.quotaNum, { color: freeLeft > 0 ? "#1F8F86" : "#D97706" }]}>{freeLeft.toLocaleString()}</Text>
-            <Text style={s.quotaLabel}>무료 잔여</Text>
-          </View>
-          <View style={[s.quotaItem, excess > 0 && { backgroundColor: "#FFF5F5" }]}>
-            <Text style={[s.quotaNum, excess > 0 && { color: "#D96C6C" }]}>{excess}</Text>
-            <Text style={s.quotaLabel}>초과 건수</Text>
-          </View>
-          <View style={[s.quotaItem, charge > 0 && { backgroundColor: "#FFFBEB" }]}>
-            <Text style={[s.quotaNum, charge > 0 && { color: "#D97706" }]}>
-              {charge > 0 ? `₩${charge.toLocaleString()}` : "무료"}
+      {/* 탭 바 */}
+      <View style={s.tabRow}>
+        {([
+          { key: "settings", label: "초대 설정" },
+          { key: "records",  label: "초대 기록" },
+        ] as const).map(t => (
+          <Pressable
+            key={t.key}
+            style={[s.tab, tab === t.key && s.tabActive]}
+            onPress={() => setTab(t.key)}
+          >
+            <Text style={[s.tabTxt, tab === t.key && { color: GREEN, fontFamily: "Inter_700Bold" }]}>
+              {t.label}
             </Text>
-            <Text style={s.quotaLabel}>예상 과금</Text>
-          </View>
-        </View>
-        {MY_USAGE.blocked && (
-          <View style={s.blockedBanner}>
-            <Feather name="alert-circle" size={13} color="#D96C6C" />
-            <Text style={s.blockedTxt}>현재 SMS 발송이 차단되어 있습니다. 관리자에게 문의하세요.</Text>
-          </View>
-        )}
-      </View>
-
-      {/* 탭 */}
-      <View style={s.tabBar}>
-        {TABS.map(t => (
-          <Pressable key={t.key} style={[s.tabItem, tab === t.key && { borderBottomColor: themeColor, borderBottomWidth: 2 }]}
-            onPress={() => setTab(t.key)}>
-            <Text style={[s.tabTxt, { color: tab === t.key ? themeColor : "#6F6B68" }]}>{t.label}</Text>
           </Pressable>
         ))}
       </View>
 
-      {/* ── 초대 발송 탭 ── */}
-      {tab === "send" && (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 60 }}>
-          <Text style={s.sectionLabel}>누구를 초대하시겠어요?</Text>
-
-          <Pressable style={s.sendCard} onPress={() => { setInvRole("teacher"); setModal(true); }}>
-            <View style={[s.sendIcon, { backgroundColor: "#ECFEFF" }]}>
-              <Feather name="user" size={22} color="#1F8F86" />
+      {/* ═══════════════ 초대 설정 탭 ═══════════════ */}
+      {tab === "settings" && (
+        <ScrollView
+          contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 80 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* A. 안내 배너 */}
+          <View style={s.infoBanner}>
+            <Feather name="info" size={18} color={GREEN} />
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={s.infoTitle}>스윔노트 초대 방식 안내</Text>
+              <Text style={s.infoBody}>
+                스윔노트는 문자 발송 서비스를 판매하지 않습니다.{"\n"}
+                기기의 기본 문자앱을 열어 초대 메시지를 발송합니다.{"\n"}
+                수신번호와 본문은 자동으로 입력됩니다.
+              </Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.sendTitle}>선생님 초대 SMS 발송</Text>
-              <Text style={s.sendSub}>이름·휴대폰 입력 → 초대 링크 문자 발송</Text>
-            </View>
-            <Feather name="chevron-right" size={16} color="#D1D5DB" />
-          </Pressable>
-
-          <Pressable style={s.sendCard} onPress={() => { setInvRole("parent"); setModal(true); }}>
-            <View style={[s.sendIcon, { backgroundColor: "#DDF2EF" }]}>
-              <Feather name="users" size={22} color="#1F8F86" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.sendTitle}>학부모 연결 요청 SMS 발송</Text>
-              <Text style={s.sendSub}>학부모 연결 초대 링크 문자 발송</Text>
-            </View>
-            <Feather name="chevron-right" size={16} color="#D1D5DB" />
-          </Pressable>
-
-          <View style={s.infoBox}>
-            <Feather name="info" size={13} color="#6F6B68" />
-            <Text style={s.infoTxt}>무료 {FREE_QUOTA}건/월 제공 · 초과 시 ₩{SMS_UNIT_PRICE}/건 과금</Text>
           </View>
 
-          {MY_USAGE.failed > 0 && (
-            <Pressable style={s.failWarning} onPress={() => setTab("failed")}>
-              <Feather name="alert-triangle" size={13} color="#D96C6C" />
-              <Text style={s.failWarningTxt}>발송 실패 {MY_USAGE.failed}건 있음 → 실패 내역 보기</Text>
-              <Feather name="chevron-right" size={13} color="#D96C6C" />
+          {/* B. 선생님 초대 문구 (고정) */}
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <View style={[s.iconBox, { backgroundColor: "#EEDDF5" }]}>
+                <Feather name="user-check" size={18} color="#7C3AED" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.sectionTitle}>선생님 초대 문구</Text>
+                <View style={s.fixedBadge}>
+                  <Text style={s.fixedBadgeTxt}>수정 불가 고정 문구</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={s.previewBox}>
+              <Text style={s.previewTxt}>{teacherPreview}</Text>
+            </View>
+
+            <View style={s.btnRow}>
+              <Pressable
+                style={s.outlineBtn}
+                onPress={async () => { await Clipboard.setStringAsync(teacherPreview); }}
+              >
+                <Feather name="copy" size={14} color="#6F6B68" />
+                <Text style={s.outlineBtnTxt}>복사</Text>
+              </Pressable>
+              <Pressable style={[s.colorBtn, { backgroundColor: "#EEDDF5" }]} onPress={openTeacherSms}>
+                <Feather name="message-square" size={14} color="#7C3AED" />
+                <Text style={[s.colorBtnTxt, { color: "#7C3AED" }]}>문자앱 테스트 열기</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* C. 학부모 초대 문구 (수정 가능) */}
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <View style={[s.iconBox, { backgroundColor: "#DDF2EF" }]}>
+                <Feather name="users" size={18} color={GREEN} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.sectionTitle}>학부모 초대 문구</Text>
+                <Text style={s.sectionSub}>변수를 포함해 자유롭게 수정할 수 있습니다</Text>
+              </View>
+            </View>
+
+            <View>
+              <Text style={s.label}>변수 삽입</Text>
+              <View style={s.varRow}>
+                {PARENT_VARS.map(v => (
+                  <Pressable key={v.value} style={s.varBtn} onPress={() => insertVar(v.value)}>
+                    <Text style={s.varBtnTxt}>{v.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View>
+              <Text style={s.label}>문구 편집</Text>
+              <TextInput
+                style={s.templateInput}
+                value={editBody}
+                onChangeText={v => { setEditBody(v); setDirty(true); }}
+                multiline
+                textAlignVertical="top"
+                placeholder="학부모 초대 문구를 입력하세요"
+              />
+            </View>
+
+            <Pressable style={s.previewToggle} onPress={() => setShowPreview(p => !p)}>
+              <Feather name={showPreview ? "eye-off" : "eye"} size={14} color={GREEN} />
+              <Text style={[s.previewToggleTxt, { color: GREEN }]}>
+                {showPreview ? "미리보기 닫기" : "미리보기 (홍길동 기준)"}
+              </Text>
             </Pressable>
-          )}
+            {showPreview && (
+              <View style={s.previewBox}>
+                <Text style={s.previewTxt}>{parentPreview}</Text>
+              </View>
+            )}
+
+            <View style={s.btnRow}>
+              <Pressable style={s.outlineBtn} onPress={() => setShowReset(true)}>
+                <Feather name="rotate-ccw" size={14} color="#9A948F" />
+                <Text style={s.outlineBtnTxt}>초기화</Text>
+              </Pressable>
+              <Pressable
+                style={[s.colorBtn, dirty ? { backgroundColor: GREEN } : s.disabledBtn]}
+                onPress={saveTemplate}
+                disabled={!dirty}
+              >
+                <Feather name="check" size={14} color={dirty ? "#fff" : "#B0AAA6"} />
+                <Text style={[s.colorBtnTxt, { color: dirty ? "#fff" : "#B0AAA6" }]}>
+                  {dirty ? "저장" : "저장됨"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* D. 다운로드 링크 설정 */}
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <View style={[s.iconBox, { backgroundColor: "#E0F2FE" }]}>
+                <Feather name="link" size={18} color="#0284C7" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.sectionTitle}>다운로드 링크 설정</Text>
+                <Text style={s.sectionSub}>초대 문자에 삽입되는 앱 링크</Text>
+              </View>
+            </View>
+
+            <View>
+              <Text style={s.label}>앱스토어 링크 (iOS)</Text>
+              <TextInput
+                style={s.linkInput}
+                value={editIos}
+                onChangeText={v => { setEditIos(v); setLinkDirty(true); }}
+                placeholder="https://apps.apple.com/..."
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+            </View>
+            <View>
+              <Text style={s.label}>플레이스토어 링크 (Android)</Text>
+              <TextInput
+                style={s.linkInput}
+                value={editAndroid}
+                onChangeText={v => { setEditAndroid(v); setLinkDirty(true); }}
+                placeholder="https://play.google.com/..."
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+            </View>
+
+            <View style={s.btnRow}>
+              <Pressable
+                style={s.outlineBtn}
+                onPress={async () => {
+                  await Clipboard.setStringAsync(`iOS: ${editIos}\nAndroid: ${editAndroid}`);
+                }}
+              >
+                <Feather name="copy" size={14} color="#6F6B68" />
+                <Text style={s.outlineBtnTxt}>링크 복사</Text>
+              </Pressable>
+              <Pressable
+                style={[s.colorBtn, linkDirty ? { backgroundColor: GREEN } : s.disabledBtn]}
+                onPress={saveLinks}
+                disabled={!linkDirty}
+              >
+                <Feather name="check" size={14} color={linkDirty ? "#fff" : "#B0AAA6"} />
+                <Text style={[s.colorBtnTxt, { color: linkDirty ? "#fff" : "#B0AAA6" }]}>
+                  {linkDirty ? "저장" : "저장됨"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
         </ScrollView>
       )}
 
-      {/* ── 대기 초대 탭 ── */}
-      {tab === "pending" && (
-        <FlatList
-          data={pending}
-          keyExtractor={i => i.id}
-          contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 80 }}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Feather name="user-check" size={36} color="#D1D5DB" />
-              <Text style={s.emptyTxt}>대기 중인 초대가 없습니다</Text>
-            </View>
-          }
-          renderItem={({ item: inv }) => {
-            const rc = ROLE_CFG[inv.role];
-            const sc = STATUS_CFG[inv.status];
-            return (
-              <View style={s.invCard}>
-                <View style={[s.invIcon, { backgroundColor: rc.bg }]}>
-                  <Feather name={rc.icon as any} size={16} color={rc.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={s.nameRow}>
-                    <Text style={s.invName}>{inv.recipientName}</Text>
-                    <View style={[s.badge, { backgroundColor: rc.bg }]}>
-                      <Text style={[s.badgeTxt, { color: rc.color }]}>{rc.label}</Text>
+      {/* ═══════════════ 초대 기록 탭 ═══════════════ */}
+      {tab === "records" && (
+        <View style={{ flex: 1 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.filterRow}>
+            {(["all", "guardian", "teacher"] as const).map(k => {
+              const labels = { all: "전체", guardian: "학부모", teacher: "선생님" };
+              const active = filterType === k;
+              return (
+                <Pressable
+                  key={k}
+                  style={[s.filterChip, active && { backgroundColor: GREEN + "22", borderColor: GREEN }]}
+                  onPress={() => setFilterType(k)}
+                >
+                  <Text style={[s.filterChipTxt, active && { color: GREEN, fontFamily: "Inter_700Bold" }]}>
+                    {labels[k]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <FlatList
+            data={filteredRecs}
+            keyExtractor={r => r.id}
+            contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: insets.bottom + 80 }}
+            ListEmptyComponent={
+              <View style={s.empty}>
+                <Feather name="inbox" size={32} color="#D1CBC6" />
+                <Text style={s.emptyTxt}>초대 기록이 없습니다</Text>
+              </View>
+            }
+            renderItem={({ item: r }) => {
+              const cfg = TYPE_CFG[r.targetType];
+              return (
+                <View style={s.recCard}>
+                  <View style={[s.recIcon, { backgroundColor: cfg.bg }]}>
+                    <Feather name={cfg.icon as any} size={18} color={cfg.color} />
+                  </View>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <View style={s.recNameRow}>
+                      <Text style={s.recName}>{r.targetName}</Text>
+                      <View style={[s.badge, { backgroundColor: cfg.bg }]}>
+                        <Text style={[s.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
+                      </View>
+                      {r.callCount > 1 && (
+                        <View style={[s.badge, { backgroundColor: "#FFF1BF" }]}>
+                          <Text style={[s.badgeTxt, { color: "#D97706" }]}>{r.callCount}회</Text>
+                        </View>
+                      )}
                     </View>
-                    <View style={[s.badge, { backgroundColor: sc.bg }]}>
-                      <Text style={[s.badgeTxt, { color: sc.color }]}>{sc.label}</Text>
-                    </View>
+                    <Text style={s.recMeta}>{r.targetPhone}</Text>
+                    {r.studentName ? <Text style={s.recMeta}>자녀: {r.studentName}</Text> : null}
+                    <Text style={s.recMeta}>
+                      최초: {fmtDate(r.createdAt)}
+                      {r.lastReSentAt ? `  ·  재발송: ${fmtDate(r.lastReSentAt)}` : ""}
+                    </Text>
                   </View>
-                  <Text style={s.invMeta}>{inv.recipientPhone}</Text>
-                  <Text style={s.invMeta}>발송: {fmtDate(inv.createdAt)} · 만료: {fmtDate(inv.expiresAt)}</Text>
-                  <View style={s.invActions}>
-                    <Pressable style={[s.actionBtn, { backgroundColor: "#EEDDF5" }]} onPress={() => doResend(inv)}>
-                      <Feather name="refresh-cw" size={11} color="#7C3AED" />
-                      <Text style={[s.actionTxt, { color: "#7C3AED" }]}>재발송</Text>
-                    </Pressable>
-                    {inv.status === "pending" && (
-                      <Pressable style={[s.actionBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => doCancel(inv)}>
-                        <Text style={[s.actionTxt, { color: "#D96C6C" }]}>취소</Text>
-                      </Pressable>
-                    )}
-                    <Pressable style={[s.actionBtn, { backgroundColor: "#F6F3F1" }]}
-                      onPress={() => {/* mock: 링크 복사 */}}>
-                      <Feather name="link" size={11} color="#6F6B68" />
-                      <Text style={[s.actionTxt, { color: "#6F6B68" }]}>링크 복사</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-            );
-          }}
-        />
-      )}
-
-      {/* ── 실패 내역 탭 ── */}
-      {tab === "failed" && (
-        <FlatList
-          data={failedSms}
-          keyExtractor={r => r.id}
-          contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 80 }}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Feather name="check-circle" size={36} color="#D1D5DB" />
-              <Text style={s.emptyTxt}>발송 실패 내역 없음</Text>
-            </View>
-          }
-          renderItem={({ item: r }) => (
-            <View style={[s.invCard, { borderLeftWidth: 3, borderLeftColor: "#D96C6C" }]}>
-              <View style={[s.invIcon, { backgroundColor: "#F9DEDA" }]}>
-                <Feather name="x-circle" size={16} color="#D96C6C" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={s.nameRow}>
-                  <Text style={s.invName}>{r.recipientName}</Text>
-                  <View style={[s.badge, { backgroundColor: "#F9DEDA" }]}>
-                    <Text style={[s.badgeTxt, { color: "#D96C6C" }]}>실패</Text>
-                  </View>
-                </View>
-                <Text style={s.invMeta}>{r.recipientPhone} · {fmtDate(r.sentAt)}</Text>
-                {r.failReason && <Text style={[s.invMeta, { color: "#D96C6C" }]}>사유: {r.failReason}</Text>}
-                <Text style={s.invMeta} numberOfLines={1}>{r.message}</Text>
-              </View>
-            </View>
-          )}
-        />
-      )}
-
-      {/* 초대 발송 모달 */}
-      <Modal visible={modal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setModal(false)}>
-        <Pressable style={m.backdrop} onPress={() => setModal(false)}>
-          <Pressable style={m.sheet} onPress={() => {}}>
-            <View style={m.handle} />
-            <Text style={m.title}>{ROLE_CFG[invRole].label} 초대 발송</Text>
-
-            <View style={m.roleRow}>
-              {(["teacher", "parent"] as InviteRole[]).map(r => {
-                const rc = ROLE_CFG[r];
-                return (
-                  <Pressable key={r} style={[m.roleBtn, invRole === r && { backgroundColor: rc.bg, borderColor: rc.color }]}
-                    onPress={() => setInvRole(r)}>
-                    <Feather name={rc.icon as any} size={14} color={invRole === r ? rc.color : "#9A948F"} />
-                    <Text style={[m.roleTxt, invRole === r && { color: rc.color }]}>{rc.label}</Text>
+                  <Pressable style={s.reBtn} onPress={() => doReNotify(r)}>
+                    <Feather name="send" size={13} color={GREEN} />
+                    <Text style={s.reBtnTxt}>재발송</Text>
                   </Pressable>
-                );
-              })}
-            </View>
+                </View>
+              );
+            }}
+          />
+        </View>
+      )}
 
-            <Text style={m.label}>이름 *</Text>
-            <TextInput style={m.input} value={invName} onChangeText={setInvName}
-              placeholder="받는 사람 이름" placeholderTextColor="#9A948F" />
-
-            <Text style={m.label}>휴대폰 번호 *</Text>
-            <TextInput style={m.input} value={invPhone} onChangeText={setInvPhone}
-              placeholder="010-0000-0000" keyboardType="phone-pad" placeholderTextColor="#9A948F" />
-
-            <Text style={m.label}>메모 (선택)</Text>
-            <TextInput style={m.input} value={invNote} onChangeText={setInvNote}
-              placeholder="내부 메모" placeholderTextColor="#9A948F" />
-
-            <View style={m.infoRow}>
-              <Feather name="info" size={12} color="#6F6B68" />
-              <Text style={m.infoTxt}>무료 잔여 {freeLeft}건 · 초과 시 ₩{SMS_UNIT_PRICE}/건 과금</Text>
-            </View>
-
-            <View style={m.btnRow}>
-              <Pressable style={m.cancelBtn} onPress={() => setModal(false)}>
-                <Text style={m.cancelTxt}>취소</Text>
-              </Pressable>
-              <Pressable style={[m.sendBtn, { opacity: (invName && invPhone) ? 1 : 0.4, backgroundColor: ROLE_CFG[invRole].color }]}
-                onPress={doSend} disabled={!invName.trim() || !invPhone.trim()}>
-                <Feather name="send" size={14} color="#fff" />
-                <Text style={m.sendTxt}>초대 발송</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <ConfirmModal
+        visible={showReset}
+        title="학부모 문구 초기화"
+        message="저장된 학부모 초대 문구를 기본값으로 되돌립니다. 계속하시겠습니까?"
+        confirmText="초기화"
+        destructive
+        onConfirm={doReset}
+        onCancel={() => setShowReset(false)}
+      />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F5F9FF" },
-  quotaCard:    { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", padding: 14, gap: 8 },
-  quotaRow:     { flexDirection: "row", gap: 6 },
-  quotaItem:    { flex: 1, backgroundColor: "#FBF8F6", borderRadius: 10, padding: 10, alignItems: "center",
-                  borderWidth: 1, borderColor: "#E9E2DD" },
-  quotaNum:     { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  quotaLabel:   { fontSize: 9, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2, textAlign: "center" },
-  blockedBanner:{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9DEDA",
-                  borderRadius: 8, padding: 8 },
-  blockedTxt:   { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#D96C6C" },
-  tabBar:       { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
-  tabItem:      { flex: 1, paddingVertical: 13, alignItems: "center" },
-  tabTxt:       { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  sendCard:     { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
-                  borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E9E2DD" },
-  sendIcon:     { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  sendTitle:    { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  sendSub:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 3 },
-  infoBox:      { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FBF8F6",
-                  borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#E9E2DD" },
-  infoTxt:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" },
-  failWarning:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF5F5",
-                  borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#FCA5A5" },
-  failWarningTxt:{ flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#D96C6C" },
-  invCard:      { flexDirection: "row", gap: 10, backgroundColor: "#fff",
-                  borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E9E2DD" },
-  invIcon:      { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  nameRow:      { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  invName:      { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  badge:        { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  badgeTxt:     { fontSize: 10, fontFamily: "Inter_700Bold" },
-  invMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
-  invActions:   { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
-  actionBtn:    { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  actionTxt:    { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  empty:        { alignItems: "center", paddingVertical: 60, gap: 10 },
-  emptyTxt:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
-});
+  safe:          { flex: 1, backgroundColor: "#F6F3F1" },
+  tabRow:        { flexDirection: "row", backgroundColor: "#fff",
+                   borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  tab:           { flex: 1, paddingVertical: 12, alignItems: "center" },
+  tabActive:     { borderBottomWidth: 2, borderBottomColor: GREEN },
+  tabTxt:        { fontSize: 14, fontFamily: "Inter_500Medium", color: "#6F6B68" },
 
-const m = StyleSheet.create({
-  backdrop:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-               borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, gap: 12 },
-  handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  roleRow:   { flexDirection: "row", gap: 8 },
-  roleBtn:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-               paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: "#E9E2DD" },
-  roleTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#9A948F" },
-  label:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
-  input:     { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, paddingHorizontal: 12,
-               paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
-  infoRow:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FBF8F6",
-               padding: 10, borderRadius: 8 },
-  infoTxt:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
-  btnRow:    { flexDirection: "row", gap: 10, marginTop: 4 },
-  cancelBtn: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F6F3F1" },
-  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
-  sendBtn:   { flex: 1.5, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-               height: 46, borderRadius: 12 },
-  sendTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  infoBanner:    { flexDirection: "row", gap: 10, backgroundColor: "#E8F7F5",
+                   borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#A7D4CF" },
+  infoTitle:     { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 2 },
+  infoBody:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#4B6F6C", lineHeight: 19 },
+
+  section:       { backgroundColor: "#fff", borderRadius: 14, padding: 16,
+                   gap: 12, borderWidth: 1, borderColor: "#E9E2DD" },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  iconBox:       { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  sectionTitle:  { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  sectionSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+
+  fixedBadge:    { marginTop: 4, alignSelf: "flex-start", backgroundColor: "#F1F5F9",
+                   borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  fixedBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#64748B" },
+
+  previewBox:    { backgroundColor: "#F6F3F1", borderRadius: 10, padding: 12,
+                   borderWidth: 1, borderColor: "#E9E2DD" },
+  previewTxt:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 20 },
+  previewToggle: { flexDirection: "row", alignItems: "center", gap: 6 },
+  previewToggleTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
+
+  label:         { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68", marginBottom: 6 },
+
+  varRow:        { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  varBtn:        { backgroundColor: "#EEF2FF", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  varBtnTxt:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#4F46E5" },
+
+  templateInput: { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10,
+                   padding: 12, minHeight: 140, fontSize: 13,
+                   fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 20 },
+  linkInput:     { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10,
+                   paddingHorizontal: 12, paddingVertical: 10, fontSize: 13,
+                   fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+
+  btnRow:        { flexDirection: "row", gap: 10 },
+  outlineBtn:    { flexDirection: "row", alignItems: "center", gap: 5, flex: 1, height: 40,
+                   borderRadius: 10, justifyContent: "center",
+                   backgroundColor: "#F6F3F1", borderWidth: 1, borderColor: "#E9E2DD" },
+  outlineBtnTxt: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  colorBtn:      { flexDirection: "row", alignItems: "center", gap: 5, flex: 1, height: 40,
+                   borderRadius: 10, justifyContent: "center" },
+  colorBtnTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  disabledBtn:   { backgroundColor: "#F6F3F1", borderWidth: 1, borderColor: "#E9E2DD" },
+
+  filterRow:     { paddingHorizontal: 16, paddingVertical: 10, gap: 8,
+                   borderBottomWidth: 1, borderBottomColor: "#E9E2DD", backgroundColor: "#fff" },
+  filterChip:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+                   borderWidth: 1, borderColor: "#E9E2DD", backgroundColor: "#fff" },
+  filterChipTxt: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+
+  recCard:       { flexDirection: "row", alignItems: "flex-start", gap: 10,
+                   backgroundColor: "#fff", borderRadius: 14, padding: 14,
+                   borderWidth: 1, borderColor: "#E9E2DD" },
+  recIcon:       { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  recNameRow:    { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  recName:       { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  badge:         { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  badgeTxt:      { fontSize: 10, fontFamily: "Inter_700Bold" },
+  recMeta:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  reBtn:         { flexDirection: "row", alignItems: "center", gap: 4,
+                   paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8,
+                   backgroundColor: "#DDF2EF" },
+  reBtnTxt:      { fontSize: 11, fontFamily: "Inter_600SemiBold", color: GREEN },
+
+  empty:         { alignItems: "center", paddingVertical: 60, gap: 10 },
+  emptyTxt:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });
