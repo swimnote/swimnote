@@ -37,7 +37,7 @@ const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "weekly_2",     label: "주2회",  icon: "wind",          activeColor: WEEKLY_BADGE[2].color, activeBg: WEEKLY_BADGE[2].bg },
   { key: "weekly_3",     label: "주3회",  icon: "zap",           activeColor: WEEKLY_BADGE[3].color, activeBg: WEEKLY_BADGE[3].bg },
   { key: "unlinked",     label: "미연결", icon: "user-x",        activeColor: "#EA580C", activeBg: "#FFF1BF" },
-  { key: "suspended",    label: "휴원",   icon: "pause-circle",  activeColor: "#B45309", activeBg: "#FFF1BF" },
+  { key: "suspended",    label: "연기",   icon: "pause-circle",  activeColor: "#B45309", activeBg: "#FFF1BF" },
   { key: "withdrawn",    label: "퇴원",   icon: "log-out",       activeColor: "#6F6B68", activeBg: "#F6F3F1" },
 ];
 
@@ -645,7 +645,7 @@ export default function MembersScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={ms.suspendedBannerTitle}>연기회원 과금 안내</Text>
                 <Text style={ms.suspendedBannerBody}>
-                  휴원(연기) 회원은 정상회원과 동일하게 월 과금에 100% 포함됩니다.{"\n"}
+                  연기 회원은 정상회원과 동일하게 월 과금에 100% 포함됩니다.{"\n"}
                   감액·일할계산·예외처리 없이 동일 요금이 적용됩니다.
                 </Text>
               </View>

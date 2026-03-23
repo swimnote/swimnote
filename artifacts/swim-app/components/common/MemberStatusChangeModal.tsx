@@ -29,7 +29,7 @@ interface Props {
 const OPTIONS = [
   { key: "active" as ActionStatus,    label: "정상",  sub: "active 상태로 복귀 (반 배정 유지)",    color: "#1F8F86", bg: "#DDF2EF", emoji: "✅", hasTiming: false },
   { key: "unassigned" as ActionStatus, label: "미배정", sub: "반 배정 해제, 미배정 대기 상태",      color: "#D96C6C", bg: "#F9DEDA", emoji: "📋", hasTiming: false },
-  { key: "suspended" as ActionStatus,  label: "연기",  sub: "휴원 처리, 이동 시점 선택 가능",       color: "#B45309", bg: "#FFF1BF", emoji: "⏸️", hasTiming: true  },
+  { key: "suspended" as ActionStatus,  label: "연기",  sub: "연기 처리, 이동 시점 선택 가능",       color: "#B45309", bg: "#FFF1BF", emoji: "⏸️", hasTiming: true  },
   { key: "withdrawn" as ActionStatus,  label: "퇴원",  sub: "수강 종료, 이동 시점 선택 가능",       color: "#991B1B", bg: "#FEF2F2", emoji: "🚪", hasTiming: true  },
 ];
 
@@ -87,7 +87,7 @@ export function MemberStatusChangeModal({
   const now = new Date();
   const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const nextLabel = `${next.getFullYear()}년 ${next.getMonth() + 1}월`;
-  const pickedLabel = pickedStatus === "suspended" ? "연기(휴원)" : "퇴원";
+  const pickedLabel = pickedStatus === "suspended" ? "연기" : "퇴원";
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
@@ -112,7 +112,7 @@ export function MemberStatusChangeModal({
               )}
               {currentStatus === "suspended" && (
                 <View style={[m.badge, { backgroundColor: "#FFF1BF" }]}>
-                  <Text style={[m.badgeText, { color: "#B45309" }]}>현재: 휴원</Text>
+                  <Text style={[m.badgeText, { color: "#B45309" }]}>현재: 연기</Text>
                 </View>
               )}
               {currentStatus === "withdrawn" && (
@@ -122,7 +122,7 @@ export function MemberStatusChangeModal({
               )}
               {pendingStatusChange === "suspended" && pendingEffectiveMode === "next_month" && (
                 <View style={[m.badge, { backgroundColor: "#FFFBEB" }]}>
-                  <Text style={[m.badgeText, { color: "#B45309" }]}>휴원예정</Text>
+                  <Text style={[m.badgeText, { color: "#B45309" }]}>연기예정</Text>
                 </View>
               )}
               {pendingStatusChange === "withdrawn" && pendingEffectiveMode === "next_month" && (

@@ -85,7 +85,7 @@ export function getPrimaryStatus(s: StudentMember): PrimaryStatus {
 export const PRIMARY_STATUS_BADGE: Record<PrimaryStatus, { label: string; color: string; bg: string }> = {
   normal:     { label: "정상",  color: "#059669", bg: "#D1FAE5" },
   unassigned: { label: "미배정", color: "#DC2626", bg: "#FEE2E2" },
-  suspended:  { label: "휴원",  color: "#B45309", bg: "#FEF3C7" },
+  suspended:  { label: "연기",  color: "#B45309", bg: "#FEF3C7" },
   withdrawn:  { label: "퇴원",  color: "#6B7280", bg: "#F3F4F6" },
 };
 
@@ -104,7 +104,7 @@ export type PendingBadge = {
 export function getMemberPendingBadge(s: StudentMember): PendingBadge {
   if (!s.pending_status_change || s.pending_effective_mode !== "next_month") return null;
   if (s.pending_status_change === "suspended") {
-    return { label: "휴원예정", color: "#B45309", bg: "#FFFBEB" };
+    return { label: "연기예정", color: "#B45309", bg: "#FFFBEB" };
   }
   if (s.pending_status_change === "withdrawn") {
     return { label: "퇴원예정", color: "#DC2626", bg: "#FFF1F2" };

@@ -52,8 +52,8 @@ interface ActivityLog {
 // ── 상태 설정 ──────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   active:    { label: "재원",   color: "#1F8F86", bg: "#DDF2EF" },
-  inactive:  { label: "휴원",   color: "#D97706", bg: "#FFF1BF" },
-  suspended: { label: "휴원",   color: "#D97706", bg: "#FFF1BF" },
+  inactive:  { label: "연기",   color: "#D97706", bg: "#FFF1BF" },
+  suspended: { label: "연기",   color: "#D97706", bg: "#FFF1BF" },
   withdrawn: { label: "퇴원",   color: "#D96C6C", bg: "#F9DEDA" },
   deleted:   { label: "삭제됨", color: "#9A948F", bg: "#FBF8F6" },
 };

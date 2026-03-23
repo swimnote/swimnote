@@ -163,7 +163,7 @@ export default function PeopleHubScreen() {
                 rows={[
                   { label: "전체", value: summary.totalMembers },
                   { label: "재원", value: summary.activeMembers },
-                  { label: "휴원", value: summary.inactiveMembers },
+                  { label: "연기", value: summary.inactiveMembers },
                 ]}
                 badge={summary.unassignedMembers > 0 ? `미배정 ${summary.unassignedMembers}` : undefined}
                 badgeColor="#D96C6C"

@@ -458,7 +458,7 @@ function RemoveStatusModal({
   const options: { key: "pending" | "suspended" | "withdrawn"; label: string; sub: string; color: string; bg: string; emoji: string; needsTiming: boolean }[] = [
     { key: "pending",   label: "대기",  sub: "재등록 대기, 즉시 적용",           color: "#1F8F86", bg: "#DDF2EF", emoji: "⏳", needsTiming: false },
     { key: "suspended", label: "연기",  sub: "일시적 중단, 즉시 적용",           color: "#92400E", bg: "#FFFBEB", emoji: "⏸️", needsTiming: false },
-    { key: "suspended", label: "휴원",  sub: "휴원 처리, 이동 시점 선택 가능",   color: "#B45309", bg: "#FFF1BF", emoji: "🏖️", needsTiming: true  },
+    { key: "suspended", label: "연기",  sub: "연기 처리, 이동 시점 선택 가능",   color: "#B45309", bg: "#FFF1BF", emoji: "🏖️", needsTiming: true  },
     { key: "withdrawn", label: "퇴원",  sub: "수강 종료, 이동 시점 선택 가능",   color: "#991B1B", bg: "#FEF2F2", emoji: "🚪", needsTiming: true  },
   ];
   return (
@@ -517,7 +517,7 @@ function TimingPickerModal({
   onCancel: () => void;
 }) {
   const C = Colors.light;
-  const label = status === "suspended" ? "휴원" : "퇴원";
+  const label = status === "suspended" ? "연기" : "퇴원";
   const now = new Date();
   const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const nextLabel = `${next.getFullYear()}년 ${next.getMonth() + 1}월`;
