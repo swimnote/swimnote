@@ -124,14 +124,7 @@ export default function TeacherPendingDetailScreen() {
       });
       const json = await res.json();
       if (!res.ok) { setApproveError(json.message || "승인에 실패했습니다."); return; }
-      if (data.user_id) {
-        router.replace({
-          pathname: "/(admin)/teacher-hub",
-          params: { id: data.user_id, name: data.name },
-        } as any);
-      } else {
-        router.back();
-      }
+      router.back();
     } catch { setApproveError("네트워크 오류가 발생했습니다."); }
     finally { setApproving(false); }
   }

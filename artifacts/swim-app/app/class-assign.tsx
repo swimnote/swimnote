@@ -77,7 +77,7 @@ function toStudentMember(s: Student): StudentMember {
 export default function ClassAssignScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const { classId, returnTo } = useLocalSearchParams<{ classId: string; returnTo?: string }>();
+  const { classId } = useLocalSearchParams<{ classId: string }>();
 
   const [classInfo, setClassInfo] = useState<ClassGroup | null>(null);
   const [assigned, setAssigned] = useState<Student[]>([]);
@@ -238,11 +238,7 @@ export default function ClassAssignScreen() {
   const capacityOver = classInfo?.capacity != null && assigned.length >= classInfo.capacity;
 
   function goBack() {
-    if (returnTo === "admin-classes") {
-      router.navigate("/(admin)/classes?returnTo=weekly" as any);
-    } else {
-      router.navigate("/(teacher)/my-schedule?returnTo=weekly" as any);
-    }
+    router.back();
   }
 
   if (loading) {
