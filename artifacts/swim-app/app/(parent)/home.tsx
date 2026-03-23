@@ -390,19 +390,19 @@ const s = StyleSheet.create({
   childTabTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
   infoCard: {
-    marginHorizontal: 20, marginVertical: 10, borderRadius: 20, padding: 18,
+    marginHorizontal: 20, marginTop: 6, marginBottom: 8, borderRadius: 16, padding: 13,
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
-  infoLeft: { flexDirection: "row", alignItems: "center", gap: 14, flex: 1 },
+  infoLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
   infoAvatar: {
-    width: 52, height: 52, borderRadius: 16,
+    width: 42, height: 42, borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.25)",
     alignItems: "center", justifyContent: "center",
   },
-  infoAvatarTxt: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff" },
-  infoName: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
-  infoSub: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.85)" },
-  infoSchedule: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" },
+  infoAvatarTxt: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
+  infoName: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  infoSub: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.85)" },
+  infoSchedule: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" },
 
   noChildCard: {
     marginHorizontal: 20, marginVertical: 10, borderRadius: 16, padding: 18,
