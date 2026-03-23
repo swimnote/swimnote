@@ -6,7 +6,7 @@
  * - 관리자/선생님 라우트와 절대 연결되지 않음
  */
 import { Feather } from "@expo/vector-icons";
-import { canGoBack, router } from "expo-router";
+import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,11 +36,7 @@ export function ParentScreenHeader({
 
   const handleBack = () => {
     if (onBack) { onBack(); return; }
-    if (canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/(parent)/home" as any);
-    }
+    router.back();
   };
 
   const handleHome = () => {
