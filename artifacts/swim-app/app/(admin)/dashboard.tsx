@@ -4,7 +4,7 @@
  * 메신저 외 7개 아이콘은 3열 그리드 팝업을 거쳐 페이지 이동
  */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Dimensions, Modal, Platform, Pressable,
@@ -266,6 +266,25 @@ export default function DashboardScreen() {
   const [activePopup, setActivePopup] = useState<PopupKey | null>(null);
   const [switching, setSwitching] = useState(false);
 
+  // 팝업 → 하위 화면 진입 시 어느 팝업에서 왔는지 기억해 뒤로 복귀 때 복원
+  const lastPopupRef = useRef<PopupKey | null>(null);
+
+  useFocusEffect(useCallback(() => {
+    const popup = lastPopupRef.current;
+    if (popup) {
+      lastPopupRef.current = null;
+      setActivePopup(popup);
+    }
+  }, []));
+
+  // 팝업 아이템의 onPress를 래핑해 팝업 키를 기억한 뒤 화면 이동
+  const wrapPopupItems = useCallback((key: PopupKey, items: PopupItem[]): PopupItem[] =>
+    items.map(item => ({
+      ...item,
+      onPress: () => { lastPopupRef.current = key; item.onPress(); },
+    }))
+  , []);
+
   // 관리자 계정은 항상 선생님으로 전환 가능 (switch-role이 teacher 자동 추가)
   const canSwitchToTeacher = true;
 
@@ -498,7 +517,7 @@ export default function DashboardScreen() {
           key={key}
           visible={activePopup === key}
           title={key}
-          items={buildPopupItems(key, stats)}
+          items={wrapPopupItems(key, buildPopupItems(key, stats))}
           onClose={() => setActivePopup(null)}
         />
       ))}

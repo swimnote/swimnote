@@ -1261,42 +1261,30 @@ router.delete(
 // 구독 상품 테이블 보장
 // ════════════════════════════════════════════════════════════════
 async function ensurePlansTables() {
+  // subscription_plans 실제 스키마: tier(PK), name, price_per_month, member_limit, storage_gb
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS subscription_plans (
-      id                      TEXT PRIMARY KEY,
-      name                    TEXT NOT NULL,
-      tier_key                TEXT NOT NULL UNIQUE,
-      min_members             INTEGER NOT NULL DEFAULT 0,
-      max_members             INTEGER NOT NULL DEFAULT 9999,
-      base_storage_gb         INTEGER NOT NULL DEFAULT 5,
-      extra_storage_unit_price INTEGER NOT NULL DEFAULT 1000,
-      monthly_price           INTEGER NOT NULL DEFAULT 0,
-      annual_price            INTEGER NOT NULL DEFAULT 0,
-      upgrade_policy          TEXT NOT NULL DEFAULT '즉시 적용, 차액 즉시 결제',
-      downgrade_policy        TEXT NOT NULL DEFAULT '즉시 적용, 차액 크레딧 적립',
-      credit_policy           TEXT NOT NULL DEFAULT '다음 결제 시 자동 차감',
-      cancel_policy           TEXT NOT NULL DEFAULT '즉시 제한, 읽기전용 전환',
-      auto_delete_policy      TEXT NOT NULL DEFAULT '해지 후 24시간 미디어 자동 삭제',
-      is_active               BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      tier          TEXT PRIMARY KEY,
+      name          TEXT NOT NULL,
+      price_per_month INTEGER NOT NULL DEFAULT 0,
+      member_limit  INTEGER NOT NULL DEFAULT 9999,
+      storage_gb    NUMERIC NOT NULL DEFAULT 5
     )
   `).catch(() => {});
 
-  // 기본 플랜 시드
+  // 기본 플랜 시드 (신규 배포 환경용)
   for (const plan of [
-    { id: "plan_free",       tier: "free",       name: "무료 체험",  min: 0,   max: 30,   storage: 5,  extra: 0,     monthly: 0,      annual: 0 },
-    { id: "plan_starter",    tier: "starter",    name: "스타터",     min: 1,   max: 50,   storage: 10, extra: 500,   monthly: 29000,  annual: 290000 },
-    { id: "plan_standard",   tier: "standard",   name: "스탠다드",   min: 51,  max: 150,  storage: 30, extra: 400,   monthly: 59000,  annual: 590000 },
-    { id: "plan_pro",        tier: "pro",        name: "프로",       min: 151, max: 500,  storage: 100, extra: 300,  monthly: 99000,  annual: 990000 },
-    { id: "plan_enterprise", tier: "enterprise", name: "엔터프라이즈", min: 501, max: 9999, storage: 500, extra: 200, monthly: 199000, annual: 1990000 },
+    { tier: "free",            name: "무료 이용",        price: 0,      limit: 30,   storage: 5 },
+    { tier: "paid_100",        name: "100명 플랜",       price: 99000,  limit: 100,  storage: 15 },
+    { tier: "paid_200",        name: "200명 플랜",       price: 149000, limit: 200,  storage: 50 },
+    { tier: "paid_500",        name: "500명 플랜",       price: 299000, limit: 500,  storage: 100 },
+    { tier: "paid_1000",       name: "1,000명 플랜",     price: 499000, limit: 1000, storage: 250 },
+    { tier: "paid_enterprise", name: "엔터프라이즈",     price: 0,      limit: 9999, storage: 500 },
   ]) {
     await db.execute(sql`
-      INSERT INTO subscription_plans
-        (id, name, tier_key, min_members, max_members, base_storage_gb, extra_storage_unit_price, monthly_price, annual_price)
-      VALUES
-        (${plan.id}, ${plan.name}, ${plan.tier}, ${plan.min}, ${plan.max}, ${plan.storage}, ${plan.extra}, ${plan.monthly}, ${plan.annual})
-      ON CONFLICT (tier_key) DO NOTHING
+      INSERT INTO subscription_plans (tier, name, price_per_month, member_limit, storage_gb)
+      VALUES (${plan.tier}, ${plan.name}, ${plan.price}, ${plan.limit}, ${plan.storage})
+      ON CONFLICT (tier) DO NOTHING
     `).catch(() => {});
   }
 
@@ -1352,85 +1340,49 @@ router.post("/super/plans", requireAuth, requireRole("super_admin"), async (req:
   try {
     await ensurePlansTables();
     const {
-      name, tier_key, min_members = 0, max_members = 9999,
-      base_storage_gb = 5, extra_storage_unit_price = 1000,
-      monthly_price = 0, annual_price = 0,
-      upgrade_policy = "즉시 적용, 차액 즉시 결제",
-      downgrade_policy = "즉시 적용, 차액 크레딧 적립",
-      credit_policy = "다음 결제 시 자동 차감",
-      cancel_policy = "즉시 제한, 읽기전용 전환",
-      auto_delete_policy = "해지 후 24시간 미디어 자동 삭제",
+      tier, name, price_per_month = 0, member_limit = 9999, storage_gb = 5,
     } = req.body as any;
-    if (!name || !tier_key) { res.status(400).json({ error: "name과 tier_key가 필요합니다" }); return; }
-    const id = `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    if (!tier || !name) { res.status(400).json({ error: "tier와 name이 필요합니다" }); return; }
     await db.execute(sql`
-      INSERT INTO subscription_plans
-        (id, name, tier_key, min_members, max_members, base_storage_gb, extra_storage_unit_price,
-         monthly_price, annual_price, upgrade_policy, downgrade_policy, credit_policy, cancel_policy, auto_delete_policy)
-      VALUES
-        (${id}, ${name}, ${tier_key}, ${min_members}, ${max_members}, ${base_storage_gb}, ${extra_storage_unit_price},
-         ${monthly_price}, ${annual_price}, ${upgrade_policy}, ${downgrade_policy}, ${credit_policy}, ${cancel_policy}, ${auto_delete_policy})
+      INSERT INTO subscription_plans (tier, name, price_per_month, member_limit, storage_gb)
+      VALUES (${tier}, ${name}, ${price_per_month}, ${member_limit}, ${storage_gb})
     `);
     const actor = req.user?.name ?? "슈퍼관리자";
     const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     await db.execute(sql`
       INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-      VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, ${id}, ${`구독 상품 생성: ${name}`}, '{}'::jsonb)
+      VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, ${tier}, ${`구독 상품 생성: ${name}`}, '{}'::jsonb)
     `).catch(() => {});
-    res.json({ ok: true, id });
+    res.json({ ok: true, tier });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 router.put("/super/plans/:id", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   try {
     await ensurePlansTables();
-    const { id } = req.params;
-    const {
-      name, min_members, max_members, base_storage_gb, extra_storage_unit_price,
-      monthly_price, annual_price, upgrade_policy, downgrade_policy,
-      credit_policy, cancel_policy, auto_delete_policy,
-    } = req.body as any;
+    const tier = req.params.id; // :id param = tier 값
+    const { name, price_per_month, member_limit, storage_gb } = req.body as any;
     await db.execute(sql`
       UPDATE subscription_plans SET
-        name = COALESCE(${name ?? null}, name),
-        min_members = COALESCE(${min_members ?? null}, min_members),
-        max_members = COALESCE(${max_members ?? null}, max_members),
-        base_storage_gb = COALESCE(${base_storage_gb ?? null}, base_storage_gb),
-        extra_storage_unit_price = COALESCE(${extra_storage_unit_price ?? null}, extra_storage_unit_price),
-        monthly_price = COALESCE(${monthly_price ?? null}, monthly_price),
-        annual_price = COALESCE(${annual_price ?? null}, annual_price),
-        upgrade_policy = COALESCE(${upgrade_policy ?? null}, upgrade_policy),
-        downgrade_policy = COALESCE(${downgrade_policy ?? null}, downgrade_policy),
-        credit_policy = COALESCE(${credit_policy ?? null}, credit_policy),
-        cancel_policy = COALESCE(${cancel_policy ?? null}, cancel_policy),
-        auto_delete_policy = COALESCE(${auto_delete_policy ?? null}, auto_delete_policy),
-        updated_at = NOW()
-      WHERE id = ${id}
+        name          = COALESCE(${name ?? null}, name),
+        price_per_month = COALESCE(${price_per_month ?? null}, price_per_month),
+        member_limit  = COALESCE(${member_limit ?? null}, member_limit),
+        storage_gb    = COALESCE(${storage_gb ?? null}, storage_gb)
+      WHERE tier = ${tier}
     `);
     const actor = req.user?.name ?? "슈퍼관리자";
     const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     await db.execute(sql`
       INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-      VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, ${id}, ${`구독 상품 수정: ${name ?? id}`}, '{}'::jsonb)
+      VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, ${tier}, ${`구독 상품 수정: ${name ?? tier}`}, '{}'::jsonb)
     `).catch(() => {});
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-router.patch("/super/plans/:id/toggle", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
-  try {
-    await ensurePlansTables();
-    const { id } = req.params;
-    const { is_active } = req.body as any;
-    await db.execute(sql`UPDATE subscription_plans SET is_active = ${!!is_active}, updated_at = NOW() WHERE id = ${id}`);
-    const actor = req.user?.name ?? "슈퍼관리자";
-    const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await db.execute(sql`
-      INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-      VALUES (${logId}, NULL, '구독', ${req.user!.userId}, ${actor}, ${id}, ${`구독 상품 ${is_active ? "활성화" : "비활성화"}: ${id}`}, '{}'::jsonb)
-    `).catch(() => {});
-    res.json({ ok: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+router.patch("/super/plans/:id/toggle", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  // subscription_plans에 is_active 컬럼 없음 — 삭제/비활성화 기능 미지원
+  res.json({ ok: true });
 });
 
 // ════════════════════════════════════════════════════════════════
