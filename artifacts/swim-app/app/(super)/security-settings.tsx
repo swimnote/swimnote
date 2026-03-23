@@ -162,7 +162,7 @@ export default function SecuritySettingsScreen() {
   , [accounts]);
 
   // ── OTP 인증 게이트 ──
-  type OtpAction = "pw" | "id" | null;
+  type OtpAction = "pw" | "id" | "sm_add" | "sm_delete" | null;
   const [otpAction, setOtpAction] = useState<OtpAction>(null);
 
   // ── B. 비밀번호 ──
@@ -819,8 +819,11 @@ export default function SecuritySettingsScreen() {
                   <Pressable style={m.cancelBtn} onPress={() => { setSmAddModal(false); setSmError(""); setSmName(""); setSmEmail(""); setSmPw(""); }}>
                     <Text style={m.cancelTxt}>취소</Text>
                   </Pressable>
-                  <Pressable style={[m.confirmBtn, { backgroundColor: "#0284C7" }]} onPress={handleAddSuperManager}>
-                    <Text style={m.confirmTxt}>추가</Text>
+                  <Pressable style={[m.confirmBtn, { backgroundColor: "#0284C7" }]} onPress={() => setOtpAction("sm_add")}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                      <Feather name="lock" size={12} color="#fff" />
+                      <Text style={m.confirmTxt}>OTP 인증 후 추가</Text>
+                    </View>
                   </Pressable>
                 </View>
               </>
@@ -845,8 +848,11 @@ export default function SecuritySettingsScreen() {
               <Pressable style={m.cancelBtn} onPress={() => setSmDeleteId(null)}>
                 <Text style={m.cancelTxt}>취소</Text>
               </Pressable>
-              <Pressable style={[m.confirmBtn, { backgroundColor: DANGER }]} onPress={handleDeleteSuperManager}>
-                <Text style={m.confirmTxt}>삭제</Text>
+              <Pressable style={[m.confirmBtn, { backgroundColor: DANGER }]} onPress={() => setOtpAction("sm_delete")}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Feather name="lock" size={12} color="#fff" />
+                  <Text style={m.confirmTxt}>OTP 인증 후 삭제</Text>
+                </View>
               </Pressable>
             </View>
           </Pressable>
@@ -856,9 +862,25 @@ export default function SecuritySettingsScreen() {
       {/* ── OTP 인증 게이트 ── */}
       <OtpGateModal
         visible={otpAction !== null}
-        title={otpAction === "pw" ? "비밀번호 변경 OTP 인증" : "관리자 ID 변경 OTP 인증"}
-        desc="슈퍼관리자 개인정보 변경은 OTP 인증이 필요합니다."
-        onSuccess={() => { setOtpAction(null); otpAction === "pw" ? executePwChange() : executeIdChange(); }}
+        title={
+          otpAction === "pw"        ? "비밀번호 변경 OTP 인증"
+          : otpAction === "id"      ? "관리자 ID 변경 OTP 인증"
+          : otpAction === "sm_add"  ? "슈퍼매니저 추가 OTP 인증"
+          :                           "슈퍼매니저 삭제 OTP 인증"
+        }
+        desc={
+          otpAction === "sm_add" || otpAction === "sm_delete"
+            ? "슈퍼매니저 계정 변경은 OTP 인증이 필요합니다."
+            : "슈퍼관리자 개인정보 변경은 OTP 인증이 필요합니다."
+        }
+        onSuccess={() => {
+          const act = otpAction;
+          setOtpAction(null);
+          if (act === "pw")         executePwChange();
+          else if (act === "id")    executeIdChange();
+          else if (act === "sm_add")    handleAddSuperManager();
+          else if (act === "sm_delete") handleDeleteSuperManager();
+        }}
         onCancel={() => setOtpAction(null)}
       />
 
