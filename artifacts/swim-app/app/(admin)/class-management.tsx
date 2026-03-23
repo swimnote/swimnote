@@ -60,6 +60,7 @@ export default function ClassManagementScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [sortMode, setSortMode] = useState<"name" | "students" | "att">("students");
+  const [sortAsc,  setSortAsc]  = useState(false);
 
   const thisMonth = new Date().toISOString().slice(0, 7);
   const monthLabel = (() => {
@@ -80,9 +81,11 @@ export default function ClassManagementScreen() {
   }
 
   const sortedClasses = data ? [...data.classes].sort((a, b) => {
-    if (sortMode === "name") return a.name.localeCompare(b.name);
-    if (sortMode === "students") return b.student_count - a.student_count;
-    return b.month_att_count - a.month_att_count;
+    let cmp = 0;
+    if (sortMode === "name")     cmp = a.name.localeCompare(b.name);
+    else if (sortMode === "students") cmp = b.student_count - a.student_count;
+    else                         cmp = b.month_att_count - a.month_att_count;
+    return sortAsc ? -cmp : cmp;
   }) : [];
 
   if (loading) {
@@ -167,18 +170,35 @@ export default function ClassManagementScreen() {
               { key: "students" as const, label: "회원 수순" },
               { key: "att"      as const, label: "출석 수순" },
               { key: "name"     as const, label: "이름순" },
-            ].map(opt => (
+            ].map(opt => {
+              const active = sortMode === opt.key;
+              return (
               <Pressable
                 key={opt.key}
                 style={[s.chip, {
-                  backgroundColor: sortMode === opt.key ? C.tintLight : C.card,
-                  borderColor: sortMode === opt.key ? C.tint : C.border,
+                  backgroundColor: active ? C.tintLight : C.card,
+                  borderColor: active ? C.tint : C.border,
                 }]}
-                onPress={() => setSortMode(opt.key)}
+                onPress={() => {
+                  if (active) {
+                    setSortAsc(v => !v);
+                  } else {
+                    setSortMode(opt.key);
+                    setSortAsc(false);
+                  }
+                }}
               >
-                <Text style={[s.chipText, { color: sortMode === opt.key ? C.tint : C.textSecondary }]}>{opt.label}</Text>
+                <Text style={[s.chipText, { color: active ? C.tint : C.textSecondary }]}>{opt.label}</Text>
+                {active && (
+                  <Feather
+                    name={sortAsc ? "chevron-up" : "chevron-down"}
+                    size={13}
+                    color={C.tint}
+                  />
+                )}
               </Pressable>
-            ))}
+              );
+            })}
           </ScrollView>
 
           {sortedClasses.length === 0 ? (
@@ -239,7 +259,7 @@ const s = StyleSheet.create({
   statNum: { fontSize: 22, fontFamily: "Inter_700Bold" },
   statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center" },
   statSub: { fontSize: 10, fontFamily: "Inter_400Regular" },
-  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5, flexDirection: "row", alignItems: "center", gap: 4 },
   chipText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   classCard: { marginHorizontal: 16, marginBottom: 10, borderRadius: 14, padding: 14, gap: 10 },
   className: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
