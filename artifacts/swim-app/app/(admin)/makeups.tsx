@@ -1,19 +1,21 @@
 /**
  * 보강 시스템 메인 화면
  * 탭: 결석자 리스트 / 담당선생님 보강 / 다른선생님 보강 / 완료 기록
- * 실 DB: /admin/makeups, /admin/makeups/eligible-classes, /admin/makeups/:id/assign, /transfer, /complete, /cancel
+ * 실 DB: /admin/makeups, /admin/makeups/eligible-classes,
+ *         /admin/makeups/:id/assign, /transfer, /complete, /cancel, /revert
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Platform, Pressable,
+  ActivityIndicator, FlatList, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { ModalSheet } from "@/components/common/ModalSheet";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { useBrand } from "@/context/BrandContext";
 
 const C = Colors.light;
@@ -29,6 +31,14 @@ const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = 
   cancelled:   { label: "취소",   color: "#6F6B68", bg: "#F6F3F1" },
 };
 
+type ConfirmAction = {
+  title: string;
+  message: string;
+  confirmText: string;
+  confirmColor?: string;
+  onConfirm: () => Promise<void>;
+} | null;
+
 export default function MakeupsScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
@@ -36,6 +46,7 @@ export default function MakeupsScreen() {
   const [tab, setTab]           = useState<MkTab>("결석자 리스트");
   const [makeups, setMakeups]   = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
 
   const [assignModal, setAssignModal]       = useState<{ mk: any } | null>(null);
   const [transferModal, setTransferModal]   = useState<{ mk: any } | null>(null);
@@ -92,30 +103,42 @@ export default function MakeupsScreen() {
     load();
   };
 
-  const handleComplete = (mk: any) => {
-    Alert.alert("보강 완료 처리", `${mk.student_name}의 보강을 완료로 처리합니까?`, [
-      { text: "취소", style: "cancel" },
-      {
-        text: "완료 처리",
-        onPress: async () => {
-          await apiRequest(token, `/admin/makeups/${mk.id}/complete`, { method: "PATCH" });
-          load();
-        },
+  const requestComplete = (mk: any) => {
+    setConfirmAction({
+      title: "보강 완료 처리",
+      message: `${mk.student_name}의 보강을 완료로 처리합니까?\n완료 처리 후에는 되돌릴 수 없습니다.`,
+      confirmText: "완료 처리",
+      onConfirm: async () => {
+        const r = await apiRequest(token, `/admin/makeups/${mk.id}/complete`, { method: "PATCH" });
+        if (r.ok) load();
       },
-    ]);
+    });
   };
 
-  const handleCancel = (mk: any) => {
-    Alert.alert("보강 취소", "이 보강 항목을 취소하시겠습니까?", [
-      { text: "돌아가기", style: "cancel" },
-      {
-        text: "취소 처리", style: "destructive",
-        onPress: async () => {
-          await apiRequest(token, `/admin/makeups/${mk.id}/cancel`, { method: "PATCH" });
-          load();
-        },
+  const requestRevert = (mk: any) => {
+    setConfirmAction({
+      title: "보강대기자로 되돌리기",
+      message: `${mk.student_name}을(를) 보강 대기 목록으로 되돌립니까?\n배정/이동 정보가 모두 초기화됩니다.`,
+      confirmText: "되돌리기",
+      confirmColor: "#D97706",
+      onConfirm: async () => {
+        const r = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
+        if (r.ok) load();
       },
-    ]);
+    });
+  };
+
+  const requestCancel = (mk: any) => {
+    setConfirmAction({
+      title: "보강 취소",
+      message: "이 보강 항목을 취소하시겠습니까?\n취소된 항목은 복구할 수 없습니다.",
+      confirmText: "취소 처리",
+      confirmColor: "#D96C6C",
+      onConfirm: async () => {
+        const r = await apiRequest(token, `/admin/makeups/${mk.id}/cancel`, { method: "PATCH" });
+        if (r.ok) load();
+      },
+    });
   };
 
   return (
@@ -152,8 +175,9 @@ export default function MakeupsScreen() {
               item={item} tab={tab} themeColor={themeColor}
               onAssign={() => openAssignModal(item)}
               onTransfer={() => openTransferModal(item)}
-              onComplete={() => handleComplete(item)}
-              onCancel={() => handleCancel(item)}
+              onComplete={() => requestComplete(item)}
+              onRevert={() => requestRevert(item)}
+              onCancel={() => requestCancel(item)}
               onMemberPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.student_id } })}
             />
           )}
@@ -198,13 +222,28 @@ export default function MakeupsScreen() {
           </Pressable>
         ))}
       </ModalSheet>
+
+      {/* 확인 모달 (완료/되돌리기/취소 공용) */}
+      <ConfirmModal
+        visible={!!confirmAction}
+        title={confirmAction?.title ?? ""}
+        message={confirmAction?.message ?? ""}
+        confirmText={confirmAction?.confirmText ?? "확인"}
+        onConfirm={async () => {
+          if (confirmAction) await confirmAction.onConfirm();
+          setConfirmAction(null);
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
     </View>
   );
 }
 
-function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, onCancel, onMemberPress }: {
+function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, onRevert, onCancel, onMemberPress }: {
   item: any; tab: MkTab; themeColor: string;
-  onAssign: () => void; onTransfer: () => void; onComplete: () => void; onCancel: () => void; onMemberPress: () => void;
+  onAssign: () => void; onTransfer: () => void;
+  onComplete: () => void; onRevert: () => void; onCancel: () => void;
+  onMemberPress: () => void;
 }) {
   const st = MK_STATUS[item.status] || { label: item.status, color: "#6F6B68", bg: "#F6F3F1" };
   return (
@@ -217,7 +256,9 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
           <Text style={s.sub}>결석일: {item.absence_date}</Text>
           <Text style={s.sub}>원반: {item.original_class_group_name || "미배정"}  담당: {item.original_teacher_name || "미배정"}</Text>
           {item.assigned_class_group_name && <Text style={s.sub}>배정반: {item.assigned_class_group_name}</Text>}
-          {item.transferred_to_teacher_name && <Text style={[s.sub, { color: "#7C3AED" }]}>이동선생님: {item.transferred_to_teacher_name}</Text>}
+          {item.transferred_to_teacher_name && (
+            <Text style={[s.sub, { color: "#7C3AED" }]}>이동선생님: {item.transferred_to_teacher_name}</Text>
+          )}
           {item.is_substitute && item.substitute_teacher_name && (
             <Text style={[s.sub, { color: "#1F8F86", fontWeight: "600" }]}>대리보강: {item.substitute_teacher_name}</Text>
           )}
@@ -228,34 +269,61 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
         </View>
       </View>
 
-      {/* 액션 버튼 */}
-      {(tab === "결석자 리스트" || tab === "담당 보강") && (
+      {/* 결석자 리스트 액션 */}
+      {tab === "결석자 리스트" && (
         <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-          {tab === "결석자 리스트" && (
-            <>
-              <Pressable style={[s.actBtn, { backgroundColor: themeColor }]} onPress={onAssign}>
-                <Text style={s.actBtnTxt}>보강반 배정</Text>
-              </Pressable>
-              <Pressable style={[s.actBtn, { backgroundColor: "#EEDDF5" }]} onPress={onTransfer}>
-                <Text style={[s.actBtnTxt, { color: "#7C3AED" }]}>다른선생님</Text>
-              </Pressable>
-            </>
-          )}
-          {tab === "담당 보강" && (
-            <Pressable style={[s.actBtn, { backgroundColor: "#DDF2EF", flex: 1 }]} onPress={onComplete}>
-              <Text style={[s.actBtnTxt, { color: "#1F8F86" }]}>보강 완료 처리</Text>
-            </Pressable>
-          )}
+          <Pressable style={[s.actBtn, { backgroundColor: themeColor }]} onPress={onAssign}>
+            <Text style={s.actBtnTxt}>보강반 배정</Text>
+          </Pressable>
+          <Pressable style={[s.actBtn, { backgroundColor: "#EEDDF5" }]} onPress={onTransfer}>
+            <Text style={[s.actBtnTxt, { color: "#7C3AED" }]}>다른선생님</Text>
+          </Pressable>
           <Pressable style={[s.actBtn, { backgroundColor: "#F6F3F1" }]} onPress={onCancel}>
             <Text style={[s.actBtnTxt, { color: "#6F6B68" }]}>취소</Text>
           </Pressable>
         </View>
       )}
+
+      {/* 담당 보강 액션 */}
+      {tab === "담당 보강" && (
+        <View style={{ gap: 8, marginTop: 10 }}>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable style={[s.actBtn, { backgroundColor: "#DDF2EF", flex: 1 }]} onPress={onComplete}>
+              <Feather name="check-circle" size={14} color="#1F8F86" />
+              <Text style={[s.actBtnTxt, { color: "#1F8F86" }]}>보강 완료 처리</Text>
+            </Pressable>
+            <Pressable style={[s.actBtn, { backgroundColor: "#F6F3F1" }]} onPress={onCancel}>
+              <Text style={[s.actBtnTxt, { color: "#6F6B68" }]}>취소</Text>
+            </Pressable>
+          </View>
+          <Pressable style={[s.revertBtn]} onPress={onRevert}>
+            <Feather name="rotate-ccw" size={13} color="#D97706" />
+            <Text style={s.revertTxt}>보강대기자로 되돌리기</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* 다른선생님 탭 액션 */}
       {tab === "다른선생님" && (
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-          <Pressable style={[s.actBtn, { backgroundColor: "#DDF2EF", flex: 1 }]} onPress={onComplete}>
+        <View style={{ gap: 8, marginTop: 10 }}>
+          <Pressable style={[s.actBtn, { backgroundColor: "#DDF2EF", flexDirection: "row", gap: 6 }]} onPress={onComplete}>
+            <Feather name="check-circle" size={14} color="#1F8F86" />
             <Text style={[s.actBtnTxt, { color: "#1F8F86" }]}>대리보강 완료</Text>
           </Pressable>
+          <Pressable style={s.revertBtn} onPress={onRevert}>
+            <Feather name="rotate-ccw" size={13} color="#D97706" />
+            <Text style={s.revertTxt}>보강대기자로 되돌리기</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* 완료 기록 탭 — 읽기 전용 */}
+      {tab === "완료 기록" && item.substitute_teacher_name && (
+        <View style={[s.completedBanner]}>
+          <Feather name="user-check" size={12} color="#1F8F86" />
+          <Text style={s.completedTxt}>
+            대리 진행: {item.substitute_teacher_name} 선생님
+          </Text>
         </View>
       )}
     </View>
@@ -263,28 +331,26 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
 }
 
 const s = StyleSheet.create({
-  root:       { flex: 1, backgroundColor: C.background },
-  header:     { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12 },
-  back:       { width: 32 },
-  title:      { flex: 1, fontSize: 20, fontWeight: "700", color: C.text },
-  chipRow:    { flexGrow: 0, paddingVertical: 8 },
-  chip:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
-  chipTxt:    { fontSize: 13, fontWeight: "600", color: C.textSecondary },
-  card:       { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  row:        { flexDirection: "row", alignItems: "flex-start" },
-  name:       { fontSize: 15, fontWeight: "700", color: C.text },
-  sub:        { fontSize: 12, color: C.textSecondary, marginTop: 2 },
-  badge:      { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  badgeTxt:   { fontSize: 11, fontWeight: "600" },
-  actBtn:     { flex: 1, borderRadius: 8, paddingVertical: 9, alignItems: "center" },
-  actBtnTxt:  { fontSize: 13, fontWeight: "700", color: "#fff" },
-  empty:      { paddingVertical: 50, alignItems: "center", gap: 10 },
-  emptyTxt:   { color: C.textSecondary, fontSize: 14 },
-  modal:      { flex: 1, backgroundColor: C.background },
-  modalHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14 },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: C.text },
-  modalSub:   { paddingHorizontal: 16, fontSize: 12, color: C.textSecondary, marginBottom: 4 },
-  classCard:  { backgroundColor: "#fff", borderRadius: 10, padding: 14, borderWidth: 1.5 },
-  className:  { fontSize: 15, fontWeight: "700", color: C.text },
-  classSub:   { fontSize: 12, color: C.textSecondary, marginTop: 3 },
+  root:          { flex: 1, backgroundColor: C.background },
+  chipRow:       { flexGrow: 0, paddingVertical: 8 },
+  chip:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
+  chipTxt:       { fontSize: 13, fontWeight: "600", color: C.textSecondary },
+  card:          { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  row:           { flexDirection: "row", alignItems: "flex-start" },
+  name:          { fontSize: 15, fontWeight: "700", color: C.text },
+  sub:           { fontSize: 12, color: C.textSecondary, marginTop: 2 },
+  badge:         { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  badgeTxt:      { fontSize: 11, fontWeight: "600" },
+  actBtn:        { flex: 1, flexDirection: "row", borderRadius: 8, paddingVertical: 9, alignItems: "center", justifyContent: "center", gap: 4 },
+  actBtnTxt:     { fontSize: 13, fontWeight: "700", color: "#fff" },
+  revertBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: "#D97706", backgroundColor: "#FFF8EE" },
+  revertTxt:     { fontSize: 13, fontWeight: "600", color: "#D97706" },
+  completedBanner:{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: "#DDF2EF", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 },
+  completedTxt:  { fontSize: 12, fontWeight: "600", color: "#1F8F86" },
+  empty:         { paddingVertical: 50, alignItems: "center", gap: 10 },
+  emptyTxt:      { color: C.textSecondary, fontSize: 14 },
+  modalSub:      { paddingHorizontal: 16, fontSize: 12, color: C.textSecondary, marginBottom: 4 },
+  classCard:     { backgroundColor: "#fff", borderRadius: 10, padding: 14, borderWidth: 1.5 },
+  className:     { fontSize: 15, fontWeight: "700", color: C.text },
+  classSub:      { fontSize: 12, color: C.textSecondary, marginTop: 3 },
 });

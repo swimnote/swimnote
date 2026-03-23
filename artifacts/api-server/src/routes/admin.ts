@@ -1345,9 +1345,13 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
           updated_at = now()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
       `);
-      await writeActivityLog(poolId, null, null, "makeup_assigned", "makeup", req.params.id,
-        "waiting", "assigned", actor.userId, actor.name || "관리자", actor.role,
-        `보강반 배정: ${cg.name}`);
+      await writeActivityLog({
+        poolId, studentId: null, targetName: req.params.id,
+        actionType: "makeup_assigned", targetType: "makeup",
+        beforeValue: "waiting", afterValue: "assigned",
+        actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
+        note: `보강반 배정: ${cg.name}`,
+      });
       // 보강 배정 공지 채널 시스템 메시지
       const mkRow = await db.execute(sql`SELECT student_name, assigned_date FROM makeup_sessions WHERE id = ${req.params.id}`);
       const mk = mkRow.rows[0] as any;
@@ -1385,9 +1389,13 @@ router.patch("/makeups/:id/transfer", requireAuth, requireRole("super_admin","po
           updated_at = now()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
       `);
-      await writeActivityLog(poolId, null, null, "makeup_transferred", "makeup", req.params.id,
-        null, target_teacher_name, actor.userId, actor.name || "관리자", actor.role,
-        `보강 이동: ${target_teacher_name} 선생님`);
+      await writeActivityLog({
+        poolId, studentId: null, targetName: req.params.id,
+        actionType: "makeup_transferred", targetType: "makeup",
+        beforeValue: null, afterValue: target_teacher_name,
+        actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
+        note: `보강 이동: ${target_teacher_name} 선생님`,
+      });
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -1419,8 +1427,56 @@ router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin","po
       const completedNote = isSubstitute
         ? `대리보강 완료: ${substitute_teacher_name} 선생님 (원담당: ${mk.original_teacher_name})`
         : `보강 완료`;
-      await writeActivityLog(poolId, mk.student_id, mk.student_name, "makeup_completed", "makeup", req.params.id,
-        "assigned", "completed", actor.userId, actor.name || "관리자", actor.role, completedNote);
+      await writeActivityLog({
+        poolId, studentId: mk.student_id, targetName: mk.student_name || req.params.id,
+        actionType: "makeup_completed", targetType: "makeup",
+        beforeValue: "assigned", afterValue: "completed",
+        actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
+        note: completedNote,
+      });
+      res.json({ success: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// PATCH /admin/makeups/:id/revert — 보강 대기로 되돌리기 (잘못 배정 시 원복)
+router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin","pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const actor = req.user as any;
+      const rows = (await db.execute(sql`
+        SELECT * FROM makeup_sessions WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (!rows.length) { res.status(404).json({ error: "보강 없음" }); return; }
+      const mk = rows[0];
+      if (!["assigned","transferred"].includes(mk.status)) {
+        res.status(400).json({ error: "대기 상태로 되돌릴 수 없는 상태입니다." }); return;
+      }
+      await db.execute(sql`
+        UPDATE makeup_sessions SET
+          status                     = 'waiting',
+          assigned_class_group_id    = NULL,
+          assigned_class_group_name  = NULL,
+          assigned_teacher_id        = NULL,
+          assigned_teacher_name      = NULL,
+          assigned_date              = NULL,
+          transferred_to_teacher_id  = NULL,
+          transferred_to_teacher_name= NULL,
+          is_substitute              = FALSE,
+          substitute_teacher_id      = NULL,
+          substitute_teacher_name    = NULL,
+          updated_at                 = now()
+        WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
+      `);
+      await writeActivityLog({
+        poolId, studentId: mk.student_id, targetName: mk.student_name || req.params.id,
+        actionType: "makeup_reverted", targetType: "makeup",
+        beforeValue: mk.status, afterValue: "waiting",
+        actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
+        note: `보강 대기 복귀 (이전: ${mk.status})`,
+      });
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -1437,8 +1493,13 @@ router.patch("/makeups/:id/cancel", requireAuth, requireRole("super_admin","pool
         UPDATE makeup_sessions SET status = 'cancelled', updated_at = now()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
       `);
-      await writeActivityLog(poolId, null, null, "makeup_cancelled", "makeup", req.params.id,
-        null, "cancelled", actor.userId, actor.name || "관리자", actor.role, "보강 취소");
+      await writeActivityLog({
+        poolId, studentId: null, targetName: req.params.id,
+        actionType: "makeup_cancelled", targetType: "makeup",
+        beforeValue: null, afterValue: "cancelled",
+        actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
+        note: "보강 취소",
+      });
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -1469,9 +1530,13 @@ router.post("/makeups/:id/extinguish", requireAuth, requireRole("super_admin","p
         WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
       `);
       const mk = rows[0];
-      await writeActivityLog(poolId, mk.student_id, mk.student_name, "makeup_extinguished", "makeup", req.params.id,
-        "waiting", "extinguished", actor.userId, actor.name || "관리자", actor.role,
-        `결석소멸: ${reason}${custom ? " - " + custom : ""}`);
+      await writeActivityLog({
+        poolId, studentId: mk.student_id, targetName: mk.student_name || req.params.id,
+        actionType: "makeup_extinguished", targetType: "makeup",
+        beforeValue: "waiting", afterValue: "extinguished",
+        actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
+        note: `결석소멸: ${reason}${custom ? " - " + custom : ""}`,
+      });
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }

@@ -32,7 +32,7 @@ interface MakeupRequest {
   makeup_class_name: string | null;
 }
 
-type TabKey = "pending" | "history";
+type TabKey = "pending" | "history" | "assigned";
 
 const STATUS_LABEL: Record<string, string> = {
   pending:   "대기",
@@ -63,11 +63,14 @@ export default function MakeupsScreen() {
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
-  const [tab,        setTab]        = useState<TabKey>("pending");
-  const [list,       setList]       = useState<MakeupRequest[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
+  const [tab,             setTab]             = useState<TabKey>("pending");
+  const [list,            setList]            = useState<MakeupRequest[]>([]);
+  const [loading,         setLoading]         = useState(true);
+  const [refreshing,      setRefreshing]      = useState(false);
+  const [confirmMsg,      setConfirmMsg]      = useState<string | null>(null);
+  const [assignedList,    setAssignedList]    = useState<any[]>([]);
+  const [assignedLoading, setAssignedLoading] = useState(false);
+  const [completeTarget,  setCompleteTarget]  = useState<any | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -77,7 +80,30 @@ export default function MakeupsScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
+  const loadAssigned = useCallback(async () => {
+    setAssignedLoading(true);
+    try {
+      const res = await apiRequest(token, "/teacher/makeups/assigned");
+      if (res.ok) setAssignedList(await res.json());
+    } catch (e) { console.error(e); }
+    finally { setAssignedLoading(false); }
+  }, [token]);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (tab === "assigned") loadAssigned(); }, [tab, loadAssigned]);
+
+  async function handleTeacherComplete(id: string) {
+    try {
+      const res = await apiRequest(token, `/teacher/makeups/${id}/complete`, { method: "PATCH" });
+      if (res.ok) {
+        setAssignedList(prev => prev.filter(m => m.id !== id));
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setConfirmMsg(d.error || "처리에 실패했습니다.");
+      }
+    } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
+    setCompleteTarget(null);
+  }
 
   const pendingList  = list.filter(r => r.status === "pending");
   const historyList  = list.filter(r => r.status !== "pending");
@@ -197,7 +223,9 @@ export default function MakeupsScreen() {
       <SubScreenHeader title="보강 관리" homePath="/(teacher)/today-schedule" />
 
       {/* 탭 */}
-      <View style={s.tabRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0 }}
+        contentContainerStyle={{ paddingHorizontal: 14, paddingVertical: 10, gap: 8, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>
         <Pressable
           style={[s.tabBtn, tab === "pending" && { backgroundColor: themeColor, borderColor: themeColor }]}
           onPress={() => setTab("pending")}
@@ -208,14 +236,83 @@ export default function MakeupsScreen() {
           <Text style={[s.tabTxt, tab === "pending" && { color: "#fff" }]}>보강 대기</Text>
         </Pressable>
         <Pressable
+          style={[s.tabBtn, tab === "assigned" && { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }]}
+          onPress={() => setTab("assigned")}
+        >
+          {assignedList.length > 0 && tab !== "assigned" && (
+            <View style={s.tabBadge}><Text style={s.tabBadgeTxt}>{assignedList.length}</Text></View>
+          )}
+          <Text style={[s.tabTxt, tab === "assigned" && { color: "#fff" }]}>배정된 보강</Text>
+        </Pressable>
+        <Pressable
           style={[s.tabBtn, tab === "history" && { backgroundColor: themeColor, borderColor: themeColor }]}
           onPress={() => setTab("history")}
         >
           <Text style={[s.tabTxt, tab === "history" && { color: "#fff" }]}>보강 현황</Text>
         </Pressable>
-      </View>
+      </ScrollView>
 
-      {loading ? (
+      {/* 배정된 보강 탭 */}
+      {tab === "assigned" ? (
+        assignedLoading ? (
+          <ActivityIndicator color="#7C3AED" style={{ marginTop: 80 }} />
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 60 }]}
+            refreshControl={<RefreshControl refreshing={assignedLoading} onRefresh={loadAssigned} tintColor="#7C3AED" />}
+          >
+            {assignedList.length === 0 ? (
+              <View style={s.empty}>
+                <Feather name="user-check" size={36} color={C.textMuted} />
+                <Text style={s.emptyTxt}>배정된 대리 보강이 없습니다</Text>
+              </View>
+            ) : (
+              <>
+                <View style={s.assignedInfo}>
+                  <Feather name="info" size={13} color="#7C3AED" />
+                  <Text style={s.assignedInfoTxt}>다른 선생님 수업의 학생이 나에게 보강 배정된 목록입니다. 수업 진행 후 완료 버튼을 눌러주세요.</Text>
+                </View>
+                {assignedList.map(mk => (
+                  <View key={mk.id} style={[s.card, { backgroundColor: C.card, borderLeftWidth: 3, borderLeftColor: "#7C3AED" }]}>
+                    <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                      <View style={{ flex: 1, gap: 3 }}>
+                        <Text style={[s.studentName, { color: "#7C3AED" }]}>{mk.student_name}</Text>
+                        <View style={s.infoRow}>
+                          <Feather name="calendar" size={12} color={C.textSecondary} />
+                          <Text style={s.infoTxt}>결석일: {mk.absence_date}</Text>
+                        </View>
+                        {mk.original_class_group_name && (
+                          <View style={s.infoRow}>
+                            <Feather name="users" size={12} color={C.textSecondary} />
+                            <Text style={s.infoTxt}>원반: {mk.original_class_group_name}  담당: {mk.original_teacher_name || "미배정"}</Text>
+                          </View>
+                        )}
+                        {mk.assigned_class_group_name && (
+                          <View style={s.infoRow}>
+                            <Feather name="check-circle" size={12} color="#1F8F86" />
+                            <Text style={[s.infoTxt, { color: "#1F8F86" }]}>배정반: {mk.assigned_class_group_name}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={{ backgroundColor: "#EEDDF5", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#7C3AED" }}>대리보강</Text>
+                      </View>
+                    </View>
+                    <Pressable
+                      style={[s.actionBtn, { backgroundColor: "#EEDDF5", marginTop: 10, flexDirection: "row", gap: 6 }]}
+                      onPress={() => setCompleteTarget(mk)}
+                    >
+                      <Feather name="check-circle" size={15} color="#7C3AED" />
+                      <Text style={[s.actionTxt, { color: "#7C3AED", fontFamily: "Inter_700Bold" }]}>보강 완료 확인</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </>
+            )}
+          </ScrollView>
+        )
+      ) : loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       ) : (
         <ScrollView
@@ -248,6 +345,16 @@ export default function MakeupsScreen() {
           )}
         </ScrollView>
       )}
+
+      {/* 보강 완료 확인 모달 */}
+      <ConfirmModal
+        visible={!!completeTarget}
+        title="보강 완료 확인"
+        message={completeTarget ? `${completeTarget.student_name} 학생의 대리 보강 수업을 완료 처리합니까?\n완료 후 관리자 화면에서도 완료로 표시됩니다.` : ""}
+        confirmText="완료 처리"
+        onConfirm={() => completeTarget && handleTeacherComplete(completeTarget.id)}
+        onCancel={() => setCompleteTarget(null)}
+      />
 
       <ConfirmModal
         visible={!!confirmMsg}
@@ -282,6 +389,8 @@ const s = StyleSheet.create({
   btnRow:      { flexDirection: "row", gap: 8, marginTop: 4 },
   actionBtn:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 10 },
   actionTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  assignBtn:   { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, borderRadius: 10, borderWidth: 1.5, marginTop: 2 },
-  assignTxt:   { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  assignBtn:    { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, borderRadius: 10, borderWidth: 1.5, marginTop: 2 },
+  assignTxt:    { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  assignedInfo: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 10, marginBottom: 10 },
+  assignedInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#7C3AED", lineHeight: 18 },
 });

@@ -134,7 +134,7 @@ export default function SuperMoreScreen() {
         {
           icon: "file-text", label: "정책·컴플라이언스",
           sub: "약관·개인정보·환불정책·동의상태",
-          color: "indigo", onPress: go("/(super)/support-group"),
+          color: "indigo", onPress: go("/(super)/policy"),
         },
       ],
     },

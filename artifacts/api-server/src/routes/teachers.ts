@@ -492,6 +492,57 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
   }
 );
 
+// ── 나에게 배정/이동된 보강 목록 (teacher용) ──────────────────
+// transferred_to_teacher_id = me  OR  assigned_teacher_id = me (status: assigned/transferred)
+router.get("/teacher/makeups/assigned", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const rows = await db.execute(sql`
+        SELECT ms.*
+        FROM makeup_sessions ms
+        WHERE (ms.transferred_to_teacher_id = ${userId} OR ms.assigned_teacher_id = ${userId})
+          AND ms.original_teacher_id != ${userId}
+          AND ms.status IN ('assigned','transferred')
+          AND ms.cancelled_at IS NULL
+        ORDER BY ms.absence_date ASC, ms.created_at ASC
+      `);
+      res.json(rows.rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 배정된 보강 완료 처리 (teacher용) ─────────────────────────
+router.patch("/teacher/makeups/:id/complete", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userName = (userRow.rows[0] as any)?.name || "";
+      const rows = (await db.execute(sql`
+        SELECT * FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+      `)).rows as any[];
+      if (!rows.length) { res.status(404).json({ error: "보강 없음" }); return; }
+      const mk = rows[0];
+      // 담당선생님이거나 이동된 선생님만 완료 처리 가능
+      if (mk.transferred_to_teacher_id !== userId && mk.assigned_teacher_id !== userId) {
+        res.status(403).json({ error: "처리 권한이 없습니다." }); return;
+      }
+      await db.execute(sql`
+        UPDATE makeup_sessions SET
+          status                  = 'completed',
+          is_substitute           = TRUE,
+          substitute_teacher_id   = ${userId},
+          substitute_teacher_name = ${userName},
+          completed_at            = now(),
+          updated_at              = now()
+        WHERE id = ${req.params.id}
+      `);
+      res.json({ success: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // ── 결석소멸 (teacher용) ───────────────────────────────────────
 router.post("/teacher/makeups/:id/extinguish", requireAuth,
   async (req: AuthRequest, res) => {
