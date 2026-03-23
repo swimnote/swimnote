@@ -323,21 +323,6 @@ export default function PoolSettingsScreen() {
           </View>
         )}
 
-        {/* ── 휴무일 관리 바로가기 ─────────────────────────── */}
-        <Pressable
-          style={[styles.card, { backgroundColor: "#F9DEDA", shadowColor: C.shadow, flexDirection: "row", alignItems: "center", gap: 12 }]}
-          onPress={() => router.push("/(admin)/holidays" as any)}
-        >
-          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#D96C6C20", alignItems: "center", justifyContent: "center" }}>
-            <Feather name="x-square" size={20} color="#D96C6C" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.sectionTitle, { color: "#D96C6C" }]}>휴무일 관리</Text>
-            <Text style={[styles.hint, { color: "#D96C6C" }]}>달력에서 수영장 휴무일을 설정합니다</Text>
-          </View>
-          <Feather name="chevron-right" size={18} color="#D96C6C" />
-        </Pressable>
-
         {settings && (
           <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
             <Text style={[styles.sectionTitle, { color: C.text }]}>계정 상태</Text>

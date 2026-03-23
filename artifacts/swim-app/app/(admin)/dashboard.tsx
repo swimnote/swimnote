@@ -221,7 +221,6 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
     ];
     // ─ 수업 설정 (기존 운영설정 → 이름 변경, 수업 기준/정책만) ─
     case "수업설정": return [
-      { icon: "settings",    label: "수업운영\n설정",  color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(admin)/pool-settings") },
       { icon: "refresh-cw",  label: "보강정책\n설정",  color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/makeup-policy") },
       { icon: "shield",      label: "권한 설정",    color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/admin-grant") },
       { icon: "bell",        label: "알림 설정",    color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/notifications") },
