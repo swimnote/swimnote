@@ -173,6 +173,6 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
 
   deleteSuperManager: (adminId) =>
     set(s => ({
-      accounts: s.accounts.filter(a => !(a.id === adminId && a.role === 'super_manager')),
+      accounts: s.accounts.filter(a => !(a.id === adminId && a.role !== 'super_admin')),
     })),
 }))

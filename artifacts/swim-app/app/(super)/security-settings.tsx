@@ -147,7 +147,7 @@ export default function SecuritySettingsScreen() {
   function handleDeleteSuperManager() {
     if (!smDeleteId || !smDeleteTarget) return;
     deleteSuperManager(smDeleteId);
-    createLog({ category: "보안", title: `슈퍼매니저 삭제: ${smDeleteTarget.name}`, detail: `${smDeleteTarget.email} 계정 삭제`, actorName, impact: "high" });
+    createLog({ category: "보안", title: `관리자 삭제: ${smDeleteTarget.name}`, detail: `${smDeleteTarget.email} (${ROLE_LABELS[smDeleteTarget.role] ?? smDeleteTarget.role}) 계정 삭제`, actorName, impact: "high" });
     setSmDeleteId(null);
   }
 
@@ -328,7 +328,7 @@ export default function SecuritySettingsScreen() {
                       )}
                     </View>
                   </View>
-                  {isSuperManager
+                  {acc.role !== "super_admin"
                     ? <Pressable style={s.smDeleteBtn} onPress={() => setSmDeleteId(acc.id)}>
                         <Feather name="trash-2" size={14} color={DANGER} />
                       </Pressable>
