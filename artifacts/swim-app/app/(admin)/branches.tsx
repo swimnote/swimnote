@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
@@ -24,8 +24,9 @@ interface CreateForm {
 
 export default function PoolsScreen() {
   const insets = useSafeAreaInsets();
-  const { token, pool: currentPool, loadOwnedPools, ownedPools, switchPool } = useAuth();
+  const { token, pool: currentPool, switchPool } = useAuth();
 
+  const [pools, setPools] = useState<OwnedPool[]>([]);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
 
@@ -37,23 +38,37 @@ export default function PoolsScreen() {
 
   const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    await loadOwnedPools();
-    setLoading(false);
-  }, [loadOwnedPools]);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
-  useEffect(() => { load(); }, [load]);
+  async function fetchPools() {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const res = await apiRequest(token, "/pools/my-pools");
+      const data = await res.json();
+      if (mountedRef.current && Array.isArray(data)) setPools(data);
+    } catch (err) { console.error(err); }
+    finally { if (mountedRef.current) setLoading(false); }
+  }
+
+  useEffect(() => {
+    fetchPools();
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSwitch(p: OwnedPool) {
     if (p.id === currentPool?.id) return;
     setConfirmAction({
       title: "수영장 전환",
-      message: `"${p.name}"으로 전환하시겠습니까?\n화면이 새로 불러와집니다.`,
+      message: `"${p.name}"으로 전환하시겠습니까?\n전환 후 해당 수영장의 데이터로 전환됩니다.`,
       onConfirm: async () => {
         setSwitching(p.id);
         try {
           await switchPool(p.id);
+          await fetchPools();
         } catch (e) {
           setConfirmAction({
             title: "전환 실패",
@@ -61,7 +76,7 @@ export default function PoolsScreen() {
             onConfirm: () => setConfirmAction(null),
           });
         } finally {
-          setSwitching(null);
+          if (mountedRef.current) setSwitching(null);
         }
       },
     });
@@ -96,7 +111,7 @@ export default function PoolsScreen() {
       setShowCreate(false);
       setForm({ name: "", address: "", phone: "" });
       setCopyOptions(new Set());
-      await loadOwnedPools();
+      await fetchPools();
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.");
     } finally { setSaving(false); }
@@ -111,7 +126,6 @@ export default function PoolsScreen() {
     if (s === "trial") return TINT;
     return C.textMuted;
   };
-
   const approvalLabel = (s: string) => {
     const MAP: Record<string, string> = { approved: "승인", pending: "심사중", rejected: "반려" };
     return MAP[s] ?? s;
@@ -148,7 +162,7 @@ export default function PoolsScreen() {
 
       <View style={[styles.countRow, { paddingHorizontal: 20 }]}>
         <Text style={[styles.countTxt, { color: C.textSecondary }]}>
-          총 <Text style={{ color: TINT, fontFamily: "Inter_700Bold" }}>{ownedPools.length}</Text>개 수영장
+          총 <Text style={{ color: TINT, fontFamily: "Inter_700Bold" }}>{pools.length}</Text>개 수영장
         </Text>
         <Text style={[styles.activeTxt, { color: C.textMuted }]}>
           현재: <Text style={{ color: TINT, fontFamily: "Inter_600SemiBold" }}>{currentPool?.name ?? "—"}</Text>
@@ -162,7 +176,7 @@ export default function PoolsScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32, gap: 14 }}
         >
-          {ownedPools.length === 0 && (
+          {pools.length === 0 && (
             <View style={styles.empty}>
               <Feather name="layers" size={44} color={C.textMuted} />
               <Text style={[styles.emptyTitle, { color: C.textSecondary }]}>등록된 수영장이 없습니다</Text>
@@ -170,7 +184,7 @@ export default function PoolsScreen() {
             </View>
           )}
 
-          {ownedPools.map((p) => {
+          {pools.map((p) => {
             const isActive = p.id === currentPool?.id;
             const isSwitching = switching === p.id;
             return (
@@ -287,11 +301,7 @@ export default function PoolsScreen() {
             <Text style={[styles.copyTitle, { color: C.text }]}>현재 수영장에서 복사</Text>
             <Text style={[styles.copyDesc, { color: C.textMuted }]}>"{currentPool.name}"의 설정을 새 수영장에 복사할 수 있습니다</Text>
             {(["levels", "pricing"] as CopyOption[]).map(opt => (
-              <Pressable
-                key={opt}
-                onPress={() => toggleCopy(opt)}
-                style={styles.copyRow}
-              >
+              <Pressable key={opt} onPress={() => toggleCopy(opt)} style={styles.copyRow}>
                 <View style={[styles.checkbox, { borderColor: copyOptions.has(opt) ? TINT : C.border, backgroundColor: copyOptions.has(opt) ? TINT : "transparent" }]}>
                   {copyOptions.has(opt) && <Feather name="check" size={13} color="#fff" />}
                 </View>
@@ -308,11 +318,7 @@ export default function PoolsScreen() {
           onPress={handleCreate}
           disabled={saving}
         >
-          {saving ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.saveBtnTxt}>수영장 만들기</Text>
-          )}
+          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnTxt}>수영장 만들기</Text>}
         </Pressable>
       </ModalSheet>
 
