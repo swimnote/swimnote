@@ -4,26 +4,24 @@
  * 저장 즉시 BrandContext가 업데이트되어 앱 전체에 반영된다.
  */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, Platform,
+  TextInput, ActivityIndicator,
 } from "react-native";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { useBrand, APP_PLATFORM_NAME, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import ConfirmModal from "@/components/common/ConfirmModal";
 
 // ── 프리셋 색상 팔레트 ────────────────────────────────────────────────
 const PALETTE = [
   { label: "스윔노트 기본", color: "#1F8F86" },
-  { label: "인디고",         color: "#1F8F86" },
   { label: "퍼플",           color: "#7C3AED" },
   { label: "핑크",           color: "#EC4899" },
   { label: "레드",           color: "#D96C6C" },
   { label: "오렌지",         color: "#F97316" },
   { label: "골드",           color: "#D97706" },
-  { label: "그린",           color: "#1F8F86" },
   { label: "틸",             color: "#0D9488" },
   { label: "사이언",         color: "#0284C7" },
   { label: "슬레이트",       color: "#475569" },
@@ -51,6 +49,12 @@ export default function BrandingScreen() {
   const [logoUrl, setLogoUrl] = useState(currentLogoUrl ?? "");
   const [saving, setSaving] = useState(false);
   const [hexError, setHexError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // 모달 상태
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [saveErrorModal, setSaveErrorModal] = useState(false);
 
   // 화면 진입 시 최신 서버값 로드
   useEffect(() => {
@@ -73,9 +77,13 @@ export default function BrandingScreen() {
 
   const handleSave = useCallback(async () => {
     if (!isValidHex(selectedColor)) {
-      Alert.alert("입력 오류", "올바른 색상 코드를 선택해주세요."); return;
+      setSaveError("올바른 색상 코드를 선택해주세요.");
+      setSaveErrorModal(true);
+      return;
     }
     setSaving(true);
+    setSaveSuccess(false);
+    setSaveError("");
     try {
       const res = await apiRequest(token, "/pools/branding", {
         method: "PUT",
@@ -86,7 +94,11 @@ export default function BrandingScreen() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) { Alert.alert("오류", data.error ?? "저장 실패"); return; }
+      if (!res.ok) {
+        setSaveError(data.error ?? "저장 실패");
+        setSaveErrorModal(true);
+        return;
+      }
 
       // BrandContext 즉시 업데이트
       setBrand({
@@ -96,28 +108,24 @@ export default function BrandingScreen() {
       });
       // AuthContext pool 정보도 갱신
       await refreshPool();
-
-      Alert.alert("저장 완료", "브랜드 설정이 적용되었습니다.");
-    } catch (err) {
-      Alert.alert("오류", "저장 중 문제가 발생했습니다.");
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch {
+      setSaveError("저장 중 문제가 발생했습니다.");
+      setSaveErrorModal(true);
     } finally {
       setSaving(false);
     }
   }, [token, selectedColor, selectedEmoji, logoUrl, setBrand, refreshPool]);
 
-  const handleReset = () => {
-    Alert.alert("기본값으로 초기화", "스윔노트 기본 색상으로 되돌리시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      {
-        text: "초기화",
-        onPress: () => {
-          setSelectedColor(DEFAULT_THEME_COLOR);
-          setHexInput(DEFAULT_THEME_COLOR);
-          setSelectedEmoji(null);
-          setLogoUrl("");
-        },
-      },
-    ]);
+  // 초기화: 초록색 테마 + 로고 없음
+  const doReset = () => {
+    setSelectedColor(DEFAULT_THEME_COLOR);
+    setHexInput(DEFAULT_THEME_COLOR);
+    setHexError("");
+    setSelectedEmoji(null);
+    setLogoUrl("");
+    setResetConfirm(false);
   };
 
   return (
@@ -126,7 +134,7 @@ export default function BrandingScreen() {
         title="브랜드 설정"
         onBack={undefined}
         rightSlot={
-          <TouchableOpacity onPress={handleReset} hitSlop={8}>
+          <TouchableOpacity onPress={() => setResetConfirm(true)} hitSlop={8}>
             <Text style={[styles.resetBtn, { color: selectedColor }]}>초기화</Text>
           </TouchableOpacity>
         }
@@ -177,7 +185,7 @@ export default function BrandingScreen() {
           <View style={styles.palette}>
             {PALETTE.map(({ color, label }) => (
               <TouchableOpacity
-                key={color}
+                key={label}
                 onPress={() => {
                   setSelectedColor(color);
                   setHexInput(color);
@@ -283,14 +291,40 @@ export default function BrandingScreen() {
           onPress={handleSave}
           disabled={saving}
         >
-          {saving
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.saveBtnText}>변경사항 저장</Text>
-          }
+          {saving ? (
+            <ActivityIndicator color="#fff" />
+          ) : saveSuccess ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Feather name="check" size={18} color="#fff" />
+              <Text style={styles.saveBtnText}>저장 완료!</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveBtnText}>변경사항 저장</Text>
+          )}
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* 초기화 확인 모달 */}
+      <ConfirmModal
+        visible={resetConfirm}
+        title="기본값으로 초기화"
+        message={`스윔노트 기본 색상(초록)으로 되돌리고\n로고를 제거합니다.`}
+        confirmText="초기화"
+        onConfirm={doReset}
+        onCancel={() => setResetConfirm(false)}
+      />
+
+      {/* 저장 오류 모달 */}
+      <ConfirmModal
+        visible={saveErrorModal}
+        title="저장 오류"
+        message={saveError}
+        confirmText="확인"
+        onConfirm={() => setSaveErrorModal(false)}
+        onCancel={() => setSaveErrorModal(false)}
+      />
     </View>
   );
 }
@@ -307,8 +341,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const styles = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: "#F6F3F1" },
-  header:          { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
-  headerTitle:     { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   resetBtn:        { fontSize: 14, fontFamily: "Inter_500Medium" },
   content:         { padding: 16, gap: 8, paddingBottom: 100 },
 
