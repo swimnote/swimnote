@@ -32,6 +32,7 @@ interface StudentOption {
   name: string;
   birth_year?: string | null;
   parent_phone?: string | null;
+  parent_user_id?: string | null;
   class_group_name?: string | null;
   schedule_labels?: string | null;
   assigned_class_ids?: string[] | null;
@@ -157,14 +158,13 @@ function StudentLinkSheet({
   // 이미 연결된 학생 ID 목록
   const linkedIds = new Set((parent?.students ?? []).filter(s => s.status !== "rejected").map(s => s.id));
 
-  // 미배정 학생: assigned_class_ids가 비어 있거나 null인 학생
-  const unassigned = students.filter(s => {
+  // 학부모미연결 학생: parent_user_id가 없는 학생
+  const unlinked = students.filter(s => {
     if (linkedIds.has(s.id)) return false;
-    const ids = s.assigned_class_ids;
-    return !ids || (Array.isArray(ids) && ids.length === 0);
+    return !s.parent_user_id;
   });
 
-  // 검색어 필터링 (미배정 목록 기반)
+  // 검색어 필터링 (학부모미연결 목록 기반)
   const displayList = search.trim()
     ? students.filter(s => {
         if (linkedIds.has(s.id)) return false;
@@ -173,7 +173,7 @@ function StudentLinkSheet({
           (s.parent_phone || "").includes(q) ||
           (s.birth_year || "").includes(q);
       })
-    : unassigned;
+    : unlinked;
 
   function handleConfirm() {
     if (!selectedId) { setError("학생을 선택해주세요."); return; }
@@ -233,9 +233,9 @@ function StudentLinkSheet({
       {/* 섹션 헤더 */}
       <View style={s.listHeader}>
         <Text style={s.listHeaderText}>
-          {search.trim() ? `검색 결과 ${displayList.length}명` : `미배정 학생 ${unassigned.length}명`}
+          {search.trim() ? `검색 결과 ${displayList.length}명` : `학부모미연결 ${unlinked.length}명`}
         </Text>
-        {!search.trim() && <Text style={s.listHeaderSub}>반 배정이 없는 학생 목록</Text>}
+        {!search.trim() && <Text style={s.listHeaderSub}>학부모 앱 미연결 학생 목록</Text>}
       </View>
 
       {/* 학생 목록 */}
@@ -248,7 +248,7 @@ function StudentLinkSheet({
           <View style={s.emptyHint}>
             <Feather name="users" size={28} color={C.textMuted} />
             <Text style={[s.emptyHintText, { color: C.textMuted }]}>
-              {search.trim() ? `"${search}" 검색 결과가 없습니다` : "미배정 학생이 없습니다\n검색으로 전체 학생을 찾아보세요"}
+              {search.trim() ? `"${search}" 검색 결과가 없습니다` : "학부모미연결 학생이 없습니다\n검색으로 전체 학생을 찾아보세요"}
             </Text>
           </View>
         ) : displayList.map(student => {
