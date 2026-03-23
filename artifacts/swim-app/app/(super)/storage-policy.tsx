@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useAuditLogStore } from "@/store/auditLogStore";
 
 const PURPLE = "#7C3AED";
@@ -54,6 +55,7 @@ export default function StoragePolicyScreen() {
   const [form,        setForm]        = useState({ quota_gb: "", per_member_mb: "", extra_price_per_gb: "", description: "" });
   const [saving,      setSaving]      = useState(false);
   const [formError,   setFormError]   = useState("");
+  const [otpVisible,  setOtpVisible]  = useState(false);
 
   function openEdit(p: Policy) {
     setEditTarget(p);
@@ -186,12 +188,24 @@ export default function StoragePolicyScreen() {
             ))}
 
             <Pressable style={({ pressed }) => [styles.saveBtn, { opacity: pressed ? 0.85 : saving ? 0.6 : 1 }]}
-              onPress={handleSave} disabled={saving}>
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>저장하기</Text>}
+              onPress={() => setOtpVisible(true)} disabled={saving}>
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Feather name="lock" size={14} color="#fff" />
+                  <Text style={styles.saveBtnText}>모든 변경항목 저장하기</Text>
+                </View>
+              )}
             </Pressable>
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <OtpGateModal
+        visible={otpVisible}
+        title="저장공간 정책 변경 OTP 인증"
+        desc="저장공간 정책 변경은 OTP 인증 후에 저장됩니다."
+        onSuccess={() => { setOtpVisible(false); handleSave(); }}
+        onCancel={() => setOtpVisible(false)}
+      />
     </View>
   );
 }
