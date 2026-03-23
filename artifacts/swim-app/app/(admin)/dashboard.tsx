@@ -195,7 +195,6 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "clock",       label: "보강 대기",   color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/makeups"), badge: makeups },
       { icon: "plus-circle", label: "보강 배정",   color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(admin)/makeups") },
       { icon: "bar-chart-2", label: "보강 현황",   color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/makeups") },
-      { icon: "settings",    label: "보강 정책",   color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/makeup-policy") },
     ];
     // ─ 매출 관리 ─
     case "매출관리": return [
