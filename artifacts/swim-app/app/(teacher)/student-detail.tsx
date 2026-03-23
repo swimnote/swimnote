@@ -300,7 +300,7 @@ export default function StudentDetailScreen() {
             <InfoRow icon="map-pin" label="등록 경로"
               value={student.registration_path === "admin_created" ? "관리자 직접" : "학부모 요청"} />
             <InfoRow icon="link" label="학부모 연결"
-              value={student.parent_user_id ? "연결됨" : student.status === "pending_parent_link" ? "대기 중" : "미연결"}
+              value={student.parent_user_id ? "연결됨" : student.status === "pending_parent_link" ? "대기 중" : "학부모미연결"}
               valueColor={student.parent_user_id ? "#1F8F86" : student.status === "pending_parent_link" ? "#EA580C" : "#6F6B68"} />
           </View>
         </View>

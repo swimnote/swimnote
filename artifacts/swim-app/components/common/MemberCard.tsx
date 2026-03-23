@@ -165,7 +165,7 @@ export function UnifiedMemberCard({
           {isUnlinked && (
             <View style={[s.badge, { backgroundColor: "#FFF1BF", gap: 3 }]}>
               <Feather name="user-x" size={9} color="#EA580C" />
-              <Text style={[s.badgeTxt, { color: "#EA580C" }]}>미연결</Text>
+              <Text style={[s.badgeTxt, { color: "#EA580C" }]}>학부모미연결</Text>
             </View>
           )}
           {showInvite && !student.parent_user_id && (

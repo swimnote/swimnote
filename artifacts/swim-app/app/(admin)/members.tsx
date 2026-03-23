@@ -36,7 +36,7 @@ const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "weekly_1",     label: "주1회",  icon: "sun",           activeColor: WEEKLY_BADGE[1].color, activeBg: WEEKLY_BADGE[1].bg },
   { key: "weekly_2",     label: "주2회",  icon: "wind",          activeColor: WEEKLY_BADGE[2].color, activeBg: WEEKLY_BADGE[2].bg },
   { key: "weekly_3",     label: "주3회",  icon: "zap",           activeColor: WEEKLY_BADGE[3].color, activeBg: WEEKLY_BADGE[3].bg },
-  { key: "unlinked",     label: "미연결", icon: "user-x",        activeColor: "#EA580C", activeBg: "#FFF1BF" },
+  { key: "unlinked",     label: "학부모미연결", icon: "user-x",        activeColor: "#EA580C", activeBg: "#FFF1BF" },
   { key: "suspended",    label: "연기",   icon: "pause-circle",  activeColor: "#B45309", activeBg: "#FFF1BF" },
   { key: "withdrawn",    label: "퇴원",   icon: "log-out",       activeColor: "#6F6B68", activeBg: "#F6F3F1" },
 ];

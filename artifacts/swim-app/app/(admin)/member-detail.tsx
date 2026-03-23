@@ -729,7 +729,7 @@ export default function MemberDetailScreen() {
               />
               <View style={{ flex: 1 }}>
                 <Text style={[s.connStatus, { color: connStatus === "linked" ? "#1F8F86" : connStatus === "pending" ? "#D97706" : C.textMuted }]}>
-                  {connStatus === "linked" ? "학부모 앱 연결 완료" : connStatus === "pending" ? "연결 요청 대기 중" : "학부모 앱 미연결"}
+                  {connStatus === "linked" ? "학부모 앱 연결 완료" : connStatus === "pending" ? "연결 요청 대기 중" : "학부모미연결"}
                 </Text>
                 {data.parent_account_name && (
                   <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 }}>

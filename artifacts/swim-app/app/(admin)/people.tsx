@@ -179,7 +179,7 @@ export default function PeopleHubScreen() {
                 rows={[
                   { label: "전체", value: summary.totalParents },
                   { label: "연결완료", value: summary.linkedParents },
-                  { label: "미연결", value: summary.totalParents - summary.linkedParents },
+                  { label: "학부모미연결", value: summary.totalParents - summary.linkedParents },
                 ]}
               />
 
