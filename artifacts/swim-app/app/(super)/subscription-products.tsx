@@ -13,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useExtraStorageStore } from "@/store/extraStorageStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
@@ -203,6 +204,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
   onClose: () => void; onSave: (form: FormState) => void;
 }) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [otpVisible, setOtpVisible] = useState(false);
   const isEdit = !!initial;
   useEffect(() => {
     if (initial) {
@@ -233,10 +235,10 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
         <View style={fm.header}>
           <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
           <Text style={fm.title}>{isEdit ? "구독 상품 수정" : "구독 상품 생성"}</Text>
-          <Pressable style={fm.saveBtn} onPress={() => onSave(form)}><Text style={fm.saveTxt}>저장</Text></Pressable>
+          <View style={{ width: 28 }} />
         </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }}>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
             {textFields.map(f => (
               <View key={f.key}>
                 <Text style={fm.label}>{f.label}</Text>
@@ -251,7 +253,20 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
                 trackColor={{ false: "#E9E2DD", true: "#C4B5FD" }} thumbColor={form.includesVideo ? P : "#9A948F"} />
             </View>
           </ScrollView>
+          <View style={fm.bottomBar}>
+            <Pressable style={fm.bottomSaveBtn} onPress={() => setOtpVisible(true)}>
+              <Feather name="lock" size={14} color="#fff" />
+              <Text style={fm.saveTxt}>수정 후 저장</Text>
+            </Pressable>
+          </View>
         </KeyboardAvoidingView>
+        <OtpGateModal
+          visible={otpVisible}
+          title={isEdit ? "구독 상품 수정 OTP 인증" : "구독 상품 생성 OTP 인증"}
+          desc="구독 상품 변경은 OTP 인증 후에 저장됩니다."
+          onSuccess={() => { setOtpVisible(false); onSave(form); }}
+          onCancel={() => setOtpVisible(false)}
+        />
       </SafeAreaView>
     </Modal>
   );
@@ -263,6 +278,7 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
   onClose: () => void; onSave: (form: StorageFormState) => void;
 }) {
   const [form, setForm] = useState<StorageFormState>(EMPTY_STORAGE_FORM);
+  const [otpVisible, setOtpVisible] = useState(false);
   const isEdit = !!initial;
   useEffect(() => {
     if (initial) {
@@ -283,10 +299,10 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
         <View style={fm.header}>
           <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
           <Text style={fm.title}>{isEdit ? "추가 용량 상품 수정" : "추가 용량 상품 생성"}</Text>
-          <Pressable style={[fm.saveBtn, { backgroundColor: G }]} onPress={() => onSave(form)}><Text style={fm.saveTxt}>저장</Text></Pressable>
+          <View style={{ width: 28 }} />
         </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }}>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
             <View>
               <Text style={fm.label}>상품명</Text>
               <TextInput style={fm.input} value={form.name} onChangeText={v => setVal("name", v)} placeholder="예: 추가 30GB" placeholderTextColor="#9A948F" />
@@ -305,20 +321,34 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
               <TextInput style={fm.input} value={form.note} onChangeText={v => setVal("note", v)} placeholder="내부 참고용" placeholderTextColor="#9A948F" />
             </View>
           </ScrollView>
+          <View style={fm.bottomBar}>
+            <Pressable style={[fm.bottomSaveBtn, { backgroundColor: G }]} onPress={() => setOtpVisible(true)}>
+              <Feather name="lock" size={14} color="#fff" />
+              <Text style={fm.saveTxt}>수정 후 저장</Text>
+            </Pressable>
+          </View>
         </KeyboardAvoidingView>
+        <OtpGateModal
+          visible={otpVisible}
+          title={isEdit ? "추가 용량 상품 수정 OTP 인증" : "추가 용량 상품 생성 OTP 인증"}
+          desc="추가 용량 상품 변경은 OTP 인증 후에 저장됩니다."
+          onSuccess={() => { setOtpVisible(false); onSave(form); }}
+          onCancel={() => setOtpVisible(false)}
+        />
       </SafeAreaView>
     </Modal>
   );
 }
 
 const fm = StyleSheet.create({
-  header:  { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
-  close:   { padding: 4 },
-  title:   { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  saveBtn: { backgroundColor: P, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
-  saveTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
-  label:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 6 },
-  input:   { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", minHeight: 42 },
+  header:        { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  close:         { padding: 4 },
+  title:         { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  saveTxt:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  label:         { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 6 },
+  input:         { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", minHeight: 42 },
+  bottomBar:     { padding: 16, paddingBottom: 24, borderTopWidth: 1, borderTopColor: "#E9E2DD", backgroundColor: "#FBF8F6" },
+  bottomSaveBtn: { backgroundColor: P, borderRadius: 14, height: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
 });
 
 // ── 메인 ─────────────────────────────────────────────────────────
