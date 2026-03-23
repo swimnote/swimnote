@@ -16,6 +16,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useOperatorsStore } from "@/store/operatorsStore";
 import { useStorageStore } from "@/store/storageStore";
+import { useExtraStorageStore } from "@/store/extraStorageStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import { useOperatorEventLogStore } from "@/store/operatorEventLogStore";
 
@@ -89,6 +90,8 @@ export default function OperatorDetailScreen() {
   const setRestricted     = useOperatorsStore(s => s.setRestricted);
   const storagePolicies   = useStorageStore(s => s.policies);
   const setStoragePolicy  = useStorageStore(s => s.setStoragePolicy);
+  const getOpAccount      = useExtraStorageStore(s => s.getOpAccount);
+  const getOpPurchases    = useExtraStorageStore(s => s.getOpPurchases);
   const auditLogs         = useAuditLogStore(s => s.logs);
   const createLog         = useAuditLogStore(s => s.createLog);
   const getEventLogs      = useOperatorEventLogStore(s => s.getOperatorLogs);
@@ -126,6 +129,11 @@ export default function OperatorDetailScreen() {
   const usagePct = totalMb > 0 ? usedMb / totalMb * 100 : 0;
   const storageAlert = op.storageBlocked95;
   const storageWarn  = op.storageWarning80;
+
+  const paidAccount   = getOpAccount(id ?? "");
+  const paidPurchases = getOpPurchases(id ?? "");
+  const paidMb        = paidAccount?.extraStoragePurchasedMb ?? 0;
+  const hasPaid       = paidMb > 0 || paidPurchases.length > 0;
   const totalGbStr   = (totalMb / 1024).toFixed(1) + " GB";
 
   function doAction(act: string) {
@@ -256,7 +264,25 @@ export default function OperatorDetailScreen() {
                 </View>
               )}
             </View>
-            <Pressable style={d.actionCard} onPress={() => setAction("storage")}>
+            {/* 유료 저장공간 현황 — 결제 이력 있는 경우 표시 */}
+            <View style={[d.card, { marginTop: 12 }]}>
+              <Text style={d.cardTitle}>유료 저장공간 현황</Text>
+              <InfoRow label="유료 추가 용량" value={hasPaid ? fmtMb(paidMb) : "없음"} />
+              <InfoRow label="결제 횟수" value={`${paidPurchases.length}회`} />
+              <InfoRow label="영상 업로드" value={paidAccount?.videoUploadUnlocked ? "허용됨" : "미허용"} alert={!paidAccount?.videoUploadUnlocked} />
+              {hasPaid && paidPurchases.slice(0, 2).map(pu => (
+                <View key={pu.id} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, borderTopWidth: 1, borderTopColor: "#F0EBE7", marginTop: 4 }}>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" }}>{pu.productName}</Text>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" }}>₩{pu.price.toLocaleString("ko-KR")}</Text>
+                </View>
+              ))}
+              {!hasPaid && (
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 4 }}>유료 결제 이력 없음</Text>
+              )}
+            </View>
+
+            <Pressable style={[d.actionCard, { marginTop: 12 }]}
+              onPress={() => router.push(`/(super)/storage?operatorId=${id}` as any)}>
               <Feather name="hard-drive" size={18} color={P} />
               <Text style={d.actionCardTxt}>추가 용량 부여</Text>
               <Feather name="chevron-right" size={16} color="#9A948F" style={{ marginLeft: "auto" }} />

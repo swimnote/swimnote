@@ -3,8 +3,8 @@
  * 80%경고 / 95%차단예정(CTA) / 100%차단 — 과금 유도형 흐름
  */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
@@ -67,6 +67,7 @@ function estimateCost(extraGb: number): string {
 export default function StorageScreen() {
   const { adminUser } = useAuth();
   const actorName = adminUser?.name ?? '슈퍼관리자';
+  const { operatorId: paramOpId } = useLocalSearchParams<{ operatorId?: string }>();
 
   const policies         = useStorageStore(s => s.policies);
   const storageTab       = useStorageStore(s => s.storageTab);
@@ -86,6 +87,13 @@ export default function StorageScreen() {
   const [ctaModal,      setCtaModal]      = useState<StoragePolicy | null>(null);
   const [overrideLoading, setOverrideLoading] = useState<string | null>(null);
   const [otpVisible,    setOtpVisible]    = useState(false);
+
+  // operator-detail에서 "추가 용량 부여" 클릭 시 해당 운영자 editOp 자동 오픈
+  useEffect(() => {
+    if (!paramOpId || policies.length === 0) return;
+    const target = policies.find(p => p.operatorId === paramOpId);
+    if (target) { setEditOp(target); setNewStorageMb("0"); }
+  }, [paramOpId, policies]);
 
   const tab      = storageTab;
   const filtered = useMemo(() => getByTab(), [policies, storageTab]);
@@ -139,8 +147,8 @@ export default function StorageScreen() {
       ]}>
         <View style={s.rowMain}>
           <View style={s.rowTop}>
-            <Pressable onPress={() => router.push(`/(super)/operator-detail?id=${p.operatorId}` as any)}>
-              <Text style={s.opName}>{p.operatorName}</Text>
+            <Pressable onPress={() => { setEditOp(p); setNewStorageMb("0"); }}>
+              <Text style={[s.opName, { textDecorationLine: "underline" }]}>{p.operatorName}</Text>
             </Pressable>
             {stage === 'blocked100' && <View style={s.blockedTag}><Text style={s.blockedTagTxt}>업로드 차단</Text></View>}
             {stage === 'danger95'   && <View style={s.dangerTag}><Text style={s.dangerTagTxt}>차단 예정</Text></View>}
