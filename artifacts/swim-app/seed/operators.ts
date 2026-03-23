@@ -7,7 +7,7 @@ const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString()
 const daysLater = (d: number) => new Date(Date.now() + d * 86400000).toISOString()
 
 export const SEED_OPERATORS: Operator[] = [
-  // 1. 승인 대기 — 수영장
+  // 1. 자동 승인 운영 중 — 수영장 (회원가입 시 자동 승인)
   {
     id: 'op-001',
     code: 'SW-001',
@@ -20,8 +20,8 @@ export const SEED_OPERATORS: Operator[] = [
     createdAt: daysAgo(2),
     updatedAt: daysAgo(2),
     lastLoginAt: daysAgo(1),
-    status: 'pending',
-    isApproved: false,
+    status: 'active',
+    isApproved: true,
     isReadOnly: false,
     isUploadBlocked: false,
     isDeletionDeferred: false,
@@ -668,8 +668,8 @@ export const SEED_OPERATORS: Operator[] = [
     createdAt: daysAgo(1),
     updatedAt: daysAgo(1),
     lastLoginAt: null,
-    status: 'pending',
-    isApproved: false,
+    status: 'active',
+    isApproved: true,
     isReadOnly: false,
     isUploadBlocked: false,
     isDeletionDeferred: false,

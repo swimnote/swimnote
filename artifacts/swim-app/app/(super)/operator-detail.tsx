@@ -361,7 +361,10 @@ export default function OperatorDetailScreen() {
         {tab === "강제조치" && (
           <>
             {[
-              { act: "approve",  icon: "check-circle" as const, label: "운영 승인",  sub: "승인 대기 → 운영 상태로 변경", color: "#1F8F86", bg: "#DDF2EF" },
+              // "운영 승인"은 슈퍼관리자가 강제 정지한 경우(restricted)에만 표시 — 회원가입은 자동 승인
+              ...(op.status === "restricted" ? [
+                { act: "approve", icon: "check-circle" as const, label: "운영 재승인", sub: "운영 정지 → 운영 상태로 복구", color: "#1F8F86", bg: "#DDF2EF" },
+              ] : []),
               { act: "reject",   icon: "x-circle" as const,     label: "반려",       sub: "운영 자격 박탈 · 사유 기록",  color: "#D96C6C", bg: "#F9DEDA" },
               { act: "restrict", icon: "pause-circle" as const,  label: "일시 제한",  sub: "구독 일시 정지 처리",         color: "#D97706", bg: "#FFF1BF" },
             ].map(item => (
@@ -395,7 +398,7 @@ export default function OperatorDetailScreen() {
             <Pressable style={m.sheet} onPress={() => {}}>
               <View style={m.handle} />
               <Text style={m.title}>
-                {action === "approve" ? "운영 승인"
+                {action === "approve" ? "운영 재승인"
                   : action === "reject" ? "반려 처리"
                   : action === "restrict" ? "일시 제한"
                   : "추가 용량 부여"}
@@ -441,7 +444,7 @@ export default function OperatorDetailScreen() {
       <OtpGateModal
         visible={otpVisible}
         title={
-          action === "approve" ? "운영 승인 OTP 인증"
+          action === "approve" ? "운영 재승인 OTP 인증"
           : action === "reject" ? "반려 처리 OTP 인증"
           : "일시 제한 OTP 인증"
         }
