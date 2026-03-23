@@ -132,6 +132,30 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
+    // ── 회원 수 한도 체크 ─────────────────────────────────────────────
+    {
+      const [planRow] = (await db.execute(sql`
+        SELECT sp.member_limit FROM swimming_pools p
+        JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+        WHERE p.id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      const [cntRow] = (await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM students
+        WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
+      `)).rows as any[];
+      const limit = Number(planRow?.member_limit ?? 5);
+      const current = Number(cntRow?.cnt ?? 0);
+      if (current >= limit) {
+        return res.status(403).json({
+          success: false,
+          error: `현재 플랜의 등록 가능 인원(${limit}명)을 초과했습니다. 플랜을 업그레이드해주세요.`,
+          code: "MEMBER_LIMIT_EXCEEDED",
+          current,
+          limit,
+        });
+      }
+    }
+
     // ── 중복 체크 ──────────────────────────────────────────────────
     if (!force_create && (birth_year || parent_phone)) {
       const dupRows = await db.execute(sql`

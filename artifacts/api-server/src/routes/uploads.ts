@@ -1,6 +1,8 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
+import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
@@ -17,6 +19,30 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) { res.status(400).json({ error: "파일을 선택해주세요." }); return; }
     if (files.length > 5) { res.status(400).json({ error: "사진은 최대 5장까지 첨부 가능합니다." }); return; }
+
+    // ── 스토리지 초과 차단 체크 ──────────────────────────────────────
+    const poolId = req.user?.poolId;
+    if (poolId) {
+      const [poolRow] = (await db.execute(sql`
+        SELECT p.upload_blocked, p.used_storage_bytes, p.extra_storage_gb,
+               sp.storage_gb
+        FROM swimming_pools p
+        LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+        WHERE p.id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (poolRow?.upload_blocked) {
+        res.status(403).json({
+          error: "저장공간이 가득 차 업로드가 제한됩니다. 추가 용량을 구매하거나 플랜을 업그레이드해주세요.",
+          code: "UPLOAD_BLOCKED",
+        });
+        return;
+      }
+      // 90% 이상 시 경고 헤더 추가 (업로드는 허용)
+      const quotaBytes = (Number(poolRow?.storage_gb ?? 0.1) + Number(poolRow?.extra_storage_gb ?? 0)) * 1024 ** 3;
+      const usedBytes = Number(poolRow?.used_storage_bytes ?? 0);
+      const pct = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
+      if (pct >= 90) res.setHeader("X-Storage-Warning", `${pct}%`);
+    }
     const client = getClient();
     const urls: string[] = [];
     for (const file of files) {

@@ -1272,19 +1272,22 @@ async function ensurePlansTables() {
     )
   `).catch(() => {});
 
-  // 기본 플랜 시드 (신규 배포 환경용)
+  // 기본 플랜 시드 (신규 배포 환경용 — free/starter/basic/standard/growth/pro/max)
   for (const plan of [
-    { tier: "free",            name: "무료 이용",        price: 0,      limit: 30,   storage: 5 },
-    { tier: "paid_100",        name: "100명 플랜",       price: 99000,  limit: 100,  storage: 15 },
-    { tier: "paid_200",        name: "200명 플랜",       price: 149000, limit: 200,  storage: 50 },
-    { tier: "paid_500",        name: "500명 플랜",       price: 299000, limit: 500,  storage: 100 },
-    { tier: "paid_1000",       name: "1,000명 플랜",     price: 499000, limit: 1000, storage: 250 },
-    { tier: "paid_enterprise", name: "엔터프라이즈",     price: 0,      limit: 9999, storage: 500 },
+    { tier: "free",     name: "무료",     price: 0,      limit: 5,    storage: 0.1 },
+    { tier: "starter",  name: "스타터",   price: 2900,   limit: 30,   storage: 0.6 },
+    { tier: "basic",    name: "베이직",   price: 3900,   limit: 50,   storage: 1 },
+    { tier: "standard", name: "스탠다드", price: 9900,   limit: 100,  storage: 5 },
+    { tier: "growth",   name: "그로스",   price: 29000,  limit: 300,  storage: 20 },
+    { tier: "pro",      name: "프로",     price: 59000,  limit: 500,  storage: 40 },
+    { tier: "max",      name: "맥스",     price: 99000,  limit: 1000, storage: 100 },
   ]) {
     await db.execute(sql`
       INSERT INTO subscription_plans (tier, name, price_per_month, member_limit, storage_gb)
       VALUES (${plan.tier}, ${plan.name}, ${plan.price}, ${plan.limit}, ${plan.storage})
-      ON CONFLICT (tier) DO NOTHING
+      ON CONFLICT (tier) DO UPDATE
+        SET name = ${plan.name}, price_per_month = ${plan.price},
+            member_limit = ${plan.limit}, storage_gb = ${plan.storage}
     `).catch(() => {});
   }
 

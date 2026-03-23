@@ -16,6 +16,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { IconPopup, type PopupItem } from "@/components/admin/IconPopup";
+import { PaymentBanner } from "@/components/common/PaymentBanner";
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
@@ -28,11 +29,14 @@ function formatWon(n: number) {
 }
 
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
-  trial:     { label: "체험 중",  color: "#7C3AED", bg: "#F3E8FF" },
-  active:    { label: "구독 중",  color: "#1F8F86", bg: "#DDF2EF" },
-  expired:   { label: "만료됨",   color: "#6F6B68", bg: "#F6F3F1" },
-  suspended: { label: "정지됨",   color: "#D97706", bg: "#FFF1BF" },
-  cancelled: { label: "해지됨",   color: "#D96C6C", bg: "#F9DEDA" },
+  trial:           { label: "체험 중",   color: "#7C3AED", bg: "#F3E8FF" },
+  active:          { label: "구독 중",   color: "#1F8F86", bg: "#DDF2EF" },
+  expired:         { label: "만료됨",    color: "#6F6B68", bg: "#F6F3F1" },
+  suspended:       { label: "정지됨",    color: "#D97706", bg: "#FFF1BF" },
+  cancelled:       { label: "해지됨",    color: "#D96C6C", bg: "#F9DEDA" },
+  payment_failed:  { label: "결제 실패", color: "#DC2626", bg: "#FEE2E2" },
+  pending_deletion:{ label: "삭제 예약", color: "#9B1C1C", bg: "#FEE2E2" },
+  deleted:         { label: "삭제됨",    color: "#6F6B68", bg: "#E5E7EB" },
 };
 
 // ── 검색 모달 (기존 로직 유지) ──────────────────────────────────────────────
@@ -419,6 +423,8 @@ export default function DashboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStats(); }} tintColor={themeColor} />
         }
       >
+        <PaymentBanner />
+
         {loading ? (
           <ActivityIndicator color={themeColor} size="large" style={{ marginTop: 40 }} />
         ) : (

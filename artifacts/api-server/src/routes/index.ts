@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { requireWritable } from "../lib/readonlyGuard.js";
 import healthRouter from "./health";
 import authRouter from "./auth.js";
 import poolsRouter from "./pools.js";
@@ -36,6 +37,9 @@ import superRouter from "./super.js";
 import pushSettingsRouter from "./push-settings.js";
 
 const router: IRouter = Router();
+
+// 읽기전용 풀 쓰기 차단 (결제 실패 / 삭제 예약 상태)
+router.use(requireWritable as any);
 
 router.use(healthRouter);
 router.use("/auth", authRouter);

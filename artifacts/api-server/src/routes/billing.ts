@@ -5,6 +5,7 @@
  * PAYMENT_PROVIDER 환경변수로 프로바이더 선택 (기본: mock)
  */
 import { Router } from "express";
+import cron from "node-cron";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
@@ -106,15 +107,36 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       WHERE tier = ${sub?.tier ?? "free"} LIMIT 1
     `)).rows as any[];
 
+    const [poolRow] = (await db.execute(sql`
+      SELECT is_readonly, upload_blocked, readonly_reason, payment_failed_at,
+             subscription_status, subscription_tier
+      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `)).rows as any[];
+
+    let daysUntilDeletion: number | null = null;
+    if (poolRow?.payment_failed_at) {
+      const failedAt = new Date(poolRow.payment_failed_at);
+      const deletionAt = new Date(failedAt.getTime() + 14 * 86_400_000);
+      daysUntilDeletion = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86_400_000));
+    }
+
     res.json({
       subscription: sub ?? null,
       card: card ?? null,
       member_count: memberCount,
+      member_limit: Number(sub?.member_limit ?? plans.find((p: any) => p.tier === poolRow?.subscription_tier)?.member_limit ?? 5),
       plans,
       storage_used_gb: +(usedBytes / (1024 ** 3)).toFixed(3),
       storage_quota_gb: Number(storagePolicyRow?.quota_gb ?? 5),
       extra_price_per_gb: Number(storagePolicyRow?.extra_price_per_gb ?? 500),
       payment_provider: getPaymentProvider().name,
+      // 결제 실패 / 읽기전용 상태
+      is_readonly: !!poolRow?.is_readonly,
+      upload_blocked: !!poolRow?.upload_blocked,
+      readonly_reason: poolRow?.readonly_reason ?? null,
+      payment_failed_at: poolRow?.payment_failed_at ?? null,
+      subscription_status: poolRow?.subscription_status ?? null,
+      days_until_deletion: daysUntilDeletion,
     });
   } catch (err) {
     console.error(err);
@@ -421,6 +443,143 @@ router.post("/cancel", requireAuth, requireRole("pool_admin", "super_admin"), as
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
+// ── 재결제 (결제 실패 후 복구) ────────────────────────────────────────
+router.post("/retry", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+    const [poolRow] = (await db.execute(sql`
+      SELECT subscription_status, subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `)).rows as any[];
+
+    if (!["payment_failed", "pending_deletion"].includes(poolRow?.subscription_status)) {
+      res.status(400).json({ error: "현재 재결제가 필요한 상태가 아닙니다." }); return;
+    }
+
+    const [card] = (await db.execute(sql`
+      SELECT * FROM payment_cards WHERE swimming_pool_id = ${poolId} AND is_default = true LIMIT 1
+    `)).rows as any[];
+    if (!card) { res.status(400).json({ error: "등록된 결제 카드가 없습니다." }); return; }
+
+    const [plan] = (await db.execute(sql`
+      SELECT * FROM subscription_plans WHERE tier = ${poolRow.subscription_tier} LIMIT 1
+    `)).rows as any[];
+    if (!plan) { res.status(404).json({ error: "구독 플랜을 찾을 수 없습니다." }); return; }
+
+    const orderId = `ord_retry_${Date.now()}`;
+    const result = await getPaymentProvider().charge({
+      billingKey: card.billing_key,
+      amount: plan.price_per_month,
+      orderName: `${plan.name} 재결제`,
+      orderId,
+      poolId,
+    });
+
+    await recordPayment({
+      poolId,
+      amount: plan.price_per_month,
+      status: result.success ? "success" : "failed",
+      type: "retry",
+      description: `${plan.name} 재결제`,
+    });
+
+    if (!result.success) {
+      res.status(402).json({ error: "재결제에 실패했습니다: " + result.errorMessage }); return;
+    }
+
+    // 결제 성공 → 정상 복구
+    await db.execute(sql`
+      UPDATE swimming_pools
+      SET subscription_status = 'active',
+          is_readonly = false,
+          upload_blocked = false,
+          readonly_reason = null,
+          payment_failed_at = null,
+          updated_at = now()
+      WHERE id = ${poolId}
+    `);
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    await db.execute(sql`
+      INSERT INTO pool_subscriptions
+        (swimming_pool_id, tier, card_id, status, current_period_start, next_billing_at)
+      VALUES (${poolId}, ${poolRow.subscription_tier}, ${card.id}, 'active', ${todayStr}, ${addOneMonth()})
+      ON CONFLICT (swimming_pool_id) DO UPDATE
+        SET status = 'active', next_billing_at = ${addOneMonth()}, updated_at = now()
+    `);
+
+    logEvent({
+      pool_id: poolId,
+      category: "결제",
+      actor_id: req.user!.userId,
+      actor_name: "관리자",
+      description: `재결제 성공 — ${plan.name}`,
+      metadata: { tier: poolRow.subscription_tier, amount: plan.price_per_month },
+    }).catch(console.error);
+
+    res.json({ success: true, message: "재결제에 성공했습니다. 서비스가 복구되었습니다." });
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err?.message ?? "재결제 처리 중 오류가 발생했습니다." });
+  }
+});
+
+// ── 결제 실패 시뮬레이션 (super_admin 전용 테스트용) ──────────────────
+router.post("/simulate-failure", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  const { pool_id } = req.body;
+  if (!pool_id) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
+  try {
+    await db.execute(sql`
+      UPDATE swimming_pools
+      SET subscription_status = 'payment_failed',
+          is_readonly = true,
+          upload_blocked = true,
+          readonly_reason = 'payment_failed',
+          payment_failed_at = now(),
+          updated_at = now()
+      WHERE id = ${pool_id}
+    `);
+    res.json({ success: true, message: "결제 실패 상태로 변경되었습니다." });
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err?.message ?? "서버 오류" });
+  }
+});
+
+// ── 결제 실패 삭제 타임라인 크론 ──────────────────────────────────────
+// 매 시간 실행 — 7일→pending_deletion, 14일→deleted (데이터 보존, 접근 차단)
+cron.schedule("0 * * * *", async () => {
+  try {
+    // 7일 경과 → pending_deletion
+    await db.execute(sql`
+      UPDATE swimming_pools
+      SET subscription_status = 'pending_deletion',
+          readonly_reason = 'pending_deletion',
+          updated_at = now()
+      WHERE subscription_status = 'payment_failed'
+        AND payment_failed_at IS NOT NULL
+        AND NOW() - payment_failed_at >= INTERVAL '7 days'
+        AND NOW() - payment_failed_at < INTERVAL '14 days'
+    `);
+
+    // 14일 경과 → deleted (실제 데이터 삭제는 별도 작업 필요)
+    await db.execute(sql`
+      UPDATE swimming_pools
+      SET subscription_status = 'deleted',
+          readonly_reason = 'deleted',
+          updated_at = now()
+      WHERE subscription_status IN ('payment_failed', 'pending_deletion')
+        AND payment_failed_at IS NOT NULL
+        AND NOW() - payment_failed_at >= INTERVAL '14 days'
+    `);
+
+    console.log("[billing-cron] 결제 실패 타임라인 업데이트 완료");
+  } catch (err) {
+    console.error("[billing-cron] 크론 오류:", err);
   }
 });
 

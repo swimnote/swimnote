@@ -1,49 +1,77 @@
 /**
- * (admin)/billing.tsx — 관리자: 결제 관리 MVP
- * 현재 구독 상태 확인, 카드 등록, 플랜 변경
+ * (admin)/billing.tsx — 관리자: 결제 관리
+ * 현재 구독 상태 확인, 카드 등록, 플랜 변경, 재결제
  */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React, { useEffect, useState, useCallback } from "react";
 import {
-  ActivityIndicator, Alert, Pressable, RefreshControl,
+  ActivityIndicator, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 interface Plan { tier: string; name: string; price_per_month: number; member_limit: number; storage_gb: number; }
 interface CardInfo { id: string; card_last4: string; card_brand: string; card_nickname?: string | null; }
 interface SubInfo { tier: string; status: string; next_billing_at?: string | null; plan_name?: string; price_per_month?: number; member_limit?: number; }
 interface HistoryItem { id: string; amount: number; status: string; description?: string | null; paid_at?: string | null; type?: string; }
+interface BillingStatus {
+  is_readonly: boolean;
+  upload_blocked: boolean;
+  payment_failed_at: string | null;
+  subscription_status: string | null;
+  days_until_deletion: number | null;
+  member_count: number;
+  member_limit: number;
+}
 
 const PLAN_COLOR: Record<string, string> = {
-  free: "#6F6B68", paid_100: "#4EA7D8", paid_200: "#7C3AED",
-  paid_500: "#EC4899", paid_1000: "#F97316", paid_enterprise: "#D97706",
+  free:     "#6F6B68",
+  starter:  "#4EA7D8",
+  basic:    "#2E9B6F",
+  standard: "#1F8F86",
+  growth:   "#7C3AED",
+  pro:      "#EC4899",
+  max:      "#D97706",
 };
 
+const PAYMENT_FAILED_STATUSES = new Set(["payment_failed", "pending_deletion", "deleted"]);
+
 export default function BillingScreen() {
-  const { token } = useAuth();
+  const { token, refreshPool } = useAuth();
   const { themeColor } = useBrand();
 
-  const [status, setStatus]       = useState<SubInfo | null>(null);
-  const [card, setCard]           = useState<CardInfo | null>(null);
-  const [plans, setPlans]         = useState<Plan[]>([]);
-  const [history, setHistory]     = useState<HistoryItem[]>([]);
-  const [memberCount, setMemberCount] = useState(0);
-  const [loading, setLoading]     = useState(true);
+  const [status, setStatus]     = useState<SubInfo | null>(null);
+  const [card, setCard]         = useState<CardInfo | null>(null);
+  const [plans, setPlans]       = useState<Plan[]>([]);
+  const [history, setHistory]   = useState<HistoryItem[]>([]);
+  const [billingInfo, setBillingInfo] = useState<BillingStatus | null>(null);
+  const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // 카드 등록 폼
   const [showCardForm, setShowCardForm] = useState(false);
-  const [cardNum, setCardNum]     = useState("");
-  const [expiry, setExpiry]       = useState("");
-  const [nickname, setNickname]   = useState("");
+  const [cardNum, setCardNum]   = useState("");
+  const [expiry, setExpiry]     = useState("");
+  const [nickname, setNickname] = useState("");
   const [cardSaving, setCardSaving] = useState(false);
 
-  // 구독 변경 중
   const [subscribing, setSubscribing] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+
+  // ConfirmModal state
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const [confirmMessage, setConfirmMessage] = useState("");
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+
+  function showConfirm(title: string, message: string, action: () => void) {
+    setConfirmTitle(title);
+    setConfirmMessage(message);
+    setConfirmAction(() => action);
+    setConfirmVisible(true);
+  }
 
   const load = useCallback(async () => {
     try {
@@ -55,8 +83,16 @@ export default function BillingScreen() {
       setStatus(sd.subscription ?? null);
       setCard(sd.card ?? null);
       setPlans(Array.isArray(sd.plans) ? sd.plans : []);
-      setMemberCount(sd.member_count ?? 0);
       setHistory(Array.isArray(hd) ? hd : []);
+      setBillingInfo({
+        is_readonly: sd.is_readonly ?? false,
+        upload_blocked: sd.upload_blocked ?? false,
+        payment_failed_at: sd.payment_failed_at ?? null,
+        subscription_status: sd.subscription_status ?? null,
+        days_until_deletion: sd.days_until_deletion ?? null,
+        member_count: sd.member_count ?? 0,
+        member_limit: sd.member_limit ?? 5,
+      });
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
@@ -65,8 +101,14 @@ export default function BillingScreen() {
 
   async function registerCard() {
     const digits = cardNum.replace(/\s/g, "");
-    if (digits.length < 15) { Alert.alert("오류", "카드번호를 정확히 입력해주세요."); return; }
-    if (!expiry) { Alert.alert("오류", "유효기간을 입력해주세요 (MM/YY)"); return; }
+    if (digits.length < 15) {
+      showConfirm("오류", "카드번호를 정확히 입력해주세요.", () => {});
+      return;
+    }
+    if (!expiry) {
+      showConfirm("오류", "유효기간을 입력해주세요 (MM/YY)", () => {});
+      return;
+    }
     setCardSaving(true);
     try {
       const r = await apiRequest(token, "/billing/cards", {
@@ -74,8 +116,10 @@ export default function BillingScreen() {
         body: JSON.stringify({ card_number: digits, expiry, card_nickname: nickname }),
       });
       const d = await r.json();
-      if (!r.ok) { Alert.alert("오류", d.error ?? "카드 등록 실패"); return; }
-      Alert.alert("완료", "카드가 등록되었습니다.");
+      if (!r.ok) {
+        showConfirm("카드 등록 실패", d.error ?? "카드 등록에 실패했습니다.", () => {});
+        return;
+      }
       setShowCardForm(false); setCardNum(""); setExpiry(""); setNickname("");
       load();
     } finally { setCardSaving(false); }
@@ -88,18 +132,35 @@ export default function BillingScreen() {
         method: "POST", body: JSON.stringify({ tier }),
       });
       const d = await r.json();
-      if (!r.ok) { Alert.alert("오류", d.error ?? "구독 실패"); return; }
-      const msg = d.prorate_amount
-        ? `일할 결제: ₩${d.prorate_amount.toLocaleString()}\n다음 결제일: ${d.next_billing_at}`
-        : `구독이 변경되었습니다.\n다음 결제일: ${d.next_billing_at}`;
-      Alert.alert("구독 완료", msg);
-      load();
+      if (!r.ok) {
+        showConfirm("구독 실패", d.error ?? "구독 변경에 실패했습니다.", () => {});
+        return;
+      }
+      await load();
+      await refreshPool();
     } finally { setSubscribing(null); }
+  }
+
+  async function retryPayment() {
+    setRetrying(true);
+    try {
+      const r = await apiRequest(token, "/billing/retry", { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) {
+        showConfirm("재결제 실패", d.error ?? "재결제에 실패했습니다. 카드 정보를 확인해주세요.", () => {});
+        return;
+      }
+      await load();
+      await refreshPool();
+      showConfirm("재결제 성공", "서비스가 정상적으로 복구되었습니다.", () => {});
+    } finally { setRetrying(false); }
   }
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={themeColor} />;
 
   const currentTier = status?.tier ?? "free";
+  const isPaymentFailed = PAYMENT_FAILED_STATUSES.has(billingInfo?.subscription_status ?? "");
+  const daysLeft = billingInfo?.days_until_deletion;
 
   return (
     <View style={s.safe}>
@@ -111,16 +172,61 @@ export default function BillingScreen() {
         showsVerticalScrollIndicator={false}
       >
 
+        {/* ── 결제 실패 / 삭제 예약 긴급 배너 ── */}
+        {isPaymentFailed && (
+          <View style={[s.failBanner, billingInfo?.subscription_status === "deleted" ? s.failBannerDeleted : s.failBannerActive]}>
+            <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+              <Feather
+                name={billingInfo?.subscription_status === "deleted" ? "x-circle" : "alert-triangle"}
+                size={18}
+                color={billingInfo?.subscription_status === "deleted" ? "#6F6B68" : "#DC2626"}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.failTitle, billingInfo?.subscription_status === "deleted" && { color: "#6F6B68" }]}>
+                  {billingInfo?.subscription_status === "deleted"
+                    ? "계정이 삭제되었습니다"
+                    : billingInfo?.subscription_status === "pending_deletion"
+                    ? "데이터 삭제 예약됨"
+                    : "결제 실패 — 서비스 이용 제한"}
+                </Text>
+                <Text style={s.failDesc}>
+                  {billingInfo?.subscription_status === "deleted"
+                    ? "모든 데이터가 영구 삭제되었습니다."
+                    : daysLeft != null
+                    ? `${daysLeft}일 후 모든 데이터가 영구 삭제됩니다. 지금 재결제하면 복구됩니다.`
+                    : "빠른 시일 내에 재결제를 진행해주세요."}
+                </Text>
+              </View>
+            </View>
+            {billingInfo?.subscription_status !== "deleted" && (
+              <Pressable
+                style={[s.retryBtn, retrying && { opacity: 0.6 }]}
+                onPress={() => showConfirm(
+                  "재결제 진행",
+                  `등록된 카드로 재결제를 진행합니다.\n서비스가 즉시 복구됩니다.`,
+                  retryPayment
+                )}
+                disabled={retrying}
+              >
+                {retrying
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={s.retryBtnTxt}>지금 재결제</Text>
+                }
+              </Pressable>
+            )}
+          </View>
+        )}
+
         {/* ── 현재 구독 ── */}
         <Section title="현재 구독">
-          <View style={[s.subCard, { borderColor: PLAN_COLOR[currentTier] + "50" }]}>
+          <View style={[s.subCard, { borderColor: (PLAN_COLOR[currentTier] ?? themeColor) + "50" }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={[s.planDot, { backgroundColor: PLAN_COLOR[currentTier] }]} />
+              <View style={[s.planDot, { backgroundColor: PLAN_COLOR[currentTier] ?? themeColor }]} />
               <View style={{ flex: 1 }}>
                 <Text style={s.planName}>{status?.plan_name ?? "무료 이용"}</Text>
                 <Text style={s.planMeta}>
                   {status?.price_per_month ? `₩${status.price_per_month.toLocaleString()}/월` : "무료"}
-                  {"  ·  "}최대 {status?.member_limit ?? 30}명
+                  {"  ·  "}최대 {billingInfo?.member_limit ?? status?.member_limit ?? 5}명
                 </Text>
               </View>
               <View style={[s.statusBadge, status?.status === "active" ? s.badgeGreen : s.badgeGray]}>
@@ -129,12 +235,14 @@ export default function BillingScreen() {
                 </Text>
               </View>
             </View>
-            <View style={s.row}>
+            <View style={s.infoRow}>
               <Text style={s.metaLabel}>현재 회원 수</Text>
-              <Text style={s.metaValue}>{memberCount}명</Text>
+              <Text style={s.metaValue}>
+                {billingInfo?.member_count ?? 0}명 / {billingInfo?.member_limit ?? 5}명
+              </Text>
             </View>
             {status?.next_billing_at && (
-              <View style={s.row}>
+              <View style={s.infoRow}>
                 <Text style={s.metaLabel}>다음 결제일</Text>
                 <Text style={s.metaValue}>{status.next_billing_at}</Text>
               </View>
@@ -153,7 +261,7 @@ export default function BillingScreen() {
                 {card.card_nickname && <Text style={s.cardNick}>{card.card_nickname}</Text>}
               </View>
               <Pressable onPress={() => setShowCardForm(true)}>
-                <Text style={{ color: themeColor, fontFamily: "Inter_500Medium", fontSize: 13 }}>변경</Text>
+                <Text style={{ color: themeColor, fontWeight: "500", fontSize: 13 }}>변경</Text>
               </Pressable>
             </View>
           ) : (
@@ -174,11 +282,11 @@ export default function BillingScreen() {
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable style={[s.formBtn, { flex: 1, borderWidth: 1, borderColor: "#E9E2DD" }]}
                   onPress={() => setShowCardForm(false)}>
-                  <Text style={{ fontFamily: "Inter_500Medium", color: "#6F6B68" }}>취소</Text>
+                  <Text style={{ fontWeight: "500", color: "#6F6B68" }}>취소</Text>
                 </Pressable>
                 <Pressable style={[s.formBtn, { flex: 1, backgroundColor: themeColor }]}
                   onPress={registerCard} disabled={cardSaving}>
-                  <Text style={{ fontFamily: "Inter_600SemiBold", color: "#fff" }}>{cardSaving ? "등록 중..." : "등록"}</Text>
+                  <Text style={{ fontWeight: "600", color: "#fff" }}>{cardSaving ? "등록 중..." : "등록"}</Text>
                 </Pressable>
               </View>
               <Text style={s.cardNote}>
@@ -192,7 +300,7 @@ export default function BillingScreen() {
         {/* ── 구독 플랜 ── */}
         <Section title="구독 플랜">
           <View style={{ gap: 10 }}>
-            {plans.filter(p => p.tier !== "paid_enterprise").map(p => {
+            {plans.map(p => {
               const isCurrent = p.tier === currentTier;
               const pc = PLAN_COLOR[p.tier] ?? themeColor;
               return (
@@ -210,14 +318,14 @@ export default function BillingScreen() {
                   {!isCurrent && p.price_per_month > 0 && (
                     <Pressable
                       onPress={() => {
-                        if (!card) { Alert.alert("카드 필요", "결제 카드를 먼저 등록해주세요."); return; }
-                        Alert.alert(
+                        if (!card) {
+                          showConfirm("카드 필요", "결제 카드를 먼저 등록해주세요.", () => {});
+                          return;
+                        }
+                        showConfirm(
                           `${p.name}으로 변경`,
                           `₩${p.price_per_month.toLocaleString()}/월\n업그레이드 시 일할 금액이 즉시 결제됩니다.`,
-                          [
-                            { text: "취소", style: "cancel" },
-                            { text: "변경", onPress: () => subscribe(p.tier) },
-                          ]
+                          () => subscribe(p.tier)
                         );
                       }}
                       disabled={!!subscribing}
@@ -232,14 +340,6 @@ export default function BillingScreen() {
                 </View>
               );
             })}
-            <View style={[s.planCard, { borderStyle: "dashed", borderColor: "#D97706" }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.planCardName, { color: "#D97706" }]}>엔터프라이즈</Text>
-                <Text style={s.planCardPrice}>별도 협의</Text>
-                <Text style={s.planCardMeta}>무제한 · 500GB+</Text>
-              </View>
-              <Text style={{ fontSize: 12, color: "#D97706", fontFamily: "Inter_500Medium" }}>문의</Text>
-            </View>
           </View>
         </Section>
 
@@ -264,6 +364,16 @@ export default function BillingScreen() {
           }
         </Section>
       </ScrollView>
+
+      <ConfirmModal
+        visible={confirmVisible}
+        title={confirmTitle}
+        message={confirmMessage}
+        confirmText="확인"
+        cancelText="취소"
+        onConfirm={() => { setConfirmVisible(false); confirmAction?.(); }}
+        onCancel={() => setConfirmVisible(false)}
+      />
     </View>
   );
 }
@@ -280,44 +390,52 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const s = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: "#F6F3F1" },
   section:         { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 12 },
-  sectionTitle:    { fontSize: 12, fontFamily: "Inter_700Bold", color: "#6F6B68", letterSpacing: 0.5, textTransform: "uppercase" },
+  sectionTitle:    { fontSize: 12, fontWeight: "700", color: "#6F6B68", letterSpacing: 0.5, textTransform: "uppercase" },
+  // 결제 실패 배너
+  failBanner:      { borderRadius: 12, borderWidth: 1.5, padding: 14, gap: 12 },
+  failBannerActive:{ backgroundColor: "#FFF1BF", borderColor: "#F59E0B" },
+  failBannerDeleted:{ backgroundColor: "#F1F0EF", borderColor: "#9B9591" },
+  failTitle:       { fontSize: 13, fontWeight: "700", color: "#DC2626", marginBottom: 2 },
+  failDesc:        { fontSize: 12, color: "#4A4540", lineHeight: 17 },
+  retryBtn:        { backgroundColor: "#DC2626", paddingVertical: 10, borderRadius: 10, alignItems: "center" },
+  retryBtnTxt:     { color: "#fff", fontSize: 14, fontWeight: "700" },
   // 현재 구독
   subCard:         { borderWidth: 1.5, borderRadius: 12, padding: 14, gap: 10 },
   planDot:         { width: 10, height: 10, borderRadius: 5 },
-  planName:        { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  planMeta:        { fontSize: 12, color: "#6F6B68", fontFamily: "Inter_400Regular", marginTop: 2 },
+  planName:        { fontSize: 16, fontWeight: "700", color: "#1F1F1F" },
+  planMeta:        { fontSize: 12, color: "#6F6B68", marginTop: 2 },
   statusBadge:     { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   badgeGreen:      { backgroundColor: "#DDF2EF" },
   badgeGray:       { backgroundColor: "#F6F3F1" },
-  badgeText:       { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  row:             { flexDirection: "row", justifyContent: "space-between" },
-  metaLabel:       { fontSize: 13, color: "#6F6B68", fontFamily: "Inter_400Regular" },
-  metaValue:       { fontSize: 13, color: "#1F1F1F", fontFamily: "Inter_600SemiBold" },
+  badgeText:       { fontSize: 11, fontWeight: "600" },
+  infoRow:         { flexDirection: "row", justifyContent: "space-between" },
+  metaLabel:       { fontSize: 13, color: "#6F6B68" },
+  metaValue:       { fontSize: 13, color: "#1F1F1F", fontWeight: "600" },
   // 카드
   cardBox:         { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 12, padding: 14 },
-  cardBrand:       { fontSize: 12, color: "#6F6B68", fontFamily: "Inter_400Regular" },
-  cardNum:         { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  cardNick:        { fontSize: 12, color: "#9A948F", fontFamily: "Inter_400Regular" },
+  cardBrand:       { fontSize: 12, color: "#6F6B68" },
+  cardNum:         { fontSize: 15, fontWeight: "600", color: "#1F1F1F" },
+  cardNick:        { fontSize: 12, color: "#9A948F" },
   addCardBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderStyle: "dashed", borderRadius: 10, height: 48 },
-  addCardText:     { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  addCardText:     { fontWeight: "600", fontSize: 14 },
   cardForm:        { gap: 10, paddingTop: 4 },
-  input:           { height: 44, borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, paddingHorizontal: 12, fontFamily: "Inter_400Regular", fontSize: 14, color: "#1F1F1F" },
+  input:           { height: 44, borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, paddingHorizontal: 12, fontSize: 14, color: "#1F1F1F" },
   formBtn:         { height: 44, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-  cardNote:        { fontSize: 11, color: "#9A948F", fontFamily: "Inter_400Regular", lineHeight: 16 },
+  cardNote:        { fontSize: 11, color: "#9A948F", lineHeight: 16 },
   // 플랜
   planCard:        { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 12, padding: 14, gap: 10 },
-  planCardName:    { fontSize: 14, fontFamily: "Inter_700Bold" },
-  planCardPrice:   { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginTop: 2 },
-  planCardMeta:    { fontSize: 12, color: "#6F6B68", fontFamily: "Inter_400Regular" },
+  planCardName:    { fontSize: 14, fontWeight: "700" },
+  planCardPrice:   { fontSize: 15, fontWeight: "700", color: "#1F1F1F", marginTop: 2 },
+  planCardMeta:    { fontSize: 12, color: "#6F6B68" },
   currentTag:      { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  currentTagText:  { color: "#fff", fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  currentTagText:  { color: "#fff", fontSize: 10, fontWeight: "600" },
   subscribeBtn:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, minWidth: 50, alignItems: "center" },
-  subscribeBtnText:{ color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  subscribeBtnText:{ color: "#fff", fontSize: 13, fontWeight: "600" },
   // 내역
   histRow:         { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  histDesc:        { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  histDate:        { fontSize: 11, color: "#9A948F", fontFamily: "Inter_400Regular", marginTop: 2 },
-  histAmount:      { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  histStatus:      { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
-  empty:           { textAlign: "center", color: "#9A948F", fontFamily: "Inter_400Regular", padding: 20 },
+  histDesc:        { fontSize: 13, fontWeight: "500", color: "#1F1F1F" },
+  histDate:        { fontSize: 11, color: "#9A948F", marginTop: 2 },
+  histAmount:      { fontSize: 14, fontWeight: "700", color: "#1F1F1F" },
+  histStatus:      { fontSize: 11, fontWeight: "500", marginTop: 2 },
+  empty:           { textAlign: "center", color: "#9A948F", padding: 20 },
 });

@@ -75,9 +75,40 @@ router.get("/my", requireAuth, async (req: AuthRequest, res) => {
     if (!user[0]?.swimming_pool_id) {
       res.status(404).json({ error: "소속된 수영장이 없습니다." }); return;
     }
-    const rows = await db.execute(sql`SELECT * FROM swimming_pools WHERE id = ${user[0].swimming_pool_id}`);
+    const poolId = user[0].swimming_pool_id;
+    const rows = await db.execute(sql`SELECT * FROM swimming_pools WHERE id = ${poolId}`);
     if (!rows.rows.length) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
-    res.json(rows.rows[0]);
+    const pool = rows.rows[0] as any;
+
+    // 회원 수 조회
+    const [cntRow] = (await db.execute(sql`
+      SELECT COUNT(*) AS cnt FROM students
+      WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
+    `)).rows as any[];
+    const memberCount = Number(cntRow?.cnt ?? 0);
+
+    // 플랜 회원 한도 조회
+    const [planRow] = (await db.execute(sql`
+      SELECT member_limit, storage_gb FROM subscription_plans
+      WHERE tier = ${pool.subscription_tier ?? "free"} LIMIT 1
+    `)).rows as any[];
+
+    // 삭제까지 남은 일수 계산
+    let daysUntilDeletion: number | null = null;
+    if (pool.payment_failed_at) {
+      const failedAt = new Date(pool.payment_failed_at);
+      const deletionAt = new Date(failedAt.getTime() + 14 * 86_400_000);
+      const now = new Date();
+      daysUntilDeletion = Math.max(0, Math.ceil((deletionAt.getTime() - now.getTime()) / 86_400_000));
+    }
+
+    res.json({
+      ...pool,
+      member_count: memberCount,
+      member_limit: Number(planRow?.member_limit ?? 5),
+      base_storage_gb: Number(planRow?.storage_gb ?? 0.1),
+      days_until_deletion: daysUntilDeletion,
+    });
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 

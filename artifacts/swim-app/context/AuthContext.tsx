@@ -43,7 +43,7 @@ export interface PoolInfo {
   owner_email: string;
   approval_status: "pending" | "approved" | "rejected";
   rejection_reason?: string | null;
-  subscription_status: "trial" | "active" | "expired" | "suspended" | "cancelled";
+  subscription_status: "trial" | "active" | "expired" | "suspended" | "cancelled" | "payment_failed" | "pending_deletion" | "deleted";
   subscription_start_at?: string | null;
   subscription_end_at?: string | null;
   theme_color?: string | null;
@@ -51,6 +51,21 @@ export interface PoolInfo {
   logo_emoji?: string | null;
   white_label_enabled?: boolean;
   hide_platform_name?: boolean;
+  // 읽기전용 / 결제 상태
+  is_readonly?: boolean;
+  upload_blocked?: boolean;
+  readonly_reason?: string | null;
+  payment_failed_at?: string | null;
+  // 구독 플랜 정보
+  subscription_tier?: string;
+  member_count?: number;
+  member_limit?: number;
+  // 스토리지
+  used_storage_bytes?: number;
+  base_storage_gb?: number;
+  extra_storage_gb?: number;
+  // 삭제까지 남은 일수 (결제 실패 시)
+  days_until_deletion?: number | null;
 }
 
 export interface OwnedPool {
