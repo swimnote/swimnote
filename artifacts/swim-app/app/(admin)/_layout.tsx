@@ -119,6 +119,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="extra-storage"            options={{ href: null }} />
       <Tabs.Screen name="invite-records"           options={{ href: null }} />
       <Tabs.Screen name="recovery"               options={{ href: null }} />
+      <Tabs.Screen name="feedback-settings"      options={{ href: null }} />
     </Tabs>
   );
 }
