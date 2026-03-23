@@ -137,7 +137,7 @@ function TodoSection({
   path: string;
   pathLabel?: string;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   if (count === 0) return null;
   return (
     <View style={ts.wrap}>
