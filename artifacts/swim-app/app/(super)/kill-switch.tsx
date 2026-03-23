@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useOperatorsStore } from "@/store/operatorsStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import { useBackupStore } from "@/store/backupStore";
@@ -74,6 +75,7 @@ export default function KillSwitchScreen() {
 
   const [deleting,      setDeleting]      = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [otpVisible,    setOtpVisible]    = useState(false);
 
   const queueItems = useMemo(() => operators.filter(o => !!o.autoDeleteScheduledAt), [operators]);
   const deleteLogs = useMemo(() => auditLogs.filter(l => l.category === '삭제'), [auditLogs]);
@@ -440,9 +442,9 @@ export default function KillSwitchScreen() {
                   <Pressable
                     style={[m.deleteBtn, { opacity: canExecute && !deleting ? 1 : 0.4 }]}
                     disabled={!canExecute || deleting}
-                    onPress={executeDelete}>
+                    onPress={() => setOtpVisible(true)}>
                     {deleting ? <ActivityIndicator color="#fff" size="small" />
-                      : <><Feather name="trash-2" size={14} color="#fff" /><Text style={m.deleteTxt}>영구 삭제 실행</Text></>}
+                      : <><Feather name="lock" size={13} color="#fff" /><Text style={m.deleteTxt}>OTP 인증 후 영구 삭제</Text></>}
                   </Pressable>
                 </View>
               </ScrollView>
@@ -450,6 +452,13 @@ export default function KillSwitchScreen() {
           </Pressable>
         </Modal>
       )}
+      <OtpGateModal
+        visible={otpVisible}
+        title="영구 삭제 OTP 인증"
+        desc="킬스위치 실행은 되돌릴 수 없습니다. OTP를 인증한 후에만 실행됩니다."
+        onSuccess={() => { setOtpVisible(false); executeDelete(); }}
+        onCancel={() => setOtpVisible(false)}
+      />
     </SafeAreaView>
   );
 }

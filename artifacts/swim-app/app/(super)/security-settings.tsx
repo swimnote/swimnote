@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useSecurityStore } from "@/store/securityStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SuperAdminAccount, SuperAdminRole, SuperAdminSession } from "@/domain/types";
@@ -56,7 +57,7 @@ const TWO_FA_OPTIONS: { key: TwoFAMode; label: string; desc: string }[] = [
 type SensitiveTrigger = "always" | "sensitive_only";
 const SENSITIVE_TRIGGERS: { key: SensitiveTrigger; label: string }[] = [
   { key: "always",         label: "로그인 시 항상 2차 인증" },
-  { key: "sensitive_only", label: "킬스위치·삭제·권한변경 시만 추가 인증" },
+  { key: "sensitive_only", label: "킬스위치·백업·삭제·권한변경·구독변경·구독료변경·용량비용변경·운영자정보수정·슈퍼관리자 개인정보변경 시 OTP 인증" },
 ];
 
 // ─── 외부 서비스 시드 ────────────────────────────────────────────────────────
@@ -160,6 +161,10 @@ export default function SecuritySettingsScreen() {
     )
   , [accounts]);
 
+  // ── OTP 인증 게이트 ──
+  type OtpAction = "pw" | "id" | null;
+  const [otpAction, setOtpAction] = useState<OtpAction>(null);
+
   // ── B. 비밀번호 ──
   const [pwModal,      setPwModal]      = useState(false);
   const [currentPw,    setCurrentPw]    = useState("");
@@ -203,9 +208,12 @@ export default function SecuritySettingsScreen() {
     if (currentPw !== "admin1234") { setPwError("현재 비밀번호가 올바르지 않습니다."); return; }
     if (newPw.length < 8)          { setPwError("새 비밀번호는 8자 이상이어야 합니다."); return; }
     if (newPw !== confirmPw)        { setPwError("비밀번호 확인이 일치하지 않습니다."); return; }
+    setOtpAction("pw");
+  }
+  function executePwChange() {
     setPwSuccess(true);
     setLastPwChange(new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }));
-    createLog({ category: "보안", title: "비밀번호 변경", detail: "슈퍼관리자 비밀번호 변경 완료", actorName, impact: "high" });
+    createLog({ category: "보안", title: "비밀번호 변경", detail: "슈퍼관리자 비밀번호 변경 완료 (OTP 인증)", actorName, impact: "high" });
     setTimeout(() => { setPwModal(false); setPwSuccess(false); setCurrentPw(""); setNewPw(""); setConfirmPw(""); }, 1200);
   }
 
@@ -224,7 +232,10 @@ export default function SecuritySettingsScreen() {
     setIdError("");
     if (!newId.includes("@"))        { setIdError("올바른 이메일 형식을 입력하세요."); return; }
     if (idVerifyPw !== "admin1234")  { setIdError("비밀번호가 올바르지 않습니다."); return; }
-    createLog({ category: "보안", title: `관리자 ID 변경: ${currentId} → ${newId}`, detail: "슈퍼관리자 로그인 ID 변경", actorName, impact: "high" });
+    setOtpAction("id");
+  }
+  function executeIdChange() {
+    createLog({ category: "보안", title: `관리자 ID 변경: ${currentId} → ${newId}`, detail: "슈퍼관리자 로그인 ID 변경 (OTP 인증)", actorName, impact: "high" });
     setCurrentId(newId);
     setIdSuccess(true);
     setTimeout(() => { setIdModal(false); setIdSuccess(false); setNewId(""); setIdVerifyPw(""); }, 1400);
@@ -841,6 +852,15 @@ export default function SecuritySettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* ── OTP 인증 게이트 ── */}
+      <OtpGateModal
+        visible={otpAction !== null}
+        title={otpAction === "pw" ? "비밀번호 변경 OTP 인증" : "관리자 ID 변경 OTP 인증"}
+        desc="슈퍼관리자 개인정보 변경은 OTP 인증이 필요합니다."
+        onSuccess={() => { setOtpAction(null); otpAction === "pw" ? executePwChange() : executeIdChange(); }}
+        onCancel={() => setOtpAction(null)}
+      />
 
       <Modal visible={twoFAModal} animationType="fade" transparent statusBarTranslucent
         onRequestClose={() => { setTwoFAModal(false); setPendingMode(null); }}>

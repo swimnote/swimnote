@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useOperatorsStore } from "@/store/operatorsStore";
 import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
@@ -85,6 +86,7 @@ export default function SubscriptionsScreen() {
   const [newEndDate, setNewEndDate]   = useState("");
   const [newStatus, setNewStatus]     = useState("");
   const [saving, setSaving]           = useState(false);
+  const [otpVisible, setOtpVisible]   = useState(false);
 
   const operators       = useOperatorsStore(s => s.operators);
   const applyCredit     = useSubscriptionStore(s => s.applyCredit);
@@ -320,15 +322,23 @@ export default function SubscriptionsScreen() {
                 <Pressable style={m.cancelBtn} onPress={() => setEditOp(null)}>
                   <Text style={m.cancelTxt}>취소</Text>
                 </Pressable>
-                <Pressable style={[m.saveBtn, { opacity: saving ? 0.6 : 1 }]} onPress={handleSave} disabled={saving}>
+                <Pressable style={[m.saveBtn, { opacity: saving ? 0.6 : 1 }]} onPress={() => setOtpVisible(true)} disabled={saving}>
                   {saving ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={m.saveTxt}>저장</Text>}
+                    : <><Feather name="lock" size={13} color="#fff" /><Text style={m.saveTxt}>OTP 인증 후 저장</Text></>}
                 </Pressable>
               </View>
             </Pressable>
           </Pressable>
         </Modal>
       )}
+
+      <OtpGateModal
+        visible={otpVisible}
+        title="구독 변경 OTP 인증"
+        desc="구독 상태·크레딧 변경은 OTP 인증이 필요합니다."
+        onSuccess={() => { setOtpVisible(false); handleSave(); }}
+        onCancel={() => setOtpVisible(false)}
+      />
     </SafeAreaView>
   );
 }
