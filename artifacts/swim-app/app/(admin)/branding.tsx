@@ -12,7 +12,7 @@ import {
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { useBrand, APP_PLATFORM_NAME, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import ConfirmModal from "@/components/common/ConfirmModal";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 // ── 프리셋 색상 팔레트 ────────────────────────────────────────────────
 const PALETTE = [
