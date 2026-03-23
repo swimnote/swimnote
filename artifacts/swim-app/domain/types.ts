@@ -128,7 +128,7 @@ export interface InviteRecord {
 }
 
 // ── 슈퍼관리자 보안 ───────────────────────────────────
-export type SuperAdminRole = 'super_admin' | 'senior_admin' | 'read_only_admin'
+export type SuperAdminRole = 'super_admin' | 'senior_admin' | 'read_only_admin' | 'super_manager'
 
 export interface SuperAdminDevice {
   id: string

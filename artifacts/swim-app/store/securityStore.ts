@@ -91,6 +91,8 @@ interface SecurityState {
   changeRole: (adminId: string, role: SuperAdminRole, actorName: string) => void
   toggleActive: (adminId: string, actorName: string) => void
   resetFailCount: (adminId: string) => void
+  addSuperManager: (name: string, email: string) => void
+  deleteSuperManager: (adminId: string) => void
 }
 
 export const useSecurityStore = create<SecurityState>((set, get) => ({
@@ -145,5 +147,32 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
       accounts: s.accounts.map(a =>
         a.id === adminId ? { ...a, loginFailCount: 0 } : a
       ),
+    })),
+
+  addSuperManager: (name, email) =>
+    set(s => ({
+      accounts: [
+        ...s.accounts,
+        {
+          id: `sm-${Date.now()}`,
+          name,
+          email,
+          role: 'super_manager' as SuperAdminRole,
+          twoFactorEnabled: false,
+          lastLoginAt: null,
+          lastLoginIp: null,
+          loginFailCount: 0,
+          lockedUntil: null,
+          isActive: true,
+          createdAt: now(),
+          devices: [],
+          sessions: [],
+        },
+      ],
+    })),
+
+  deleteSuperManager: (adminId) =>
+    set(s => ({
+      accounts: s.accounts.filter(a => !(a.id === adminId && a.role === 'super_manager')),
     })),
 }))

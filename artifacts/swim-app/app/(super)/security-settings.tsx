@@ -86,6 +86,7 @@ const ROLE_LABELS: Record<string, string> = {
   viewer:          "뷰어",
   support:         "지원팀",
   read_only_admin: "읽기전용",
+  super_manager:   "슈퍼매니저",
 };
 
 const REAUTH_ACTIONS = ["운영자 강제 해지", "플랜 강제 변경", "데이터 삭제", "권한 변경", "킬스위치 실행"];
@@ -110,11 +111,44 @@ export default function SecuritySettingsScreen() {
   const actorName = adminUser?.name ?? "슈퍼관리자";
   const createLog = useAuditLogStore(s => s.createLog);
 
-  const accounts       = useSecurityStore(s => s.accounts);
-  const terminateSess  = useSecurityStore(s => s.terminateSession);
-  const lockAcc        = useSecurityStore(s => s.lockAccount);
-  const unlockAcc      = useSecurityStore(s => s.unlockAccount);
-  const resetFail      = useSecurityStore(s => s.resetFailCount);
+  const accounts          = useSecurityStore(s => s.accounts);
+  const terminateSess     = useSecurityStore(s => s.terminateSession);
+  const lockAcc           = useSecurityStore(s => s.lockAccount);
+  const unlockAcc         = useSecurityStore(s => s.unlockAccount);
+  const resetFail         = useSecurityStore(s => s.resetFailCount);
+  const addSuperManager   = useSecurityStore(s => s.addSuperManager);
+  const deleteSuperManager = useSecurityStore(s => s.deleteSuperManager);
+
+  // ── 슈퍼매니저 추가 모달 ──
+  const [smAddModal,   setSmAddModal]   = useState(false);
+  const [smName,       setSmName]       = useState("");
+  const [smEmail,      setSmEmail]      = useState("");
+  const [smPw,         setSmPw]         = useState("");
+  const [smError,      setSmError]      = useState("");
+  const [smSuccess,    setSmSuccess]    = useState(false);
+
+  // ── 슈퍼매니저 삭제 확인 ──
+  const [smDeleteId,   setSmDeleteId]   = useState<string | null>(null);
+  const smDeleteTarget = useMemo(() => accounts.find(a => a.id === smDeleteId), [accounts, smDeleteId]);
+
+  function handleAddSuperManager() {
+    setSmError("");
+    if (!smName.trim())          { setSmError("이름을 입력하세요."); return; }
+    if (!smEmail.includes("@"))  { setSmError("올바른 이메일 형식을 입력하세요."); return; }
+    if (smPw.length < 8)         { setSmError("초기 비밀번호는 8자 이상이어야 합니다."); return; }
+    if (accounts.some(a => a.email === smEmail)) { setSmError("이미 등록된 이메일입니다."); return; }
+    addSuperManager(smName.trim(), smEmail.trim());
+    createLog({ category: "보안", title: `슈퍼매니저 추가: ${smName.trim()}`, detail: `${smEmail.trim()} 읽기전용 계정 등록`, actorName, impact: "high" });
+    setSmSuccess(true);
+    setTimeout(() => { setSmAddModal(false); setSmSuccess(false); setSmName(""); setSmEmail(""); setSmPw(""); }, 1200);
+  }
+
+  function handleDeleteSuperManager() {
+    if (!smDeleteId || !smDeleteTarget) return;
+    deleteSuperManager(smDeleteId);
+    createLog({ category: "보안", title: `슈퍼매니저 삭제: ${smDeleteTarget.name}`, detail: `${smDeleteTarget.email} 계정 삭제`, actorName, impact: "high" });
+    setSmDeleteId(null);
+  }
 
   // 모든 활성 세션 (계정에서 flatten)
   type FlatSession = SuperAdminSession & { accountId: string; accountName: string };
@@ -251,32 +285,57 @@ export default function SecuritySettingsScreen() {
           <SectionTitle title="A. 슈퍼관리자 계정 관리" sub={`${accounts.length}개 계정`} />
           {accounts.map(acc => {
             const locked = isAccountLocked(acc);
+            const isSuperManager = acc.role === "super_manager";
             return (
-              <Pressable key={acc.id} style={s.accountCard} onPress={() => setAccountDetail(acc.id)}>
-                <View style={[s.accountAvatar, { backgroundColor: acc.isActive ? "#EEDDF5" : "#F6F3F1" }]}>
-                  <Text style={[s.accountAvatarTxt, { color: acc.isActive ? P : "#9A948F" }]}>{acc.name[0]}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={s.accountNameRow}>
-                    <Text style={s.accountName}>{acc.name}</Text>
-                    {locked && <View style={s.lockedBadge}><Text style={s.lockedTxt}>잠금</Text></View>}
-                    {!acc.isActive && <View style={s.inactiveBadge}><Text style={s.inactiveTxt}>비활성</Text></View>}
+              <View key={acc.id} style={s.accountCardWrap}>
+                <Pressable style={s.accountCard} onPress={() => !isSuperManager && setAccountDetail(acc.id)}>
+                  <View style={[s.accountAvatar, { backgroundColor: isSuperManager ? "#E0F2FE" : acc.isActive ? "#EEDDF5" : "#F6F3F1" }]}>
+                    <Text style={[s.accountAvatarTxt, { color: isSuperManager ? "#0284C7" : acc.isActive ? P : "#9A948F" }]}>{acc.name[0]}</Text>
                   </View>
-                  <Text style={s.accountEmail}>{acc.email}</Text>
-                  <View style={s.accountMetaRow}>
-                    <View style={s.roleBadge}><Text style={s.roleTxt}>{ROLE_LABELS[acc.role] ?? acc.role}</Text></View>
-                    {acc.twoFactorEnabled
-                      ? <View style={s.twoFaBadgeOn}><Feather name="shield" size={9} color={GREEN} /><Text style={s.twoFaTxtOn}>2FA</Text></View>
-                      : <View style={s.twoFaBadgeOff}><Feather name="shield-off" size={9} color="#9A948F" /><Text style={s.twoFaTxtOff}>2FA 없음</Text></View>}
-                    {acc.loginFailCount > 0 && (
-                      <View style={s.failBadge}><Text style={s.failTxt}>실패 {acc.loginFailCount}회</Text></View>
-                    )}
+                  <View style={{ flex: 1 }}>
+                    <View style={s.accountNameRow}>
+                      <Text style={s.accountName}>{acc.name}</Text>
+                      {locked && <View style={s.lockedBadge}><Text style={s.lockedTxt}>잠금</Text></View>}
+                      {!acc.isActive && <View style={s.inactiveBadge}><Text style={s.inactiveTxt}>비활성</Text></View>}
+                    </View>
+                    <Text style={s.accountEmail}>{acc.email}</Text>
+                    <View style={s.accountMetaRow}>
+                      <View style={[s.roleBadge, isSuperManager && { backgroundColor: "#E0F2FE" }]}>
+                        <Text style={[s.roleTxt, isSuperManager && { color: "#0284C7" }]}>{ROLE_LABELS[acc.role] ?? acc.role}</Text>
+                      </View>
+                      {isSuperManager && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F0FDF4", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <Feather name="eye" size={9} color="#16A34A" />
+                          <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#16A34A" }}>읽기전용</Text>
+                        </View>
+                      )}
+                      {!isSuperManager && (acc.twoFactorEnabled
+                        ? <View style={s.twoFaBadgeOn}><Feather name="shield" size={9} color={GREEN} /><Text style={s.twoFaTxtOn}>2FA</Text></View>
+                        : <View style={s.twoFaBadgeOff}><Feather name="shield-off" size={9} color="#9A948F" /><Text style={s.twoFaTxtOff}>2FA 없음</Text></View>)}
+                      {acc.loginFailCount > 0 && (
+                        <View style={s.failBadge}><Text style={s.failTxt}>실패 {acc.loginFailCount}회</Text></View>
+                      )}
+                    </View>
                   </View>
-                </View>
-                <Feather name="chevron-right" size={14} color="#D1D5DB" />
-              </Pressable>
+                  {isSuperManager
+                    ? <Pressable style={s.smDeleteBtn} onPress={() => setSmDeleteId(acc.id)}>
+                        <Feather name="trash-2" size={14} color={DANGER} />
+                      </Pressable>
+                    : <Feather name="chevron-right" size={14} color="#D1D5DB" />}
+                </Pressable>
+              </View>
             );
           })}
+
+          {/* 슈퍼매니저 추가 버튼 */}
+          <Pressable style={s.smAddBtn} onPress={() => setSmAddModal(true)}>
+            <Feather name="user-plus" size={15} color="#0284C7" />
+            <Text style={s.smAddBtnTxt}>슈퍼매니저 추가</Text>
+          </Pressable>
+          <View style={s.smInfoBox}>
+            <Feather name="info" size={12} color="#0284C7" />
+            <Text style={s.smInfoTxt}>슈퍼매니저는 운영콘솔 전체를 읽기 전용으로 열람할 수 있습니다. 수정·삭제·승인 등 쓰기 작업은 불가합니다. 회원가입 화면에서 직접 가입할 수 없습니다.</Text>
+          </View>
         </View>
 
         {/* ══ B. 1차 인증 ══ */}
@@ -724,6 +783,65 @@ export default function SecuritySettingsScreen() {
       </Modal>
 
       {/* ══ 2차 인증 변경 확인 모달 ══ */}
+      {/* ── 슈퍼매니저 추가 모달 ── */}
+      <Modal visible={smAddModal} animationType="slide" transparent statusBarTranslucent
+        onRequestClose={() => { setSmAddModal(false); setSmError(""); }}>
+        <Pressable style={m.backdrop} onPress={() => { setSmAddModal(false); setSmError(""); }}>
+          <Pressable style={m.sheet} onPress={e => e.stopPropagation()}>
+            <Text style={m.sheetTitle}>슈퍼매니저 계정 추가</Text>
+            <View style={m.infoBox}>
+              <Feather name="eye" size={13} color="#0284C7" />
+              <Text style={m.infoTxt}>읽기 전용 계정입니다. 회원가입으로 직접 가입 불가 — 이 화면에서만 등록됩니다.</Text>
+            </View>
+            {smSuccess ? (
+              <View style={m.successRow}>
+                <Feather name="check-circle" size={18} color={GREEN} />
+                <Text style={m.successTxt}>슈퍼매니저 계정이 추가되었습니다.</Text>
+              </View>
+            ) : (
+              <>
+                <TextInput style={m.input} placeholder="이름" value={smName} onChangeText={setSmName} placeholderTextColor="#9A948F" />
+                <TextInput style={m.input} placeholder="이메일 (로그인 ID)" value={smEmail} onChangeText={setSmEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#9A948F" />
+                <TextInput style={m.input} placeholder="초기 비밀번호 (8자 이상)" value={smPw} onChangeText={setSmPw} secureTextEntry placeholderTextColor="#9A948F" />
+                {!!smError && <Text style={m.errorTxt}>{smError}</Text>}
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  <Pressable style={m.cancelBtn} onPress={() => { setSmAddModal(false); setSmError(""); setSmName(""); setSmEmail(""); setSmPw(""); }}>
+                    <Text style={m.cancelTxt}>취소</Text>
+                  </Pressable>
+                  <Pressable style={[m.confirmBtn, { backgroundColor: "#0284C7" }]} onPress={handleAddSuperManager}>
+                    <Text style={m.confirmTxt}>추가</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── 슈퍼매니저 삭제 확인 모달 ── */}
+      <Modal visible={!!smDeleteId} animationType="fade" transparent statusBarTranslucent
+        onRequestClose={() => setSmDeleteId(null)}>
+        <Pressable style={m.backdrop} onPress={() => setSmDeleteId(null)}>
+          <Pressable style={m.sheet} onPress={e => e.stopPropagation()}>
+            <Text style={m.sheetTitle}>슈퍼매니저 삭제</Text>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", marginBottom: 4 }}>
+              <Text style={{ fontFamily: "Inter_700Bold" }}>{smDeleteTarget?.name}</Text> 계정을 삭제하시겠습니까?
+            </Text>
+            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginBottom: 16 }}>
+              {smDeleteTarget?.email} · 삭제 후 복구 불가
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable style={m.cancelBtn} onPress={() => setSmDeleteId(null)}>
+                <Text style={m.cancelTxt}>취소</Text>
+              </Pressable>
+              <Pressable style={[m.confirmBtn, { backgroundColor: DANGER }]} onPress={handleDeleteSuperManager}>
+                <Text style={m.confirmTxt}>삭제</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <Modal visible={twoFAModal} animationType="fade" transparent statusBarTranslucent
         onRequestClose={() => { setTwoFAModal(false); setPendingMode(null); }}>
         <Pressable style={m.backdrop} onPress={() => { setTwoFAModal(false); setPendingMode(null); }}>
@@ -773,8 +891,8 @@ const s = StyleSheet.create({
                       borderWidth: 1, borderColor: "#DDD6FE" },
   actionBtnTxt:     { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: P },
 
-  accountCard:      { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
-                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  accountCardWrap:  { borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  accountCard:      { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
   accountAvatar:    { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   accountAvatarTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
   accountNameRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -795,6 +913,16 @@ const s = StyleSheet.create({
   lockedTxt:        { fontSize: 10, fontFamily: "Inter_700Bold", color: DANGER },
   inactiveBadge:    { backgroundColor: "#F6F3F1", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   inactiveTxt:      { fontSize: 10, fontFamily: "Inter_700Bold", color: "#9A948F" },
+
+  smDeleteBtn:      { width: 30, height: 30, borderRadius: 8, backgroundColor: "#FEF2F2",
+                      alignItems: "center", justifyContent: "center" },
+  smAddBtn:         { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10,
+                      paddingVertical: 11, paddingHorizontal: 14, borderRadius: 10,
+                      backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE", borderStyle: "dashed" },
+  smAddBtnTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#0284C7" },
+  smInfoBox:        { flexDirection: "row", gap: 6, backgroundColor: "#EFF6FF", borderRadius: 8,
+                      padding: 10, marginTop: 8, alignItems: "flex-start" },
+  smInfoTxt:        { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#0284C7", lineHeight: 16 },
 
   currentTwoFa:     { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8,
                       borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
@@ -901,8 +1029,14 @@ const m = StyleSheet.create({
   input:      { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12,
                 fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
   btnRow:     { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn:  { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
+  cancelBtn:  { flex: 1, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center" },
   cancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  confirmBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
+  confirmBtn: { flex: 1, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   confirmTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  sheetTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  infoBox:    { flexDirection: "row", gap: 6, backgroundColor: "#EFF6FF", borderRadius: 8, padding: 10, alignItems: "flex-start" },
+  infoTxt:    { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#0284C7", lineHeight: 17 },
+  successRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12 },
+  successTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
+  errorTxt:   { fontSize: 12, fontFamily: "Inter_400Regular", color: DANGER },
 });
