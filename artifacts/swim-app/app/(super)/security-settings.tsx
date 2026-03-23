@@ -61,24 +61,163 @@ const SENSITIVE_TRIGGERS: { key: SensitiveTrigger; label: string }[] = [
 ];
 
 // ─── 외부 서비스 시드 ────────────────────────────────────────────────────────
-type ServiceStatus = "connected" | "warning" | "disconnected";
+type ServiceStatus =
+  | "normal"       // 정상
+  | "caution"      // 주의
+  | "warning"      // 경고
+  | "error"        // 작동 안 됨
+  | "disconnected" // 끊김
+  | "unconnected"  // 미연결
+  | "checking"     // 점검중
+  | "planned";     // 예정
+
 interface ExtService {
-  id: string; name: string; icon: string;
-  status: ServiceStatus; lastChecked: string; note?: string;
+  id: string;
+  category: "data" | "payment" | "messaging" | "appstore" | "other";
+  name: string;
+  icon: string;
+  serviceType: string;
+  status: ServiceStatus;
+  isConnected: boolean;
+  endpointUrl?: string;
+  projectId?: string;
+  bucketName?: string;
+  connectedAt?: string;
+  lastCheckedAt: string | null;
+  lastErrorAt?: string | null;
+  statusMessage: string;
+  notes?: string;
+  isPlaceholder?: boolean;
 }
-const INITIAL_SERVICES: ExtService[] = [
-  { id: "supabase",  name: "Supabase DB",      icon: "database",      status: "connected",    lastChecked: "5분 전" },
-  { id: "r2",        name: "Cloudflare R2",    icon: "cloud",         status: "connected",    lastChecked: "12분 전" },
-  { id: "portone",   name: "PortOne PG",       icon: "credit-card",   status: "warning",      lastChecked: "1시간 전", note: "인증 토큰 만료 임박" },
-  { id: "sms",       name: "SMS Provider",     icon: "message-square",status: "connected",    lastChecked: "3분 전" },
-  { id: "apns",      name: "APNs",             icon: "bell",          status: "connected",    lastChecked: "8분 전" },
-  { id: "email",     name: "Email Provider",   icon: "mail",          status: "disconnected", lastChecked: "3시간 전", note: "SMTP 연결 실패" },
-];
-const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string }> = {
-  connected:    { label: "정상",  color: GREEN,  bg: "#DDF2EF" },
-  warning:      { label: "경고",  color: WARN,   bg: "#FFF1BF" },
-  disconnected: { label: "끊김",  color: DANGER, bg: "#F9DEDA" },
+
+const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string; icon: string }> = {
+  normal:       { label: "정상",       color: "#1F8F86", bg: "#DDF2EF", icon: "check-circle" },
+  caution:      { label: "주의",       color: "#D97706", bg: "#FEF3C7", icon: "alert-circle" },
+  warning:      { label: "경고",       color: "#DC6803", bg: "#FFF1BF", icon: "alert-triangle" },
+  error:        { label: "작동 안 됨", color: "#D96C6C", bg: "#FEE2E2", icon: "x-circle" },
+  disconnected: { label: "끊김",       color: "#DC2626", bg: "#FEE2E2", icon: "wifi-off" },
+  unconnected:  { label: "미연결",     color: "#6B7280", bg: "#F3F4F6", icon: "minus-circle" },
+  checking:     { label: "점검중",     color: "#8B5CF6", bg: "#EDE9FE", icon: "loader" },
+  planned:      { label: "예정",       color: "#9A948F", bg: "#F6F3F1", icon: "clock" },
 };
+
+const CATEGORY_CFG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
+  data:      { label: "데이터/인프라",  icon: "database",    color: "#1F8F86", bg: "#DDF2EF" },
+  payment:   { label: "결제/정산",      icon: "credit-card", color: "#7C3AED", bg: "#EEDDF5" },
+  messaging: { label: "알림/메시징",    icon: "bell",        color: "#D97706", bg: "#FEF3C7" },
+  appstore:  { label: "앱스토어/배포",  icon: "package",     color: "#0284C7", bg: "#E0F2FE" },
+  other:     { label: "기타 외부 연동", icon: "link",        color: "#6B7280", bg: "#F3F4F6" },
+};
+
+const _ago = (min: number) => new Date(Date.now() - min * 60000).toISOString();
+function fmtChecked(iso: string | null): string {
+  if (!iso) return "확인 없음";
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "방금 전";
+  if (s < 3600) return `${Math.floor(s / 60)}분 전`;
+  if (s < 86400) return `${Math.floor(s / 3600)}시간 전`;
+  return `${Math.floor(s / 86400)}일 전`;
+}
+
+const INITIAL_SERVICES: ExtService[] = [
+  // ── A. 데이터/인프라 ──────────────────────────────────────────────────
+  { id: "supabase_db", category: "data", name: "Supabase DB", icon: "database",
+    serviceType: "DB", status: "normal", isConnected: true,
+    endpointUrl: "https://xxxxx.supabase.co", projectId: "xxxxxxxxxxxxxx",
+    connectedAt: "2026-03-10T09:00:00Z", lastCheckedAt: _ago(5),
+    statusMessage: "DB 응답 정상 (응답 12ms)", notes: "PostgreSQL 17 · 메인 운영 데이터베이스" },
+  { id: "supabase_auth", category: "data", name: "Supabase Auth", icon: "shield",
+    serviceType: "Auth", status: "normal", isConnected: true,
+    endpointUrl: "https://xxxxx.supabase.co/auth/v1", projectId: "xxxxxxxxxxxxxx",
+    connectedAt: "2026-03-10T09:00:00Z", lastCheckedAt: _ago(5),
+    statusMessage: "인증 서비스 정상 동작 중", notes: "JWT 발급 · 세션 관리" },
+  { id: "supabase_storage", category: "data", name: "Supabase Storage", icon: "archive",
+    serviceType: "Storage", status: "caution", isConnected: true,
+    endpointUrl: "https://xxxxx.supabase.co/storage/v1", projectId: "xxxxxxxxxxxxxx",
+    bucketName: "swimnote-media", connectedAt: "2026-03-10T09:00:00Z", lastCheckedAt: _ago(12),
+    statusMessage: "용량 사용률 82% — 임박", notes: "미디어 파일·영상 보조 저장소" },
+  { id: "cloudflare_r2", category: "data", name: "Cloudflare R2", icon: "cloud",
+    serviceType: "Storage", status: "normal", isConnected: true,
+    endpointUrl: "https://xxxx.r2.cloudflarestorage.com", bucketName: "swimnote-primary",
+    connectedAt: "2026-03-01T00:00:00Z", lastCheckedAt: _ago(12),
+    statusMessage: "연결 정상 · 업로드 평균 180ms", notes: "영상 파일 메인 스토리지" },
+  { id: "backup_storage", category: "data", name: "백업 스토리지", icon: "hard-drive",
+    serviceType: "Storage", status: "unconnected", isConnected: false, lastCheckedAt: null,
+    statusMessage: "아직 연결되지 않음", notes: "재해 복구용 오프사이트 백업 예정", isPlaceholder: true },
+  { id: "cdn", category: "data", name: "CDN (Cloudflare)", icon: "globe",
+    serviceType: "CDN", status: "normal", isConnected: true,
+    endpointUrl: "https://cdn.swimnote.app", connectedAt: "2026-03-01T00:00:00Z", lastCheckedAt: _ago(3),
+    statusMessage: "전 리전 정상 · 캐시 적중률 94%", notes: "정적 파일 · 이미지 CDN" },
+
+  // ── B. 결제/정산 ──────────────────────────────────────────────────────
+  { id: "portone", category: "payment", name: "PortOne", icon: "credit-card",
+    serviceType: "Payment", status: "warning", isConnected: true,
+    endpointUrl: "https://api.portone.io", projectId: "imp_xxxxxxxxxx",
+    connectedAt: "2026-02-15T00:00:00Z", lastCheckedAt: _ago(60), lastErrorAt: _ago(30),
+    statusMessage: "인증 토큰 만료 임박 (24시간 이내)", notes: "PG사 통합 결제 인터페이스" },
+  { id: "pg_toss", category: "payment", name: "토스페이먼츠", icon: "zap",
+    serviceType: "Payment", status: "normal", isConnected: true,
+    endpointUrl: "https://api.tosspayments.com", projectId: "live_xxxxxxxxxx",
+    connectedAt: "2026-02-15T00:00:00Z", lastCheckedAt: _ago(20),
+    statusMessage: "결제 정상 처리 중", notes: "카드 · 간편결제 주 PG사" },
+  { id: "pg_inicis", category: "payment", name: "KG이니시스", icon: "shopping-bag",
+    serviceType: "Payment", status: "unconnected", isConnected: false, lastCheckedAt: null,
+    statusMessage: "아직 연결되지 않음", notes: "법인카드 · 계좌이체 보조 PG 예정", isPlaceholder: true },
+  { id: "pg_nice", category: "payment", name: "나이스페이", icon: "shopping-bag",
+    serviceType: "Payment", status: "planned", isConnected: false, lastCheckedAt: null,
+    statusMessage: "연결 예정", notes: "해외카드 지원 추가 PG 검토 중", isPlaceholder: true },
+  { id: "settlement", category: "payment", name: "정산 계좌 연동", icon: "dollar-sign",
+    serviceType: "Settlement", status: "unconnected", isConnected: false, lastCheckedAt: null,
+    statusMessage: "아직 연결되지 않음", notes: "운영자 수익 정산 자동화 예정", isPlaceholder: true },
+
+  // ── C. 알림/메시징 ───────────────────────────────────────────────────
+  { id: "apns", category: "messaging", name: "Apple Push (APNs)", icon: "bell",
+    serviceType: "Push", status: "normal", isConnected: true,
+    endpointUrl: "https://api.push.apple.com", projectId: "com.swimnote.app",
+    connectedAt: "2026-03-01T00:00:00Z", lastCheckedAt: _ago(8),
+    statusMessage: "iOS 푸시 정상 발송 중", notes: "APNs JWT p8 키 등록 완료" },
+  { id: "fcm", category: "messaging", name: "Firebase Cloud Messaging", icon: "smartphone",
+    serviceType: "Push", status: "normal", isConnected: true,
+    endpointUrl: "https://fcm.googleapis.com/v1", projectId: "swimnote-prod",
+    connectedAt: "2026-03-01T00:00:00Z", lastCheckedAt: _ago(8),
+    statusMessage: "Android 푸시 정상 발송 중", notes: "Firebase Admin SDK v2" },
+  { id: "sms_provider", category: "messaging", name: "SMS (알림톡)", icon: "message-square",
+    serviceType: "SMS", status: "error", isConnected: true,
+    endpointUrl: "https://api.bizppurio.com", projectId: "swimnote_biz",
+    connectedAt: "2026-02-01T00:00:00Z", lastCheckedAt: _ago(45), lastErrorAt: _ago(20),
+    statusMessage: "알림톡 연동 오류 — 자체 발송으로 전환됨", notes: "카카오 비즈메시지 (비즈뿌리오)" },
+  { id: "email_provider", category: "messaging", name: "Email (SendGrid)", icon: "mail",
+    serviceType: "Email", status: "disconnected", isConnected: false,
+    endpointUrl: "https://api.sendgrid.com", projectId: "swimnote-sg",
+    connectedAt: "2026-01-15T00:00:00Z", lastCheckedAt: _ago(180), lastErrorAt: _ago(60),
+    statusMessage: "SMTP 인증 실패 — API 키 재발급 필요", notes: "이메일 발송 서비스 (SendGrid)" },
+  { id: "slack_notify", category: "messaging", name: "슬랙 내부 알림", icon: "hash",
+    serviceType: "Notification", status: "unconnected", isConnected: false, lastCheckedAt: null,
+    statusMessage: "아직 연결되지 않음", notes: "슈퍼관리자 장애/이상 감지 알림 예정", isPlaceholder: true },
+
+  // ── D. 앱스토어/배포 ─────────────────────────────────────────────────
+  { id: "app_store_connect", category: "appstore", name: "App Store Connect", icon: "monitor",
+    serviceType: "AppStore", status: "unconnected", isConnected: false,
+    projectId: "com.swimnote.app", lastCheckedAt: null,
+    statusMessage: "API 연결 미구성", notes: "iOS 앱 구독 상태 조회용 — 추후 연결 예정", isPlaceholder: true },
+  { id: "google_play_console", category: "appstore", name: "Google Play Console", icon: "box",
+    serviceType: "PlayStore", status: "unconnected", isConnected: false,
+    projectId: "com.swimnote.app", lastCheckedAt: null,
+    statusMessage: "API 연결 미구성", notes: "Android 앱 구독 상태 조회용 — 추후 연결 예정", isPlaceholder: true },
+
+  // ── E. 기타 외부 연동 ────────────────────────────────────────────────
+  { id: "sentry", category: "other", name: "Sentry (오류 수집)", icon: "activity",
+    serviceType: "Monitoring", status: "caution", isConnected: true,
+    endpointUrl: "https://sentry.io/organizations/swimnote", projectId: "swimnote-react-native",
+    connectedAt: "2026-03-01T00:00:00Z", lastCheckedAt: _ago(15),
+    statusMessage: "오류 이벤트 급증 감지 (최근 1시간)", notes: "앱 오류 수집 · 성능 모니터링" },
+  { id: "analytics", category: "other", name: "분석 서비스", icon: "bar-chart-2",
+    serviceType: "Analytics", status: "planned", isConnected: false, lastCheckedAt: null,
+    statusMessage: "연결 예정", notes: "사용 패턴 분석 · 이탈률 추적 예정", isPlaceholder: true },
+  { id: "ads_provider", category: "other", name: "광고 연동", icon: "image",
+    serviceType: "Ads", status: "planned", isConnected: false, lastCheckedAt: null,
+    statusMessage: "연결 예정", notes: "학부모 화면 광고 플랫폼 검토 중", isPlaceholder: true },
+];
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin:     "슈퍼관리자",
@@ -202,8 +341,9 @@ export default function SecuritySettingsScreen() {
   const [otpReenrollModal,  setOtpReenrollModal]  = useState(false);
 
   // ── D. 외부 서비스 ──
-  const [services,   setServices]   = useState<ExtService[]>(INITIAL_SERVICES);
-  const [refreshing, setRefreshing] = useState<string | null>(null);
+  const [services,        setServices]        = useState<ExtService[]>(INITIAL_SERVICES);
+  const [refreshing,      setRefreshing]      = useState<string | null>(null);
+  const [selectedService, setSelectedService] = useState<ExtService | null>(null);
 
   // ── F. 보안 정책 ──
   const [maxFail,     setMaxFail]     = useState(5);
@@ -261,14 +401,24 @@ export default function SecuritySettingsScreen() {
   }
 
   function refreshService(id: string) {
+    const svc = services.find(s => s.id === id);
+    if (!svc || svc.isPlaceholder) return;
     setRefreshing(id);
     setTimeout(() => {
+      const checkedNow = new Date().toISOString();
       setServices(prev => prev.map(sv =>
-        sv.id === id ? { ...sv, status: "connected", lastChecked: "방금 전", note: undefined } : sv
+        sv.id === id
+          ? { ...sv, status: sv.status === "normal" ? "normal" : sv.status, lastCheckedAt: checkedNow }
+          : sv
       ));
       setRefreshing(null);
-      createLog({ category: "보안", title: `외부 서비스 연결 확인: ${id}`, detail: `${id} 연결 상태 수동 확인`, actorName, impact: "low" });
-    }, 1000);
+      createLog({ category: "보안", title: `외부 서비스 확인: ${svc.name}`, detail: `연결 상태 수동 점검`, actorName, impact: "low" });
+    }, 900);
+  }
+
+  function refreshAllServices() {
+    const connected = services.filter(sv => !sv.isPlaceholder);
+    connected.forEach(sv => refreshService(sv.id));
   }
 
   function doLock(accountId: string) {
@@ -512,28 +662,95 @@ export default function SecuritySettingsScreen() {
 
         {/* ══ D. 외부 서비스 ══ */}
         <View style={s.section}>
-          <SectionTitle title="D. 외부 서비스 연결 상태" />
-          {services.map(sv => {
-            const cfg = STATUS_CFG[sv.status];
-            const isRef = refreshing === sv.id;
-            return (
-              <View key={sv.id} style={s.serviceRow}>
-                <View style={[s.serviceIconBox, { backgroundColor: cfg.bg }]}>
-                  <Feather name={sv.icon as any} size={16} color={cfg.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Text style={s.serviceName}>{sv.name}</Text>
-                    <View style={[s.statusBadge, { backgroundColor: cfg.bg }]}>
-                      <Text style={[s.statusTxt, { color: cfg.color }]}>{cfg.label}</Text>
-                    </View>
+          {/* 헤더 */}
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View style={{ flex: 1 }}>
+              <SectionTitle title="D. 외부 서비스 연결 상태" />
+              {(() => {
+                const alerts = services.filter(sv => sv.status === "error" || sv.status === "disconnected" || sv.status === "warning").length;
+                return alerts > 0 ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                    <Feather name="alert-circle" size={12} color={DANGER} />
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: DANGER }}>
+                      {alerts}건 주의 필요
+                    </Text>
                   </View>
-                  <Text style={s.serviceLastChecked}>마지막 확인: {sv.lastChecked}</Text>
-                  {sv.note && <Text style={[s.serviceNote, { color: sv.status === "disconnected" ? DANGER : WARN }]}>{sv.note}</Text>}
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                    <Feather name="check-circle" size={12} color={GREEN} />
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: GREEN }}>모든 연결 서비스 정상</Text>
+                  </View>
+                );
+              })()}
+            </View>
+            <Pressable style={s.refreshAllBtn} onPress={refreshAllServices}>
+              <Feather name="refresh-cw" size={13} color={P} />
+              <Text style={s.refreshAllTxt}>전체 새로고침</Text>
+            </Pressable>
+          </View>
+
+          {/* 카테고리별 서비스 목록 */}
+          {(["data", "payment", "messaging", "appstore", "other"] as const).map(cat => {
+            const catSvcs = services.filter(sv => sv.category === cat);
+            if (catSvcs.length === 0) return null;
+            const catCfg = CATEGORY_CFG[cat];
+            return (
+              <View key={cat} style={{ gap: 6 }}>
+                {/* 카테고리 헤더 */}
+                <View style={s.catHeader}>
+                  <View style={[s.catIconBox, { backgroundColor: catCfg.bg }]}>
+                    <Feather name={catCfg.icon as any} size={12} color={catCfg.color} />
+                  </View>
+                  <Text style={[s.catLabel, { color: catCfg.color }]}>{catCfg.label}</Text>
+                  <View style={s.catLine} />
                 </View>
-                <Pressable style={s.refreshBtn} disabled={isRef} onPress={() => refreshService(sv.id)}>
-                  <Feather name={isRef ? "loader" : "refresh-cw"} size={14} color={P} />
-                </Pressable>
+                {/* 서비스 카드들 */}
+                {catSvcs.map(sv => {
+                  const cfg = STATUS_CFG[sv.status];
+                  const isRef = refreshing === sv.id;
+                  return (
+                    <Pressable
+                      key={sv.id}
+                      style={[s.serviceCard, sv.status === "error" || sv.status === "disconnected"
+                        ? { borderColor: cfg.color, borderWidth: 1.5 }
+                        : {}]}
+                      onPress={() => setSelectedService(sv)}
+                    >
+                      <View style={[s.serviceIconBox, { backgroundColor: cfg.bg }]}>
+                        <Feather name={sv.icon as any} size={15} color={cfg.color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <Text style={s.serviceName}>{sv.name}</Text>
+                          <View style={[s.statusBadge, { backgroundColor: cfg.bg }]}>
+                            <Feather name={cfg.icon as any} size={9} color={cfg.color} />
+                            <Text style={[s.statusTxt, { color: cfg.color }]}>{cfg.label}</Text>
+                          </View>
+                          {sv.isPlaceholder && (
+                            <View style={s.placeholderTag}>
+                              <Text style={s.placeholderTagTxt}>미연결</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={s.serviceMsg} numberOfLines={1}>{sv.statusMessage}</Text>
+                        <Text style={s.serviceLastChecked}>
+                          {sv.lastCheckedAt ? `확인: ${fmtChecked(sv.lastCheckedAt)}` : "확인 없음"}
+                        </Text>
+                      </View>
+                      {!sv.isPlaceholder && (
+                        <Pressable
+                          style={[s.refreshBtn, isRef && { opacity: 0.5 }]}
+                          disabled={isRef}
+                          onPress={() => refreshService(sv.id)}
+                          hitSlop={8}
+                        >
+                          <Feather name={isRef ? "loader" : "refresh-cw"} size={13} color={P} />
+                        </Pressable>
+                      )}
+                      <Feather name="chevron-right" size={15} color="#C4BDB8" />
+                    </Pressable>
+                  );
+                })}
               </View>
             );
           })}
@@ -923,6 +1140,132 @@ export default function SecuritySettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* ══ 외부 서비스 상세 모달 ══ */}
+      <Modal
+        visible={!!selectedService}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setSelectedService(null)}
+      >
+        <View style={m.backdrop}>
+          <Pressable style={{ flex: 1 }} onPress={() => setSelectedService(null)} />
+          {selectedService && (() => {
+            const sv  = selectedService;
+            const cfg = STATUS_CFG[sv.status];
+            const catCfg = CATEGORY_CFG[sv.category];
+            return (
+              <View style={m.svcSheet}>
+                <View style={m.handle} />
+
+                {/* 상단 헤더 */}
+                <View style={m.svcHeader}>
+                  <View style={[m.svcIconBig, { backgroundColor: cfg.bg }]}>
+                    <Feather name={sv.icon as any} size={22} color={cfg.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={m.svcName}>{sv.name}</Text>
+                    <Text style={m.svcType}>{sv.serviceType} · {catCfg.label}</Text>
+                  </View>
+                  <Pressable onPress={() => setSelectedService(null)} hitSlop={10}>
+                    <Feather name="x" size={20} color="#6F6B68" />
+                  </Pressable>
+                </View>
+
+                {/* 상태 배지 + 메시지 */}
+                <View style={[m.svcStatusRow, { backgroundColor: cfg.bg }]}>
+                  <Feather name={cfg.icon as any} size={14} color={cfg.color} />
+                  <Text style={[m.svcStatusTxt, { color: cfg.color }]}>{cfg.label}</Text>
+                  <Text style={[m.svcStatusMsg, { color: cfg.color }]}>— {sv.statusMessage}</Text>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
+                  {/* 연결 정보 */}
+                  {sv.endpointUrl && (
+                    <View style={m.svcDetailRow}>
+                      <Text style={m.svcDetailKey}>연결 URL</Text>
+                      <Text style={m.svcDetailVal} numberOfLines={2}>{sv.endpointUrl}</Text>
+                    </View>
+                  )}
+                  {sv.projectId && (
+                    <View style={m.svcDetailRow}>
+                      <Text style={m.svcDetailKey}>프로젝트 / 앱 ID</Text>
+                      <Text style={m.svcDetailVal}>{sv.projectId}</Text>
+                    </View>
+                  )}
+                  {sv.bucketName && (
+                    <View style={m.svcDetailRow}>
+                      <Text style={m.svcDetailKey}>버킷명</Text>
+                      <Text style={m.svcDetailVal}>{sv.bucketName}</Text>
+                    </View>
+                  )}
+                  {sv.connectedAt && (
+                    <View style={m.svcDetailRow}>
+                      <Text style={m.svcDetailKey}>연결 등록일</Text>
+                      <Text style={m.svcDetailVal}>{new Date(sv.connectedAt).toLocaleDateString("ko-KR")}</Text>
+                    </View>
+                  )}
+                  <View style={m.svcDetailRow}>
+                    <Text style={m.svcDetailKey}>마지막 확인</Text>
+                    <Text style={m.svcDetailVal}>
+                      {sv.lastCheckedAt
+                        ? `${new Date(sv.lastCheckedAt).toLocaleString("ko-KR")} (${fmtChecked(sv.lastCheckedAt)})`
+                        : "확인 없음"}
+                    </Text>
+                  </View>
+                  {sv.lastErrorAt && (
+                    <View style={m.svcDetailRow}>
+                      <Text style={m.svcDetailKey}>마지막 오류</Text>
+                      <Text style={[m.svcDetailVal, { color: DANGER }]}>
+                        {new Date(sv.lastErrorAt).toLocaleString("ko-KR")}
+                      </Text>
+                    </View>
+                  )}
+                  {sv.notes && (
+                    <View style={m.svcDetailRow}>
+                      <Text style={m.svcDetailKey}>사용 목적</Text>
+                      <Text style={m.svcDetailVal}>{sv.notes}</Text>
+                    </View>
+                  )}
+                  <View style={m.svcDetailRow}>
+                    <Text style={m.svcDetailKey}>연결 여부</Text>
+                    <Text style={[m.svcDetailVal, { color: sv.isConnected ? GREEN : "#6B7280" }]}>
+                      {sv.isConnected ? "연결됨" : "미연결"}
+                    </Text>
+                  </View>
+                  {sv.isPlaceholder && (
+                    <View style={m.svcPlaceholderBanner}>
+                      <Feather name="info" size={11} color="#6B7280" />
+                      <Text style={m.svcPlaceholderTxt}>아직 연결 설정이 완료되지 않은 예비 항목입니다.</Text>
+                    </View>
+                  )}
+                </ScrollView>
+
+                {/* 하단 버튼 */}
+                <View style={m.svcFooter}>
+                  {!sv.isPlaceholder && (
+                    <Pressable
+                      style={[m.svcRefreshBtn, refreshing === sv.id && { opacity: 0.6 }]}
+                      disabled={refreshing === sv.id}
+                      onPress={() => {
+                        refreshService(sv.id);
+                        setSelectedService(s => s ? { ...s, lastCheckedAt: new Date().toISOString() } : s);
+                      }}
+                    >
+                      <Feather name={refreshing === sv.id ? "loader" : "refresh-cw"} size={13} color="#fff" />
+                      <Text style={m.svcRefreshTxt}>상태 새로고침</Text>
+                    </Pressable>
+                  )}
+                  <Pressable style={m.svcCloseBtn} onPress={() => setSelectedService(null)}>
+                    <Text style={m.svcCloseTxt}>닫기</Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })()}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -994,16 +1337,31 @@ const s = StyleSheet.create({
   triggerRow:       { flexDirection: "row", alignItems: "center", gap: 10 },
   triggerLabel:     { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
 
+  // ── 외부 서비스 ──
+  refreshAllBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10,
+                      paddingVertical: 6, borderRadius: 8, backgroundColor: "#EEDDF5" },
+  refreshAllTxt:    { fontSize: 11, fontFamily: "Inter_600SemiBold", color: P },
+  catHeader:        { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  catIconBox:       { width: 20, height: 20, borderRadius: 5, alignItems: "center", justifyContent: "center" },
+  catLabel:         { fontSize: 11, fontFamily: "Inter_700Bold" },
+  catLine:          { flex: 1, height: 1, backgroundColor: "#E9E2DD", marginLeft: 4 },
+  serviceCard:      { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
+                      paddingHorizontal: 10, borderRadius: 12, backgroundColor: "#FAFAFA",
+                      borderWidth: 1, borderColor: "#E9E2DD" },
+  serviceIconBox:   { width: 34, height: 34, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  serviceName:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  statusBadge:      { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 6,
+                      paddingHorizontal: 6, paddingVertical: 2 },
+  statusTxt:        { fontSize: 10, fontFamily: "Inter_700Bold" },
+  serviceMsg:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 1 },
+  serviceLastChecked:{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+  placeholderTag:   { backgroundColor: "#F3F4F6", borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 },
+  placeholderTagTxt:{ fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  refreshBtn:       { width: 28, height: 28, borderRadius: 7, backgroundColor: "#EEDDF5",
+                      alignItems: "center", justifyContent: "center" },
   serviceRow:       { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
                       borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  serviceIconBox:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  serviceName:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  statusBadge:      { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  statusTxt:        { fontSize: 10, fontFamily: "Inter_700Bold" },
-  serviceLastChecked:{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
   serviceNote:      { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
-  refreshBtn:       { width: 32, height: 32, borderRadius: 8, backgroundColor: "#EEDDF5",
-                      alignItems: "center", justifyContent: "center" },
 
   sessionRow:       { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
                       borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
@@ -1091,4 +1449,28 @@ const m = StyleSheet.create({
   successRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12 },
   successTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
   errorTxt:   { fontSize: 12, fontFamily: "Inter_400Regular", color: DANGER },
+
+  // ── 외부 서비스 상세 모달 ──
+  svcSheet:          { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+                       padding: 20, paddingBottom: 36, maxHeight: "80%" },
+  svcHeader:         { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
+  svcIconBig:        { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  svcName:           { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  svcType:           { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
+  svcStatusRow:      { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 10,
+                       padding: 10, marginBottom: 14, flexWrap: "wrap" },
+  svcStatusTxt:      { fontSize: 13, fontFamily: "Inter_700Bold" },
+  svcStatusMsg:      { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+  svcDetailRow:      { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F6F3F1", gap: 3 },
+  svcDetailKey:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  svcDetailVal:      { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
+  svcPlaceholderBanner: { flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: "#F3F4F6",
+                          borderRadius: 8, padding: 10, marginTop: 10 },
+  svcPlaceholderTxt:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", flex: 1 },
+  svcFooter:         { flexDirection: "row", gap: 8, marginTop: 16 },
+  svcRefreshBtn:     { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                       gap: 6, paddingVertical: 12, borderRadius: 10, backgroundColor: P },
+  svcRefreshTxt:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  svcCloseBtn:       { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center" },
+  svcCloseTxt:       { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
 });

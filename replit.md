@@ -108,6 +108,17 @@ The platform is built as a pnpm workspace monorepo using TypeScript. It leverage
   - **수정 가능 학부모 템플릿**: 변수 삽입 버튼(`{수영장이름}` / `{학생이름}` / `{iOS링크}` / `{Android링크}`), 텍스트 입력, 미리보기(홍길동 기준), 저장, 초기화(ConfirmModal 확인).
   - **`(admin)/invite-sms.tsx` 전면 재설계**: 탭 2개 — "초대 설정"(A.안내배너/B.선생님고정/C.학부모편집/D.앱링크) + "초대 기록"(filterType 필터+FlatList+재발송 버튼).
 
+- **슈퍼관리자 콘솔 보안 설정 / 외부 서비스 섹션 대규모 확장 (2026-03)**:
+  - `security-settings.tsx` — 섹션 D "외부 서비스 연결 상태" 완전 재설계:
+    - `ServiceStatus` 8종 (`normal` / `caution` / `warning` / `error` / `disconnected` / `unconnected` / `checking` / `planned`), `ExtService` 인터페이스 확장 (category / serviceType / endpointUrl / projectId / bucketName / connectedAt / lastCheckedAt / lastErrorAt / statusMessage / notes / isPlaceholder)
+    - 5개 카테고리 (`data` / `payment` / `messaging` / `appstore` / `other`) × 21개 서비스 시드 데이터
+    - `CATEGORY_CFG` 카테고리 헤더 설정, `fmtChecked()` 상대시간 헬퍼
+    - 섹션 D UI: 카테고리 분리 헤더 + 클릭 가능 서비스 카드 + "전체 새로고침" 버튼 + 이상 건수 배지
+    - 서비스 상세 바텀시트 모달: 상태 배지·메시지, 연결 URL/프로젝트ID/버킷명/등록일/확인시간/오류시간/사용목적, "상태 새로고침" 버튼
+    - `refreshService()` 업데이트: 새 `ExtService` 필드 기반, `refreshAllServices()` 추가
+    - `selectedService` state 추가 (서비스 상세 모달 제어)
+  - 기존 T001~T008 파일 전부 완성 상태 확인 (noticeStore, adsStore, supportStore, notices.tsx, ads.tsx, NoticePopup, revenue-analytics.tsx, cost-analytics.tsx, system-status.tsx, more.tsx 모두 완성)
+
 - **슈퍼관리자 운영 콘솔 풀 MVP (2026-03)**:
   - **Zustand 스토어** (`store/index.ts`): 9개 슬라이스 — operatorsStore, billingStore, storageStore, riskStore, supportStore, auditLogStore, featureFlagStore, readonlyStore, backupStore.
   - **유틸리티** (`utils/super-utils.ts`): `safeDate`, `fmtDate`, `fmtRelative`, `fmtBytes`, `createAuditLog`, `IMPACT_CFG` 공유 헬퍼.
