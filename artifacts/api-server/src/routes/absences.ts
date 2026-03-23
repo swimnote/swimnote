@@ -29,6 +29,10 @@ router.get("/absences", requireAuth, requireRole("pool_admin", "teacher", "super
     const { userId, role, poolId: tokenPoolId } = req.user!;
     const pool_id = (req.query.pool_id as string) || tokenPoolId || undefined;
     if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
+    if (role !== "super_admin") {
+      const effectivePoolId = tokenPoolId || (await getPoolId(userId!));
+      if (!effectivePoolId || effectivePoolId !== pool_id) return err(res, 403, "권한이 없습니다.");
+    }
 
     const rows = await db.execute(sql`
       SELECT ta.*, 

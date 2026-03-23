@@ -101,8 +101,8 @@ export async function runFullSnapshot(): Promise<{
 
   for (const tbl of SNAPSHOT_TABLES) {
     try {
-      const [r] = await db.execute(sql.raw(`SELECT COUNT(*) AS cnt FROM ${tbl}`));
-      const cnt = Number((r as any).cnt ?? 0);
+      const r = (await db.execute(sql.raw(`SELECT COUNT(*) AS cnt FROM ${tbl}`))).rows[0];
+      const cnt = Number((r as any)?.cnt ?? 0);
       counts[tbl] = cnt;
       total += cnt;
     } catch {

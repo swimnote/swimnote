@@ -29,8 +29,8 @@ router.get("/holidays", requireAuth, requireRole("pool_admin", "teacher", "super
     const pool_id = (req.query.pool_id as string) || tokenPoolId || undefined;
     if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
     if (role !== "super_admin") {
-      const up = await getPoolId(userId!);
-      if (up && up !== pool_id) return err(res, 403, "권한이 없습니다.");
+      const effectivePoolId = tokenPoolId || (await getPoolId(userId!));
+      if (!effectivePoolId || effectivePoolId !== pool_id) return err(res, 403, "권한이 없습니다.");
     }
     let whereClause = sql`pool_id = ${pool_id}`;
     if (month) whereClause = sql`${whereClause} AND holiday_date LIKE ${month + '%'}`;
