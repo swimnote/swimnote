@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useOperatorsStore } from "@/store/operatorsStore";
 import { useStorageStore } from "@/store/storageStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
@@ -100,6 +101,9 @@ export default function OperatorDetailScreen() {
   const [extraGB,    setExtraGB]    = useState("");
   const [processing, setProcessing] = useState(false);
   const [feedback,   setFeedback]   = useState("");
+  const [otpVisible, setOtpVisible] = useState(false);
+
+  const SENSITIVE_ACTIONS = ["approve", "reject", "restrict"];
 
   if (!op) {
     return (
@@ -386,15 +390,39 @@ export default function OperatorDetailScreen() {
                   <Text style={m.cancelTxt}>취소</Text>
                 </Pressable>
                 <Pressable style={[m.confirmBtn, { opacity: processing ? 0.6 : 1 }]}
-                  onPress={() => doAction(action!)} disabled={processing}>
+                  onPress={() => {
+                    if (SENSITIVE_ACTIONS.includes(action!)) {
+                      setOtpVisible(true);
+                    } else {
+                      doAction(action!);
+                    }
+                  }}
+                  disabled={processing}>
                   {processing ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={m.confirmTxt}>확인</Text>}
+                    : SENSITIVE_ACTIONS.includes(action!) ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Feather name="lock" size={13} color="#fff" />
+                        <Text style={m.confirmTxt}>OTP 인증 후 실행</Text>
+                      </View>
+                    ) : <Text style={m.confirmTxt}>확인</Text>}
                 </Pressable>
               </View>
             </Pressable>
           </Pressable>
         </Modal>
       )}
+
+      <OtpGateModal
+        visible={otpVisible}
+        title={
+          action === "approve" ? "운영 승인 OTP 인증"
+          : action === "reject" ? "반려 처리 OTP 인증"
+          : "일시 제한 OTP 인증"
+        }
+        desc="운영자 자격·상태 강제 변경은 OTP 인증이 필요합니다."
+        onSuccess={() => { setOtpVisible(false); doAction(action!); }}
+        onCancel={() => setOtpVisible(false)}
+      />
     </SafeAreaView>
   );
 }
