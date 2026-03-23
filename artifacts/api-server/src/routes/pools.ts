@@ -6,6 +6,7 @@ import { swimmingPoolsTable, usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { sanitizePoolName } from "../utils/filename.js";
+import { signToken } from "../lib/auth.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -181,5 +182,117 @@ router.put(
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
+
+// ── 내 모든 수영장 목록 (멀티풀) ─────────────────────────────────────
+router.get("/my-pools", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const rows = await db.execute(sql`
+      SELECT sp.id, sp.name, sp.address, sp.phone, sp.approval_status,
+             sp.subscription_status, sp.theme_color, sp.logo_url, sp.logo_emoji,
+             up.is_primary, up.created_at as linked_at
+      FROM user_pools up
+      JOIN swimming_pools sp ON sp.id = up.pool_id
+      WHERE up.user_id = ${userId}
+      ORDER BY up.is_primary DESC, up.created_at ASC
+    `);
+    res.json(rows.rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// ── 수영장 전환 (새 토큰 발급) ──────────────────────────────────────
+router.post("/switch/:poolId", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { poolId } = req.params;
+    const access = await db.execute(sql`
+      SELECT up.role FROM user_pools up WHERE up.user_id = ${userId} AND up.pool_id = ${poolId} LIMIT 1
+    `);
+    if (!access.rows.length) { res.status(403).json({ error: "해당 수영장에 접근 권한이 없습니다." }); return; }
+    const role = (access.rows[0] as any).role || "pool_admin";
+    await db.execute(sql`UPDATE users SET swimming_pool_id = ${poolId} WHERE id = ${userId}`);
+    const poolRow = await db.execute(sql`SELECT * FROM swimming_pools WHERE id = ${poolId} LIMIT 1`);
+    const pool = poolRow.rows[0] as any;
+    const newToken = signToken({ userId, role, poolId });
+    const userRow = await db.execute(sql`SELECT id, email, name, phone, role, swimming_pool_id, roles FROM users WHERE id = ${userId} LIMIT 1`);
+    const user = userRow.rows[0] as any;
+    res.json({ token: newToken, pool, user: { ...user, swimming_pool_id: poolId } });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// ── 새 수영장 생성 (멀티풀) ──────────────────────────────────────────
+router.post("/create-pool", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { name, address, phone, copy_levels, copy_pricing, copy_payment, copy_feedback, source_pool_id } = req.body;
+  if (!name?.trim()) { res.status(400).json({ error: "수영장 이름을 입력해주세요." }); return; }
+  try {
+    const userId = req.user!.userId;
+    const id = `pool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const nameEn = sanitizePoolName(name);
+    const userRow = await db.execute(sql`SELECT name, email FROM users WHERE id = ${userId} LIMIT 1`);
+    const userInfo = userRow.rows[0] as any;
+    await db.execute(sql`
+      INSERT INTO swimming_pools (id, name, name_en, address, phone, owner_name, owner_email, approval_status, subscription_status)
+      VALUES (${id}, ${name.trim()}, ${nameEn}, ${address || null}, ${phone || null},
+              ${userInfo?.name || ""}, ${userInfo?.email || ""},
+              'approved', 'trial')
+    `);
+    await db.execute(sql`
+      INSERT INTO user_pools (id, user_id, pool_id, role, is_primary)
+      VALUES (gen_random_uuid()::text, ${userId}, ${id}, 'pool_admin', false)
+    `);
+
+    const srcId = source_pool_id || req.user!.poolId;
+    if (srcId) {
+      if (copy_levels) {
+        await db.execute(sql`
+          INSERT INTO pool_level_settings
+            (pool_id, level_order, level_name, level_description, learning_content, promotion_test_rule, badge_type, badge_label, badge_color, badge_text_color, is_active, updated_at)
+          SELECT ${id}, level_order, level_name, level_description, learning_content, promotion_test_rule, badge_type, badge_label, badge_color, badge_text_color, is_active, NOW()
+          FROM pool_level_settings WHERE pool_id = ${srcId}
+          ON CONFLICT (pool_id, level_order) DO NOTHING
+        `);
+      }
+      if (copy_pricing) {
+        await db.execute(sql`
+          INSERT INTO pool_class_pricing (id, pool_id, type_key, type_name, monthly_fee, sessions_per_month, is_active)
+          SELECT gen_random_uuid()::text, ${id}, type_key, type_name, monthly_fee, sessions_per_month, is_active
+          FROM pool_class_pricing WHERE pool_id = ${srcId}
+          ON CONFLICT DO NOTHING
+        `);
+      }
+    }
+    const poolRow = await db.execute(sql`SELECT * FROM swimming_pools WHERE id = ${id} LIMIT 1`);
+    res.status(201).json(poolRow.rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// ── 화이트라벨 설정 조회 ──────────────────────────────────────────────
+router.get("/white-label", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = req.user!.poolId;
+    if (!poolId) { res.status(404).json({ error: "수영장 없음" }); return; }
+    const row = await db.execute(sql`
+      SELECT white_label_enabled, hide_platform_name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `);
+    res.json(row.rows[0] ?? { white_label_enabled: false, hide_platform_name: false });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 화이트라벨 설정 저장 ──────────────────────────────────────────────
+router.put("/white-label", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { white_label_enabled, hide_platform_name } = req.body;
+  try {
+    const poolId = req.user!.poolId;
+    if (!poolId) { res.status(404).json({ error: "수영장 없음" }); return; }
+    const row = await db.execute(sql`
+      UPDATE swimming_pools
+      SET white_label_enabled = ${white_label_enabled ?? false},
+          hide_platform_name  = ${hide_platform_name ?? false}
+      WHERE id = ${poolId}
+      RETURNING white_label_enabled, hide_platform_name
+    `);
+    res.json(row.rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
 
 export default router;

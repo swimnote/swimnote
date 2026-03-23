@@ -223,8 +223,8 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
     // ─ 운영 설정 (기존 플랫폼설정 → 이름 변경, 브랜드/인프라만) ─
     case "운영설정": return [
       { icon: "sliders",     label: "브랜드 설정",  color: "#EC4899", bg: "#F6D8E1", onPress: () => router.push("/(admin)/branding") },
-      { icon: "tag",         label: "화이트라벨",   color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/branding") },
-      { icon: "map-pin",     label: "지점 관리",    color: "#0D9488", bg: "#CCFBF1", onPress: () => router.push("/(admin)/branches") },
+      { icon: "tag",         label: "화이트라벨",   color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/white-label" as any) },
+      { icon: "layers",      label: "수영장 관리",  color: "#0D9488", bg: "#CCFBF1", onPress: () => router.push("/(admin)/branches") },
       { icon: "settings",    label: "수영장 설정",  color: "#6F6B68", bg: "#F6F3F1", onPress: () => router.push("/(admin)/pool-settings") },
       { icon: "smartphone",  label: "앱 기본설정",  color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(admin)/notifications") },
       { icon: "users",       label: "초대방식\n설정", color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/invite-sms") },

@@ -95,6 +95,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="branches"          options={{ href: null }} />
       <Tabs.Screen name="withdrawn-members" options={{ href: null }} />
       <Tabs.Screen name="branding"          options={{ href: null }} />
+      <Tabs.Screen name="white-label"       options={{ href: null }} />
       <Tabs.Screen name="member-detail"     options={{ href: null }} />
       <Tabs.Screen name="teacher-hub"            options={{ href: null }} />
       <Tabs.Screen name="people-teachers"       options={{ href: null }} />

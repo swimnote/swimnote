@@ -117,7 +117,7 @@ function PushTokenSync() {
 function RootNav() {
   const {
     kind, isLoading, adminUser, parentAccount, pool,
-    lastUsedRole, allAccounts, checkRolePermission, setLastUsedRole,
+    lastUsedRole, lastUsedTenant, allAccounts, checkRolePermission, setLastUsedRole, token,
   } = useAuth();
   const segments = useSegments();
   const didRoute = useRef(false);
@@ -127,7 +127,7 @@ function RootNav() {
     if (isLoading || !kind || !didRoute.current) return;
     const APP_ROOTS = [
       "(admin)", "(super)", "(teacher)", "(parent)",
-      "org-role-select", "pool-apply", "pending", "rejected", "subscription-expired",
+      "org-role-select", "pool-apply", "pool-select", "pending", "rejected", "subscription-expired",
       "class-assign", "parent-onboard-pool", "parent-onboard-child", "parent-onboard-nickname",
     ];
     if (segments.length === 0 || !APP_ROOTS.includes(segments[0] as string)) {
@@ -162,6 +162,16 @@ function RootNav() {
           if (["expired", "suspended", "cancelled"].includes(pool.subscription_status)) {
             didRoute.current = true; router.replace("/subscription-expired"); return;
           }
+          // 멀티풀: 수영장이 여러 개이고 이번 세션에 아직 선택 안 한 경우
+          try {
+            const poolsRes = await apiRequest(token, "/pools/my-pools");
+            const pools = await poolsRes.json();
+            if (Array.isArray(pools) && pools.length > 1 && !lastUsedTenant) {
+              didRoute.current = true;
+              router.replace("/pool-select" as any);
+              return;
+            }
+          } catch {}
         }
       }
 
@@ -200,7 +210,7 @@ function RootNav() {
     }
 
     doRoute();
-  }, [kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status, lastUsedRole]);
+  }, [kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status, lastUsedRole, lastUsedTenant]);
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#ffffff" } }}>
@@ -210,6 +220,7 @@ function RootNav() {
       <Stack.Screen name="parent-login" />
       <Stack.Screen name="register" />
       <Stack.Screen name="pool-apply" />
+      <Stack.Screen name="pool-select" />
       <Stack.Screen name="pool-join-request" />
       <Stack.Screen name="teacher-invite-join" />
       <Stack.Screen name="signup-role" />

@@ -1,250 +1,254 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, Pressable, ScrollView,
+  StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth, type OwnedPool } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ModalSheet } from "@/components/common/ModalSheet";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 
-interface Branch {
-  id: string;
+const C = Colors.light;
+const TINT = "#1F8F86";
+
+type CopyOption = "levels" | "pricing";
+
+interface CreateForm {
   name: string;
-  address: string | null;
-  phone: string | null;
-  memo: string | null;
-  display_order: number;
+  address: string;
+  phone: string;
 }
 
-export default function BranchesScreen() {
-  const { token } = useAuth();
+export default function PoolsScreen() {
   const insets = useSafeAreaInsets();
-  const C = Colors.light;
+  const { token, pool: currentPool, loadOwnedPools, ownedPools, switchPool } = useAuth();
 
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editMode, setEditMode] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [editTarget, setEditTarget] = useState<Branch | null>(null);
-  const [form, setForm] = useState({ name: "", address: "", phone: "", memo: "" });
-  const [saving, setSaving] = useState(false);
+  const [switching, setSwitching] = useState<string | null>(null);
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState<CreateForm>({ name: "", address: "", phone: "" });
+  const [copyOptions, setCopyOptions] = useState<Set<CopyOption>>(new Set());
   const [formError, setFormError] = useState("");
-  const [detailTarget, setDetailTarget] = useState<Branch | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  async function fetchBranches() {
-    try {
-      const res = await apiRequest(token, "/branches");
-      const data = await res.json();
-      setBranches(Array.isArray(data) ? data : []);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+  const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    await loadOwnedPools();
+    setLoading(false);
+  }, [loadOwnedPools]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleSwitch(p: OwnedPool) {
+    if (p.id === currentPool?.id) return;
+    setConfirmAction({
+      title: "수영장 전환",
+      message: `"${p.name}"으로 전환하시겠습니까?\n화면이 새로 불러와집니다.`,
+      onConfirm: async () => {
+        setSwitching(p.id);
+        try {
+          await switchPool(p.id);
+        } catch (e) {
+          setConfirmAction({
+            title: "전환 실패",
+            message: "수영장 전환 중 오류가 발생했습니다.",
+            onConfirm: () => setConfirmAction(null),
+          });
+        } finally {
+          setSwitching(null);
+        }
+      },
+    });
   }
 
-  useEffect(() => { fetchBranches(); }, []);
-
-  function openAdd() {
-    setEditTarget(null);
-    setForm({ name: "", address: "", phone: "", memo: "" });
-    setFormError("");
-    setShowModal(true);
+  function toggleCopy(opt: CopyOption) {
+    setCopyOptions(prev => {
+      const next = new Set(prev);
+      if (next.has(opt)) next.delete(opt); else next.add(opt);
+      return next;
+    });
   }
 
-  function openEdit(b: Branch) {
-    setEditTarget(b);
-    setForm({ name: b.name, address: b.address || "", phone: b.phone || "", memo: b.memo || "" });
-    setFormError("");
-    setShowModal(true);
-  }
-
-  async function handleSave() {
-    if (!form.name.trim()) { setFormError("지점명을 입력해주세요."); return; }
+  async function handleCreate() {
+    if (!form.name.trim()) { setFormError("수영장 이름을 입력해주세요."); return; }
     setSaving(true); setFormError("");
     try {
-      if (editTarget) {
-        const res = await apiRequest(token, `/branches/${editTarget.id}`, {
-          method: "PUT", body: JSON.stringify(form),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        setBranches(prev => prev.map(b => b.id === editTarget.id ? data : b));
-      } else {
-        const res = await apiRequest(token, "/branches", {
-          method: "POST", body: JSON.stringify(form),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        setBranches(prev => [...prev, data]);
-      }
-      setShowModal(false);
+      const body: Record<string, unknown> = {
+        name: form.name.trim(),
+        address: form.address.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        copy_levels: copyOptions.has("levels"),
+        copy_pricing: copyOptions.has("pricing"),
+        source_pool_id: currentPool?.id,
+      };
+      const res = await apiRequest(token, "/pools/create-pool", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "생성 실패");
+      setShowCreate(false);
+      setForm({ name: "", address: "", phone: "" });
+      setCopyOptions(new Set());
+      await loadOwnedPools();
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.");
     } finally { setSaving(false); }
   }
 
-  async function handleDelete(b: Branch) {
-    Alert.alert("지점 삭제", `"${b.name}" 지점을 삭제하시겠습니까?`, [
-      { text: "취소", style: "cancel" },
-      {
-        text: "삭제", style: "destructive", onPress: async () => {
-          await apiRequest(token, `/branches/${b.id}`, { method: "DELETE" });
-          setBranches(prev => prev.filter(x => x.id !== b.id));
-        },
-      },
-    ]);
-  }
-
-  // 순서 변경: 위로 이동
-  function moveUp(idx: number) {
-    if (idx === 0) return;
-    const next = [...branches];
-    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-    setBranches(next);
-    saveOrder(next);
-  }
-
-  // 순서 변경: 아래로 이동
-  function moveDown(idx: number) {
-    if (idx === branches.length - 1) return;
-    const next = [...branches];
-    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-    setBranches(next);
-    saveOrder(next);
-  }
-
-  async function saveOrder(list: Branch[]) {
-    try {
-      await apiRequest(token, "/branches/reorder/bulk", {
-        method: "PUT",
-        body: JSON.stringify({ ordered_ids: list.map(b => b.id) }),
-      });
-    } catch (err) { console.error("순서 저장 실패", err); }
-  }
-
-  // 가나다순 정렬
-  function sortKorean() {
-    const sorted = [...branches].sort((a, b) => a.name.localeCompare(b.name, "ko"));
-    setBranches(sorted);
-    saveOrder(sorted);
-  }
-
-  const koreanInitial = (name: string) => {
-    const code = name.charCodeAt(0) - 0xAC00;
-    if (code < 0) return name[0];
-    const initials = ["ㄱ","ㄴ","ㄷ","ㄹ","ㅁ","ㅂ","ㅅ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
-    return initials[Math.floor(code / 588)] ?? name[0];
+  const statusLabel = (s: string) => {
+    const MAP: Record<string, string> = { trial: "체험", active: "구독중", expired: "만료", suspended: "정지", cancelled: "해지" };
+    return MAP[s] ?? s;
+  };
+  const statusColor = (s: string) => {
+    if (s === "active") return "#15803D";
+    if (s === "trial") return TINT;
+    return C.textMuted;
   };
 
-  const CARD_COLORS = ["#DDF2EF","#DFF3EC","#FFF1BF","#FDF4FF","#FFF1F2","#DFF3EC"];
-  const TEXT_COLORS = ["#1F8F86","#15803D","#C2410C","#7C3AED","#BE123C","#1F8F86"];
+  const approvalLabel = (s: string) => {
+    const MAP: Record<string, string> = { approved: "승인", pending: "심사중", rejected: "반려" };
+    return MAP[s] ?? s;
+  };
+  const approvalColor = (s: string) => {
+    if (s === "approved") return "#15803D";
+    if (s === "pending") return "#C2410C";
+    return C.error;
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader
-        title="지점 관리"
+        title="내 수영장 관리"
         onBack={undefined}
         rightSlot={
           <Pressable
-            style={[styles.editModeBtn, { backgroundColor: editMode ? C.tint : C.card, borderColor: C.border }]}
-            onPress={() => setEditMode(e => !e)}
+            onPress={() => { setForm({ name: "", address: "", phone: "" }); setCopyOptions(new Set()); setFormError(""); setShowCreate(true); }}
+            style={[styles.addBtn, { backgroundColor: TINT }]}
           >
-            <Feather name={editMode ? "check" : "move"} size={15} color={editMode ? "#fff" : C.textSecondary} />
-            <Text style={[styles.editModeTxt, { color: editMode ? "#fff" : C.textSecondary }]}>
-              {editMode ? "완료" : "순서 변경"}
-            </Text>
+            <Feather name="plus" size={15} color="#fff" />
+            <Text style={styles.addBtnTxt}>새 수영장</Text>
           </Pressable>
         }
       />
 
-      {/* 정렬 + 카운트 */}
-      <View style={[styles.toolbar, { paddingHorizontal: 20 }]}>
-        <Text style={[styles.countText, { color: C.textSecondary }]}>
-          총 <Text style={{ color: C.tint, fontFamily: "Inter_600SemiBold" }}>{branches.length}</Text>개 지점
+      {/* 안내 배너 */}
+      <View style={[styles.infoBanner, { borderColor: "#B2E0DC", backgroundColor: "#E8F7F6" }]}>
+        <Feather name="info" size={14} color={TINT} />
+        <Text style={[styles.infoTxt, { color: "#0F6B64" }]}>
+          여러 수영장을 운영 중이라면 각 수영장을 독립적으로 관리할 수 있습니다. 전환 시 데이터가 완전히 분리됩니다.
         </Text>
-        {!editMode && (
-          <Pressable style={styles.sortBtn} onPress={sortKorean}>
-            <Feather name="list" size={14} color={C.tint} />
-            <Text style={[styles.sortTxt, { color: C.tint }]}>가나다순</Text>
-          </Pressable>
-        )}
+      </View>
+
+      <View style={[styles.countRow, { paddingHorizontal: 20 }]}>
+        <Text style={[styles.countTxt, { color: C.textSecondary }]}>
+          총 <Text style={{ color: TINT, fontFamily: "Inter_700Bold" }}>{ownedPools.length}</Text>개 수영장
+        </Text>
+        <Text style={[styles.activeTxt, { color: C.textMuted }]}>
+          현재: <Text style={{ color: TINT, fontFamily: "Inter_600SemiBold" }}>{currentPool?.name ?? "—"}</Text>
+        </Text>
       </View>
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={TINT} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 120, gap: 12 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32, gap: 14 }}
         >
-          {branches.length === 0 && (
+          {ownedPools.length === 0 && (
             <View style={styles.empty}>
-              <Feather name="map-pin" size={40} color={C.textMuted} />
-              <Text style={[styles.emptyText, { color: C.textMuted }]}>등록된 지점이 없습니다</Text>
-              <Text style={[styles.emptySubText, { color: C.textMuted }]}>아래 버튼을 눌러 지점을 추가하세요</Text>
+              <Feather name="layers" size={44} color={C.textMuted} />
+              <Text style={[styles.emptyTitle, { color: C.textSecondary }]}>등록된 수영장이 없습니다</Text>
+              <Text style={[styles.emptyDesc, { color: C.textMuted }]}>오른쪽 위 버튼으로 수영장을 추가하세요</Text>
             </View>
           )}
 
-          {branches.map((b, idx) => {
-            const colorIdx = idx % CARD_COLORS.length;
-            const initial = koreanInitial(b.name);
+          {ownedPools.map((p) => {
+            const isActive = p.id === currentPool?.id;
+            const isSwitching = switching === p.id;
             return (
               <Pressable
-                key={b.id}
-                onPress={() => !editMode && setDetailTarget(b)}
+                key={p.id}
+                onPress={() => handleSwitch(p)}
+                disabled={isActive || isSwitching}
                 style={({ pressed }) => [
                   styles.card,
-                  { backgroundColor: C.card, shadowColor: C.shadow, opacity: pressed && !editMode ? 0.88 : 1 },
+                  {
+                    backgroundColor: C.card,
+                    borderColor: isActive ? TINT : C.border,
+                    borderWidth: isActive ? 2 : 1,
+                    opacity: pressed && !isActive ? 0.88 : 1,
+                  },
                 ]}
               >
-                {/* 색상 앰블럼 */}
-                <View style={[styles.emblem, { backgroundColor: CARD_COLORS[colorIdx] }]}>
-                  <Text style={[styles.emblemText, { color: TEXT_COLORS[colorIdx] }]}>{initial}</Text>
-                </View>
-
-                <View style={styles.cardBody}>
-                  <Text style={[styles.branchName, { color: C.text }]}>{b.name}</Text>
-                  {b.address ? (
-                    <View style={styles.infoRow}>
-                      <Feather name="map-pin" size={11} color={C.textMuted} />
-                      <Text style={[styles.infoTxt, { color: C.textSecondary }]} numberOfLines={1}>{b.address}</Text>
-                    </View>
-                  ) : null}
-                  {b.phone ? (
-                    <View style={styles.infoRow}>
-                      <Feather name="phone" size={11} color={C.textMuted} />
-                      <Text style={[styles.infoTxt, { color: C.textSecondary }]}>{b.phone}</Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                {editMode ? (
-                  <View style={styles.reorderBtns}>
-                    <Pressable
-                      style={[styles.arrowBtn, { opacity: idx === 0 ? 0.3 : 1 }]}
-                      onPress={() => moveUp(idx)}
-                      disabled={idx === 0}
-                    >
-                      <Feather name="chevron-up" size={20} color={C.text} />
-                    </Pressable>
-                    <Pressable
-                      style={[styles.arrowBtn, { opacity: idx === branches.length - 1 ? 0.3 : 1 }]}
-                      onPress={() => moveDown(idx)}
-                      disabled={idx === branches.length - 1}
-                    >
-                      <Feather name="chevron-down" size={20} color={C.text} />
-                    </Pressable>
+                {/* 상단 행 */}
+                <View style={styles.cardTop}>
+                  <View style={[styles.poolIcon, { backgroundColor: isActive ? "#E8F7F6" : "#F3F0EE" }]}>
+                    {p.logo_emoji ? (
+                      <Text style={styles.poolIconEmoji}>{p.logo_emoji}</Text>
+                    ) : (
+                      <Feather name="droplet" size={22} color={isActive ? TINT : C.textMuted} />
+                    )}
                   </View>
-                ) : (
-                  <View style={styles.actionBtns}>
-                    <Pressable style={styles.iconBtn} onPress={() => openEdit(b)}>
-                      <Feather name="edit-2" size={16} color={C.textSecondary} />
-                    </Pressable>
-                    <Pressable style={styles.iconBtn} onPress={() => handleDelete(b)}>
-                      <Feather name="trash-2" size={16} color={C.error} />
-                    </Pressable>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <View style={styles.nameLine}>
+                      <Text style={[styles.poolName, { color: C.text }]} numberOfLines={1}>{p.name}</Text>
+                      {isActive && (
+                        <View style={[styles.activeBadge, { backgroundColor: TINT }]}>
+                          <Text style={styles.activeBadgeTxt}>현재</Text>
+                        </View>
+                      )}
+                      {p.is_primary && !isActive && (
+                        <View style={[styles.primaryBadge, { borderColor: TINT }]}>
+                          <Text style={[styles.primaryBadgeTxt, { color: TINT }]}>기본</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.metaRow}>
+                      <View style={[styles.statusPill, { backgroundColor: statusColor(p.subscription_status) + "22" }]}>
+                        <Text style={[styles.statusTxt, { color: statusColor(p.subscription_status) }]}>
+                          {statusLabel(p.subscription_status)}
+                        </Text>
+                      </View>
+                      <View style={[styles.statusPill, { backgroundColor: approvalColor(p.approval_status) + "18" }]}>
+                        <Text style={[styles.statusTxt, { color: approvalColor(p.approval_status) }]}>
+                          {approvalLabel(p.approval_status)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                  {isSwitching ? (
+                    <ActivityIndicator size="small" color={TINT} />
+                  ) : !isActive ? (
+                    <View style={styles.switchArrow}>
+                      <Feather name="log-in" size={18} color={C.textSecondary} />
+                      <Text style={[styles.switchTxt, { color: C.textSecondary }]}>전환</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {/* 하단 정보 */}
+                {(p.address || p.phone) && (
+                  <View style={[styles.cardBottom, { borderTopColor: C.border }]}>
+                    {p.address ? (
+                      <View style={styles.infoRow}>
+                        <Feather name="map-pin" size={12} color={C.textMuted} />
+                        <Text style={[styles.infoTxt2, { color: C.textSecondary }]} numberOfLines={1}>{p.address}</Text>
+                      </View>
+                    ) : null}
+                    {p.phone ? (
+                      <View style={styles.infoRow}>
+                        <Feather name="phone" size={12} color={C.textMuted} />
+                        <Text style={[styles.infoTxt2, { color: C.textSecondary }]}>{p.phone}</Text>
+                      </View>
+                    ) : null}
                   </View>
                 )}
               </Pressable>
@@ -253,123 +257,117 @@ export default function BranchesScreen() {
         </ScrollView>
       )}
 
-      {/* FAB 추가 버튼 */}
-      {!editMode && (
-        <Pressable
-          style={[styles.fab, { backgroundColor: C.tint, bottom: insets.bottom + 32 }]}
-          onPress={openAdd}
-        >
-          <Feather name="plus" size={24} color="#fff" />
-          <Text style={styles.fabText}>지점 추가</Text>
-        </Pressable>
-      )}
-
-      {/* 등록/수정 모달 */}
+      {/* 새 수영장 추가 모달 */}
       <ModalSheet
-        visible={showModal}
-        onClose={() => setShowModal(false)}
-        title={editTarget ? "지점 수정" : "지점 추가"}
+        visible={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="새 수영장 추가"
       >
-        {formError ? <Text style={[styles.errorText, { color: C.error }]}>{formError}</Text> : null}
+        {formError ? <Text style={[styles.errTxt, { color: C.error }]}>{formError}</Text> : null}
+
         {[
-          { key: "name", label: "지점명 *", placeholder: "예: 화정점" },
-          { key: "address", label: "주소", placeholder: "경기도 고양시..." },
-          { key: "phone", label: "전화번호", placeholder: "031-000-0000" },
-          { key: "memo", label: "메모", placeholder: "특이사항" },
+          { key: "name" as const, label: "수영장 이름 *", placeholder: "예: 한강 수영장 분당점" },
+          { key: "address" as const, label: "주소 (선택)", placeholder: "경기도 성남시..." },
+          { key: "phone" as const, label: "전화번호 (선택)", placeholder: "031-000-0000" },
         ].map(({ key, label, placeholder }) => (
           <View key={key} style={styles.field}>
             <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>{label}</Text>
             <TextInput
               style={[styles.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
-              value={form[key as keyof typeof form]}
+              value={form[key]}
               onChangeText={v => setForm(f => ({ ...f, [key]: v }))}
               placeholder={placeholder}
               placeholderTextColor={C.textMuted}
             />
           </View>
         ))}
+
+        {currentPool && (
+          <View style={[styles.copySection, { borderColor: C.border, backgroundColor: C.background }]}>
+            <Text style={[styles.copyTitle, { color: C.text }]}>현재 수영장에서 복사</Text>
+            <Text style={[styles.copyDesc, { color: C.textMuted }]}>"{currentPool.name}"의 설정을 새 수영장에 복사할 수 있습니다</Text>
+            {(["levels", "pricing"] as CopyOption[]).map(opt => (
+              <Pressable
+                key={opt}
+                onPress={() => toggleCopy(opt)}
+                style={styles.copyRow}
+              >
+                <View style={[styles.checkbox, { borderColor: copyOptions.has(opt) ? TINT : C.border, backgroundColor: copyOptions.has(opt) ? TINT : "transparent" }]}>
+                  {copyOptions.has(opt) && <Feather name="check" size={13} color="#fff" />}
+                </View>
+                <Text style={[styles.copyLabel, { color: C.text }]}>
+                  {opt === "levels" ? "수준 체계 (레벨 설정)" : "수업료 요금표"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
         <Pressable
-          style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
-          onPress={handleSave}
+          style={({ pressed }) => [styles.saveBtn, { backgroundColor: TINT, opacity: pressed ? 0.85 : 1 }]}
+          onPress={handleCreate}
           disabled={saving}
         >
-          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnTxt}>저장하기</Text>}
+          {saving ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.saveBtnTxt}>수영장 만들기</Text>
+          )}
         </Pressable>
       </ModalSheet>
 
-      {/* 지점 상세 모달 */}
-      <Modal visible={!!detailTarget} animationType="fade" transparent onRequestClose={() => setDetailTarget(null)}>
-        <Pressable style={styles.overlay} onPress={() => setDetailTarget(null)}>
-          <View style={[styles.detailSheet, { backgroundColor: C.card }]}>
-            {detailTarget && (
-              <>
-                <Text style={[styles.detailName, { color: C.text }]}>{detailTarget.name}</Text>
-                {[
-                  { icon: "map-pin" as const, value: detailTarget.address },
-                  { icon: "phone" as const, value: detailTarget.phone },
-                  { icon: "file-text" as const, value: detailTarget.memo },
-                ].filter(r => r.value).map(({ icon, value }) => (
-                  <View key={icon} style={styles.detailRow}>
-                    <Feather name={icon} size={14} color={C.textMuted} />
-                    <Text style={[styles.detailValue, { color: C.textSecondary }]}>{value}</Text>
-                  </View>
-                ))}
-                <Pressable
-                  style={[styles.detailEditBtn, { backgroundColor: C.tint }]}
-                  onPress={() => { setDetailTarget(null); openEdit(detailTarget); }}
-                >
-                  <Text style={styles.detailEditTxt}>수정하기</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        </Pressable>
-      </Modal>
+      {/* 확인 모달 */}
+      <ConfirmModal
+        visible={!!confirmAction}
+        title={confirmAction?.title ?? ""}
+        message={confirmAction?.message ?? ""}
+        confirmText="전환하기"
+        onConfirm={() => { const fn = confirmAction?.onConfirm; setConfirmAction(null); fn?.(); }}
+        onCancel={() => setConfirmAction(null)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 8 },
-  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  editModeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1 },
-  editModeTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  toolbar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  countText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  sortBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  sortTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  card: { flexDirection: "row", alignItems: "center", borderRadius: 16, padding: 16, gap: 14, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3 },
-  emblem: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  emblemText: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  cardBody: { flex: 1, gap: 4 },
-  branchName: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  infoRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  infoTxt: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
-  reorderBtns: { flexDirection: "column", gap: 2 },
-  arrowBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  actionBtns: { flexDirection: "row", gap: 4 },
-  iconBtn: { width: 34, height: 34, alignItems: "center", justifyContent: "center" },
-  fab: { position: "absolute", right: 24, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 6 },
-  fabText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  addBtnTxt: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginHorizontal: 20, marginBottom: 14, padding: 12, borderRadius: 12, borderWidth: 1 },
+  infoTxt: { flex: 1, fontSize: 12.5, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  countRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
+  countTxt: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  activeTxt: { fontSize: 12, fontFamily: "Inter_400Regular" },
   empty: { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyText: { fontSize: 16, fontFamily: "Inter_500Medium" },
-  emptySubText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  errorText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  emptyDesc: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  card: { borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  cardTop: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },
+  poolIcon: { width: 50, height: 50, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  poolIconEmoji: { fontSize: 24 },
+  nameLine: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  poolName: { fontSize: 16, fontFamily: "Inter_700Bold", flexShrink: 1 },
+  activeBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  activeBadgeTxt: { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  primaryBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
+  primaryBadgeTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  metaRow: { flexDirection: "row", gap: 6 },
+  statusPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  statusTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  switchArrow: { alignItems: "center", gap: 3 },
+  switchTxt: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  cardBottom: { borderTopWidth: 1, paddingHorizontal: 16, paddingVertical: 10, gap: 5 },
+  infoRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  infoTxt2: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+  errTxt: { fontSize: 13, fontFamily: "Inter_400Regular" },
   field: { gap: 5 },
   fieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
   input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular" },
-  saveBtn: { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 4 },
+  copySection: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
+  copyTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  copyDesc: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  copyRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  copyLabel: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  saveBtn: { height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 4 },
   saveBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  detailSheet: { margin: 40, borderRadius: 20, padding: 24, gap: 12 },
-  detailName: { fontSize: 22, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  detailRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  detailValue: { fontSize: 14, fontFamily: "Inter_400Regular", flex: 1 },
-  detailEditBtn: { height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", marginTop: 8 },
-  detailEditTxt: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

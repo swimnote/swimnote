@@ -49,6 +49,21 @@ export interface PoolInfo {
   theme_color?: string | null;
   logo_url?: string | null;
   logo_emoji?: string | null;
+  white_label_enabled?: boolean;
+  hide_platform_name?: boolean;
+}
+
+export interface OwnedPool {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  approval_status: string;
+  subscription_status: string;
+  theme_color: string | null;
+  logo_url: string | null;
+  logo_emoji: string | null;
+  is_primary: boolean;
 }
 
 export interface AccountEntry {
@@ -66,6 +81,7 @@ interface AuthContextType {
   pool: PoolInfo | null;
   isLoading: boolean;
   allAccounts: AccountEntry[];
+  ownedPools: OwnedPool[];
   lastUsedRole: string | null;
   lastUsedTenant: string | null;
   lastSelectedStudent: string | null;
@@ -74,6 +90,8 @@ interface AuthContextType {
   parentLogin: (identifier: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshPool: () => Promise<void>;
+  loadOwnedPools: () => Promise<void>;
+  switchPool: (poolId: string) => Promise<void>;
   switchRole: (role: string) => Promise<void>;
   activateAccount: (entry: AccountEntry) => Promise<void>;
   setLastUsedRole: (role: string) => Promise<void>;
@@ -93,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [allAccounts, setAllAccounts] = useState<AccountEntry[]>([]);
+  const [ownedPools, setOwnedPools] = useState<OwnedPool[]>([]);
   const [lastUsedRole, setLastUsedRoleState] = useState<string | null>(null);
   const [lastUsedTenant, setLastUsedTenantState] = useState<string | null>(null);
   const [lastSelectedStudent, setLastSelectedStudentState] = useState<string | null>(null);
@@ -151,6 +170,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function refreshPool() { if (token && kind === "admin") await fetchPool(token); }
+
+  async function loadOwnedPools() {
+    if (!token || kind !== "admin") return;
+    try {
+      const res = await fetch(`${API_BASE}/pools/my-pools`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await safeJson(res);
+        if (Array.isArray(data)) setOwnedPools(data);
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  async function switchPool(poolId: string) {
+    if (!token) return;
+    const res = await fetch(`${API_BASE}/pools/switch/${poolId}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error("수영장 전환에 실패했습니다.");
+    const data = await safeJson(res);
+    const newToken: string = data.token;
+    const newPool: PoolInfo = data.pool;
+    const updatedUser: AdminUser = data.user;
+    if (!newToken) throw new Error("토큰 발급 실패");
+    setToken(newToken);
+    setPool(newPool);
+    if (updatedUser) {
+      if (!updatedUser.roles || updatedUser.roles.length === 0) updatedUser.roles = [updatedUser.role];
+      setAdminUser(updatedUser);
+      await AsyncStorage.setItem("auth_admin", JSON.stringify(updatedUser));
+    }
+    await AsyncStorage.setItem("auth_token", newToken);
+    await loadOwnedPools();
+  }
 
   async function setLastUsedRole(role: string) {
     setLastUsedRoleState(role);
@@ -322,6 +375,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setParentAccount(null);
     setPool(null);
     setAllAccounts([]);
+    setOwnedPools([]);
     setLastUsedRoleState(null);
     setLastUsedTenantState(null);
     setLastSelectedStudentState(null);
@@ -330,8 +384,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       kind, adminUser, parentAccount, token, pool, isLoading,
-      allAccounts, lastUsedRole, lastUsedTenant, lastSelectedStudent,
-      unifiedLogin, adminLogin, parentLogin, logout, refreshPool, switchRole,
+      allAccounts, ownedPools, lastUsedRole, lastUsedTenant, lastSelectedStudent,
+      unifiedLogin, adminLogin, parentLogin, logout, refreshPool, loadOwnedPools, switchPool, switchRole,
       activateAccount, setLastUsedRole, setLastUsedTenant, setLastSelectedStudent,
       updateParentNickname, checkRolePermission,
     }}>
