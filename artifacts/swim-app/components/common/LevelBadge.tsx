@@ -12,6 +12,7 @@ export interface LevelDef {
   badge_label?: string;
   badge_color?: string;
   badge_text_color?: string;
+  is_active?: boolean;
 }
 
 interface Props {

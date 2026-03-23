@@ -2258,24 +2258,25 @@ router.get("/students/:id/level", requireAuth, requireRole("super_admin","pool_a
     const currentOrder = student.current_level_order;
     const levelRows = await db.execute(sql`
       SELECT level_order, level_name, level_description, learning_content,
-             promotion_test_rule, badge_type, badge_label, badge_color, badge_text_color
+             promotion_test_rule, badge_type, badge_label, badge_color, badge_text_color, is_active
       FROM pool_level_settings WHERE pool_id = ${poolId}
       ORDER BY level_order ASC
     `);
-    const levelDefs = levelRows.rows.length > 0
+    const allDefs = levelRows.rows.length > 0
       ? (levelRows.rows as any[])
       : DEFAULT_LEVELS;
+    const activeDefs = allDefs.filter((l: any) => l.is_active !== false);
     const currentDef = currentOrder
-      ? (levelDefs.find((l: any) => l.level_order === currentOrder) ?? null)
+      ? (allDefs.find((l: any) => l.level_order === currentOrder) ?? null)
       : null;
     const nextDef = currentOrder
-      ? (levelDefs.find((l: any) => l.level_order === currentOrder + 1) ?? null)
+      ? (activeDefs.find((l: any) => l.level_order > currentOrder) ?? null)
       : null;
     res.json({
       current_level_order: currentOrder ?? null,
       current_level: currentDef,
       next_level: nextDef,
-      all_levels: levelDefs,
+      all_levels: activeDefs,
     });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });

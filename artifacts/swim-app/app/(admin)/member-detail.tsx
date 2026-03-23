@@ -619,7 +619,13 @@ export default function MemberDetailScreen() {
                   <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: C.text, marginTop: 2 }}>
                     {levelInfo?.current_level?.level_name ?? "미지정"}
                   </Text>
-                  {levelInfo?.current_level?.level_description ? (
+                  {levelInfo?.current_level?.is_active === false && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4, backgroundColor: "#FFF7ED", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" }}>
+                      <Feather name="eye-off" size={12} color="#D97706" />
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#D97706" }}>사용 안 함 레벨</Text>
+                    </View>
+                  )}
+                  {levelInfo?.current_level?.level_description && levelInfo.current_level.is_active !== false ? (
                     <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 4 }}>
                       {levelInfo.current_level.level_description}
                     </Text>
@@ -664,7 +670,7 @@ export default function MemberDetailScreen() {
               <Text style={s.sectionTitle}>전체 레벨 구조</Text>
               <View style={[s.infoCard, { backgroundColor: C.card, padding: 12 }]}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {levelInfo.all_levels.map(lv => {
+                  {levelInfo.all_levels.filter(lv => lv.is_active !== false).map(lv => {
                     const isCurrent = lv.level_order === levelInfo.current_level_order;
                     return (
                       <Pressable
@@ -991,7 +997,7 @@ export default function MemberDetailScreen() {
             <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: C.text, textAlign: "center" }}>레벨 선택</Text>
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                {(levelInfo?.all_levels ?? []).map(lv => {
+                {(levelInfo?.all_levels ?? []).filter(lv => lv.is_active !== false).map(lv => {
                   const isCurrent = lv.level_order === levelInfo?.current_level_order;
                   return (
                     <Pressable

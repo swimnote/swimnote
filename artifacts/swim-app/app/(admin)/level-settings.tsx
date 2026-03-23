@@ -40,6 +40,7 @@ interface LevelSetting extends LevelDef {
   badge_label: string;
   badge_color: string;
   badge_text_color: string;
+  is_active: boolean;
 }
 
 const DEFAULT: LevelSetting[] = Array.from({ length: 10 }, (_, i) => ({
@@ -52,6 +53,7 @@ const DEFAULT: LevelSetting[] = Array.from({ length: 10 }, (_, i) => ({
   badge_label: String(i + 1),
   badge_color: "#1F8F86",
   badge_text_color: "#FFFFFF",
+  is_active: true,
 }));
 
 export default function LevelSettingsScreen() {
@@ -69,8 +71,12 @@ export default function LevelSettingsScreen() {
     try {
       const res = await apiRequest(token, "/admin/level-settings");
       if (res.ok) {
-        const data: LevelSetting[] = await res.json();
-        setLevels(data.length > 0 ? data : DEFAULT);
+        const data: any[] = await res.json();
+        if (data.length > 0) {
+          setLevels(data.map(d => ({ ...d, is_active: d.is_active !== false })));
+        } else {
+          setLevels(DEFAULT);
+        }
       }
     } catch {}
     finally { setLoading(false); }
@@ -87,6 +93,11 @@ export default function LevelSettingsScreen() {
 
   function updateBadgeLabel(order: number, value: string) {
     setLevels(prev => prev.map(l => l.level_order === order ? { ...l, badge_label: value } : l));
+    setChanged(true);
+  }
+
+  function toggleActive(order: number) {
+    setLevels(prev => prev.map(l => l.level_order === order ? { ...l, is_active: !l.is_active } : l));
     setChanged(true);
   }
 
@@ -147,6 +158,7 @@ export default function LevelSettingsScreen() {
               onToggle={() => setExpanded(prev => prev === lv.level_order ? null : lv.level_order)}
               onUpdate={(field, value) => update(lv.level_order, field as keyof LevelSetting, value)}
               onBadgeLabelUpdate={(v) => updateBadgeLabel(lv.level_order, v)}
+              onToggleActive={() => toggleActive(lv.level_order)}
               setChanged={setChanged}
               setLevels={setLevels}
             />
@@ -182,11 +194,13 @@ interface CardProps {
   onToggle: () => void;
   onUpdate: (field: string, value: string) => void;
   onBadgeLabelUpdate: (v: string) => void;
+  onToggleActive: () => void;
   setChanged: (v: boolean) => void;
   setLevels: React.Dispatch<React.SetStateAction<LevelSetting[]>>;
 }
 
-function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, setChanged, setLevels }: CardProps) {
+function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onToggleActive, setChanged, setLevels }: CardProps) {
+  const inactive = lv.is_active === false;
   const badgePreview: LevelDef = {
     level_order: lv.level_order,
     level_name: lv.level_name,
@@ -213,24 +227,40 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, setCh
   const hasContent = lv.level_description || lv.learning_content || lv.promotion_test_rule;
 
   return (
-    <View style={s.card}>
+    <View style={[s.card, inactive && s.cardInactive]}>
       {/* 카드 헤더 */}
       <Pressable style={s.cardHeader} onPress={onToggle}>
-        <LevelBadge level={badgePreview} size="md" />
+        <View style={{ opacity: inactive ? 0.45 : 1 }}>
+          <LevelBadge level={badgePreview} size="md" />
+        </View>
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={s.cardTitle}>
-            레벨 {lv.level_order}
-            {lv.level_name !== String(lv.level_order) ? ` · ${lv.level_name}` : ""}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={[s.cardTitle, inactive && { color: C.textMuted }]}>
+              레벨 {lv.level_order}
+              {lv.level_name !== String(lv.level_order) ? ` · ${lv.level_name}` : ""}
+            </Text>
+            {inactive && (
+              <View style={s.inactiveBadge}>
+                <Text style={s.inactiveBadgeTxt}>사용 안함</Text>
+              </View>
+            )}
+          </View>
           {hasContent ? (
-            <Text style={s.cardSub} numberOfLines={1}>
+            <Text style={[s.cardSub, inactive && { color: C.textMuted }]} numberOfLines={1}>
               {lv.level_description || lv.learning_content}
             </Text>
           ) : (
             <Text style={[s.cardSub, { color: C.textMuted }]}>내용 없음 (탭하여 편집)</Text>
           )}
         </View>
-        <Feather name={expanded ? "chevron-up" : "chevron-down"} size={18} color={C.textSecondary} />
+        <Pressable
+          style={[s.activeToggle, { backgroundColor: inactive ? "#F3F4F6" : "#DDF2EF", borderColor: inactive ? C.border : "#A7D9D6" }]}
+          onPress={(e) => { e.stopPropagation(); onToggleActive(); }}
+          hitSlop={8}
+        >
+          <Feather name={inactive ? "eye-off" : "eye"} size={14} color={inactive ? C.textMuted : C.tint} />
+        </Pressable>
+        <Feather name={expanded ? "chevron-up" : "chevron-down"} size={18} color={C.textSecondary} style={{ marginLeft: 4 }} />
       </Pressable>
 
       {/* 확장 영역 */}
@@ -388,6 +418,18 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: C.border,
     shadowColor: "#0000000F", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 1, shadowRadius: 4, elevation: 1,
+  },
+  cardInactive: {
+    backgroundColor: "#FAFAFA", borderColor: "#DDD9D5", opacity: 0.85,
+  },
+  inactiveBadge: {
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+    backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB",
+  },
+  inactiveBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#9CA3AF" },
+  activeToggle: {
+    width: 32, height: 32, borderRadius: 8, borderWidth: 1,
+    alignItems: "center", justifyContent: "center", marginLeft: 8,
   },
   cardHeader: {
     flexDirection: "row", alignItems: "center", padding: 14, gap: 4,

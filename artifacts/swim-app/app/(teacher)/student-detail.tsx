@@ -244,7 +244,13 @@ export default function StudentDetailScreen() {
                   <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: C.text, marginTop: 2 }}>
                     {levelInfo?.current_level?.level_name ?? "미지정"}
                   </Text>
-                  {levelInfo?.current_level?.level_description ? (
+                  {levelInfo?.current_level?.is_active === false && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
+                      <Feather name="eye-off" size={11} color="#D97706" />
+                      <Text style={{ fontSize: 11, color: "#D97706", fontFamily: "Inter_600SemiBold" }}>사용 안 함 레벨</Text>
+                    </View>
+                  )}
+                  {levelInfo?.current_level?.level_description && levelInfo.current_level.is_active !== false ? (
                     <Text style={{ fontSize: 11, color: C.textSecondary, fontFamily: "Inter_400Regular", marginTop: 2 }} numberOfLines={1}>
                       {levelInfo.current_level.level_description}
                     </Text>
@@ -440,7 +446,7 @@ export default function StudentDetailScreen() {
             <View style={{ maxHeight: 260, overflow: "hidden" }}>
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 4 }}>
-                  {(levelInfo?.all_levels ?? []).map(lv => {
+                  {(levelInfo?.all_levels ?? []).filter(lv => lv.is_active !== false).map(lv => {
                     const isCurrent = lv.level_order === levelInfo?.current_level_order;
                     return (
                       <Pressable
