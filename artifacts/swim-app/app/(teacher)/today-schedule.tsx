@@ -10,7 +10,7 @@ import { Audio } from "expo-av";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, Platform,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
   Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
@@ -19,6 +19,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { WEEKLY_BADGE, WeeklyCount, isValidBirthYear, isValidPhone, normalizePhone } from "@/utils/studentUtils";
 
 const C = Colors.light;
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
@@ -1102,6 +1103,171 @@ const um = StyleSheet.create({
 });
 
 /* ══════════════════════════════════════════════════
+   선생님 회원 등록 요청 모달
+   ═════════════════════════════════════════════════ */
+function TeacherRegisterModal({
+  visible, token, themeColor, onClose, onSuccess,
+}: {
+  visible: boolean; token: string | null; themeColor: string;
+  onClose: () => void; onSuccess: () => void;
+}) {
+  const [name, setName]             = useState("");
+  const [birthYear, setBirthYear]   = useState("");
+  const [parentName, setParentName] = useState("");
+  const [parentPhone, setParentPhone] = useState("");
+  const [weekly, setWeekly]         = useState<WeeklyCount>(1);
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState("");
+  const [done, setDone]             = useState(false);
+  const [doneMsg, setDoneMsg]       = useState("");
+
+  function reset() {
+    setName(""); setBirthYear(""); setParentName(""); setParentPhone("");
+    setWeekly(1); setSaving(false); setError(""); setDone(false); setDoneMsg("");
+  }
+
+  function handleClose() { reset(); onClose(); }
+
+  function validate(): string | null {
+    if (!name.trim()) return "학생 이름을 입력해주세요.";
+    if (birthYear && !isValidBirthYear(birthYear)) return "출생년도 형식이 올바르지 않습니다. (예: 2015)";
+    if (parentPhone && !isValidPhone(parentPhone)) return "보호자 전화번호 형식이 올바르지 않습니다.";
+    return null;
+  }
+
+  async function handleSubmit() {
+    const e = validate();
+    if (e) { setError(e); return; }
+    setSaving(true); setError("");
+    try {
+      const res = await apiRequest(token, "/students/teacher-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          birth_year: birthYear || undefined,
+          parent_name: parentName || undefined,
+          parent_phone: parentPhone ? normalizePhone(parentPhone) : undefined,
+          weekly_count: weekly,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.message || data.error || "오류가 발생했습니다."); return; }
+      setDoneMsg(`${name.trim()} 학생 등록 요청이 접수됐습니다.`);
+      setDone(true);
+      onSuccess();
+    } catch { setError("네트워크 오류가 발생했습니다."); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+      <KeyboardAvoidingView style={treg.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={treg.sheet}>
+          <View style={treg.handle} />
+          {done ? (
+            /* ── 완료 화면 ── */
+            <View style={treg.doneWrap}>
+              <View style={[treg.doneIcon, { backgroundColor: themeColor + "20" }]}>
+                <Feather name="check-circle" size={36} color={themeColor} />
+              </View>
+              <Text style={[treg.doneTitle, { color: C.text }]}>등록요청 완료</Text>
+              <Text style={[treg.doneSub, { color: C.textSecondary }]}>{doneMsg}</Text>
+              <Text style={[treg.doneSub, { color: C.textMuted, fontSize: 12 }]}>
+                관리자 승인 후 정식 회원으로 반영됩니다.
+              </Text>
+              <Pressable style={[treg.saveBtn, { backgroundColor: themeColor }]} onPress={handleClose}>
+                <Text style={treg.saveBtnText}>확인</Text>
+              </Pressable>
+            </View>
+          ) : (
+            /* ── 입력 폼 ── */
+            <>
+              <View style={treg.header}>
+                <Text style={treg.title}>회원 등록 요청</Text>
+                <Pressable onPress={handleClose}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
+              </View>
+              {error ? (
+                <View style={treg.errorRow}>
+                  <Feather name="alert-circle" size={14} color={C.error} />
+                  <Text style={treg.errorText}>{error}</Text>
+                </View>
+              ) : null}
+              <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                <View style={treg.field}>
+                  <Text style={treg.label}>학생 이름 *</Text>
+                  <TextInput style={treg.input} value={name} onChangeText={setName} placeholder="홍길동" placeholderTextColor={C.textMuted} />
+                </View>
+                <View style={treg.field}>
+                  <Text style={treg.label}>출생년도 (중복 체크에 사용)</Text>
+                  <TextInput style={treg.input} value={birthYear} onChangeText={setBirthYear} placeholder="예: 2015" placeholderTextColor={C.textMuted} keyboardType="number-pad" maxLength={4} />
+                </View>
+                <View style={treg.field}>
+                  <Text style={treg.label}>보호자 이름</Text>
+                  <TextInput style={treg.input} value={parentName} onChangeText={setParentName} placeholder="김보호 (선택)" placeholderTextColor={C.textMuted} />
+                </View>
+                <View style={treg.field}>
+                  <Text style={treg.label}>보호자 전화번호</Text>
+                  <TextInput style={treg.input} value={parentPhone} onChangeText={setParentPhone} placeholder="010-1234-5678" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
+                </View>
+                <View style={treg.field}>
+                  <Text style={treg.label}>주 수업 횟수</Text>
+                  <View style={treg.weekRow}>
+                    {([1, 2, 3] as WeeklyCount[]).map(w => {
+                      const badge = WEEKLY_BADGE[w];
+                      return (
+                        <Pressable
+                          key={w}
+                          style={[treg.weekBtn, { backgroundColor: weekly === w ? badge.bg : C.background, borderColor: weekly === w ? badge.color : C.border }]}
+                          onPress={() => setWeekly(w)}
+                        >
+                          <Text style={[treg.weekBtnText, { color: weekly === w ? badge.color : C.textSecondary }]}>{badge.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
+              <View style={treg.notice}>
+                <Feather name="info" size={13} color={themeColor} />
+                <Text style={[treg.noticeText, { color: C.textSecondary }]}>관리자 승인 후 정식 회원으로 반영됩니다.</Text>
+              </View>
+              <Pressable style={[treg.saveBtn, { backgroundColor: themeColor, opacity: saving ? 0.7 : 1 }]} onPress={handleSubmit} disabled={saving}>
+                {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={treg.saveBtnText}>등록요청</Text>}
+              </Pressable>
+            </>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const treg = StyleSheet.create({
+  overlay:     { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet:       { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 14, maxHeight: "90%" },
+  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
+  header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  title:       { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
+  errorRow:    { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#F9DEDA", padding: 10, borderRadius: 10 },
+  errorText:   { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.error },
+  field:       { gap: 6, marginBottom: 12 },
+  label:       { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  input:       { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text, borderColor: C.border, backgroundColor: C.background },
+  weekRow:     { flexDirection: "row", gap: 10 },
+  weekBtn:     { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
+  weekBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  notice:      { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
+  noticeText:  { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  saveBtn:     { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  doneWrap:    { alignItems: "center", gap: 12, paddingVertical: 16 },
+  doneIcon:    { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center" },
+  doneTitle:   { fontSize: 20, fontFamily: "Inter_700Bold" },
+  doneSub:     { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+});
+
+/* ══════════════════════════════════════════════════
    홈 화면 — 8아이콘 OS 허브
    ═════════════════════════════════════════════════ */
 interface HubIcon {
@@ -1126,6 +1292,7 @@ export default function TodayScheduleScreen() {
   const [overview, setOverview]       = useState<TeacherOverview | null>(null);
   const [notePopupVisible, setNotePopupVisible] = useState(false);
   const [switching, setSwitching]     = useState(false);
+  const [showTeacherRegister, setShowTeacherRegister] = useState(false);
 
   // 관리자로 전환 가능 여부: roles에 pool_admin 포함 시 (부관리자 개념 제거)
   const adminRoleKey = adminUser?.roles?.find(r => r === "pool_admin");
@@ -1362,6 +1529,21 @@ export default function TodayScheduleScreen() {
           </View>
         </Pressable>
 
+        {/* ── 회원추가 퀵버튼 ── */}
+        <Pressable
+          style={({ pressed }) => [h.addMemberBtn, { opacity: pressed ? 0.82 : 1 }]}
+          onPress={() => setShowTeacherRegister(true)}
+        >
+          <View style={[h.addMemberIconWrap, { backgroundColor: "rgba(255,255,255,0.22)" }]}>
+            <Feather name="user-plus" size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={h.addMemberLabel}>회원추가</Text>
+            <Text style={h.addMemberSub}>등록 요청 → 관리자 승인 후 반영</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
+        </Pressable>
+
         {/* ── 오늘 수업 (뱃지 그리드 4×3) ── */}
         <View style={[h.sectionCard, { backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
@@ -1436,6 +1618,15 @@ export default function TodayScheduleScreen() {
         onClose={() => setNotePopupVisible(false)}
         onOpenDiary={handleOpenDiaryFromMsg}
       />
+
+      {/* 회원 등록 요청 모달 */}
+      <TeacherRegisterModal
+        visible={showTeacherRegister}
+        token={token}
+        themeColor={themeColor}
+        onClose={() => setShowTeacherRegister(false)}
+        onSuccess={() => {}}
+      />
     </SafeAreaView>
   );
 }
@@ -1498,6 +1689,11 @@ const h = StyleSheet.create({
   miniDate:         { fontSize: 14, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
   miniDateToday:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
   miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
+  /* 회원추가 퀵버튼 */
+  addMemberBtn:     { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#1F8F86", borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#1F8F86", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
+  addMemberIconWrap:{ width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  addMemberLabel:   { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  addMemberSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
   /* 기능 메뉴 그리드 */
   gridCard:       { borderRadius: 18, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   grid:           { flexDirection: "row", flexWrap: "wrap" },

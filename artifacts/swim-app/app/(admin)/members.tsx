@@ -376,6 +376,9 @@ export default function MembersScreen() {
   const [loading,           setLoading]           = useState(true);
   const [refreshing,        setRefreshing]        = useState(false);
   const [showMemberLimitModal, setShowMemberLimitModal] = useState(false);
+  const [teacherRequests,   setTeacherRequests]   = useState<any[]>([]);
+  const [approvingId,       setApprovingId]       = useState<string | null>(null);
+  const [rejectingId,       setRejectingId]       = useState<string | null>(null);
   const [filter,         setFilter]         = useState<StudentFilterKey>(
     (filterParam as StudentFilterKey) ?? "all"
   );
@@ -392,14 +395,51 @@ export default function MembersScreen() {
 
   const load = useCallback(async () => {
     try {
-      const res = await apiRequest(token, "/students");
+      const [res, reqRes] = await Promise.all([
+        apiRequest(token, "/students"),
+        apiRequest(token, "/students/teacher-requests"),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setStudents(Array.isArray(data) ? data : []);
       }
+      if (reqRes.ok) {
+        const reqData = await reqRes.json();
+        setTeacherRequests(Array.isArray(reqData) ? reqData : []);
+      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
+
+  async function handleApprove(id: string, name: string) {
+    setApprovingId(id);
+    try {
+      const res = await apiRequest(token, `/students/teacher-requests/${id}/approve`, { method: "POST" });
+      if (res.ok) {
+        setTeacherRequests(prev => prev.filter(r => r.id !== id));
+        setInfoModal(`${name} 학생이 정식 회원으로 등록됐습니다.`);
+        load();
+      } else {
+        const d = await res.json();
+        setInfoModal(d.message || "승인에 실패했습니다.");
+      }
+    } catch { setInfoModal("네트워크 오류가 발생했습니다."); }
+    finally { setApprovingId(null); }
+  }
+
+  async function handleReject(id: string, name: string) {
+    setRejectingId(id);
+    try {
+      const res = await apiRequest(token, `/students/teacher-requests/${id}/reject`, { method: "DELETE" });
+      if (res.ok) {
+        setTeacherRequests(prev => prev.filter(r => r.id !== id));
+      } else {
+        const d = await res.json();
+        setInfoModal(d.message || "거절에 실패했습니다.");
+      }
+    } catch { setInfoModal("네트워크 오류가 발생했습니다."); }
+    finally { setRejectingId(null); }
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -485,6 +525,56 @@ export default function MembersScreen() {
   const header = (
     <>
       <SubScreenHeader title="회원 관리" />
+
+      {/* ── 선생님 등록 요청 승인 대기 섹션 ── */}
+      {teacherRequests.length > 0 && (
+        <View style={ms.pendingSection}>
+          <View style={ms.pendingHeader}>
+            <View style={ms.pendingBadge}>
+              <Text style={ms.pendingBadgeTxt}>{teacherRequests.length}</Text>
+            </View>
+            <Text style={ms.pendingSectionTitle}>선생님 등록 요청 승인 대기</Text>
+          </View>
+          {teacherRequests.map(req => (
+            <View key={req.id} style={ms.pendingCard}>
+              <View style={ms.pendingCardLeft}>
+                <View style={ms.pendingAvatar}>
+                  <Text style={ms.pendingAvatarTxt}>{req.name?.[0] ?? "?"}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={ms.pendingName}>{req.name}</Text>
+                  <Text style={ms.pendingMeta} numberOfLines={1}>
+                    {[req.birth_year ? `${req.birth_year}년생` : null, req.parent_name, req.parent_phone ? req.parent_phone.replace(/(\d{3})(\d{3,4})(\d{4})/, "$1-$2-$3") : null].filter(Boolean).join(" · ") || "추가 정보 없음"}
+                  </Text>
+                </View>
+              </View>
+              <View style={ms.pendingActions}>
+                <Pressable
+                  style={[ms.pendingBtn, { backgroundColor: "#F9DEDA" }]}
+                  onPress={() => handleReject(req.id, req.name)}
+                  disabled={rejectingId === req.id || approvingId === req.id}
+                >
+                  {rejectingId === req.id
+                    ? <ActivityIndicator size="small" color="#D96C6C" />
+                    : <Text style={[ms.pendingBtnTxt, { color: "#D96C6C" }]}>거절</Text>
+                  }
+                </Pressable>
+                <Pressable
+                  style={[ms.pendingBtn, { backgroundColor: "#DDF2EF" }]}
+                  onPress={() => handleApprove(req.id, req.name)}
+                  disabled={approvingId === req.id || rejectingId === req.id}
+                >
+                  {approvingId === req.id
+                    ? <ActivityIndicator size="small" color="#1F8F86" />
+                    : <Text style={[ms.pendingBtnTxt, { color: "#1F8F86" }]}>승인</Text>
+                  }
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
       {/* 상단 버튼 */}
       <View style={ms.actionRow}>
         {!sel.selectionMode ? (
@@ -682,6 +772,20 @@ export default function MembersScreen() {
 }
 
 const ms = StyleSheet.create({
+  pendingSection:     { marginHorizontal: 16, marginBottom: 10, borderRadius: 14, backgroundColor: "#FFFBEB", borderWidth: 1.5, borderColor: "#FDE68A", padding: 12, gap: 8 },
+  pendingHeader:      { flexDirection: "row", alignItems: "center", gap: 8 },
+  pendingBadge:       { width: 22, height: 22, borderRadius: 11, backgroundColor: "#D97706", alignItems: "center", justifyContent: "center" },
+  pendingBadgeTxt:    { color: "#fff", fontSize: 11, fontFamily: "Inter_700Bold" },
+  pendingSectionTitle:{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#92400E" },
+  pendingCard:        { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#FDE68A" },
+  pendingCardLeft:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  pendingAvatar:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#FFF1BF", alignItems: "center", justifyContent: "center" },
+  pendingAvatarTxt:   { fontSize: 14, fontFamily: "Inter_700Bold", color: "#D97706" },
+  pendingName:        { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  pendingMeta:        { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  pendingActions:     { flexDirection: "row", gap: 6 },
+  pendingBtn:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  pendingBtnTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   actionRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12 },
   actionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },

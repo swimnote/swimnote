@@ -118,6 +118,80 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── POST /teacher-request — 선생님 등록 요청 (pending_approval) ───
+router.post("/teacher-request", requireAuth, requireRole("teacher", "pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { name, birth_year, parent_name, parent_phone, weekly_count = 1 } = req.body;
+  if (!name?.trim()) return err(res, 400, "학생 이름을 입력해주세요.");
+
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
+
+    const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await db.execute(sql`
+      INSERT INTO students (
+        id, swimming_pool_id, name, birth_year, parent_name, parent_phone,
+        weekly_count, status, registration_path, invite_code, created_at, updated_at
+      ) VALUES (
+        ${id}, ${poolId}, ${name.trim()},
+        ${birth_year || null}, ${parent_name || null},
+        ${parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null},
+        ${weekly_count}, 'pending_approval', 'teacher_request',
+        NULL, NOW(), NOW()
+      )
+    `);
+    await logChange(req.user!.userId, "students", id, "insert", {
+      name: name.trim(), status: "pending_approval", registration_path: "teacher_request",
+    });
+    return res.json({ success: true, id, name: name.trim(), status: "pending_approval" });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── GET /teacher-requests — 선생님 등록 요청 대기 목록 (관리자용) ──
+router.get("/teacher-requests", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
+    const rows = (await db.execute(sql`
+      SELECT id, name, birth_year, parent_name, parent_phone, weekly_count, created_at
+      FROM students WHERE swimming_pool_id = ${poolId} AND status = 'pending_approval'
+      ORDER BY created_at DESC
+    `)).rows;
+    return res.json(rows);
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── POST /teacher-requests/:id/approve — 등록 요청 승인 (관리자) ───
+router.post("/teacher-requests/:id/approve", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    const invite_code = generateInviteCode();
+    const [row] = (await db.execute(sql`
+      UPDATE students
+      SET status = 'active', invite_code = ${invite_code}, registration_path = 'admin_created', updated_at = NOW()
+      WHERE id = ${id} AND swimming_pool_id = ${poolId} AND status = 'pending_approval'
+      RETURNING id, name
+    `)).rows as any[];
+    if (!row) return err(res, 404, "승인 대기 중인 요청을 찾을 수 없습니다.");
+    await logChange(req.user!.userId, "students", id, "update", { status: "active", action: "teacher_request_approved" });
+    return res.json({ success: true, id: row.id, name: row.name, invite_code });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── DELETE /teacher-requests/:id/reject — 등록 요청 거절 (관리자) ──
+router.delete("/teacher-requests/:id/reject", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    const [row] = (await db.execute(sql`
+      DELETE FROM students WHERE id = ${id} AND swimming_pool_id = ${poolId} AND status = 'pending_approval' RETURNING id, name
+    `)).rows as any[];
+    if (!row) return err(res, 404, "승인 대기 중인 요청을 찾을 수 없습니다.");
+    return res.json({ success: true, id: row.id, name: row.name });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
 // ── POST / — 학생 등록 ────────────────────────────────────────────
 router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const {
