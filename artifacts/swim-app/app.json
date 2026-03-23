@@ -9,9 +9,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/swimnote-logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#2B2D30"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": false
