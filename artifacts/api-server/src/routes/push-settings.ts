@@ -8,7 +8,7 @@
  * GET  /push-settings/logs     — 최근 푸시 로그 (관리자)
  */
 import { Router, Response } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 

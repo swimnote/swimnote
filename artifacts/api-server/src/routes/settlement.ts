@@ -10,7 +10,7 @@
  * POST /settlement/next-month-start                                 다음 달 시작
  */
 import { Router, type Response } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logChange } from "../utils/change-logger.js";

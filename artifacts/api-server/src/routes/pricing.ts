@@ -4,7 +4,7 @@
  * PUT /pricing/:poolId  (전체 배치 업데이트)
  */
 import { Router, type Response } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 

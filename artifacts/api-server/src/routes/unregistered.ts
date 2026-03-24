@@ -4,7 +4,7 @@
  * 선생님: 목록 조회, 반배정 (→ 정상회원 전환)
  */
 import { Router } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import {
   studentsTable, classGroupsTable, usersTable,
 } from "@workspace/db/schema";

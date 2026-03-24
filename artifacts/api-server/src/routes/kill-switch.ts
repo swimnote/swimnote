@@ -6,7 +6,7 @@
  * GET  /admin/event-logs           — 이벤트 기록 타임라인 조회
  */
 import { Router } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { Client } from "@replit/object-storage";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";

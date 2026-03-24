@@ -6,7 +6,7 @@
  * PATCH /admin/parent-requests/:id - 관리자: 승인/거절 (학생 연결 지원)
  */
 import { Router } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import {
   swimmingPoolsTable, usersTable, parentAccountsTable,
   parentStudentsTable, studentsTable,

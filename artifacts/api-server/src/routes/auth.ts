@@ -678,8 +678,11 @@ router.post("/totp/verify-login", async (req, res) => {
     if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
     if (!user.totp_enabled || !user.totp_secret) return err(res, 400, "TOTP가 설정되지 않은 계정입니다.");
 
-    const isValid = totpVerifySync({ token: otp_code.replace(/\s/g, ""), secret: user.totp_secret });
-    if (!isValid) return err(res, 401, "OTP 코드가 올바르지 않습니다.");
+    const cleanCode = otp_code.replace(/\D/g, "").trim();
+    console.log(`[totp/verify-login] userId=***${payload.userId.slice(-4)} code_len=${cleanCode.length} totp_enabled=${user.totp_enabled} secret_len=${user.totp_secret?.length ?? 0}`);
+    const isValid = totpVerifySync({ token: cleanCode, secret: user.totp_secret, window: 1 });
+    console.log(`[totp/verify-login] code_match=${isValid}`);
+    if (!isValid) return err(res, 401, "OTP 코드가 올바르지 않거나 만료되었습니다.");
 
     const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
     const { password_hash: _pw, totp_secret: _secret, ...safeUser } = user;
