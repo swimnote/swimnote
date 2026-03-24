@@ -54,9 +54,9 @@ router.post("/apply", requireAuth,
       const safeAdminPhone = admin_phone?.trim() || null;
       const rows = await superAdminDb.execute(sql`
         INSERT INTO swimming_pools
-          (id, name, name_en, address, phone, owner_name, owner_email, admin_name, admin_email, admin_phone, approval_status, subscription_status)
+          (id, name, name_en, address, phone, owner_name, owner_email, admin_name, admin_email, admin_phone, approval_status, subscription_status, trial_end_at)
         VALUES
-          (${id}, ${name}, ${resolvedNameEn}, ${address}, ${phone}, ${owner_name}, ${admin_email}, ${admin_name}, ${admin_email}, ${safeAdminPhone}, 'pending', 'trial')
+          (${id}, ${name}, ${resolvedNameEn}, ${address}, ${phone}, ${owner_name}, ${admin_email}, ${admin_name}, ${admin_email}, ${safeAdminPhone}, 'approved', 'trial', NOW() + INTERVAL '30 days')
         RETURNING *
       `);
 
