@@ -129,16 +129,16 @@ router.get("/", async (_req: AuthRequest, res) => {
 
     const [retrySummary] = (await superAdminDb.execute(sql`
       SELECT
-        COUNT(*)::int FILTER (WHERE resolved = false)                          AS pending,
-        COUNT(*)::int FILTER (WHERE resolved = true)                           AS resolved,
-        COUNT(*)::int FILTER (WHERE retry_count >= max_retries AND resolved = false) AS exhausted
+        COUNT(*) FILTER (WHERE resolved = false)                               AS pending,
+        COUNT(*) FILTER (WHERE resolved = true)                                AS resolved,
+        COUNT(*) FILTER (WHERE retry_count >= max_retries AND resolved = false) AS exhausted
       FROM event_retry_queue
     `)).rows as any[];
 
     const [dlqSummary] = (await superAdminDb.execute(sql`
       SELECT
-        COUNT(*)::int FILTER (WHERE resolved = false) AS pending,
-        COUNT(*)::int FILTER (WHERE resolved = true)  AS resolved
+        COUNT(*) FILTER (WHERE resolved = false) AS pending,
+        COUNT(*) FILTER (WHERE resolved = true)  AS resolved
       FROM dead_letter_queue
     `)).rows as any[];
 
@@ -288,13 +288,13 @@ router.get("/diagnostic", async (_req: AuthRequest, res) => {
     // DLQ + 재시도 요약
     const [retryStats] = (await superAdminDb.execute(sql`
       SELECT
-        COUNT(*)::int FILTER (WHERE resolved = false)                               AS pending,
-        COUNT(*)::int FILTER (WHERE resolved = false AND retry_count >= max_retries) AS exhausted,
-        AVG(retry_count) FILTER (WHERE resolved = false)                             AS avg_retries
+        COUNT(*) FILTER (WHERE resolved = false)                               AS pending,
+        COUNT(*) FILTER (WHERE resolved = false AND retry_count >= max_retries) AS exhausted,
+        AVG(retry_count) FILTER (WHERE resolved = false)                        AS avg_retries
       FROM event_retry_queue
     `)).rows as any[];
     const [dlqStats] = (await superAdminDb.execute(sql`
-      SELECT COUNT(*)::int FILTER (WHERE resolved = false) AS unresolved
+      SELECT COUNT(*) FILTER (WHERE resolved = false) AS unresolved
       FROM dead_letter_queue
     `)).rows as any[];
 
