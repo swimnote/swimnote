@@ -1,0 +1,147 @@
+아래 구조를 최종 기준으로 고정하고, 현재 DB 구조와 API 쓰기 경로를 전면 점검 및 수정해라.
+추정 금지, mock 금지, 확인한 것과 미확인한 것을 절대 섞지 마라.
+
+[최종 데이터 구조 기준]
+
+1. super DB 역할
+super DB에는 아래만 원본 또는 플랫폼 기준 정보로 저장한다.
+- 슈퍼관리자 계정 및 권한
+- 수영장 가입 정보
+- 플랫폼 계정 기본 정보(관리자/선생님/학부모 로그인 계정 식별 정보)
+- 구독 / 플랜 / 결제 / 환불 / 정산
+- OTP / 보안 / 정책동의
+- 감사로그(audit)
+- 운영 이벤트 복제 로그
+- 업로드/삭제/변경에 대한 파일 감사로그
+- 삭제예약 / 리스크 요약 / 모니터링 / 서버상태
+
+중요:
+- 학생 운영 원본 데이터
+- 출결 원본
+- 일지 원본
+- 반배정 원본
+- 사진/영상 파일 원본
+이런 운영 데이터 원본은 super DB에 저장하지 않는다.
+
+2. pool DB 역할
+pool DB에는 실제 수영장 운영에 필요한 원본 데이터를 저장한다.
+- pools 운영정보
+- users 운영참조
+- teachers
+- parents
+- students
+- class_groups
+- student_class_assignments
+- attendance_logs
+- class_journals
+- makeups
+- level_settings
+- notices
+- notification_settings
+- albums
+- photo_assets_meta
+- video_assets_meta
+- schedule_change_logs
+- pool_change_logs
+- 기타 수영장 운영 설정값
+
+중요:
+- 운영 원본 데이터는 무조건 pool DB가 기준이다.
+- super DB는 운영 원본의 조회/수정 기준 DB가 아니다.
+
+3. 파일 저장 구조
+- 사진/영상 실제 파일 바이너리는 DB에 저장하지 않는다.
+- 사진 파일은 R2 photos bucket
+- 영상 파일은 R2 videos bucket
+- pool DB에는 파일 메타데이터 원본을 저장한다.
+- super DB에는 파일 자체가 아니라 감사 목적의 업로드/삭제/변경 로그만 복제 저장한다.
+
+4. 저장 순서 절대 기준
+모든 운영 데이터는 아래 순서로 처리한다.
+- 먼저 pool DB에 원본 저장 성공
+- 그 후 pool_change_logs 기록
+- 그 후 super DB에 이벤트 복제 로그 기록
+- super DB 복제 실패 시 event_retry_queue / dead_letter_queue로 이동
+- 원본 성공 이전에 super DB 로그를 먼저 쓰지 않는다
+
+5. 회원가입/계정 경계 기준
+- 플랫폼 가입, 수영장 가입, 결제 주체, 구독 주체 정보는 super DB
+- 실제 학생/수업/출결/일지/반/보강 운영 정보는 pool DB
+- 학부모/선생님 로그인 계정 식별 정보는 super DB에 둘 수 있으나,
+  운영 상세 프로필/연결 상태/활동 기록은 pool DB 기준으로 본다
+
+6. 사진/영상 메타 기준
+pool DB의 photo_assets_meta / video_assets_meta에는 아래를 저장한다.
+- pool_id
+- student_id 또는 class_id 또는 journal_id 연결키
+- bucket_name
+- object_key
+- file_type
+- file_size
+- uploaded_by
+- uploaded_at
+- status(active/deleted)
+- visibility
+- thumbnail 여부
+- compressed 여부
+- video의 경우 duration/codec/resolution이 있으면 포함
+
+super DB에는 파일 메타 원본을 복제하지 말고 아래 수준의 감사로그만 남긴다.
+- file.uploaded
+- file.deleted
+- file.visibility_changed
+- file.linked_to_student
+- file.linked_to_journal
+
+7. 영상 정책 고정
+- 사진은 기본 제공
+- 영상은 기본 잠금
+- 모든 기본 플랜의 video_storage_limit_mb 기본값은 0
+- video_storage_limit_mb > 0 인 경우에만 video_enabled = true
+- 영상 가격표는 아직 확정하지 말고 운영정책값으로 나중에 넣을 수 있게 구조만 만든다
+- 영상 업로드 API / 버튼 / 조회 권한은 이 정책을 기준으로 동작하게 한다
+
+8. 지금 즉시 해야 할 작업
+A. 현재 각 API와 서비스 로직이 super DB와 pool DB 중 어디를 쓰는지 전수조사
+B. 운영 원본 데이터 쓰기 경로를 pool DB로 이동
+C. super DB에는 복제 로그와 플랫폼용 데이터만 남도록 정리
+D. photo_assets_meta와 video_assets_meta 구조 추가 또는 정리
+E. 파일 업로드 감사로그 이벤트 타입 정의 및 super DB 복제 연결
+F. 테스트 데이터로 아래를 직접 검증
+- 학생 생성
+- 반 생성
+- 반배정
+- 출결 기록
+- 일지 생성/수정/삭제
+- 보강 생성/완료
+- 사진 메타 저장
+- 영상 잠금 상태 확인
+- 이벤트 복제 로그 생성
+G. 결과를 표로 보고
+
+9. 보고 형식
+답변 마지막에는 반드시 아래를 따로 적어라.
+- super DB에 원본으로 남기는 테이블 목록
+- pool DB에 원본으로 옮긴 테이블 목록
+- 아직 분리 안 된 테이블 목록
+- 어떤 API가 어느 DB를 쓰는지 표
+- 파일 메타는 어느 DB에 저장되는지
+- 파일 감사로그는 어느 DB에 저장되는지
+- 내가 Supabase에서 직접 클릭해서 확인할 위치
+- 내가 직접 확인해야 할 프로젝트/DB/스키마 이름
+- 내가 추가로 제공해야 할 정보
+- 지금 다음 단계로 내가 무엇을 해야 하는지
+
+[절대 금지]
+- 운영 원본 데이터를 super DB와 pool DB 양쪽에서 동시에 원본처럼 쓰지 말 것
+- 사진/영상 파일 바이너리를 super DB에 저장하지 말 것
+- super DB 복제 실패를 이유로 pool DB 원본 저장을 롤백하지 말 것
+- 확인 안 한 것을 완료로 쓰지 말 것
+
+지금 바로 시작해라.
+먼저
+1) super DB 원본 테이블 / pool DB 원본 테이블 구분표 작성
+2) 운영 원본 쓰기 API를 pool DB 기준으로 전환할 목록 작성
+3) photo/video 메타 구조 정리
+4) 테스트 검증 계획 작성
+이 4개부터 진행해라.

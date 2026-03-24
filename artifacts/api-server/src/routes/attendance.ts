@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { attendanceTable, studentsTable, usersTable, parentAccountsTable, classGroupsTable, makeupSessionsTable } from "@workspace/db/schema";
 import { eq, and, gte, lte, like, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
@@ -9,7 +9,7 @@ const router = Router();
 
 async function getPoolId(userId: string, role: string): Promise<string | null> {
   if (role === "parent_account") return userId;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return user?.swimming_pool_id || null;
 }
 

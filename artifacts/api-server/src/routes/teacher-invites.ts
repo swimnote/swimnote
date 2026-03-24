@@ -9,7 +9,7 @@
  * POST /public/teacher-invite/join    - 공개: 선생님 초대링크로 가입
  */
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -35,21 +35,21 @@ router.post("/admin/teacher-invites", requireAuth, requireRole("pool_admin", "su
         res.status(400).json({ success: false, message: "이름과 연락처는 필수입니다." }); return;
       }
 
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
       const token = genToken();
       const id = genId("ti");
 
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         INSERT INTO teacher_invites (id, swimming_pool_id, name, phone, position, invite_token, invite_status, invited_by, notes, created_at)
         VALUES (${id}, ${me.swimming_pool_id}, ${name.trim()}, ${phone.trim()},
                 ${position?.trim() || null}, ${token}, 'invited', ${req.user!.userId},
                 ${notes?.trim() || null}, NOW())
       `);
 
-      const result = await db.execute(sql`SELECT * FROM teacher_invites WHERE id = ${id}`);
+      const result = await superAdminDb.execute(sql`SELECT * FROM teacher_invites WHERE id = ${id}`);
       await logChange({ tenantId: me.swimming_pool_id, tableName: "teacher_invites", recordId: id, changeType: "create", payload: { name: name.trim(), phone: phone.trim(), invite_status: "invited" } });
       res.status(201).json({ success: true, data: result.rows[0] });
     } catch (err) {
@@ -64,7 +64,7 @@ router.get("/admin/teacher-invites", requireAuth, requireRole("pool_admin", "sup
   async (req: AuthRequest, res) => {
     try {
       const { status } = req.query;
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
@@ -90,11 +90,11 @@ router.get("/admin/teacher-invites", requireAuth, requireRole("pool_admin", "sup
 router.get("/admin/teacher-invites/:id/detail", requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
-      const result = await db.execute(sql`
+      const result = await superAdminDb.execute(sql`
         SELECT
           ti.*,
           u.email as user_email,
@@ -136,7 +136,7 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         res.status(400).json({ success: false, message: "유효하지 않은 action입니다." }); return;
       }
 
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id, name: usersTable.name })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id, name: usersTable.name })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
@@ -144,7 +144,7 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
       const actorName = (me as any).name || "관리자";
       const poolId    = me.swimming_pool_id;
 
-      const existing = await db.execute(sql`
+      const existing = await superAdminDb.execute(sql`
         SELECT ti.*, u.roles as user_roles FROM teacher_invites ti
         LEFT JOIN users u ON ti.user_id = u.id
         WHERE ti.id = ${req.params.id} AND ti.swimming_pool_id = ${poolId}
@@ -163,9 +163,9 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         const approvedRoles: string[] = ["teacher"];
         if (invite.user_id) {
           const rolesLiteral = `{"teacher"}`;
-          await db.execute(sql`UPDATE users SET is_activated = true, roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${invite.user_id}`);
+          await superAdminDb.execute(sql`UPDATE users SET is_activated = true, roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
-        await db.execute(sql`
+        await superAdminDb.execute(sql`
           UPDATE teacher_invites
           SET invite_status = 'approved', approved_at = NOW(), approved_by = ${actorId},
               approved_role = 'teacher'
@@ -180,9 +180,9 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
           res.status(409).json({ success: false, message: "현재 상태에서는 거절할 수 없습니다." }); return;
         }
         if (invite.user_id) {
-          await db.execute(sql`UPDATE users SET is_activated = false, updated_at = NOW() WHERE id = ${invite.user_id}`);
+          await superAdminDb.execute(sql`UPDATE users SET is_activated = false, updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
-        await db.execute(sql`
+        await superAdminDb.execute(sql`
           UPDATE teacher_invites
           SET invite_status = 'rejected',
               rejected_at = NOW(), rejected_by = ${actorId},
@@ -194,17 +194,17 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
 
       } else if (action === "deactivate" || action === "revoke") {
         if (invite.user_id) {
-          await db.execute(sql`UPDATE users SET is_activated = false, updated_at = NOW() WHERE id = ${invite.user_id}`);
+          await superAdminDb.execute(sql`UPDATE users SET is_activated = false, updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
-        await db.execute(sql`UPDATE teacher_invites SET invite_status = 'inactive' WHERE id = ${req.params.id}`);
+        await superAdminDb.execute(sql`UPDATE teacher_invites SET invite_status = 'inactive' WHERE id = ${req.params.id}`);
         logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.teacher_name, description: `선생님 승인 해제 — ${invite.teacher_name}` }).catch(console.error);
         res.json({ success: true, message: "승인이 해제되었습니다." });
 
       } else if (action === "reactivate") {
         if (invite.user_id) {
-          await db.execute(sql`UPDATE users SET is_activated = true, updated_at = NOW() WHERE id = ${invite.user_id}`);
+          await superAdminDb.execute(sql`UPDATE users SET is_activated = true, updated_at = NOW() WHERE id = ${invite.user_id}`);
         }
-        await db.execute(sql`UPDATE teacher_invites SET invite_status = 'approved' WHERE id = ${req.params.id}`);
+        await superAdminDb.execute(sql`UPDATE teacher_invites SET invite_status = 'approved' WHERE id = ${req.params.id}`);
         logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.teacher_name, description: `선생님 재활성화 — ${invite.teacher_name}` }).catch(console.error);
         res.json({ success: true, message: "재활성화되었습니다." });
 
@@ -224,7 +224,7 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         }
 
         const rolesLiteral = `{${currentRoles.map((r: string) => `"${r}"`).join(",")}}`;
-        await db.execute(sql`UPDATE users SET roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${invite.user_id}`);
+        await superAdminDb.execute(sql`UPDATE users SET roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${invite.user_id}`);
 
         logEvent({
           pool_id: poolId, category: "권한", actor_id: actorId, actor_name: actorName,
@@ -246,11 +246,11 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
 router.get("/admin/approved-teachers-for-grant", requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
-      const result = await db.execute(sql`
+      const result = await superAdminDb.execute(sql`
         SELECT u.id, u.name, u.email, u.phone, u.roles,
                (u.roles @> ARRAY['pool_admin']::text[]) AS is_admin_granted,
                ti.invite_status, ti.approved_at
@@ -278,12 +278,12 @@ router.post("/admin/grant-pool-admin", requireAuth, requireRole("pool_admin", "s
         res.status(400).json({ success: false, message: "userId와 grant(boolean)가 필요합니다." }); return;
       }
 
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id, name: usersTable.name })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id, name: usersTable.name })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
       // 같은 수영장의 승인된 선생님인지 확인
-      const targetRow = await db.execute(sql`
+      const targetRow = await superAdminDb.execute(sql`
         SELECT u.id, u.name, u.roles FROM users u
         JOIN teacher_invites ti ON ti.user_id = u.id
         WHERE u.id = ${userId}
@@ -308,7 +308,7 @@ router.post("/admin/grant-pool-admin", requireAuth, requireRole("pool_admin", "s
       }
 
       const rolesLiteral = `{${currentRoles.map((r: string) => `"${r}"`).join(",")}}`;
-      await db.execute(sql`UPDATE users SET roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${userId}`);
+      await superAdminDb.execute(sql`UPDATE users SET roles = ${rolesLiteral}::TEXT[], updated_at = NOW() WHERE id = ${userId}`);
 
       const actorName = (me as any).name || "관리자";
       logEvent({
@@ -337,7 +337,7 @@ router.post("/admin/teacher-invites/:id/transfer", requireAuth, requireRole("poo
         res.status(400).json({ success: false, message: "target_user_id가 필요합니다." }); return;
       }
 
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id, name: usersTable.name })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id, name: usersTable.name })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
@@ -345,7 +345,7 @@ router.post("/admin/teacher-invites/:id/transfer", requireAuth, requireRole("poo
       const actorName = (me as any).name || "관리자";
 
       // 소스 선생님 invite 조회
-      const inviteResult = await db.execute(sql`
+      const inviteResult = await superAdminDb.execute(sql`
         SELECT ti.*, u.id as source_user_id, u.name as source_name
         FROM teacher_invites ti
         LEFT JOIN users u ON ti.user_id = u.id
@@ -363,7 +363,7 @@ router.post("/admin/teacher-invites/:id/transfer", requireAuth, requireRole("poo
       }
 
       // 대상 선생님 이름 조회
-      const targetResult = await db.execute(sql`
+      const targetResult = await superAdminDb.execute(sql`
         SELECT name FROM users WHERE id = ${target_user_id} LIMIT 1
       `);
       const targetName = target_teacher_name || (targetResult.rows[0] as any)?.name || "미지정";
@@ -406,7 +406,7 @@ router.post("/admin/teacher-invites/:id/transfer", requireAuth, requireRole("poo
 // ─── 공개: 초대 토큰 검증 ────────────────────────────────────────────
 router.get("/public/teacher-invite/:token", async (req, res) => {
   try {
-    const result = await db.execute(sql`
+    const result = await superAdminDb.execute(sql`
       SELECT ti.id, ti.name, ti.phone, ti.position, ti.invite_status,
              sp.name as pool_name
       FROM teacher_invites ti
@@ -442,7 +442,7 @@ router.post("/public/teacher-invite/join", async (req, res) => {
       res.status(400).json({ success: false, message: "토큰, 이메일, 비밀번호(6자 이상)는 필수입니다." }); return;
     }
 
-    const inviteResult = await db.execute(sql`
+    const inviteResult = await superAdminDb.execute(sql`
       SELECT ti.*, sp.id as sp_id FROM teacher_invites ti
       JOIN swimming_pools sp ON ti.swimming_pool_id = sp.id
       WHERE ti.invite_token = ${token} AND ti.invite_status IN ('invited')
@@ -454,7 +454,7 @@ router.post("/public/teacher-invite/join", async (req, res) => {
 
     const invite = inviteResult.rows[0] as any;
 
-    const dup = await db.execute(sql`SELECT id FROM users WHERE email = ${email.trim().toLowerCase()} LIMIT 1`);
+    const dup = await superAdminDb.execute(sql`SELECT id FROM users WHERE email = ${email.trim().toLowerCase()} LIMIT 1`);
     if (dup.rows.length) {
       res.status(409).json({ success: false, message: "이미 사용 중인 이메일입니다." }); return;
     }
@@ -462,7 +462,7 @@ router.post("/public/teacher-invite/join", async (req, res) => {
     const passwordHash = await hashPassword(password);
     const userId = genId("user");
 
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, created_at, updated_at)
       VALUES (
         ${userId}, ${email.trim().toLowerCase()}, ${passwordHash},
@@ -471,7 +471,7 @@ router.post("/public/teacher-invite/join", async (req, res) => {
       )
     `);
 
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       UPDATE teacher_invites
       SET invite_status = 'joinedPendingApproval', user_id = ${userId}, requested_at = NOW()
       WHERE id = ${invite.id}

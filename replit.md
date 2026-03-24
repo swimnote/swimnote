@@ -174,23 +174,40 @@ The platform is built as a pnpm workspace monorepo using TypeScript. It leverage
   - **레거시 퍼지 완료**: `유료100`, `유료300`, `plan-pro100`, `plan-free10` 등 구 플랜 문자열을 seed/subscriptions.ts, seed/operators.ts, seed/auditLogs.ts, store/operatorsStore.ts에서 전부 제거.
   - **앱스토어 수수료**: PG(PortOne) 수수료 완전 제거, 앱스토어/구글플레이 30% 단일 항목으로 통일.
 
-### DB 이원화 시스템 (2026-03 2차 강화)
-- **물리적 분리 강제**: `api-server/src/index.ts`에 POOL_DATABASE_URL 시작 점검 추가 — 미설정 시 서버 즉시 중단 (process.exit(1))
-- **인프라 테이블 추가**: `pool_change_logs` (poolDb 영역 이중 감사 로그) + `dead_letter_queue` (최대 재시도 초과 이벤트 보관, 수동 재전송 가능)
-- **pool-event-logger 강화**: 이중 저장 (superAdminDb + poolDb.pool_change_logs), DLQ 이동 로직, `resendDeadLetter()` API, 지수 백오프 재시도
-- **이벤트 훅 확장 (9개 라우트)**:
-  - diary.ts: journal.create / journal.update / journal.delete
-  - admin.ts: subscription.change
-  - super.ts: read_only_mode.on / read_only_mode.off
-  - class-schedules.ts: schedule.change
-  - students.ts: class_assign (PATCH /:id/assign)
-- **DB 모니터링 API 고도화** (db-status.ts 5→9개 엔드포인트):
-  - GET /super/db-status — 연결상태 2계층 + DLQ 요약 추가
-  - GET /super/db-status/diagnostic — 전체 진단 보고서 + 권고사항
-  - GET /super/db-status/verify — 이벤트 누락 검증 (pool_change_logs 대비 비교)
-  - GET /super/db-status/dead-letters — DLQ 조회 (resolved 필터)
+### DB 이원화 시스템 (2026-03 전면 완료 — T001~T007)
+- **물리적 이중 DB 연결 확정**:
+  - `superAdminDb` → Supabase ap-south-1 (플랫폼/감사/구독)
+  - `db` = `poolDb` → Supabase ap-northeast-2 (수영장 운영 원본)
+  - `lib/db/src/index.ts`: `export const db = poolDb` 확정
+- **pool DB 전용 테이블 (21개, T001 DDL 완료)**:
+  students, attendance, class_groups, class_members, classes, members, parent_accounts, parent_students, class_diaries, class_diary_student_notes, class_diary_audit_logs, diary_templates, makeup_sessions, notices, teacher_schedule_notes, class_change_logs, push_settings, pool_push_settings, pool_change_logs, photo_assets_meta, video_assets_meta
+- **super DB 전용 테이블 (플랫폼 데이터)**:
+  users, swimming_pools, user_pools, subscriptions, payment_logs, revenue_logs, policy_consents, backup_snapshots, data_change_logs, feature_flags, readonly_control_logs, push_logs, push_scheduled_sent, pool_event_logs, event_retry_queue, dead_letter_queue, student_registration_requests, parent_pool_requests
+- **라우팅 완전 분기 (23개 라우트 파일 전수 수정)**:
+  - `superAdminDb` 명시: swimming_pools, users, subscriptions, user_pools 등 super 테이블 쿼리
+  - `db` 유지: students, class_groups, attendance, notices 등 pool 운영 쿼리
+  - 멀티라인 SQL 자동 탐지 스크립트: `scripts/fix-all-multiline.mjs`
+- **photo_assets_meta / video_assets_meta (T004)**:
+  - 컬럼: pool_id, student_id, class_id, album_type, object_key, file_size, uploaded_by, uploaded_by_name, created_at
+  - `checkVideoStorageLimit()` — swimming_pools.video_storage_limit_mb 초과 시 403 차단
+- **pool-event-logger 이중 저장 순서 (T006)**:
+  pool DB pool_change_logs 저장 → super DB pool_event_logs 복제 → 실패 시 retry queue → DLQ
+- **change-logger 라우팅 수정**: `data_change_logs`는 super DB → `superAdminDb.insert()` 적용
+- **물리적 분리 강제**: `api-server/src/index.ts`에 POOL_DATABASE_URL 시작 점검 추가
+- **T007 검증 완료 (실제 API 테스트)**:
+  - 회원가입/로그인 (super DB users) ✓
+  - 수영장 생성/전환 (super DB swimming_pools + user_pools) ✓
+  - 학생/반/출결 CRUD (pool DB) ✓
+  - 수업일지/공지 조회 (pool DB) ✓
+  - 사진/영상 메타 조회 (pool DB photo/video_assets_meta) ✓
+  - change-logger → super DB data_change_logs ✓
+  - pool-event-logger → pool_change_logs 3건 + pool_event_logs 3건 이중 저장 ✓
+- **DB 모니터링 API** (db-status.ts):
+  - GET /super/db-status — 연결상태 2계층 + DLQ 요약
+  - GET /super/db-status/diagnostic — 전체 진단 보고서
+  - GET /super/db-status/verify — 이벤트 누락 검증
+  - GET /super/db-status/dead-letters — DLQ 조회
   - POST /super/db-status/dead-letters/:id/resend — DLQ 수동 재전송
-- **db-status.tsx UI 전면 개편**: 3탭 → 4탭 (DB 개요 / 수영장별 / 이벤트 / 서비스 상태), 2계층 연결 상태 StatusPill, DLQ UI + 재전송 버튼, 진단 보고서 + 이벤트 타입별 통계, DLQ 뱃지
 
 ### System Design Choices
 - **API Design**: RESTful API endpoints with clear responsibilities, consistent JSON response formats (success/failure), and strong authentication/authorization middleware.

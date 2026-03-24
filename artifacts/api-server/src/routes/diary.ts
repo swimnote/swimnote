@@ -15,7 +15,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -39,12 +39,12 @@ function genId(prefix: string) {
 }
 
 async function getUserPoolId(userId: string): Promise<string | null> {
-  const r = await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
+  const r = await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
   return (r.rows[0] as any)?.swimming_pool_id || null;
 }
 
 async function getUserName(userId: string): Promise<string> {
-  const r = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+  const r = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
   return (r.rows[0] as any)?.name || userId;
 }
 
@@ -925,7 +925,7 @@ router.post("/teacher/diary/:diaryId/messages",
         : await db.execute(sql`SELECT id FROM class_diaries WHERE id = ${req.params.diaryId}`);
       if (!diary.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
 
-      const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, Number(userId))).limit(1);
+      const [user] = await superAdminDb.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, Number(userId))).limit(1);
       const senderName = (user as any)?.name || "선생님";
 
       const result = await db.execute(sql`
@@ -1037,7 +1037,7 @@ router.get("/diaries/admin/teachers",
       const poolId = await getUserPoolId(userId);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
-      const rows = await db.execute(sql`
+      const rows = await superAdminDb.execute(sql`
         SELECT
           u.id AS teacher_id,
           u.name AS teacher_name,

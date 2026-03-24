@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { usersTable, parentAccountsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, signTotpSession, verifyTotpSession } from "../lib/auth.js";
@@ -18,7 +18,7 @@ router.post("/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return err(res, 400, "이메일과 비밀번호를 입력해주세요.");
   try {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
+    const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
     if (!user) return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
 
     const valid = await comparePassword(password, user.password_hash);
@@ -26,7 +26,7 @@ router.post("/login", async (req, res) => {
 
     // pool_admin 역할은 수영장 승인 상태 확인
     if (user.role === "pool_admin" && user.swimming_pool_id) {
-      const [pool] = await db.select({ approval_status: swimmingPoolsTable.approval_status })
+      const [pool] = await superAdminDb.select({ approval_status: swimmingPoolsTable.approval_status })
         .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, user.swimming_pool_id)).limit(1);
       
       if (!pool) return err(res, 403, "소속된 수영장을 찾을 수 없습니다.");
@@ -47,7 +47,7 @@ router.post("/login", async (req, res) => {
 
     if (user.role === "teacher" && !(user as any).is_activated) {
       // 자체 가입 신청(대기중)인지 확인
-      const pendingInvite = await db.execute(sql`
+      const pendingInvite = await superAdminDb.execute(sql`
         SELECT id FROM teacher_invites
         WHERE user_id = ${user.id} AND invite_status = 'joinedPendingApproval'
         LIMIT 1
@@ -91,13 +91,13 @@ router.post("/register", async (req, res) => {
   if (!email || !password || !name) return err(res, 400, "필수 정보를 입력해주세요.");
   if (password.length < 6) return err(res, 400, "비밀번호는 6자 이상이어야 합니다.");
   try {
-    const [existing] = await db.select().from(usersTable)
+    const [existing] = await superAdminDb.select().from(usersTable)
       .where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
     if (existing) return err(res, 400, "이미 사용 중인 이메일입니다.");
 
     const password_hash = await hashPassword(password);
     const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const [user] = await db.insert(usersTable).values({
+    const [user] = await superAdminDb.insert(usersTable).values({
       id, email: email.trim().toLowerCase(), password_hash, name,
       phone: phone || null, role: role === "pool_admin" ? "pool_admin" : "parent",
     }).returning();
@@ -116,12 +116,12 @@ router.post("/create-super-manager", requireAuth, async (req: AuthRequest, res) 
   if (!name || !email || !password) return err(res, 400, "이름, 이메일, 비밀번호는 필수입니다.");
   if (password.length < 8) return err(res, 400, "비밀번호는 8자 이상이어야 합니다.");
   try {
-    const [existing] = await db.select().from(usersTable)
+    const [existing] = await superAdminDb.select().from(usersTable)
       .where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
     if (existing) return err(res, 400, "이미 사용 중인 이메일입니다.");
     const password_hash = await hashPassword(password);
     const id = `sm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const [user] = await db.insert(usersTable).values({
+    const [user] = await superAdminDb.insert(usersTable).values({
       id, email: email.trim().toLowerCase(), password_hash, name: name.trim(),
       phone: null, role: "super_manager",
     }).returning();
@@ -135,7 +135,7 @@ router.post("/activate-teacher", async (req, res) => {
   const { teacher_id, otp } = req.body;
   if (!teacher_id || !otp) return err(res, 400, "teacher_id와 인증코드를 입력해주세요.");
   try {
-    const [teacher] = await db.select().from(usersTable)
+    const [teacher] = await superAdminDb.select().from(usersTable)
       .where(and(eq(usersTable.id, teacher_id), eq(usersTable.role, "teacher"))).limit(1);
     if (!teacher) return err(res, 404, "선생님 계정을 찾을 수 없습니다.");
     if ((teacher as any).is_activated) return err(res, 400, "이미 활성화된 계정입니다.");
@@ -152,7 +152,7 @@ router.post("/activate-teacher", async (req, res) => {
     `);
     if (!verif.rows.length) return err(res, 400, "인증코드가 올바르지 않거나 만료되었습니다.");
 
-    await db.execute(sql`UPDATE users SET is_activated = true, phone_verified = true, updated_at = now() WHERE id = ${teacher_id}`);
+    await superAdminDb.execute(sql`UPDATE users SET is_activated = true, phone_verified = true, updated_at = now() WHERE id = ${teacher_id}`);
     await db.execute(sql`UPDATE phone_verifications SET is_used = true WHERE id = ${(verif.rows[0] as any).id}`);
 
     const token = signToken({ userId: teacher.id, role: teacher.role, poolId: teacher.swimming_pool_id });
@@ -175,7 +175,7 @@ router.post("/parent-login", async (req, res) => {
       : [];
     const accounts: any[] = byLoginId.rows.length > 0 ? byLoginId.rows : byPhone;
     if (accounts.length === 0) {
-      const pending = await db.execute(sql`
+      const pending = await superAdminDb.execute(sql`
         SELECT id, parent_name FROM parent_pool_requests
         WHERE (login_id = ${id} OR phone = ${id})
           AND request_status = 'pending'
@@ -210,7 +210,7 @@ router.post("/parent-login", async (req, res) => {
 // ── 내 정보 조회 ──────────────────────────────────────────────────────
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
     const { password_hash: _, ...safeUser } = user;
     res.json(safeUser);
@@ -221,7 +221,7 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
 router.get("/pools", async (req, res) => {
   try {
     const search = (req.query.search as string || "").trim();
-    const pools = await db.select({
+    const pools = await superAdminDb.select({
       id: swimmingPoolsTable.id, name: swimmingPoolsTable.name,
       address: swimmingPoolsTable.address, phone: swimmingPoolsTable.phone,
     }).from(swimmingPoolsTable).where(eq(swimmingPoolsTable.approval_status, "approved"));
@@ -242,7 +242,7 @@ router.post("/parent-register", async (req, res) => {
     ? child_names.map((n: string) => n.trim()).filter(Boolean) : [];
   if (names.length === 0) return err(res, 400, "자녀 이름을 1명 이상 입력해주세요.");
   try {
-    const [pool] = await db.select().from(swimmingPoolsTable)
+    const [pool] = await superAdminDb.select().from(swimmingPoolsTable)
       .where(and(eq(swimmingPoolsTable.id, swimming_pool_id), eq(swimmingPoolsTable.approval_status, "approved"))).limit(1);
     if (!pool) return err(res, 400, "유효하지 않은 수영장입니다.");
 
@@ -264,7 +264,7 @@ router.post("/parent-register", async (req, res) => {
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
 
     const reqId = `srr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await db.insert(studentRegistrationRequestsTable).values({
+    await superAdminDb.insert(studentRegistrationRequestsTable).values({
       id: reqId, swimming_pool_id, parent_id: parentId,
       child_names: names, memo: memo || null, status: "pending",
     });
@@ -288,7 +288,7 @@ router.post("/check-id", async (req, res) => {
   if (!identifier) return res.json({ exists: false, type: null });
   const id = identifier.trim();
   try {
-    const [user] = await db.select({ id: usersTable.id })
+    const [user] = await superAdminDb.select({ id: usersTable.id })
       .from(usersTable).where(eq(usersTable.email, id.toLowerCase())).limit(1);
     if (user) return res.json({ exists: true, type: "admin" });
 
@@ -312,7 +312,7 @@ router.post("/unified-login", async (req, res) => {
     let wrongPwCount = 0;
 
     // ── 1) users 테이블 (이메일 매칭) ────────────────────────────────
-    const [user] = await db.select().from(usersTable)
+    const [user] = await superAdminDb.select().from(usersTable)
       .where(eq(usersTable.email, id.toLowerCase())).limit(1);
 
     if (user) {
@@ -322,10 +322,10 @@ router.post("/unified-login", async (req, res) => {
       } else {
         // teacher 활성화 체크
         if (user.role === "teacher") {
-          const rawRows = await db.execute(sql`SELECT is_activated FROM users WHERE id = ${user.id} LIMIT 1`);
+          const rawRows = await superAdminDb.execute(sql`SELECT is_activated FROM users WHERE id = ${user.id} LIMIT 1`);
           const isActivated = (rawRows.rows[0] as any)?.is_activated ?? true;
           if (!isActivated) {
-            const pendingInvite = await db.execute(sql`
+            const pendingInvite = await superAdminDb.execute(sql`
               SELECT id FROM teacher_invites
               WHERE user_id = ${user.id} AND invite_status = 'joinedPendingApproval' LIMIT 1
             `);
@@ -336,7 +336,7 @@ router.post("/unified-login", async (req, res) => {
           }
         }
         // TOTP 2단계 인증 체크
-        const totpRow = await db.execute(sql`SELECT totp_enabled FROM users WHERE id = ${user.id} LIMIT 1`);
+        const totpRow = await superAdminDb.execute(sql`SELECT totp_enabled FROM users WHERE id = ${user.id} LIMIT 1`);
         const totpEnabled = (totpRow.rows[0] as any)?.totp_enabled ?? false;
         if (totpEnabled) {
           const totpSession = signTotpSession(user.id);
@@ -344,7 +344,7 @@ router.post("/unified-login", async (req, res) => {
         }
         const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
         const { password_hash: _, ...safeUser } = user;
-        const rolesRow = await db.execute(sql`SELECT roles FROM users WHERE id = ${user.id} LIMIT 1`);
+        const rolesRow = await superAdminDb.execute(sql`SELECT roles FROM users WHERE id = ${user.id} LIMIT 1`);
         const roles: string[] = (rolesRow.rows[0] as any)?.roles ?? [user.role];
         available_accounts.push({ kind: "admin", token, user: { ...safeUser, roles } });
       }
@@ -366,7 +366,7 @@ router.post("/unified-login", async (req, res) => {
       } else {
         let poolName: string | null = null;
         try {
-          const [pool] = await db.select({ name: swimmingPoolsTable.name })
+          const [pool] = await superAdminDb.select({ name: swimmingPoolsTable.name })
             .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, parentRow.swimming_pool_id)).limit(1);
           poolName = pool?.name ?? null;
         } catch {}
@@ -385,7 +385,7 @@ router.post("/unified-login", async (req, res) => {
         res.status(401).json({ success: false, error: "비밀번호가 일치하지 않습니다.", error_code: "wrong_password" }); return;
       }
       // pending 요청 확인
-      const pendingReq = await db.execute(sql`
+      const pendingReq = await superAdminDb.execute(sql`
         SELECT id FROM parent_pool_requests
         WHERE (login_id = ${id} OR phone = ${id}) AND request_status = 'pending' LIMIT 1
       `);
@@ -417,7 +417,7 @@ router.post("/check-role-permission", requireAuth, async (req: AuthRequest, res)
     const userId = req.user!.userId;
     if (role === "teacher") {
       // pool_admin은 항상 teacher 전환 가능
-      const userRow = await db.execute(sql`
+      const userRow = await superAdminDb.execute(sql`
         SELECT is_activated, roles, role AS primary_role FROM users WHERE id = ${userId} LIMIT 1
       `);
       const u = userRow.rows[0] as any;
@@ -427,7 +427,7 @@ router.post("/check-role-permission", requireAuth, async (req: AuthRequest, res)
         res.json({ valid: true }); return;
       }
       // 일반 teacher: teacher_invites에서 approved 상태 확인
-      const rows = await db.execute(sql`
+      const rows = await superAdminDb.execute(sql`
         SELECT invite_status FROM teacher_invites WHERE user_id = ${userId} LIMIT 1
       `);
       const row = rows.rows[0] as any;
@@ -447,7 +447,7 @@ router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
   const { role } = req.body;
   if (!role) return err(res, 400, "전환할 역할을 지정해주세요.");
   try {
-    const rolesRow = await db.execute(sql`SELECT roles, swimming_pool_id, role AS primary_role FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const rolesRow = await superAdminDb.execute(sql`SELECT roles, swimming_pool_id, role AS primary_role FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
     const row = rolesRow.rows[0] as any;
     if (!row) return err(res, 404, "계정을 찾을 수 없습니다.");
     let userRoles: string[] = row.roles ?? [];
@@ -463,16 +463,16 @@ router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
     // pool_admin이 teacher로 전환 시 teacher_invites 승인 레코드 자동 생성 (없는 경우)
     if (role === "teacher" && isPoolAdmin) {
       const userId = req.user!.userId;
-      const existingInvite = await db.execute(sql`
+      const existingInvite = await superAdminDb.execute(sql`
         SELECT id FROM teacher_invites WHERE user_id = ${userId} LIMIT 1
       `);
       if (!existingInvite.rows.length) {
-        const userInfo = await db.execute(sql`
+        const userInfo = await superAdminDb.execute(sql`
           SELECT name, phone FROM users WHERE id = ${userId} LIMIT 1
         `);
         const info = userInfo.rows[0] as any;
         const inviteId = `ti_admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await db.execute(sql`
+        await superAdminDb.execute(sql`
           INSERT INTO teacher_invites
             (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, requested_at, approved_at, created_at)
           VALUES
@@ -494,11 +494,11 @@ router.post("/reset-password", async (req, res) => {
   if (!identifier || !new_password) return err(res, 400, "아이디와 새 비밀번호를 입력해주세요.");
   if (new_password.length < 6) return err(res, 400, "비밀번호는 6자 이상이어야 합니다.");
   try {
-    const [user] = await db.select({ id: usersTable.id }).from(usersTable)
+    const [user] = await superAdminDb.select({ id: usersTable.id }).from(usersTable)
       .where(eq(usersTable.email, identifier.trim().toLowerCase())).limit(1);
     if (user) {
       const hash = await hashPassword(new_password);
-      await db.execute(sql`UPDATE users SET password_hash = ${hash}, updated_at = now() WHERE id = ${user.id}`);
+      await superAdminDb.execute(sql`UPDATE users SET password_hash = ${hash}, updated_at = now() WHERE id = ${user.id}`);
       res.json({ success: true, message: "비밀번호가 변경되었습니다." }); return;
     }
     const [parent] = await db.select({ id: parentAccountsTable.id }).from(parentAccountsTable)
@@ -523,12 +523,12 @@ router.post("/teacher-self-signup", async (req, res) => {
   if (password.length < 6) return err(res, 400, "비밀번호는 6자 이상이어야 합니다.");
   try {
     // 아이디 중복 확인
-    const [exist] = await db.select({ id: usersTable.id }).from(usersTable)
+    const [exist] = await superAdminDb.select({ id: usersTable.id }).from(usersTable)
       .where(eq(usersTable.email, identifier)).limit(1);
     if (exist) return err(res, 409, "이미 사용 중인 아이디입니다.");
 
     // 수영장 확인
-    const [pool] = await db.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name })
+    const [pool] = await superAdminDb.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name })
       .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, pool_id)).limit(1);
     if (!pool) return err(res, 404, "수영장을 찾을 수 없습니다.");
 
@@ -536,7 +536,7 @@ router.post("/teacher-self-signup", async (req, res) => {
     const userId = `u_teacher_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // 유저 생성 (is_activated = false → 관리자 승인 전 로그인 불가)
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, created_at, updated_at)
       VALUES (${userId}, ${identifier}, ${hash}, ${name.trim()}, ${phone?.trim() || null},
               'teacher', ${pool_id}, false, now(), now())
@@ -544,7 +544,7 @@ router.post("/teacher-self-signup", async (req, res) => {
 
     // teacher_invites에 승인 대기 레코드 생성 (관리자 승인 화면에서 처리 가능하도록)
     const inviteId = `ti_self_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       INSERT INTO teacher_invites (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, requested_at, created_at)
       VALUES (${inviteId}, ${pool_id}, ${name.trim()}, ${phone?.trim() || ''},
               'joinedPendingApproval', ${userId}, ${userId}, now(), now())
@@ -567,7 +567,7 @@ router.get("/parent-invite/verify", async (req, res) => {
   const { code } = req.query as { code: string };
   if (!code) return err(res, 400, "코드를 입력해주세요.");
   try {
-    const rows = await db.execute(sql`
+    const rows = await superAdminDb.execute(sql`
       SELECT pic.*, sp.name AS pool_name
       FROM parent_invite_codes pic
       LEFT JOIN swimming_pools sp ON sp.id = pic.swimming_pool_id
@@ -642,7 +642,7 @@ router.post("/parent-invite/join", async (req, res) => {
     }
 
     // 로그인 토큰 발급
-    const [poolRow] = await db.select({ name: swimmingPoolsTable.name }).from(swimmingPoolsTable)
+    const [poolRow] = await superAdminDb.select({ name: swimmingPoolsTable.name }).from(swimmingPoolsTable)
       .where(eq(swimmingPoolsTable.id, invite.swimming_pool_id)).limit(1);
     const token = signToken({ userId: parentId, role: "parent_account", poolId: invite.swimming_pool_id });
 
@@ -671,7 +671,7 @@ router.post("/totp/verify-login", async (req, res) => {
       return err(res, 401, "OTP 세션이 만료되었습니다. 다시 로그인해주세요.");
     }
 
-    const userRow = await db.execute(sql`
+    const userRow = await superAdminDb.execute(sql`
       SELECT * FROM users WHERE id = ${payload.userId} LIMIT 1
     `);
     const user = userRow.rows[0] as any;
@@ -703,7 +703,7 @@ router.post("/totp/verify-action", requireAuth, async (req: AuthRequest, res) =>
     if (!otp_code || String(otp_code).trim().length !== 6) {
       return err(res, 400, "6자리 OTP 코드를 입력해주세요.");
     }
-    const row = await db.execute(sql`
+    const row = await superAdminDb.execute(sql`
       SELECT totp_secret, totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1
     `);
     const user = row.rows[0] as any;
@@ -719,7 +719,7 @@ router.post("/totp/verify-action", requireAuth, async (req: AuthRequest, res) =>
 // TOTP 상태 조회
 router.get("/totp/status", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const row = await db.execute(sql`SELECT totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const row = await superAdminDb.execute(sql`SELECT totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
     const totpEnabled = (row.rows[0] as any)?.totp_enabled ?? false;
     res.json({ success: true, totp_enabled: totpEnabled });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
@@ -728,7 +728,7 @@ router.get("/totp/status", requireAuth, async (req: AuthRequest, res) => {
 // TOTP 설정 시작 — 시크릿 + QR 코드 생성 (아직 활성화 안함)
 router.post("/totp/setup", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const userRow = await db.execute(sql`SELECT email, name, totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const userRow = await superAdminDb.execute(sql`SELECT email, name, totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
     const user = userRow.rows[0] as any;
     if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
 
@@ -736,7 +736,7 @@ router.post("/totp/setup", requireAuth, async (req: AuthRequest, res) => {
     const otpauth = totpGenerateURI({ issuer: "Swim Platform", label: user.email, secret });
     const qrDataUrl = await QRCode.toDataURL(otpauth, { width: 240, margin: 2 });
 
-    await db.execute(sql`UPDATE users SET totp_secret = ${secret}, updated_at = NOW() WHERE id = ${req.user!.userId}`);
+    await superAdminDb.execute(sql`UPDATE users SET totp_secret = ${secret}, updated_at = NOW() WHERE id = ${req.user!.userId}`);
 
     res.json({ success: true, secret, qr_code: qrDataUrl, otpauth_url: otpauth });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
@@ -747,14 +747,14 @@ router.post("/totp/enable", requireAuth, async (req: AuthRequest, res) => {
   const { otp_code } = req.body;
   if (!otp_code) return err(res, 400, "OTP 코드를 입력해주세요.");
   try {
-    const userRow = await db.execute(sql`SELECT totp_secret FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const userRow = await superAdminDb.execute(sql`SELECT totp_secret FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
     const user = userRow.rows[0] as any;
     if (!user?.totp_secret) return err(res, 400, "먼저 TOTP 설정을 시작해주세요.");
 
     const isValid = totpVerifySync({ token: otp_code.replace(/\s/g, ""), secret: user.totp_secret });
     if (!isValid) return err(res, 401, "OTP 코드가 올바르지 않습니다. Google Authenticator 앱의 코드를 확인해주세요.");
 
-    await db.execute(sql`UPDATE users SET totp_enabled = TRUE, updated_at = NOW() WHERE id = ${req.user!.userId}`);
+    await superAdminDb.execute(sql`UPDATE users SET totp_enabled = TRUE, updated_at = NOW() WHERE id = ${req.user!.userId}`);
     res.json({ success: true, message: "Google OTP가 활성화되었습니다." });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -764,7 +764,7 @@ router.post("/totp/disable", requireAuth, async (req: AuthRequest, res) => {
   const { otp_code } = req.body;
   if (!otp_code) return err(res, 400, "OTP 코드를 입력해주세요.");
   try {
-    const userRow = await db.execute(sql`SELECT totp_secret, totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const userRow = await superAdminDb.execute(sql`SELECT totp_secret, totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
     const user = userRow.rows[0] as any;
     if (!user?.totp_enabled) return err(res, 400, "TOTP가 활성화되어 있지 않습니다.");
     if (!user?.totp_secret) return err(res, 400, "TOTP 설정 정보를 찾을 수 없습니다.");
@@ -772,7 +772,7 @@ router.post("/totp/disable", requireAuth, async (req: AuthRequest, res) => {
     const isValid = totpVerifySync({ token: otp_code.replace(/\s/g, ""), secret: user.totp_secret });
     if (!isValid) return err(res, 401, "OTP 코드가 올바르지 않습니다.");
 
-    await db.execute(sql`UPDATE users SET totp_enabled = FALSE, totp_secret = NULL, updated_at = NOW() WHERE id = ${req.user!.userId}`);
+    await superAdminDb.execute(sql`UPDATE users SET totp_enabled = FALSE, totp_secret = NULL, updated_at = NOW() WHERE id = ${req.user!.userId}`);
     res.json({ success: true, message: "Google OTP가 비활성화되었습니다." });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

@@ -8,7 +8,7 @@
  * GET  /push-settings/logs     — 최근 푸시 로그 (관리자)
  */
 import { Router, Response } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 
@@ -85,7 +85,7 @@ router.get(
       if (["super_admin", "platform_admin", "super_manager"].includes(role)) {
         poolId = (req.query.pool_id as string) || null;
       } else {
-        const u = await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
+        const u = await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
         poolId = (u.rows[0] as any)?.swimming_pool_id || null;
       }
       if (!poolId) return res.status(400).json({ error: "pool_id가 필요합니다." });
@@ -124,7 +124,7 @@ router.put(
       if (["super_admin", "platform_admin", "super_manager"].includes(role)) {
         poolId = req.body.pool_id;
       } else {
-        const u = await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
+        const u = await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
         poolId = (u.rows[0] as any)?.swimming_pool_id || null;
       }
       if (!poolId) return res.status(400).json({ error: "pool_id가 필요합니다." });
@@ -173,7 +173,7 @@ router.get(
   requireRole("super_admin", "platform_admin", "super_manager", "pool_admin"),
   async (_req: AuthRequest, res: Response) => {
     try {
-      const rows = await db.execute(sql`
+      const rows = await superAdminDb.execute(sql`
         SELECT * FROM push_logs ORDER BY created_at DESC LIMIT 100
       `);
       return res.json({ success: true, logs: rows.rows });

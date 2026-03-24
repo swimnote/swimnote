@@ -11,7 +11,8 @@
  * GET  /super/sync/tenants       — 테넌트별 변경분 요약
  */
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { superAdminDb } from "@workspace/db";
+const db = superAdminDb;
 import { backupSnapshotsTable } from "@workspace/db/schema";
 import { sql, desc } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
@@ -29,26 +30,26 @@ function superOnly(req: AuthRequest, res: any, next: any) {
 // ─── 통계 개요 ────────────────────────────────────────────────────────────
 router.get("/super/sync/stats", requireAuth, superOnly, async (_req: AuthRequest, res) => {
   try {
-    const pendingRow = (await db.execute(sql`
+    const pendingRow = (await superAdminDb.execute(sql`
       SELECT COUNT(*) AS cnt FROM data_change_logs WHERE sync_status = 'pending'
     `)).rows[0] as any;
-    const syncedRow = (await db.execute(sql`
+    const syncedRow = (await superAdminDb.execute(sql`
       SELECT COUNT(*) AS cnt FROM data_change_logs WHERE sync_status = 'synced'
     `)).rows[0] as any;
-    const totalRow = (await db.execute(sql`
+    const totalRow = (await superAdminDb.execute(sql`
       SELECT COUNT(*) AS cnt FROM data_change_logs
     `)).rows[0] as any;
-    const snapshotRow = (await db.execute(sql`
+    const snapshotRow = (await superAdminDb.execute(sql`
       SELECT COUNT(*) AS cnt FROM backup_snapshots
     `)).rows[0] as any;
-    const lastSyncRow = (await db.execute(sql`
+    const lastSyncRow = (await superAdminDb.execute(sql`
       SELECT MAX(synced_at) AS last_at FROM data_change_logs WHERE sync_status = 'synced'
     `)).rows[0] as any;
-    const lastSnapshotRow = (await db.execute(sql`
+    const lastSnapshotRow = (await superAdminDb.execute(sql`
       SELECT MAX(created_at) AS last_at FROM backup_snapshots WHERE snapshot_type = 'full'
     `)).rows[0] as any;
 
-    const tableStats = (await db.execute(sql`
+    const tableStats = (await superAdminDb.execute(sql`
       SELECT table_name, COUNT(*) AS cnt
       FROM data_change_logs WHERE sync_status = 'pending'
       GROUP BY table_name ORDER BY cnt DESC
@@ -69,7 +70,7 @@ router.get("/super/sync/stats", requireAuth, superOnly, async (_req: AuthRequest
 // ─── 테넌트별 요약 ────────────────────────────────────────────────────────
 router.get("/super/sync/tenants", requireAuth, superOnly, async (_req: AuthRequest, res) => {
   try {
-    const rows = (await db.execute(sql`
+    const rows = (await superAdminDb.execute(sql`
       SELECT
         d.tenant_id,
         p.name AS pool_name,
@@ -99,7 +100,7 @@ router.get("/super/sync/changes", requireAuth, superOnly, async (req: AuthReques
   const status = (req.query.status as string) || "pending";
 
   try {
-    const rows = (await db.execute(sql`
+    const rows = (await superAdminDb.execute(sql`
       SELECT d.id, d.tenant_id, p.name AS pool_name,
              d.table_name, d.record_id, d.change_type,
              d.sync_status, d.created_at, d.synced_at
@@ -109,7 +110,7 @@ router.get("/super/sync/changes", requireAuth, superOnly, async (req: AuthReques
       ORDER BY d.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `)).rows as any[];
-    const cnt = (await db.execute(sql`
+    const cnt = (await superAdminDb.execute(sql`
       SELECT COUNT(*) AS total FROM data_change_logs WHERE sync_status = ${status}
     `)).rows[0] as any;
     res.json({

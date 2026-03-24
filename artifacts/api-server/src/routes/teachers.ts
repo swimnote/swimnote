@@ -5,7 +5,7 @@
  * - 관리자 본인용 선생님 계정은 최대 1개
  */
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -18,7 +18,7 @@ function generateOTP(): string {
 }
 
 async function getAdminPoolId(adminId: string): Promise<string | null> {
-  const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+  const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
     .from(usersTable).where(eq(usersTable.id, adminId)).limit(1);
   return me?.swimming_pool_id || null;
 }
@@ -30,7 +30,7 @@ router.get("/teachers", requireAuth, requireRole("pool_admin", "super_admin"),
       const poolId = await getAdminPoolId(req.user!.userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      const teachers = await db.execute(sql`
+      const teachers = await superAdminDb.execute(sql`
         SELECT id, name, email, phone, position, is_activated, is_admin_self_teacher, created_at
         FROM users
         WHERE swimming_pool_id = ${poolId}
@@ -62,7 +62,7 @@ router.post("/teachers", requireAuth, requireRole("pool_admin"),
 
       // 관리자 본인 계정 중복 확인 (최대 1개)
       if (is_admin_self_teacher) {
-        const existing = await db.execute(sql`
+        const existing = await superAdminDb.execute(sql`
           SELECT id FROM users
           WHERE swimming_pool_id = ${poolId}
             AND role = 'teacher'
@@ -76,7 +76,7 @@ router.post("/teachers", requireAuth, requireRole("pool_admin"),
       }
 
       // 이메일 중복 확인
-      const dup = await db.execute(sql`SELECT id FROM users WHERE email = ${email.trim().toLowerCase()}`);
+      const dup = await superAdminDb.execute(sql`SELECT id FROM users WHERE email = ${email.trim().toLowerCase()}`);
       if (dup.rows.length) {
         res.status(409).json({ error: "이미 사용 중인 이메일입니다." }); return;
       }
@@ -84,7 +84,7 @@ router.post("/teachers", requireAuth, requireRole("pool_admin"),
       const passwordHash = await hashPassword(password);
       const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, is_admin_self_teacher, created_by)
         VALUES (
           ${id},
@@ -131,7 +131,7 @@ router.get("/teachers/:id/activation-code", requireAuth, requireRole("pool_admin
       const poolId = await getAdminPoolId(req.user!.userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      const teacher = await db.execute(sql`
+      const teacher = await superAdminDb.execute(sql`
         SELECT id, name, is_activated FROM users
         WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId} AND role = 'teacher'
       `);
@@ -154,7 +154,7 @@ router.get("/teachers/:id/activation-code", requireAuth, requireRole("pool_admin
         // 만료된 경우 새 코드 생성
         const otp = generateOTP();
         const otpId = `otv_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        const phone = (await db.execute(sql`SELECT phone FROM users WHERE id = ${req.params.id}`)).rows[0] as any;
+        const phone = (await superAdminDb.execute(sql`SELECT phone FROM users WHERE id = ${req.params.id}`)).rows[0] as any;
         await db.execute(sql`
           INSERT INTO phone_verifications (id, phone, code, purpose, ref_id, expires_at)
           VALUES (${otpId}, ${phone?.phone || ''}, ${otp}, 'teacher_activation', ${req.params.id}, now() + interval '24 hours')
@@ -181,13 +181,13 @@ router.patch("/teachers/:id/password", requireAuth, requireRole("pool_admin"),
       const poolId = await getAdminPoolId(req.user!.userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      const teacher = await db.execute(sql`
+      const teacher = await superAdminDb.execute(sql`
         SELECT id FROM users WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId} AND role = 'teacher'
       `);
       if (!teacher.rows.length) { res.status(404).json({ error: "선생님을 찾을 수 없습니다." }); return; }
 
       const passwordHash = await hashPassword(password);
-      await db.execute(sql`UPDATE users SET password_hash = ${passwordHash}, updated_at = now() WHERE id = ${req.params.id}`);
+      await superAdminDb.execute(sql`UPDATE users SET password_hash = ${passwordHash}, updated_at = now() WHERE id = ${req.params.id}`);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "서버 오류" }); }
   }
@@ -201,12 +201,12 @@ router.patch("/teachers/:id", requireAuth, requireRole("pool_admin"),
       const poolId = await getAdminPoolId(req.user!.userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      const teacher = await db.execute(sql`
+      const teacher = await superAdminDb.execute(sql`
         SELECT id FROM users WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId} AND role = 'teacher'
       `);
       if (!teacher.rows.length) { res.status(404).json({ error: "선생님을 찾을 수 없습니다." }); return; }
 
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         UPDATE users SET
           name     = COALESCE(${name?.trim() || null}, name),
           phone    = COALESCE(${phone?.trim() || null}, phone),
@@ -226,13 +226,13 @@ router.delete("/teachers/:id", requireAuth, requireRole("pool_admin"),
       const poolId = await getAdminPoolId(req.user!.userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      const teacher = await db.execute(sql`
+      const teacher = await superAdminDb.execute(sql`
         SELECT id FROM users WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId} AND role = 'teacher'
       `);
       if (!teacher.rows.length) { res.status(404).json({ error: "선생님을 찾을 수 없습니다." }); return; }
 
       await db.execute(sql`DELETE FROM phone_verifications WHERE ref_id = ${req.params.id}`);
-      await db.execute(sql`DELETE FROM users WHERE id = ${req.params.id}`);
+      await superAdminDb.execute(sql`DELETE FROM users WHERE id = ${req.params.id}`);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "서버 오류" }); }
   }
@@ -244,7 +244,7 @@ router.delete("/teachers/:id", requireAuth, requireRole("pool_admin"),
 
 /** 현재 로그인한 사용자의 pool_id 조회 */
 async function getMyPoolId(userId: string): Promise<string | null> {
-  const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+  const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
     .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return me?.swimming_pool_id || null;
 }
@@ -253,7 +253,7 @@ async function getMyPoolId(userId: string): Promise<string | null> {
 router.get("/teacher/me", requireAuth,
   async (req: AuthRequest, res) => {
     try {
-      const me = await db.execute(sql`
+      const me = await superAdminDb.execute(sql`
         SELECT id, name, email, phone, position, role, swimming_pool_id, is_activated
         FROM users WHERE id = ${req.user!.userId}
       `);
@@ -268,7 +268,7 @@ router.patch("/teacher/me", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const { name, phone, position } = req.body;
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         UPDATE users SET
           name     = COALESCE(${name?.trim() || null}, name),
           phone    = COALESCE(${phone?.trim() || null}, phone),
@@ -397,7 +397,7 @@ router.post("/teacher/resign-request", requireAuth,
       const { reason } = req.body;
       const userId = req.user!.userId;
       const poolId = await getMyPoolId(userId);
-      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const teacherName = (userRow.rows[0] as any)?.name || "";
       const id = `resign_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       await db.execute(sql`
@@ -438,7 +438,7 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      const rows = await db.execute(sql`
+      const rows = await superAdminDb.execute(sql`
         SELECT
           cg.id, cg.name, cg.schedule_days, cg.schedule_time,
           cg.capacity, cg.teacher_user_id,
@@ -469,7 +469,7 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
       if (!class_group_id || !assigned_date) {
         res.status(400).json({ error: "반과 날짜를 선택해주세요." }); return;
       }
-      const cls = await db.execute(sql`
+      const cls = await superAdminDb.execute(sql`
         SELECT cg.name, u.name AS teacher_name, cg.teacher_user_id
         FROM class_groups cg LEFT JOIN users u ON cg.teacher_user_id = u.id
         WHERE cg.id = ${class_group_id}
@@ -517,7 +517,7 @@ router.patch("/teacher/makeups/:id/complete", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const userName = (userRow.rows[0] as any)?.name || "";
       const rows = (await db.execute(sql`
         SELECT * FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
@@ -549,7 +549,7 @@ router.post("/teacher/makeups/:id/extinguish", requireAuth,
     try {
       const { cancelled_reason, cancelled_custom } = req.body;
       const userId = req.user!.userId;
-      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const userName = (userRow.rows[0] as any)?.name || "";
       await db.execute(sql`
         UPDATE makeup_sessions SET
@@ -576,7 +576,7 @@ router.get("/teacher/me/members", requireAuth,
       const userId = req.user!.userId;
       const { tab = "all" } = req.query as any;
 
-      const [userRow] = await db.execute(sql`
+      const [userRow] = await superAdminDb.execute(sql`
         SELECT swimming_pool_id FROM users WHERE id = ${userId}
       `).then(r => r.rows as any[]);
       const poolId = userRow?.swimming_pool_id;
@@ -688,7 +688,7 @@ router.patch("/teacher/students/:id/level", requireAuth, async (req: AuthRequest
     const { level_order, note } = req.body;
     if (level_order == null) { res.status(400).json({ error: "level_order 필요" }); return; }
     const userId = req.user!.userId;
-    const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+    const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
     const actorName = (userRow.rows[0] as any)?.name || "선생님";
     const studRow = await db.execute(sql`SELECT name, swimming_pool_id FROM students WHERE id = ${req.params.id}`);
     const student = studRow.rows[0] as any;

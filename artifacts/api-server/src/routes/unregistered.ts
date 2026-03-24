@@ -4,7 +4,7 @@
  * 선생님: 목록 조회, 반배정 (→ 정상회원 전환)
  */
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import {
   studentsTable, classGroupsTable, usersTable,
 } from "@workspace/db/schema";
@@ -18,7 +18,7 @@ function err(res: any, status: number, message: string) {
 }
 
 async function getPoolId(userId: string): Promise<string | null> {
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return user?.swimming_pool_id || null;
 }
 

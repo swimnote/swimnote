@@ -66,9 +66,9 @@ export const superAdminDb = drizzle(superAdminPool, { schema });
 /** 수영장 운영용 DB (회원/출결/수업/학부모 운영 데이터) */
 export const poolDb = drizzle(poolOpsPool, { schema });
 
-/** 하위 호환용 — 기존 코드에서 db로 접근하는 모든 쿼리는 superAdminDb로 라우팅 */
+/** 하위 호환용 — 기존 코드에서 db로 접근하는 쿼리는 poolDb로 라우팅 (운영 원본 기준) */
 export const pool = superAdminPool;
-export const db = superAdminDb;
+export const db = poolDb;
 
 /** 두 DB가 물리적으로 분리되어 있는지 여부 */
 export const isDbSeparated = !!POOL_URL;

@@ -9,7 +9,7 @@
  *   import { logChange } from "../utils/change-logger.js";
  *   await logChange({ tenantId, tableName: "students", recordId: id, changeType: "create", payload: newRow });
  */
-import { db } from "@workspace/db";
+import { superAdminDb } from "@workspace/db";
 import { dataChangeLogsTable } from "@workspace/db/schema";
 
 export type ChangeType = "create" | "update" | "delete";
@@ -27,7 +27,7 @@ interface ChangeLogParams {
  */
 export async function logChange(params: ChangeLogParams): Promise<void> {
   try {
-    await db.insert(dataChangeLogsTable).values({
+    await superAdminDb.insert(dataChangeLogsTable).values({
       id: crypto.randomUUID(),
       tenant_id: params.tenantId,
       table_name: params.tableName,

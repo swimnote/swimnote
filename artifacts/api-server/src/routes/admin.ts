@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable, studentRegistrationRequestsTable, classGroupsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { requireAuth, requireRole, requirePermission, type AuthRequest } from "../middlewares/auth.js";
@@ -22,7 +22,7 @@ function getSubscriptionTier(approved: boolean, count: number): { tier: string; 
 
 router.get("/pools", requireAuth, requirePermission("canViewPools"), async (req: AuthRequest, res) => {
   try {
-    const pools = await db.select().from(swimmingPoolsTable).orderBy(swimmingPoolsTable.name);
+    const pools = await superAdminDb.select().from(swimmingPoolsTable).orderBy(swimmingPoolsTable.name);
 
     const poolsWithCount = await Promise.all(pools.map(async (pool) => {
       const countResult = await db.execute(sql`
@@ -46,18 +46,18 @@ router.patch("/pools/:id/approve", requireAuth, requirePermission("canApprovePoo
   const { id } = req.params;
   try {
     // 수영장 확인
-    const [pool] = await db.select().from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, id)).limit(1);
+    const [pool] = await superAdminDb.select().from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, id)).limit(1);
     if (!pool) return res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다.", error: "pool not found" });
 
     // 승인 처리
-    const [updated] = await db.update(swimmingPoolsTable)
+    const [updated] = await superAdminDb.update(swimmingPoolsTable)
       .set({ approval_status: "approved", subscription_status: "trial", updated_at: new Date() })
       .where(eq(swimmingPoolsTable.id, id))
       .returning();
 
     // 관리자 계정 활성화
     const adminEmail = (updated as any).admin_email || updated.owner_email;
-    const [existingAdmin] = await db.select().from(usersTable)
+    const [existingAdmin] = await superAdminDb.select().from(usersTable)
       .where(eq(usersTable.email, adminEmail)).limit(1);
     
     if (existingAdmin && existingAdmin.swimming_pool_id === id) {
@@ -75,7 +75,7 @@ router.patch("/pools/:id/reject", requireAuth, requirePermission("canApprovePool
   const { id } = req.params;
   const { reason } = req.body;
   try {
-    const [pool] = await db.update(swimmingPoolsTable)
+    const [pool] = await superAdminDb.update(swimmingPoolsTable)
       .set({ approval_status: "rejected", rejection_reason: reason || "기준 미달", updated_at: new Date() })
       .where(eq(swimmingPoolsTable.id, id))
       .returning();
@@ -97,14 +97,14 @@ router.patch("/pools/:id/subscription", requireAuth, requirePermission("canManag
     if (subscription_start_at) updateData.subscription_start_at = new Date(subscription_start_at);
     if (subscription_end_at) updateData.subscription_end_at = new Date(subscription_end_at);
 
-    const [pool] = await db.update(swimmingPoolsTable)
+    const [pool] = await superAdminDb.update(swimmingPoolsTable)
       .set(updateData)
       .where(eq(swimmingPoolsTable.id, id))
       .returning();
     if (!pool) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
 
     const subId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await db.insert(subscriptionsTable).values({
+    await superAdminDb.insert(subscriptionsTable).values({
       id: subId,
       swimming_pool_id: id,
       status: subscription_status,
@@ -139,7 +139,7 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
       if (!student) { res.status(404).json({ error: "학생을 찾을 수 없습니다." }); return; }
 
       if (req.user!.role === "pool_admin") {
-        const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id }).from(usersTable)
+        const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id }).from(usersTable)
           .where(eq(usersTable.id, req.user!.userId)).limit(1);
         if (me?.swimming_pool_id !== student.swimming_pool_id) {
           res.status(403).json({ error: "권한이 없습니다." }); return;
@@ -220,7 +220,7 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
 
 router.get("/users", requireAuth, requirePermission("canManagePlatformAdmins"), async (req: AuthRequest, res) => {
   try {
-    const users = await db.execute(sql`
+    const users = await superAdminDb.execute(sql`
       SELECT id, email, name, phone, role, permissions, created_at
       FROM users
       WHERE role IN ('super_admin', 'platform_admin')
@@ -240,7 +240,7 @@ router.post("/users", requireAuth, requireRole("super_admin"), async (req: AuthR
   }
 
   try {
-    const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    const [existing] = await superAdminDb.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
     if (existing) return res.status(400).json({ success: false, message: "이미 사용 중인 이메일입니다.", error: "email_exists" });
 
     const perms: PlatformPermissions = {
@@ -249,7 +249,7 @@ router.post("/users", requireAuth, requireRole("super_admin"), async (req: AuthR
     };
     const password_hash = await hashPassword(password);
     const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const result = await db.execute(sql`
+    const result = await superAdminDb.execute(sql`
       INSERT INTO users (id, email, password_hash, name, phone, role, permissions, swimming_pool_id)
       VALUES (${id}, ${email.trim().toLowerCase()}, ${password_hash}, ${name}, ${phone || null}, 'platform_admin', ${JSON.stringify(perms)}::jsonb, NULL)
       RETURNING id, email, name, phone, role, permissions, created_at
@@ -269,7 +269,7 @@ router.patch("/users/:id/permissions", requireAuth, requireRole("super_admin"), 
     return res.status(400).json({ success: false, message: "permissions 객체가 필요합니다.", error: "missing_permissions" });
   }
   try {
-    const targetResult = await db.execute(sql`SELECT id, role FROM users WHERE id = ${id} LIMIT 1`);
+    const targetResult = await superAdminDb.execute(sql`SELECT id, role FROM users WHERE id = ${id} LIMIT 1`);
     const user = (targetResult as any).rows?.[0];
     if (!user) {
       return res.status(404).json({ success: false, message: "사용자를 찾을 수 없습니다.", error: "user_not_found" });
@@ -284,7 +284,7 @@ router.patch("/users/:id/permissions", requireAuth, requireRole("super_admin"), 
       if (key in permissions) sanitized[key] = Boolean(permissions[key]);
     }
 
-    const result = await db.execute(sql`
+    const result = await superAdminDb.execute(sql`
       UPDATE users
       SET permissions = permissions || ${JSON.stringify(sanitized)}::jsonb, updated_at = NOW()
       WHERE id = ${id}
@@ -301,12 +301,12 @@ router.patch("/users/:id/permissions", requireAuth, requireRole("super_admin"), 
 router.get("/pools/:id/detail", requireAuth, requirePermission("canViewPools"), async (req: AuthRequest, res) => {
   const { id } = req.params;
   try {
-    const poolResult = await db.execute(sql`SELECT * FROM swimming_pools WHERE id = ${id} LIMIT 1`);
+    const poolResult = await superAdminDb.execute(sql`SELECT * FROM swimming_pools WHERE id = ${id} LIMIT 1`);
     const pool = (poolResult as any).rows[0];
     if (!pool) return res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다.", error: "pool_not_found" });
 
     const [stats] = await Promise.all([
-      db.execute(sql`
+      superAdminDb.execute(sql`
         SELECT
           (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${id} AND status = 'active') AS student_count,
           (SELECT COUNT(*) FROM users WHERE swimming_pool_id = ${id} AND role = 'teacher') AS teacher_count,
@@ -329,7 +329,7 @@ router.get("/parents", requireAuth, requireRole("super_admin", "pool_admin"), as
   try {
     let poolId: string | null = null;
     if (req.user!.role === "pool_admin") {
-      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      const [u] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       poolId = u?.swimming_pool_id || null;
     } else {
       poolId = req.query.pool_id as string || null;
@@ -344,7 +344,7 @@ router.get("/parents", requireAuth, requireRole("super_admin", "pool_admin"), as
       }));
 
       // 학부모 가입 신청 시 입력한 자녀명 조회 (전화번호 기준 매칭, 최신 approved 요청)
-      const reqRow = await db.execute(sql`
+      const reqRow = await superAdminDb.execute(sql`
         SELECT child_name, children_requested FROM parent_pool_requests
         WHERE swimming_pool_id = ${poolId} AND phone = ${pa.phone}
         ORDER BY requested_at DESC LIMIT 1
@@ -375,7 +375,7 @@ router.post("/parents", requireAuth, requireRole("super_admin", "pool_admin"), a
   try {
     let poolId: string | null = null;
     if (req.user!.role === "pool_admin") {
-      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      const [u] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       poolId = u?.swimming_pool_id || null;
     } else {
       poolId = req.body.swimming_pool_id || null;
@@ -451,7 +451,7 @@ router.get("/student-requests", requireAuth, requireRole("super_admin", "pool_ad
   try {
     let poolId: string | null = null;
     if (req.user!.role === "pool_admin") {
-      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      const [u] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       poolId = u?.swimming_pool_id || null;
     } else {
       poolId = req.query.pool_id as string || null;
@@ -459,7 +459,7 @@ router.get("/student-requests", requireAuth, requireRole("super_admin", "pool_ad
     if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
 
     const { status } = req.query;
-    const requests = await db.select().from(studentRegistrationRequestsTable)
+    const requests = await superAdminDb.select().from(studentRegistrationRequestsTable)
       .where(eq(studentRegistrationRequestsTable.swimming_pool_id, poolId));
 
     const filtered = status && status !== "all" ? requests.filter(r => r.status === status) : requests;
@@ -474,7 +474,7 @@ router.get("/student-requests", requireAuth, requireRole("super_admin", "pool_ad
 
 router.get("/student-requests/:id/pool-students", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {
-    const [srr] = await db.select().from(studentRegistrationRequestsTable)
+    const [srr] = await superAdminDb.select().from(studentRegistrationRequestsTable)
       .where(eq(studentRegistrationRequestsTable.id, req.params.id)).limit(1);
     if (!srr) { res.status(404).json({ error: "요청을 찾을 수 없습니다." }); return; }
 
@@ -514,7 +514,7 @@ router.patch("/student-requests/:id", requireAuth, requireRole("super_admin", "p
     res.status(400).json({ error: "action은 link 또는 reject여야 합니다." }); return;
   }
   try {
-    const [srr] = await db.select().from(studentRegistrationRequestsTable)
+    const [srr] = await superAdminDb.select().from(studentRegistrationRequestsTable)
       .where(eq(studentRegistrationRequestsTable.id, req.params.id)).limit(1);
     if (!srr) { res.status(404).json({ error: "요청을 찾을 수 없습니다." }); return; }
     if (srr.status !== "pending") { res.status(400).json({ error: "이미 처리된 요청입니다." }); return; }
@@ -534,12 +534,12 @@ router.patch("/student-requests/:id", requireAuth, requireRole("super_admin", "p
           approved_by: req.user!.userId, approved_at: new Date(),
         });
       }
-      await db.update(studentRegistrationRequestsTable)
+      await superAdminDb.update(studentRegistrationRequestsTable)
         .set({ status: "approved", reviewed_by: req.user!.userId, reviewed_at: new Date() })
         .where(eq(studentRegistrationRequestsTable.id, req.params.id));
       res.json({ linked: true, student_ids });
     } else {
-      await db.update(studentRegistrationRequestsTable)
+      await superAdminDb.update(studentRegistrationRequestsTable)
         .set({ status: "rejected", reviewed_by: req.user!.userId, reviewed_at: new Date(), rejection_reason: reason || "관리자 거부" })
         .where(eq(studentRegistrationRequestsTable.id, req.params.id));
       res.json({ linked: false });
@@ -550,7 +550,7 @@ router.patch("/student-requests/:id", requireAuth, requireRole("super_admin", "p
 // ── 플랫폼 전체 통계 (super_admin) ───────────────────────────────────
 router.get("/platform-stats", requireAuth, requireRole("super_admin"), async (_req, res) => {
   try {
-    const result = await db.execute(sql`
+    const result = await superAdminDb.execute(sql`
       SELECT
         COUNT(*)::int                                                      AS total_pools,
         COUNT(*) FILTER (WHERE approval_status = 'approved')::int         AS approved_pools,
@@ -561,7 +561,7 @@ router.get("/platform-stats", requireAuth, requireRole("super_admin"), async (_r
     const row = result.rows[0] as any;
 
     // 학생 수 기반 유료/무료 분류 (승인된 수영장만)
-    const pools = await db.select({ id: swimmingPoolsTable.id, approval_status: swimmingPoolsTable.approval_status })
+    const pools = await superAdminDb.select({ id: swimmingPoolsTable.id, approval_status: swimmingPoolsTable.approval_status })
       .from(swimmingPoolsTable);
     let paidCount = 0;
     let freeCount = 0;
@@ -628,7 +628,7 @@ router.get("/subscription-status", requireAuth, requireRole("super_admin", "pool
     try {
       let poolId: string | null = null;
       if (req.user!.role === "pool_admin") {
-        const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
           .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
         poolId = me?.swimming_pool_id ?? null;
       } else {
@@ -637,7 +637,7 @@ router.get("/subscription-status", requireAuth, requireRole("super_admin", "pool
       }
       if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-      const [pool] = await db.select({ approval_status: swimmingPoolsTable.approval_status })
+      const [pool] = await superAdminDb.select({ approval_status: swimmingPoolsTable.approval_status })
         .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, poolId)).limit(1);
       const approved = pool?.approval_status === "approved";
 
@@ -679,7 +679,7 @@ router.get("/withdrawn-members", requireAuth, requireRole("super_admin", "pool_a
     try {
       let poolId: string | null = null;
       if (req.user!.role === "pool_admin") {
-        const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
           .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
         poolId = me?.swimming_pool_id ?? null;
       } else {
@@ -717,7 +717,7 @@ router.get("/pending-connections", requireAuth, requireRole("super_admin", "pool
   try {
     let poolId: string | null = null;
     if (req.user!.role === "pool_admin") {
-      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      const [u] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       poolId = u?.swimming_pool_id || null;
     } else {
       poolId = req.query.pool_id as string || null;
@@ -740,7 +740,7 @@ router.get("/pending-connections", requireAuth, requireRole("super_admin", "pool
 // ════════════════════════════════════════════════════════════════════════
 async function getAdminPoolId(req: AuthRequest): Promise<string | null> {
   if (req.user!.role === "pool_admin") {
-    const [u] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id }).from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    const [u] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id }).from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     return u?.swimming_pool_id ?? null;
   }
   return req.query.pool_id as string ?? null;
@@ -798,7 +798,7 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         FROM attendance WHERE date = ${today} AND swimming_pool_id = ${poolId}
       `)).rows as any[];
 
-      const [pendingRow] = (await db.execute(sql`
+      const [pendingRow] = (await superAdminDb.execute(sql`
         SELECT COUNT(*)::int AS pending_requests FROM student_registration_requests
         WHERE swimming_pool_id = ${poolId} AND status = 'pending'
       `)).rows as any[];
@@ -816,7 +816,7 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         WHERE cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
       `)).rows as any[];
 
-      const [teacherRow] = (await db.execute(sql`
+      const [teacherRow] = (await superAdminDb.execute(sql`
         SELECT COUNT(*)::int AS total_teachers
         FROM users WHERE swimming_pool_id = ${poolId} AND role = 'teacher'
       `)).rows as any[];
@@ -894,7 +894,7 @@ router.get("/search", requireAuth, requireRole("super_admin", "pool_admin", "tea
             AND (name ILIKE ${pattern} OR parent_name ILIKE ${pattern})
           ORDER BY name LIMIT 10
         `),
-        db.execute(sql`
+        superAdminDb.execute(sql`
           SELECT id, name, phone FROM users
           WHERE swimming_pool_id = ${poolId} AND role = 'teacher'
             AND name ILIKE ${pattern}
@@ -979,7 +979,7 @@ router.patch("/students/:id/status", requireAuth, requireRole("super_admin", "po
       const [student] = (await db.execute(sql`SELECT id, name, status FROM students WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`)).rows as any[];
       if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
 
-      const [actor] = (await db.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
+      const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
       const actorName = actor?.name || req.user!.userId;
 
       if (status === 'withdrawn') {
@@ -1015,7 +1015,7 @@ router.post("/students/:id/restore", requireAuth, requireRole("super_admin", "po
         return res.status(400).json({ error: "탈퇴/삭제 회원만 복구할 수 있습니다." });
       }
 
-      const [actor] = (await db.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
+      const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
       const actorName = actor?.name || req.user!.userId;
 
       await db.execute(sql`
@@ -1061,7 +1061,7 @@ router.post("/students/:id/final-withdraw", requireAuth, requireRole("super_admi
           updated_at = NOW()
         WHERE id = ${req.params.id}
       `);
-      const [actor] = (await db.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
+      const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
       await writeActivityLog({
         poolId, studentId: req.params.id, targetName: student.name,
         actionType: "update", targetType: "status",
@@ -1098,7 +1098,7 @@ router.post("/students/:id/archive", requireAuth, requireRole("super_admin", "po
           updated_at = NOW()
         WHERE id = ${req.params.id}
       `);
-      const [actor] = (await db.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
+      const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
       await writeActivityLog({
         poolId, studentId: req.params.id, targetName: student.name,
         actionType: "update", targetType: "status",
@@ -1131,7 +1131,7 @@ router.post("/students/:id/restore-archive", requireAuth, requireRole("super_adm
           withdrawn_at = NULL, deleted_at = NULL, updated_at = NOW()
         WHERE id = ${req.params.id}
       `);
-      const [actor] = (await db.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
+      const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
       await writeActivityLog({
         poolId, studentId: req.params.id, targetName: student.name,
         actionType: "restore", targetType: "status",
@@ -1188,7 +1188,7 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
       const [student] = (await db.execute(sql`SELECT * FROM students WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`)).rows as any[];
       if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
 
-      const [actor] = (await db.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
+      const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
       const actorName = actor?.name || req.user!.userId;
 
       const changes: string[] = [];
@@ -1232,7 +1232,7 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
       const poolId = await getAdminPoolId(req);
       if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
 
-      const [student] = (await db.execute(sql`
+      const [student] = (await superAdminDb.execute(sql`
         SELECT s.*,
           (SELECT cg.name FROM class_groups cg WHERE cg.id = s.class_group_id LIMIT 1) AS class_name,
           (SELECT u.name FROM users u WHERE u.id = cg.teacher_user_id LIMIT 1) AS teacher_name,
@@ -1613,7 +1613,7 @@ router.get("/class-settings", requireAuth, requireRole("super_admin","pool_admin
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
-      const rows = (await db.execute(sql`
+      const rows = (await superAdminDb.execute(sql`
         SELECT default_capacity FROM swimming_pools WHERE id = ${poolId} LIMIT 1
       `)).rows as any[];
       res.json({ default_capacity: rows[0]?.default_capacity ?? 20 });
@@ -1631,7 +1631,7 @@ router.patch("/class-settings", requireAuth, requireRole("super_admin","pool_adm
       if (!default_capacity || isNaN(Number(default_capacity))) {
         res.status(400).json({ error: "올바른 정원 값 필요" }); return;
       }
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         UPDATE swimming_pools SET default_capacity = ${Number(default_capacity)}, updated_at = now()
         WHERE id = ${poolId}
       `);
@@ -1805,7 +1805,7 @@ router.get("/teacher-hub/:teacherId", requireAuth, requireRole("super_admin","po
       const { teacherId } = req.params;
       const today = new Date().toISOString().split("T")[0];
 
-      const [teacherUser] = await db.select().from(usersTable).where(eq(usersTable.id, teacherId)).limit(1);
+      const [teacherUser] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, teacherId)).limit(1);
       if (!teacherUser) { res.status(404).json({ error: "선생님 없음" }); return; }
 
       const [statsRow] = (await db.execute(sql.raw(`
@@ -2019,7 +2019,7 @@ router.get("/class-groups/:id/detail", requireAuth, requireRole("super_admin", "
       const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
 
       // 반 + 선생님 정보
-      const cgRows = (await db.execute(sql`
+      const cgRows = (await superAdminDb.execute(sql`
         SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
                u.id AS teacher_id, u.name AS teacher_name
         FROM class_groups cg

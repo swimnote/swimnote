@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { noticesTable, usersTable, studentsTable, parentAccountsTable, parentStudentsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -13,7 +13,7 @@ function err(res: any, status: number, message: string) {
 }
 
 async function getPoolId(userId: string): Promise<string | null> {
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return user?.swimming_pool_id || null;
 }
 
@@ -39,7 +39,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
 
     // 개인 공지의 경우 학생이 동일 풀에 속하는지 검증
     let studentName: string | null = null;

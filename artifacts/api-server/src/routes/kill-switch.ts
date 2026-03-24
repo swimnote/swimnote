@@ -6,7 +6,7 @@
  * GET  /admin/event-logs           — 이벤트 기록 타임라인 조회
  */
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { Client } from "@replit/object-storage";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -22,7 +22,7 @@ function getClient() {
 }
 
 async function getPoolId(userId: string): Promise<string | null> {
-  const [r] = (await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1`)).rows as any[];
+  const [r] = (await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1`)).rows as any[];
   return r?.swimming_pool_id ?? null;
 }
 
@@ -145,7 +145,7 @@ router.post(
       if (!poolId) { res.status(403).json({ error: "수영장 정보 없음" }); return; }
 
       // 관리자 비밀번호 검증
-      const [userRow] = (await db.execute(sql`
+      const [userRow] = (await superAdminDb.execute(sql`
         SELECT password_hash, name FROM users WHERE id = ${userId} LIMIT 1
       `)).rows as any[];
       if (!userRow) { res.status(403).json({ error: "사용자 정보 없음" }); return; }

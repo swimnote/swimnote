@@ -7,7 +7,7 @@
  * GET  /absences?pool_id=&month=     — 결근 이력
  */
 import { Router, type Response } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 
@@ -18,7 +18,7 @@ function err(res: Response, status: number, msg: string) {
 }
 
 async function getPoolId(userId: string): Promise<string | null> {
-  const r = await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
+  const r = await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
   return (r.rows[0] as any)?.swimming_pool_id || null;
 }
 
@@ -63,7 +63,7 @@ router.get("/absences/nearby", requireAuth, requireRole("pool_admin", "teacher",
     const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
     const dayChar = weekdays[dayOfWeek];
 
-    const rows = await db.execute(sql`
+    const rows = await superAdminDb.execute(sql`
       SELECT cg.id, cg.name, cg.schedule_time, cg.schedule_days, cg.teacher_user_id,
         u.name AS teacher_name,
         (SELECT count(*)::int FROM students s WHERE s.class_group_id = cg.id AND s.status = 'active') AS student_count
@@ -107,7 +107,7 @@ router.post("/absences", requireAuth, requireRole("pool_admin", "teacher"), asyn
     const cg = cgRow.rows[0] as any;
     if (!cg) return err(res, 404, "반을 찾을 수 없습니다.");
 
-    const teacherRow = await db.execute(sql`SELECT name FROM users WHERE id = ${cg.teacher_user_id}`);
+    const teacherRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${cg.teacher_user_id}`);
     const teacherName = (teacherRow.rows[0] as any)?.name || "알 수 없음";
     const time = absence_time || cg.schedule_time || "09:00";
 
@@ -177,7 +177,7 @@ router.post("/absences/:id/transfer", requireAuth, requireRole("pool_admin", "te
     const absence = absRow.rows[0] as any;
     if (!absence) return err(res, 404, "결근 기록을 찾을 수 없습니다.");
 
-    const toClassRow = await db.execute(sql`SELECT cg.*, u.name AS teacher_name_from_user FROM class_groups cg LEFT JOIN users u ON u.id = cg.teacher_user_id WHERE cg.id = ${to_class_group_id}`);
+    const toClassRow = await superAdminDb.execute(sql`SELECT cg.*, u.name AS teacher_name_from_user FROM class_groups cg LEFT JOIN users u ON u.id = cg.teacher_user_id WHERE cg.id = ${to_class_group_id}`);
     const toClass = toClassRow.rows[0] as any;
     if (!toClass) return err(res, 404, "대상 반을 찾을 수 없습니다.");
 

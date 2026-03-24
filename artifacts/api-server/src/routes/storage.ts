@@ -5,7 +5,7 @@
  * GET /admin/storage        — 관리자: 풀 전체 총합 + 선생님별 사용량
  */
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 
@@ -16,7 +16,7 @@ const SYSTEM_BASE_BYTES = 2048; // 2 KB per account
 
 // ── poolId 조회 헬퍼 ──────────────────────────────────────────
 async function getPoolId(userId: string): Promise<string | null> {
-  const [r] = (await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1`)).rows as any[];
+  const [r] = (await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1`)).rows as any[];
   return r?.swimming_pool_id ?? null;
 }
 
@@ -175,7 +175,7 @@ router.get(
       if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
       // 해당 풀의 관리자 + 선생님 계정 전체
-      const staffRows = (await db.execute(sql`
+      const staffRows = (await superAdminDb.execute(sql`
         SELECT id, name, role
         FROM users
         WHERE swimming_pool_id = ${poolId}

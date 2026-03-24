@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { parentAccountsTable, parentStudentsTable, studentsTable, attendanceTable, noticesTable, classGroupsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -20,7 +20,7 @@ router.get("/me", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
-    const [pool] = await db.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name }).from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, pa.swimming_pool_id)).limit(1);
+    const [pool] = await superAdminDb.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name }).from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, pa.swimming_pool_id)).limit(1);
     res.json({ id: pa.id, name: pa.name, phone: pa.phone, swimming_pool_id: pa.swimming_pool_id, pool_name: pool?.name || null });
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
@@ -66,7 +66,7 @@ router.get("/students", requireAuth, requireParent, async (req: AuthRequest, res
       // 아카이브 또는 최종퇴원(access_blocked): 학부모 접근 차단
       if ((s as any).status === "archived" || (s as any).archived_reason === "access_blocked") {
         // pool 이름 조회 (차단 메시지 표시용)
-        const [pool] = await db.select({ name: swimmingPoolsTable.name })
+        const [pool] = await superAdminDb.select({ name: swimmingPoolsTable.name })
           .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, (s as any).swimming_pool_id)).limit(1);
         return {
           id: s.id, name: (s as any).name,
@@ -162,7 +162,7 @@ router.get("/students/:id/attendance", requireAuth, requireParent, async (req: A
 
 router.get("/student-requests", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
-    const reqs = await db.select().from(studentRegistrationRequestsTable)
+    const reqs = await superAdminDb.select().from(studentRegistrationRequestsTable)
       .where(eq(studentRegistrationRequestsTable.parent_id, req.user!.userId));
     res.json(reqs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
@@ -175,7 +175,7 @@ router.post("/student-requests", requireAuth, requireParent, async (req: AuthReq
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
     const id = `srr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const [newReq] = await db.insert(studentRegistrationRequestsTable).values({
+    const [newReq] = await superAdminDb.insert(studentRegistrationRequestsTable).values({
       id, swimming_pool_id: pa.swimming_pool_id, parent_id: pa.id,
       child_name, child_birth_date: child_birth_date || null, memo: memo || null, status: "pending",
     }).returning();
@@ -634,7 +634,7 @@ router.post("/onboard-pool", requireAuth, requireParent, async (req: AuthRequest
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
 
     // 수영장 존재 확인
-    const [pool] = await db.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name })
+    const [pool] = await superAdminDb.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name })
       .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
 
@@ -679,7 +679,7 @@ router.post("/onboard-pool", requireAuth, requireParent, async (req: AuthRequest
     } else {
       // 수동 승인 요청
       const reqId = `srr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         INSERT INTO student_registration_requests (id, swimming_pool_id, parent_id, child_names, status, created_at)
         VALUES (${reqId}, ${swimming_pool_id}, ${pa.id}, ${"[]"}, 'pending', now())
         ON CONFLICT DO NOTHING
@@ -707,7 +707,7 @@ router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, re
       .from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
 
-    const [pool] = await db.select({
+    const [pool] = await superAdminDb.select({
       id: swimmingPoolsTable.id,
       name: swimmingPoolsTable.name,
       address: swimmingPoolsTable.address,

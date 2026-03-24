@@ -14,7 +14,7 @@
 import { Router, Response } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
-import { db } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { usersTable, parentAccountsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -32,14 +32,14 @@ function getClient() {
 }
 
 async function getPoolSlug(poolId: string): Promise<string> {
-  const rows = await db.execute(sql`SELECT name_en, name FROM swimming_pools WHERE id = ${poolId}`);
+  const rows = await superAdminDb.execute(sql`SELECT name_en, name FROM swimming_pools WHERE id = ${poolId}`);
   const pool = rows.rows[0] as any;
   return pool?.name_en || sanitizePoolName(pool?.name || "pool");
 }
 
 /** 저장공간 실시간 체크 — 100% 초과 시 upload_blocked 자동 설정 후 true 반환 */
 async function checkStorageLimit(poolId: string): Promise<{ blocked: boolean; pct: number }> {
-  const [meta] = (await db.execute(sql`
+  const [meta] = (await superAdminDb.execute(sql`
     SELECT p.upload_blocked, sp.storage_gb, ps.extra_storage_gb
     FROM swimming_pools p
     LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
@@ -49,14 +49,14 @@ async function checkStorageLimit(poolId: string): Promise<{ blocked: boolean; pc
   if (meta?.upload_blocked) return { blocked: true, pct: 100 };
 
   const [usage] = (await db.execute(sql`
-    SELECT COALESCE(SUM(file_size_bytes), 0) AS used_bytes
-    FROM student_photos WHERE swimming_pool_id = ${poolId}
+    SELECT COALESCE(SUM(file_size), 0) AS used_bytes
+    FROM photo_assets_meta WHERE pool_id = ${poolId}
   `)).rows as any[];
   const quotaBytes = (Number(meta?.storage_gb ?? 0.1) + Number(meta?.extra_storage_gb ?? 0)) * 1024 ** 3;
   const usedBytes  = Number(usage?.used_bytes ?? 0);
   const pct = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
   if (pct >= 100) {
-    await db.execute(sql`UPDATE swimming_pools SET upload_blocked = true WHERE id = ${poolId}`);
+    await superAdminDb.execute(sql`UPDATE swimming_pools SET upload_blocked = true WHERE id = ${poolId}`);
     return { blocked: true, pct };
   }
   return { blocked: false, pct };
@@ -89,7 +89,7 @@ async function getStudentClassId(studentId: string): Promise<string | null> {
 
 /** teacher의 pool_id 조회 */
 async function getUserPoolId(userId: string): Promise<string | null> {
-  const rows = await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
+  const rows = await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
   return (rows.rows[0] as any)?.swimming_pool_id || null;
 }
 
@@ -107,7 +107,7 @@ router.get("/photos/:photoId/file", requireAuth, async (req: AuthRequest, res: R
 
     const rows = await db.execute(sql`
       SELECT sp.*, s.class_group_id AS student_class_id
-      FROM student_photos sp
+      FROM photo_assets_meta sp
       LEFT JOIN students s ON s.id = sp.student_id
       WHERE sp.id = ${photoId}
     `);
@@ -138,15 +138,15 @@ router.get("/photos/:photoId/file", requireAuth, async (req: AuthRequest, res: R
       }
     } else if (role === "pool_admin") {
       const poolId = await getUserPoolId(userId);
-      if (photo.swimming_pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+      if (photo.pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
     }
     // super_admin: 통과
 
     const client = getClient();
-    const { ok, value: bytes, error } = await client.downloadAsBytes(photo.storage_key);
+    const { ok, value: bytes, error } = await client.downloadAsBytes(photo.object_key);
     if (!ok || !bytes) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
 
-    const ext = (photo.storage_key.split(".").pop() || "jpg").toLowerCase();
+    const ext = (photo.object_key.split(".").pop() || "jpg").toLowerCase();
     const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
     res.setHeader("Content-Type", mime);
     res.setHeader("Cache-Control", "private, max-age=3600");
@@ -181,10 +181,10 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
     // super_admin: 통과
 
     const rows = await db.execute(sql`
-      SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.swimming_pool_id,
-             sp.uploader_id, sp.uploader_name, sp.caption, sp.created_at, sp.file_size_bytes,
+      SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
+             sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at, sp.file_size,
              s.name AS student_name
-      FROM student_photos sp
+      FROM photo_assets_meta sp
       LEFT JOIN students s ON s.id = sp.student_id
       WHERE sp.album_type = 'group' AND sp.class_id = ${classId}
       ORDER BY sp.created_at DESC
@@ -215,10 +215,10 @@ router.get("/photos/private/:studentId", requireAuth, async (req: AuthRequest, r
     }
 
     const rows = await db.execute(sql`
-      SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.swimming_pool_id,
-             sp.uploader_id, sp.uploader_name, sp.caption, sp.created_at, sp.file_size_bytes,
+      SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
+             sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at, sp.file_size,
              s.name AS student_name
-      FROM student_photos sp
+      FROM photo_assets_meta sp
       LEFT JOIN students s ON s.id = sp.student_id
       WHERE sp.album_type = 'private' AND sp.student_id = ${studentId}
       ORDER BY sp.created_at DESC
@@ -250,7 +250,7 @@ router.post(
         if (!ok) { res.status(403).json({ error: "담당 반이 아닙니다." }); return; }
       }
 
-      const [user] = await db.select({ name: usersTable.name, swimming_pool_id: usersTable.swimming_pool_id })
+      const [user] = await superAdminDb.select({ name: usersTable.name, swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
       if (!user) { res.status(403).json({ error: "사용자를 찾을 수 없습니다." }); return; }
 
@@ -283,8 +283,8 @@ router.post(
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         // group 앨범: student_id는 NULL (반 전체 공유)
         const rows = await db.execute(sql`
-          INSERT INTO student_photos
-            (id, student_id, swimming_pool_id, uploader_id, uploader_name, storage_key, file_size_bytes, album_type, class_id)
+          INSERT INTO photo_assets_meta
+            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id)
           VALUES
             (${id}, NULL, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'group', ${class_id})
           RETURNING *
@@ -355,7 +355,7 @@ router.post(
         res.status(400).json({ error: "해당 반에 소속된 학생이 아닙니다." }); return;
       }
 
-      const [user] = await db.select({ name: usersTable.name, swimming_pool_id: usersTable.swimming_pool_id })
+      const [user] = await superAdminDb.select({ name: usersTable.name, swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
       if (!user) { res.status(403).json({ error: "사용자를 찾을 수 없습니다." }); return; }
 
@@ -386,8 +386,8 @@ router.post(
 
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const rows = await db.execute(sql`
-          INSERT INTO student_photos
-            (id, student_id, swimming_pool_id, uploader_id, uploader_name, storage_key, file_size_bytes, album_type, class_id)
+          INSERT INTO photo_assets_meta
+            (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id)
           VALUES
             (${id}, ${student_id}, ${user.swimming_pool_id}, ${userId}, ${user.name}, ${key}, ${file.size}, 'private', ${class_id})
           RETURNING *
@@ -434,11 +434,11 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
     let photos: any[];
     if (scope === "group") {
       const rows = await db.execute(sql`
-        SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploader_name,
-               sp.caption, sp.created_at, sp.file_size_bytes,
+        SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploaded_by_name,
+               sp.caption, sp.created_at, sp.file_size,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name, cg.schedule_days, cg.schedule_time
-        FROM student_photos sp
+        FROM photo_assets_meta sp
         JOIN class_groups cg ON cg.id = sp.class_id
         WHERE sp.album_type = 'group'
           AND cg.teacher_user_id = ${userId}
@@ -447,16 +447,16 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
       photos = rows.rows as any[];
     } else {
       const rows = await db.execute(sql`
-        SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploader_name,
-               sp.caption, sp.created_at, sp.file_size_bytes,
+        SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploaded_by_name,
+               sp.caption, sp.created_at, sp.file_size,
                '/api/photos/' || sp.id || '/file' AS file_url,
                s.name AS student_name,
                cg.name AS class_name
-        FROM student_photos sp
+        FROM photo_assets_meta sp
         LEFT JOIN students s ON s.id = sp.student_id
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE sp.album_type = 'private'
-          AND sp.uploader_id = ${userId}
+          AND sp.uploaded_by = ${userId}
         ORDER BY sp.created_at DESC
       `);
       photos = rows.rows as any[];
@@ -478,12 +478,12 @@ router.delete("/photos/bulk", requireAuth, requireRole("pool_admin", "teacher", 
       const client = getClient();
       let deletedCount = 0;
       for (const id of ids) {
-        const rows = await db.execute(sql`SELECT * FROM student_photos WHERE id = ${id}`);
+        const rows = await db.execute(sql`SELECT * FROM photo_assets_meta WHERE id = ${id}`);
         const photo = rows.rows[0] as any;
         if (!photo) continue;
-        if (role === "teacher" && photo.uploader_id !== userId) continue;
-        await client.delete(photo.storage_key).catch(() => {});
-        await db.execute(sql`DELETE FROM student_photos WHERE id = ${id}`);
+        if (role === "teacher" && photo.uploaded_by !== userId) continue;
+        await client.delete(photo.object_key).catch(() => {});
+        await db.execute(sql`DELETE FROM photo_assets_meta WHERE id = ${id}`);
         deletedCount++;
       }
       res.json({ success: true, deleted: deletedCount });
@@ -512,10 +512,10 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
       if (child.class_group_id) {
         const rows = (await db.execute(sql`
           SELECT sp.id, sp.album_type, sp.class_id, sp.student_id,
-                 sp.uploader_name, sp.caption, sp.created_at,
+                 sp.uploaded_by_name, sp.caption, sp.created_at,
                  '/api/photos/' || sp.id || '/file' AS file_url,
                  cg.name AS class_name, cg.schedule_days, cg.schedule_time
-          FROM student_photos sp
+          FROM photo_assets_meta sp
           LEFT JOIN class_groups cg ON cg.id = sp.class_id
           WHERE sp.album_type = 'group' AND sp.class_id = ${child.class_group_id}
           ORDER BY sp.created_at DESC LIMIT 100
@@ -532,10 +532,10 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
       }
       const privRows = (await db.execute(sql`
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id,
-               sp.uploader_name, sp.caption, sp.created_at,
+               sp.uploaded_by_name, sp.caption, sp.created_at,
                '/api/photos/' || sp.id || '/file' AS file_url,
                s.name AS student_name
-        FROM student_photos sp
+        FROM photo_assets_meta sp
         LEFT JOIN students s ON s.id = sp.student_id
         WHERE sp.album_type = 'private' AND sp.student_id = ${child.id}
         ORDER BY sp.created_at DESC LIMIT 100
@@ -564,22 +564,22 @@ router.delete("/photos/:photoId", requireAuth,
       const { photoId } = req.params;
       const { role, userId } = req.user!;
 
-      const rows = await db.execute(sql`SELECT * FROM student_photos WHERE id = ${photoId}`);
+      const rows = await db.execute(sql`SELECT * FROM photo_assets_meta WHERE id = ${photoId}`);
       const photo = rows.rows[0] as any;
       if (!photo) { res.status(404).json({ error: "사진을 찾을 수 없습니다." }); return; }
 
       if (role === "teacher") {
-        if (photo.uploader_id !== userId) {
+        if (photo.uploaded_by !== userId) {
           res.status(403).json({ error: "자신이 업로드한 사진만 삭제할 수 있습니다." }); return;
         }
       } else if (role === "pool_admin") {
         const poolId = await getUserPoolId(userId);
-        if (photo.swimming_pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+        if (photo.pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
       }
 
       const client = getClient();
-      await client.delete(photo.storage_key).catch(() => {});
-      await db.execute(sql`DELETE FROM student_photos WHERE id = ${photoId}`);
+      await client.delete(photo.object_key).catch(() => {});
+      await db.execute(sql`DELETE FROM photo_assets_meta WHERE id = ${photoId}`);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "삭제 중 오류" }); }
   }

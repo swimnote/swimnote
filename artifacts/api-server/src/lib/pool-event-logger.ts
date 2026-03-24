@@ -114,15 +114,17 @@ async function moveToDeadLetter(row: any): Promise<void> {
 }
 
 // ── 메인 함수: 이벤트 이중 저장 ─────────────────────────────────────
+// 순서: pool DB(pool_change_logs) 먼저 저장 → super DB 복제
+// super DB 실패 시 retry queue → DLQ로 보관
 export async function logPoolEvent(params: PoolEventParams): Promise<void> {
-  // pool_change_logs는 항상 독립적으로 기록 (super 실패 무관)
-  writeToPoolChangeLogs(params).catch(() => {});
+  // 1. pool DB에 원본 변경 로그 먼저 저장 (완료 대기)
+  await writeToPoolChangeLogs(params);
 
-  // super admin DB에 기록 시도
+  // 2. super admin DB에 복제 저장 시도
   try {
     await writeToSuperAdmin(params);
   } catch (err) {
-    console.error("[pool-event-logger] super DB 저장 실패, 재시도 큐 적재:", (err as Error).message);
+    console.error("[pool-event-logger] super DB 복제 실패, 재시도 큐 적재:", (err as Error).message);
     await enqueueRetry(params, String(err));
   }
 }

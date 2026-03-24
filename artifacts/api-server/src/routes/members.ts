@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { membersTable, usersTable, classMembersTable, classesTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -12,7 +12,7 @@ function err(res: any, status: number, message: string) {
 }
 
 async function getPoolId(userId: string): Promise<string | null> {
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return user?.swimming_pool_id || null;
 }
 

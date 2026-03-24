@@ -15,7 +15,7 @@
  * 앱이 꺼져 있어도 API 서버가 살아있으면 자동 실행.
  */
 import cron from "node-cron";
-import { db } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { dataChangeLogsTable, backupSnapshotsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 

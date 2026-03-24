@@ -5,7 +5,7 @@
  * 당일 수업 알림: 매 분 체크 → 수업 X시간 전에 자동 발송 (중복 방지)
  */
 import cron from "node-cron";
-import { db } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { sendPushToClassParents, sendRawPush, checkPushEnabled } from "../lib/push-service.js";
 
@@ -34,7 +34,7 @@ async function runPrevDaySchedule(): Promise<void> {
 
   try {
     // 전날 알림 설정이 있는 수영장 목록 (설정 없으면 기본값 20:00)
-    const pools = await db.execute(sql`
+    const pools = await superAdminDb.execute(sql`
       SELECT DISTINCT sp.id AS pool_id,
         COALESCE(pps.prev_day_push_time, '20:00') AS push_time,
         COALESCE(pps.tpl_prev_day, '📅 내일 수업이 있습니다. 준비하세요!') AS template
@@ -48,7 +48,7 @@ async function runPrevDaySchedule(): Promise<void> {
       if (push_time !== currentTime) continue;
 
       // 중복 발송 방지
-      const alreadySent = await db.execute(sql`
+      const alreadySent = await superAdminDb.execute(sql`
         SELECT id FROM push_scheduled_sent
         WHERE pool_id = ${pool_id} AND type = 'prev_day'
           AND sent_date = ${todayDateStr} AND sent_time = ${currentTime}
@@ -78,7 +78,7 @@ async function runPrevDaySchedule(): Promise<void> {
 
       // 발송 기록
       const sentId = `pss_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         INSERT INTO push_scheduled_sent (id, pool_id, class_id, type, sent_date, sent_time)
         VALUES (${sentId}, ${pool_id}, 'all', 'prev_day', ${todayDateStr}, ${currentTime})
         ON CONFLICT ON CONSTRAINT push_scheduled_unique DO NOTHING
@@ -96,7 +96,7 @@ async function runSameDaySchedule(): Promise<void> {
   const todayDateStr = kstDateStr(now);
 
   try {
-    const pools = await db.execute(sql`
+    const pools = await superAdminDb.execute(sql`
       SELECT DISTINCT sp.id AS pool_id,
         COALESCE(pps.same_day_push_offset, 1) AS offset_hours,
         COALESCE(pps.tpl_same_day, '⏰ 오늘 수업 {offset}시간 전입니다.') AS template
@@ -130,7 +130,7 @@ async function runSameDaySchedule(): Promise<void> {
         if (Math.abs(diffMinutes - targetMinutes) > 1) continue;
 
         const sendTime = kstTimeStr(now);
-        const alreadySent = await db.execute(sql`
+        const alreadySent = await superAdminDb.execute(sql`
           SELECT id FROM push_scheduled_sent
           WHERE pool_id = ${pool_id} AND class_id = ${cls.class_id}
             AND type = 'same_day' AND sent_date = ${todayDateStr} AND sent_time = ${sendTime}
@@ -149,7 +149,7 @@ async function runSameDaySchedule(): Promise<void> {
         );
 
         const sentId = `pss_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        await db.execute(sql`
+        await superAdminDb.execute(sql`
           INSERT INTO push_scheduled_sent (id, pool_id, class_id, type, sent_date, sent_time)
           VALUES (${sentId}, ${pool_id}, ${cls.class_id}, 'same_day', ${todayDateStr}, ${sendTime})
           ON CONFLICT ON CONSTRAINT push_scheduled_unique DO NOTHING

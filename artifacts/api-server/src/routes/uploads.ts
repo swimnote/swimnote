@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 
@@ -23,7 +23,7 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
     // ── 스토리지 초과 차단 체크 ──────────────────────────────────────
     const poolId = req.user?.poolId;
     if (poolId) {
-      const [poolRow] = (await db.execute(sql`
+      const [poolRow] = (await superAdminDb.execute(sql`
         SELECT p.upload_blocked, sp.storage_gb, ps.extra_storage_gb
         FROM swimming_pools p
         LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
@@ -52,7 +52,7 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
 
       // 100% 이상: upload_blocked 자동 설정 + 차단
       if (pct >= 100) {
-        await db.execute(sql`
+        await superAdminDb.execute(sql`
           UPDATE swimming_pools SET upload_blocked = true WHERE id = ${poolId}
         `);
         res.status(403).json({

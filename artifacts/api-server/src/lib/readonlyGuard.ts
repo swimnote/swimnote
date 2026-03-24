@@ -15,7 +15,7 @@
 
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { db } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
 const JWT_SECRET = process.env.JWT_SECRET || "swim-platform-secret-key-2024";
@@ -42,7 +42,7 @@ export async function requireWritable(req: Request, res: Response, next: NextFun
     const poolId = payload?.poolId ?? payload?.swimming_pool_id;
     if (!poolId) { next(); return; }
 
-    const [pool] = (await db.execute(sql`
+    const [pool] = (await superAdminDb.execute(sql`
       SELECT is_readonly, subscription_status FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `)).rows as any[];
 

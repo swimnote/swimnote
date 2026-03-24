@@ -10,7 +10,7 @@
  *  - sendPushToPoolTeachers(poolId, notifType, title, body, data) — 수영장 선생님 전체
  *  - initPushTables() — DB 테이블 자동 생성
  */
-import { db } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
 // ── Expo Push API ────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ async function logPush(
 ): Promise<void> {
   try {
     const id = `pl_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       INSERT INTO push_logs (id, target_user_id, role, type, status, message, triggered_by, created_at)
       VALUES (${id}, ${targetUserId}, ${role}, ${type}, ${status}, ${message}, ${triggeredBy || null}, now())
       ON CONFLICT DO NOTHING
@@ -161,7 +161,7 @@ export async function sendPushToClassParents(
   try {
     if (skipIfDiaryRecentlySent) {
       // 5분 내 diary_upload 푸시가 이미 발송된 경우 skip
-      const recent = await db.execute(sql`
+      const recent = await superAdminDb.execute(sql`
         SELECT id FROM push_logs
         WHERE triggered_by = ${triggeredBy || ""}
           AND type = 'diary_upload'
@@ -243,7 +243,7 @@ export async function sendPushToPoolAdmins(
 ): Promise<void> {
   try {
     const alwaysSend = ["subscription", "billing"].includes(notifType);
-    const adminRows = await db.execute(sql`
+    const adminRows = await superAdminDb.execute(sql`
       SELECT id FROM users
       WHERE swimming_pool_id = ${poolId}
         AND role IN ('pool_admin', 'sub_admin')
@@ -276,7 +276,7 @@ export async function sendPushToPoolTeachers(
   triggeredBy?: string
 ): Promise<void> {
   try {
-    const teacherRows = await db.execute(sql`
+    const teacherRows = await superAdminDb.execute(sql`
       SELECT id FROM users
       WHERE swimming_pool_id = ${poolId}
         AND role = 'teacher'
@@ -333,7 +333,7 @@ export async function initPushTables(): Promise<void> {
         updated_at             TIMESTAMPTZ DEFAULT now()
       )
     `);
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       CREATE TABLE IF NOT EXISTS push_logs (
         id              TEXT PRIMARY KEY,
         target_user_id  TEXT,
@@ -346,7 +346,7 @@ export async function initPushTables(): Promise<void> {
       )
     `);
     // 예약 발송 중복 방지용 테이블
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       CREATE TABLE IF NOT EXISTS push_scheduled_sent (
         id         TEXT PRIMARY KEY,
         pool_id    TEXT,

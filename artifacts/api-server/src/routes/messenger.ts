@@ -10,7 +10,7 @@
 import { Router, type Response } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { genFilename } from "../utils/filename.js";
@@ -30,7 +30,7 @@ function err(res: Response, status: number, msg: string) {
 }
 
 async function getPoolId(userId: string): Promise<string | null> {
-  const rows = await db.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
+  const rows = await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId}`);
   return (rows.rows[0] as any)?.swimming_pool_id || null;
 }
 
@@ -118,7 +118,7 @@ router.post(
       if (!pool_id || !content?.trim()) return err(res, 400, "pool_id와 content가 필요합니다.");
       if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
 
-      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
 
       const msgType = target_user_id ? "directed_message" : "normal";
@@ -167,7 +167,7 @@ router.post(
       if (!pool_id || !content?.trim()) return err(res, 400, "pool_id와 content가 필요합니다.");
       if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
 
-      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
 
       const rows = await db.execute(sql`
@@ -203,11 +203,11 @@ router.post(
       if (!file) return err(res, 400, "사진 파일이 필요합니다.");
       if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
 
-      const poolRow = await db.execute(sql`SELECT name_en, name FROM swimming_pools WHERE id = ${pool_id}`);
+      const poolRow = await superAdminDb.execute(sql`SELECT name_en, name FROM swimming_pools WHERE id = ${pool_id}`);
       const pool = poolRow.rows[0] as any;
       const poolSlug = pool?.name_en || (pool?.name || "pool").toLowerCase().replace(/\s+/g, "-");
 
-      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
 
       const ext = file.originalname.split(".").pop() || "jpg";
@@ -326,9 +326,9 @@ router.post(
       if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
 
       const [senderRow, studentRow, targetRow, makeupRow, scsRow] = await Promise.all([
-        db.execute(sql`SELECT name FROM users WHERE id = ${userId}`),
+        superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`),
         db.execute(sql`SELECT name, swimming_pool_id FROM students WHERE id = ${student_id}`),
-        db.execute(sql`SELECT name FROM users WHERE id = ${to_user_id}`),
+        superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${to_user_id}`),
         db.execute(sql`SELECT count(*)::int AS cnt FROM makeup_sessions WHERE student_id = ${student_id} AND status = 'waiting'`),
         db.execute(sql`SELECT frequency FROM student_class_schedules WHERE student_id = ${student_id}`),
       ]);
@@ -425,7 +425,7 @@ router.get(
       if (!pool_id) return err(res, 400, "pool_id가 필요합니다.");
       if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
 
-      const rows = await db.execute(sql`
+      const rows = await superAdminDb.execute(sql`
         SELECT id, name, role, position
         FROM users
         WHERE swimming_pool_id = ${pool_id}
@@ -458,7 +458,7 @@ router.get(
 
       // 관리자는 해당 풀 전체 활성 학생, 선생님은 자신이 담당한 반의 학생만
       const teacherFilter = role === "pool_admin" ? sql`true` : sql`cg.teacher_user_id = ${userId}`;
-      const rows = await db.execute(sql`
+      const rows = await superAdminDb.execute(sql`
         SELECT
           s.id,
           s.name,
@@ -501,10 +501,10 @@ router.post(
       if (!pool_id || !student_id) return err(res, 400, "pool_id와 student_id가 필요합니다.");
       if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
 
-      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
 
-      const studentRow = await db.execute(sql`
+      const studentRow = await superAdminDb.execute(sql`
         SELECT
           s.id, s.name, s.parent_phone, s.parent_name,
           cg.id AS class_group_id, cg.name AS class_name,
@@ -569,11 +569,11 @@ router.post(
       if (!file) return err(res, 400, "파일이 필요합니다.");
       if (!(await checkPoolAccess(userId!, role, pool_id))) return err(res, 403, "권한이 없습니다.");
 
-      const poolRow = await db.execute(sql`SELECT name_en, name FROM swimming_pools WHERE id = ${pool_id}`);
+      const poolRow = await superAdminDb.execute(sql`SELECT name_en, name FROM swimming_pools WHERE id = ${pool_id}`);
       const pool = poolRow.rows[0] as any;
       const poolSlug = pool?.name_en || (pool?.name || "pool").toLowerCase().replace(/\s+/g, "-");
 
-      const userRow = await db.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
 
       const ext = file.originalname.split(".").pop() || "bin";

@@ -6,7 +6,7 @@
  * PATCH /admin/parent-requests/:id - 관리자: 승인/거절 (학생 연결 지원)
  */
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import {
   swimmingPoolsTable, usersTable, parentAccountsTable,
   parentStudentsTable, studentsTable,
@@ -33,7 +33,7 @@ router.get("/pools/public-search", async (req, res) => {
     if (!name || String(name).trim().length < 1) {
       res.json({ success: true, data: [] }); return;
     }
-    const results = await db.select({
+    const results = await superAdminDb.select({
       id: swimmingPoolsTable.id,
       name: swimmingPoolsTable.name,
       address: swimmingPoolsTable.address,
@@ -64,19 +64,19 @@ router.post("/auth/pool-join-request", async (req, res) => {
     if (!pw) { res.status(400).json({ success: false, message: "비밀번호는 필수입니다." }); return; }
     if (pw.length < 4) { res.status(400).json({ success: false, message: "비밀번호는 4자리 이상이어야 합니다." }); return; }
 
-    const [pool] = await db.select({ id: swimmingPoolsTable.id })
+    const [pool] = await superAdminDb.select({ id: swimmingPoolsTable.id })
       .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) {
       res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다." }); return;
     }
 
     const dupIdInAccounts = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
-    const dupIdInRequests = await db.execute(sql`SELECT id FROM parent_pool_requests WHERE login_id = ${lid} AND request_status = 'pending' LIMIT 1`);
+    const dupIdInRequests = await superAdminDb.execute(sql`SELECT id FROM parent_pool_requests WHERE login_id = ${lid} AND request_status = 'pending' LIMIT 1`);
     if (dupIdInAccounts.rows.length > 0 || dupIdInRequests.rows.length > 0) {
       res.status(409).json({ success: false, message: "이미 사용 중인 아이디입니다." }); return;
     }
 
-    const dup = await db.execute(sql`
+    const dup = await superAdminDb.execute(sql`
       SELECT id FROM parent_pool_requests
       WHERE swimming_pool_id = ${swimming_pool_id}
         AND phone = ${phone.trim()}
@@ -94,7 +94,7 @@ router.post("/auth/pool-join-request", async (req, res) => {
 
     const pwHash = await hashPassword(pw);
 
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       INSERT INTO parent_pool_requests (id, swimming_pool_id, parent_name, phone, child_name, child_birth_year, children_requested, login_id, password_hash, request_status, requested_at)
       VALUES (${id}, ${swimming_pool_id}, ${parent_name.trim()}, ${phone.trim()},
               ${child_name?.trim() || null}, ${child_birth_year || null},
@@ -113,7 +113,7 @@ router.get("/admin/parent-requests", requireAuth, requireRole("pool_admin", "sup
   async (req: AuthRequest, res) => {
     try {
       const { status } = req.query;
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
@@ -156,11 +156,11 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
         res.status(400).json({ success: false, message: "action은 approve, reject, revoke 중 하나여야 합니다." }); return;
       }
 
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
-      const existing = await db.execute(sql`
+      const existing = await superAdminDb.execute(sql`
         SELECT * FROM parent_pool_requests
         WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
         LIMIT 1
@@ -181,7 +181,7 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
             WHERE id = ${request.parent_account_id}
           `);
         }
-        await db.execute(sql`
+        await superAdminDb.execute(sql`
           UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW(), processed_by = ${req.user!.userId}
           WHERE id = ${req.params.id}
         `);
@@ -216,7 +216,7 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
         }
 
         // ── 2. 승인 처리 ────────────────────────────────────────────
-        await db.execute(sql`
+        await superAdminDb.execute(sql`
           UPDATE parent_pool_requests
           SET request_status = 'approved', processed_at = NOW(), processed_by = ${req.user!.userId},
               parent_account_id = ${parentAccountId}
@@ -323,7 +323,7 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
         });
       } else {
         // ── 거절 ────────────────────────────────────────────────────
-        await db.execute(sql`
+        await superAdminDb.execute(sql`
           UPDATE parent_pool_requests
           SET request_status = 'rejected', processed_at = NOW(), processed_by = ${req.user!.userId},
               rejection_reason = ${rejection_reason || null}
@@ -346,7 +346,7 @@ router.post("/admin/parent-invites", requireAuth, requireRole("pool_admin", "sup
       if (!parent_name?.trim() || !phone?.trim()) {
         res.status(400).json({ success: false, message: "이름과 전화번호는 필수입니다." }); return;
       }
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
@@ -373,7 +373,7 @@ router.post("/admin/parent-invites", requireAuth, requireRole("pool_admin", "sup
 router.get("/admin/parent-invites", requireAuth, requireRole("pool_admin", "super_admin", "teacher"),
   async (req: AuthRequest, res) => {
     try {
-      const [me] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 

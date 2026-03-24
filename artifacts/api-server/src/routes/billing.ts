@@ -9,7 +9,8 @@
  */
 import { Router } from "express";
 import cron from "node-cron";
-import { db } from "@workspace/db";
+import { superAdminDb } from "@workspace/db";
+const db = superAdminDb;
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -21,7 +22,7 @@ const router = Router();
 // ── 테이블 보장 (서버 시작 시 1회 실행) ──────────────────────────────
 async function ensureBillingTables() {
   // revenue_logs: 정산용 이벤트 로그 (지시서 §8 요구사항 반영)
-  await db.execute(sql`
+  await superAdminDb.execute(sql`
     CREATE TABLE IF NOT EXISTS revenue_logs (
       id                      TEXT PRIMARY KEY,
       pool_id                 TEXT NOT NULL,
@@ -42,18 +43,18 @@ async function ensureBillingTables() {
     )
   `).catch(() => {});
   // 기존 테이블에 누락된 컬럼 추가 (하위 호환)
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS pool_name TEXT`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS plan_name TEXT`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS event_type TEXT NOT NULL DEFAULT 'new_subscription'`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS gross_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS intro_discount_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS charged_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS refunded_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS payment_provider TEXT NOT NULL DEFAULT 'store'`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS provider_transaction_id TEXT`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS store_fee INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS net_revenue INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS pool_name TEXT`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS plan_name TEXT`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS event_type TEXT NOT NULL DEFAULT 'new_subscription'`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS gross_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS intro_discount_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS charged_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS refunded_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS payment_provider TEXT NOT NULL DEFAULT 'store'`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS provider_transaction_id TEXT`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS store_fee INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS net_revenue INTEGER NOT NULL DEFAULT 0`).catch(() => {});
   // 다운그레이드 예약 컬럼 추가
   await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS pending_tier TEXT`).catch(() => {});
   await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS downgrade_at DATE`).catch(() => {});
@@ -63,7 +64,7 @@ async function ensureBillingTables() {
   await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage TEXT NOT NULL DEFAULT ''`).catch(() => {});
   await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`).catch(() => {});
   // swimming_pools 최초 할인 컬럼
-  await db.execute(sql`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS first_payment_used BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS first_payment_used BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
 }
 ensureBillingTables().catch(console.error);
 
@@ -95,7 +96,7 @@ async function recordPayment(params: {
   eventType?: string; grossAmount?: number; introDiscount?: number;
 }): Promise<string> {
   const id = `pay_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.execute(sql`
+  await superAdminDb.execute(sql`
     INSERT INTO payment_logs
       (id, swimming_pool_id, amount, status, method, type, description,
        billing_period_start, billing_period_end, paid_at)
@@ -113,7 +114,7 @@ async function recordPayment(params: {
     const grossAmt  = params.grossAmount ?? params.amount;
     const introDis  = params.introDiscount ?? 0;
     const evtType   = params.eventType ?? "new_subscription";
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       INSERT INTO revenue_logs
         (id, pool_id, pool_name, plan_id, plan_name, event_type,
          gross_amount, intro_discount_amount, charged_amount,
@@ -171,7 +172,7 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       WHERE tier = ${sub?.tier ?? "free"} LIMIT 1
     `)).rows as any[];
 
-    const [poolRow] = (await db.execute(sql`
+    const [poolRow] = (await superAdminDb.execute(sql`
       SELECT is_readonly, upload_blocked, readonly_reason, payment_failed_at,
              subscription_status, subscription_tier, first_payment_used
       FROM swimming_pools WHERE id = ${poolId} LIMIT 1
@@ -379,7 +380,7 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
 
     // ─ 업그레이드 또는 신규 유료 구독: 즉시 결제 후 적용 ─
     // 최초 결제 1회 한정 50% 할인 정책
-    const [poolInfoRow] = (await db.execute(sql`
+    const [poolInfoRow] = (await superAdminDb.execute(sql`
       SELECT first_payment_used, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `)).rows as any[];
     const firstPaymentUsed = !!poolInfoRow?.first_payment_used;
@@ -421,7 +422,7 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
 
     if (!result.success) {
       // 결제 실패: 읽기모드 전환
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         UPDATE swimming_pools
         SET subscription_status = 'payment_failed', is_readonly = true, upload_blocked = true,
             readonly_reason = 'payment_failed', payment_failed_at = now(), updated_at = now()
@@ -442,7 +443,7 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
     `);
 
     // swimming_pools 구독 상태 동기화 + 최초 결제 사용 여부 기록
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       UPDATE swimming_pools
       SET subscription_status = 'active', subscription_tier = ${tier},
           is_readonly = false, upload_blocked = false, readonly_reason = null,
@@ -556,7 +557,7 @@ router.get("/history", requireAuth, requireRole("pool_admin", "super_admin"), as
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
-    const rows = (await db.execute(sql`
+    const rows = (await superAdminDb.execute(sql`
       SELECT * FROM payment_logs
       WHERE swimming_pool_id = ${poolId}
       ORDER BY created_at DESC LIMIT 50
@@ -606,7 +607,7 @@ router.post("/retry", requireAuth, requireRole("pool_admin", "super_admin"), asy
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    const [poolRow] = (await db.execute(sql`
+    const [poolRow] = (await superAdminDb.execute(sql`
       SELECT subscription_status, subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `)).rows as any[];
 
@@ -642,7 +643,7 @@ router.post("/retry", requireAuth, requireRole("pool_admin", "super_admin"), asy
       description: `${plan.name} 재결제`,
       planId: planIdStr,
       planName: plan.name,
-      poolName: (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0]?.name as string | undefined,
+      poolName: (await superAdminDb.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0]?.name as string | undefined,
       eventType: "retry",
     });
 
@@ -651,7 +652,7 @@ router.post("/retry", requireAuth, requireRole("pool_admin", "super_admin"), asy
     }
 
     // 결제 성공 → 정상 복구
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       UPDATE swimming_pools
       SET subscription_status = 'active',
           is_readonly = false,
@@ -700,7 +701,7 @@ router.post("/store-refund", async (req, res) => {
       WHERE swimming_pool_id = ${pool_id}
     `).catch(() => {}); // 구독 레코드 없어도 계속 처리
     // 수영장 읽기모드 전환
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       UPDATE swimming_pools
       SET subscription_status = 'payment_failed',
           is_readonly = true, upload_blocked = true,
@@ -710,7 +711,7 @@ router.post("/store-refund", async (req, res) => {
     // 환불 payment_logs 기록 (음수 금액)
     const payId  = `pay_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const refundAmt = -Math.abs(Number(amount ?? 0));
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       INSERT INTO payment_logs
         (id, swimming_pool_id, amount, status, method, type, description, paid_at)
       VALUES
@@ -723,8 +724,8 @@ router.post("/store-refund", async (req, res) => {
       const absAmt    = Math.abs(refundAmt);
       const storeFee  = Math.round(absAmt * 0.3);
       const netRev    = absAmt - storeFee;
-      const [poolInfo] = (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${pool_id} LIMIT 1`)).rows as any[];
-      await db.execute(sql`
+      const [poolInfo] = (await superAdminDb.execute(sql`SELECT name FROM swimming_pools WHERE id = ${pool_id} LIMIT 1`)).rows as any[];
+      await superAdminDb.execute(sql`
         INSERT INTO revenue_logs
           (id, pool_id, pool_name, plan_id, plan_name, event_type,
            gross_amount, intro_discount_amount, charged_amount,
@@ -754,7 +755,7 @@ router.post("/simulate-failure", requireAuth, requireRole("super_admin"), async 
   const { pool_id } = req.body;
   if (!pool_id) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
   try {
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       UPDATE swimming_pools
       SET subscription_status = 'payment_failed',
           is_readonly = true,
@@ -776,7 +777,7 @@ router.post("/simulate-failure", requireAuth, requireRole("super_admin"), async 
 cron.schedule("0 * * * *", async () => {
   try {
     // 7일 경과 → pending_deletion
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       UPDATE swimming_pools
       SET subscription_status = 'pending_deletion',
           readonly_reason = 'pending_deletion',
@@ -788,7 +789,7 @@ cron.schedule("0 * * * *", async () => {
     `);
 
     // 14일 경과 → deleted
-    await db.execute(sql`
+    await superAdminDb.execute(sql`
       UPDATE swimming_pools
       SET subscription_status = 'deleted',
           readonly_reason = 'deleted',
@@ -817,7 +818,7 @@ cron.schedule("0 * * * *", async () => {
             updated_at = now()
         WHERE swimming_pool_id = ${row.swimming_pool_id}
       `);
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         UPDATE swimming_pools SET subscription_tier = ${row.pending_tier}, updated_at = now()
         WHERE id = ${row.swimming_pool_id}
       `);
@@ -837,7 +838,7 @@ router.get("/revenue-logs", requireAuth, requireRole("super_admin"), async (req:
   try {
     await ensureBillingTables();
     const { start, end, limit = "500" } = req.query as { start?: string; end?: string; limit?: string };
-    const rows = (await db.execute(sql`
+    const rows = (await superAdminDb.execute(sql`
       SELECT
         rl.id,
         rl.pool_id,
@@ -891,7 +892,7 @@ router.get("/revenue-logs", requireAuth, requireRole("super_admin"), async (req:
 router.get("/revenue-by-plan", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
   try {
     await ensureBillingTables();
-    const rows = (await db.execute(sql`
+    const rows = (await superAdminDb.execute(sql`
       SELECT
         rl.plan_id,
         pp.name AS plan_name,
@@ -914,7 +915,7 @@ router.get("/revenue-by-plan", requireAuth, requireRole("super_admin"), async (_
 router.get("/revenue-by-pool", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
   try {
     await ensureBillingTables();
-    const rows = (await db.execute(sql`
+    const rows = (await superAdminDb.execute(sql`
       SELECT
         rl.pool_id,
         sp.name AS pool_name,

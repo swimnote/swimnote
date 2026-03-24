@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, superAdminDb , superAdminDb } from "@workspace/db";
 import { classGroupsTable, studentsTable, attendanceTable, usersTable, classChangeLogsTable } from "@workspace/db/schema";
 import { eq, and, sql, ne } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -12,7 +12,7 @@ function err(res: any, status: number, message: string) {
 }
 
 async function getPoolId(userId: string): Promise<string | null> {
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return user?.swimming_pool_id || null;
 }
 
@@ -75,7 +75,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
 
     let instructorName = instructor || null;
     if (effectiveTeacherId && !instructor) {
-      const [tUser] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, effectiveTeacherId)).limit(1);
+      const [tUser] = await superAdminDb.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, effectiveTeacherId)).limit(1);
       if (tUser) instructorName = tUser.name;
     }
 
