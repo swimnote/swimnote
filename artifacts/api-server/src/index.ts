@@ -1,5 +1,6 @@
 import app from "./app";
 import { startBackupJobs } from "./jobs/backup-batch.js";
+import { startEventRetryJob } from "./jobs/event-retry-job.js";
 
 // ── DB 이원화 강제 점검 ──────────────────────────────────────────
 const POOL_URL = process.env.POOL_DATABASE_URL;
@@ -28,8 +29,9 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// 새벽 배치 잡 시작 (앱이 켜져 있는 동안 스케줄 유지)
+// 배치 잡 시작 (앱이 켜져 있는 동안 스케줄 유지)
 startBackupJobs();
+startEventRetryJob();
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

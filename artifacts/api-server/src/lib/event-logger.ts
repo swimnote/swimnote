@@ -1,7 +1,8 @@
 /**
  * 이벤트 로거 — 운영 행위를 event_logs 테이블에 기록
+ * event_logs 는 superAdminDb에 보관됨 (슈퍼관리자 콘솔 조회 대상)
  */
-import { db } from "@workspace/db";
+import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
 export type EventCategory =
@@ -27,7 +28,7 @@ export interface EventLogParams {
 export async function logEvent(params: EventLogParams): Promise<void> {
   const id = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const metadata = params.metadata ? JSON.stringify(params.metadata) : "{}";
-  await db.execute(sql`
+  await superAdminDb.execute(sql`
     INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
     VALUES (
       ${id},

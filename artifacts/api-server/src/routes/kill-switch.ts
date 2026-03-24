@@ -8,7 +8,7 @@
 import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { r2Delete } from "../lib/r2.js";
+import { r2Delete, r2VideoDelete } from "../lib/r2.js";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { comparePassword } from "../lib/auth.js";
 import { logEvent } from "../lib/event-logger.js";
@@ -53,9 +53,9 @@ router.post(
 
       if (types.includes("photo")) {
         const [r] = (await db.execute(sql`
-          SELECT COUNT(*)::int AS cnt, COALESCE(SUM(file_size_bytes),0)::bigint AS bytes
-          FROM student_photos
-          WHERE swimming_pool_id = ${poolId} AND created_at < ${cutoff.toISOString()}::timestamptz
+          SELECT COUNT(*)::int AS cnt, COALESCE(SUM(file_size),0)::bigint AS bytes
+          FROM photo_assets_meta
+          WHERE pool_id = ${poolId} AND created_at < ${cutoff.toISOString()}::timestamptz
         `)).rows as any[];
         result.photo_count = Number(r?.cnt ?? 0);
         result.photo_bytes = Number(r?.bytes ?? 0);
@@ -63,9 +63,9 @@ router.post(
 
       if (types.includes("video")) {
         const [r] = (await db.execute(sql`
-          SELECT COUNT(*)::int AS cnt, COALESCE(SUM(file_size_bytes),0)::bigint AS bytes
-          FROM student_videos
-          WHERE swimming_pool_id = ${poolId} AND created_at < ${cutoff.toISOString()}::timestamptz
+          SELECT COUNT(*)::int AS cnt, COALESCE(SUM(file_size),0)::bigint AS bytes
+          FROM video_assets_meta
+          WHERE pool_id = ${poolId} AND created_at < ${cutoff.toISOString()}::timestamptz
         `)).rows as any[];
         result.video_count = Number(r?.cnt ?? 0);
         result.video_bytes = Number(r?.bytes ?? 0);
@@ -161,21 +161,20 @@ router.post(
       // ── 사진 영구 삭제 ───────────────────────────────────────
       if (types.includes("photo")) {
         const photos = (await db.execute(sql`
-          SELECT id, storage_key, file_size_bytes
-          FROM student_photos
-          WHERE swimming_pool_id = ${poolId}
+          SELECT id, object_key, file_size
+          FROM photo_assets_meta
+          WHERE pool_id = ${poolId}
             AND created_at < ${cutoff.toISOString()}::timestamptz
         `)).rows as any[];
 
-        const client = getClient();
         for (const p of photos) {
-          await client.delete(p.storage_key).catch(() => {});
-          deleted.photo_bytes += Number(p.file_size_bytes ?? 0);
+          await r2Delete(p.object_key);
+          deleted.photo_bytes += Number(p.file_size ?? 0);
         }
         if (photos.length > 0) {
           const ids = photos.map(p => p.id);
           await db.execute(sql`
-            DELETE FROM student_photos WHERE id = ANY(${ids}::text[])
+            DELETE FROM photo_assets_meta WHERE id = ANY(${ids}::text[])
           `);
         }
         deleted.photo_count = photos.length;
@@ -184,21 +183,20 @@ router.post(
       // ── 영상 영구 삭제 ───────────────────────────────────────
       if (types.includes("video")) {
         const videos = (await db.execute(sql`
-          SELECT id, storage_key, file_size_bytes
-          FROM student_videos
-          WHERE swimming_pool_id = ${poolId}
+          SELECT id, object_key, file_size
+          FROM video_assets_meta
+          WHERE pool_id = ${poolId}
             AND created_at < ${cutoff.toISOString()}::timestamptz
         `)).rows as any[];
 
-        const client = getClient();
         for (const v of videos) {
-          await client.delete(v.storage_key).catch(() => {});
-          deleted.video_bytes += Number(v.file_size_bytes ?? 0);
+          await r2VideoDelete(v.object_key);
+          deleted.video_bytes += Number(v.file_size ?? 0);
         }
         if (videos.length > 0) {
           const ids = videos.map(v => v.id);
           await db.execute(sql`
-            DELETE FROM student_videos WHERE id = ANY(${ids}::text[])
+            DELETE FROM video_assets_meta WHERE id = ANY(${ids}::text[])
           `);
         }
         deleted.video_count = videos.length;

@@ -13,7 +13,7 @@
  */
 import { Router, Response } from "express";
 import multer from "multer";
-import { Client } from "@replit/object-storage";
+import { r2VideoUpload, r2VideoDownload, r2VideoDelete } from "../lib/r2.js";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
@@ -24,12 +24,6 @@ import { genFilename, sanitizePoolName } from "../utils/filename.js";
 const router = Router();
 // 영상은 최대 100MB
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
-
-let _client: Client | null = null;
-function getClient() {
-  if (!_client) _client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-  return _client;
-}
 
 async function getPoolSlug(poolId: string): Promise<string> {
   const rows = await superAdminDb.execute(sql`SELECT name_en, name FROM swimming_pools WHERE id = ${poolId}`);
@@ -126,15 +120,13 @@ router.get("/videos/:videoId/file", requireAuth, async (req: AuthRequest, res: R
       if (video.pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
     }
 
-    const client = getClient();
-    const { ok, value: bytes, error } = await client.downloadAsBytes(video.object_key);
-    if (!ok || !bytes) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
+    const { ok, buffer } = await r2VideoDownload(video.object_key);
+    if (!ok || !buffer) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
 
     const ext = (video.object_key.split(".").pop() || "mp4").toLowerCase();
     res.setHeader("Content-Type", videoMimeType(ext));
     res.setHeader("Cache-Control", "private, max-age=3600");
-    const buf = Array.isArray(bytes) ? bytes[0] : bytes;
-    res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any));
+    res.send(buffer);
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
 });
 
@@ -252,9 +244,8 @@ router.post(
       const filename = genFilename(poolSlug, ext);
       const key = `videos/group/${class_id}/${filename}`;
 
-      const client = getClient();
-      const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
-      if (!ok) throw new Error(error?.message || "업로드 실패");
+      const { ok, error } = await r2VideoUpload(key, file.buffer, file.mimetype);
+      if (!ok) throw new Error(error || "업로드 실패");
 
       const id = `video_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       const rows = await db.execute(sql`
@@ -330,9 +321,8 @@ router.post(
       const filename = genFilename(poolSlug, ext);
       const key = `videos/private/${student_id}/${filename}`;
 
-      const client = getClient();
-      const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
-      if (!ok) throw new Error(error?.message || "업로드 실패");
+      const { ok, error } = await r2VideoUpload(key, file.buffer, file.mimetype);
+      if (!ok) throw new Error(error || "업로드 실패");
 
       const id = `video_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       const rows = await db.execute(sql`
@@ -405,14 +395,13 @@ router.delete("/videos/bulk", requireAuth, requireRole("pool_admin", "teacher", 
         res.status(400).json({ error: "삭제할 영상 ID를 지정해주세요." }); return;
       }
       const { role, userId } = req.user!;
-      const client = getClient();
       let deletedCount = 0;
       for (const id of ids) {
         const rows = await db.execute(sql`SELECT * FROM video_assets_meta WHERE id = ${id}`);
         const video = rows.rows[0] as any;
         if (!video) continue;
         if (role === "teacher" && video.uploaded_by !== userId) continue;
-        await client.delete(video.object_key).catch(() => {});
+        await r2VideoDelete(video.object_key);
         await db.execute(sql`DELETE FROM video_assets_meta WHERE id = ${id}`);
         deletedCount++;
       }
@@ -507,8 +496,7 @@ router.delete("/videos/:videoId", requireAuth,
         if (video.pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
       }
 
-      const client = getClient();
-      await client.delete(video.object_key).catch(() => {});
+      await r2VideoDelete(video.object_key);
       await db.execute(sql`DELETE FROM video_assets_meta WHERE id = ${videoId}`);
       res.json({ success: true });
     } catch (e) { res.status(500).json({ error: "삭제 중 오류" }); }

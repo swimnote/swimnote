@@ -367,15 +367,15 @@ router.get("/teacher/me/media-usage", requireAuth,
 
       // 이번 달
       const monthPhotos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total
-        FROM student_photos
-        WHERE uploader_id = ${userId}
+        SELECT COALESCE(SUM(file_size), 0) as total
+        FROM photo_assets_meta
+        WHERE uploaded_by = ${userId}
           AND date_trunc('month', created_at) = date_trunc('month', now())
       `);
       const monthVideos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total
-        FROM student_videos
-        WHERE uploader_id = ${userId}
+        SELECT COALESCE(SUM(file_size), 0) as total
+        FROM video_assets_meta
+        WHERE uploaded_by = ${userId}
           AND date_trunc('month', created_at) = date_trunc('month', now())
       `);
       const monthBytes = Number((monthPhotos.rows[0] as any)?.total || 0) + Number((monthVideos.rows[0] as any)?.total || 0);

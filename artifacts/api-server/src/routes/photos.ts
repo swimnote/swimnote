@@ -567,8 +567,7 @@ router.delete("/photos/:photoId", requireAuth,
         if (photo.pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
       }
 
-      const client = getClient();
-      await client.delete(photo.object_key).catch(() => {});
+      await r2Delete(photo.object_key);
       await db.execute(sql`DELETE FROM photo_assets_meta WHERE id = ${photoId}`);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "삭제 중 오류" }); }

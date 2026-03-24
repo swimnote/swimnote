@@ -1914,38 +1914,91 @@ router.get("/teacher-hub/:teacherId", requireAuth, requireRole("super_admin","po
 );
 
 // GET /admin/teachers — 선생님 목록 + 운영 현황 요약 (invite 상태 포함)
+// users/teacher_invites → superAdminDb, 통계 → poolDb (cross-DB 분리 병합)
 router.get("/teachers", requireAuth, requireRole("super_admin","pool_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
       const today = new Date().toISOString().split("T")[0];
-      const teachers = (await db.execute(sql.raw(`
-        SELECT
-          u.id, u.name, u.email, u.phone, u.is_activated, u.roles,
-          ti.id AS invite_id,
-          ti.invite_status,
-          ti.rejection_reason,
-          ti.approved_at,
-          ti.created_at AS joined_at,
-          (u.roles @> ARRAY['pool_admin']::text[]) AS is_admin_granted,
-          COUNT(DISTINCT cg.id)::int AS class_count,
-          COUNT(DISTINCT s.id)::int AS student_count,
-          COUNT(DISTINCT a.id) FILTER (WHERE a.date = '${today}')::int AS today_att,
-          COUNT(DISTINCT cd.id) FILTER (WHERE cd.lesson_date = '${today}' AND cd.is_deleted = false)::int AS today_diary,
-          COUNT(DISTINCT mk.id) FILTER (WHERE mk.status IN ('waiting','transferred'))::int AS makeup_waiting
-        FROM users u
-        LEFT JOIN teacher_invites ti ON ti.user_id = u.id AND ti.swimming_pool_id = '${poolId}'
-        LEFT JOIN class_groups cg ON cg.teacher_user_id = u.id AND cg.swimming_pool_id = '${poolId}' AND cg.is_deleted = false
-        LEFT JOIN students s ON s.class_group_id = cg.id AND s.status NOT IN ('withdrawn','deleted')
-        LEFT JOIN attendance a ON a.class_group_id = cg.id
-        LEFT JOIN class_diaries cd ON cd.class_group_id = cg.id AND cd.swimming_pool_id = '${poolId}'
-        LEFT JOIN makeup_sessions mk ON mk.swimming_pool_id = '${poolId}'
-          AND (mk.original_teacher_id = u.id OR mk.assigned_teacher_id = u.id OR mk.transferred_to_teacher_id = u.id)
-        WHERE u.swimming_pool_id = '${poolId}' AND u.role = 'teacher'
-        GROUP BY u.id, ti.id
-        ORDER BY u.name
-      `))).rows;
+
+      // 1단계: superAdminDb — users (teachers) 조회
+      const userRows = (await superAdminDb.execute(sql.raw(`
+        SELECT id, name, email, phone, is_activated, roles,
+               (roles @> ARRAY['pool_admin']::text[]) AS is_admin_granted
+        FROM users
+        WHERE swimming_pool_id = '${poolId}' AND role = 'teacher'
+        ORDER BY name
+      `))).rows as any[];
+
+      if (userRows.length === 0) { res.json([]); return; }
+
+      const teacherIds = userRows.map((t: any) => `'${t.id}'`).join(",");
+
+      // 2단계: poolDb — teacher_invites + 수업/학생/출결/일지/보강 통계
+      const [inviteRows, statsRows, makeupRows] = await Promise.all([
+        db.execute(sql.raw(`
+          SELECT id, user_id, invite_status, rejection_reason, approved_at, created_at AS joined_at
+          FROM teacher_invites
+          WHERE swimming_pool_id = '${poolId}' AND user_id IN (${teacherIds})
+        `)).then(r => r.rows as any[]),
+
+        db.execute(sql.raw(`
+          SELECT
+            cg.teacher_user_id AS teacher_id,
+            COUNT(DISTINCT cg.id)::int AS class_count,
+            COUNT(DISTINCT CASE WHEN s.status NOT IN ('withdrawn','deleted') THEN s.id END)::int AS student_count,
+            COUNT(DISTINCT a.id) FILTER (WHERE a.date = '${today}')::int AS today_att,
+            COUNT(DISTINCT cd.id) FILTER (WHERE cd.lesson_date = '${today}' AND cd.is_deleted = false)::int AS today_diary
+          FROM class_groups cg
+          LEFT JOIN students s ON s.class_group_id = cg.id
+          LEFT JOIN attendance a ON a.class_group_id = cg.id
+          LEFT JOIN class_diaries cd ON cd.class_group_id = cg.id AND cd.swimming_pool_id = '${poolId}'
+          WHERE cg.swimming_pool_id = '${poolId}' AND cg.is_deleted = false
+            AND cg.teacher_user_id IN (${teacherIds})
+          GROUP BY cg.teacher_user_id
+        `)).then(r => r.rows as any[]),
+
+        db.execute(sql.raw(`
+          SELECT
+            COALESCE(mk.original_teacher_id, mk.assigned_teacher_id, mk.transferred_to_teacher_id) AS teacher_id,
+            COUNT(DISTINCT mk.id) FILTER (WHERE mk.status IN ('waiting','transferred'))::int AS makeup_waiting
+          FROM makeup_sessions mk
+          WHERE mk.swimming_pool_id = '${poolId}'
+            AND (mk.original_teacher_id IN (${teacherIds})
+              OR mk.assigned_teacher_id IN (${teacherIds})
+              OR mk.transferred_to_teacher_id IN (${teacherIds}))
+          GROUP BY 1
+        `)).then(r => r.rows as any[]),
+      ]);
+
+      // 3단계: 앱 레벨 병합
+      const inviteMap = new Map<string, any>();
+      for (const r of inviteRows) inviteMap.set(r.user_id, r);
+      const statsMap = new Map<string, any>();
+      for (const r of statsRows) statsMap.set(r.teacher_id, r);
+      const makeupMap = new Map<string, any>();
+      for (const r of makeupRows) makeupMap.set(r.teacher_id, r);
+
+      const teachers = userRows.map((t: any) => {
+        const inv = inviteMap.get(t.id) ?? {};
+        const s   = statsMap.get(t.id)  ?? {};
+        const m   = makeupMap.get(t.id) ?? {};
+        return {
+          ...t,
+          invite_id:       inv.id             ?? null,
+          invite_status:   inv.invite_status  ?? null,
+          rejection_reason: inv.rejection_reason ?? null,
+          approved_at:     inv.approved_at    ?? null,
+          joined_at:       inv.joined_at      ?? null,
+          class_count:     s.class_count      ?? 0,
+          student_count:   s.student_count    ?? 0,
+          today_att:       s.today_att        ?? 0,
+          today_diary:     s.today_diary      ?? 0,
+          makeup_waiting:  m.makeup_waiting   ?? 0,
+        };
+      });
+
       res.json(teachers);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
