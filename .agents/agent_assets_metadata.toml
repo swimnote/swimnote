@@ -6,3 +6,9 @@ id = "KawWl73IlMM5TRX85LHZq"
 uri = "file://.local/qa-report-20260324.md"
 type = "text"
 title = "7단계 QA 점검보고서 (2026-03-24)"
+
+[[outputs]]
+id = "QbU0IJmFzFn55XF7b5jmn"
+uri = "file://.local/db-separation-report.md"
+type = "text"
+title = "DB 이원화 구현 보고서 (2026-03-24)"
