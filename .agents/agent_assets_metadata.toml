@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "KawWl73IlMM5TRX85LHZq"
+uri = "file://.local/qa-report-20260324.md"
+type = "text"
+title = "7단계 QA 점검보고서 (2026-03-24)"
