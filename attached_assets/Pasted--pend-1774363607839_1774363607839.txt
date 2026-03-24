@@ -1,0 +1,141 @@
+지금 수정이 덜 됐다.
+수영장 관리자 가입 후 “수영장 등록 신청 중” 화면이 뜨면 실패다.
+관리자 가입 정책은 이미 “승인 없이 즉시 가입”으로 바뀌어야 하므로, 이 pending 화면은 더 이상 관리자 가입 흐름에서 절대 나오면 안 된다.
+
+현재 문제는 아래 둘 중 하나일 가능성이 높다.
+1. 가입 API가 아직 pending을 반환하고 있다
+2. API는 approved인데 프론트가 여전히 pending 분기를 타고 있다
+
+지금부터 관리자 가입 완료 후 흐름을 처음부터 끝까지 추적해서 pending 화면 진입 원인을 제거해라.
+
+━━━━━━━━━━━━━━━━━━
+1. 목표
+━━━━━━━━━━━━━━━━━━
+
+관리자 회원가입 완료 직후:
+- pending 화면 금지
+- “수영장 등록 신청 중” 화면 금지
+- 즉시 active/approved 상태
+- 즉시 관리자 대시보드 진입
+
+즉, 관리자 가입 플로우에서는 pending.tsx 또는 그와 유사한 신청중 화면이 절대 나오면 안 된다.
+
+━━━━━━━━━━━━━━━━━━
+2. 반드시 점검할 경로
+━━━━━━━━━━━━━━━━━━
+
+A. 가입 API
+- POST /apply 또는 실제 가입 API 응답에서 approval_status가 진짜 approved인지 확인
+- response body를 실제 로그로 제출
+- DB 저장 직후 swimming_pools.approval_status 값 확인
+- subscription_status / trial_end_at도 함께 확인
+
+B. 프론트 회원가입 완료 후 분기
+- 회원가입 성공 후 어느 화면으로 push/replace 하는지 확인
+- success handler에서 pending 화면으로 보내는 코드가 남아 있는지 확인
+- approval_status를 어디서 읽는지 확인
+- stale state / cached session / 이전 user 객체를 쓰는지 확인
+
+C. 앱 라우팅 가드
+- _layout.tsx
+- pending.tsx
+- rejected.tsx
+- admin dashboard redirect
+- auth guard
+위 파일들에서 pool.approval_status === 'pending' 분기를 찾고,
+관리자 가입 직후 approved 상태면 절대 pending 화면으로 가지 않게 수정
+
+D. 상태조회 API
+- 회원가입 직후 앱이 별도의 “내 수영장 상태 조회 API”를 호출하는지 확인
+- 그 API가 오래된 값 또는 다른 테이블 값을 보고 있지 않은지 확인
+- super DB / pool DB 혼동 없는지 확인
+
+━━━━━━━━━━━━━━━━━━
+3. 특히 우선 확인할 것
+━━━━━━━━━━━━━━━━━━
+
+1. 회원가입 완료 후 저장되는 pool row의 approval_status 실값
+2. 앱이 회원가입 직후 어떤 객체를 읽어 pending 여부를 판단하는지
+3. pending 화면으로 보내는 navigation 코드 위치
+4. pending 화면 문구가 어떤 조건에서 보이는지
+5. 캐시/세션 갱신이 안 돼서 이전 상태를 읽는지
+
+━━━━━━━━━━━━━━━━━━
+4. 수정 기준
+━━━━━━━━━━━━━━━━━━
+
+- 관리자 가입은 승인 없이 즉시 approved
+- 회원가입 성공 직후 최신 수영장 상태를 다시 fetch
+- approval_status === 'approved' 이면 바로 /(admin)/dashboard 로 이동
+- pending.tsx는 관리자 가입 흐름에서 사용 금지
+- rejected.tsx는 반려 케이스에만 유지 가능
+- “수영장 등록 신청 중” 문구는 관리자 가입 직후 플로우에서 제거
+- 승인 자동 반영 문구조차 필요 없고, 그냥 바로 대시보드로 들어가게 만들어라
+
+━━━━━━━━━━━━━━━━━━
+5. 실제 재현 테스트
+━━━━━━━━━━━━━━━━━━
+
+TC1. 완전 신규 이메일로 관리자 회원가입
+→ 회원가입 직후 pending 화면이 나오면 FAIL
+→ 바로 관리자 대시보드 진입하면 PASS
+
+TC2. 가입 직후 DB 확인
+→ swimming_pools.approval_status = approved 여야 함
+
+TC3. 앱 재실행 후 로그인
+→ pending 화면 없이 관리자 대시보드 진입
+
+TC4. 슈퍼관리자 화면
+→ 새 수영장 즉시 표시
+
+━━━━━━━━━━━━━━━━━━
+6. 반드시 찾을 파일
+━━━━━━━━━━━━━━━━━━
+
+- 관리자 회원가입 화면
+- 회원가입 성공 handler
+- 상태조회 API client
+- app/_layout.tsx 또는 role-based layout
+- pending.tsx
+- rejected.tsx
+- admin dashboard redirect code
+- auth/session refresh 관련 코드
+
+실제 파일 경로를 보고서에 적어라.
+
+━━━━━━━━━━━━━━━━━━
+7. 보고 형식
+━━━━━━━━━━━━━━━━━━
+
+1. 실제 원인
+- API 문제인지
+- 프론트 라우팅 문제인지
+- 상태조회 문제인지
+- 캐시 문제인지
+
+2. 수정한 파일
+- 파일 경로
+- 함수/컴포넌트명
+- 무엇을 바꿨는지
+
+3. 실제 검증 결과
+- TC1~TC4 PASS/FAIL
+- 회원가입 직후 어느 화면으로 갔는지
+- 더 이상 pending 화면이 안 뜨는지
+
+4. 내가 직접 확인할 위치
+- 앱에서 눌러볼 화면
+- DB에서 확인할 테이블/컬럼
+
+중요:
+- “approved로 저장되니까 정상” 같은 답변 금지
+- 앱 화면에서 pending이 뜨면 실패다
+- 실제로 pending 화면이 사라지고 대시보드로 가는 것까지 확인해야 완료다
+
+지금 바로 시작해라.
+먼저
+1) 가입 API 응답 approval_status 실측
+2) 회원가입 성공 후 navigation 분기
+3) pending.tsx 진입 조건
+이 3개부터 추적해라.

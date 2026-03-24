@@ -72,7 +72,12 @@ export default function PoolApplyScreen() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message || "신청에 실패했습니다.");
       await refreshPool();
-      router.replace("/pending");
+      const approvalStatus = data.data?.approval_status;
+      if (approvalStatus === "approved") {
+        router.replace("/(admin)/dashboard" as any);
+      } else {
+        router.replace("/pending");
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "신청에 실패했습니다.");
     } finally {
@@ -90,9 +95,9 @@ export default function PoolApplyScreen() {
           <View style={[styles.iconBox, { backgroundColor: C.tintLight }]}>
             <Feather name="map-pin" size={28} color={C.tint} />
           </View>
-          <Text style={[styles.title, { color: C.text }]}>수영장 등록 신청</Text>
+          <Text style={[styles.title, { color: C.text }]}>수영장 등록</Text>
           <Text style={[styles.subtitle, { color: C.textSecondary }]}>
-            수영장 기본 정보를 입력해 주세요.{"\n"}신청 내용은 플랫폼 운영자가 검토 후 승인합니다.
+            수영장 기본 정보를 입력해 주세요.{"\n"}등록 즉시 관리자 대시보드를 이용할 수 있습니다.
           </Text>
         </View>
 
@@ -163,9 +168,9 @@ export default function PoolApplyScreen() {
           </Field>
 
           <View style={[styles.notice, { backgroundColor: C.tintLight, borderRadius: 10, padding: 12 }]}>
-            <Feather name="info" size={14} color={C.tint} />
+            <Feather name="check-circle" size={14} color={C.tint} />
             <Text style={[styles.noticeText, { color: C.tint }]}>
-              신청 내용은 플랫폼 운영자가 검토 후 승인합니다.{"\n"}승인 후 입력한 아이디로 로그인할 수 있습니다.
+              등록 완료 즉시 관리자 대시보드로 이동합니다.{"\n"}별도 승인 절차 없이 바로 이용 가능합니다.
             </Text>
           </View>
 
@@ -175,8 +180,8 @@ export default function PoolApplyScreen() {
           >
             {loading ? <ActivityIndicator color="#fff" size="small" /> : (
               <View style={styles.btnContent}>
-                <Feather name="send" size={18} color="#fff" />
-                <Text style={styles.btnText}>신청서 제출하기</Text>
+                <Feather name="check-circle" size={18} color="#fff" />
+                <Text style={styles.btnText}>수영장 등록하기</Text>
               </View>
             )}
           </Pressable>
