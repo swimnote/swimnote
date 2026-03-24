@@ -76,7 +76,8 @@ router.post("/extra-classes", requireAuth, requireRole("pool_admin", "teacher"),
     // 등록 학생 이름 조회
     let studentNames: string[] = [];
     if (Array.isArray(student_ids) && student_ids.length > 0) {
-      const snRows = await db.execute(sql`SELECT id, name FROM students WHERE id = ANY(${student_ids})`);
+      const idsQueryLit = sql.raw(pgTextArrayLiteral(student_ids.filter(Boolean)));
+      const snRows = await db.execute(sql`SELECT id, name FROM students WHERE id = ANY(${idsQueryLit})`);
       const nameMap: Record<string, string> = {};
       (snRows.rows as any[]).forEach(r => { nameMap[r.id] = r.name; });
       studentNames = student_ids.map((sid: string) => nameMap[sid] || "알 수 없음");

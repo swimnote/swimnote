@@ -180,9 +180,7 @@ export default function BillingScreen() {
   const storagePct      = billingInfo?.storage_used_pct ?? 0;
   const storageColor    = storagePct >= 100 ? "#DC2626" : storagePct >= 90 ? "#D97706" : storagePct >= 80 ? "#F59E0B" : themeColor;
 
-  // MAX 플랜 사용자는 엔터프라이즈만 노출, 그 외는 현재 플랜보다 상위 플랜만 (다운그레이드 제외)
-  const planOrder = ["free","starter","basic","standard","growth","pro","max","enterprise_2000","enterprise_3000"];
-  const currentIdx = planOrder.indexOf(currentTier);
+  // MAX 플랜 사용자는 엔터프라이즈만 노출, 그 외는 전체 노출
   const visiblePlans = currentTier === "max"
     ? plans.filter(p => p.tier === "enterprise_2000" || p.tier === "enterprise_3000")
     : plans;

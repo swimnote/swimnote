@@ -272,15 +272,15 @@ async function scenarioH() {
     fail('토이키즈 basic 구독', JSON.stringify(rB.data));
   }
 
-  // H3. 비타스위밍 — 카드 등록 + growth 구독 (29,000원)
-  sub('H3. 비타스위밍 → growth 구독 (29,000원)');
+  // H3. 비타스위밍 — 카드 등록 + 어드밴스 구독 (29,000원)
+  sub('H3. 비타스위밍 → 어드밴스 구독 (29,000원)');
   await resetToFree(ADM_C);
   await registerCard(ADM_C);
   const rC = await api('POST', '/billing/subscribe', { tier: 'growth' }, ADM_C);
   if (rC.ok) {
-    pass('비타스위밍 growth 구독', `charged=${rC.data?.charged_amount}`);
+    pass('비타스위밍 어드밴스 구독', `charged=${rC.data?.charged_amount}`);
   } else {
-    fail('비타스위밍 growth 구독', JSON.stringify(rC.data));
+    fail('비타스위밍 어드밴스 구독', JSON.stringify(rC.data));
   }
 
   // H4. revenue_logs 건수 증가 확인

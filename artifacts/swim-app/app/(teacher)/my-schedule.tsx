@@ -1225,6 +1225,9 @@ export default function MyScheduleScreen() {
   // 일간 뷰 서브 선택 그룹
   const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(null);
 
+  // 오늘 기타수업 목록
+  const [todayExtras, setTodayExtras] = useState<any[]>([]);
+
   // 최초 마운트 여부 (useFocusEffect skip)
   const isMountedRef = useRef(false);
 
@@ -1239,6 +1242,19 @@ export default function MyScheduleScreen() {
   selectedDateRef.current = selectedDate;
 
   // ── 기본 데이터 로드 ──
+  const fetchTodayExtras = useCallback(async () => {
+    if (!poolId) return;
+    try {
+      const today = todayDateStr();
+      const res = await apiRequest(token, `/extra-classes?pool_id=${poolId}&month=${today.slice(0, 7)}`);
+      if (res.ok) {
+        const d = await res.json();
+        const all: any[] = d.extra_classes || [];
+        setTodayExtras(all.filter((e: any) => e.class_date === today));
+      }
+    } catch {}
+  }, [token, poolId]);
+
   const load = useCallback(async () => {
     const today = todayDateStr();
     try {
@@ -1265,6 +1281,7 @@ export default function MyScheduleScreen() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { fetchTodayExtras(); }, [fetchTodayExtras]);
 
   // ── openDate 파라미터: 홈에서 특정 날짜 팝업 자동 오픈 ──
   useEffect(() => {
@@ -1479,12 +1496,29 @@ export default function MyScheduleScreen() {
         {showExtraModal && poolId && (
           <ExtraClassModal token={token} poolId={poolId} group={g} groupStudents={groupStudents}
             onClose={() => setShowExtraModal(false)}
-            onCreated={() => { setShowExtraModal(false); load(); }} />
+            onCreated={() => { setShowExtraModal(false); load(); fetchTodayExtras(); }} />
         )}
         <FlatList data={groupStudents} keyExtractor={i => i.id}
           contentContainerStyle={s.studentList} showsVerticalScrollIndicator={false}
           ListEmptyComponent={<View style={s.emptyBox}><Feather name="users" size={32} color={C.textMuted} /><Text style={s.emptyText}>배정된 학생이 없습니다</Text></View>}
           ListHeaderComponent={<Text style={s.listHeader}>학생 {groupStudents.length}명</Text>}
+          ListFooterComponent={todayExtras.length > 0 ? (
+            <View style={s.extraSection}>
+              <Text style={s.listHeader}>오늘 기타수업 {todayExtras.length}건</Text>
+              {todayExtras.map((ex: any) => (
+                <View key={ex.id} style={s.extraItem}>
+                  <Feather name="plus-circle" size={14} color="#CA8A04" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.extraName}>{ex.class_name}</Text>
+                    {ex.student_names?.length > 0 && (
+                      <Text style={s.extraSub}>{ex.student_names.join(", ")}</Text>
+                    )}
+                  </View>
+                  <Text style={s.extraTime}>{ex.class_time}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           renderItem={({ item }) => {
             const wc = Math.min(item.weekly_count || 1, 3) as 1 | 2 | 3;
             const wb = WEEKLY_BADGE[wc];
@@ -1744,7 +1778,7 @@ export default function MyScheduleScreen() {
             || st.class_group_id === extraGroupForModal.id
           )}
           onClose={() => { setShowExtraModal(false); setExtraGroupForModal(null); }}
-          onCreated={() => { setShowExtraModal(false); setExtraGroupForModal(null); load(); }} />
+          onCreated={() => { setShowExtraModal(false); setExtraGroupForModal(null); load(); fetchTodayExtras(); }} />
       )}
     </SafeAreaView>
   );
@@ -1788,6 +1822,12 @@ const s = StyleSheet.create({
   connText:     { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   emptyBox:     { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
+  extraSection: { marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border, gap: 8 },
+  extraItem:    { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFFBEB",
+                  borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  extraName:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#92400E" },
+  extraSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#B45309", marginTop: 2 },
+  extraTime:    { fontSize: 12, fontFamily: "Inter_500Medium", color: "#CA8A04" },
 });
 
 // ─── 미등록회원 가져오기 Modal ──────────────────────────────────────
