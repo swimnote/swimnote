@@ -210,8 +210,16 @@ function MonthlyCalendar({
 
   const CELL_H = Math.max(72, Math.floor((SCREEN_W - 32) / 7 * 1.1));
   const CELL_W = Math.floor((SCREEN_W - 32) / 7);
-  const now = new Date();
-  const nowHour = now.getHours();
+  const nowHour = useMemo(() => new Date().getHours(), []);
+
+  // 날짜별 수업 목록 사전 계산 — 렌더마다 셀별로 재계산하지 않도록 memoize
+  const dateClassMap = useMemo(() => {
+    const map: Record<string, TeacherClassGroup[]> = {};
+    days.forEach(dateStr => {
+      if (dateStr) map[dateStr] = classesForDate(groups, dateStr);
+    });
+    return map;
+  }, [groups, days]);
 
   return (
     <View style={mc.root}>
@@ -247,7 +255,7 @@ function MonthlyCalendar({
             const isSelected    = !selectionMode && dateStr === selectedDate;
             const isMultiPicked = selectionMode && (selectedDates?.has(dateStr) ?? false);
             const isHoliday     = holidayDates.has(dateStr);
-            const cls        = classesForDate(groups, dateStr);
+            const cls        = dateClassMap[dateStr] ?? [];
             const dayNum     = parseInt(dateStr.split("-")[2]);
             const isSun      = di === 0;
             const isSat      = di === 6;
@@ -1047,6 +1055,11 @@ export default function MyScheduleScreen() {
   const pendingRestoreDateRef = useRef<string | null>(null);
   // openDate 파라미터 자동 오픈 처리 여부
   const autoOpenDoneRef = useRef(false);
+  // selectedDate ref: useFocusEffect deps에 넣지 않기 위해 ref로 최신값 유지
+  const selectedDateRef = useRef<string | null>(null);
+
+  // selectedDateRef 항상 최신값 동기화
+  selectedDateRef.current = selectedDate;
 
   // ── 기본 데이터 로드 ──
   const load = useCallback(async () => {
@@ -1164,6 +1177,7 @@ export default function MyScheduleScreen() {
   }
 
   // ── 포커스 복귀 시: 팝업 날짜 복원 + 데이터 갱신 ──
+  // selectedDate는 ref로 읽어 deps에서 제외 → 날짜 탭할 때마다 effect 재실행 방지
   useFocusEffect(useCallback(() => {
     if (!isMountedRef.current) { isMountedRef.current = true; return; }
 
@@ -1171,23 +1185,24 @@ export default function MyScheduleScreen() {
     if (pendingRestoreDateRef.current) {
       const d = pendingRestoreDateRef.current;
       pendingRestoreDateRef.current = null;
-      // 월간 뷰로 전환 후 팝업 복원
       setViewMode("monthly");
       setSelectedDate(d);
       loadDayData(d);
       loadMemo(d);
+      return;
     }
 
     // 학생 데이터 새로고침
     apiRequest(token, "/students").then(r => r.ok && r.json()).then(data => {
       if (Array.isArray(data)) setStudents(data);
     }).catch(() => {});
-    // 선택 날짜가 있으면 해당 날짜 데이터 갱신 (복원한 경우 제외)
-    if (selectedDate && !pendingRestoreDateRef.current) {
-      loadDayData(selectedDate);
-      loadMemo(selectedDate);
+    // 선택 날짜가 있으면 해당 날짜 데이터 갱신
+    const cur = selectedDateRef.current;
+    if (cur) {
+      loadDayData(cur);
+      loadMemo(cur);
     }
-  }, [token, selectedDate]));
+  }, [token]));
 
   // ── 탭 재탭 초기화 ──
   useEffect(() => {
@@ -1631,62 +1646,64 @@ function UnregisteredPickerModal({ token, classGroupId, themeColor, onClose, onA
   }
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={um.backdrop} onPress={onClose} />
-      <View style={um.sheet}>
-        <View style={um.handle} />
-        <View style={um.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={um.title}>미등록회원 가져오기</Text>
-            <Text style={um.sub}>반에 배정하면 정상회원으로 전환됩니다</Text>
+    <>
+      <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+        <Pressable style={um.backdrop} onPress={onClose} />
+        <View style={um.sheet}>
+          <View style={um.handle} />
+          <View style={um.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={um.title}>미등록회원 가져오기</Text>
+              <Text style={um.sub}>반에 배정하면 정상회원으로 전환됩니다</Text>
+            </View>
+            <Pressable onPress={onClose} style={{ padding: 4 }}>
+              <Feather name="x" size={20} color={C.textSecondary} />
+            </Pressable>
           </View>
-          <Pressable onPress={onClose} style={{ padding: 4 }}>
-            <Feather name="x" size={20} color={C.textSecondary} />
-          </Pressable>
-        </View>
-        <View style={um.searchBar}>
-          <Feather name="search" size={14} color={C.textMuted} />
-          <TextInput style={um.searchInput} value={q} onChangeText={setQ}
-            placeholder="이름·전화번호 검색" placeholderTextColor={C.textMuted} />
-          {!!q && <Pressable onPress={() => setQ("")}><Feather name="x" size={14} color={C.textMuted} /></Pressable>}
-        </View>
-        {loading ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={themeColor} />
-        ) : (
-          <ScrollView style={um.list} showsVerticalScrollIndicator={false}>
-            {filtered.length === 0 ? (
-              <View style={um.empty}>
-                <Feather name="users" size={28} color={C.textMuted} />
-                <Text style={um.emptyTxt}>미등록회원이 없습니다</Text>
-              </View>
-            ) : filtered.map(item => (
-              <View key={item.id} style={um.row}>
-                <View style={{ flex: 1 }}>
-                  <Text style={um.name}>{item.name}</Text>
-                  <Text style={um.phone}>{item.parent_phone || "-"}</Text>
-                  <Text style={[um.invTag,
-                    item.invite_status === "invited" ? { color: "#1F8F86" } :
-                    item.invite_status === "joined"  ? { color: "#1F8F86" } : { color: "#6F6B68" }
-                  ]}>{INVITE_LABEL[item.invite_status || "none"]}</Text>
+          <View style={um.searchBar}>
+            <Feather name="search" size={14} color={C.textMuted} />
+            <TextInput style={um.searchInput} value={q} onChangeText={setQ}
+              placeholder="이름·전화번호 검색" placeholderTextColor={C.textMuted} />
+            {!!q && <Pressable onPress={() => setQ("")}><Feather name="x" size={14} color={C.textMuted} /></Pressable>}
+          </View>
+          {loading ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color={themeColor} />
+          ) : (
+            <ScrollView style={um.list} showsVerticalScrollIndicator={false}>
+              {filtered.length === 0 ? (
+                <View style={um.empty}>
+                  <Feather name="users" size={28} color={C.textMuted} />
+                  <Text style={um.emptyTxt}>미등록회원이 없습니다</Text>
                 </View>
-                <Pressable style={[um.assignBtn, { backgroundColor: themeColor }]}
-                  onPress={() => setConfirmItem(item)} disabled={assigning === item.id}>
-                  {assigning === item.id
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Text style={um.assignTxt}>반배정</Text>}
-                </Pressable>
-              </View>
-            ))}
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        )}
-      </View>
+              ) : filtered.map(item => (
+                <View key={item.id} style={um.row}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={um.name}>{item.name}</Text>
+                    <Text style={um.phone}>{item.parent_phone || "-"}</Text>
+                    <Text style={[um.invTag,
+                      item.invite_status === "invited" ? { color: "#1F8F86" } :
+                      item.invite_status === "joined"  ? { color: "#1F8F86" } : { color: "#6F6B68" }
+                    ]}>{INVITE_LABEL[item.invite_status || "none"]}</Text>
+                  </View>
+                  <Pressable style={[um.assignBtn, { backgroundColor: themeColor }]}
+                    onPress={() => setConfirmItem(item)} disabled={assigning === item.id}>
+                    {assigning === item.id
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Text style={um.assignTxt}>반배정</Text>}
+                  </Pressable>
+                </View>
+              ))}
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
       <ConfirmModal visible={!!confirmItem} title="반배정"
         message={`${confirmItem?.name}을(를) 이 반에 배정하시겠습니까?\n배정 후 정상회원으로 전환됩니다.`}
         confirmText="배정" cancelText="취소"
         onConfirm={() => { const s = confirmItem; setConfirmItem(null); doAssign(s); }}
         onCancel={() => setConfirmItem(null)} />
-    </Modal>
+    </>
   );
 }
 const um = StyleSheet.create({
@@ -1761,7 +1778,8 @@ function MoveToClassModal({ token, classGroup, classGroups, students, themeColor
     : "";
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+    <>
+      <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={rm.backdrop} onPress={onClose} />
       <View style={rm.sheet}>
         <View style={rm.handle} />
@@ -1827,11 +1845,12 @@ function MoveToClassModal({ token, classGroup, classGroups, students, themeColor
           </>
         )}
       </View>
+      </Modal>
       <ConfirmModal visible={step === "confirm" && !!selected && !!fromClassId}
         title="반이동 확인" message={confirmMsg} confirmText="이동" cancelText="취소"
         onConfirm={() => { setStep("list"); doMove(); }}
         onCancel={() => setStep(selected && teacherClassesOf(selected).length > 1 ? "pick-class" : "list")} />
-    </Modal>
+    </>
   );
 }
 const rm = StyleSheet.create({
