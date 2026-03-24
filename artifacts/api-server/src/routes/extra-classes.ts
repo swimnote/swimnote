@@ -11,6 +11,12 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 
+function pgTextArrayLiteral(arr: string[]): string {
+  if (arr.length === 0) return "'{}'::text[]";
+  const escaped = arr.map(s => `"${String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`);
+  return `'{${escaped.join(",")}}'::text[]`;
+}
+
 const router = Router();
 
 function err(res: Response, status: number, msg: string) {
@@ -80,9 +86,13 @@ router.post("/extra-classes", requireAuth, requireRole("pool_admin", "teacher"),
     const extraNames: string[] = Array.isArray(unregistered_names) ? unregistered_names.filter(Boolean) : [];
     const allNames = [...studentNames, ...extraNames];
 
+    const safeIds   = Array.isArray(student_ids) ? student_ids.filter(Boolean) : [];
+    const idsLit    = sql.raw(pgTextArrayLiteral(safeIds));
+    const namesLit  = sql.raw(pgTextArrayLiteral(allNames));
+
     const rows = await db.execute(sql`
       INSERT INTO extra_classes (id, pool_id, teacher_user_id, teacher_name, class_name, class_date, class_time, student_ids, student_names, is_fifth_week, notes)
-      VALUES (gen_random_uuid()::text, ${pool_id}, ${userId}, ${teacherName}, ${class_name}, ${class_date}, ${class_time}, ${student_ids || []}, ${allNames}, ${!!is_fifth_week}, ${notes || null})
+      VALUES (gen_random_uuid()::text, ${pool_id}, ${userId}, ${teacherName}, ${class_name}, ${class_date}, ${class_time}, ${idsLit}, ${namesLit}, ${!!is_fifth_week}, ${notes || null})
       RETURNING *
     `);
 
