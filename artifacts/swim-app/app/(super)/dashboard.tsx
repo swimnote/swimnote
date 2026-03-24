@@ -1,20 +1,16 @@
 /**
  * (super)/dashboard.tsx — 슈퍼관리자 운영 콘솔
- * 홈: 6대 KPI → 오늘 처리할 일 큐(인라인 액션) → 9개 메뉴 그리드
+ * Zustand 완전 제거 → GET /super/dashboard-stats, /super/risk-summary, /super/recent-audit-logs 실 API 연동
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
-import { useOperatorsStore } from "@/store/operatorsStore";
-import { useAuditLogStore } from "@/store/auditLogStore";
-import { useRiskStore } from "@/store/riskStore";
-import { useSupportStore } from "@/store/supportStore";
+import { useAuth, apiRequest } from "@/context/AuthContext";
 
 const P = "#7C3AED";
 
@@ -37,6 +33,14 @@ interface Todo {
   security_events: TodoItem[];
   support_open_count: number;
   support_overdue_count: number;
+}
+interface RiskSummary {
+  payment_risk: number; storage_risk: number; deletion_pending: number;
+  policy_unsigned: number; sla_overdue: number; security_events: number;
+}
+interface AuditLogItem {
+  id: string; category: string; description?: string;
+  actor_name?: string; pool_name?: string; created_at: string;
 }
 
 const MENUS = [
@@ -69,7 +73,6 @@ function relStr(iso: string | null | undefined): string {
   return `${Math.floor(h / 24)}일 전`;
 }
 
-// ─── 처리 큐 행 ─────────────────────────────────────────────────
 function TodoRow({
   item, onAction, color,
 }: {
@@ -126,7 +129,6 @@ const tr = StyleSheet.create({
   btnTxt:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });
 
-// ─── 처리 큐 섹션 ────────────────────────────────────────────────
 function TodoSection({
   title, count, color, bg, icon, items, renderItem, path, pathLabel,
 }: {
@@ -178,110 +180,80 @@ const ts = StyleSheet.create({
   moreTxt:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 });
 
-// ─── 메인 컴포넌트 ────────────────────────────────────────────────
-interface RiskSummary {
-  payment_risk: number;
-  storage_risk: number;
-  deletion_pending: number;
-  policy_unsigned: number;
-  sla_overdue: number;
-  security_events: number;
-  feature_errors: number;
-  external_services: number;
-  backup_failures: number;
-  abuse_detected: number;
-}
-
-interface AuditLogItem {
-  id: string;
-  category: string;
-  description?: string;
-  actor_name?: string;
-  pool_name?: string;
-  created_at: string;
-}
-
 export default function SuperDashboard() {
-  const { logout, adminUser } = useAuth();
-  const actorName = adminUser?.name ?? '슈퍼관리자';
+  const { logout, adminUser, token } = useAuth() as any;
+
+  const [stats,      setStats]      = useState<Stats | null>(null);
+  const [todo,       setTodo]       = useState<Todo | null>(null);
+  const [riskSummary, setRiskSummary] = useState<RiskSummary | null>(null);
+  const [recentLogs, setRecentLogs] = useState<AuditLogItem[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const operators      = useOperatorsStore(s => s.operators);
-  const scheduleDelete = useOperatorsStore(s => s.scheduleAutoDelete);
-  const createLog      = useAuditLogStore(s => s.createLog);
-  const allLogs        = useAuditLogStore(s => s.logs);
-  const recentLogs     = useMemo(() => allLogs.slice(0, 5), [allLogs]);
-  const riskSummary    = useRiskStore(s => s.summary);
-  const openCount      = useSupportStore(s => s.getOpenCount());
-  const slaOverdue     = useSupportStore(s => s.getSlaOverdueCount());
+  const load = useCallback(async (isRefresh = false) => {
+    if (!isRefresh) setLoading(true);
+    try {
+      const [dashData, riskData, logsData] = await Promise.all([
+        apiRequest(token, "/super/dashboard-stats"),
+        apiRequest(token, "/super/risk-summary"),
+        apiRequest(token, "/super/recent-audit-logs?limit=5"),
+      ]);
+      setStats(dashData.stats ?? null);
+      setTodo(dashData.todo ?? null);
+      setRiskSummary(riskData ?? null);
+      setRecentLogs(logsData.logs ?? []);
+    } catch {
+      // 네트워크 오류 시 기존 상태 유지
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token]);
 
-  // Derived stats
-  const stats = useMemo(() => ({
-    total_operators:    operators.length,
-    active_operators:   operators.filter(o => o.status === 'active').length,
-    pending_operators:  operators.filter(o => o.status === 'pending').length,
-    payment_issue_count: operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace').length,
-    storage_danger_count: operators.filter(o => o.storageBlocked95).length,
-    deletion_pending_count: operators.filter(o => !!o.autoDeleteScheduledAt).length,
-  }), [operators]);
+  useEffect(() => { load(); }, [load]);
 
-  // Derive todo queues from operators (승인 절차 없음 — 수영장은 가입 즉시 활성화됨)
-  const todo = useMemo(() => ({
-    payment_failed: operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace').slice(0, 5).map(o => ({
-      id: o.id, name: o.name, owner_name: o.representativeName,
-      todo_type: 'payment_failed', subscription_status: o.billingStatus, created_at: o.lastLoginAt,
-    })),
-    storage_danger: operators.filter(o => o.storageBlocked95).slice(0, 5).map(o => ({
-      id: o.id, name: o.name, owner_name: o.representativeName,
-      todo_type: 'storage_danger',
-      usage_pct: Math.round((o.storageUsedMb / o.storageTotalMb) * 100),
-      total_gb: +(o.storageTotalMb / 1024).toFixed(1), created_at: o.lastLoginAt,
-    })),
-    deletion_pending: operators.filter(o => !!o.autoDeleteScheduledAt).slice(0, 5).map(o => {
-      const msLeft = new Date(o.autoDeleteScheduledAt!).getTime() - Date.now();
-      return {
-        id: o.id, name: o.name, owner_name: o.representativeName,
-        todo_type: 'deletion_pending',
-        hours_left: Math.max(0, msLeft / 3600000), created_at: o.autoDeleteScheduledAt,
-      };
-    }),
-    policy_unsigned: operators.filter(o => !o.policyRefundRead || !o.policyPrivacyRead).slice(0, 5).map(o => ({
-      id: o.id, name: o.name, owner_name: o.representativeName,
-      todo_type: 'policy_unsigned', created_at: o.createdAt,
-    })),
-    security_events: operators.filter(o => o.refundRepeatFlag || o.uploadSpikeFlag).slice(0, 3).map(o => ({
-      id: o.id, name: o.name, pool_name: o.name,
-      actor_name: o.representativeName, todo_type: 'security',
-      description: o.refundRepeatFlag ? '반복 환불 감지' : '업로드 급증',
-      created_at: o.lastLoginAt,
-    })),
-    support_open_count: openCount,
-    support_overdue_count: slaOverdue,
-  }), [operators, openCount, slaOverdue]);
-
-  function doAction(action: string, id: string) {
-    const op = operators.find(o => o.id === id);
-    if (!op) return;
-    if (action === "defer") {
-      const at = new Date(Date.now() + 48 * 3600000).toISOString();
-      scheduleDelete(id, at);
-      createLog({ category: '운영자관리', title: `${op.name} 자동삭제 48h 유예`, operatorId: id, operatorName: op.name, actorName, impact: 'high', detail: '자동삭제 유예 48시간' });
-    } else if (action === "policy_reminder") {
-      createLog({ category: '정책', title: `${op.name} 정책 확인 요청`, operatorId: id, operatorName: op.name, actorName, impact: 'low', detail: '환불정책 확인 알림 발송' });
+  async function doAction(action: string, id: string) {
+    try {
+      if (action === "approve") {
+        await apiRequest(token, `/super/operators/${id}/approve`, { method: "PATCH" });
+        Alert.alert("완료", "운영 승인이 처리되었습니다.");
+      } else if (action === "reject") {
+        await apiRequest(token, `/super/operators/${id}/reject`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: "기준 미달" }),
+        });
+        Alert.alert("완료", "반려 처리가 완료되었습니다.");
+      } else if (action === "defer") {
+        await apiRequest(token, `/super/operators/${id}/defer-deletion`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hours: 48 }),
+        });
+        Alert.alert("완료", "자동삭제를 48시간 유예했습니다.");
+      } else if (action === "policy_reminder") {
+        await apiRequest(token, `/super/operators/${id}/policy-reminder`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ policy_key: "refund_policy" }),
+        });
+        Alert.alert("완료", "정책 재알림을 발송했습니다.");
+      }
+      load(true);
+    } catch {
+      Alert.alert("오류", "처리에 실패했습니다.");
     }
   }
 
   const today = new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
-  const totalAlerts = stats.payment_issue_count + stats.storage_danger_count + stats.deletion_pending_count;
-  const todoCount = todo.payment_failed.length +
-    todo.storage_danger.length + todo.deletion_pending.length +
-    todo.policy_unsigned.length + todo.security_events.length +
-    todo.support_open_count;
-  const loading = false;
+  const totalAlerts = (stats?.payment_issue_count ?? 0) + (stats?.storage_danger_count ?? 0) + (stats?.deletion_pending_count ?? 0);
+  const todoCount = (todo?.pending_approval.length ?? 0) + (todo?.payment_failed.length ?? 0) +
+    (todo?.storage_danger.length ?? 0) + (todo?.deletion_pending.length ?? 0) +
+    (todo?.policy_unsigned.length ?? 0) + (todo?.security_events.length ?? 0) +
+    (todo?.support_open_count ?? 0);
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      {/* 헤더 */}
       <View style={s.header}>
         <View>
           <Text style={s.headerTitle}>운영 콘솔</Text>
@@ -306,191 +278,202 @@ export default function SuperDashboard() {
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
+          onRefresh={() => { setRefreshing(true); load(true); }} />}>
 
-        {/* ── 6대 KPI ── */}
         {loading ? (
-          <ActivityIndicator color={P} style={{ marginVertical: 20 }} />
+          <ActivityIndicator color={P} style={{ marginVertical: 40 }} />
         ) : (
-          <View style={s.statsGrid}>
-            {[
-              { label: "전체 운영자",   v: stats?.total_operators ?? 0,       alert: false, path: "/(super)/pools" },
-              { label: "활성 운영자",   v: stats?.active_operators ?? 0,      alert: false, path: "/(super)/pools" },
-              { label: "승인 대기",     v: stats?.pending_operators ?? 0,     alert: true,  path: "/(super)/pools?filter=pending" },
-              { label: "결제 이슈",     v: stats?.payment_issue_count ?? 0,   alert: true,  path: "/(super)/subscriptions" },
-              { label: "저장 위험",     v: stats?.storage_danger_count ?? 0,  alert: true,  path: "/(super)/storage" },
-              { label: "24h 삭제",      v: stats?.deletion_pending_count ?? 0, alert: true, path: "/(super)/risk-center" },
-            ].map((item, i) => (
-              <Pressable key={i} style={[s.statCard, item.alert && item.v > 0 && s.statAlert]}
-                onPress={() => router.push(item.path as any)}>
-                {item.alert && item.v > 0 && <View style={s.alertDot} />}
-                <Text style={[s.statNum, item.alert && item.v > 0 && { color: "#D96C6C" }]}>{item.v}</Text>
-                <Text style={s.statLabel}>{item.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-
-        {/* ── 오늘 처리할 일 ── */}
-        {!loading && todoCount > 0 && (
-          <View style={s.todoSection}>
-            <View style={s.todoHeader}>
-              <Feather name="clipboard" size={15} color="#1F1F1F" />
-              <Text style={s.todoHeaderTxt}>오늘 처리할 일</Text>
-              <View style={s.todoBadge}>
-                <Text style={s.todoBadgeTxt}>{todoCount}</Text>
-              </View>
-            </View>
-
-            {/* 결제 실패 */}
-            <TodoSection
-              title="결제 실패" count={todo?.payment_failed.length ?? 0}
-              color="#D96C6C" bg="#F9DEDA" icon="credit-card"
-              items={todo?.payment_failed ?? []}
-              renderItem={(item: TodoItem) => (
-                <TodoRow item={item} color="#D96C6C" onAction={doAction} />
-              )}
-              path="/(super)/subscriptions"
-            />
-
-            {/* 저장공간 위험 */}
-            <TodoSection
-              title="저장 95% 초과" count={todo?.storage_danger.length ?? 0}
-              color={P} bg="#EEDDF5" icon="hard-drive"
-              items={todo?.storage_danger ?? []}
-              renderItem={(item: TodoItem) => (
-                <TodoRow item={item} color={P} onAction={doAction} />
-              )}
-              path="/(super)/storage"
-            />
-
-            {/* 자동삭제 예정 */}
-            <TodoSection
-              title="24h 내 자동삭제" count={todo?.deletion_pending.length ?? 0}
-              color="#1F8F86" bg="#ECFEFF" icon="clock"
-              items={todo?.deletion_pending ?? []}
-              renderItem={(item: TodoItem) => (
-                <TodoRow item={item} color="#1F8F86" onAction={doAction} />
-              )}
-              path="/(super)/risk-center"
-            />
-
-            {/* 정책 미확인 */}
-            <TodoSection
-              title="정책 미확인" count={todo?.policy_unsigned.length ?? 0}
-              color="#1F8F86" bg="#DDF2EF" icon="file-text"
-              items={todo?.policy_unsigned ?? []}
-              renderItem={(item: TodoItem) => (
-                <TodoRow item={item} color="#1F8F86" onAction={doAction} />
-              )}
-              path="/(super)/policy"
-            />
-
-            {/* 보안 이벤트 */}
-            {(todo?.security_events.length ?? 0) > 0 && (
-              <TodoSection
-                title="보안 이벤트 (24h)" count={todo?.security_events.length ?? 0}
-                color="#991B1B" bg="#F9DEDA" icon="shield"
-                items={todo?.security_events ?? []}
-                renderItem={(item: TodoItem) => (
-                  <View style={[tr.row, { borderLeftColor: "#991B1B" }]}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={tr.name} numberOfLines={1}>{item.pool_name ?? item.name ?? "플랫폼"}</Text>
-                      <Text style={tr.sub} numberOfLines={1}>{item.description ?? ""} · {relStr(item.created_at)}</Text>
-                    </View>
-                    <Pressable style={[tr.btn, { backgroundColor: "#F9DEDA" }]}
-                      onPress={() => router.push("/(super)/op-logs" as any)}>
-                      <Text style={[tr.btnTxt, { color: "#991B1B" }]}>로그</Text>
-                    </Pressable>
-                  </View>
-                )}
-                path="/(super)/op-logs"
-              />
-            )}
-
-            {/* 고객센터 미처리 배너 */}
-            {(todo?.support_open_count ?? 0) > 0 && (
-              <Pressable style={s.supportBanner} onPress={() => router.push("/(super)/support" as any)}>
-                <View style={[ts.iconWrap, { backgroundColor: "#E0F2FE" }]}>
-                  <Feather name="message-circle" size={14} color="#0284C7" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.supportTitle}>고객센터 미처리</Text>
-                  <Text style={s.supportSub}>
-                    처리 대기 {todo?.support_open_count ?? 0}건
-                    {(todo?.support_overdue_count ?? 0) > 0 && ` · SLA 초과 ${todo?.support_overdue_count}건`}
-                  </Text>
-                </View>
-                {(todo?.support_overdue_count ?? 0) > 0 && (
-                  <View style={[ts.badge, { backgroundColor: "#D96C6C" }]}>
-                    <Text style={ts.badgeTxt}>{todo?.support_overdue_count}</Text>
-                  </View>
-                )}
-                <Feather name="chevron-right" size={14} color="#0284C7" />
-              </Pressable>
-            )}
-          </View>
-        )}
-
-        {/* ── 리스크 요약 ── */}
-        {!loading && (
-          <View style={s.riskSection}>
-            <Pressable style={s.riskHeader} onPress={() => router.push("/(super)/risk-center" as any)}>
-              <Feather name="shield" size={15} color="#9333EA" />
-              <Text style={s.riskHeaderTxt}>리스크 요약</Text>
-              <Feather name="chevron-right" size={14} color="#6F6B68" style={{ marginLeft: "auto" }} />
-            </Pressable>
-            <View style={s.riskGrid}>
+          <>
+            {/* ── 6대 KPI ── */}
+            <View style={s.statsGrid}>
               {[
-                { label: "결제 리스크",    v: riskSummary.paymentRisk,    color: "#D96C6C", path: "/(super)/subscriptions" },
-                { label: "저장공간 리스크", v: riskSummary.storageRisk,    color: "#D97706", path: "/(super)/storage" },
-                { label: "삭제 예정",      v: riskSummary.deletionPending, color: "#1F8F86", path: "/(super)/risk-center" },
-                { label: "정책 미확인",    v: riskSummary.policyUnsigned,  color: "#1F8F86", path: "/(super)/policy" },
-                { label: "SLA 초과",       v: riskSummary.slaOverdue,      color: "#D96C6C", path: "/(super)/support" },
-                { label: "보안 이벤트",    v: riskSummary.securityEvents,  color: "#991B1B", path: "/(super)/op-logs" },
-              ].map((item) => (
-                <Pressable key={item.label} style={s.riskCard}
+                { label: "전체 운영자",   v: stats?.total_operators ?? 0,        alert: false, path: "/(super)/pools" },
+                { label: "활성 운영자",   v: stats?.active_operators ?? 0,       alert: false, path: "/(super)/pools" },
+                { label: "승인 대기",     v: stats?.pending_operators ?? 0,      alert: true,  path: "/(super)/pools?filter=pending" },
+                { label: "결제 이슈",     v: stats?.payment_issue_count ?? 0,    alert: true,  path: "/(super)/subscriptions" },
+                { label: "저장 위험",     v: stats?.storage_danger_count ?? 0,   alert: true,  path: "/(super)/storage" },
+                { label: "24h 삭제",      v: stats?.deletion_pending_count ?? 0, alert: true,  path: "/(super)/risk-center" },
+              ].map((item, i) => (
+                <Pressable key={i} style={[s.statCard, item.alert && item.v > 0 && s.statAlert]}
                   onPress={() => router.push(item.path as any)}>
-                  <Text style={[s.riskNum, item.v > 0 && { color: item.color }]}>{item.v}</Text>
-                  <Text style={s.riskLabel}>{item.label}</Text>
-                  {item.v > 0 && <View style={[s.riskDot, { backgroundColor: item.color }]} />}
+                  {item.alert && item.v > 0 && <View style={s.alertDot} />}
+                  <Text style={[s.statNum, item.alert && item.v > 0 && { color: "#D96C6C" }]}>{item.v}</Text>
+                  <Text style={s.statLabel}>{item.label}</Text>
                 </Pressable>
               ))}
             </View>
-          </View>
-        )}
 
-        {/* ── 최근 감사 로그 5개 ── */}
-        {!loading && (
-          <View style={s.auditSection}>
-            <Pressable style={s.auditHeader} onPress={() => router.push("/(super)/op-logs" as any)}>
-              <Feather name="activity" size={15} color="#1F8F86" />
-              <Text style={s.auditHeaderTxt}>최근 감사 로그</Text>
-              <Feather name="chevron-right" size={14} color="#6F6B68" style={{ marginLeft: "auto" }} />
-            </Pressable>
-            {recentLogs.length === 0 ? (
-              <View style={s.auditEmpty}>
-                <Text style={s.auditEmptyTxt}>기록된 감사 로그가 없습니다</Text>
-              </View>
-            ) : (
-              recentLogs.map((log) => {
-                const d = new Date(log.createdAt);
-                const timeStr = isNaN(d.getTime()) ? "—" :
-                  d.toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-                return (
-                  <View key={log.id} style={s.auditRow}>
-                    <View style={s.auditCatBadge}>
-                      <Text style={s.auditCatTxt} numberOfLines={1}>{log.category ?? "—"}</Text>
+            {/* ── 오늘 처리할 일 ── */}
+            {todoCount > 0 && (
+              <View style={s.todoSection}>
+                <View style={s.todoHeader}>
+                  <Feather name="clipboard" size={15} color="#1F1F1F" />
+                  <Text style={s.todoHeaderTxt}>오늘 처리할 일</Text>
+                  <View style={s.todoBadge}>
+                    <Text style={s.todoBadgeTxt}>{todoCount}</Text>
+                  </View>
+                </View>
+
+                {/* 승인 대기 */}
+                <TodoSection
+                  title="승인 대기" count={todo?.pending_approval.length ?? 0}
+                  color="#D97706" bg="#FFF1BF" icon="user-check"
+                  items={todo?.pending_approval ?? []}
+                  renderItem={(item: TodoItem) => (
+                    <TodoRow item={item} color="#D97706" onAction={doAction} />
+                  )}
+                  path="/(super)/pools?filter=pending"
+                />
+
+                {/* 결제 실패 */}
+                <TodoSection
+                  title="결제 실패" count={todo?.payment_failed.length ?? 0}
+                  color="#D96C6C" bg="#F9DEDA" icon="credit-card"
+                  items={todo?.payment_failed ?? []}
+                  renderItem={(item: TodoItem) => (
+                    <TodoRow item={item} color="#D96C6C" onAction={doAction} />
+                  )}
+                  path="/(super)/subscriptions"
+                />
+
+                {/* 저장공간 위험 */}
+                <TodoSection
+                  title="저장 95% 초과" count={todo?.storage_danger.length ?? 0}
+                  color={P} bg="#EEDDF5" icon="hard-drive"
+                  items={todo?.storage_danger ?? []}
+                  renderItem={(item: TodoItem) => (
+                    <TodoRow item={item} color={P} onAction={doAction} />
+                  )}
+                  path="/(super)/storage"
+                />
+
+                {/* 자동삭제 예정 */}
+                <TodoSection
+                  title="24h 내 자동삭제" count={todo?.deletion_pending.length ?? 0}
+                  color="#1F8F86" bg="#ECFEFF" icon="clock"
+                  items={todo?.deletion_pending ?? []}
+                  renderItem={(item: TodoItem) => (
+                    <TodoRow item={item} color="#1F8F86" onAction={doAction} />
+                  )}
+                  path="/(super)/risk-center"
+                />
+
+                {/* 정책 미확인 */}
+                <TodoSection
+                  title="정책 미확인" count={todo?.policy_unsigned.length ?? 0}
+                  color="#1F8F86" bg="#DDF2EF" icon="file-text"
+                  items={todo?.policy_unsigned ?? []}
+                  renderItem={(item: TodoItem) => (
+                    <TodoRow item={item} color="#1F8F86" onAction={doAction} />
+                  )}
+                  path="/(super)/policy"
+                />
+
+                {/* 보안 이벤트 */}
+                {(todo?.security_events.length ?? 0) > 0 && (
+                  <TodoSection
+                    title="보안 이벤트 (24h)" count={todo?.security_events.length ?? 0}
+                    color="#991B1B" bg="#F9DEDA" icon="shield"
+                    items={todo?.security_events ?? []}
+                    renderItem={(item: TodoItem) => (
+                      <View style={[tr.row, { borderLeftColor: "#991B1B" }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={tr.name} numberOfLines={1}>{item.pool_name ?? item.name ?? "플랫폼"}</Text>
+                          <Text style={tr.sub} numberOfLines={1}>{item.description ?? ""} · {relStr(item.created_at)}</Text>
+                        </View>
+                        <Pressable style={[tr.btn, { backgroundColor: "#F9DEDA" }]}
+                          onPress={() => router.push("/(super)/op-logs" as any)}>
+                          <Text style={[tr.btnTxt, { color: "#991B1B" }]}>로그</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    path="/(super)/op-logs"
+                  />
+                )}
+
+                {/* 고객센터 미처리 배너 */}
+                {(todo?.support_open_count ?? 0) > 0 && (
+                  <Pressable style={s.supportBanner} onPress={() => router.push("/(super)/support" as any)}>
+                    <View style={[ts.iconWrap, { backgroundColor: "#E0F2FE" }]}>
+                      <Feather name="message-circle" size={14} color="#0284C7" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.auditDesc} numberOfLines={1}>{log.title ?? log.detail ?? "—"}</Text>
-                      <Text style={s.auditMeta}>{log.actorName ?? "시스템"} · {timeStr}</Text>
+                      <Text style={s.supportTitle}>고객센터 미처리</Text>
+                      <Text style={s.supportSub}>
+                        처리 대기 {todo?.support_open_count ?? 0}건
+                        {(todo?.support_overdue_count ?? 0) > 0 && ` · SLA 초과 ${todo?.support_overdue_count}건`}
+                      </Text>
                     </View>
-                  </View>
-                );
-              })
+                    {(todo?.support_overdue_count ?? 0) > 0 && (
+                      <View style={[ts.badge, { backgroundColor: "#D96C6C" }]}>
+                        <Text style={ts.badgeTxt}>{todo?.support_overdue_count}</Text>
+                      </View>
+                    )}
+                    <Feather name="chevron-right" size={14} color="#0284C7" />
+                  </Pressable>
+                )}
+              </View>
             )}
-          </View>
+
+            {/* ── 리스크 요약 ── */}
+            {riskSummary && (
+              <View style={s.riskSection}>
+                <Pressable style={s.riskHeader} onPress={() => router.push("/(super)/risk-center" as any)}>
+                  <Feather name="shield" size={15} color="#9333EA" />
+                  <Text style={s.riskHeaderTxt}>리스크 요약</Text>
+                  <Feather name="chevron-right" size={14} color="#6F6B68" style={{ marginLeft: "auto" }} />
+                </Pressable>
+                <View style={s.riskGrid}>
+                  {[
+                    { label: "결제 리스크",    v: riskSummary.payment_risk,    color: "#D96C6C", path: "/(super)/subscriptions" },
+                    { label: "저장공간 리스크", v: riskSummary.storage_risk,    color: "#D97706", path: "/(super)/storage" },
+                    { label: "삭제 예정",      v: riskSummary.deletion_pending, color: "#1F8F86", path: "/(super)/risk-center" },
+                    { label: "정책 미확인",    v: riskSummary.policy_unsigned,  color: "#1F8F86", path: "/(super)/policy" },
+                    { label: "SLA 초과",       v: riskSummary.sla_overdue,      color: "#D96C6C", path: "/(super)/support" },
+                    { label: "보안 이벤트",    v: riskSummary.security_events,  color: "#991B1B", path: "/(super)/op-logs" },
+                  ].map((item) => (
+                    <Pressable key={item.label} style={s.riskCard}
+                      onPress={() => router.push(item.path as any)}>
+                      <Text style={[s.riskNum, item.v > 0 && { color: item.color }]}>{item.v}</Text>
+                      <Text style={s.riskLabel}>{item.label}</Text>
+                      {item.v > 0 && <View style={[s.riskDot, { backgroundColor: item.color }]} />}
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* ── 최근 감사 로그 5개 ── */}
+            <View style={s.auditSection}>
+              <Pressable style={s.auditHeader} onPress={() => router.push("/(super)/op-logs" as any)}>
+                <Feather name="activity" size={15} color="#1F8F86" />
+                <Text style={s.auditHeaderTxt}>최근 감사 로그</Text>
+                <Feather name="chevron-right" size={14} color="#6F6B68" style={{ marginLeft: "auto" }} />
+              </Pressable>
+              {recentLogs.length === 0 ? (
+                <View style={s.auditEmpty}>
+                  <Text style={s.auditEmptyTxt}>기록된 감사 로그가 없습니다</Text>
+                </View>
+              ) : (
+                recentLogs.map((log) => {
+                  const d = new Date(log.created_at);
+                  const timeStr = isNaN(d.getTime()) ? "—" :
+                    d.toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <View key={log.id} style={s.auditRow}>
+                      <View style={s.auditCatBadge}>
+                        <Text style={s.auditCatTxt} numberOfLines={1}>{log.category ?? "—"}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.auditDesc} numberOfLines={1}>{log.description ?? "—"}</Text>
+                        <Text style={s.auditMeta}>{log.actor_name ?? "시스템"} · {timeStr}</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </>
         )}
 
         {/* ── 메뉴 그리드 ── */}
@@ -528,7 +511,6 @@ const s = StyleSheet.create({
   alertPillTxt:  { fontSize: 11, fontFamily: "Inter_700Bold", color: "#D96C6C" },
   avatarCircle:  { width: 34, height: 34, borderRadius: 17, backgroundColor: P,
                    alignItems: "center", justifyContent: "center" },
-  avatarTxt:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
   logoutBtn:     { width: 34, height: 34, borderRadius: 9, backgroundColor: "rgba(124,58,237,0.1)",
                    alignItems: "center", justifyContent: "center" },
 
@@ -541,7 +523,6 @@ const s = StyleSheet.create({
   statNum:       { fontSize: 24, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   statLabel:     { fontSize: 10, fontFamily: "Inter_500Medium", color: "#6F6B68", marginTop: 2, lineHeight: 14 },
 
-  // 처리 큐 영역
   todoSection:   { marginHorizontal: 14, marginBottom: 14 },
   todoHeader:    { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   todoHeaderTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F", flex: 1 },
@@ -562,16 +543,6 @@ const s = StyleSheet.create({
   menuTitle:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
   menuSub:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68", lineHeight: 15 },
 
-  // 반려 모달
-  overlay:       { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
-  rejectSheet:   { backgroundColor: "#fff", borderRadius: 20, padding: 20, margin: 16 },
-  rejectTitle:   { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 12 },
-  rejectInput:   { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 12,
-                   fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", minHeight: 80,
-                   textAlignVertical: "top" },
-  rejectBtn:     { borderRadius: 10, paddingVertical: 12, alignItems: "center" },
-
-  // 리스크 요약
   riskSection:   { marginHorizontal: 14, marginBottom: 14, backgroundColor: "#FFFFFF",
                    borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E9E2DD" },
   riskHeader:    { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
@@ -583,7 +554,6 @@ const s = StyleSheet.create({
   riskLabel:     { fontSize: 9, fontFamily: "Inter_500Medium", color: "#6F6B68", marginTop: 3, lineHeight: 13 },
   riskDot:       { position: "absolute", top: 6, right: 6, width: 6, height: 6, borderRadius: 3 },
 
-  // 감사 로그
   auditSection:  { marginHorizontal: 14, marginBottom: 14, backgroundColor: "#FFFFFF",
                    borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E9E2DD" },
   auditHeader:   { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },

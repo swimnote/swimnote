@@ -1,32 +1,37 @@
 /**
  * (super)/operator-detail.tsx — 운영자 상세 (6탭)
  * 기본정보 / 구독·결제 / 저장공간 / 정책·동의 / 로그 / 강제조치
- * operatorsStore + auditLogStore — API 호출 없음
+ * Zustand 완전 제거 → GET /super/operators/:id 실 API 연동
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Modal, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
+  ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
+import { apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
-import { useOperatorsStore } from "@/store/operatorsStore";
-import { useStorageStore } from "@/store/storageStore";
-import { useExtraStorageStore } from "@/store/extraStorageStore";
-import { useAuditLogStore } from "@/store/auditLogStore";
-import { useOperatorEventLogStore } from "@/store/operatorEventLogStore";
 
 const P = "#7C3AED";
 
 const TABS = ["기본정보", "구독·결제", "저장공간", "정책·동의", "로그", "강제조치"] as const;
 type Tab = typeof TABS[number];
 
-function fmtMb(mb: number): string {
-  if (!mb || mb === 0) return "0 MB";
+const TIER_NAME: Record<string, string> = {
+  basic:    "베이직",
+  standard: "스탠다드",
+  growth:   "어드밴스",
+  premium:  "프리미엄",
+  trial:    "무료 체험",
+};
+
+function fmtBytes(bytes: number | null | undefined): string {
+  if (!bytes || bytes === 0) return "0 MB";
+  const mb = bytes / 1048576;
   if (mb < 1024) return `${mb.toFixed(0)} MB`;
   return `${(mb / 1024).toFixed(2)} GB`;
 }
@@ -55,60 +60,99 @@ function InfoRow({ label, value, alert }: { label: string; value: string; alert?
 }
 
 const BILLING_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  trial:          { label: "체험 중",      color: P,         bg: "#EEDDF5" },
-  active:         { label: "구독 중",      color: "#1F8F86", bg: "#DDF2EF" },
-  payment_failed: { label: "결제 실패",    color: "#D96C6C", bg: "#F9DEDA" },
-  grace:          { label: "유예 기간",    color: "#D97706", bg: "#FFF1BF" },
-  readonly:       { label: "읽기 전용",    color: "#6F6B68", bg: "#F6F3F1" },
+  trial:     { label: "체험 중",   color: P,         bg: "#EEDDF5" },
+  active:    { label: "구독 중",   color: "#1F8F86", bg: "#DDF2EF" },
+  expired:   { label: "만료됨",    color: "#D96C6C", bg: "#F9DEDA" },
+  suspended: { label: "일시 정지", color: "#D97706", bg: "#FFF1BF" },
+  cancelled: { label: "해지됨",    color: "#6F6B68", bg: "#F6F3F1" },
 };
 
-const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  pending:    { label: "대기",    color: "#D97706", bg: "#FFF1BF" },
-  active:     { label: "운영",    color: "#1F8F86", bg: "#DDF2EF" },
-  rejected:   { label: "반려",    color: "#D96C6C", bg: "#F9DEDA" },
-  restricted: { label: "제한",    color: "#D96C6C", bg: "#F9DEDA" },
-  readonly:   { label: "읽기전용",color: "#6F6B68", bg: "#F6F3F1" },
+const APPROVAL_CFG: Record<string, { label: string; color: string; bg: string }> = {
+  pending:  { label: "대기",    color: "#D97706", bg: "#FFF1BF" },
+  approved: { label: "운영",    color: "#1F8F86", bg: "#DDF2EF" },
+  rejected: { label: "반려",    color: "#D96C6C", bg: "#F9DEDA" },
 };
 
 const CAT_CFG: Record<string, { color: string; bg: string }> = {
-  권한:     { color: "#D97706", bg: "#FFF1BF" },
-  구독:     { color: P,         bg: "#EEDDF5" },
-  저장공간: { color: "#1F8F86", bg: "#DDF2EF" },
-  삭제:     { color: "#D96C6C", bg: "#F9DEDA" },
-  정책:     { color: "#1F8F86", bg: "#DDF2EF" },
-  결제:     { color: "#1F8F86", bg: "#ECFEFF" },
+  권한:         { color: "#D97706", bg: "#FFF1BF" },
+  구독:         { color: P,         bg: "#EEDDF5" },
+  저장공간:     { color: "#1F8F86", bg: "#DDF2EF" },
+  삭제:         { color: "#D96C6C", bg: "#F9DEDA" },
+  정책:         { color: "#1F8F86", bg: "#DDF2EF" },
+  결제:         { color: "#1F8F86", bg: "#ECFEFF" },
+  "읽기전용 전환": { color: "#6F6B68", bg: "#F6F3F1" },
 };
 
 export default function OperatorDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { adminUser } = useAuth();
-  const actorName = adminUser?.name ?? '슈퍼관리자';
+  const { token, adminUser } = useAuth() as any;
 
-  const operators         = useOperatorsStore(s => s.operators);
-  const approveOperator   = useOperatorsStore(s => s.approveOperator);
-  const rejectOperator    = useOperatorsStore(s => s.rejectOperator);
-  const setRestricted     = useOperatorsStore(s => s.setRestricted);
-  const storagePolicies   = useStorageStore(s => s.policies);
-  const setStoragePolicy  = useStorageStore(s => s.setStoragePolicy);
-  const getOpAccount      = useExtraStorageStore(s => s.getOpAccount);
-  const getOpPurchases    = useExtraStorageStore(s => s.getOpPurchases);
-  const auditLogs         = useAuditLogStore(s => s.logs);
-  const createLog         = useAuditLogStore(s => s.createLog);
-  const getEventLogs      = useOperatorEventLogStore(s => s.getOperatorLogs);
-
-  const op = operators.find(o => o.id === id);
+  const [pool, setPool]       = useState<any>(null);
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [logs, setLogs]       = useState<any[]>([]);
+  const [policy, setPolicy]   = useState<any>({});
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [tab,        setTab]        = useState<Tab>("기본정보");
   const [action,     setAction]     = useState<string | null>(null);
   const [reason,     setReason]     = useState("");
-  const [extraGB,    setExtraGB]    = useState("");
   const [processing, setProcessing] = useState(false);
   const [feedback,   setFeedback]   = useState("");
   const [otpVisible, setOtpVisible] = useState(false);
 
   const SENSITIVE_ACTIONS = ["approve", "reject", "restrict"];
 
-  if (!op) {
+  const load = useCallback(async (isRefresh = false) => {
+    if (!id) return;
+    if (!isRefresh) setLoading(true);
+    try {
+      const data = await apiRequest(token, `/super/operators/${id}`);
+      setPool(data.pool ?? null);
+      setTeachers(data.teachers ?? []);
+      setLogs(data.logs ?? []);
+      setPolicy(data.policy ?? {});
+    } catch {
+      setPool(null);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [id, token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function doAction(act: string) {
+    setProcessing(true);
+    try {
+      if (act === "approve") {
+        await apiRequest(token, `/super/operators/${id}/approve`, { method: "PATCH" });
+        setFeedback("운영 승인 완료");
+      } else if (act === "reject") {
+        await apiRequest(token, `/super/operators/${id}/reject`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: reason || "기준 미달" }),
+        });
+        setFeedback("반려 처리 완료");
+      } else if (act === "restrict") {
+        await apiRequest(token, `/super/operators/${id}/restrict`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: reason || "운영 위반" }),
+        });
+        setFeedback("일시 제한 처리 완료");
+      }
+      await load(true);
+    } catch {
+      Alert.alert("오류", "처리에 실패했습니다.");
+    }
+    setAction(null);
+    setReason("");
+    setTimeout(() => { setProcessing(false); setFeedback(""); }, 3000);
+  }
+
+  if (loading) {
     return (
       <SafeAreaView style={d.safe} edges={[]}>
         <SubScreenHeader title="운영자 상세" homePath="/(super)/pools" />
@@ -117,62 +161,40 @@ export default function OperatorDetailScreen() {
     );
   }
 
-  const storagePolicy  = storagePolicies.find(p => p.operatorId === id);
-  const opLogs         = auditLogs.filter(l => l.operatorId === id || l.operatorName === op.name).slice(0, 20);
-  const opEventLogs    = getEventLogs(id ?? "", 20);
-
-  const statusCfg  = STATUS_CFG[op.status]  ?? STATUS_CFG.pending;
-  const billingCfg = BILLING_CFG[op.billingStatus] ?? BILLING_CFG.trial;
-
-  const usedMb  = storagePolicy?.usedMb  ?? op.storageUsedMb;
-  const totalMb = storagePolicy?.totalMb ?? op.storageTotalMb;
-  const usagePct = totalMb > 0 ? usedMb / totalMb * 100 : 0;
-  const storageAlert = op.storageBlocked95;
-  const storageWarn  = op.storageWarning80;
-
-  const paidAccount   = getOpAccount(id ?? "");
-  const paidPurchases = getOpPurchases(id ?? "");
-  const paidMb        = paidAccount?.extraStoragePurchasedMb ?? 0;
-  const hasPaid       = paidMb > 0 || paidPurchases.length > 0;
-  const totalGbStr   = (totalMb / 1024).toFixed(1) + " GB";
-
-  function doAction(act: string) {
-    setProcessing(true);
-    if (act === "approve") {
-      approveOperator(op!.id, actorName);
-      createLog({ category: '권한', title: `운영 승인: ${op!.name}`, detail: '수동 승인', actorName, operatorId: op!.id, operatorName: op!.name, impact: 'high' });
-      setFeedback("운영 승인 완료");
-    } else if (act === "reject") {
-      rejectOperator(op!.id, reason || '수동 반려', actorName);
-      createLog({ category: '권한', title: `반려 처리: ${op!.name}${reason ? " / " + reason : ""}`, detail: reason || '수동 반려', actorName, operatorId: op!.id, operatorName: op!.name, impact: 'high' });
-      setFeedback("반려 처리 완료");
-    } else if (act === "restrict") {
-      setRestricted(op!.id, reason || '수동 제한');
-      createLog({ category: '권한', title: `일시 제한: ${op!.name}${reason ? " / " + reason : ""}`, detail: reason || '수동 제한', actorName, operatorId: op!.id, operatorName: op!.name, impact: 'high' });
-      setFeedback("일시 제한 처리 완료");
-    } else if (act === "storage") {
-      const mb = (parseFloat(extraGB) || 0) * 1024;
-      setStoragePolicy(op!.id, { extraMb: Math.round(mb) });
-      createLog({ category: '저장공간', title: `추가 용량 부여: ${op!.name} +${extraGB}GB`, detail: `추가 ${extraGB}GB`, actorName, operatorId: op!.id, operatorName: op!.name, impact: 'medium' });
-      setFeedback("저장공간 변경 완료");
-    }
-    setAction(null); setReason(""); setExtraGB("");
-    setTimeout(() => { setProcessing(false); setFeedback(""); }, 3000);
+  if (!pool) {
+    return (
+      <SafeAreaView style={d.safe} edges={[]}>
+        <SubScreenHeader title="운영자 상세" homePath="/(super)/pools" />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: "#6F6B68", fontFamily: "Inter_400Regular" }}>운영자 정보를 불러올 수 없습니다.</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
-  const totalMembers = op.normalMemberCount + op.pausedMemberCount + op.withdrawnMemberCount;
+  const approvalCfg = APPROVAL_CFG[pool.approval_status] ?? APPROVAL_CFG.pending;
+  const billingCfg  = BILLING_CFG[pool.subscription_status] ?? BILLING_CFG.trial;
+
+  const usedBytes   = pool.used_storage_bytes ?? 0;
+  const totalGb     = pool.total_storage_gb ?? (pool.base_storage_gb ?? 5);
+  const usagePct    = pool.usage_pct ?? 0;
+  const storageAlert = usagePct >= 95;
+  const storageWarn  = usagePct >= 80 && usagePct < 95;
+
+  const isPaymentIssue = pool.subscription_status === "expired" || pool.subscription_status === "suspended";
+  const isSuspended    = pool.subscription_status === "suspended";
 
   return (
     <SafeAreaView style={d.safe} edges={[]}>
-      <SubScreenHeader title={op.name} homePath="/(super)/pools" />
+      <SubScreenHeader title={pool.name} homePath="/(super)/pools" />
 
       <View style={d.banner}>
         <View style={d.bannerLeft}>
-          <Text style={d.bannerName} numberOfLines={1}>{op.name}</Text>
-          <Text style={d.bannerOwner}>{op.representativeName}</Text>
+          <Text style={d.bannerName} numberOfLines={1}>{pool.name}</Text>
+          <Text style={d.bannerOwner}>{pool.owner_name ?? "—"}</Text>
         </View>
-        <View style={[d.badge, { backgroundColor: statusCfg.bg }]}>
-          <Text style={[d.badgeTxt, { color: statusCfg.color }]}>{statusCfg.label}</Text>
+        <View style={[d.badge, { backgroundColor: approvalCfg.bg }]}>
+          <Text style={[d.badgeTxt, { color: approvalCfg.color }]}>{approvalCfg.label}</Text>
         </View>
         <View style={[d.badge, { backgroundColor: billingCfg.bg }]}>
           <Text style={[d.badgeTxt, { color: billingCfg.color }]}>{billingCfg.label}</Text>
@@ -196,27 +218,40 @@ export default function OperatorDetailScreen() {
       </ScrollView>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 60 }}>
+        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 60 }}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
+          onRefresh={() => { setRefreshing(true); load(true); }} />}>
 
         {tab === "기본정보" && (
           <>
             <View style={d.card}>
               <Text style={d.cardTitle}>운영 정보</Text>
-              <InfoRow label="수영장명"    value={op.name} />
-              <InfoRow label="운영자"      value={op.representativeName} />
-              <InfoRow label="이메일"      value={op.email} />
-              <InfoRow label="전화번호"    value={op.phone} />
-              <InfoRow label="활성 회원"   value={`${op.activeMemberCount}명`} />
-              <InfoRow label="전체 회원"   value={`${totalMembers}명`} />
-              <InfoRow label="마지막 접속" value={fmtDateTime(op.lastLoginAt)} />
-              <InfoRow label="가입일"      value={fmtDate(op.createdAt)} />
+              <InfoRow label="수영장명"    value={pool.name ?? "—"} />
+              <InfoRow label="운영자"      value={pool.owner_name ?? "—"} />
+              <InfoRow label="이메일"      value={pool.email ?? "—"} />
+              <InfoRow label="전화번호"    value={pool.phone ?? "—"} />
+              <InfoRow label="활성 회원"   value={`${pool.active_member_count ?? 0}명`} />
+              <InfoRow label="전체 회원"   value={`${pool.total_member_count ?? 0}명`} />
+              <InfoRow label="전체 수업"   value={`${pool.total_class_count ?? 0}개`} />
+              <InfoRow label="가입일"      value={fmtDate(pool.created_at)} />
             </View>
             <View style={d.card}>
               <Text style={d.cardTitle}>상태 정보</Text>
-              <InfoRow label="운영 상태"   value={statusCfg.label} />
-              <InfoRow label="읽기 전용"   value={op.isReadOnly ? "예" : "아니오"} alert={op.isReadOnly} />
-              <InfoRow label="업로드 차단" value={op.isUploadBlocked ? "차단됨" : "정상"} alert={op.isUploadBlocked} />
+              <InfoRow label="운영 상태"   value={approvalCfg.label} />
+              <InfoRow label="읽기 전용"   value={pool.is_readonly ? "예" : "아니오"} alert={!!pool.is_readonly} />
+              <InfoRow label="업로드 차단" value={pool.upload_blocked ? "차단됨" : "정상"} alert={!!pool.upload_blocked} />
             </View>
+            {teachers.length > 0 && (
+              <View style={d.card}>
+                <Text style={d.cardTitle}>관리자·선생님 ({teachers.length}명)</Text>
+                {teachers.map((t: any) => (
+                  <View key={t.id} style={d.infoRow}>
+                    <Text style={d.infoLabel}>{t.role === "pool_admin" ? "관리자" : "선생님"}</Text>
+                    <Text style={d.infoVal}>{t.name} · {t.email ?? "—"}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </>
         )}
 
@@ -224,13 +259,11 @@ export default function OperatorDetailScreen() {
           <View style={d.card}>
             <Text style={d.cardTitle}>구독 정보</Text>
             <InfoRow label="현재 상태"    value={billingCfg.label} />
-            <InfoRow label="구독 플랜"    value={op.currentPlanName} />
-            <InfoRow label="크레딧"       value={`${op.creditBalance} 크레딧`} />
-            <InfoRow label="다음 결제일"  value={fmtDate(op.nextBillingAt)} />
-            <InfoRow label="마지막 결제"  value={fmtDate(op.lastPaymentAt)} />
-            <InfoRow label="결제 실패"    value={`${op.paymentFailCount}회`} alert={op.paymentFailCount > 0} />
-            <InfoRow label="환불 분쟁"    value={op.hasRefundDispute ? "있음" : "없음"} alert={op.hasRefundDispute} />
-            {(op.billingStatus === "payment_failed" || op.billingStatus === "readonly") && (
+            <InfoRow label="구독 플랜"    value={TIER_NAME[pool.subscription_tier ?? "trial"] ?? (pool.subscription_tier ?? "—")} />
+            <InfoRow label="크레딧"       value={`${pool.credit_balance ?? 0} 크레딧`} />
+            <InfoRow label="구독 만료일"  value={fmtDate(pool.subscription_end_at)} />
+            <InfoRow label="운영 유형"    value={pool.pool_type ?? "swimming_pool"} />
+            {isPaymentIssue && (
               <View style={d.alertBox}>
                 <Feather name="alert-triangle" size={14} color="#D96C6C" />
                 <Text style={d.alertTxt}>결제 이슈가 있는 운영자입니다. 강제조치 탭에서 처리할 수 있습니다.</Text>
@@ -247,14 +280,15 @@ export default function OperatorDetailScreen() {
                 <View style={[d.storageCircle,
                   storageAlert && { borderColor: "#D96C6C" },
                   storageWarn && !storageAlert && { borderColor: "#E4A93A" }]}>
-                  <Text style={[d.storageCircleNum, storageAlert && { color: "#D96C6C" }]}>{usagePct.toFixed(0)}%</Text>
+                  <Text style={[d.storageCircleNum, storageAlert && { color: "#D96C6C" }]}>{usagePct}%</Text>
                   <Text style={d.storageCircleSub}>사용</Text>
                 </View>
                 <View style={d.storageDetails}>
-                  <InfoRow label="사용량"      value={fmtMb(usedMb)} />
-                  <InfoRow label="전체 용량"   value={totalGbStr} />
-                  <InfoRow label="업로드 차단" value={op.isUploadBlocked ? "차단됨" : "정상"} alert={op.isUploadBlocked} />
-                  <InfoRow label="급증 감지"   value={op.uploadSpikeFlag ? "감지됨" : "정상"} alert={op.uploadSpikeFlag} />
+                  <InfoRow label="사용량"      value={fmtBytes(usedBytes)} />
+                  <InfoRow label="전체 용량"   value={`${totalGb} GB`} />
+                  <InfoRow label="기본 용량"   value={`${pool.base_storage_gb ?? 5} GB`} />
+                  <InfoRow label="추가 용량"   value={`${pool.extra_storage_gb ?? 0} GB`} />
+                  <InfoRow label="업로드 차단" value={pool.upload_blocked ? "차단됨" : "정상"} alert={!!pool.upload_blocked} />
                 </View>
               </View>
               {storageAlert && (
@@ -264,23 +298,6 @@ export default function OperatorDetailScreen() {
                 </View>
               )}
             </View>
-            {/* 유료 저장공간 현황 — 결제 이력 있는 경우 표시 */}
-            <View style={[d.card, { marginTop: 12 }]}>
-              <Text style={d.cardTitle}>유료 저장공간 현황</Text>
-              <InfoRow label="유료 추가 용량" value={hasPaid ? fmtMb(paidMb) : "없음"} />
-              <InfoRow label="결제 횟수" value={`${paidPurchases.length}회`} />
-              <InfoRow label="영상 업로드" value={paidAccount?.videoUploadUnlocked ? "허용됨" : "미허용"} alert={!paidAccount?.videoUploadUnlocked} />
-              {hasPaid && paidPurchases.slice(0, 2).map(pu => (
-                <View key={pu.id} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, borderTopWidth: 1, borderTopColor: "#F0EBE7", marginTop: 4 }}>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" }}>{pu.productName}</Text>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" }}>₩{pu.price.toLocaleString("ko-KR")}</Text>
-                </View>
-              ))}
-              {!hasPaid && (
-                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 4 }}>유료 결제 이력 없음</Text>
-              )}
-            </View>
-
             <Pressable style={[d.actionCard, { marginTop: 12 }]}
               onPress={() => router.push(`/(super)/storage?operatorId=${id}` as any)}>
               <Feather name="hard-drive" size={18} color={P} />
@@ -293,10 +310,12 @@ export default function OperatorDetailScreen() {
         {tab === "정책·동의" && (
           <View style={d.card}>
             <Text style={d.cardTitle}>약관 동의 현황</Text>
-            <InfoRow label="환불 정책"   value={op.policyRefundRead ? "동의" : "미동의"} alert={!op.policyRefundRead} />
-            <InfoRow label="개인정보 처리" value={op.policyPrivacyRead ? "동의" : "미동의"} alert={!op.policyPrivacyRead} />
-            <InfoRow label="이용약관"     value={op.policyTermsAgreed ? "동의" : "미동의"} alert={!op.policyTermsAgreed} />
-            <InfoRow label="마지막 확인"  value={fmtDate(op.policyLastConfirmedAt)} />
+            <InfoRow label="환불 정책"     value={policy.refund_policy  ? "동의" : "미동의"} alert={!policy.refund_policy} />
+            <InfoRow label="개인정보 처리" value={policy.privacy_policy ? "동의" : "미동의"} alert={!policy.privacy_policy} />
+            <InfoRow label="이용약관"      value={policy.terms          ? "동의" : "미동의"} alert={!policy.terms} />
+            {policy.refund_policy && (
+              <InfoRow label="마지막 확인" value={fmtDate(policy.refund_policy)} />
+            )}
             <Pressable style={[d.actionCard, { marginTop: 12 }]} onPress={() => router.push("/(super)/policy" as any)}>
               <Feather name="file-text" size={18} color={P} />
               <Text style={d.actionCardTxt}>정책 편집 (슈퍼관리자)</Text>
@@ -306,67 +325,34 @@ export default function OperatorDetailScreen() {
         )}
 
         {tab === "로그" && (
-          <>
-            {/* 슈퍼관리자 감사 로그 */}
-            <View style={d.card}>
-              <Text style={d.cardTitle}>슈퍼관리자 감사 로그 ({opLogs.length})</Text>
-              {opLogs.length === 0 && <Text style={d.empty}>감사 로그가 없습니다</Text>}
-              {opLogs.map(log => {
-                const catCfg = CAT_CFG[log.category] ?? { color: "#6F6B68", bg: "#F6F3F1" };
-                return (
-                  <View key={log.id} style={d.logItem}>
-                    <View style={[d.logCat, { backgroundColor: catCfg.bg }]}>
-                      <Text style={[d.logCatTxt, { color: catCfg.color }]}>{log.category}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={d.logDesc}>{log.title}</Text>
-                      <Text style={d.logTime}>{fmtDateTime(log.createdAt)} · {log.actorName ?? "—"}</Text>
-                    </View>
+          <View style={d.card}>
+            <Text style={d.cardTitle}>운영 이벤트 로그 ({logs.length})</Text>
+            {logs.length === 0 && <Text style={d.empty}>이벤트 로그가 없습니다</Text>}
+            {logs.map((log: any) => {
+              const catCfg = CAT_CFG[log.category] ?? { color: "#6F6B68", bg: "#F6F3F1" };
+              return (
+                <View key={log.id} style={d.logItem}>
+                  <View style={[d.logCat, { backgroundColor: catCfg.bg }]}>
+                    <Text style={[d.logCatTxt, { color: catCfg.color }]}>{log.category}</Text>
                   </View>
-                );
-              })}
-            </View>
-
-            {/* 운영자 이벤트 로그 */}
-            <View style={d.card}>
-              <Text style={d.cardTitle}>수영장 운영 이벤트 ({opEventLogs.length})</Text>
-              {opEventLogs.length === 0
-                ? <Text style={d.empty}>이벤트 로그가 없습니다</Text>
-                : opEventLogs.map(log => {
-                  const roleCfg: Record<string, { color: string; bg: string }> = {
-                    operator: { color: "#1F8F86", bg: "#DDF2EF" },
-                    teacher:  { color: "#1F8F86", bg: "#DDF2EF" },
-                    system:   { color: "#6F6B68", bg: "#F6F3F1" },
-                  };
-                  const cfg = roleCfg[log.actorRole] ?? roleCfg.system;
-                  return (
-                    <View key={log.id} style={d.logItem}>
-                      <View style={[d.logCat, { backgroundColor: cfg.bg }]}>
-                        <Text style={[d.logCatTxt, { color: cfg.color }]}>
-                          {log.actorRole === "operator" ? "관리자" : log.actorRole === "teacher" ? "선생님" : "시스템"}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={d.logDesc}>{log.summary}</Text>
-                        <Text style={d.logTime}>{fmtDateTime(log.createdAt)} · {log.actorName}</Text>
-                      </View>
-                    </View>
-                  );
-                })
-              }
-            </View>
-          </>
+                  <View style={{ flex: 1 }}>
+                    <Text style={d.logDesc}>{log.description ?? "—"}</Text>
+                    <Text style={d.logTime}>{fmtDateTime(log.created_at)} · {log.actor_name ?? "시스템"}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
         )}
 
         {tab === "강제조치" && (
           <>
             {[
-              // "운영 승인"은 슈퍼관리자가 강제 정지한 경우(restricted)에만 표시 — 회원가입은 자동 승인
-              ...(op.status === "restricted" ? [
-                { act: "approve", icon: "check-circle" as const, label: "운영 재승인", sub: "운영 정지 → 운영 상태로 복구", color: "#1F8F86", bg: "#DDF2EF" },
+              ...(isSuspended || pool.approval_status === "rejected" ? [
+                { act: "approve", icon: "check-circle" as const, label: "운영 재승인", sub: "운영 정지·반려 → 운영 상태로 복구", color: "#1F8F86", bg: "#DDF2EF" },
               ] : []),
-              { act: "reject",   icon: "x-circle" as const,     label: "반려",       sub: "운영 자격 박탈 · 사유 기록",  color: "#D96C6C", bg: "#F9DEDA" },
-              { act: "restrict", icon: "pause-circle" as const,  label: "일시 제한",  sub: "구독 일시 정지 처리",         color: "#D97706", bg: "#FFF1BF" },
+              { act: "reject",   icon: "x-circle" as const,     label: "반려",       sub: "운영 자격 박탈 · 사유 기록",   color: "#D96C6C", bg: "#F9DEDA" },
+              { act: "restrict", icon: "pause-circle" as const,  label: "일시 제한",  sub: "구독 일시 정지 처리",           color: "#D97706", bg: "#FFF1BF" },
             ].map(item => (
               <Pressable key={item.act} style={d.forceCard} onPress={() => setAction(item.act)}>
                 <View style={[d.forceIcon, { backgroundColor: item.bg }]}>
@@ -400,19 +386,11 @@ export default function OperatorDetailScreen() {
               <Text style={m.title}>
                 {action === "approve" ? "운영 재승인"
                   : action === "reject" ? "반려 처리"
-                  : action === "restrict" ? "일시 제한"
-                  : "추가 용량 부여"}
+                  : "일시 제한"}
               </Text>
               {(action === "reject" || action === "restrict") && (
                 <TextInput style={m.input} value={reason} onChangeText={setReason}
                   placeholder="사유 (선택)" placeholderTextColor="#9A948F" />
-              )}
-              {action === "storage" && (
-                <View>
-                  <Text style={m.inputLabel}>추가 용량 (GB)</Text>
-                  <TextInput style={m.input} value={extraGB} onChangeText={setExtraGB}
-                    keyboardType="decimal-pad" placeholder="예: 10" placeholderTextColor="#9A948F" />
-                </View>
               )}
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setAction(null)}>
@@ -519,7 +497,6 @@ const m = StyleSheet.create({
                 borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, gap: 16 },
   handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
   title:      { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  inputLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 6 },
   input:      { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12,
                 fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
   btnRow:     { flexDirection: "row", gap: 10, justifyContent: "flex-end" },

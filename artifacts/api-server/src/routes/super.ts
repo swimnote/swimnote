@@ -295,7 +295,7 @@ router.get(
     try {
       const { id } = req.params;
 
-      const [pool, teachers, recentLogs] = await Promise.all([
+      const [pool, teachers, recentLogs, policyRows] = await Promise.all([
         db.execute(sql`
           SELECT sp.*,
             (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id AND st.status = 'active') AS active_member_count,
@@ -324,14 +324,30 @@ router.get(
           ORDER BY created_at DESC
           LIMIT 30
         `),
+        db.execute(sql`
+          SELECT policy_key, MAX(agreed_at) AS agreed_at
+          FROM policy_consents
+          WHERE pool_id = ${id}
+          GROUP BY policy_key
+        `).catch(() => ({ rows: [] })),
       ]);
 
       if (!pool.rows[0]) { res.status(404).json({ error: "운영자 없음" }); return; }
+
+      const policyMap: Record<string, string | null> = {};
+      for (const row of policyRows.rows as any[]) {
+        policyMap[row.policy_key] = row.agreed_at ?? null;
+      }
 
       res.json({
         pool: pool.rows[0],
         teachers: teachers.rows,
         logs: recentLogs.rows,
+        policy: {
+          refund_policy:   policyMap["refund_policy"]   ?? null,
+          privacy_policy:  policyMap["privacy_policy"]  ?? null,
+          terms:           policyMap["terms"]            ?? null,
+        },
       });
     } catch (err) {
       console.error(err);
@@ -1078,6 +1094,35 @@ router.post(
         INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
         VALUES (${logId}, ${id}, '삭제', ${req.user!.userId}, ${actorName}, ${id},
                 ${'삭제 유예 ' + hours + '시간'}, '{}'::jsonb)
+      `).catch(() => {});
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// POST /super/operators/:id/cancel-deletion — 자동삭제 예약 취소
+// subscription_end_at을 NULL로 초기화하고 subscription_status를 active로 복구
+// ════════════════════════════════════════════════════════════════
+router.post(
+  "/super/operators/:id/cancel-deletion",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      await db.execute(sql`
+        UPDATE swimming_pools
+        SET subscription_end_at = NULL,
+            subscription_status = 'active'
+        WHERE id = ${id}
+      `);
+      const actorName = req.user?.name ?? "슈퍼관리자";
+      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await db.execute(sql`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (${logId}, ${id}, '삭제', ${req.user!.userId}, ${actorName}, ${id},
+                '자동삭제 예약 취소', '{}'::jsonb)
       `).catch(() => {});
       res.json({ ok: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
