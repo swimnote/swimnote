@@ -63,6 +63,7 @@ export default function MoreScreen() {
   const [tab, setTab] = useState<Tab>("설정 메뉴");
   const [switchModalVisible, setSwitchModalVisible] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
 
   const hasMultipleRoles = (adminUser?.roles?.length ?? 0) >= 2;
 
@@ -103,6 +104,14 @@ export default function MoreScreen() {
   useEffect(() => {
     if (tab === "활동 로그") loadLogs(0);
   }, [tab]);
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest(token, "/auth/totp/status")
+      .then(r => r.json())
+      .then((d: any) => setTotpEnabled(d.totp_enabled ?? false))
+      .catch(() => setTotpEnabled(false));
+  }, [token]);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
@@ -146,6 +155,30 @@ export default function MoreScreen() {
               </Pressable>
             )}
           </View>
+
+          {/* OTP 보안 배너 */}
+          {totpEnabled !== null && (
+            <Pressable
+              style={[
+                s.otpBanner,
+                { backgroundColor: totpEnabled ? "#F0FDF4" : "#FEF9EC", borderColor: totpEnabled ? "#BBF7D0" : "#FDE68A" },
+              ]}
+              onPress={() => router.push("/totp-setup" as any)}
+            >
+              <View style={[s.otpBannerIcon, { backgroundColor: totpEnabled ? "#DCFCE7" : "#FEF3C7" }]}>
+                <Feather name={totpEnabled ? "shield" : "smartphone"} size={18} color={totpEnabled ? "#16A34A" : "#D97706"} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.otpBannerTitle, { color: totpEnabled ? "#15803D" : "#92400E" }]}>
+                  {totpEnabled ? "Google OTP 활성화됨" : "Google OTP 미등록"}
+                </Text>
+                <Text style={[s.otpBannerSub, { color: totpEnabled ? "#16A34A" : "#B45309" }]}>
+                  {totpEnabled ? "2단계 인증이 설정되어 있습니다" : "탭하여 2단계 인증을 등록하세요"}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
+            </Pressable>
+          )}
 
           {/* 안내 배너 */}
           <View style={s.infoBanner}>
@@ -381,4 +414,8 @@ const s = StyleSheet.create({
   logFooter:     { flexDirection: "row", alignItems: "center", gap: 4 },
   logActor:      { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9A948F" },
   logActorRole:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  otpBanner:     { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1.5, padding: 14 },
+  otpBannerIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  otpBannerTitle:{ fontSize: 13, fontFamily: "Inter_700Bold" },
+  otpBannerSub:  { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 });

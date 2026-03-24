@@ -42,7 +42,8 @@ export default function TotpSetupScreen() {
   async function fetchStatus() {
     setInitialLoading(true);
     try {
-      const data = await apiRequest(token, "/auth/totp/status");
+      const res = await apiRequest(token, "/auth/totp/status");
+      const data = await res.json();
       setTotpEnabled(data.totp_enabled ?? false);
     } catch {
       setTotpEnabled(false);
@@ -56,7 +57,9 @@ export default function TotpSetupScreen() {
     setError("");
     setSuccess("");
     try {
-      const data = await apiRequest(token, "/auth/totp/setup", { method: "POST" });
+      const res = await apiRequest(token, "/auth/totp/setup", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "설정을 시작할 수 없습니다.");
       setOtpauthUrl(data.otpauth_url);
       setQrCode(data.qr_code || "");
       setSecret(data.secret);
@@ -75,10 +78,12 @@ export default function TotpSetupScreen() {
     setLoading(true);
     setError("");
     try {
-      await apiRequest(token, "/auth/totp/enable", {
+      const res = await apiRequest(token, "/auth/totp/enable", {
         method: "POST",
         body: JSON.stringify({ otp_code: code }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "코드 확인에 실패했습니다.");
       setTotpEnabled(true);
       setSuccess("Google OTP가 활성화되었습니다! 다음 로그인부터 OTP 인증이 필요합니다.");
       setStep("check");
@@ -96,10 +101,12 @@ export default function TotpSetupScreen() {
     setLoading(true);
     setError("");
     try {
-      await apiRequest(token, "/auth/totp/disable", {
+      const res = await apiRequest(token, "/auth/totp/disable", {
         method: "POST",
         body: JSON.stringify({ otp_code: code }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "비활성화에 실패했습니다.");
       setTotpEnabled(false);
       setSuccess("Google OTP가 비활성화되었습니다.");
       setStep("check");

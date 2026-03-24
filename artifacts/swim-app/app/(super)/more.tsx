@@ -76,6 +76,7 @@ export default function SuperMoreScreen() {
   const [risk, setRisk] = useState<RiskSummary>({
     payment_risk: 0, storage_risk: 0, deletion_pending: 0, sla_overdue: 0,
   });
+  const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
 
   const fetchRisk = useCallback(async () => {
     if (!token) return;
@@ -94,6 +95,14 @@ export default function SuperMoreScreen() {
   }, [token]);
 
   useEffect(() => { fetchRisk(); }, [fetchRisk]);
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest(token, "/auth/totp/status")
+      .then(r => r.json())
+      .then((d: any) => setTotpEnabled(d.totp_enabled ?? false))
+      .catch(() => setTotpEnabled(false));
+  }, [token]);
 
   const GROUPS: { title: string; items: MenuEntry[] }[] = [
     {
@@ -232,6 +241,30 @@ export default function SuperMoreScreen() {
           </View>
         )}
 
+        {/* OTP 보안 배너 */}
+        {totpEnabled !== null && (
+          <Pressable
+            style={[
+              s.otpBanner,
+              { backgroundColor: totpEnabled ? "#F0FDF4" : "#FEF9EC", borderColor: totpEnabled ? "#BBF7D0" : "#FDE68A" },
+            ]}
+            onPress={() => router.push("/totp-setup" as any)}
+          >
+            <View style={[s.otpBannerIcon, { backgroundColor: totpEnabled ? "#DCFCE7" : "#FEF3C7" }]}>
+              <Feather name={totpEnabled ? "shield" : "smartphone"} size={20} color={totpEnabled ? "#16A34A" : "#D97706"} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.otpBannerTitle, { color: totpEnabled ? "#15803D" : "#92400E" }]}>
+                {totpEnabled ? "Google OTP 활성화됨" : "Google OTP 미등록"}
+              </Text>
+              <Text style={[s.otpBannerSub, { color: totpEnabled ? "#16A34A" : "#B45309" }]}>
+                {totpEnabled ? "2단계 인증이 설정되어 있습니다" : "탭하여 2단계 인증을 등록하세요"}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
+          </Pressable>
+        )}
+
         {GROUPS.map(g => (
           <View key={g.title}>
             <SectionHeader title={g.title} />
@@ -271,4 +304,9 @@ const s = StyleSheet.create({
   menuSub:          { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   badge:            { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginRight: 4 },
   badgeTxt:         { fontSize: 11, fontFamily: "Inter_700Bold" },
+  otpBanner:        { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, borderWidth: 1.5,
+                      padding: 14, marginBottom: 6 },
+  otpBannerIcon:    { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  otpBannerTitle:   { fontSize: 14, fontFamily: "Inter_700Bold" },
+  otpBannerSub:     { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
 });
