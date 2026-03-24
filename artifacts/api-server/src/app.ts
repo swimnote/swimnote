@@ -12,6 +12,11 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
+// 헬스체크 — /api/health 와 /health 모두 지원
+app.get(["/health", "/api/health"], (_req: Request, res: Response) => {
+  res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString() });
+});
+
 // 404 핸들러 — HTML 대신 JSON
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ success: false, message: "요청한 경로를 찾을 수 없습니다.", error: "Not Found" });

@@ -1130,8 +1130,8 @@ router.post(
 );
 
 // ════════════════════════════════════════════════════════════════
-// PATCH /super/operators/:id/subscription — 구독상태·크레딧 수동 조정
-// Body: { subscription_status?: string; credit_amount?: number }
+// PATCH /super/operators/:id/subscription — 구독상태·크레딧·읽기전용·업로드차단 수동 조정
+// Body: { subscription_status?, subscription_tier?, credit_amount?, is_readonly?, upload_blocked?, subscription_end_at? }
 // ════════════════════════════════════════════════════════════════
 router.patch(
   "/super/operators/:id/subscription",
@@ -1140,14 +1140,28 @@ router.patch(
     try {
       await ensureExtraTables();
       const { id } = req.params;
-      const { subscription_status, credit_amount } = req.body as any;
+      const {
+        subscription_status,
+        subscription_tier,
+        credit_amount,
+        is_readonly,
+        upload_blocked,
+        subscription_end_at,
+      } = req.body as any;
       const actorName = req.user?.name ?? "슈퍼관리자";
       const updates: string[] = [];
+
       if (subscription_status) {
         await db.execute(sql`
           UPDATE swimming_pools SET subscription_status = ${subscription_status} WHERE id = ${id}
         `);
         updates.push(`구독상태 → ${subscription_status}`);
+      }
+      if (subscription_tier) {
+        await db.execute(sql`
+          UPDATE swimming_pools SET subscription_tier = ${subscription_tier} WHERE id = ${id}
+        `);
+        updates.push(`구독티어 → ${subscription_tier}`);
       }
       if (credit_amount != null && !isNaN(Number(credit_amount))) {
         const amt = Number(credit_amount);
@@ -1156,6 +1170,32 @@ router.patch(
         `);
         updates.push(`크레딧 → ${amt.toLocaleString()}원`);
       }
+      if (typeof is_readonly === 'boolean') {
+        await db.execute(sql`
+          UPDATE swimming_pools SET is_readonly = ${is_readonly} WHERE id = ${id}
+        `);
+        updates.push(`읽기전용 → ${is_readonly}`);
+      }
+      if (typeof upload_blocked === 'boolean') {
+        await db.execute(sql`
+          UPDATE swimming_pools SET upload_blocked = ${upload_blocked} WHERE id = ${id}
+        `);
+        updates.push(`업로드차단 → ${upload_blocked}`);
+      }
+      if (subscription_end_at !== undefined) {
+        if (subscription_end_at === null) {
+          await db.execute(sql`
+            UPDATE swimming_pools SET subscription_end_at = NULL WHERE id = ${id}
+          `);
+          updates.push(`구독만료일 → NULL (삭제예약취소)`);
+        } else {
+          await db.execute(sql`
+            UPDATE swimming_pools SET subscription_end_at = ${subscription_end_at}::timestamptz WHERE id = ${id}
+          `);
+          updates.push(`구독만료일 → ${subscription_end_at}`);
+        }
+      }
+
       if (updates.length === 0) { res.status(400).json({ error: "변경 항목이 없습니다." }); return; }
       const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       await db.execute(sql`
@@ -1163,7 +1203,7 @@ router.patch(
         VALUES (${logId}, ${id}, '구독', ${req.user!.userId}, ${actorName}, ${id},
                 ${updates.join(" / ")}, '{}'::jsonb)
       `).catch(() => {});
-      res.json({ ok: true });
+      res.json({ ok: true, updates });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );

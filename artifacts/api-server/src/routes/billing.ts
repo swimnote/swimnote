@@ -209,6 +209,8 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       readonly_reason: poolRow?.readonly_reason ?? null,
       payment_failed_at: poolRow?.payment_failed_at ?? null,
       subscription_status: poolRow?.subscription_status ?? null,
+      subscription_tier: poolRow?.subscription_tier ?? null,
+      current_plan: currentPlan?.tier ?? poolRow?.subscription_tier ?? null,
       days_until_deletion: daysUntilDeletion,
     });
   } catch (err) {
