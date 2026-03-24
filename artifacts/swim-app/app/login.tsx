@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, createRef } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
@@ -29,8 +29,12 @@ export default function LoginPasswordScreen() {
   // TOTP 상태
   const [totpRequired, setTotpRequired] = useState(false);
   const [totpSession, setTotpSession] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const otpInputRef = useRef<TextInput>(null);
+  const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const digitRefs = useRef<Array<React.RefObject<TextInput>>>(
+    Array.from({ length: 6 }, () => createRef<TextInput>())
+  );
+
+  const otpCode = digits.join("");
 
   async function handleLogin(overrideId?: string, overridePw?: string) {
     const finalId = (overrideId ?? identifier).trim();
@@ -58,7 +62,7 @@ export default function LoginPasswordScreen() {
         setTotpRequired(true);
         setTotpSession(e.totp_session);
         setLoading(false);
-        setTimeout(() => otpInputRef.current?.focus(), 300);
+        setTimeout(() => digitRefs.current[0].current?.focus(), 300);
         return;
       }
       setError(e.message || "로그인에 실패했습니다.");
@@ -68,7 +72,7 @@ export default function LoginPasswordScreen() {
   }
 
   async function handleOtpVerify() {
-    const code = otpCode.replace(/\s/g, "");
+    const code = digits.join("");
     if (code.length !== 6) {
       setError("6자리 코드를 입력해주세요.");
       return;
@@ -80,21 +84,40 @@ export default function LoginPasswordScreen() {
     } catch (err: unknown) {
       const e = err as Error;
       setError(e.message || "OTP 인증에 실패했습니다.");
+      setDigits(["", "", "", "", "", ""]);
+      setTimeout(() => digitRefs.current[0].current?.focus(), 100);
     } finally {
       setLoading(false);
     }
   }
 
-  function handleOtpChange(v: string) {
-    const digits = v.replace(/\D/g, "").slice(0, 6);
-    setOtpCode(digits);
+  function handleDigitChange(index: number, value: string) {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const next = [...digits];
+    next[index] = digit;
+    setDigits(next);
     setError("");
+    if (digit && index < 5) {
+      digitRefs.current[index + 1].current?.focus();
+    }
+    if (digit && index === 5) {
+      digitRefs.current[5].current?.blur();
+    }
+  }
+
+  function handleDigitKeyPress(index: number, key: string) {
+    if (key === "Backspace" && !digits[index] && index > 0) {
+      const next = [...digits];
+      next[index - 1] = "";
+      setDigits(next);
+      digitRefs.current[index - 1].current?.focus();
+    }
   }
 
   function resetToPassword() {
     setTotpRequired(false);
     setTotpSession("");
-    setOtpCode("");
+    setDigits(["", "", "", "", "", ""]);
     setError("");
   }
 
@@ -140,47 +163,34 @@ export default function LoginPasswordScreen() {
               </View>
             )}
 
-            <Pressable
-              style={styles.otpInputWrapper}
-              onPress={() => otpInputRef.current?.focus()}
-            >
-              <View style={styles.otpBoxRow}>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.otpBox,
-                      {
-                        borderColor: otpCode.length === i ? "#7C3AED" : otpCode[i] ? "#7C3AED" : C.border,
-                        backgroundColor: otpCode[i] ? "#EDE9FE" : C.background,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.otpBoxText, { color: "#7C3AED" }]}>{otpCode[i] || ""}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <TextInput
-                ref={otpInputRef}
-                style={styles.hiddenInput}
-                value={otpCode}
-                onChangeText={handleOtpChange}
-                keyboardType="number-pad"
-                maxLength={6}
-                returnKeyType="done"
-                onSubmitEditing={handleOtpVerify}
-                autoFocus
-                caretHidden
-              />
-            </Pressable>
-
-            <Pressable
-              style={[styles.otpBoxRow, { justifyContent: "center", marginTop: 4 }]}
-              onPress={() => otpInputRef.current?.focus()}
-            >
-              <Text style={[styles.otpTapHint, { color: C.textMuted }]}>숫자 박스를 탭하여 키보드 열기</Text>
-            </Pressable>
+            <View style={styles.otpBoxRow}>
+              {digits.map((d, i) => (
+                <TextInput
+                  key={i}
+                  ref={digitRefs.current[i]}
+                  style={[
+                    styles.otpBox,
+                    {
+                      borderColor: d ? "#7C3AED" : C.border,
+                      backgroundColor: d ? "#EDE9FE" : C.background,
+                      fontSize: 22,
+                      fontFamily: "Inter_700Bold",
+                      color: "#7C3AED",
+                      textAlign: "center",
+                    },
+                  ]}
+                  value={d}
+                  onChangeText={(v) => handleDigitChange(i, v)}
+                  onKeyPress={({ nativeEvent }) => handleDigitKeyPress(i, nativeEvent.key)}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  returnKeyType={i === 5 ? "done" : "next"}
+                  onSubmitEditing={i === 5 ? handleOtpVerify : undefined}
+                  autoFocus={i === 0}
+                  selectTextOnFocus
+                />
+              ))}
+            </View>
 
             <Pressable
               style={({ pressed }) => [
@@ -371,18 +381,12 @@ const styles = StyleSheet.create({
   otpIconRow: { alignItems: "center", paddingVertical: 4 },
   otpIconBg: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center" },
   otpDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
-  otpInputWrapper: { position: "relative", alignItems: "center" },
   otpBoxRow: { flexDirection: "row", gap: 8, justifyContent: "center" },
   otpBox: {
     width: 44, height: 52, borderRadius: 12, borderWidth: 2,
     alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 0, paddingVertical: 0,
   },
-  otpBoxText: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  hiddenInput: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    opacity: 0.01, color: "transparent",
-  },
-  otpTapHint: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center" },
   otpGuideCard: {
     flexDirection: "row", gap: 8, padding: 14, borderRadius: 14, borderWidth: 1, alignItems: "flex-start",
   },
