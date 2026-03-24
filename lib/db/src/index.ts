@@ -31,12 +31,18 @@ if (!SUPER_URL && !FALLBACK) {
 
 function buildConfig(url: string | undefined, password: string | undefined) {
   if (url) {
-    const u = new URL(url);
+    let u: URL;
+    try { u = new URL(url); } catch {
+      throw new Error(`DB URL 파싱 실패 (올바른 postgresql:// 형식인지 확인): ${url.slice(0, 30)}...`);
+    }
+    const urlPassword = decodeURIComponent(u.password);
+    const isPlaceholder = urlPassword.includes("[") || urlPassword.includes("]");
+    const finalPassword = password || (isPlaceholder ? "" : urlPassword);
     return {
       host:     u.hostname,
       port:     parseInt(u.port || "5432", 10),
       user:     decodeURIComponent(u.username),
-      password: password || decodeURIComponent(u.password),
+      password: finalPassword,
       database: u.pathname.replace(/^\//, ""),
       ssl:      { rejectUnauthorized: false },
       max:      10,
