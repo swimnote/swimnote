@@ -307,7 +307,7 @@ export default function SuperPoolsScreen() {
 
       <SubScreenHeader title="운영자 관리" />
 
-      {/* 검색 + 정렬 */}
+      {/* 검색창 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
           <Feather name="search" size={14} color="#9A948F" />
@@ -319,45 +319,26 @@ export default function SuperPoolsScreen() {
             </Pressable>
           )}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {SORT_OPTS.map(o => (
-            <Pressable key={o.key} style={[s.sortChip, sort === o.key && s.sortChipActive]}
-              onPress={() => setSort(o.key)}>
-              <Text style={[s.sortChipTxt, sort === o.key && s.sortChipTxtActive]}>{o.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
       </View>
 
-      {/* 필터 칩 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipsScroll}
-        contentContainerStyle={s.chipsContent}>
+      {/* 정렬 + 필터 칩 — 두 줄 wrap 배치 */}
+      <View style={s.chipsWrap}>
+        {SORT_OPTS.map(o => (
+          <Pressable key={o.key} style={[s.sortChip, sort === o.key && s.sortChipActive]}
+            onPress={() => setSort(o.key)}>
+            <Text style={[s.sortChipTxt, sort === o.key && s.sortChipTxtActive]}>{o.label}</Text>
+          </Pressable>
+        ))}
         {FILTER_CHIPS.map(chip => (
           <Pressable key={chip.key} style={[s.chip, filter === chip.key && { backgroundColor: chip.bg }]}
             onPress={() => setFilter(chip.key)}>
             <Text style={[s.chipTxt, filter === chip.key && { color: chip.color }]}>{chip.label}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
 
-      <FlatList
-        data={sorted}
-        keyExtractor={item => item.id}
-        renderItem={renderItem}
-        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 72 }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={s.empty}>
-            <Feather name="inbox" size={40} color="#D1D5DB" />
-            <Text style={s.emptyTxt}>해당 조건의 운영자가 없습니다</Text>
-          </View>
-        }
-      />
-
-      {/* 하단 고정 바: 카운트 + 다중선택 */}
-      <View style={[s.listFooter, { bottom: insets.bottom + 8 }]}>
+      {/* 카운트 + 다중선택 바 (칩 바로 아래) */}
+      <View style={s.listHeader}>
         <Text style={s.listCount}>
           <Text style={{ color: filterChip.color, fontFamily: "Inter_700Bold" }}>{sorted.length}</Text>
           <Text>/{useOperatorsStore.getState().operators.length}개</Text>
@@ -383,6 +364,22 @@ export default function SuperPoolsScreen() {
           </Pressable>
         </View>
       </View>
+
+      <FlatList
+        data={sorted}
+        keyExtractor={item => item.id}
+        renderItem={renderItem}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
+          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={s.empty}>
+            <Feather name="inbox" size={40} color="#D1D5DB" />
+            <Text style={s.emptyTxt}>해당 조건의 운영자가 없습니다</Text>
+          </View>
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -395,18 +392,17 @@ const s = StyleSheet.create({
   sheetInput:        { borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 8, padding: 10, color: "#1F1F1F", fontFamily: "Inter_400Regular", minHeight: 60 },
   sheetBtns:         { flexDirection: "row", gap: 10 },
   sheetBtn:          { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
-  searchRow:         { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
+  searchRow:         { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
   searchBox:         { flexDirection: "row", alignItems: "center", backgroundColor: "#FBF8F6", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
   searchInput:       { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, color: "#1F1F1F" },
-  sortChip:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#F6F3F1", marginRight: 6 },
+  chipsWrap:         { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, paddingBottom: 6, gap: 6 },
+  sortChip:          { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: "#F6F3F1" },
   sortChipActive:    { backgroundColor: "#EEDDF5" },
   sortChipTxt:       { fontFamily: "Inter_400Regular", fontSize: 12, color: "#6F6B68" },
   sortChipTxtActive: { color: P, fontFamily: "Inter_600SemiBold" },
-  chipsScroll:       { maxHeight: 40 },
-  chipsContent:      { paddingHorizontal: 16, gap: 6 },
-  chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#F6F3F1", marginRight: 6 },
+  chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#F6F3F1" },
   chipTxt:           { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6F6B68" },
-  listFooter:        { position: "absolute", left: 8, right: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#F0EDE9", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 4 },
+  listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "#F0EDE9", backgroundColor: "#FAFAF9" },
   listCount:         { fontFamily: "Inter_400Regular", fontSize: 13, color: "#1F1F1F" },
   listHeaderRight:   { flexDirection: "row", alignItems: "center", gap: 8 },
   bulkBtn:           { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
