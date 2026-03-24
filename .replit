@@ -27,3 +27,11 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+CF_ACCOUNT_ID = "53dff4976d55c17ec94ebe6306d0cffc"
+CF_R2_BUCKET_NAME = "swimnotepicture"
+CF_R2_ACCESS_KEY_ID = "d91625b9db60b57775aa27df57cb7f9c"
+CF_R2_SECRET_ACCESS_KEY = "dd531655ae68d2025ee0619faf24c31da3918ec6bf84e1b7ca4650138d20b7cb"

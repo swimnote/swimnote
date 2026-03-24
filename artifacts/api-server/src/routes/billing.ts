@@ -162,8 +162,8 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
     `)).rows;
 
     const storageResult = await db.execute(sql`
-      SELECT COALESCE(SUM(file_size_bytes),0) AS used_bytes
-      FROM student_photos WHERE swimming_pool_id = ${poolId}
+      SELECT COALESCE(SUM(file_size),0) AS used_bytes
+      FROM photo_assets_meta WHERE pool_id = ${poolId}
     `);
     const usedBytes = Number((storageResult.rows[0] as any)?.used_bytes ?? 0);
 

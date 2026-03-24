@@ -596,13 +596,13 @@ router.get("/students/:id/feed", requireAuth, requireParent, async (req: AuthReq
     }
 
     const photoRows = await db.execute(sql`
-      SELECT id, caption, uploader_name, created_at, storage_key, album_type
-      FROM student_photos WHERE student_id = ${req.params.id}
+      SELECT id, caption, uploaded_by_name, created_at, object_key, album_type
+      FROM photo_assets_meta WHERE student_id = ${req.params.id}
       ORDER BY created_at DESC LIMIT 10
     `);
     for (const p of photoRows.rows as any[]) {
       feed.push({ type: "photo", id: p.id, date: (p.created_at as string).split("T")[0],
-        teacher_name: p.uploader_name, content: p.caption, created_at: p.created_at, album_type: p.album_type });
+        teacher_name: p.uploaded_by_name, content: p.caption, created_at: p.created_at, album_type: p.album_type });
     }
 
     feed.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());

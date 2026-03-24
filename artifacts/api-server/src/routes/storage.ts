@@ -22,22 +22,22 @@ async function getPoolId(userId: string): Promise<string | null> {
 
 // ── 특정 user + pool 기준 카테고리별 사용량 계산 ──────────────
 async function calcUserStorage(userId: string, poolId: string) {
-  // 사진 (student_photos)
+  // 사진 (photo_assets_meta)
   const [photoRow] = (await db.execute(sql`
     SELECT
-      COALESCE(SUM(file_size_bytes), 0)::bigint AS bytes,
-      COUNT(*)::int                             AS cnt
-    FROM student_photos
-    WHERE uploader_id = ${userId} AND swimming_pool_id = ${poolId}
+      COALESCE(SUM(file_size), 0)::bigint AS bytes,
+      COUNT(*)::int                       AS cnt
+    FROM photo_assets_meta
+    WHERE uploaded_by = ${userId} AND pool_id = ${poolId}
   `)).rows as any[];
 
-  // 영상 (student_videos)
+  // 영상 (video_assets_meta)
   const [videoRow] = (await db.execute(sql`
     SELECT
-      COALESCE(SUM(file_size_bytes), 0)::bigint AS bytes,
-      COUNT(*)::int                             AS cnt
-    FROM student_videos
-    WHERE uploader_id = ${userId} AND swimming_pool_id = ${poolId}
+      COALESCE(SUM(file_size), 0)::bigint AS bytes,
+      COUNT(*)::int                       AS cnt
+    FROM video_assets_meta
+    WHERE uploaded_by = ${userId} AND pool_id = ${poolId}
   `)).rows as any[];
 
   // 메신저 (work_messages — 텍스트 byte 길이)

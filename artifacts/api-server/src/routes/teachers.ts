@@ -351,12 +351,12 @@ router.get("/teacher/me/media-usage", requireAuth,
     try {
       const userId = req.user!.userId;
       const photos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes, COUNT(*) as count
-        FROM student_photos WHERE uploader_id = ${userId}
+        SELECT COALESCE(SUM(file_size), 0) as total_bytes, COUNT(*) as count
+        FROM photo_assets_meta WHERE uploaded_by = ${userId}
       `);
       const videos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes, COUNT(*) as count
-        FROM student_videos WHERE uploader_id = ${userId}
+        SELECT COALESCE(SUM(file_size), 0) as total_bytes, COUNT(*) as count
+        FROM video_assets_meta WHERE uploaded_by = ${userId}
       `);
       const photoRow = photos.rows[0] as any;
       const videoRow = videos.rows[0] as any;

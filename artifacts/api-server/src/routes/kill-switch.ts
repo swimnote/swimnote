@@ -8,18 +8,12 @@
 import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { Client } from "@replit/object-storage";
+import { r2Delete } from "../lib/r2.js";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { comparePassword } from "../lib/auth.js";
 import { logEvent } from "../lib/event-logger.js";
 
 const router = Router();
-
-let _client: Client | null = null;
-function getClient() {
-  if (!_client) _client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
-  return _client;
-}
 
 async function getPoolId(userId: string): Promise<string | null> {
   const [r] = (await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1`)).rows as any[];

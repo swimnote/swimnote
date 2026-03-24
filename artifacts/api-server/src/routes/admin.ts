@@ -6,6 +6,7 @@ import { requireAuth, requireRole, requirePermission, type AuthRequest } from ".
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { r2Delete } from "../lib/r2.js";
 
 const router = Router();
 
@@ -150,19 +151,15 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
         res.status(400).json({ error: "이미 탈퇴 처리된 학생입니다." }); return;
       }
 
-      // 1. 개인 사진첩 삭제 (Object Storage + DB)
+      // 1. 개인 사진첩 삭제 (R2 + DB)
       const photos = await db.execute(sql`
-        SELECT id, storage_key FROM student_photos WHERE student_id = ${studentId}
+        SELECT id, object_key FROM photo_assets_meta WHERE student_id = ${studentId}
       `);
       if (photos.rows.length > 0) {
-        try {
-          const { Client } = await import("@replit/object-storage");
-          const client = new Client();
-          await Promise.allSettled(
-            (photos.rows as any[]).map(p => client.delete(p.storage_key).catch(() => {}))
-          );
-        } catch { /* Object Storage 오류는 무시하고 DB 정리 진행 */ }
-        await db.execute(sql`DELETE FROM student_photos WHERE student_id = ${studentId}`);
+        await Promise.allSettled(
+          (photos.rows as any[]).map(p => r2Delete(p.object_key))
+        );
+        await db.execute(sql`DELETE FROM photo_assets_meta WHERE student_id = ${studentId}`);
       }
 
       // 2. 마지막 반 이름 저장 후 탈퇴 처리 (출결 기록 유지)
@@ -1170,7 +1167,7 @@ router.delete("/students/:id/permanent", requireAuth, requireRole("super_admin",
       await db.execute(sql`DELETE FROM attendance WHERE student_id = ${req.params.id}`);
       await db.execute(sql`DELETE FROM swim_diary WHERE student_id = ${req.params.id}`);
       await db.execute(sql`DELETE FROM parent_students WHERE student_id = ${req.params.id}`);
-      await db.execute(sql`DELETE FROM student_photos WHERE student_id = ${req.params.id}`);
+      await db.execute(sql`DELETE FROM photo_assets_meta WHERE student_id = ${req.params.id}`);
       await db.execute(sql`DELETE FROM students WHERE id = ${req.params.id}`);
       res.json({ success: true, message: "영구 삭제가 완료되었습니다. 복구할 수 없습니다." });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
