@@ -14,9 +14,10 @@ import { useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 
 export default function LoginScreen() {
-  const { unifiedLogin } = useAuth();
+  const { unifiedLogin, completeTotpLogin } = useAuth();
   const insets = useSafeAreaInsets();
   const pwRef = useRef<TextInput>(null);
+  const otpInputRef = useRef<TextInput>(null);
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword]     = useState("");
@@ -25,6 +26,11 @@ export default function LoginScreen() {
   const [error, setError]           = useState("");
   const [failCount, setFailCount]   = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
+
+  // TOTP 2단계 인증 상태
+  const [totpRequired, setTotpRequired] = useState(false);
+  const [totpSession, setTotpSession]   = useState("");
+  const [otpCode, setOtpCode]           = useState("");
 
   async function handleLogin(overrideId?: string, overridePw?: string) {
     const finalId = (overrideId ?? identifier).trim();
@@ -39,7 +45,18 @@ export default function LoginScreen() {
       await unifiedLogin(finalId, finalPw);
       setFailCount(0);
     } catch (err: unknown) {
-      const e = err as Error & { needs_activation?: boolean; teacher_id?: string; error_code?: string };
+      const e = err as Error & {
+        needs_activation?: boolean; teacher_id?: string;
+        error_code?: string; totp_required?: boolean; totp_session?: string;
+      };
+      if (e.totp_required && e.totp_session) {
+        setTotpRequired(true);
+        setTotpSession(e.totp_session);
+        setOtpCode("");
+        setError("");
+        setTimeout(() => otpInputRef.current?.focus(), 300);
+        return;
+      }
       if (e.error_code === "pending_pool_request") {
         setError("가입 요청이 승인 대기 중입니다.\n수영장 관리자 승인 후 로그인 가능합니다.");
         return;
@@ -66,6 +83,144 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleOtpChange(v: string) {
+    const digits = v.replace(/\D/g, "").slice(0, 6);
+    setOtpCode(digits);
+    setError("");
+  }
+
+  async function handleOtpVerify() {
+    const code = otpCode.replace(/\s/g, "");
+    if (code.length !== 6) {
+      setError("6자리 코드를 입력해주세요.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      await completeTotpLogin(totpSession, code);
+    } catch (err: unknown) {
+      const e = err as Error;
+      setError(e.message || "OTP 인증에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetToLogin() {
+    setTotpRequired(false);
+    setTotpSession("");
+    setOtpCode("");
+    setError("");
+  }
+
+  // ── OTP 인증 화면 ──
+  if (totpRequired) {
+    return (
+      <KeyboardAvoidingView
+        style={[styles.root, { backgroundColor: C.background }]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 60 : 48), paddingBottom: insets.bottom + 40 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.topRow}>
+            <Pressable onPress={resetToLogin} style={styles.backBtn}>
+              <Feather name="arrow-left" size={22} color={C.text} />
+            </Pressable>
+            <View style={[styles.idChip, { backgroundColor: "#EDE9FE" }]}>
+              <Feather name="shield" size={13} color="#7C3AED" />
+              <Text style={[styles.idChipText, { color: "#7C3AED" }]} numberOfLines={1}>2단계 인증</Text>
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: C.card }]}>
+            <View style={styles.otpIconRow}>
+              <View style={[styles.otpIconBg, { backgroundColor: "#EDE9FE" }]}>
+                <Feather name="smartphone" size={28} color="#7C3AED" />
+              </View>
+            </View>
+
+            <Text style={[styles.cardTitle, { color: C.text }]}>Google OTP 인증</Text>
+            <Text style={[styles.otpDesc, { color: C.textSecondary }]}>
+              Google Authenticator 앱에서{"\n"}6자리 코드를 입력해주세요.
+            </Text>
+
+            {!!error && (
+              <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
+                <Feather name="alert-circle" size={14} color={C.error} />
+                <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
+              </View>
+            )}
+
+            <View style={styles.otpBoxRow}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.otpBox,
+                    {
+                      borderColor: otpCode.length === i ? "#7C3AED" : otpCode[i] ? "#7C3AED" : C.border,
+                      backgroundColor: otpCode[i] ? "#EDE9FE" : C.background,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.otpBoxText, { color: "#7C3AED" }]}>{otpCode[i] || ""}</Text>
+                </View>
+              ))}
+            </View>
+
+            <TextInput
+              ref={otpInputRef}
+              style={styles.hiddenInput}
+              value={otpCode}
+              onChangeText={handleOtpChange}
+              keyboardType="number-pad"
+              maxLength={6}
+              returnKeyType="done"
+              onSubmitEditing={handleOtpVerify}
+              autoFocus
+            />
+
+            <Pressable
+              style={[styles.otpBoxRow, { justifyContent: "center", marginTop: -8 }]}
+              onPress={() => otpInputRef.current?.focus()}
+            >
+              <Text style={[styles.otpTapHint, { color: C.textMuted }]}>숫자 박스를 탭하여 키보드 열기</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.loginBtn,
+                { backgroundColor: otpCode.length === 6 ? "#7C3AED" : C.border, opacity: pressed ? 0.85 : 1 },
+              ]}
+              onPress={handleOtpVerify}
+              disabled={loading || otpCode.length !== 6}
+            >
+              {loading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.loginBtnText}>인증 완료</Text>
+              }
+            </Pressable>
+
+            <Pressable style={styles.forgotBtn} onPress={resetToLogin}>
+              <Text style={[styles.forgotText, { color: C.textMuted }]}>← 비밀번호 입력으로 돌아가기</Text>
+            </Pressable>
+          </View>
+
+          <View style={[styles.otpGuideCard, { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" }]}>
+            <Feather name="info" size={14} color="#7C3AED" />
+            <Text style={[styles.otpGuideText, { color: "#5B21B6" }]}>
+              Google Authenticator 앱을 열고 계정 이름 옆의 6자리 숫자를 입력하세요. 코드는 30초마다 갱신됩니다.
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
   }
 
   return (
@@ -254,4 +409,27 @@ const styles = StyleSheet.create({
   modalBtn: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   modalBtnSecondary: { borderWidth: 1.5 },
   modalBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  // OTP 화면 스타일
+  topRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  idChip: {
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 6,
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
+  },
+  idChipText: { fontSize: 14, fontFamily: "Inter_600SemiBold", flex: 1 },
+  otpIconRow: { alignItems: "center", paddingVertical: 4 },
+  otpIconBg: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center" },
+  otpDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  otpBoxRow: { flexDirection: "row", gap: 8, justifyContent: "center" },
+  otpBox: {
+    width: 44, height: 52, borderRadius: 12, borderWidth: 2,
+    alignItems: "center", justifyContent: "center",
+  },
+  otpBoxText: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  hiddenInput: { position: "absolute", opacity: 0, width: 1, height: 1 },
+  otpTapHint: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center" },
+  otpGuideCard: {
+    flexDirection: "row", gap: 8, padding: 14, borderRadius: 14, borderWidth: 1, alignItems: "flex-start",
+  },
+  otpGuideText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
 });
