@@ -949,7 +949,7 @@ function ExtraClassModal({ token, poolId, group, groupStudents, onClose, onCreat
             </View>
           )}
           <View style={em.field}>
-            <Text style={em.label}>미등록 회원 추가</Text>
+            <Text style={em.label}>미배정 회원 추가</Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <TextInput style={[em.input, { flex: 1 }]} value={unreg} onChangeText={setUnreg} placeholder="이름 직접 입력" placeholderTextColor={C.textMuted} onSubmitEditing={addUnreg} returnKeyType="done" />
               <Pressable style={[em.addBtn, { backgroundColor: themeColor }]} onPress={() => setShowUnregPicker(true)}>
@@ -1017,7 +1017,7 @@ const em = StyleSheet.create({
   error:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#D96C6C", textAlign: "center" },
 });
 
-// ─── 미등록회원 선택 팝업 (기타수업 등록 전용) ───────────────────────────
+// ─── 미배정 회원 선택 팝업 (기타수업 등록 전용) ──────────────────────────
 function ExtraClassUnregPickerModal({ token, themeColor, alreadyAdded, onClose, onSelect }: {
   token: string | null;
   themeColor: string;
@@ -1032,15 +1032,19 @@ function ExtraClassUnregPickerModal({ token, themeColor, alreadyAdded, onClose, 
 
   useEffect(() => {
     (async () => {
-      const r = await apiRequest(token, "/teacher/unregistered");
-      if (r.ok) setList(await r.json());
+      setLoading(true);
+      const r = await apiRequest(token, "/teacher/me/members?tab=unassigned");
+      if (r.ok) {
+        const data = await r.json();
+        setList(Array.isArray(data) ? data : (data?.members ?? []));
+      }
       setLoading(false);
     })();
   }, []);
 
   const alreadySet = new Set(alreadyAdded);
   const filtered = list.filter(u =>
-    !q || u.name?.includes(q) || u.parent_phone?.includes(q)
+    !q || u.name?.includes(q) || u.phone?.includes(q) || u.parent_name?.includes(q)
   );
 
   function toggle(name: string) {
@@ -1062,8 +1066,8 @@ function ExtraClassUnregPickerModal({ token, themeColor, alreadyAdded, onClose, 
         <View style={ep.handle} />
         <View style={ep.header}>
           <View style={{ flex: 1 }}>
-            <Text style={ep.title}>미등록회원 선택</Text>
-            <Text style={ep.sub}>선택한 회원이 미등록 회원으로 추가됩니다</Text>
+            <Text style={ep.title}>미배정 회원 선택</Text>
+            <Text style={ep.sub}>반 배정 없는 활성 회원 목록입니다</Text>
           </View>
           <Pressable onPress={onClose} style={{ padding: 4 }}>
             <Feather name="x" size={20} color={C.textSecondary} />
@@ -1093,11 +1097,13 @@ function ExtraClassUnregPickerModal({ token, themeColor, alreadyAdded, onClose, 
             {filtered.length === 0 ? (
               <View style={ep.empty}>
                 <Feather name="users" size={28} color={C.textMuted} />
-                <Text style={ep.emptyTxt}>미등록회원이 없습니다</Text>
+                <Text style={ep.emptyTxt}>{q ? "검색 결과가 없습니다" : "미배정 회원이 없습니다"}</Text>
               </View>
             ) : filtered.map(item => {
               const isAlready = alreadySet.has(item.name);
               const isSel     = selected.has(item.name);
+              const sub       = [item.birth_year ? `${item.birth_year}년생` : null, item.phone || item.parent_name || null]
+                                  .filter(Boolean).join(" · ");
               return (
                 <Pressable
                   key={item.id}
@@ -1110,9 +1116,7 @@ function ExtraClassUnregPickerModal({ token, themeColor, alreadyAdded, onClose, 
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={ep.name}>{item.name}</Text>
-                    {!!item.parent_phone && (
-                      <Text style={ep.phone}>{item.parent_phone}</Text>
-                    )}
+                    {!!sub && <Text style={ep.phone}>{sub}</Text>}
                     {isAlready && (
                       <Text style={[ep.phone, { color: themeColor }]}>이미 추가됨</Text>
                     )}
