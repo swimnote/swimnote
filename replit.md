@@ -174,6 +174,24 @@ The platform is built as a pnpm workspace monorepo using TypeScript. It leverage
   - **레거시 퍼지 완료**: `유료100`, `유료300`, `plan-pro100`, `plan-free10` 등 구 플랜 문자열을 seed/subscriptions.ts, seed/operators.ts, seed/auditLogs.ts, store/operatorsStore.ts에서 전부 제거.
   - **앱스토어 수수료**: PG(PortOne) 수수료 완전 제거, 앱스토어/구글플레이 30% 단일 항목으로 통일.
 
+### DB 이원화 시스템 (2026-03 2차 강화)
+- **물리적 분리 강제**: `api-server/src/index.ts`에 POOL_DATABASE_URL 시작 점검 추가 — 미설정 시 서버 즉시 중단 (process.exit(1))
+- **인프라 테이블 추가**: `pool_change_logs` (poolDb 영역 이중 감사 로그) + `dead_letter_queue` (최대 재시도 초과 이벤트 보관, 수동 재전송 가능)
+- **pool-event-logger 강화**: 이중 저장 (superAdminDb + poolDb.pool_change_logs), DLQ 이동 로직, `resendDeadLetter()` API, 지수 백오프 재시도
+- **이벤트 훅 확장 (9개 라우트)**:
+  - diary.ts: journal.create / journal.update / journal.delete
+  - admin.ts: subscription.change
+  - super.ts: read_only_mode.on / read_only_mode.off
+  - class-schedules.ts: schedule.change
+  - students.ts: class_assign (PATCH /:id/assign)
+- **DB 모니터링 API 고도화** (db-status.ts 5→9개 엔드포인트):
+  - GET /super/db-status — 연결상태 2계층 + DLQ 요약 추가
+  - GET /super/db-status/diagnostic — 전체 진단 보고서 + 권고사항
+  - GET /super/db-status/verify — 이벤트 누락 검증 (pool_change_logs 대비 비교)
+  - GET /super/db-status/dead-letters — DLQ 조회 (resolved 필터)
+  - POST /super/db-status/dead-letters/:id/resend — DLQ 수동 재전송
+- **db-status.tsx UI 전면 개편**: 3탭 → 4탭 (DB 개요 / 수영장별 / 이벤트 / 서비스 상태), 2계층 연결 상태 StatusPill, DLQ UI + 재전송 버튼, 진단 보고서 + 이벤트 타입별 통계, DLQ 뱃지
+
 ### System Design Choices
 - **API Design**: RESTful API endpoints with clear responsibilities, consistent JSON response formats (success/failure), and strong authentication/authorization middleware.
 - **Database Schema**: PostgreSQL with Drizzle ORM, featuring key tables for swimming pools, users, students, classes, attendance, photos, and activity logs, all designed with `swimming_pool_id` for multi-tenancy.

@@ -20,6 +20,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 
@@ -464,10 +465,20 @@ router.post(
           await db.execute(sql`UPDATE swimming_pools SET is_readonly = TRUE, readonly_reason = ${reason ?? "일괄 읽기전용"} WHERE id = ${id}`);
           desc = `일괄 읽기전용 전환: ${reason ?? ""}`;
           category = "읽기전용 전환";
+          logPoolEvent({
+            pool_id: id, event_type: "read_only_mode.on", entity_type: "swimming_pool",
+            entity_id: id, actor_id: req.user!.userId,
+            payload: { reason: reason ?? "일괄 읽기전용" },
+          }).catch(() => {});
         } else if (action === "readonly_off") {
           await db.execute(sql`UPDATE swimming_pools SET is_readonly = FALSE WHERE id = ${id}`);
           desc = "일괄 읽기전용 해제";
           category = "읽기전용 전환";
+          logPoolEvent({
+            pool_id: id, event_type: "read_only_mode.off", entity_type: "swimming_pool",
+            entity_id: id, actor_id: req.user!.userId,
+            payload: {},
+          }).catch(() => {});
         } else if (action === "block_upload") {
           await db.execute(sql`UPDATE swimming_pools SET upload_blocked = TRUE WHERE id = ${id}`);
           desc = "일괄 업로드 차단";

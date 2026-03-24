@@ -9,6 +9,7 @@ import { db } from "@workspace/db";
 import { studentsTable, usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 
@@ -34,6 +35,11 @@ router.post("/admin/students/:id/class-schedule", requireAuth, requireRole("teac
         WHERE id = ${req.params.id}
       `);
 
+      logPoolEvent({
+        pool_id: student.swimming_pool_id!, event_type: "schedule.change", entity_type: "student",
+        entity_id: req.params.id, actor_id: req.user!.userId,
+        payload: { class_schedule, frequency },
+      }).catch(() => {});
       res.json({ success: true, data: { id: req.params.id, class_schedule, frequency } });
     } catch (err) {
       console.error(err);
@@ -68,7 +74,7 @@ router.patch("/admin/students/:id/class-schedule", requireAuth, requireRole("tea
         res.status(400).json({ success: false, message: "유효한 시간표를 입력해주세요." }); return;
       }
 
-      const [student] = await db.select({ id: studentsTable.id })
+      const [student] = await db.select({ id: studentsTable.id, swimming_pool_id: studentsTable.swimming_pool_id })
         .from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
       
       if (!student) { res.status(404).json({ success: false, message: "학생을 찾을 수 없습니다." }); return; }
@@ -79,6 +85,11 @@ router.patch("/admin/students/:id/class-schedule", requireAuth, requireRole("tea
         WHERE id = ${req.params.id}
       `);
 
+      logPoolEvent({
+        pool_id: student.swimming_pool_id!, event_type: "schedule.change", entity_type: "student",
+        entity_id: req.params.id, actor_id: req.user!.userId,
+        payload: { class_schedule },
+      }).catch(() => {});
       res.json({ success: true, data: { id: req.params.id, class_schedule } });
     } catch (err) {
       console.error(err);

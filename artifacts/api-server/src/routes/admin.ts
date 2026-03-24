@@ -5,6 +5,7 @@ import { eq, sql, and } from "drizzle-orm";
 import { requireAuth, requireRole, requirePermission, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
+import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 
@@ -115,6 +116,11 @@ router.patch("/pools/:id/subscription", requireAuth, requirePermission("canManag
       created_by: req.user!.userId,
     });
 
+    logPoolEvent({
+      pool_id: id, event_type: "subscription.change", entity_type: "subscription",
+      entity_id: subId, actor_id: req.user!.userId,
+      payload: { subscription_status, subscription_start_at, subscription_end_at, note },
+    }).catch(() => {});
     res.json(pool);
   } catch (err) {
     console.error(err);

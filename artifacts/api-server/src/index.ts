@@ -1,6 +1,19 @@
 import app from "./app";
 import { startBackupJobs } from "./jobs/backup-batch.js";
 
+// ── DB 이원화 강제 점검 ──────────────────────────────────────────
+const POOL_URL = process.env.POOL_DATABASE_URL;
+if (!POOL_URL) {
+  console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.error("🔴 [DB 이원화 오류] POOL_DATABASE_URL 환경변수가 설정되지 않았습니다.");
+  console.error("   수영장 운영 DB와 슈퍼관리자 DB는 반드시 분리되어야 합니다.");
+  console.error("   ▶ Replit Secrets에 POOL_DATABASE_URL을 추가하세요:");
+  console.error("     POOL_DATABASE_URL = (신규 Supabase 프로젝트 Connection String)");
+  console.error("     POOL_DB_PASSWORD  = (신규 Supabase 프로젝트 DB 비밀번호)");
+  console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  process.exit(1);
+}
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {

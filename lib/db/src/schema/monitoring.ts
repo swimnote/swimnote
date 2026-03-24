@@ -53,6 +53,39 @@ export const dbServerSnapshotsTable = pgTable("db_server_snapshots", {
   captured_at:          timestamp("captured_at").notNull().defaultNow(),
 });
 
+/** 수영장 내부 변경 감사 로그 (pool_ops DB 영역 — super 로그 실패 대비) */
+export const poolChangeLogsTable = pgTable("pool_change_logs", {
+  id:          text("id").primaryKey().default("gen_random_uuid()"),
+  pool_id:     text("pool_id").notNull(),
+  event_type:  text("event_type").notNull(),
+  entity_type: text("entity_type").notNull(),
+  entity_id:   text("entity_id"),
+  actor_id:    text("actor_id"),
+  actor_name:  text("actor_name"),
+  payload:     jsonb("payload"),
+  created_at:  timestamp("created_at").notNull().defaultNow(),
+});
+
+/** Dead-letter queue — 최대 재시도 초과 이벤트 보관 (수동 재전송 가능) */
+export const deadLetterQueueTable = pgTable("dead_letter_queue", {
+  id:             text("id").primaryKey().default("gen_random_uuid()"),
+  pool_id:        text("pool_id").notNull(),
+  event_type:     text("event_type").notNull(),
+  entity_type:    text("entity_type").notNull(),
+  entity_id:      text("entity_id"),
+  actor_id:       text("actor_id"),
+  actor_name:     text("actor_name"),
+  payload:        jsonb("payload"),
+  original_error: text("original_error"),
+  total_retries:  integer("total_retries").notNull().default(0),
+  resolved:       boolean("resolved").notNull().default(false),
+  resolved_at:    timestamp("resolved_at"),
+  resolved_by:    text("resolved_by"),
+  created_at:     timestamp("created_at").notNull().defaultNow(),
+});
+
 export type PoolEventLog      = typeof poolEventLogsTable.$inferSelect;
 export type EventRetryQueue   = typeof eventRetryQueueTable.$inferSelect;
 export type DbServerSnapshot  = typeof dbServerSnapshotsTable.$inferSelect;
+export type PoolChangeLog     = typeof poolChangeLogsTable.$inferSelect;
+export type DeadLetterQueue   = typeof deadLetterQueueTable.$inferSelect;

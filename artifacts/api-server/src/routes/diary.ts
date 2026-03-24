@@ -19,6 +19,7 @@ import { db } from "@workspace/db";
 import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
@@ -365,6 +366,11 @@ router.post("/diaries",
       const className = (cgRow.rows[0] as any)?.name || "수업";
       sendDiaryPush(class_group_id, diaryId, className, poolId);
 
+      logPoolEvent({
+        pool_id: poolId!, event_type: "journal.create", entity_type: "class_diary",
+        entity_id: diaryId, actor_id: userId,
+        payload: { class_group_id, lesson_date: dateStr },
+      }).catch(() => {});
       res.json({ success: true, diary_id: diaryId, student_notes: savedNotes });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -431,6 +437,11 @@ router.put("/diaries/:id",
         beforeContent: diary.common_content, afterContent: common_content.trim(),
         actorId: userId, actorName, actorRole: role, poolId: poolId!,
       });
+      logPoolEvent({
+        pool_id: poolId!, event_type: "journal.update", entity_type: "class_diary",
+        entity_id: req.params.id, actor_id: userId,
+        payload: { class_group_id: diary.class_group_id },
+      }).catch(() => {});
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -460,6 +471,11 @@ router.delete("/diaries/:id",
         beforeContent: diary.common_content,
         actorId: userId, actorName, actorRole: role, poolId: poolId!,
       });
+      logPoolEvent({
+        pool_id: poolId!, event_type: "journal.delete", entity_type: "class_diary",
+        entity_id: req.params.id, actor_id: userId,
+        payload: { class_group_id: diary.class_group_id },
+      }).catch(() => {});
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }

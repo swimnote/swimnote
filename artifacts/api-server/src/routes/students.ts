@@ -827,6 +827,11 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
 
     // class_groups의 student_count는 GET 때 집계이므로 별도 업데이트 불필요
     const enriched = await enrichWithClasses({ ...student, assignedClasses: validClasses });
+    logPoolEvent({
+      pool_id: poolId!, event_type: "class_assign", entity_type: "student",
+      entity_id: req.params.id, actor_id: req.user!.userId,
+      payload: { assigned_class_ids, student_name: existing.name },
+    }).catch(() => {});
     res.json({ success: true, ...enriched });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
