@@ -37,6 +37,7 @@ import superRouter from "./super.js";
 import pushSettingsRouter from "./push-settings.js";
 import classChangeLogsRouter from "./class-change-logs.js";
 import dbStatusRouter from "./db-status.js";
+import infraUsageRouter from "./infra-usage.js";
 
 const router: IRouter = Router();
 
@@ -80,5 +81,6 @@ router.use("/", superRouter);
 router.use("/", pushSettingsRouter);
 router.use("/class-change-logs", classChangeLogsRouter);
 router.use("/super/db-status", dbStatusRouter);
+router.use("/super/infra-usage", infraUsageRouter);
 
 export default router;

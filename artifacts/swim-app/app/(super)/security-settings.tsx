@@ -20,6 +20,7 @@ import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useSecurityStore } from "@/store/securityStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SuperAdminAccount, SuperAdminRole, SuperAdminSession } from "@/domain/types";
+import InfraStatusPanel from "@/components/super/InfraStatusPanel";
 
 const P = "#7C3AED";
 const DANGER = "#D96C6C";
@@ -352,11 +353,6 @@ export default function SecuritySettingsScreen() {
   const [otpShowSecret,  setOtpShowSecret]  = useState(false);
   const otpCodeRef = useRef<TextInput>(null);
 
-  // ── D. 외부 서비스 ──
-  const [services,        setServices]        = useState<ExtService[]>(INITIAL_SERVICES);
-  const [refreshing,      setRefreshing]      = useState<string | null>(null);
-  const [selectedService, setSelectedService] = useState<ExtService | null>(null);
-
   // ── F. 보안 정책 ──
   const [maxFail,     setMaxFail]     = useState(5);
   const [lockMinutes, setLockMinutes] = useState(30);
@@ -467,27 +463,6 @@ export default function SecuritySettingsScreen() {
     setTwoFAMode(pendingMode);
     createLog({ category: "보안", title: `2차 인증 방식 변경: ${prevLabel} → ${nextLabel}`, detail: "2FA 방식 변경", actorName, impact: "high" });
     setTwoFAModal(false); setPendingMode(null);
-  }
-
-  function refreshService(id: string) {
-    const svc = services.find(s => s.id === id);
-    if (!svc || svc.isPlaceholder) return;
-    setRefreshing(id);
-    setTimeout(() => {
-      const checkedNow = new Date().toISOString();
-      setServices(prev => prev.map(sv =>
-        sv.id === id
-          ? { ...sv, status: sv.status === "normal" ? "normal" : sv.status, lastCheckedAt: checkedNow }
-          : sv
-      ));
-      setRefreshing(null);
-      createLog({ category: "보안", title: `외부 서비스 확인: ${svc.name}`, detail: `연결 상태 수동 점검`, actorName, impact: "low" });
-    }, 900);
-  }
-
-  function refreshAllServices() {
-    const connected = services.filter(sv => !sv.isPlaceholder);
-    connected.forEach(sv => refreshService(sv.id));
   }
 
   function doLock(accountId: string) {
@@ -738,100 +713,9 @@ export default function SecuritySettingsScreen() {
           </View>
         </View>
 
-        {/* ══ D. 외부 서비스 ══ */}
+        {/* ══ D. 플랫폼 인프라 상태 ══ */}
         <View style={s.section}>
-          {/* 헤더 */}
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <View style={{ flex: 1 }}>
-              <SectionTitle title="D. 외부 서비스 연결 상태" />
-              {(() => {
-                const alerts = services.filter(sv => sv.status === "error" || sv.status === "disconnected" || sv.status === "warning").length;
-                return alerts > 0 ? (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
-                    <Feather name="alert-circle" size={12} color={DANGER} />
-                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: DANGER }}>
-                      {alerts}건 주의 필요
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
-                    <Feather name="check-circle" size={12} color={GREEN} />
-                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: GREEN }}>모든 연결 서비스 정상</Text>
-                  </View>
-                );
-              })()}
-            </View>
-            <Pressable style={s.refreshAllBtn} onPress={refreshAllServices}>
-              <Feather name="refresh-cw" size={13} color={P} />
-              <Text style={s.refreshAllTxt}>전체 새로고침</Text>
-            </Pressable>
-          </View>
-
-          {/* 카테고리별 서비스 목록 */}
-          {(["data", "payment", "messaging", "appstore", "other"] as const).map(cat => {
-            const catSvcs = services.filter(sv => sv.category === cat);
-            if (catSvcs.length === 0) return null;
-            const catCfg = CATEGORY_CFG[cat];
-            return (
-              <View key={cat} style={{ gap: 6 }}>
-                {/* 카테고리 헤더 */}
-                <View style={s.catHeader}>
-                  <View style={[s.catIconBox, { backgroundColor: catCfg.bg }]}>
-                    <Feather name={catCfg.icon as any} size={12} color={catCfg.color} />
-                  </View>
-                  <Text style={[s.catLabel, { color: catCfg.color }]}>{catCfg.label}</Text>
-                  <View style={s.catLine} />
-                </View>
-                {/* 서비스 카드들 */}
-                {catSvcs.map(sv => {
-                  const cfg = STATUS_CFG[sv.status];
-                  const isRef = refreshing === sv.id;
-                  return (
-                    <Pressable
-                      key={sv.id}
-                      style={[s.serviceCard, sv.status === "error" || sv.status === "disconnected"
-                        ? { borderColor: cfg.color, borderWidth: 1.5 }
-                        : {}]}
-                      onPress={() => setSelectedService(sv)}
-                    >
-                      <View style={[s.serviceIconBox, { backgroundColor: cfg.bg }]}>
-                        <Feather name={sv.icon as any} size={15} color={cfg.color} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                          <Text style={s.serviceName}>{sv.name}</Text>
-                          <View style={[s.statusBadge, { backgroundColor: cfg.bg }]}>
-                            <Feather name={cfg.icon as any} size={9} color={cfg.color} />
-                            <Text style={[s.statusTxt, { color: cfg.color }]}>{cfg.label}</Text>
-                          </View>
-                          {sv.isPlaceholder && (
-                            <View style={s.placeholderTag}>
-                              <Text style={s.placeholderTagTxt}>미연결</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={s.serviceMsg} numberOfLines={1}>{sv.statusMessage}</Text>
-                        <Text style={s.serviceLastChecked}>
-                          {sv.lastCheckedAt ? `확인: ${fmtChecked(sv.lastCheckedAt)}` : "확인 없음"}
-                        </Text>
-                      </View>
-                      {!sv.isPlaceholder && (
-                        <Pressable
-                          style={[s.refreshBtn, isRef && { opacity: 0.5 }]}
-                          disabled={isRef}
-                          onPress={() => refreshService(sv.id)}
-                          hitSlop={8}
-                        >
-                          <Feather name={isRef ? "loader" : "refresh-cw"} size={13} color={P} />
-                        </Pressable>
-                      )}
-                      <Feather name="chevron-right" size={15} color="#C4BDB8" />
-                    </Pressable>
-                  );
-                })}
-              </View>
-            );
-          })}
+          <InfraStatusPanel />
         </View>
 
         {/* ══ E. 세션·접속 관리 ══ */}
@@ -1308,131 +1192,6 @@ export default function SecuritySettingsScreen() {
         </Pressable>
       </Modal>
 
-      {/* ══ 외부 서비스 상세 모달 ══ */}
-      <Modal
-        visible={!!selectedService}
-        animationType="slide"
-        transparent
-        statusBarTranslucent
-        onRequestClose={() => setSelectedService(null)}
-      >
-        <View style={m.backdrop}>
-          <Pressable style={{ flex: 1 }} onPress={() => setSelectedService(null)} />
-          {selectedService && (() => {
-            const sv  = selectedService;
-            const cfg = STATUS_CFG[sv.status];
-            const catCfg = CATEGORY_CFG[sv.category];
-            return (
-              <View style={m.svcSheet}>
-                <View style={m.handle} />
-
-                {/* 상단 헤더 */}
-                <View style={m.svcHeader}>
-                  <View style={[m.svcIconBig, { backgroundColor: cfg.bg }]}>
-                    <Feather name={sv.icon as any} size={22} color={cfg.color} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={m.svcName}>{sv.name}</Text>
-                    <Text style={m.svcType}>{sv.serviceType} · {catCfg.label}</Text>
-                  </View>
-                  <Pressable onPress={() => setSelectedService(null)} hitSlop={10}>
-                    <Feather name="x" size={20} color="#6F6B68" />
-                  </Pressable>
-                </View>
-
-                {/* 상태 배지 + 메시지 */}
-                <View style={[m.svcStatusRow, { backgroundColor: cfg.bg }]}>
-                  <Feather name={cfg.icon as any} size={14} color={cfg.color} />
-                  <Text style={[m.svcStatusTxt, { color: cfg.color }]}>{cfg.label}</Text>
-                  <Text style={[m.svcStatusMsg, { color: cfg.color }]}>— {sv.statusMessage}</Text>
-                </View>
-
-                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
-                  {/* 연결 정보 */}
-                  {sv.endpointUrl && (
-                    <View style={m.svcDetailRow}>
-                      <Text style={m.svcDetailKey}>연결 URL</Text>
-                      <Text style={m.svcDetailVal} numberOfLines={2}>{sv.endpointUrl}</Text>
-                    </View>
-                  )}
-                  {sv.projectId && (
-                    <View style={m.svcDetailRow}>
-                      <Text style={m.svcDetailKey}>프로젝트 / 앱 ID</Text>
-                      <Text style={m.svcDetailVal}>{sv.projectId}</Text>
-                    </View>
-                  )}
-                  {sv.bucketName && (
-                    <View style={m.svcDetailRow}>
-                      <Text style={m.svcDetailKey}>버킷명</Text>
-                      <Text style={m.svcDetailVal}>{sv.bucketName}</Text>
-                    </View>
-                  )}
-                  {sv.connectedAt && (
-                    <View style={m.svcDetailRow}>
-                      <Text style={m.svcDetailKey}>연결 등록일</Text>
-                      <Text style={m.svcDetailVal}>{new Date(sv.connectedAt).toLocaleDateString("ko-KR")}</Text>
-                    </View>
-                  )}
-                  <View style={m.svcDetailRow}>
-                    <Text style={m.svcDetailKey}>마지막 확인</Text>
-                    <Text style={m.svcDetailVal}>
-                      {sv.lastCheckedAt
-                        ? `${new Date(sv.lastCheckedAt).toLocaleString("ko-KR")} (${fmtChecked(sv.lastCheckedAt)})`
-                        : "확인 없음"}
-                    </Text>
-                  </View>
-                  {sv.lastErrorAt && (
-                    <View style={m.svcDetailRow}>
-                      <Text style={m.svcDetailKey}>마지막 오류</Text>
-                      <Text style={[m.svcDetailVal, { color: DANGER }]}>
-                        {new Date(sv.lastErrorAt).toLocaleString("ko-KR")}
-                      </Text>
-                    </View>
-                  )}
-                  {sv.notes && (
-                    <View style={m.svcDetailRow}>
-                      <Text style={m.svcDetailKey}>사용 목적</Text>
-                      <Text style={m.svcDetailVal}>{sv.notes}</Text>
-                    </View>
-                  )}
-                  <View style={m.svcDetailRow}>
-                    <Text style={m.svcDetailKey}>연결 여부</Text>
-                    <Text style={[m.svcDetailVal, { color: sv.isConnected ? GREEN : "#6B7280" }]}>
-                      {sv.isConnected ? "연결됨" : "미연결"}
-                    </Text>
-                  </View>
-                  {sv.isPlaceholder && (
-                    <View style={m.svcPlaceholderBanner}>
-                      <Feather name="info" size={11} color="#6B7280" />
-                      <Text style={m.svcPlaceholderTxt}>아직 연결 설정이 완료되지 않은 예비 항목입니다.</Text>
-                    </View>
-                  )}
-                </ScrollView>
-
-                {/* 하단 버튼 */}
-                <View style={m.svcFooter}>
-                  {!sv.isPlaceholder && (
-                    <Pressable
-                      style={[m.svcRefreshBtn, refreshing === sv.id && { opacity: 0.6 }]}
-                      disabled={refreshing === sv.id}
-                      onPress={() => {
-                        refreshService(sv.id);
-                        setSelectedService(s => s ? { ...s, lastCheckedAt: new Date().toISOString() } : s);
-                      }}
-                    >
-                      <Feather name={refreshing === sv.id ? "loader" : "refresh-cw"} size={13} color="#fff" />
-                      <Text style={m.svcRefreshTxt}>상태 새로고침</Text>
-                    </Pressable>
-                  )}
-                  <Pressable style={m.svcCloseBtn} onPress={() => setSelectedService(null)}>
-                    <Text style={m.svcCloseTxt}>닫기</Text>
-                  </Pressable>
-                </View>
-              </View>
-            );
-          })()}
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

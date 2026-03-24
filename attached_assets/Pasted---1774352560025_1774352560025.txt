@@ -1,0 +1,298 @@
+보안설정 > 외부 서비스 연결 상태 화면을 전면 개편해라.
+목표는 단순 연결 상태 표시가 아니라, 슈퍼관리자가 앱을 켰을 때 플랫폼 자원의 연결 상태, 사용량, 경고 임계치, 최근 이상 상태를 전기 배전판처럼 한눈에 확인할 수 있게 만드는 것이다.
+
+[최상단 구조]
+상단 제목은 “플랫폼 인프라 상태”로 변경하고,
+보조 문구는 “연결 상태 · 사용량 · 경고 임계치 · 최근 확인 결과”로 표시해라.
+우측 상단에는 전체 새로고침 버튼과 전체 상태 요약 배지를 표시해라.
+예: 정상 12개 / 주의 3개 / 오류 2개
+
+[상단 핵심 4카드]
+반드시 아래 4개를 최상단 요약 카드로 따로 분리해라.
+1. 슈퍼관리자 DB
+2. 수영장 운영 DB
+3. 사진 저장소
+4. 영상 저장소
+
+각 카드에 반드시 표시할 정보:
+- 상태 배지 (정상 / 임박 / 위험 / 가득 참 / 지연 / 오류 / 비활성)
+- 설명 문구
+- 현재 사용량
+- 총 한도
+- 사용률 %
+- 응답속도(ms) 또는 성능 지표
+- 핵심 운영 지표 또는 파일 수
+- 최근 확인 시각
+- 새로고침 버튼
+- 상세보기 버튼
+
+[카드별 상세 요구사항]
+
+1) 슈퍼관리자 DB 카드
+제목: 슈퍼관리자 DB
+설명: 플랫폼 계정 · 구독 · 결제 · 감사로그 원본
+표시:
+- 사용량 used_mb / limit_mb
+- usage_percent
+- latency_ms
+- table_count
+- recent_error_count
+- last_checked_at
+
+2) 수영장 운영 DB 카드
+제목: 수영장 운영 DB
+설명: 학생 · 반 · 출결 · 일지 · 운영 원본 데이터
+표시:
+- used_mb / limit_mb
+- usage_percent
+- latency_ms
+- student_count
+- class_count
+- attendance_count
+- journal_count
+- last_checked_at
+
+3) 사진 저장소 카드
+제목: 사진 저장소
+설명: 기본 제공 사진 업로드 · 다운로드 압축본 기준
+표시:
+- used_mb / limit_mb
+- usage_percent
+- file_count
+- avg_upload_ms
+- recent_error_count
+- last_checked_at
+
+4) 영상 저장소 카드
+제목: 영상 저장소
+설명: 기본 잠금 · 유료 저장공간 구매 시 활성화
+표시:
+- feature_status
+- used_mb / limit_mb
+- usage_percent
+- file_count
+- enabled_pool_count
+- recent_error_count
+- last_checked_at
+
+[경고 기준]
+모든 저장소/DB 용량은 아래 임계치를 공통 적용해라.
+- 0~79.9% = 정상
+- 80~89.9% = 임박
+- 90~99.9% = 위험
+- 100% 이상 = 가득 참
+
+응답속도 기준:
+- 0~299ms = 정상
+- 300~999ms = 지연
+- 1000ms 이상 = 심각 지연
+
+연결 실패 기준:
+- 최근 점검 성공 = 정상
+- 최근 1회 실패 후 복구 = 주의
+- 최근 3회 연속 실패 = 오류
+
+영상 기능 기준:
+- video_storage_limit_mb = 0 이면 비활성
+- video_storage_limit_mb > 0 이고 80% 미만이면 정상
+- 80% 이상이면 임박
+- 90% 이상이면 위험
+- 100%이면 가득 참
+
+[서비스 그룹 분리]
+상단 4카드 아래에는 서비스 리스트를 반드시 2개 그룹으로 나눠라.
+
+A. 플랫폼 운영 인프라
+- 슈퍼관리자 DB
+- 결제 시스템
+- OTP/보안
+- 정산 계좌
+- 백업 스토리지
+- 오류 수집(Sentry)
+- 감사/로그 서버
+
+B. 수영장 운영 인프라
+- 수영장 운영 DB
+- 사진 저장소
+- 영상 저장소
+- CDN
+- APNs
+- FCM
+- SMS
+- Email
+- 휴대폰 인증
+- 파일 업로드 서비스
+
+현재처럼 서비스 전체를 한 리스트에 섞지 마라.
+
+[백엔드 API]
+아래 API를 구현 또는 보강해라.
+
+1. GET /super/infra-usage/summary
+응답 필드:
+- checked_at
+- totals.ok_count
+- totals.warning_count
+- totals.error_count
+- super_db
+- pool_db
+- photo_storage
+- video_storage
+
+2. GET /super/infra-usage/super-db
+응답 필드:
+- service_key
+- label
+- status
+- status_label
+- message
+- region
+- latency_ms.current
+- latency_ms.avg_1h
+- latency_ms.max_24h
+- usage.used_mb
+- usage.limit_mb
+- usage.usage_percent
+- counts.table_count
+- counts.user_count
+- counts.pool_count
+- counts.subscription_count
+- counts.revenue_log_count
+- counts.pool_event_log_count
+- health.recent_error_count
+- health.recent_warning_count
+- health.last_success_at
+- health.last_failure_at
+- recent_errors[]
+- thresholds.warning_percent
+- thresholds.danger_percent
+- thresholds.critical_percent
+
+3. GET /super/infra-usage/pool-db
+응답 필드:
+- service_key
+- label
+- status
+- status_label
+- message
+- region
+- latency_ms.current
+- latency_ms.avg_1h
+- latency_ms.max_24h
+- usage.used_mb
+- usage.limit_mb
+- usage.usage_percent
+- counts.student_count
+- counts.parent_count
+- counts.teacher_count
+- counts.class_count
+- counts.attendance_count
+- counts.journal_count
+- counts.photo_meta_count
+- counts.video_meta_count
+- health.recent_error_count
+- health.recent_warning_count
+- health.last_success_at
+- health.last_failure_at
+- recent_errors[]
+- thresholds.warning_percent
+- thresholds.danger_percent
+- thresholds.critical_percent
+
+4. GET /super/infra-usage/storage
+응답 필드:
+- checked_at
+- photo_storage
+- video_storage
+photo_storage 안에는:
+- service_key
+- label
+- status
+- status_label
+- message
+- provider
+- bucket_name
+- usage.used_mb
+- usage.limit_mb
+- usage.usage_percent
+- counts.file_count
+- counts.upload_count_24h
+- counts.delete_count_24h
+- counts.failed_upload_count_24h
+- performance.avg_upload_ms
+- performance.max_upload_ms
+- health.recent_error_count
+- health.last_success_at
+- health.last_failure_at
+
+video_storage 안에는:
+- service_key
+- label
+- status
+- status_label
+- message
+- provider
+- bucket_name
+- feature_status
+- usage.used_mb
+- usage.limit_mb
+- usage.usage_percent
+- counts.file_count
+- counts.enabled_pool_count
+- counts.upload_count_24h
+- counts.failed_upload_count_24h
+- health.recent_error_count
+- health.last_success_at
+- health.last_failure_at
+
+[프론트 표시 규칙]
+- MB/GB 자동 변환
+- 퍼센트 소수점 1자리
+- 최근 확인은 “n분 전”
+- 오류 수 0이면 “오류 없음”
+- 비활성은 회색 계열
+- 임박/위험/가득 참은 색과 문구를 둘 다 바꿔라
+- super DB와 pool DB가 같은 카드로 합쳐져 보이면 실패
+- 사진과 영상이 같은 저장소로 합쳐져 보이면 실패
+
+[하단 추가 섹션]
+반드시 아래 2개 섹션도 추가해라.
+
+1. 최근 이상 감지
+예:
+- 사진 저장소 용량 82% 임박
+- 이메일 인증 API 키 끊김
+- Sentry 오류 이벤트 급증
+- PortOne 토큰 만료 임박
+
+2. 최근 24시간 상태 이력
+예:
+- 14:10 Cloudflare R2 재연결 성공
+- 15:40 SendGrid 인증 실패
+- 17:05 super DB 점검 완료
+
+[중요]
+- mock 데이터 금지
+- 실제 API 기반으로 연결
+- 현재 값이 없으면 null 또는 미측정으로 표시
+- 확인하지 못한 값은 추정해서 채우지 마라
+
+[보고 형식]
+답변 마지막에는 반드시 아래를 적어라.
+1. 새로 만든/수정한 API 목록
+2. 각 API가 실제 측정하는 대상
+3. 프론트에서 추가/수정한 파일 경로
+4. 4개 핵심 카드에 실제로 표시되는 값
+5. 경고 기준이 실제로 어떤 로직으로 적용되는지
+6. 아직 실제 연결 안 된 항목
+7. 내가 앱에서 직접 확인할 화면 위치
+8. 내가 Supabase/Cloudflare에서 직접 확인할 위치
+9. 다음 단계로 무엇을 하면 되는지
+
+지금 바로 시작해라.
+먼저
+1) infra-usage API 구현
+2) 상단 4카드 UI 추가
+3) 2그룹 병렬 서비스 패널 분리
+4) 경고 임계치 적용
+이 4개부터 진행해라.
