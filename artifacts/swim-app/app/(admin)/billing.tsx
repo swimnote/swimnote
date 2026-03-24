@@ -300,7 +300,7 @@ export default function BillingScreen() {
                   <Text style={s.storageBannerDesc}>파일을 삭제하거나 상위 플랜으로 업그레이드하세요.</Text>
                 </View>
                 <Pressable
-                  onPress={() => router.push("/(admin)/photos" as any)}
+                  onPress={() => router.push("/(admin)/data-storage-overview" as any)}
                   style={[s.storageActionBtn, { borderColor: "#DC2626" }]}
                 >
                   <Text style={[s.storageActionTxt, { color: "#DC2626" }]}>사진 정리</Text>
@@ -367,7 +367,7 @@ export default function BillingScreen() {
               </View>
               <Text style={s.cardNote}>
                 * 개발 환경에서는 임의 카드번호로 테스트 가능합니다.{"\n"}
-                실제 PG(토스/포트원) 연동 시 실제 카드 정보를 입력합니다.
+                실제 앱스토어/구글플레이 인앱결제 전환 전 임시 카드 입력 화면입니다.
               </Text>
             </View>
           )}

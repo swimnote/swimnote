@@ -112,6 +112,7 @@ function ParentStack() {
       <Stack.Screen name="swim-info" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="shopping" />
+      <Stack.Screen name="push-settings" />
     </Stack>
   );
 }

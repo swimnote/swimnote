@@ -52,6 +52,8 @@ async function ensureBillingTables() {
   await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS payment_provider TEXT NOT NULL DEFAULT 'store'`).catch(() => {});
   await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS provider_transaction_id TEXT`).catch(() => {});
   await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS store_fee INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS net_revenue INTEGER NOT NULL DEFAULT 0`).catch(() => {});
   // 다운그레이드 예약 컬럼 추가
   await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS pending_tier TEXT`).catch(() => {});
   await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS downgrade_at DATE`).catch(() => {});
@@ -868,13 +870,13 @@ router.get("/revenue-by-plan", requireAuth, requireRole("super_admin"), async (_
         rl.plan_id,
         pp.name AS plan_name,
         COUNT(*)::int AS payment_count,
-        SUM(rl.amount)::int AS total_amount,
+        SUM(rl.charged_amount)::int AS total_amount,
         SUM(rl.store_fee)::int AS total_store_fee,
         SUM(rl.net_revenue)::int AS total_net_revenue
       FROM revenue_logs rl
       LEFT JOIN subscription_plans pp ON pp.tier = rl.plan_id
       GROUP BY rl.plan_id, pp.name
-      ORDER BY total_amount DESC
+      ORDER BY SUM(rl.charged_amount) DESC
     `)).rows;
     res.json(rows);
   } catch (err: any) {
@@ -891,13 +893,13 @@ router.get("/revenue-by-pool", requireAuth, requireRole("super_admin"), async (_
         rl.pool_id,
         sp.name AS pool_name,
         COUNT(*)::int AS payment_count,
-        SUM(rl.amount)::int AS total_amount,
+        SUM(rl.charged_amount)::int AS total_amount,
         SUM(rl.store_fee)::int AS total_store_fee,
         SUM(rl.net_revenue)::int AS total_net_revenue
       FROM revenue_logs rl
       LEFT JOIN swimming_pools sp ON sp.id = rl.pool_id
       GROUP BY rl.pool_id, sp.name
-      ORDER BY total_amount DESC
+      ORDER BY SUM(rl.charged_amount) DESC
     `)).rows;
     res.json(rows);
   } catch (err: any) {
