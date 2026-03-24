@@ -733,10 +733,11 @@ const dy = StyleSheet.create({
 });
 
 // ─── 반 상세 시트 (주간 뷰 클릭용) ─────────────────────────────
-function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClose, onOpenUnreg, onOpenRemove, onOpenExtra, onNavigateTo }:
+function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClose, onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass }:
   { group: TeacherClassGroup; students: StudentItem[]; attMap: Record<string,number>;
     diarySet: Set<string>; themeColor: string; onClose: () => void;
-    onOpenUnreg?: () => void; onOpenRemove?: () => void; onOpenExtra?: () => void;
+    onOpenUnreg?: () => void; onOpenRemove?: () => void;
+    onDeleteClass?: () => void;
     /** 페이지 이동이 필요할 때 부모가 모달 정리 후 navigate 실행 */
     onNavigateTo?: (navigate: () => void) => void; }) {
 
@@ -788,10 +789,10 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
             <Feather name="edit-3" size={13} color={diarDone ? "#1F8F86" : "#D97706"} />
             <Text style={[cds.actionText, { color: diarDone ? "#1F8F86" : "#D97706" }]}>수업일지</Text>
           </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: "#FEF9C3" }]}
-            onPress={() => { onClose(); setTimeout(() => onOpenExtra?.(), 200); }}>
-            <Feather name="plus-circle" size={13} color="#CA8A04" />
-            <Text style={[cds.actionText, { color: "#CA8A04" }]}>기타수업</Text>
+          <Pressable style={[cds.actionBtn, { backgroundColor: "#FFF1F2" }]}
+            onPress={() => { onClose(); setTimeout(() => onDeleteClass?.(), 200); }}>
+            <Feather name="trash-2" size={13} color="#E11D48" />
+            <Text style={[cds.actionText, { color: "#E11D48" }]}>반 삭제</Text>
           </Pressable>
         </View>
         <Text style={cds.sectionLabel}>학생 목록</Text>
@@ -861,320 +862,6 @@ const cds = StyleSheet.create({
   emptyText:    { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
 });
 
-// ─── 기타 수업 생성 모달 ──────────────────────────────────────────
-function ExtraClassModal({ token, poolId, group, groupStudents, onClose, onCreated }: {
-  token: string | null; poolId: string; group: TeacherClassGroup;
-  groupStudents: StudentItem[]; onClose: () => void; onCreated: () => void;
-}) {
-  const { themeColor } = useBrand();
-  const [className, setClassName] = useState(group.name + " 기타수업");
-  const [classDate, setClassDate] = useState(todayDateStr());
-  const [classTime, setClassTime] = useState(group.schedule_time || "09:00");
-  const [notes, setNotes]         = useState("");
-  const [isFifthWeek, setIsFifthWeek] = useState(false);
-  const [selectedStuIds, setSelectedStuIds] = useState<Set<string>>(new Set());
-  const [unreg, setUnreg]         = useState("");
-  const [unregNames, setUnregNames] = useState<string[]>([]);
-  const [saving, setSaving]       = useState(false);
-  const [error, setError]         = useState("");
-  const [showUnregPicker, setShowUnregPicker] = useState(false);
-
-  function toggleStu(id: string) {
-    setSelectedStuIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  }
-  function addUnreg() {
-    const name = unreg.trim(); if (!name) return;
-    setUnregNames(prev => [...prev, name]); setUnreg("");
-  }
-  async function handleCreate() {
-    if (!className.trim() || !classDate || !classTime) { setError("수업명·날짜·시간을 입력하세요."); return; }
-    setSaving(true); setError("");
-    try {
-      const res = await apiRequest(token, "/extra-classes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pool_id: poolId, class_name: className.trim(), class_date: classDate,
-          class_time: classTime, student_ids: Array.from(selectedStuIds),
-          unregistered_names: unregNames, is_fifth_week: isFifthWeek, notes: notes.trim() || null }),
-      });
-      if (res.ok) { onCreated(); onClose(); }
-      else { const d = await res.json(); setError(d.error || "생성 실패"); }
-    } catch { setError("네트워크 오류"); }
-    finally { setSaving(false); }
-  }
-
-  return (
-    <>
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={em.backdrop} onPress={onClose} />
-      <View style={em.sheet}>
-        <View style={em.handle} />
-        <View style={em.header}>
-          <Text style={em.title}>기타 수업 추가</Text>
-          <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
-        </View>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
-          <View style={em.field}>
-            <Text style={em.label}>수업명 *</Text>
-            <TextInput style={em.input} value={className} onChangeText={setClassName} placeholder="수업명" placeholderTextColor={C.textMuted} />
-          </View>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <View style={[em.field, { flex: 1 }]}>
-              <Text style={em.label}>날짜 *</Text>
-              <TextInput style={em.input} value={classDate} onChangeText={setClassDate} placeholder="YYYY-MM-DD" placeholderTextColor={C.textMuted} />
-            </View>
-            <View style={[em.field, { width: 100 }]}>
-              <Text style={em.label}>시간 *</Text>
-              <TextInput style={em.input} value={classTime} onChangeText={setClassTime} placeholder="09:00" placeholderTextColor={C.textMuted} />
-            </View>
-          </View>
-          <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 8 }} onPress={() => setIsFifthWeek(!isFifthWeek)}>
-            <View style={[em.checkbox, isFifthWeek && { backgroundColor: themeColor, borderColor: themeColor }]}>
-              {isFifthWeek && <Feather name="check" size={12} color="#fff" />}
-            </View>
-            <Text style={em.label}>5주차 수업</Text>
-          </Pressable>
-          {groupStudents.length > 0 && (
-            <View style={em.field}>
-              <Text style={em.label}>참가 학생</Text>
-              {groupStudents.map(st => (
-                <Pressable key={st.id} style={em.stuRow} onPress={() => toggleStu(st.id)}>
-                  <View style={[em.checkbox, selectedStuIds.has(st.id) && { backgroundColor: themeColor, borderColor: themeColor }]}>
-                    {selectedStuIds.has(st.id) && <Feather name="check" size={12} color="#fff" />}
-                  </View>
-                  <Text style={em.stuName}>{st.name}</Text>
-                  {st.birth_year && <Text style={em.stuSub}>{st.birth_year}년생</Text>}
-                </Pressable>
-              ))}
-            </View>
-          )}
-          <View style={em.field}>
-            <Text style={em.label}>미배정 회원 추가</Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <TextInput style={[em.input, { flex: 1 }]} value={unreg} onChangeText={setUnreg} placeholder="이름 직접 입력" placeholderTextColor={C.textMuted} onSubmitEditing={addUnreg} returnKeyType="done" />
-              <Pressable style={[em.addBtn, { backgroundColor: themeColor }]} onPress={() => setShowUnregPicker(true)}>
-                <Feather name="plus" size={16} color="#fff" />
-              </Pressable>
-            </View>
-            {unregNames.map((n, i) => (
-              <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
-                <Feather name="user" size={13} color={C.textMuted} />
-                <Text style={em.stuName}>{n}</Text>
-                <Pressable onPress={() => setUnregNames(prev => prev.filter((_, j) => j !== i))}>
-                  <Feather name="x" size={14} color={C.textMuted} />
-                </Pressable>
-              </View>
-            ))}
-          </View>
-          <View style={em.field}>
-            <Text style={em.label}>메모</Text>
-            <TextInput style={[em.input, { height: 72, textAlignVertical: "top" }]} value={notes} onChangeText={setNotes} placeholder="특이사항..." placeholderTextColor={C.textMuted} multiline />
-          </View>
-          {error ? <Text style={em.error}>{error}</Text> : null}
-          <Pressable style={[em.createBtn, { backgroundColor: themeColor, opacity: saving ? 0.6 : 1 }]} onPress={handleCreate} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={em.createBtnText}>기타 수업 등록</Text>}
-          </Pressable>
-        </ScrollView>
-      </View>
-    </Modal>
-    {showUnregPicker && (
-      <ExtraClassUnregPickerModal
-        token={token}
-        themeColor={themeColor}
-        alreadyAdded={unregNames}
-        onClose={() => setShowUnregPicker(false)}
-        onSelect={(names) => {
-          setUnregNames(prev => {
-            const existing = new Set(prev);
-            return [...prev, ...names.filter(n => !existing.has(n))];
-          });
-          setShowUnregPicker(false);
-        }}
-      />
-    )}
-    </>
-  );
-}
-const em = StyleSheet.create({
-  backdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet:       { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-                 borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "90%", paddingBottom: 0 },
-  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
-  header:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
-  title:       { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  field:       { gap: 6 },
-  label:       { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  input:       { borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-                 fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, backgroundColor: "#FBF8F6" },
-  checkbox:    { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: C.border,
-                 backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
-  stuRow:      { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
-  stuName:     { fontSize: 14, fontFamily: "Inter_500Medium", color: C.text },
-  stuSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
-  addBtn:      { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  createBtn:   { paddingVertical: 14, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  createBtnText:{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-  error:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#D96C6C", textAlign: "center" },
-});
-
-// ─── 미배정 회원 선택 팝업 (기타수업 등록 전용) ──────────────────────────
-function ExtraClassUnregPickerModal({ token, themeColor, alreadyAdded, onClose, onSelect }: {
-  token: string | null;
-  themeColor: string;
-  alreadyAdded: string[];
-  onClose: () => void;
-  onSelect: (names: string[]) => void;
-}) {
-  const [list, setList]         = useState<any[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [q, setQ]               = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      const r = await apiRequest(token, "/teacher/me/members?tab=unassigned");
-      if (r.ok) {
-        const data = await r.json();
-        setList(Array.isArray(data) ? data : (data?.members ?? []));
-      }
-      setLoading(false);
-    })();
-  }, []);
-
-  const alreadySet = new Set(alreadyAdded);
-  const filtered = list.filter(u =>
-    !q || u.name?.includes(q) || u.phone?.includes(q) || u.parent_name?.includes(q)
-  );
-
-  function toggle(name: string) {
-    setSelected(prev => {
-      const n = new Set(prev);
-      n.has(name) ? n.delete(name) : n.add(name);
-      return n;
-    });
-  }
-
-  function confirm() {
-    onSelect(Array.from(selected));
-  }
-
-  return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={ep.backdrop} onPress={onClose} />
-      <View style={ep.sheet}>
-        <View style={ep.handle} />
-        <View style={ep.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={ep.title}>미배정 회원 선택</Text>
-            <Text style={ep.sub}>반 배정 없는 활성 회원 목록입니다</Text>
-          </View>
-          <Pressable onPress={onClose} style={{ padding: 4 }}>
-            <Feather name="x" size={20} color={C.textSecondary} />
-          </Pressable>
-        </View>
-
-        <View style={ep.searchBar}>
-          <Feather name="search" size={14} color={C.textMuted} />
-          <TextInput
-            style={ep.searchInput}
-            value={q}
-            onChangeText={setQ}
-            placeholder="이름·전화번호 검색"
-            placeholderTextColor={C.textMuted}
-          />
-          {!!q && (
-            <Pressable onPress={() => setQ("")}>
-              <Feather name="x" size={14} color={C.textMuted} />
-            </Pressable>
-          )}
-        </View>
-
-        {loading ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={themeColor} />
-        ) : (
-          <ScrollView style={ep.list} showsVerticalScrollIndicator={false}>
-            {filtered.length === 0 ? (
-              <View style={ep.empty}>
-                <Feather name="users" size={28} color={C.textMuted} />
-                <Text style={ep.emptyTxt}>{q ? "검색 결과가 없습니다" : "미배정 회원이 없습니다"}</Text>
-              </View>
-            ) : filtered.map(item => {
-              const isAlready = alreadySet.has(item.name);
-              const isSel     = selected.has(item.name);
-              const sub       = [item.birth_year ? `${item.birth_year}년생` : null, item.phone || item.parent_name || null]
-                                  .filter(Boolean).join(" · ");
-              return (
-                <Pressable
-                  key={item.id}
-                  style={[ep.row, isAlready && { opacity: 0.4 }]}
-                  onPress={() => !isAlready && toggle(item.name)}
-                  disabled={isAlready}
-                >
-                  <View style={[ep.checkbox, isSel && { backgroundColor: themeColor, borderColor: themeColor }]}>
-                    {isSel && <Feather name="check" size={12} color="#fff" />}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={ep.name}>{item.name}</Text>
-                    {!!sub && <Text style={ep.phone}>{sub}</Text>}
-                    {isAlready && (
-                      <Text style={[ep.phone, { color: themeColor }]}>이미 추가됨</Text>
-                    )}
-                  </View>
-                </Pressable>
-              );
-            })}
-            <View style={{ height: 24 }} />
-          </ScrollView>
-        )}
-
-        <View style={ep.footer}>
-          {selected.size > 0 && (
-            <Text style={ep.selectedCount}>{selected.size}명 선택됨</Text>
-          )}
-          <Pressable
-            style={[ep.confirmBtn, { backgroundColor: selected.size > 0 ? themeColor : C.border }]}
-            onPress={confirm}
-            disabled={selected.size === 0}
-          >
-            <Text style={ep.confirmTxt}>
-              {selected.size > 0 ? `${selected.size}명 추가` : "선택하세요"}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-const ep = StyleSheet.create({
-  backdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet:       { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-                 borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%", paddingBottom: 0 },
-  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
-  header:      { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 16, paddingVertical: 10 },
-  title:       { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  sub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
-  searchBar:   { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
-                 marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8,
-                 backgroundColor: "#F6F3F1", borderRadius: 10 },
-  searchInput: { flex: 1, fontSize: 14, color: C.text, fontFamily: "Inter_400Regular" },
-  list:        { flexShrink: 1 },
-  row:         { flexDirection: "row", alignItems: "center", gap: 12,
-                 paddingHorizontal: 16, paddingVertical: 12,
-                 borderTopWidth: 1, borderTopColor: "#F6F3F1" },
-  checkbox:    { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: C.border,
-                 backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
-  name:        { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
-  phone:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  empty:       { alignItems: "center", paddingVertical: 40, gap: 8 },
-  emptyTxt:    { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
-  footer:      { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 28,
-                 borderTopWidth: 1, borderTopColor: "#F0EDE9", gap: 8 },
-  selectedCount:{ fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, textAlign: "center" },
-  confirmBtn:  { paddingVertical: 14, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  confirmTxt:  { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-});
-
 // ─── 메인 스크린 ─────────────────────────────────────────────────
 export default function MyScheduleScreen() {
   const { token, adminUser } = useAuth();
@@ -1217,16 +904,13 @@ export default function MyScheduleScreen() {
 
   // 서브 모달
   const [detailGroup,       setDetailGroup]       = useState<TeacherClassGroup | null>(null);
-  const [showExtraModal,    setShowExtraModal]    = useState(false);
-  const [extraGroupForModal,setExtraGroupForModal]= useState<TeacherClassGroup | null>(null);
-  const [unregClassId,      setUnregClassId]      = useState<string | null>(null);
+  const [showDeleteClassConfirm, setShowDeleteClassConfirm] = useState(false);
+  const [deletingClass,         setDeletingClass]          = useState<TeacherClassGroup | null>(null);
+  const [unregClassId,          setUnregClassId]           = useState<string | null>(null);
   const [removeClassGroup,  setRemoveClassGroup]  = useState<TeacherClassGroup | null>(null);
 
   // 일간 뷰 서브 선택 그룹
   const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(null);
-
-  // 오늘 기타수업 목록
-  const [todayExtras, setTodayExtras] = useState<any[]>([]);
 
   // 최초 마운트 여부 (useFocusEffect skip)
   const isMountedRef = useRef(false);
@@ -1242,19 +926,6 @@ export default function MyScheduleScreen() {
   selectedDateRef.current = selectedDate;
 
   // ── 기본 데이터 로드 ──
-  const fetchTodayExtras = useCallback(async () => {
-    if (!poolId) return;
-    try {
-      const today = todayDateStr();
-      const res = await apiRequest(token, `/extra-classes?pool_id=${poolId}&month=${today.slice(0, 7)}`);
-      if (res.ok) {
-        const d = await res.json();
-        const all: any[] = d.extra_classes || [];
-        setTodayExtras(all.filter((e: any) => e.class_date === today));
-      }
-    } catch {}
-  }, [token, poolId]);
-
   const load = useCallback(async () => {
     const today = todayDateStr();
     try {
@@ -1281,7 +952,20 @@ export default function MyScheduleScreen() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { fetchTodayExtras(); }, [fetchTodayExtras]);
+
+  // ── 반 삭제 ──
+  const handleDeleteClass = useCallback(async () => {
+    if (!deletingClass) return;
+    try {
+      const res = await apiRequest(token, `/class-groups/${deletingClass.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setSelectedGroup(null);
+        setDeletingClass(null);
+        setShowDeleteClassConfirm(false);
+        load();
+      }
+    } catch {}
+  }, [token, deletingClass, load]);
 
   // ── openDate 파라미터: 홈에서 특정 날짜 팝업 자동 오픈 ──
   useEffect(() => {
@@ -1487,38 +1171,16 @@ export default function MyScheduleScreen() {
             <Feather name="edit-3" size={13} color={diarDone ? "#1F8F86" : "#D97706"} />
             <Text style={[s.subActionText, { color: diarDone ? "#1F8F86" : "#D97706" }]}>수업일지</Text>
           </Pressable>
-          <Pressable style={[s.subActionBtn, { backgroundColor: "#FEF9C3" }]}
-            onPress={() => setShowExtraModal(true)}>
-            <Feather name="plus-circle" size={13} color="#CA8A04" />
-            <Text style={[s.subActionText, { color: "#CA8A04" }]}>기타수업</Text>
+          <Pressable style={[s.subActionBtn, { backgroundColor: "#FFF1F2" }]}
+            onPress={() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }}>
+            <Feather name="trash-2" size={13} color="#E11D48" />
+            <Text style={[s.subActionText, { color: "#E11D48" }]}>반 삭제</Text>
           </Pressable>
         </View>
-        {showExtraModal && poolId && (
-          <ExtraClassModal token={token} poolId={poolId} group={g} groupStudents={groupStudents}
-            onClose={() => setShowExtraModal(false)}
-            onCreated={() => { setShowExtraModal(false); load(); fetchTodayExtras(); }} />
-        )}
         <FlatList data={groupStudents} keyExtractor={i => i.id}
           contentContainerStyle={s.studentList} showsVerticalScrollIndicator={false}
           ListEmptyComponent={<View style={s.emptyBox}><Feather name="users" size={32} color={C.textMuted} /><Text style={s.emptyText}>배정된 학생이 없습니다</Text></View>}
           ListHeaderComponent={<Text style={s.listHeader}>학생 {groupStudents.length}명</Text>}
-          ListFooterComponent={todayExtras.length > 0 ? (
-            <View style={s.extraSection}>
-              <Text style={s.listHeader}>오늘 기타수업 {todayExtras.length}건</Text>
-              {todayExtras.map((ex: any) => (
-                <View key={ex.id} style={s.extraItem}>
-                  <Feather name="plus-circle" size={14} color="#CA8A04" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.extraName}>{ex.class_name}</Text>
-                    {ex.student_names?.length > 0 && (
-                      <Text style={s.extraSub}>{ex.student_names.join(", ")}</Text>
-                    )}
-                  </View>
-                  <Text style={s.extraTime}>{ex.class_time}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
           renderItem={({ item }) => {
             const wc = Math.min(item.weekly_count || 1, 3) as 1 | 2 | 3;
             const wb = WEEKLY_BADGE[wc];
@@ -1713,7 +1375,7 @@ export default function MyScheduleScreen() {
           onClose={() => setDetailGroup(null)}
           onOpenUnreg={() => { setDetailGroup(null); setUnregClassId(detailGroup.id); }}
           onOpenRemove={() => { setDetailGroup(null); setRemoveClassGroup(detailGroup); }}
-          onOpenExtra={() => { const g = detailGroup; setDetailGroup(null); setTimeout(() => { setExtraGroupForModal(g); setShowExtraModal(true); }, 200); }}
+          onDeleteClass={() => { const g = detailGroup; setDetailGroup(null); setTimeout(() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }, 200); }}
           onNavigateTo={navigateFromSheet}
         />
       )}
@@ -1770,16 +1432,12 @@ export default function MyScheduleScreen() {
           onMoved={() => { setRemoveClassGroup(null); load(); }} />
       )}
 
-      {/* 기타수업 모달 */}
-      {showExtraModal && poolId && extraGroupForModal && (
-        <ExtraClassModal token={token} poolId={poolId} group={extraGroupForModal}
-          groupStudents={students.filter(st =>
-            (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(extraGroupForModal.id))
-            || st.class_group_id === extraGroupForModal.id
-          )}
-          onClose={() => { setShowExtraModal(false); setExtraGroupForModal(null); }}
-          onCreated={() => { setShowExtraModal(false); setExtraGroupForModal(null); load(); fetchTodayExtras(); }} />
-      )}
+      {/* 반 삭제 확인 팝업 */}
+      <ConfirmModal visible={showDeleteClassConfirm} title="반 삭제"
+        message={`이 반을 삭제하면 다음 주부터 시간표에서 사라집니다.\n현재 소속 회원은 미배정으로 이동하며,\n기존 수업 기록과 일지는 유지됩니다.`}
+        confirmText="반 삭제" cancelText="취소" destructive
+        onConfirm={handleDeleteClass}
+        onCancel={() => { setShowDeleteClassConfirm(false); setDeletingClass(null); }} />
     </SafeAreaView>
   );
 }
@@ -1822,12 +1480,6 @@ const s = StyleSheet.create({
   connText:     { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   emptyBox:     { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
-  extraSection: { marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border, gap: 8 },
-  extraItem:    { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FFFBEB",
-                  borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  extraName:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#92400E" },
-  extraSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#B45309", marginTop: 2 },
-  extraTime:    { fontSize: 12, fontFamily: "Inter_500Medium", color: "#CA8A04" },
 });
 
 // ─── 미등록회원 가져오기 Modal ──────────────────────────────────────
