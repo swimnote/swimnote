@@ -6,10 +6,9 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Image, KeyboardAvoidingView, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -27,6 +26,7 @@ export default function TotpSetupScreen() {
   const [step, setStep]                 = useState<Step>("check");
   const [totpEnabled, setTotpEnabled]   = useState(false);
   const [otpauthUrl, setOtpauthUrl]     = useState("");
+  const [qrCode, setQrCode]             = useState("");
   const [secret, setSecret]             = useState("");
   const [otpCode, setOtpCode]           = useState("");
   const [loading, setLoading]           = useState(false);
@@ -58,6 +58,7 @@ export default function TotpSetupScreen() {
     try {
       const data = await apiRequest(token, "/auth/totp/setup", { method: "POST" });
       setOtpauthUrl(data.otpauth_url);
+      setQrCode(data.qr_code || "");
       setSecret(data.secret);
       setOtpCode("");
       setStep("qr");
@@ -261,14 +262,20 @@ export default function TotpSetupScreen() {
               Google Authenticator 앱 열기 → <Text style={{ fontFamily: "Inter_700Bold" }}>+</Text> 버튼 → <Text style={{ fontFamily: "Inter_700Bold" }}>QR 코드 스캔</Text>
             </Text>
 
-            {!!otpauthUrl && (
+            {!!qrCode && (
               <View style={styles.qrWrapper}>
-                <QRCode
-                  value={otpauthUrl}
-                  size={200}
-                  backgroundColor="#FFFFFF"
-                  color="#1F1F1F"
+                <Image
+                  source={{ uri: qrCode }}
+                  style={{ width: 220, height: 220 }}
+                  resizeMode="contain"
                 />
+              </View>
+            )}
+
+            {!qrCode && !!otpauthUrl && (
+              <View style={[styles.qrWrapper, { alignItems: "center", justifyContent: "center" }]}>
+                <ActivityIndicator color={PURPLE} />
+                <Text style={{ fontSize: 12, color: C.textMuted, marginTop: 8 }}>QR 코드 생성 중...</Text>
               </View>
             )}
 
@@ -299,7 +306,7 @@ export default function TotpSetupScreen() {
               <Feather name="arrow-right" size={16} color="#fff" />
             </Pressable>
 
-            <Pressable style={styles.cancelRow} onPress={() => { setStep("check"); setSecret(""); setOtpauthUrl(""); }}>
+            <Pressable style={styles.cancelRow} onPress={() => { setStep("check"); setSecret(""); setOtpauthUrl(""); setQrCode(""); }}>
               <Text style={[styles.cancelText, { color: C.textMuted }]}>취소</Text>
             </Pressable>
           </View>
