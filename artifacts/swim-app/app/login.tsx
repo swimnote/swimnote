@@ -140,37 +140,43 @@ export default function LoginPasswordScreen() {
               </View>
             )}
 
-            <View style={styles.otpBoxRow}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.otpBox,
-                    {
-                      borderColor: otpCode.length === i ? "#7C3AED" : otpCode[i] ? "#7C3AED" : C.border,
-                      backgroundColor: otpCode[i] ? "#EDE9FE" : C.background,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.otpBoxText, { color: "#7C3AED" }]}>{otpCode[i] || ""}</Text>
-                </View>
-              ))}
-            </View>
+            <Pressable
+              style={styles.otpInputWrapper}
+              onPress={() => otpInputRef.current?.focus()}
+            >
+              <View style={styles.otpBoxRow}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.otpBox,
+                      {
+                        borderColor: otpCode.length === i ? "#7C3AED" : otpCode[i] ? "#7C3AED" : C.border,
+                        backgroundColor: otpCode[i] ? "#EDE9FE" : C.background,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.otpBoxText, { color: "#7C3AED" }]}>{otpCode[i] || ""}</Text>
+                  </View>
+                ))}
+              </View>
 
-            <TextInput
-              ref={otpInputRef}
-              style={styles.hiddenInput}
-              value={otpCode}
-              onChangeText={handleOtpChange}
-              keyboardType="number-pad"
-              maxLength={6}
-              returnKeyType="done"
-              onSubmitEditing={handleOtpVerify}
-              autoFocus
-            />
+              <TextInput
+                ref={otpInputRef}
+                style={styles.hiddenInput}
+                value={otpCode}
+                onChangeText={handleOtpChange}
+                keyboardType="number-pad"
+                maxLength={6}
+                returnKeyType="done"
+                onSubmitEditing={handleOtpVerify}
+                autoFocus
+                caretHidden
+              />
+            </Pressable>
 
             <Pressable
-              style={[styles.otpBoxRow, { justifyContent: "center", marginTop: -8 }]}
+              style={[styles.otpBoxRow, { justifyContent: "center", marginTop: 4 }]}
               onPress={() => otpInputRef.current?.focus()}
             >
               <Text style={[styles.otpTapHint, { color: C.textMuted }]}>숫자 박스를 탭하여 키보드 열기</Text>
@@ -365,13 +371,17 @@ const styles = StyleSheet.create({
   otpIconRow: { alignItems: "center", paddingVertical: 4 },
   otpIconBg: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center" },
   otpDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  otpInputWrapper: { position: "relative", alignItems: "center" },
   otpBoxRow: { flexDirection: "row", gap: 8, justifyContent: "center" },
   otpBox: {
     width: 44, height: 52, borderRadius: 12, borderWidth: 2,
     alignItems: "center", justifyContent: "center",
   },
   otpBoxText: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  hiddenInput: { position: "absolute", opacity: 0, width: 1, height: 1 },
+  hiddenInput: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    opacity: 0.01, color: "transparent",
+  },
   otpTapHint: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center" },
   otpGuideCard: {
     flexDirection: "row", gap: 8, padding: 14, borderRadius: 14, borderWidth: 1, alignItems: "flex-start",

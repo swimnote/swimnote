@@ -106,18 +106,19 @@ export function OtpGateModal({ visible, title, desc, token, onSuccess, onCancel 
                     </View>
                   ))}
                 </View>
-              </Pressable>
 
-              <TextInput
-                ref={inputRef}
-                style={s.hiddenInput}
-                value={code}
-                onChangeText={handleChange}
-                keyboardType="number-pad"
-                maxLength={6}
-                returnKeyType="done"
-                onSubmitEditing={verify}
-              />
+                <TextInput
+                  ref={inputRef}
+                  style={s.hiddenInput}
+                  value={code}
+                  onChangeText={handleChange}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  returnKeyType="done"
+                  onSubmitEditing={verify}
+                  caretHidden
+                />
+              </Pressable>
 
               {/* 에러 */}
               {!!error && (
@@ -164,11 +165,11 @@ const s = StyleSheet.create({
   iconCircle:  { width: 52, height: 52, borderRadius: 26, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
   title:       { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F", textAlign: "center" },
   desc:        { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center", lineHeight: 18 },
-  otpWrap:     { alignItems: "center" },
+  otpWrap:     { alignItems: "center", position: "relative" },
   otpBoxRow:   { flexDirection: "row", gap: 8 },
   otpBox:      { width: 42, height: 52, borderRadius: 12, borderWidth: 2, alignItems: "center", justifyContent: "center", backgroundColor: "#F9F8FF" },
   otpBoxTxt:   { fontSize: 22, fontFamily: "Inter_700Bold", color: P },
-  hiddenInput: { position: "absolute", opacity: 0, width: 1, height: 1 },
+  hiddenInput: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: 0.01, color: "transparent" },
   errorRow:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF2F2", padding: 10, borderRadius: 10 },
   errorTxt:    { fontSize: 12, fontFamily: "Inter_500Medium", color: DANGER, flex: 1 },
   hintBox:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F5F3FF", borderRadius: 10, padding: 10 },
