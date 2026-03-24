@@ -69,9 +69,10 @@ async function getTableSizes(dbConn: typeof superAdminDb) {
 }
 
 // ── 헬퍼: 수영장별 운영 데이터 집계 ─────────────────────────────
+// 운영 데이터(swimming_pools, students 등)는 현재 superAdminDb에 위치
 async function getPoolBreakdown() {
   try {
-    const rows = (await poolDb.execute(sql`
+    const rows = (await superAdminDb.execute(sql`
       SELECT
         p.id                         AS pool_id,
         p.name                       AS pool_name,
