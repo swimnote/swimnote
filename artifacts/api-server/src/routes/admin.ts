@@ -302,14 +302,18 @@ router.get("/pools/:id/detail", requireAuth, requirePermission("canViewPools"), 
     const pool = (poolResult as any).rows[0];
     if (!pool) return res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다.", error: "pool_not_found" });
 
-    const [stats] = await Promise.all([
-      superAdminDb.execute(sql`
+    // students, class_groups는 poolDb / users(teachers)는 superAdminDb
+    const [statsPool, statsSuper] = await Promise.all([
+      db.execute(sql`
         SELECT
-          (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${id} AND status = 'active') AS student_count,
-          (SELECT COUNT(*) FROM users WHERE swimming_pool_id = ${id} AND role = 'teacher') AS teacher_count,
-          (SELECT COUNT(*) FROM class_groups WHERE swimming_pool_id = ${id}) AS class_count
-      `)
+          (SELECT COUNT(*)::int FROM students WHERE swimming_pool_id = ${id} AND status = 'active') AS student_count,
+          (SELECT COUNT(*)::int FROM class_groups WHERE swimming_pool_id = ${id}) AS class_count
+      `).catch(() => ({ rows: [{ student_count: 0, class_count: 0 }] })),
+      superAdminDb.execute(sql`
+        SELECT COUNT(*)::int AS teacher_count FROM users WHERE swimming_pool_id = ${id} AND role = 'teacher'
+      `).catch(() => ({ rows: [{ teacher_count: 0 }] })),
     ]);
+    const stats = { rows: [{ ...(statsPool.rows[0] as any), ...(statsSuper.rows[0] as any) }] };
 
     const role = req.user!.role;
     const perms = req.user!.permissions;
@@ -1229,18 +1233,23 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
       const poolId = await getAdminPoolId(req);
       if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
 
-      const [student] = (await superAdminDb.execute(sql`
+      // poolDb에서 학생 + class_groups + parent 정보 조회
+      const [student] = (await db.execute(sql`
         SELECT s.*,
           (SELECT cg.name FROM class_groups cg WHERE cg.id = s.class_group_id LIMIT 1) AS class_name,
-          (SELECT u.name FROM users u WHERE u.id = cg.teacher_user_id LIMIT 1) AS teacher_name,
+          (SELECT cg.teacher_user_id FROM class_groups cg WHERE cg.id = s.class_group_id LIMIT 1) AS teacher_user_id,
           (SELECT pa.name FROM parent_students ps JOIN parent_accounts pa ON pa.id = ps.parent_id
            WHERE ps.student_id = s.id AND ps.status = 'approved' LIMIT 1) AS parent_account_name,
           (SELECT ps.status FROM parent_students ps WHERE ps.student_id = s.id ORDER BY ps.created_at DESC LIMIT 1) AS parent_link_status
         FROM students s
-        LEFT JOIN class_groups cg ON cg.id = s.class_group_id
         WHERE s.id = ${req.params.id} AND s.swimming_pool_id = ${poolId}
       `)).rows as any[];
       if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
+      // superAdminDb에서 선생님 이름 조회
+      if (student.teacher_user_id) {
+        const tRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${student.teacher_user_id}`).catch(() => ({ rows: [] }));
+        student.teacher_name = (tRow.rows[0] as any)?.name || null;
+      }
 
       // 최근 출결 30일
       const attendance = (await db.execute(sql`
@@ -2068,16 +2077,22 @@ router.get("/class-groups/:id/detail", requireAuth, requireRole("super_admin", "
       const { id } = req.params;
       const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
 
-      // 반 + 선생님 정보
-      const cgRows = (await superAdminDb.execute(sql`
-        SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
-               u.id AS teacher_id, u.name AS teacher_name
+      // 반 정보는 poolDb, 선생님 이름은 superAdminDb에서 별도 조회
+      const cgRows = (await db.execute(sql`
+        SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id
         FROM class_groups cg
-        LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE cg.id = ${id} AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
       `)).rows as any[];
       if (!cgRows.length) { res.status(404).json({ error: "반 없음" }); return; }
-      const cg = cgRows[0];
+      const cgBase = cgRows[0];
+      // superAdminDb에서 선생님 정보 조회
+      let teacherId = cgBase.teacher_user_id || null;
+      let teacherName = null;
+      if (teacherId) {
+        const tRow = await superAdminDb.execute(sql`SELECT id, name FROM users WHERE id = ${teacherId}`).catch(() => ({ rows: [] }));
+        teacherName = (tRow.rows[0] as any)?.name || null;
+      }
+      const cg = { ...cgBase, teacher_id: teacherId, teacher_name: teacherName };
 
       // 학생 목록 + 보강 여부
       const students = (await db.execute(sql`

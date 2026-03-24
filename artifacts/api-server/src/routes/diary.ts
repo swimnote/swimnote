@@ -1037,20 +1037,49 @@ router.get("/diaries/admin/teachers",
       const poolId = await getUserPoolId(userId);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
-      const rows = await superAdminDb.execute(sql`
-        SELECT
-          u.id AS teacher_id,
-          u.name AS teacher_name,
-          COUNT(DISTINCT cg.id) AS class_count,
-          COUNT(DISTINCT cd.id) FILTER (WHERE cd.is_deleted = false) AS diary_count,
-          MAX(cd.lesson_date) FILTER (WHERE cd.is_deleted = false) AS last_diary_date
-        FROM users u
-        LEFT JOIN class_groups cg ON cg.teacher_user_id = u.id AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
-        LEFT JOIN class_diaries cd ON cd.teacher_id = u.id::text AND cd.swimming_pool_id = ${poolId}
-        WHERE u.swimming_pool_id = ${poolId} AND u.role = 'teacher' AND u.is_active = true
-        GROUP BY u.id, u.name
-        ORDER BY diary_count DESC, u.name ASC
-      `);
+      // superAdminDb에서 교사 목록 조회, poolDb에서 반/일지 통계 조회 후 병합
+      const teacherRows = (await superAdminDb.execute(sql`
+        SELECT id AS teacher_id, name AS teacher_name
+        FROM users
+        WHERE swimming_pool_id = ${poolId} AND role = 'teacher' AND is_active = true
+        ORDER BY name ASC
+      `)).rows as any[];
+
+      const teacherIds = teacherRows.map((t: any) => t.teacher_id);
+      let statsMap: Record<string, any> = {};
+      if (teacherIds.length) {
+        const statsRows = (await db.execute(sql`
+          SELECT
+            t_id,
+            MAX(class_count)::int AS class_count,
+            MAX(diary_count)::int AS diary_count,
+            MAX(last_diary_date)  AS last_diary_date
+          FROM (
+            SELECT teacher_user_id AS t_id, COUNT(DISTINCT id)::int AS class_count, 0 AS diary_count, NULL::date AS last_diary_date
+            FROM class_groups
+            WHERE swimming_pool_id = ${poolId} AND is_deleted = false AND teacher_user_id IN (${sql.join(teacherIds.map((id: string) => sql`${id}`), sql`, `)})
+            GROUP BY teacher_user_id
+            UNION ALL
+            SELECT teacher_id::text, 0, COUNT(DISTINCT id)::int,
+                   MAX(lesson_date)
+            FROM class_diaries
+            WHERE swimming_pool_id = ${poolId} AND is_deleted = false AND teacher_id IN (${sql.join(teacherIds.map((id: string) => sql`${id}`), sql`, `)})
+            GROUP BY teacher_id
+          ) x
+          GROUP BY t_id
+        `).catch(() => ({ rows: [] }))).rows as any[];
+        for (const r of statsRows) statsMap[r.t_id] = r;
+      }
+
+      const rows = {
+        rows: teacherRows.map((t: any) => ({
+          teacher_id:      t.teacher_id,
+          teacher_name:    t.teacher_name,
+          class_count:     statsMap[t.teacher_id]?.class_count     ?? 0,
+          diary_count:     statsMap[t.teacher_id]?.diary_count     ?? 0,
+          last_diary_date: statsMap[t.teacher_id]?.last_diary_date ?? null,
+        })).sort((a: any, b: any) => b.diary_count - a.diary_count || a.teacher_name.localeCompare(b.teacher_name)),
+      };
 
       res.json({ success: true, teachers: rows.rows });
     } catch (e) { console.error("[diaries/admin/teachers]", e); apiErr(res, 500, "서버 오류"); }

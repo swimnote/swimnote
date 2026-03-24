@@ -458,28 +458,29 @@ router.get(
 
       // 관리자는 해당 풀 전체 활성 학생, 선생님은 자신이 담당한 반의 학생만
       const teacherFilter = role === "pool_admin" ? sql`true` : sql`cg.teacher_user_id = ${userId}`;
-      const rows = await superAdminDb.execute(sql`
+      // poolDb에서 학생 + 반 조회
+      const rows = await db.execute(sql`
         SELECT
-          s.id,
-          s.name,
-          s.parent_phone,
-          s.parent_name,
-          cg.id AS class_group_id,
-          cg.name AS class_name,
-          cg.schedule_days,
-          cg.schedule_time,
-          cg.teacher_user_id,
-          u.name AS teacher_name
+          s.id, s.name, s.parent_phone, s.parent_name,
+          cg.id AS class_group_id, cg.name AS class_name,
+          cg.schedule_days, cg.schedule_time, cg.teacher_user_id
         FROM students s
         LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND cg.is_deleted = false
-        LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE s.swimming_pool_id = ${pool_id}
           AND s.status = 'active'
           AND (${teacherFilter})
         ORDER BY s.name ASC
       `);
+      // superAdminDb에서 선생님 이름 병합
+      const tIds = [...new Set((rows.rows as any[]).map((r: any) => r.teacher_user_id).filter(Boolean))];
+      const tMap: Record<string, string> = {};
+      if (tIds.length) {
+        const tRows = await superAdminDb.execute(sql`SELECT id, name FROM users WHERE id IN (${sql.join(tIds.map((id: string) => sql`${id}`), sql`, `)})`).catch(() => ({ rows: [] }));
+        for (const t of tRows.rows as any[]) tMap[t.id] = t.name;
+      }
+      const students = (rows.rows as any[]).map((r: any) => ({ ...r, teacher_name: tMap[r.teacher_user_id] || null }));
 
-      return res.json({ success: true, students: rows.rows });
+      return res.json({ success: true, students });
     } catch (e: any) {
       console.error("[messenger/my-students GET]", e);
       return err(res, 500, e.message || "서버 오류");
@@ -504,23 +505,27 @@ router.post(
       const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const senderName = (userRow.rows[0] as any)?.name || "알 수 없음";
 
-      const studentRow = await superAdminDb.execute(sql`
+      // poolDb에서 학생+반 조회
+      const studentRow = await db.execute(sql`
         SELECT
           s.id, s.name, s.parent_phone, s.parent_name,
           cg.id AS class_group_id, cg.name AS class_name,
-          cg.schedule_days, cg.schedule_time, cg.teacher_user_id,
-          u.name AS teacher_name
+          cg.schedule_days, cg.schedule_time, cg.teacher_user_id
         FROM students s
         LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND cg.is_deleted = false
-        LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE s.id = ${student_id}
           AND s.swimming_pool_id = ${pool_id}
           AND s.status = 'active'
         LIMIT 1
       `);
 
-      const student = studentRow.rows[0] as any;
+      let student = studentRow.rows[0] as any;
       if (!student) return err(res, 404, "학생을 찾을 수 없습니다.");
+      // superAdminDb에서 선생님 이름 조회
+      if (student.teacher_user_id) {
+        const tRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${student.teacher_user_id}`).catch(() => ({ rows: [] }));
+        student = { ...student, teacher_name: (tRow.rows[0] as any)?.name || null };
+      }
 
       const cardData = {
         student_id: student.id,

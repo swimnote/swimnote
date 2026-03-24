@@ -174,7 +174,7 @@ router.post(
         if (photos.length > 0) {
           const ids = photos.map(p => p.id);
           await db.execute(sql`
-            DELETE FROM photo_assets_meta WHERE id = ANY(${ids}::text[])
+            DELETE FROM photo_assets_meta WHERE id IN (${sql.join(ids.map((id: string) => sql`${id}`), sql`, `)})
           `);
         }
         deleted.photo_count = photos.length;
@@ -196,7 +196,7 @@ router.post(
         if (videos.length > 0) {
           const ids = videos.map(v => v.id);
           await db.execute(sql`
-            DELETE FROM video_assets_meta WHERE id = ANY(${ids}::text[])
+            DELETE FROM video_assets_meta WHERE id IN (${sql.join(ids.map((id: string) => sql`${id}`), sql`, `)})
           `);
         }
         deleted.video_count = videos.length;
@@ -213,11 +213,12 @@ router.post(
         `)).rows as any[];
         const diaryIds = diaries.map(d => d.id);
         if (diaryIds.length > 0) {
+          const diaryIdSql = sql.join(diaryIds.map((id: string) => sql`${id}`), sql`, `);
           await db.execute(sql`
-            DELETE FROM class_diary_student_notes WHERE diary_id = ANY(${diaryIds}::text[])
+            DELETE FROM class_diary_student_notes WHERE diary_id IN (${diaryIdSql})
           `);
           await db.execute(sql`
-            DELETE FROM class_diaries WHERE id = ANY(${diaryIds}::text[])
+            DELETE FROM class_diaries WHERE id IN (${diaryIdSql})
           `);
         }
 

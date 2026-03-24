@@ -438,24 +438,30 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      const rows = await superAdminDb.execute(sql`
+      // poolDb에서 반 + 학생 수 조회
+      const rows = await db.execute(sql`
         SELECT
           cg.id, cg.name, cg.schedule_days, cg.schedule_time,
           cg.capacity, cg.teacher_user_id,
-          u.name AS instructor,
-          COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL) AS current_members,
-          GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL)) AS available_slots
+          COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL)::int AS current_members,
+          GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL))::int AS available_slots
         FROM class_groups cg
-        LEFT JOIN users u ON cg.teacher_user_id = u.id
         LEFT JOIN students s ON s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)
         WHERE cg.swimming_pool_id = ${poolId}
           AND cg.is_deleted = false
           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
-        GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id, u.name
+        GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id
         HAVING GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL)) > 0
         ORDER BY cg.schedule_days, cg.schedule_time
       `);
-      res.json(rows.rows);
+      // superAdminDb에서 선생님 이름 병합
+      const tIdsSlots = [...new Set((rows.rows as any[]).map((r: any) => r.teacher_user_id).filter(Boolean))];
+      const tMapSlots: Record<string, string> = {};
+      if (tIdsSlots.length) {
+        const tRows = await superAdminDb.execute(sql`SELECT id, name FROM users WHERE id IN (${sql.join(tIdsSlots.map((id: string) => sql`${id}`), sql`, `)})`).catch(() => ({ rows: [] }));
+        for (const t of tRows.rows as any[]) tMapSlots[t.id] = t.name;
+      }
+      res.json((rows.rows as any[]).map((r: any) => ({ ...r, instructor: tMapSlots[r.teacher_user_id] || null })));
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
@@ -469,13 +475,20 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
       if (!class_group_id || !assigned_date) {
         res.status(400).json({ error: "반과 날짜를 선택해주세요." }); return;
       }
-      const cls = await superAdminDb.execute(sql`
-        SELECT cg.name, u.name AS teacher_name, cg.teacher_user_id
-        FROM class_groups cg LEFT JOIN users u ON cg.teacher_user_id = u.id
+      // poolDb에서 반 조회, superAdminDb에서 선생님 이름 병합
+      const cls = await db.execute(sql`
+        SELECT cg.name, cg.teacher_user_id
+        FROM class_groups cg
         WHERE cg.id = ${class_group_id}
       `);
       if (!cls.rows.length) { res.status(404).json({ error: "반을 찾을 수 없습니다." }); return; }
-      const clsRow = cls.rows[0] as any;
+      const clsBase = cls.rows[0] as any;
+      let clsTeacherName = null;
+      if (clsBase.teacher_user_id) {
+        const tRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${clsBase.teacher_user_id}`).catch(() => ({ rows: [] }));
+        clsTeacherName = (tRow.rows[0] as any)?.name || null;
+      }
+      const clsRow = { ...clsBase, teacher_name: clsTeacherName };
       await db.execute(sql`
         UPDATE makeup_sessions SET
           status = 'assigned',

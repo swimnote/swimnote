@@ -69,27 +69,57 @@ async function getTableSizes(dbConn: typeof superAdminDb) {
 }
 
 // ── 헬퍼: 수영장별 운영 데이터 집계 ─────────────────────────────
-// 운영 데이터(swimming_pools, students 등)는 현재 superAdminDb에 위치
+// swimming_pools, users → superAdminDb / students, attendance, class_diaries → poolDb
 async function getPoolBreakdown() {
   try {
-    const rows = (await superAdminDb.execute(sql`
-      SELECT
-        p.id                         AS pool_id,
-        p.name                       AS pool_name,
-        COUNT(DISTINCT s.id)::int    AS student_count,
-        COUNT(DISTINCT u.id)::int    AS teacher_count,
-        COUNT(DISTINCT a.id)::int    AS attendance_count,
-        COUNT(DISTINCT cd.id)::int   AS diary_count
+    // superAdminDb에서 풀 목록 + 교사 수 조회
+    const poolRows = (await superAdminDb.execute(sql`
+      SELECT p.id AS pool_id, p.name AS pool_name,
+             COUNT(DISTINCT u.id)::int AS teacher_count
       FROM swimming_pools p
-      LEFT JOIN students    s  ON s.swimming_pool_id = p.id AND s.status = 'active'
-      LEFT JOIN users       u  ON u.swimming_pool_id = p.id AND 'teacher' = ANY(u.roles)
-      LEFT JOIN attendance  a  ON a.swimming_pool_id = p.id
-      LEFT JOIN class_diaries cd ON cd.swimming_pool_id = p.id AND cd.is_deleted = false
+      LEFT JOIN users u ON u.swimming_pool_id = p.id AND u.role = 'teacher'
       GROUP BY p.id, p.name
-      ORDER BY student_count DESC
+      ORDER BY p.name
     `)).rows as any[];
-    return rows;
-  } catch {
+
+    if (!poolRows.length) return [];
+
+    // poolDb에서 수영장별 운영 통계 — 전체 집계 후 JS에서 필터 (ANY 배열 파라미터 호환성 이슈 회피)
+    const opRows = (await poolDb.execute(sql`
+      SELECT p_id,
+             SUM(student_count)::int    AS student_count,
+             SUM(attendance_count)::int AS attendance_count,
+             SUM(diary_count)::int      AS diary_count
+      FROM (
+        SELECT swimming_pool_id AS p_id, COUNT(*)::int AS student_count,
+               0 AS attendance_count, 0 AS diary_count
+        FROM students WHERE status = 'active'
+        GROUP BY swimming_pool_id
+        UNION ALL
+        SELECT swimming_pool_id, 0, COUNT(*)::int, 0
+        FROM attendance
+        GROUP BY swimming_pool_id
+        UNION ALL
+        SELECT swimming_pool_id, 0, 0, COUNT(*)::int
+        FROM class_diaries WHERE is_deleted = false
+        GROUP BY swimming_pool_id
+      ) x
+      GROUP BY p_id
+    `).catch(() => ({ rows: [] }))).rows as any[];
+
+    const opMap: Record<string, any> = {};
+    for (const r of opRows) opMap[r.p_id] = r;
+
+    return poolRows.map((p: any) => ({
+      pool_id:          p.pool_id,
+      pool_name:        p.pool_name,
+      student_count:    opMap[p.pool_id]?.student_count    ?? 0,
+      teacher_count:    p.teacher_count,
+      attendance_count: opMap[p.pool_id]?.attendance_count ?? 0,
+      diary_count:      opMap[p.pool_id]?.diary_count      ?? 0,
+    }));
+  } catch (e) {
+    console.error("[getPoolBreakdown]", e);
     return [];
   }
 }
