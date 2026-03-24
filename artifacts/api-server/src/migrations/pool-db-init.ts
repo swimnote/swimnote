@@ -538,5 +538,38 @@ export async function initPoolDb(): Promise<void> {
     );
   `));
 
+  // ─── 19. pool_holidays (휴무일 관리) ─────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS pool_holidays (
+      id           text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      pool_id      text        NOT NULL,
+      holiday_date date        NOT NULL,
+      reason       text,
+      created_by   text,
+      created_at   timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (pool_id, holiday_date)
+    );
+  `));
+
+  // ─── 20. member_activity_logs (회원 활동 로그) ───────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS member_activity_logs (
+      id             text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      swimming_pool_id text      NOT NULL,
+      student_id     text,
+      parent_id      text,
+      target_name    text        NOT NULL,
+      action_type    text        NOT NULL,
+      target_type    text        NOT NULL,
+      before_value   text,
+      after_value    text,
+      actor_id       text        NOT NULL,
+      actor_name     text        NOT NULL,
+      actor_role     text        NOT NULL,
+      note           text,
+      created_at     timestamptz NOT NULL DEFAULT now()
+    );
+  `));
+
   console.log("[pool-db-init] pool DB 운영 테이블 초기화 완료");
 }

@@ -743,6 +743,10 @@ async function getAdminPoolId(req: AuthRequest): Promise<string | null> {
     const [u] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id }).from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     return u?.swimming_pool_id ?? null;
   }
+  // teacher: JWT poolId 우선 사용 (pool_admin이 teacher로 전환한 경우)
+  if (req.user!.role === "teacher" && req.user!.poolId) {
+    return req.user!.poolId;
+  }
   return req.query.pool_id as string ?? null;
 }
 

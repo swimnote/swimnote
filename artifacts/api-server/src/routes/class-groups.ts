@@ -16,20 +16,39 @@ async function getPoolId(userId: string): Promise<string | null> {
   return user?.swimming_pool_id || null;
 }
 
+async function getUserDbRole(userId: string): Promise<string | null> {
+  const [user] = await superAdminDb.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return user?.role || null;
+}
+
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const poolId = await getPoolId(req.user!.userId);
+    const userId = req.user!.userId;
+    const tokenRole = req.user!.role;
+    const poolId = await getPoolId(userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
     let groups;
-    if (req.user!.role === "teacher") {
-      const rawRows = await db.execute(
-        sql`SELECT * FROM class_groups
-            WHERE swimming_pool_id = ${poolId}
-              AND teacher_user_id = ${req.user!.userId}
-              AND is_deleted = false`
-      );
-      groups = rawRows.rows as any[];
+    if (tokenRole === "teacher") {
+      // pool_admin이 teacher 모드로 전환한 경우 → 수영장 전체 반 조회
+      const dbRole = await getUserDbRole(userId);
+      const isAdminAsTeacher = dbRole === "pool_admin";
+
+      if (isAdminAsTeacher) {
+        groups = await db.select().from(classGroupsTable)
+          .where(and(
+            eq(classGroupsTable.swimming_pool_id, poolId),
+            eq(classGroupsTable.is_deleted, false)
+          ));
+      } else {
+        const rawRows = await db.execute(
+          sql`SELECT * FROM class_groups
+              WHERE swimming_pool_id = ${poolId}
+                AND teacher_user_id = ${userId}
+                AND is_deleted = false`
+        );
+        groups = rawRows.rows as any[];
+      }
     } else {
       groups = await db.select().from(classGroupsTable)
         .where(and(

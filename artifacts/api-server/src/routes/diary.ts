@@ -313,10 +313,18 @@ router.post("/diaries",
       const poolId = await getUserPoolId(userId);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
-      // 선생님: 본인 반인지 확인
+      // 선생님: 본인 반인지 확인 (pool_admin이 teacher로 전환한 경우 전체 접근 허용)
       if (role === "teacher") {
-        const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND teacher_user_id = ${userId}`);
-        if (r.rows.length === 0) return apiErr(res, 403, "본인 반의 일지만 작성할 수 있습니다.");
+        const dbUserRow = await superAdminDb.execute(sql`SELECT role FROM users WHERE id = ${userId} LIMIT 1`);
+        const dbRole = (dbUserRow.rows[0] as any)?.role;
+        if (dbRole !== "pool_admin") {
+          const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId} AND teacher_user_id = ${userId}`);
+          if (r.rows.length === 0) return apiErr(res, 403, "본인 반의 일지만 작성할 수 있습니다.");
+        } else {
+          // pool_admin이 teacher 모드 → 풀 내 반인지만 확인
+          const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId} AND is_deleted = false`);
+          if (r.rows.length === 0) return apiErr(res, 403, "해당 반을 찾을 수 없습니다.");
+        }
       }
 
       const teacherName = await getUserName(userId);

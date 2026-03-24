@@ -33,7 +33,7 @@ router.get("/holidays", requireAuth, requireRole("pool_admin", "teacher", "super
       if (!effectivePoolId || effectivePoolId !== pool_id) return err(res, 403, "권한이 없습니다.");
     }
     let whereClause = sql`pool_id = ${pool_id}`;
-    if (month) whereClause = sql`${whereClause} AND holiday_date LIKE ${month + '%'}`;
+    if (month) whereClause = sql`${whereClause} AND holiday_date::text LIKE ${month + '%'}`;
     const rows = await db.execute(sql`SELECT * FROM pool_holidays WHERE ${whereClause} ORDER BY holiday_date ASC`);
     return res.json({ success: true, holidays: rows.rows });
   } catch (e: any) {
