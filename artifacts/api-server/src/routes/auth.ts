@@ -713,12 +713,11 @@ router.post("/totp/setup", requireAuth, async (req: AuthRequest, res) => {
     if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
 
     const secret = totpGenerateSecret();
-    const otpauth = totpGenerateURI({ issuer: "수영장 관리 플랫폼", label: user.email, secret });
-    const qrCodeDataUrl = await QRCode.toDataURL(otpauth);
+    const otpauth = totpGenerateURI({ issuer: "Swim Platform", label: user.email, secret });
 
     await db.execute(sql`UPDATE users SET totp_secret = ${secret}, updated_at = NOW() WHERE id = ${req.user!.userId}`);
 
-    res.json({ success: true, secret, qr_code: qrCodeDataUrl, otpauth_url: otpauth });
+    res.json({ success: true, secret, otpauth_url: otpauth });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
