@@ -7,13 +7,11 @@
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/context/AuthContext";
-import { useOperatorsStore } from "@/store/operatorsStore";
-import { useSupportStore } from "@/store/supportStore";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 const PURPLE = "#7C3AED";
@@ -63,16 +61,39 @@ function SectionHeader({ title }: { title: string }) {
   return <Text style={[s.sectionLabel, { color: C.textMuted }]}>{title}</Text>;
 }
 
+interface RiskSummary {
+  payment_risk:    number;
+  storage_risk:    number;
+  deletion_pending: number;
+  sla_overdue:     number;
+}
+
 export default function SuperMoreScreen() {
   const insets = useSafeAreaInsets();
-  const { adminUser: user } = useAuth();
-  const operators = useOperatorsStore(s => s.operators);
-  const slaOverdue = useSupportStore(s => s.getSlaOverdueCount());
-
+  const { adminUser: user, token } = useAuth();
   const go = (path: string) => () => router.push(path as any);
 
-  const paymentIssue = operators.filter(o => o.billingStatus === "payment_failed" || o.billingStatus === "grace").length;
-  const storageRisk  = operators.filter(o => o.storageBlocked95).length;
+  const [risk, setRisk] = useState<RiskSummary>({
+    payment_risk: 0, storage_risk: 0, deletion_pending: 0, sla_overdue: 0,
+  });
+
+  const fetchRisk = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await apiRequest(token, "/super/risk-summary");
+      if (res.ok) {
+        const data = await res.json();
+        setRisk({
+          payment_risk:     Number(data.payment_risk    ?? 0),
+          storage_risk:     Number(data.storage_risk    ?? 0),
+          deletion_pending: Number(data.deletion_pending ?? 0),
+          sla_overdue:      Number(data.sla_overdue     ?? 0),
+        });
+      }
+    } catch (_) {}
+  }, [token]);
+
+  useEffect(() => { fetchRisk(); }, [fetchRisk]);
 
   const GROUPS: { title: string; items: MenuEntry[] }[] = [
     {
@@ -82,7 +103,7 @@ export default function SuperMoreScreen() {
           icon: "briefcase", label: "운영 관리",
           sub: "운영자·구독·저장공간·상태 관리",
           color: "purple", onPress: go("/(super)/op-group"),
-          badge: paymentIssue > 0 ? `결제 ${paymentIssue}` : undefined,
+          badge: risk.payment_risk > 0 ? `결제 ${risk.payment_risk}` : undefined,
         },
       ],
     },
@@ -101,7 +122,7 @@ export default function SuperMoreScreen() {
       items: [
         {
           icon: "trending-down", label: "비용·지출",
-          sub: "DB·스토리지·PG수수료·순이익",
+          sub: "DB·스토리지·스토어수수료·순이익",
           color: "orange", onPress: go("/(super)/cost-analytics"),
         },
       ],
@@ -113,7 +134,7 @@ export default function SuperMoreScreen() {
           icon: "shield", label: "보호·통제",
           sub: "킬스위치·백업·기능플래그·읽기전용",
           color: "red", onPress: go("/(super)/protect-group"),
-          badge: storageRisk > 0 ? `저장 위험 ${storageRisk}` : undefined,
+          badge: risk.storage_risk > 0 ? `저장 위험 ${risk.storage_risk}` : undefined,
         },
       ],
     },
@@ -124,7 +145,7 @@ export default function SuperMoreScreen() {
           icon: "message-circle", label: "지원 센터",
           sub: "문의·복구·보안·SLA 관리",
           color: "blue", onPress: go("/(super)/support-group"),
-          badge: slaOverdue > 0 ? `SLA 초과 ${slaOverdue}` : undefined,
+          badge: risk.sla_overdue > 0 ? `SLA 초과 ${risk.sla_overdue}` : undefined,
         },
       ],
     },
@@ -158,7 +179,7 @@ export default function SuperMoreScreen() {
       items: [
         {
           icon: "server", label: "시스템 상태",
-          sub: "DB·스토리지·PG·이메일·푸시·장애",
+          sub: "DB·스토리지·이메일·푸시·장애",
           color: "teal", onPress: go("/(super)/system-status"),
         },
         {
@@ -215,7 +236,6 @@ export default function SuperMoreScreen() {
           </View>
         ))}
 
-        {/* 시스템 */}
         <SectionHeader title="시스템" />
         <MenuItem icon="database" label="데이터 동기화" sub="변경분 수집·스냅샷·새벽 배치" color="slate" onPress={go("/(super)/sync")} />
         <MenuItem icon="info"     label="SwimNote 정보"  sub="버전 및 플랫폼 정보" color="slate" onPress={() => {}} />

@@ -1,22 +1,18 @@
 /**
  * (super)/subscriptions.tsx — 구독·결제 관리
- * operatorsStore + subscriptionStore — API 호출 없음
+ * 실 API 기반: GET /super/operators, GET /billing/revenue-logs
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
-import { useOperatorsStore } from "@/store/operatorsStore";
-import { useSubscriptionStore } from "@/store/subscriptionStore";
-import { useAuditLogStore } from "@/store/auditLogStore";
-import type { Operator } from "@/domain/types";
 
 const P = "#1F8F86";
 
@@ -29,179 +25,264 @@ const TABS = [
   { key: "deletion",   label: "삭제 예정" },
 ];
 
-const BILLING_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  active:                { label: "구독 중",    color: "#1F8F86", bg: "#DDF2EF" },
-  payment_failed:        { label: "결제 실패",  color: "#D96C6C", bg: "#F9DEDA" },
-  grace:                 { label: "유예 중",    color: "#D97706", bg: "#FFF1BF" },
-  cancelled:             { label: "해지",       color: "#6F6B68", bg: "#F6F3F1" },
-  auto_delete_scheduled: { label: "삭제 예정",  color: "#D96C6C", bg: "#F9DEDA" },
-  readonly:              { label: "읽기전용",   color: "#0284C7", bg: "#E0F2FE" },
-  free:                  { label: "무료 체험",  color: "#1F8F86", bg: "#ECFEFF" },
+const TIER_NAME: Record<string, string> = {
+  free:             "무료",
+  starter:          "스타터",
+  basic:            "베이직",
+  standard:         "스탠다드",
+  growth:           "어드밴스",
+  pro:              "프로",
+  max:              "맥스",
+  enterprise_2000:  "엔터프라이즈 2000",
+  enterprise_3000:  "엔터프라이즈 3000",
 };
 
-const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  pending:    { label: "승인 대기", color: "#D97706", bg: "#FFF1BF" },
-  active:     { label: "운영",     color: "#1F8F86", bg: "#DDF2EF" },
-  rejected:   { label: "반려",     color: "#D96C6C", bg: "#F9DEDA" },
-  cancelled:  { label: "해지",     color: "#6F6B68", bg: "#F6F3F1" },
-  readonly:   { label: "읽기전용", color: "#7C3AED", bg: "#EEDDF5" },
-  restricted: { label: "제한",     color: "#D96C6C", bg: "#F9DEDA" },
+const SUB_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
+  active:      { label: "구독 중",   color: "#1F8F86", bg: "#DDF2EF" },
+  trial:       { label: "무료 체험", color: "#1F8F86", bg: "#ECFEFF" },
+  expired:     { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
+  suspended:   { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
+  cancelled:   { label: "해지",      color: "#6F6B68", bg: "#F6F3F1" },
+  readonly:    { label: "읽기전용",  color: "#0284C7", bg: "#E0F2FE" },
+  deletion:    { label: "삭제 예정", color: "#D96C6C", bg: "#F9DEDA" },
 };
 
-function safeDate(iso: string | null | undefined): Date | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? null : d;
+const SUB_STATUS_KEYS = ["active", "trial", "expired", "suspended", "cancelled"];
+
+interface PoolRow {
+  id: string;
+  name: string;
+  owner_name: string;
+  approval_status: string;
+  subscription_status: string;
+  subscription_tier: string;
+  credit_balance: number;
+  active_member_count: number;
+  usage_pct: number;
+  is_readonly: boolean;
+  deletion_pending: boolean;
+  next_billing_at: string | null;
+}
+
+function displayStatus(row: PoolRow): string {
+  if (row.deletion_pending) return "deletion";
+  if (row.is_readonly)      return "readonly";
+  return row.subscription_status ?? "active";
+}
+
+function isFailed(row: PoolRow): boolean {
+  return ["expired", "suspended"].includes(row.subscription_status);
 }
 
 function fmtDate(iso: string | null | undefined): string {
-  const d = safeDate(iso);
-  if (!d) return "—";
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
-function fmtDateFull(iso: string | null | undefined): string {
-  const d = safeDate(iso);
-  if (!d) return "—";
-  return d.toLocaleDateString("ko-KR", { year: "numeric", month: "short", day: "numeric" });
-}
-
-function hoursLeft(iso: string | null | undefined): string {
-  const d = safeDate(iso);
-  if (!d) return "—";
+function hoursLeft(row: PoolRow): string {
+  if (!row.next_billing_at) return "—";
+  const d = new Date(row.next_billing_at);
+  if (isNaN(d.getTime())) return "—";
   const h = Math.floor((d.getTime() - Date.now()) / 3600000);
-  if (h < 0) return "삭제 예정 초과";
+  if (h < 0) return "삭제 초과";
   if (h < 1) return "1시간 미만";
   return `${h}h 후 삭제`;
 }
 
 export default function SubscriptionsScreen() {
-  const { adminUser } = useAuth();
-  const actorName = adminUser?.name ?? '슈퍼관리자';
+  const { token } = useAuth();
 
-  const [tab, setTab]                 = useState("all");
-  const [refreshing, setRefreshing]   = useState(false);
-  const [editOp, setEditOp]           = useState<Operator | null>(null);
-  const [newCredit, setNewCredit]     = useState("");
-  const [newEndDate, setNewEndDate]   = useState("");
-  const [newStatus, setNewStatus]     = useState("");
-  const [saving, setSaving]           = useState(false);
-  const [otpVisible, setOtpVisible]   = useState(false);
+  const [operators, setOperators]       = useState<PoolRow[]>([]);
+  const [refundIds, setRefundIds]       = useState<Set<string>>(new Set());
+  const [loading, setLoading]           = useState(true);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [tab, setTab]                   = useState("all");
 
-  const operators       = useOperatorsStore(s => s.operators);
-  const applyCredit     = useSubscriptionStore(s => s.applyCredit);
-  const billingRecords  = useSubscriptionStore(s => s.billingRecords);
-  const approveOp       = useOperatorsStore(s => s.approveOperator);
-  const scheduleDelete  = useOperatorsStore(s => s.scheduleAutoDelete);
-  const updateOp        = useOperatorsStore(s => s.updateOperator);
-  const createLog       = useAuditLogStore(s => s.createLog);
+  const [editOp, setEditOp]             = useState<PoolRow | null>(null);
+  const [newCredit, setNewCredit]       = useState("");
+  const [newStatus, setNewStatus]       = useState("");
+  const [saving, setSaving]             = useState(false);
+  const [otpVisible, setOtpVisible]     = useState(false);
+  const pendingActionRef                = useRef<"save" | "retry" | "defer" | null>(null);
+  const actionTargetRef                 = useRef<PoolRow | null>(null);
 
-  // Refund/chargeback from billing records
-  const refundOpIds    = useMemo(() => new Set(billingRecords.filter(r => r.status === 'refunded').map(r => r.operatorId)), [billingRecords]);
-  const chargebackOpIds = useMemo(() => new Set(billingRecords.filter(r => r.status === 'disputed').map(r => r.operatorId)), [billingRecords]);
+  const fetchData = useCallback(async () => {
+    if (!token) return;
+    try {
+      const [opsRes, revRes] = await Promise.all([
+        apiRequest(token, "/super/operators"),
+        apiRequest(token, "/billing/revenue-logs?limit=500"),
+      ]);
+      if (opsRes.ok) {
+        const data: PoolRow[] = await opsRes.json();
+        setOperators(data);
+      }
+      if (revRes.ok) {
+        const revData = await revRes.json();
+        const logs: any[] = revData?.logs ?? [];
+        const ids = new Set(
+          logs
+            .filter((l: any) => l.event_type === "refund" || Number(l.refunded_amount ?? 0) !== 0)
+            .map((l: any) => l.pool_id as string)
+        );
+        setRefundIds(ids);
+      }
+    } catch (_) {
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
+  }, [fetchData]);
 
   const filtered = useMemo(() => {
     switch (tab) {
-      case "failed":     return operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace');
-      case "refund":     return operators.filter(o => refundOpIds.has(o.id));
-      case "chargeback": return operators.filter(o => chargebackOpIds.has(o.id));
-      case "readonly":   return operators.filter(o => o.status === 'readonly');
-      case "deletion":   return operators.filter(o => !!o.autoDeleteScheduledAt);
+      case "failed":     return operators.filter(o => isFailed(o));
+      case "refund":     return operators.filter(o => refundIds.has(o.id));
+      case "chargeback": return [];
+      case "readonly":   return operators.filter(o => o.is_readonly);
+      case "deletion":   return operators.filter(o => o.deletion_pending);
       default:           return operators;
     }
-  }, [tab, operators, refundOpIds, chargebackOpIds]);
+  }, [tab, operators, refundIds]);
 
   const counts = useMemo(() => ({
     all:        operators.length,
-    failed:     operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace').length,
-    refund:     operators.filter(o => refundOpIds.has(o.id)).length,
-    chargeback: operators.filter(o => chargebackOpIds.has(o.id)).length,
-    readonly:   operators.filter(o => o.status === 'readonly').length,
-    deletion:   operators.filter(o => !!o.autoDeleteScheduledAt).length,
-  }), [operators, refundOpIds, chargebackOpIds]);
+    failed:     operators.filter(isFailed).length,
+    refund:     operators.filter(o => refundIds.has(o.id)).length,
+    chargeback: 0,
+    readonly:   operators.filter(o => o.is_readonly).length,
+    deletion:   operators.filter(o => o.deletion_pending).length,
+  }), [operators, refundIds]);
 
-  function handleRetry(op: Operator) {
-    const updatedOp = { ...op, billingStatus: 'active' as any };
-    updateOp(op.id, { billingStatus: 'active' });
-    createLog({ category: '결제', title: `${op.name} 결제 재시도 승인`, operatorId: op.id, operatorName: op.name, actorName, impact: 'medium', detail: '결제 재시도 수동 처리' });
+  async function handleRetry(op: PoolRow) {
+    if (!token) return;
+    try {
+      await apiRequest(token, `/super/operators/${op.id}/subscription`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription_status: "active" }),
+      });
+      setOperators(prev => prev.map(o => o.id === op.id ? { ...o, subscription_status: "active" } : o));
+    } catch (_) {}
   }
 
-  function handleDeferDeletion(op: Operator) {
-    const at = new Date(Date.now() + 48 * 3600000).toISOString();
-    scheduleDelete(op.id, at);
-    createLog({ category: '삭제', title: `${op.name} 삭제 48h 유예`, operatorId: op.id, operatorName: op.name, actorName, impact: 'high', detail: '자동삭제 유예 48시간 연장' });
+  async function handleDeferDeletion(op: PoolRow) {
+    if (!token) return;
+    try {
+      await apiRequest(token, `/super/operators/${op.id}/defer-deletion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hours: 48 }),
+      });
+      setOperators(prev => prev.map(o => o.id === op.id ? { ...o, deletion_pending: false } : o));
+    } catch (_) {}
   }
 
-  function handleSave() {
-    if (!editOp) return;
+  async function handleSave() {
+    if (!editOp || !token) return;
     setSaving(true);
     try {
-      const updates: Partial<Operator> = {};
-      if (newStatus)  updates.billingStatus = newStatus as any;
-      if (newCredit)  updates.creditBalance = Number(newCredit);
-      updateOp(editOp.id, updates);
-      if (newCredit) {
-        applyCredit(editOp.id, Number(newCredit));
-        createLog({ category: '결제', title: `${editOp.name} 크레딧 지급`, operatorId: editOp.id, operatorName: editOp.name, actorName, impact: 'medium', detail: `${Number(newCredit).toLocaleString()}원 크레딧` });
+      const body: Record<string, any> = {};
+      if (newStatus)  body.subscription_status = newStatus;
+      if (newCredit !== "") body.credit_amount = Number(newCredit);
+      if (Object.keys(body).length > 0) {
+        await apiRequest(token, `/super/operators/${editOp.id}/subscription`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        setOperators(prev => prev.map(o => {
+          if (o.id !== editOp.id) return o;
+          return {
+            ...o,
+            ...(newStatus ? { subscription_status: newStatus } : {}),
+            ...(newCredit !== "" ? { credit_balance: Number(newCredit) } : {}),
+          };
+        }));
       }
       setEditOp(null);
-    } finally { setSaving(false); }
+    } catch (_) {
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const renderItem = ({ item }: { item: Operator }) => {
-    const bCfg = BILLING_STATUS_CFG[item.billingStatus] ?? { label: item.billingStatus, color: "#6F6B68", bg: "#F6F3F1" };
-    const isFailed = item.billingStatus === 'payment_failed' || item.billingStatus === 'grace';
-    const isDeletion = !!item.autoDeleteScheduledAt;
+  function openEdit(op: PoolRow) {
+    setEditOp(op);
+    setNewStatus(op.subscription_status ?? "");
+    setNewCredit(op.credit_balance?.toString() ?? "0");
+  }
+
+  function triggerAction(action: "save" | "retry" | "defer", op: PoolRow) {
+    pendingActionRef.current = action;
+    actionTargetRef.current = op;
+    setOtpVisible(true);
+  }
+
+  async function onOtpSuccess() {
+    setOtpVisible(false);
+    const action = pendingActionRef.current;
+    const op = actionTargetRef.current;
+    if (!op) return;
+    if (action === "save")  await handleSave();
+    if (action === "retry") await handleRetry(op);
+    if (action === "defer") await handleDeferDeletion(op);
+  }
+
+  const renderItem = ({ item }: { item: PoolRow }) => {
+    const status = displayStatus(item);
+    const cfg = SUB_STATUS_CFG[status] ?? { label: status, color: "#6F6B68", bg: "#F6F3F1" };
+    const failed = isFailed(item);
 
     return (
-      <Pressable style={[s.row, isFailed && s.rowAlert]}
-        onPress={() => {
-          setEditOp(item);
-          setNewStatus(item.billingStatus ?? "");
-          setNewEndDate("");
-          setNewCredit(item.creditBalance?.toString() ?? "0");
-        }}>
+      <Pressable style={[s.row, failed && s.rowAlert]} onPress={() => openEdit(item)}>
         <View style={s.rowMain}>
           <View style={s.rowTop}>
             <Text style={s.opName} numberOfLines={1}>{item.name}</Text>
-            <View style={[s.badge, { backgroundColor: bCfg.bg }]}>
-              <Text style={[s.badgeTxt, { color: bCfg.color }]}>{bCfg.label}</Text>
+            <View style={[s.badge, { backgroundColor: cfg.bg }]}>
+              <Text style={[s.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
             </View>
-            {refundOpIds.has(item.id) && (
+            {refundIds.has(item.id) && (
               <View style={[s.badge, { backgroundColor: "#F3E8FF" }]}>
                 <Text style={[s.badgeTxt, { color: "#9333EA" }]}>환불</Text>
               </View>
             )}
-            {chargebackOpIds.has(item.id) && (
-              <View style={[s.badge, { backgroundColor: "#F9DEDA" }]}>
-                <Text style={[s.badgeTxt, { color: "#991B1B" }]}>차지백</Text>
-              </View>
-            )}
           </View>
           <View style={s.rowMeta}>
-            <Text style={s.metaTxt}>{item.representativeName}</Text>
+            <Text style={s.metaTxt}>{item.owner_name}</Text>
             <Text style={s.metaDot}>·</Text>
-            <Text style={s.metaTxt}>플랜: {item.currentPlanName}</Text>
-            {(item.creditBalance ?? 0) > 0 && (
+            <Text style={s.metaTxt}>플랜: {TIER_NAME[item.subscription_tier] ?? item.subscription_tier ?? "—"}</Text>
+            {(item.credit_balance ?? 0) > 0 && (
               <><Text style={s.metaDot}>·</Text>
-                <Text style={[s.metaTxt, { color: "#1F8F86" }]}>크레딧 {item.creditBalance?.toLocaleString()}원</Text>
+                <Text style={[s.metaTxt, { color: P }]}>크레딧 {item.credit_balance?.toLocaleString()}원</Text>
               </>
             )}
             <Text style={s.metaDot}>·</Text>
-            <Text style={s.metaTxt}>{item.activeMemberCount}명</Text>
+            <Text style={s.metaTxt}>{item.active_member_count}명</Text>
           </View>
-          {isDeletion && (
-            <Text style={s.deletionWarn}>{hoursLeft(item.autoDeleteScheduledAt)}</Text>
+          {item.deletion_pending && (
+            <Text style={s.deletionWarn}>{hoursLeft(item)}</Text>
           )}
         </View>
         <View style={s.rowActions}>
-          {isFailed && (
-            <Pressable style={[s.actionBtn, { backgroundColor: "#DDF2EF" }]} onPress={() => handleRetry(item)}>
-              <Text style={[s.actionTxt, { color: "#1F8F86" }]}>재시도</Text>
+          {failed && (
+            <Pressable style={[s.actionBtn, { backgroundColor: "#DDF2EF" }]}
+              onPress={() => triggerAction("retry", item)}>
+              <Text style={[s.actionTxt, { color: P }]}>재시도</Text>
             </Pressable>
           )}
-          {isDeletion && (
-            <Pressable style={[s.actionBtn, { backgroundColor: "#FFF1BF" }]} onPress={() => handleDeferDeletion(item)}>
+          {item.deletion_pending && (
+            <Pressable style={[s.actionBtn, { backgroundColor: "#FFF1BF" }]}
+              onPress={() => triggerAction("defer", item)}>
               <Text style={[s.actionTxt, { color: "#D97706" }]}>유예</Text>
             </Pressable>
           )}
@@ -214,11 +295,21 @@ export default function SubscriptionsScreen() {
     );
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={s.safe} edges={[]}>
+        <SubScreenHeader title="구독·결제 관리" homePath="/(super)/dashboard" />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={P} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="구독·결제 관리" homePath="/(super)/dashboard" />
 
-      {/* 상태 요약 칩 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.summaryBar} contentContainerStyle={s.summaryContent}>
         {TABS.map(t => {
@@ -259,8 +350,7 @@ export default function SubscriptionsScreen() {
         data={filtered}
         keyExtractor={i => i.id}
         renderItem={renderItem}
-        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: 80 }}
         ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F6F3F1" }} />}
         ListEmptyComponent={
@@ -271,7 +361,6 @@ export default function SubscriptionsScreen() {
         }
       />
 
-      {/* 수정 모달 */}
       {editOp && (
         <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={() => setEditOp(null)}>
           <Pressable style={m.backdrop} onPress={() => setEditOp(null)}>
@@ -279,14 +368,14 @@ export default function SubscriptionsScreen() {
               <View style={m.handle} />
               <Text style={m.title}>{editOp.name}</Text>
               <Text style={m.sub}>
-                {editOp.representativeName} · 현재: {BILLING_STATUS_CFG[editOp.billingStatus]?.label ?? editOp.billingStatus}
+                {editOp.owner_name} · 현재: {SUB_STATUS_CFG[displayStatus(editOp)]?.label ?? editOp.subscription_status}
               </Text>
 
               <View style={m.section}>
-                <Text style={m.label}>결제 상태 변경</Text>
+                <Text style={m.label}>구독 상태 변경</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                  {Object.keys(BILLING_STATUS_CFG).map(k => {
-                    const sc = BILLING_STATUS_CFG[k];
+                  {SUB_STATUS_KEYS.map(k => {
+                    const sc = SUB_STATUS_CFG[k];
                     return (
                       <Pressable key={k}
                         style={[m.chip, newStatus === k && { backgroundColor: sc.color, borderColor: sc.color }]}
@@ -296,12 +385,6 @@ export default function SubscriptionsScreen() {
                     );
                   })}
                 </ScrollView>
-              </View>
-
-              <View style={m.section}>
-                <Text style={m.label}>구독 종료일 (YYYY-MM-DD)</Text>
-                <TextInput style={m.input} value={newEndDate} onChangeText={setNewEndDate}
-                  placeholder="2026-12-31" placeholderTextColor="#9A948F" />
               </View>
 
               <View style={m.section}>
@@ -322,8 +405,10 @@ export default function SubscriptionsScreen() {
                 <Pressable style={m.cancelBtn} onPress={() => setEditOp(null)}>
                   <Text style={m.cancelTxt}>취소</Text>
                 </Pressable>
-                <Pressable style={[m.saveBtn, { opacity: saving ? 0.6 : 1 }]} onPress={() => setOtpVisible(true)} disabled={saving}>
-                  {saving ? <ActivityIndicator color="#fff" size="small" />
+                <Pressable style={[m.saveBtn, { opacity: saving ? 0.6 : 1 }]}
+                  onPress={() => triggerAction("save", editOp)} disabled={saving}>
+                  {saving
+                    ? <ActivityIndicator color="#fff" size="small" />
                     : <><Feather name="lock" size={13} color="#fff" /><Text style={m.saveTxt}>OTP 인증 후 저장</Text></>}
                 </Pressable>
               </View>
@@ -336,7 +421,7 @@ export default function SubscriptionsScreen() {
         visible={otpVisible}
         title="구독 변경 OTP 인증"
         desc="구독 상태·크레딧 변경은 OTP 인증이 필요합니다."
-        onSuccess={() => { setOtpVisible(false); handleSave(); }}
+        onSuccess={onOtpSuccess}
         onCancel={() => setOtpVisible(false)}
       />
     </SafeAreaView>
@@ -344,32 +429,32 @@ export default function SubscriptionsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#F0FDFE" },
-  summaryBar:    { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
-  summaryContent:{ paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
-  summaryChip:   { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: "#F6F3F1", position: "relative" },
+  safe:             { flex: 1, backgroundColor: "#F0FDFE" },
+  summaryBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
+  summaryContent:   { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
+  summaryChip:      { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: "#F6F3F1", position: "relative" },
   summaryChipActive:{ backgroundColor: P },
-  alertDot:      { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: "#D96C6C" },
-  summaryNum:    { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  summaryLabel:  { fontSize: 9, fontFamily: "Inter_500Medium", color: "#9A948F", marginTop: 1 },
-  bannerRow:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA", paddingHorizontal: 14, paddingVertical: 9 },
-  bannerTxt:     { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#7F1D1D", lineHeight: 16 },
-  row:           { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
-  rowAlert:      { borderLeftWidth: 3, borderLeftColor: "#D96C6C" },
-  rowMain:       { flex: 1, gap: 3 },
-  rowTop:        { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  opName:        { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  badge:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  badgeTxt:      { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  rowMeta:       { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
-  metaTxt:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
-  metaDot:       { fontSize: 10, color: "#D1D5DB" },
-  deletionWarn:  { fontSize: 11, fontFamily: "Inter_700Bold", color: "#D96C6C" },
-  rowActions:    { flexDirection: "row", gap: 6 },
-  actionBtn:     { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minWidth: 36, alignItems: "center" },
-  actionTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  empty:         { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  alertDot:         { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: "#D96C6C" },
+  summaryNum:       { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  summaryLabel:     { fontSize: 9, fontFamily: "Inter_500Medium", color: "#9A948F", marginTop: 1 },
+  bannerRow:        { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA", paddingHorizontal: 14, paddingVertical: 9 },
+  bannerTxt:        { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#7F1D1D", lineHeight: 16 },
+  row:              { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
+  rowAlert:         { borderLeftWidth: 3, borderLeftColor: "#D96C6C" },
+  rowMain:          { flex: 1, gap: 3 },
+  rowTop:           { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  opName:           { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  badge:            { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badgeTxt:         { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  rowMeta:          { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
+  metaTxt:          { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  metaDot:          { fontSize: 10, color: "#D1D5DB" },
+  deletionWarn:     { fontSize: 11, fontFamily: "Inter_700Bold", color: "#D96C6C" },
+  rowActions:       { flexDirection: "row", gap: 6 },
+  actionBtn:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minWidth: 36, alignItems: "center" },
+  actionTxt:        { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  empty:            { alignItems: "center", paddingTop: 80, gap: 10 },
+  emptyTxt:         { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });
 
 const m = StyleSheet.create({
@@ -389,6 +474,6 @@ const m = StyleSheet.create({
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
   cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
   cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  saveBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
+  saveBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   saveTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

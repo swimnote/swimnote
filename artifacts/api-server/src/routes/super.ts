@@ -261,6 +261,8 @@ router.get(
             ELSE 0
           END AS usage_pct,
           (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) AS total_storage_gb,
+          COALESCE(sp.is_readonly, FALSE) AS is_readonly,
+          COALESCE(sp.upload_blocked, FALSE) AS upload_blocked,
           CASE
             WHEN sp.subscription_end_at IS NOT NULL
               AND sp.subscription_end_at > NOW()
@@ -1076,6 +1078,45 @@ router.post(
         INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
         VALUES (${logId}, ${id}, '삭제', ${req.user!.userId}, ${actorName}, ${id},
                 ${'삭제 유예 ' + hours + '시간'}, '{}'::jsonb)
+      `).catch(() => {});
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/subscription — 구독상태·크레딧 수동 조정
+// Body: { subscription_status?: string; credit_amount?: number }
+// ════════════════════════════════════════════════════════════════
+router.patch(
+  "/super/operators/:id/subscription",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { id } = req.params;
+      const { subscription_status, credit_amount } = req.body as any;
+      const actorName = req.user?.name ?? "슈퍼관리자";
+      const updates: string[] = [];
+      if (subscription_status) {
+        await db.execute(sql`
+          UPDATE swimming_pools SET subscription_status = ${subscription_status} WHERE id = ${id}
+        `);
+        updates.push(`구독상태 → ${subscription_status}`);
+      }
+      if (credit_amount != null && !isNaN(Number(credit_amount))) {
+        const amt = Number(credit_amount);
+        await db.execute(sql`
+          UPDATE swimming_pools SET credit_balance = ${amt} WHERE id = ${id}
+        `);
+        updates.push(`크레딧 → ${amt.toLocaleString()}원`);
+      }
+      if (updates.length === 0) { res.status(400).json({ error: "변경 항목이 없습니다." }); return; }
+      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      await db.execute(sql`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (${logId}, ${id}, '구독', ${req.user!.userId}, ${actorName}, ${id},
+                ${updates.join(" / ")}, '{}'::jsonb)
       `).catch(() => {});
       res.json({ ok: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }

@@ -2,7 +2,7 @@
  * (super)/billing-analytics.tsx — 매출·정산 관리
  * 슈퍼관리자 플랫폼 운영 전체 매출·지출·순이익 통합 관리.
  * - 매출: 결제일(billedAt) 기준 실제 결제 완료 금액만 집계
- * - 지출: 인프라 비용 (Supabase, R2, PG수수료, App Store 등) — 추정치 표시
+ * - 지출: 인프라 비용 (Supabase, R2, 스토어수수료 등) — 추정치 표시
  * - 순이익: 매출 - 총지출
  */
 import { Feather } from "@expo/vector-icons";
