@@ -74,7 +74,7 @@ export const SEED_AUDIT_LOGS: AuditLog[] = [
   {
     id: 'log-006',
     category: '플랜변경',
-    title: '플랜 변경: 유료100 → 유료300',
+    title: '플랜 변경: 스탠다드 → 어드밴스',
     operatorId: 'op-007',
     operatorName: '대전아쿠아클럽',
     actorName: '슈퍼관리자',
@@ -82,7 +82,7 @@ export const SEED_AUDIT_LOGS: AuditLog[] = [
     impact: 'medium',
     detail: '활성회원 증가로 100명 한도 도달. 300명 플랜으로 업그레이드.',
     reason: '운영자 요청',
-    metadata: { fromPlan: '유료100', toPlan: '유료300', priceDiff: 5000 },
+    metadata: { fromPlan: '스탠다드', toPlan: '어드밴스', priceDiff: 5000 },
   },
   {
     id: 'log-007',
@@ -269,15 +269,15 @@ export const SEED_AUDIT_LOGS: AuditLog[] = [
   {
     id: 'log-021',
     category: '플랜변경',
-    title: '플랜 변경: 무료 → 유료100',
+    title: '플랜 변경: 무료 → 스탠다드',
     operatorId: 'op-008',
     operatorName: '광주수영교실',
     actorName: '시스템',
     createdAt: daysAgo(5),
     impact: 'medium',
-    detail: '무료 회원 한도(10명) 초과로 유료100 플랜 자동 안내. 운영자 선택 대기.',
+    detail: '무료 회원 한도(5명) 초과로 스탠다드 플랜 자동 안내. 운영자 선택 대기.',
     reason: '한도 초과',
-    metadata: { fromPlan: '무료', toPlan: '유료100' },
+    metadata: { fromPlan: '무료', toPlan: '스탠다드' },
   },
   {
     id: 'log-022',

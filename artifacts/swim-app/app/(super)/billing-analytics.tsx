@@ -6,11 +6,11 @@
  * - 순이익: 매출 - 총지출
  */
 import { Feather } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useSubscriptionStore } from "@/store/subscriptionStore";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const P = "#7C3AED";
 type Period = "week" | "month" | "year";
@@ -56,15 +56,16 @@ function pctColor(cur: number, prev: number): string {
   return cur >= prev ? "#1F8F86" : "#D96C6C";
 }
 
-// ─── 지출 항목 단가 (추정치 — 실제 API 연동 대기) ──────────────────────────
+// ─── 지출 항목 단가 (추정치) ─────────────────────────────────────────────
+// 결제 채널: 앱스토어 / 구글플레이 인앱결제 (수수료 30%, 구독 첫 해 15% 감면 없이 30% 적용)
+// PG(PortOne) 수수료는 적용하지 않음 — 스토어 결제 전용.
 const UNIT_COSTS: { id: string; label: string; unit: string; unitCost: number; qty: number; monthly: number; note?: string }[] = [
-  { id: "pg",       label: "PG 수수료 (PortOne)",       unit: "매출 2.5%",   unitCost: 0.025, qty: 1,     monthly: 0, note: "결제액 × 2.5%" },
-  { id: "appstore", label: "App Store / Google Play 수수료", unit: "인앱 15%", unitCost: 0.15,  qty: 1,     monthly: 0, note: "인앱결제 15% 추정" },
-  { id: "supabase", label: "Supabase DB (운영 포함)",   unit: "프로 플랜",   unitCost: 25,    qty: 1,     monthly: 25, note: "슈퍼관리자 운영 DB 포함" },
-  { id: "r2",       label: "Cloudflare R2 스토리지",    unit: "GB당 $0.015", unitCost: 0.015, qty: 800,   monthly: 18, note: "추정 800 GB" },
-  { id: "traffic",  label: "트래픽·CDN 비용",           unit: "GB당 $0.01",  unitCost: 0.01,  qty: 500,   monthly: 7,  note: "추정 500 GB 월 트래픽" },
-  { id: "backup",   label: "백업 DB/스토리지 유지",     unit: "고정",        unitCost: 20,    qty: 1,     monthly: 20, note: "백업 Supabase + R2 복제" },
-  { id: "infra",    label: "기타 인프라·모니터링",      unit: "고정",        unitCost: 15,    qty: 1,     monthly: 15, note: "Sentry, Logflare 등" },
+  { id: "appstore", label: "앱스토어/구글플레이 수수료 (30%)", unit: "매출 30%", unitCost: 0.30, qty: 1,   monthly: 0,  note: "인앱결제 스토어 수수료 30%" },
+  { id: "supabase", label: "Supabase DB (운영 포함)",          unit: "프로 플랜", unitCost: 25,  qty: 1,   monthly: 25, note: "슈퍼관리자 운영 DB 포함" },
+  { id: "r2",       label: "Cloudflare R2 스토리지",           unit: "GB당 $0.015", unitCost: 0.015, qty: 800, monthly: 18, note: "추정 800 GB" },
+  { id: "traffic",  label: "트래픽·CDN 비용",                  unit: "GB당 $0.01",  unitCost: 0.01,  qty: 500, monthly: 7,  note: "추정 500 GB 월 트래픽" },
+  { id: "backup",   label: "백업 DB/스토리지 유지",            unit: "고정",        unitCost: 20,  qty: 1,   monthly: 20, note: "백업 Supabase + R2 복제" },
+  { id: "infra",    label: "기타 인프라·모니터링",             unit: "고정",        unitCost: 15,  qty: 1,   monthly: 15, note: "Sentry, Logflare 등" },
 ];
 
 const KRW_RATE = 1350; // USD → KRW 환산 (참고값)
@@ -90,64 +91,81 @@ function KpiCard({ label, value, sub, color, small }: { label: string; value: st
 }
 
 // ─── 메인 ─────────────────────────────────────────────────────────────────
+interface RevLog {
+  id: string; plan_id: string; plan_name?: string;
+  charged_amount: number; refunded_amount: number;
+  event_type?: string; intro_discount_amount?: number;
+}
+interface RevSummary {
+  total_charged: number; total_refunded: number;
+  total_store_fee: number; total_net_revenue: number;
+  total_discount: number; count: number;
+}
+interface PlanStat { plan_id: string; plan_name?: string; payment_count: number; total_amount: number; }
+
 export default function BillingAnalyticsScreen() {
+  const { token } = useAuth();
   const [period, setPeriod] = useState<Period>("month");
-  const plans = useSubscriptionStore(s => s.plans);
-  const billingRecords = useSubscriptionStore(s => s.billingRecords);
+  const [logs,        setLogs]        = useState<RevLog[]>([]);
+  const [summary,     setSummary]     = useState<RevSummary | null>(null);
+  const [prevSummary, setPrevSummary] = useState<RevSummary | null>(null);
+  const [planStats,   setPlanStats]   = useState<PlanStat[]>([]);
+  const [refreshing,  setRefreshing]  = useState(false);
 
   const { start, end, prevStart, prevEnd, label: periodLabel } = useMemo(() => getPeriodRange(period), [period]);
 
-  // ── 기간 내 레코드 필터 ──
-  const curRecords  = useMemo(() => billingRecords.filter(r => { const d = new Date(r.billedAt); return d >= start && d <= end; }), [billingRecords, start, end]);
-  const prevRecords = useMemo(() => billingRecords.filter(r => { const d = new Date(r.billedAt); return d >= prevStart && d <= prevEnd; }), [billingRecords, prevStart, prevEnd]);
+  const toDateStr = (d: Date) => d.toISOString().split("T")[0];
 
-  // ── 매출 집계 ──
+  const fetchData = useCallback(async () => {
+    try {
+      const [curRes, prevRes, planRes] = await Promise.all([
+        apiRequest(token, `/billing/revenue-logs?start=${toDateStr(start)}&end=${toDateStr(end)}`),
+        apiRequest(token, `/billing/revenue-logs?start=${toDateStr(prevStart)}&end=${toDateStr(prevEnd)}`),
+        apiRequest(token, "/billing/revenue-by-plan"),
+      ]);
+      const [curData, prevData, planData] = await Promise.all([curRes.json(), prevRes.json(), planRes.json()]);
+      setLogs(Array.isArray(curData.logs) ? curData.logs : []);
+      setSummary(curData.summary ?? null);
+      setPrevSummary(prevData.summary ?? null);
+      setPlanStats(Array.isArray(planData) ? planData : []);
+    } catch (e) { console.error("billing-analytics fetchData:", e); }
+  }, [token, start, end, prevStart, prevEnd]);
+
+  useEffect(() => { fetchData(); }, [period]);
+
+  // ── 매출 집계 (API 데이터 기반) ──
   const revenue = useMemo(() => {
-    const success   = curRecords.filter(r => r.status === "success");
-    const failed    = curRecords.filter(r => r.status === "failed");
-    const refunded  = curRecords.filter(r => r.status === "refunded");
-    const total     = success.reduce((s, r) => s + r.amount, 0);
-    const refundAmt = refunded.reduce((s, r) => s + r.amount, 0);
-
-    // 신규: 해당 기간 처음 결제한 운영자 (이 기간 기준 이전 기록 없음)
-    const priorOpIds = new Set(billingRecords.filter(r => new Date(r.billedAt) < start).map(r => r.operatorId));
-    const newPayments = success.filter(r => !priorOpIds.has(r.operatorId));
-    const renewals    = success.filter(r => priorOpIds.has(r.operatorId));
-
-    const prevSuccess = prevRecords.filter(r => r.status === "success");
-    const prevTotal   = prevSuccess.reduce((s, r) => s + r.amount, 0);
-
-    // 플랜별 집계
+    const total     = summary?.total_charged   ?? 0;
+    const prevTotal = prevSummary?.total_charged ?? 0;
+    const refundAmt = summary?.total_refunded  ?? 0;
+    const newCount  = logs.filter(r => r.event_type === "first_payment" || r.event_type === "new_subscription").length;
+    const renewalCount = logs.filter(r => r.event_type === "renewal").length;
+    const failedCount  = 0; // revenue_logs엔 성공 건만 존재
+    const successCount = summary?.count ?? 0;
+    const refundCount  = logs.filter(r => (r.refunded_amount ?? 0) > 0).length;
     const planMap: Record<string, { planName: string; count: number; amount: number }> = {};
-    success.forEach(r => {
-      if (!planMap[r.planId]) planMap[r.planId] = { planName: r.planName, count: 0, amount: 0 };
-      planMap[r.planId].count++;
-      planMap[r.planId].amount += r.amount;
+    planStats.forEach(p => {
+      planMap[p.plan_id] = { planName: p.plan_name ?? p.plan_id, count: p.payment_count, amount: p.total_amount };
     });
+    return { total, prevTotal, successCount, failedCount, refundCount, refundAmt, newCount, renewalCount, planMap };
+  }, [summary, prevSummary, logs, planStats]);
 
-    return { total, prevTotal, successCount: success.length, failedCount: failed.length,
-      refundCount: refunded.length, refundAmt, newCount: newPayments.length,
-      renewalCount: renewals.length, planMap };
-  }, [curRecords, prevRecords, billingRecords, start]);
-
-  // ── 지출 집계 ──
+  // ── 지출 집계 (앱스토어/구글플레이 수수료 30%, PG 수수료 없음) ──
   const costs = useMemo(() => {
-    const pgFee       = Math.round(revenue.total * UNIT_COSTS[0].unitCost);
-    const appFee      = Math.round(revenue.total * UNIT_COSTS[1].unitCost * 0.2); // 인앱은 전체의 약 20% 추정
-    const supabase    = Math.round(UNIT_COSTS[2].monthly * KRW_RATE);
-    const r2          = Math.round(UNIT_COSTS[3].monthly * KRW_RATE);
-    const traffic     = Math.round(UNIT_COSTS[4].monthly * KRW_RATE);
-    const backup      = Math.round(UNIT_COSTS[5].monthly * KRW_RATE);
-    const infra       = Math.round(UNIT_COSTS[6].monthly * KRW_RATE);
-    const total       = pgFee + appFee + supabase + r2 + traffic + backup + infra;
+    const storeFee = Math.round(revenue.total * UNIT_COSTS[0].unitCost); // 30% 스토어 수수료
+    const supabase = Math.round(UNIT_COSTS[1].monthly * KRW_RATE);
+    const r2       = Math.round(UNIT_COSTS[2].monthly * KRW_RATE);
+    const traffic  = Math.round(UNIT_COSTS[3].monthly * KRW_RATE);
+    const backup   = Math.round(UNIT_COSTS[4].monthly * KRW_RATE);
+    const infra    = Math.round(UNIT_COSTS[5].monthly * KRW_RATE);
+    const total    = storeFee + supabase + r2 + traffic + backup + infra;
     return [
-      { label: "PG 수수료 (PortOne)",             amount: pgFee,    note: "매출 × 2.5%" },
-      { label: "App Store / Play 수수료",          amount: appFee,   note: "인앱결제 × 15% (20% 추정)" },
-      { label: "Supabase DB (운영 DB 포함)",       amount: supabase, note: "슈퍼관리자 DB 포함 추정치" },
-      { label: "Cloudflare R2 스토리지",           amount: r2,       note: "~800 GB 추정" },
-      { label: "트래픽·CDN",                       amount: traffic,  note: "~500 GB/월 추정" },
-      { label: "백업 DB/스토리지",                  amount: backup,   note: "백업 복제 고정비" },
-      { label: "기타 인프라·모니터링",              amount: infra,    note: "Sentry, Logflare 등" },
+      { label: "앱스토어/구글플레이 수수료 (30%)", amount: storeFee, note: "인앱결제 매출 × 30%" },
+      { label: "Supabase DB (운영 DB 포함)",        amount: supabase, note: "슈퍼관리자 DB 포함 추정치" },
+      { label: "Cloudflare R2 스토리지",            amount: r2,       note: "~800 GB 추정" },
+      { label: "트래픽·CDN",                        amount: traffic,  note: "~500 GB/월 추정" },
+      { label: "백업 DB/스토리지",                   amount: backup,   note: "백업 복제 고정비" },
+      { label: "기타 인프라·모니터링",               amount: infra,    note: "Sentry, Logflare 등" },
       { label: "총 지출 (추정)", amount: total, note: "실제 청구서 연동 시 자동 업데이트" },
     ];
   }, [revenue.total]);
@@ -166,7 +184,12 @@ export default function BillingAnalyticsScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="매출·정산 관리" homePath="/(super)/dashboard" />
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 60 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 60 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
+          onRefresh={async () => { setRefreshing(true); await fetchData(); setRefreshing(false); }} />}
+      >
 
         {/* 기간 선택 */}
         <View style={s.periodRow}>
@@ -183,7 +206,7 @@ export default function BillingAnalyticsScreen() {
         {/* ══ 섹션 1: 매출 요약 ══ */}
         <View style={s.section}>
           <SectionHeader icon="trending-up" title="매출 요약" />
-          <Text style={s.estimateNote}>결제일(billedAt) 기준 실제 결제 완료 금액만 집계</Text>
+          <Text style={s.estimateNote}>revenue_logs DB 기준 · 결제 완료 금액만 집계 (미결제·추정 제외)</Text>
 
           {/* 주요 KPI — 총매출 강조 */}
           <View style={s.heroCard}>
@@ -213,21 +236,17 @@ export default function BillingAnalyticsScreen() {
           {Object.entries(revenue.planMap).length === 0 ? (
             <Text style={s.emptyTxt}>이 기간에 집계된 결제가 없습니다.</Text>
           ) : (
-            Object.entries(revenue.planMap).map(([planId, info]) => {
-              const plan = plans.find(p => p.id === planId);
-              return (
-                <View key={planId} style={s.planRow}>
-                  <View style={s.planLeft}>
-                    <Text style={s.planName}>{info.planName}</Text>
-                    {plan && <Text style={s.planSub}>정가 {fmtKRW(plan.priceMonthly ?? plan.price ?? 0)}/월 · 최대 {plan.maxStudents}명</Text>}
-                  </View>
-                  <View style={s.planRight}>
-                    <Text style={s.planAmount}>{fmtKRW(info.amount)}</Text>
-                    <Text style={s.planCount}>{info.count}건 결제</Text>
-                  </View>
+            Object.entries(revenue.planMap).map(([planId, info]) => (
+              <View key={planId} style={s.planRow}>
+                <View style={s.planLeft}>
+                  <Text style={s.planName}>{info.planName}</Text>
+                  <Text style={s.planSub}>{info.count}건 결제</Text>
                 </View>
-              );
-            })
+                <View style={s.planRight}>
+                  <Text style={s.planAmount}>{fmtKRW(info.amount)}</Text>
+                </View>
+              </View>
+            ))
           )}
           {/* 기타 플랜 — 시드에 없는 플랜 */}
           <View style={s.planRowExtra}>

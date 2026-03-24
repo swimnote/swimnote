@@ -1,47 +1,73 @@
 /**
- * (super)/revenue-analytics.tsx — 플랫폼 매출 분석
- * 실제 결제 완료 로그(billingRecords) 기반 집계. 추정/수기 금액 사용 금지.
+ * (super)/revenue-analytics.tsx — 플랫폼 매출 분석 (API 연동)
+ * GET /billing/revenue-logs → 실제 revenue_logs DB 기반 집계
  * 탭: 주간 / 월간 / 연간
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useSubscriptionStore } from "@/store/subscriptionStore";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const P = "#7C3AED";
-
 type Period = "week" | "month" | "year";
 
-function getPeriodRange(period: Period): { start: Date; end: Date; prevStart: Date; prevEnd: Date } {
-  const now = new Date();
+interface RevenueLog {
+  id: string;
+  pool_id: string;
+  pool_name?: string;
+  plan_id: string;
+  plan_name?: string;
+  event_type?: string;
+  gross_amount: number;
+  intro_discount_amount: number;
+  charged_amount: number;
+  refunded_amount: number;
+  store_fee: number;
+  net_revenue: number;
+  occurred_at: string;
+}
+
+interface RevenueSummary {
+  total_gross: number;
+  total_charged: number;
+  total_discount: number;
+  total_store_fee: number;
+  total_net_revenue: number;
+  total_refunded: number;
+  count: number;
+}
+
+function getPeriodDates(period: Period): { start: string; end: string; prevStart: string; prevEnd: string } {
+  const now   = new Date();
+  const toIso = (d: Date) => d.toISOString().split("T")[0];
+
   let start: Date, end: Date, prevStart: Date, prevEnd: Date;
 
   if (period === "week") {
-    // 이번 주 월요일 00:00
     const dow = now.getDay() === 0 ? 6 : now.getDay() - 1;
     start = new Date(now); start.setHours(0,0,0,0); start.setDate(now.getDate() - dow);
-    end = new Date(now);
+    end   = new Date(now);
     prevStart = new Date(start); prevStart.setDate(prevStart.getDate() - 7);
-    prevEnd   = new Date(start); prevEnd.setMilliseconds(-1);
+    prevEnd   = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1);
   } else if (period === "month") {
     start = new Date(now.getFullYear(), now.getMonth(), 1);
-    end = new Date(now);
+    end   = new Date(now);
     prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    prevEnd   = new Date(start); prevEnd.setMilliseconds(-1);
+    prevEnd   = new Date(now.getFullYear(), now.getMonth(), 0);
   } else {
     start = new Date(now.getFullYear(), 0, 1);
-    end = new Date(now);
+    end   = new Date(now);
     prevStart = new Date(now.getFullYear() - 1, 0, 1);
-    prevEnd   = new Date(now.getFullYear(), 0, 0, 23, 59, 59, 999);
+    prevEnd   = new Date(now.getFullYear() - 1, 11, 31);
   }
-  return { start, end, prevStart, prevEnd };
+  return { start: toIso(start), end: toIso(end), prevStart: toIso(prevStart), prevEnd: toIso(prevEnd) };
 }
 
 function fmtKRW(n: number): string {
-  return `₩${n.toLocaleString("ko-KR")}`;
+  return `₩${Math.round(n).toLocaleString("ko-KR")}`;
 }
 
 function pct(current: number, prev: number): string {
@@ -75,43 +101,59 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ComponentPr
 }
 
 export default function RevenueAnalyticsScreen() {
+  const { token } = useAuth();
   const [period, setPeriod] = useState<Period>("month");
-  const billingRecords = useSubscriptionStore(s => s.billingRecords);
 
-  const { start, end, prevStart, prevEnd } = useMemo(() => getPeriodRange(period), [period]);
+  const [logs,        setLogs]        = useState<RevenueLog[]>([]);
+  const [prevLogs,    setPrevLogs]    = useState<RevenueLog[]>([]);
+  const [summary,     setSummary]     = useState<RevenueSummary | null>(null);
+  const [prevSummary, setPrevSummary] = useState<RevenueSummary | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
 
-  // 결제 완료(success)만 매출 집계 대상
-  const current = useMemo(() => billingRecords.filter(r => {
-    const d = new Date(r.billedAt);
-    return d >= start && d <= end;
-  }), [billingRecords, start, end]);
+  const fetchLogs = useCallback(async (p: Period) => {
+    const { start, end, prevStart, prevEnd } = getPeriodDates(p);
+    try {
+      const [curRes, prevRes] = await Promise.all([
+        apiRequest(token, `/billing/revenue-logs?start=${start}&end=${end}`),
+        apiRequest(token, `/billing/revenue-logs?start=${prevStart}&end=${prevEnd}`),
+      ]);
+      const [curData, prevData] = await Promise.all([curRes.json(), prevRes.json()]);
+      setLogs(Array.isArray(curData.logs) ? curData.logs : []);
+      setSummary(curData.summary ?? null);
+      setPrevLogs(Array.isArray(prevData.logs) ? prevData.logs : []);
+      setPrevSummary(prevData.summary ?? null);
+    } catch (e) { console.error("revenue-logs fetch:", e); }
+  }, [token]);
 
-  const prev = useMemo(() => billingRecords.filter(r => {
-    const d = new Date(r.billedAt);
-    return d >= prevStart && d <= prevEnd;
-  }), [billingRecords, prevStart, prevEnd]);
+  const load = useCallback(async (p?: Period) => {
+    const target = p ?? period;
+    setLoading(true);
+    await fetchLogs(target);
+    setLoading(false);
+  }, [fetchLogs, period]);
 
-  // 현재 기간 통계
-  const successRecords  = useMemo(() => current.filter(r => r.status === "success"), [current]);
-  const failedRecords   = useMemo(() => current.filter(r => r.status === "failed"), [current]);
-  const refundRecords   = useMemo(() => current.filter(r => r.status === "refunded"), [current]);
+  useEffect(() => { load(period); }, [period]);
 
-  const totalRevenue  = useMemo(() => successRecords.reduce((s, r) => s + (r.amount ?? 0), 0), [successRecords]);
-  const totalRefunds  = useMemo(() => refundRecords.reduce((s, r) => s + (r.amount ?? 0), 0), [refundRecords]);
+  const totalRevenue  = summary?.total_charged   ?? 0;
+  const totalRefunds  = summary?.total_refunded  ?? 0;
+  const totalDiscount = summary?.total_discount  ?? 0;
+  const totalStoreFee = summary?.total_store_fee ?? 0;
   const netRevenue    = totalRevenue - totalRefunds;
+  const prevRevenue   = prevSummary?.total_charged ?? 0;
 
-  // 이전 기간 매출
-  const prevRevenue = useMemo(() => prev.filter(r => r.status === "success").reduce((s, r) => s + (r.amount ?? 0), 0), [prev]);
+  const newSubs = useMemo(() => logs.filter(r => r.event_type === "first_payment" || r.event_type === "new_subscription").length, [logs]);
+  const renewals = useMemo(() => logs.filter(r => r.event_type === "renewal").length, [logs]);
+  const upgrades = useMemo(() => logs.filter(r => r.event_type === "upgrade").length, [logs]);
 
-  // 구독 타입 분류 (planId에 'free' 없으면 신규/갱신 구분 불가 → 간단히 성공건 전부 구독 성공으로 처리)
-  const newSubs     = successRecords.filter(r => (r.memo ?? "").includes("신규") || r.creditUsed === 0).length;
-  const renewals    = successRecords.filter(r => !((r.memo ?? "").includes("신규")) && r.creditUsed === 0).length;
-  const cancels     = current.filter(r => r.billingStatus === "cancelled").length;
-
-  // 예상 다음 기간 매출 (단순 선형 추정)
-  const daysInPeriod = Math.max(1, (end.getTime() - start.getTime()) / 86400000);
-  const daysSoFar    = Math.max(1, (Date.now() - start.getTime()) / 86400000);
-  const projected    = Math.round(totalRevenue * (daysInPeriod / Math.min(daysSoFar, daysInPeriod)));
+  const daysInPeriod = useMemo(() => {
+    const { start, end } = getPeriodDates(period);
+    return Math.max(1, (new Date(end).getTime() - new Date(start).getTime()) / 86400000);
+  }, [period]);
+  const projected = Math.round(totalRevenue * (daysInPeriod / Math.min(
+    Math.max(1, (Date.now() - new Date(getPeriodDates(period).start).getTime()) / 86400000),
+    daysInPeriod,
+  )));
 
   const TABS: { key: Period; label: string }[] = [
     { key: "week",  label: "주간" },
@@ -119,14 +161,22 @@ export default function RevenueAnalyticsScreen() {
     { key: "year",  label: "연간" },
   ];
 
-  const growth = pct(totalRevenue, prevRevenue);
+  const growth      = pct(totalRevenue, prevRevenue);
   const growthColor = pctColor(totalRevenue, prevRevenue);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={st.safe} edges={[]}>
+        <SubScreenHeader title="매출 분석" homePath="/(super)/dashboard" />
+        <ActivityIndicator style={{ flex: 1 }} color={P} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={st.safe} edges={[]}>
       <SubScreenHeader title="매출 분석" homePath="/(super)/dashboard" />
 
-      {/* 기간 탭 */}
       <View style={st.tabRow}>
         {TABS.map(t => (
           <Pressable key={t.key} style={[st.tab, period === t.key && st.tabActive]} onPress={() => setPeriod(t.key)}>
@@ -135,76 +185,90 @@ export default function RevenueAnalyticsScreen() {
         ))}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 80, gap: 16 }}>
-
-        {/* 안내: 집계 기준 */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 80, gap: 16 }}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
+          onRefresh={async () => { setRefreshing(true); await fetchLogs(period); setRefreshing(false); }} />}
+      >
         <View style={st.noticeBox}>
           <Feather name="info" size={12} color="#1F8F86" />
-          <Text style={st.noticeTxt}>실제 결제 완료(success) 로그 기반 집계. 미결제·실패·추정 금액 제외.</Text>
+          <Text style={st.noticeTxt}>revenue_logs DB 실측 기반. 추정·미결제 금액 제외.</Text>
         </View>
 
         {/* 핵심 지표 */}
         <SectionHeader title="핵심 지표" icon="bar-chart-2" />
         <View style={st.cardGrid}>
-          <StatCard label="누적 매출" value={fmtKRW(totalRevenue)} sub="결제 성공 기준" color={P} />
-          <StatCard label="순 매출" value={fmtKRW(netRevenue)} sub="매출 - 환불" color={netRevenue >= 0 ? "#1F8F86" : "#D96C6C"} />
-          <StatCard label="전기 대비" value={growth} color={growthColor} sub="이전 기간 동일 집계" />
-          <StatCard label="추정 이번 기간" value={fmtKRW(projected)} sub="현재까지 속도 기준" color="#D97706" />
+          <StatCard label="기간 내 청구액" value={fmtKRW(totalRevenue)} sub="결제 기준" color={P} />
+          <StatCard label="순 매출" value={fmtKRW(netRevenue)} sub="청구 - 환불"
+            color={netRevenue >= 0 ? "#1F8F86" : "#D96C6C"} />
+          <StatCard label="전기 대비" value={growth} color={growthColor} sub="이전 기간" />
+          <StatCard label="추정 기간 합산" value={fmtKRW(projected)} sub="현재 속도 기준" color="#D97706" />
+        </View>
+
+        {/* 할인·수수료 */}
+        <SectionHeader title="할인 및 수수료" icon="percent" />
+        <View style={st.cardGrid}>
+          <StatCard label="첫 달 50% 할인액" value={fmtKRW(totalDiscount)} sub="할인 합계" color="#DC2626" />
+          <StatCard label="스토어 수수료 (30%)" value={fmtKRW(totalStoreFee)} sub="앱스토어/구글플레이" color="#9A948F" />
+          <StatCard label="순이익 (수수료 후)" value={fmtKRW(netRevenue - totalStoreFee)} color="#1F8F86" />
         </View>
 
         {/* 결제 현황 */}
         <SectionHeader title="결제 현황" icon="credit-card" />
         <View style={st.cardGrid}>
-          <StatCard label="결제 성공" value={`${successRecords.length}건`} color="#1F8F86" />
-          <StatCard label="결제 실패" value={`${failedRecords.length}건`} color={failedRecords.length > 0 ? "#D96C6C" : "#6F6B68"} />
-          <StatCard label="환불" value={`${refundRecords.length}건`} color={refundRecords.length > 0 ? "#D97706" : "#6F6B68"} />
-          <StatCard label="환불 금액" value={fmtKRW(totalRefunds)} color={totalRefunds > 0 ? "#D96C6C" : "#6F6B68"} />
+          <StatCard label="전체 건수" value={`${logs.length}건`} color={P} />
+          <StatCard label="신규 구독" value={`${newSubs}건`} color="#1F8F86" />
+          <StatCard label="갱신" value={`${renewals}건`} color="#6366F1" />
+          <StatCard label="업그레이드" value={`${upgrades}건`} color="#D97706" />
         </View>
 
-        {/* 구독 현황 */}
-        <SectionHeader title="구독 현황" icon="users" />
-        <View style={st.cardGrid}>
-          <StatCard label="신규 구독" value={`${newSubs}건`} color="#1F8F86" />
-          <StatCard label="갱신 구독" value={`${renewals}건`} color={P} />
-          <StatCard label="해지" value={`${cancels}건`} color={cancels > 0 ? "#D96C6C" : "#6F6B68"} />
-        </View>
+        {/* 환불 */}
+        {totalRefunds > 0 && (
+          <>
+            <SectionHeader title="환불 현황" icon="rotate-ccw" />
+            <View style={st.cardGrid}>
+              <StatCard label="환불 건수" value={`${logs.filter(r => r.refunded_amount > 0).length}건`} color="#D96C6C" />
+              <StatCard label="환불 금액" value={fmtKRW(totalRefunds)} color="#D96C6C" />
+            </View>
+          </>
+        )}
 
         {/* 건별 상세 목록 */}
         <SectionHeader title="기간 내 결제 내역" icon="list" />
-        {successRecords.length === 0 ? (
+        {logs.length === 0 ? (
           <View style={st.empty}>
             <Feather name="inbox" size={32} color="#D1D5DB" />
-            <Text style={st.emptyTxt}>이 기간의 결제 성공 내역이 없습니다</Text>
+            <Text style={st.emptyTxt}>이 기간의 결제 내역이 없습니다</Text>
           </View>
         ) : (
-          successRecords.map(r => (
+          logs.map(r => (
             <View key={r.id} style={st.recordRow}>
               <View style={{ flex: 1 }}>
-                <Text style={st.recordName}>{r.operatorName}</Text>
-                <Text style={st.recordSub}>{r.planName} · {new Date(r.billedAt).toLocaleDateString("ko-KR")}</Text>
+                <Text style={st.recordName}>{r.pool_name ?? r.pool_id}</Text>
+                <Text style={st.recordSub}>
+                  {r.plan_name ?? r.plan_id}
+                  {r.event_type ? ` · ${r.event_type === "first_payment" ? "첫 결제" : r.event_type === "renewal" ? "갱신" : r.event_type === "upgrade" ? "업그레이드" : r.event_type}` : ""}
+                  {" · "}{new Date(r.occurred_at).toLocaleDateString("ko-KR")}
+                </Text>
+                {r.intro_discount_amount > 0 && (
+                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#DC2626", marginTop: 1 }}>
+                    첫 달 50% 할인 적용 (-{fmtKRW(r.intro_discount_amount)})
+                  </Text>
+                )}
               </View>
-              <Text style={[st.recordAmt, { color: P }]}>{fmtKRW(r.amount)}</Text>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={[st.recordAmt, { color: P }]}>{fmtKRW(r.charged_amount)}</Text>
+                {r.store_fee > 0 && (
+                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" }}>
+                    수수료 -{fmtKRW(r.store_fee)}
+                  </Text>
+                )}
+              </View>
             </View>
           ))
         )}
 
-        {/* 실패 내역 */}
-        {failedRecords.length > 0 && (
-          <>
-            <SectionHeader title="결제 실패 내역" icon="alert-circle" />
-            {failedRecords.map(r => (
-              <View key={r.id} style={[st.recordRow, { borderLeftColor: "#D96C6C", borderLeftWidth: 3 }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={st.recordName}>{r.operatorName}</Text>
-                  <Text style={st.recordSub}>{r.planName} · {r.failReason ?? "사유 없음"}</Text>
-                </View>
-                <Text style={[st.recordAmt, { color: "#D96C6C" }]}>{fmtKRW(r.amount)}</Text>
-              </View>
-            ))}
-          </>
-        )}
-
-        {/* 구독 관리 바로가기 */}
         <Pressable style={st.linkBtn} onPress={() => router.push("/(super)/subscriptions" as any)}>
           <Feather name="credit-card" size={14} color={P} />
           <Text style={[st.linkTxt, { color: P }]}>구독·결제 관리로 이동</Text>
@@ -237,7 +301,7 @@ const st = StyleSheet.create({
   empty:         { alignItems: "center", paddingVertical: 32, gap: 8 },
   emptyTxt:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
   recordRow:     { backgroundColor: "#fff", borderRadius: 10, padding: 12, flexDirection: "row",
-                   alignItems: "center", borderWidth: 1, borderColor: "#E9E2DD" },
+                   alignItems: "flex-start", borderWidth: 1, borderColor: "#E9E2DD" },
   recordName:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   recordSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
   recordAmt:     { fontSize: 15, fontFamily: "Inter_700Bold" },

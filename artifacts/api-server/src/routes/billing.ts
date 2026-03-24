@@ -20,24 +20,48 @@ const router = Router();
 
 // ── 테이블 보장 (서버 시작 시 1회 실행) ──────────────────────────────
 async function ensureBillingTables() {
-  // revenue_logs: 결제 발생 시 스토어 수수료·순수익 기록
+  // revenue_logs: 정산용 이벤트 로그 (지시서 §8 요구사항 반영)
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS revenue_logs (
-      id             TEXT PRIMARY KEY,
-      pool_id        TEXT NOT NULL,
-      plan_id        TEXT NOT NULL,
-      amount         INTEGER NOT NULL DEFAULT 0,
-      payment_method TEXT NOT NULL DEFAULT 'store',
-      store_fee      INTEGER NOT NULL DEFAULT 0,
-      net_revenue    INTEGER NOT NULL DEFAULT 0,
-      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      id                      TEXT PRIMARY KEY,
+      pool_id                 TEXT NOT NULL,
+      pool_name               TEXT,
+      plan_id                 TEXT NOT NULL,
+      plan_name               TEXT,
+      event_type              TEXT NOT NULL DEFAULT 'new_subscription',
+      gross_amount            INTEGER NOT NULL DEFAULT 0,
+      intro_discount_amount   INTEGER NOT NULL DEFAULT 0,
+      charged_amount          INTEGER NOT NULL DEFAULT 0,
+      refunded_amount         INTEGER NOT NULL DEFAULT 0,
+      store_fee               INTEGER NOT NULL DEFAULT 0,
+      net_revenue             INTEGER NOT NULL DEFAULT 0,
+      payment_provider        TEXT NOT NULL DEFAULT 'store',
+      provider_transaction_id TEXT,
+      occurred_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `).catch(() => {});
-  // 다운그레이드 예약 컬럼 추가 (없으면 추가)
+  // 기존 테이블에 누락된 컬럼 추가 (하위 호환)
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS pool_name TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS plan_name TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS event_type TEXT NOT NULL DEFAULT 'new_subscription'`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS gross_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS intro_discount_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS charged_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS refunded_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS payment_provider TEXT NOT NULL DEFAULT 'store'`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS provider_transaction_id TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
+  // 다운그레이드 예약 컬럼 추가
   await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS pending_tier TEXT`).catch(() => {});
   await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS downgrade_at DATE`).catch(() => {});
-  // subscription_plans에 is_active 컬럼 추가
+  // subscription_plans 확장 컬럼
+  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS plan_id TEXT NOT NULL DEFAULT ''`).catch(() => {});
+  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_mb INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage TEXT NOT NULL DEFAULT ''`).catch(() => {});
   await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`).catch(() => {});
+  // swimming_pools 최초 할인 컬럼
+  await db.execute(sql`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS first_payment_used BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
 }
 ensureBillingTables().catch(console.error);
 
@@ -64,7 +88,9 @@ function addOneMonth(from: Date = new Date()): string {
 async function recordPayment(params: {
   poolId: string; amount: number; status: "success" | "failed";
   type: string; description: string; periodStart?: string; periodEnd?: string;
-  pgTransactionId?: string; planId?: string;
+  pgTransactionId?: string;
+  planId?: string; planName?: string; poolName?: string;
+  eventType?: string; grossAmount?: number; introDiscount?: number;
 }): Promise<string> {
   const id = `pay_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   await db.execute(sql`
@@ -77,14 +103,24 @@ async function recordPayment(params: {
        ${params.periodStart ?? null}, ${params.periodEnd ?? null},
        ${params.status === "success" ? sql`now()` : null})
   `);
-  // 성공 결제 → revenue_logs 기록 (스토어 수수료 30%)
+  // 성공 결제 → revenue_logs 기록 (스토어 수수료 30%, 지시서 §8 필드 포함)
   if (params.status === "success" && params.planId && params.amount > 0) {
-    const revId = `rev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const storeFee = Math.round(params.amount * 0.3);
-    const netRevenue = params.amount - storeFee;
+    const revId     = `rev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const storeFee  = Math.round(params.amount * 0.3);
+    const netRev    = params.amount - storeFee;
+    const grossAmt  = params.grossAmount ?? params.amount;
+    const introDis  = params.introDiscount ?? 0;
+    const evtType   = params.eventType ?? "new_subscription";
     await db.execute(sql`
-      INSERT INTO revenue_logs (id, pool_id, plan_id, amount, payment_method, store_fee, net_revenue)
-      VALUES (${revId}, ${params.poolId}, ${params.planId}, ${params.amount}, 'store', ${storeFee}, ${netRevenue})
+      INSERT INTO revenue_logs
+        (id, pool_id, pool_name, plan_id, plan_name, event_type,
+         gross_amount, intro_discount_amount, charged_amount,
+         store_fee, net_revenue, payment_provider, occurred_at)
+      VALUES
+        (${revId}, ${params.poolId}, ${params.poolName ?? null},
+         ${params.planId}, ${params.planName ?? null}, ${evtType},
+         ${grossAmt}, ${introDis}, ${params.amount},
+         ${storeFee}, ${netRev}, 'store', NOW())
     `).catch(console.error);
   }
   return id;
@@ -337,23 +373,46 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
       return;
     }
 
-    // ─ 업그레이드 또는 신규 유료 구독: 전체 월 금액 결제 후 즉시 적용 ─
+    // ─ 업그레이드 또는 신규 유료 구독: 즉시 결제 후 적용 ─
+    // 최초 결제 1회 한정 50% 할인 정책
+    const [poolInfoRow] = (await db.execute(sql`
+      SELECT first_payment_used, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `)).rows as any[];
+    const firstPaymentUsed = !!poolInfoRow?.first_payment_used;
+    const poolName         = poolInfoRow?.name ?? poolId;
+    const isFirstPayment   = !firstPaymentUsed && currentPrice === 0;
+
+    const grossAmount    = newPrice;
+    const introDiscount  = isFirstPayment ? Math.round(grossAmount * 0.5) : 0;
+    const chargedAmount  = grossAmount - introDiscount;
+
     const isUpgrade = newPrice > currentPrice;
+    const orderName = isFirstPayment
+      ? `${newPlan.name} 첫 달 50% 할인`
+      : isUpgrade
+        ? `${sub?.tier ?? "무료"} → ${tier} 업그레이드`
+        : `${newPlan.name} 구독`;
     const orderId = `ord_${isUpgrade ? "upg" : "sub"}_${Date.now()}`;
+
     const result = await getPaymentProvider().charge({
-      billingKey: card.billing_key, amount: newPrice,
-      orderName: isUpgrade ? `${sub?.tier ?? "무료"} → ${tier} 업그레이드` : `${newPlan.name} 구독`,
-      orderId, poolId,
+      billingKey: card.billing_key, amount: chargedAmount,
+      orderName, orderId, poolId,
     });
 
+    const planIdStr = (newPlan.plan_id && newPlan.plan_id !== "") ? newPlan.plan_id : tier;
     await recordPayment({
-      poolId, amount: newPrice, status: result.success ? "success" : "failed",
+      poolId, poolName,
+      amount: chargedAmount, status: result.success ? "success" : "failed",
       type: isUpgrade ? "upgrade" : "subscription",
-      description: isUpgrade
-        ? `플랜 업그레이드 — ${sub?.tier ?? "무료"} → ${tier} (${newPrice.toLocaleString()}원)`
-        : `${newPlan.name} 월 구독 결제 (${newPrice.toLocaleString()}원)`,
+      description: isFirstPayment
+        ? `${newPlan.name} 첫 달 결제 (50% 할인 적용, ${grossAmount.toLocaleString()}원 → ${chargedAmount.toLocaleString()}원)`
+        : isUpgrade
+          ? `플랜 업그레이드 — ${sub?.tier ?? "무료"} → ${tier} (${chargedAmount.toLocaleString()}원)`
+          : `${newPlan.name} 월 구독 결제 (${chargedAmount.toLocaleString()}원)`,
       periodStart: todayStr, periodEnd: nextBilling,
-      planId: tier,
+      planId: planIdStr, planName: newPlan.name,
+      eventType: isFirstPayment ? "first_payment" : isUpgrade ? "upgrade" : "renewal",
+      grossAmount, introDiscount,
     });
 
     if (!result.success) {
@@ -378,12 +437,14 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
             pending_tier = NULL, downgrade_at = NULL, updated_at = now()
     `);
 
-    // swimming_pools 구독 상태 동기화
+    // swimming_pools 구독 상태 동기화 + 최초 결제 사용 여부 기록
     await db.execute(sql`
       UPDATE swimming_pools
       SET subscription_status = 'active', subscription_tier = ${tier},
           is_readonly = false, upload_blocked = false, readonly_reason = null,
-          payment_failed_at = null, updated_at = now()
+          payment_failed_at = null,
+          first_payment_used = CASE WHEN ${isFirstPayment} THEN TRUE ELSE first_payment_used END,
+          updated_at = now()
       WHERE id = ${poolId}
     `);
 
@@ -391,13 +452,23 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
     logEvent({
       pool_id: poolId, category: isUpgrade ? "구독" : "결제",
       actor_id: req.user!.userId, actor_name: actorInfo.name,
-      description: isUpgrade
-        ? `플랜 업그레이드 — ${sub?.tier ?? "무료"} → ${tier} (${newPrice.toLocaleString()}원)`
-        : `구독 시작 — ${newPlan.name} (${newPrice.toLocaleString()}원/월)`,
-      metadata: { tier, plan_name: newPlan.name, price: newPrice },
+      description: isFirstPayment
+        ? `첫 구독 50% 할인 — ${newPlan.name} (${grossAmount.toLocaleString()}원 → ${chargedAmount.toLocaleString()}원)`
+        : isUpgrade
+          ? `플랜 업그레이드 — ${sub?.tier ?? "무료"} → ${tier} (${chargedAmount.toLocaleString()}원)`
+          : `구독 시작 — ${newPlan.name} (${chargedAmount.toLocaleString()}원/월)`,
+      metadata: { tier, plan_name: newPlan.name, price: chargedAmount, gross: grossAmount, discount: introDiscount },
     }).catch(console.error);
 
-    res.json({ success: true, change_type: isUpgrade ? "upgrade" : "new", next_billing_at: nextBilling });
+    res.json({
+      success: true,
+      change_type: isFirstPayment ? "first_payment" : isUpgrade ? "upgrade" : "new",
+      next_billing_at: nextBilling,
+      charged_amount: chargedAmount,
+      gross_amount: grossAmount,
+      intro_discount: introDiscount,
+      first_payment_discount: isFirstPayment,
+    });
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ error: err?.message ?? "구독 처리 중 오류가 발생했습니다." });
@@ -733,26 +804,56 @@ cron.schedule("0 * * * *", async () => {
 
 // ── 슈퍼관리자 매출정산 조회 ─────────────────────────────────────────
 // GET /billing/revenue-logs — 전체 매출 기록 (슈퍼관리자 전용)
-router.get("/revenue-logs", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+// ?start=YYYY-MM-DD&end=YYYY-MM-DD&limit=500
+router.get("/revenue-logs", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   try {
     await ensureBillingTables();
+    const { start, end, limit = "500" } = req.query as { start?: string; end?: string; limit?: string };
     const rows = (await db.execute(sql`
       SELECT
-        rl.*,
-        sp.name AS pool_name,
-        pp.name AS plan_name
+        rl.id,
+        rl.pool_id,
+        COALESCE(rl.pool_name, sp.name)  AS pool_name,
+        rl.plan_id,
+        COALESCE(rl.plan_name, pp.name)  AS plan_name,
+        rl.event_type,
+        COALESCE(rl.gross_amount, 0)                                                        AS gross_amount,
+        COALESCE(rl.intro_discount_amount, 0)                                               AS intro_discount_amount,
+        COALESCE(rl.charged_amount, 0)                                                      AS charged_amount,
+        COALESCE(rl.refunded_amount, 0)                                                     AS refunded_amount,
+        COALESCE(rl.store_fee, 0)                                                           AS store_fee,
+        COALESCE(rl.net_revenue, 0)                                                         AS net_revenue,
+        COALESCE(rl.payment_provider, 'store')                                             AS payment_provider,
+        COALESCE(rl.occurred_at, rl.created_at)                                            AS occurred_at,
+        rl.created_at
       FROM revenue_logs rl
       LEFT JOIN swimming_pools sp ON sp.id = rl.pool_id
       LEFT JOIN subscription_plans pp ON pp.tier = rl.plan_id
-      ORDER BY rl.created_at DESC
-      LIMIT 500
+      WHERE (${start ?? null}::date IS NULL OR COALESCE(rl.occurred_at, rl.created_at) >= ${start ?? null}::date)
+        AND (${end ?? null}::date IS NULL OR COALESCE(rl.occurred_at, rl.created_at) <= (${end ?? null}::date + INTERVAL '1 day'))
+      ORDER BY COALESCE(rl.occurred_at, rl.created_at) DESC
+      LIMIT ${parseInt(limit as string)}
     `)).rows;
 
-    const totalRevenue = rows.reduce((sum: number, r: any) => sum + Number(r.amount ?? 0), 0);
-    const totalStoreFee = rows.reduce((sum: number, r: any) => sum + Number(r.store_fee ?? 0), 0);
-    const totalNetRevenue = rows.reduce((sum: number, r: any) => sum + Number(r.net_revenue ?? 0), 0);
+    const totalGross     = rows.reduce((s: number, r: any) => s + Number(r.gross_amount ?? 0), 0);
+    const totalCharged   = rows.reduce((s: number, r: any) => s + Number(r.charged_amount ?? 0), 0);
+    const totalStoreFee  = rows.reduce((s: number, r: any) => s + Number(r.store_fee ?? 0), 0);
+    const totalNetRevenue = rows.reduce((s: number, r: any) => s + Number(r.net_revenue ?? 0), 0);
+    const totalRefunded  = rows.reduce((s: number, r: any) => s + Number(r.refunded_amount ?? 0), 0);
+    const totalDiscount  = rows.reduce((s: number, r: any) => s + Number(r.intro_discount_amount ?? 0), 0);
 
-    res.json({ logs: rows, summary: { total_revenue: totalRevenue, total_store_fee: totalStoreFee, total_net_revenue: totalNetRevenue } });
+    res.json({
+      logs: rows,
+      summary: {
+        total_gross: totalGross,
+        total_charged: totalCharged,
+        total_discount: totalDiscount,
+        total_store_fee: totalStoreFee,
+        total_net_revenue: totalNetRevenue,
+        total_refunded: totalRefunded,
+        count: rows.length,
+      },
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

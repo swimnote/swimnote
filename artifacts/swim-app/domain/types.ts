@@ -238,10 +238,13 @@ export interface Operator {
 
 export interface SubscriptionPlan {
   id: string
-  code: 'free_10' | 'pro_100' | 'pro_300' | 'pro_500' | 'pro_1000' | 'enterprise'
+  code: string
+  tier: string
+  plan_id: string
   name: string
   memberLimit: number | null
   baseStorageMb: number
+  displayStorage: string
   monthlyPrice: number
   includesVideo: boolean
   isActive: boolean

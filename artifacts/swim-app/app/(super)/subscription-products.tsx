@@ -11,12 +11,10 @@ import {
   StyleSheet, Switch, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
-import { useSubscriptionStore } from "@/store/subscriptionStore";
 import { useExtraStorageStore } from "@/store/extraStorageStore";
-import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SubscriptionPlan } from "@/domain/types";
 import type { ExtraStorageProduct } from "@/store/extraStorageStore";
 
@@ -352,15 +350,54 @@ const fm = StyleSheet.create({
 });
 
 // ── 메인 ─────────────────────────────────────────────────────────
+// API 응답 행 타입
+interface ApiPlanRow {
+  tier: string; plan_id: string; name: string;
+  price_per_month: number; member_limit: number;
+  storage_gb: number; storage_mb: number; display_storage: string;
+  is_active: boolean;
+}
+
+function rowToSubscriptionPlan(row: ApiPlanRow): SubscriptionPlan {
+  return {
+    id:            row.tier,
+    code:          row.plan_id || row.tier,
+    tier:          row.tier,
+    plan_id:       row.plan_id || row.tier,
+    name:          row.name,
+    memberLimit:   row.member_limit ?? null,
+    baseStorageMb: row.storage_mb ?? Math.round(row.storage_gb * 1024),
+    displayStorage: row.display_storage ?? "",
+    monthlyPrice:  row.price_per_month ?? 0,
+    includesVideo: false,
+    isActive:      !!row.is_active,
+    isArchived:    false,
+    note:          "",
+    createdAt:     "",
+    updatedAt:     "",
+  };
+}
+
 export default function SubscriptionProductsScreen() {
   const insets = useSafeAreaInsets();
-  const { adminUser } = useAuth();
-  const actorName = adminUser?.name ?? "슈퍼관리자";
+  const { token } = useAuth();
 
-  const plans       = useSubscriptionStore(s => s.plans);
-  const addPlan     = useSubscriptionStore(s => s.addPlan);
-  const updatePlan  = useSubscriptionStore(s => s.updatePlan);
-  const createLog   = useAuditLogStore(s => s.createLog);
+  // ── 구독 플랜 — API 연동 ─────────────────────────────────────────
+  const [plans,     setPlans]     = useState<SubscriptionPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+
+  async function loadPlans() {
+    setPlansLoading(true);
+    try {
+      const r = await apiRequest(token, "/super/plans");
+      const d = await r.json();
+      const rows: ApiPlanRow[] = Array.isArray(d.plans) ? d.plans : [];
+      setPlans(rows.map(rowToSubscriptionPlan));
+    } catch (e) { console.error("loadPlans:", e); }
+    finally { setPlansLoading(false); }
+  }
+
+  useEffect(() => { loadPlans(); }, []);
 
   const products          = useExtraStorageStore(s => s.products);
   const purchases         = useExtraStorageStore(s => s.purchases);
@@ -381,38 +418,44 @@ export default function SubscriptionProductsScreen() {
   const totalStoragePurchased = useMemo(() => purchases.length, [purchases]);
   const unlockedCount      = useMemo(() => opAccounts.filter(a => a.videoUploadUnlocked).length, [opAccounts]);
 
-  function handlePlanSave(form: FormState) {
-    if (!form.name.trim() || !form.code.trim()) { Alert.alert("입력 오류", "상품명과 코드 키는 필수입니다."); return; }
-    const patch: Partial<SubscriptionPlan> = {
-      name: form.name.trim(), memberLimit: form.memberLimit ? parseInt(form.memberLimit) || null : null,
-      baseStorageMb: parseInt(form.baseStorageMb) || 5120,
-      monthlyPrice: parseInt(form.monthlyPrice) || 0,
-      includesVideo: form.includesVideo, note: form.note.trim(),
-      updatedAt: new Date().toISOString(),
+  async function handlePlanSave(form: FormState) {
+    if (!form.name.trim()) { Alert.alert("입력 오류", "상품명은 필수입니다."); return; }
+    const body = {
+      name: form.name.trim(),
+      price_per_month: parseInt(form.monthlyPrice) || 0,
+      member_limit: form.memberLimit ? parseInt(form.memberLimit) || 9999 : 9999,
+      storage_mb: parseInt(form.baseStorageMb) || 5120,
+      storage_gb: (parseInt(form.baseStorageMb) || 5120) / 1024,
     };
-    if (editPlan) {
-      updatePlan(editPlan.id, patch);
-      createLog({ category: "구독", title: `구독 상품 수정: ${form.name}`, detail: `가격 ${form.monthlyPrice}원`, actorName, impact: "medium" });
-    } else {
-      addPlan({ id: `plan-${Date.now()}`, code: form.code.trim() as any, name: form.name.trim(),
-        memberLimit: form.memberLimit ? parseInt(form.memberLimit) || null : null,
-        baseStorageMb: parseInt(form.baseStorageMb) || 5120,
-        monthlyPrice: parseInt(form.monthlyPrice) || 0,
-        includesVideo: form.includesVideo, isActive: true, isArchived: false,
-        note: form.note.trim(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-      createLog({ category: "구독", title: `구독 상품 생성: ${form.name}`, detail: `가격 ${form.monthlyPrice}원`, actorName, impact: "high" });
-    }
+    try {
+      if (editPlan) {
+        const r = await apiRequest(token, `/super/plans/${editPlan.tier}`, {
+          method: "PUT", body: JSON.stringify(body),
+        });
+        if (!r.ok) { const d = await r.json(); Alert.alert("수정 실패", d.error ?? "수정에 실패했습니다."); return; }
+      } else {
+        if (!form.code.trim()) { Alert.alert("입력 오류", "코드 키는 필수입니다."); return; }
+        const r = await apiRequest(token, "/super/plans", {
+          method: "POST", body: JSON.stringify({ ...body, tier: form.code.trim() }),
+        });
+        if (!r.ok) { const d = await r.json(); Alert.alert("생성 실패", d.error ?? "생성에 실패했습니다."); return; }
+      }
+      await loadPlans();
+    } catch (e) { Alert.alert("오류", "서버 통신에 실패했습니다."); }
     setShowPlanForm(false); setEditPlan(null);
   }
 
-  function handlePlanToggle(plan: SubscriptionPlan) {
+  async function handlePlanToggle(plan: SubscriptionPlan) {
     const newActive = !plan.isActive;
     Alert.alert(newActive ? "상품 활성화" : "상품 비활성화",
       `'${plan.name}' 상품을 ${newActive ? "활성화" : "비활성화"}하시겠습니까?`, [
         { text: "취소", style: "cancel" },
-        { text: "확인", style: newActive ? "default" : "destructive", onPress: () => {
-            updatePlan(plan.id, { isActive: newActive, updatedAt: new Date().toISOString() });
-            createLog({ category: "구독", title: `구독 상품 ${newActive ? "활성화" : "비활성화"}: ${plan.name}`, detail: `${plan.name} → ${newActive ? "활성" : "비활성"}`, actorName, impact: "high" });
+        { text: "확인", style: newActive ? "default" : "destructive", onPress: async () => {
+            try {
+              const r = await apiRequest(token, `/super/plans/${plan.tier}/toggle`, { method: "PATCH" });
+              if (!r.ok) { const d = await r.json(); Alert.alert("오류", d.error ?? "변경에 실패했습니다."); return; }
+              await loadPlans();
+            } catch { Alert.alert("오류", "서버 통신에 실패했습니다."); }
           }},
       ]);
   }
@@ -421,6 +464,7 @@ export default function SubscriptionProductsScreen() {
     if (!form.name.trim()) { Alert.alert("입력 오류", "상품명을 입력하세요."); return; }
     const extraMb = parseInt(form.extraStorageMb) || 10240;
     const price   = parseInt(form.price) || 9900;
+    const actorName = "슈퍼관리자";
     if (editProduct) {
       updateProduct(editProduct.id, { name: form.name.trim(), extraStorageMb: extraMb, price, note: form.note.trim() }, actorName);
     } else {
@@ -430,6 +474,7 @@ export default function SubscriptionProductsScreen() {
   }
 
   function handleStorageToggle(product: ExtraStorageProduct) {
+    const actorName = "슈퍼관리자";
     Alert.alert(product.isActive ? "상품 비활성화" : "상품 활성화",
       `'${product.name}'을 ${product.isActive ? "비활성화" : "활성화"}하시겠습니까?`, [
         { text: "취소", style: "cancel" },
@@ -463,8 +508,8 @@ export default function SubscriptionProductsScreen() {
               <PlanCard plan={item} onEdit={p => { setEditPlan(p); setShowPlanForm(true); }} onToggle={handlePlanToggle} />
             )}
             contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 16 }}
-            refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-              onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+            refreshControl={<RefreshControl refreshing={plansLoading || refreshing} tintColor={P}
+              onRefresh={async () => { setRefreshing(true); await loadPlans(); setRefreshing(false); }} />}
             ListHeaderComponent={
               <View style={s.infoBox}>
                 <Feather name="info" size={13} color={P} />

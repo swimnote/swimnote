@@ -1261,52 +1261,79 @@ router.delete(
 // 구독 상품 테이블 보장
 // ════════════════════════════════════════════════════════════════
 async function ensurePlansTables() {
-  // subscription_plans: tier(PK), name, price_per_month, member_limit, storage_gb, is_active
+  // subscription_plans: 최종 확정 스키마
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS subscription_plans (
-      tier            TEXT PRIMARY KEY,
-      name            TEXT NOT NULL,
-      price_per_month INTEGER NOT NULL DEFAULT 0,
-      member_limit    INTEGER NOT NULL DEFAULT 9999,
-      storage_gb      NUMERIC NOT NULL DEFAULT 5,
-      is_active       BOOLEAN NOT NULL DEFAULT TRUE
+      tier             TEXT PRIMARY KEY,
+      plan_id          TEXT NOT NULL DEFAULT '',
+      name             TEXT NOT NULL,
+      price_per_month  INTEGER NOT NULL DEFAULT 0,
+      member_limit     INTEGER NOT NULL DEFAULT 9999,
+      storage_gb       NUMERIC NOT NULL DEFAULT 5,
+      storage_mb       INTEGER NOT NULL DEFAULT 5120,
+      display_storage  TEXT NOT NULL DEFAULT '',
+      is_active        BOOLEAN NOT NULL DEFAULT TRUE
     )
   `).catch(() => {});
-  // 기존 테이블에 is_active 컬럼이 없는 경우 추가
+  // 기존 테이블에 누락된 컬럼 추가 (안전)
+  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS plan_id TEXT NOT NULL DEFAULT ''`).catch(() => {});
+  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_mb INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage TEXT NOT NULL DEFAULT ''`).catch(() => {});
   await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`).catch(() => {});
 
   // revenue_logs 테이블 (billing.ts와 동일 — 누가 먼저 실행해도 안전)
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS revenue_logs (
-      id             TEXT PRIMARY KEY,
-      pool_id        TEXT NOT NULL,
-      plan_id        TEXT NOT NULL,
-      amount         INTEGER NOT NULL DEFAULT 0,
-      payment_method TEXT NOT NULL DEFAULT 'store',
-      store_fee      INTEGER NOT NULL DEFAULT 0,
-      net_revenue    INTEGER NOT NULL DEFAULT 0,
-      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      id                      TEXT PRIMARY KEY,
+      pool_id                 TEXT NOT NULL,
+      pool_name               TEXT,
+      plan_id                 TEXT NOT NULL,
+      plan_name               TEXT,
+      event_type              TEXT NOT NULL DEFAULT 'new_subscription',
+      gross_amount            INTEGER NOT NULL DEFAULT 0,
+      intro_discount_amount   INTEGER NOT NULL DEFAULT 0,
+      charged_amount          INTEGER NOT NULL DEFAULT 0,
+      refunded_amount         INTEGER NOT NULL DEFAULT 0,
+      store_fee               INTEGER NOT NULL DEFAULT 0,
+      net_revenue             INTEGER NOT NULL DEFAULT 0,
+      payment_provider        TEXT NOT NULL DEFAULT 'store',
+      provider_transaction_id TEXT,
+      occurred_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `).catch(() => {});
+  // 기존 revenue_logs에 누락된 컬럼 추가 (하위 호환)
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS pool_name TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS plan_name TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS event_type TEXT NOT NULL DEFAULT 'new_subscription'`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS gross_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS intro_discount_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS charged_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS refunded_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS payment_provider TEXT NOT NULL DEFAULT 'store'`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS provider_transaction_id TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
+  // 기존 amount 컬럼은 charged_amount와 동일 — 하위 호환 유지
 
-  // 기본 플랜 시드 (신규 배포 환경용 — free/starter/basic/standard/growth/pro/max)
+  // 최종 확정 플랜 시드 (ON CONFLICT DO UPDATE로 항상 최신값 유지)
   for (const plan of [
-    { tier: "free",            name: "무료",                price: 0,      limit: 5,    storage: 0.1 },
-    { tier: "starter",         name: "스타터",              price: 2900,   limit: 30,   storage: 0.6 },
-    { tier: "basic",           name: "베이직",              price: 3900,   limit: 50,   storage: 1 },
-    { tier: "standard",        name: "스탠다드",            price: 9900,   limit: 100,  storage: 5 },
-    { tier: "growth",          name: "어드밴스",             price: 29000,  limit: 300,  storage: 20 },
-    { tier: "pro",             name: "프로",                price: 59000,  limit: 500,  storage: 40 },
-    { tier: "max",             name: "맥스",                price: 99000,  limit: 1000, storage: 100 },
-    { tier: "enterprise_2000", name: "엔터프라이즈 2000",   price: 179000, limit: 2000, storage: 250 },
-    { tier: "enterprise_3000", name: "엔터프라이즈 3000",   price: 249000, limit: 3000, storage: 400 },
+    { tier: "free",            plan_id: "free_5",        name: "무료",             price: 0,      limit: 5,    storage_gb: 0.09765625, storage_mb: 100,    display: "100MB" },
+    { tier: "starter",         plan_id: "swimnote_30",   name: "스타터",           price: 2900,   limit: 30,   storage_gb: 0.5859375,  storage_mb: 600,    display: "600MB" },
+    { tier: "basic",           plan_id: "swimnote_50",   name: "베이직",           price: 3900,   limit: 50,   storage_gb: 1,          storage_mb: 1024,   display: "1GB"   },
+    { tier: "standard",        plan_id: "swimnote_100",  name: "스탠다드",         price: 9900,   limit: 100,  storage_gb: 5,          storage_mb: 5120,   display: "5GB"   },
+    { tier: "growth",          plan_id: "swimnote_300",  name: "어드밴스",         price: 29000,  limit: 300,  storage_gb: 20,         storage_mb: 20480,  display: "20GB"  },
+    { tier: "pro",             plan_id: "swimnote_500",  name: "프로",             price: 59000,  limit: 500,  storage_gb: 40,         storage_mb: 40960,  display: "40GB"  },
+    { tier: "max",             plan_id: "swimnote_1000", name: "맥스",             price: 99000,  limit: 1000, storage_gb: 100,        storage_mb: 102400, display: "100GB" },
+    { tier: "enterprise_2000", plan_id: "swimnote_2000", name: "엔터프라이즈 2000", price: 179000, limit: 2000, storage_gb: 250,        storage_mb: 256000, display: "250GB" },
+    { tier: "enterprise_3000", plan_id: "swimnote_3000", name: "엔터프라이즈 3000", price: 249000, limit: 3000, storage_gb: 400,        storage_mb: 409600, display: "400GB" },
   ]) {
     await db.execute(sql`
-      INSERT INTO subscription_plans (tier, name, price_per_month, member_limit, storage_gb)
-      VALUES (${plan.tier}, ${plan.name}, ${plan.price}, ${plan.limit}, ${plan.storage})
+      INSERT INTO subscription_plans (tier, plan_id, name, price_per_month, member_limit, storage_gb, storage_mb, display_storage)
+      VALUES (${plan.tier}, ${plan.plan_id}, ${plan.name}, ${plan.price}, ${plan.limit}, ${plan.storage_gb}, ${plan.storage_mb}, ${plan.display})
       ON CONFLICT (tier) DO UPDATE
-        SET name = ${plan.name}, price_per_month = ${plan.price},
-            member_limit = ${plan.limit}, storage_gb = ${plan.storage}
+        SET plan_id = ${plan.plan_id}, name = ${plan.name}, price_per_month = ${plan.price},
+            member_limit = ${plan.limit}, storage_gb = ${plan.storage_gb},
+            storage_mb = ${plan.storage_mb}, display_storage = ${plan.display}
     `).catch(() => {});
   }
 
@@ -1383,13 +1410,15 @@ router.put("/super/plans/:id", requireAuth, requireRole("super_admin"), async (r
   try {
     await ensurePlansTables();
     const tier = req.params.id; // :id param = tier 값
-    const { name, price_per_month, member_limit, storage_gb } = req.body as any;
+    const { name, price_per_month, member_limit, storage_gb, storage_mb, display_storage } = req.body as any;
     await db.execute(sql`
       UPDATE subscription_plans SET
-        name          = COALESCE(${name ?? null}, name),
+        name            = COALESCE(${name ?? null}, name),
         price_per_month = COALESCE(${price_per_month ?? null}, price_per_month),
-        member_limit  = COALESCE(${member_limit ?? null}, member_limit),
-        storage_gb    = COALESCE(${storage_gb ?? null}, storage_gb)
+        member_limit    = COALESCE(${member_limit ?? null}, member_limit),
+        storage_gb      = COALESCE(${storage_gb ?? null}, storage_gb),
+        storage_mb      = COALESCE(${storage_mb ?? null}, storage_mb),
+        display_storage = COALESCE(${display_storage ?? null}, display_storage)
       WHERE tier = ${tier}
     `);
     const actor = req.user?.name ?? "슈퍼관리자";

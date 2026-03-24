@@ -161,6 +161,19 @@ The platform is built as a pnpm workspace monorepo using TypeScript. It leverage
     - `(admin)/push-message-settings.tsx`: 전날/당일 알림 시간 선택 + 메시지 템플릿 5종 편집
   - **진입점**: parent more.tsx → 푸시 알림 설정, admin more.tsx SHORTCUTS → 푸시 알림/발송 설정 2개 추가
 
+- **구독 결제 시스템 리팩터링 완료 (2026-03)**:
+  - **9개 플랜 확정**: `free_5` / `swimnote_30`(스타터) / `swimnote_50`(베이직) / `swimnote_100`(스탠다드) / `swimnote_300`(어드밴스) / `swimnote_500`(프로) / `swimnote_1000`(맥스) / `swimnote_2000` / `swimnote_3000`. `domain/policies.ts`, `domain/types.ts` 완전 교체.
+  - **50% 첫 달 할인**: `billing.ts` POST /subscribe에서 `first_payment_used` 플래그 체크 → `event_type='first_payment'`, `intro_discount_amount`, `charged_amount` 정확 기록.
+  - **revenue_logs 스키마 확장**: `event_type`, `gross_amount`, `intro_discount_amount`, `charged_amount`, `refunded_amount`, `store_fee`(30%), `net_revenue`, `payment_provider`, `occurred_at` 컬럼 추가.
+  - **API 연동 완료**:
+    - `GET /billing/revenue-logs?start&end&limit` → 날짜 필터링, 집계 summary(total_charged/discount/store_fee/net_revenue) 반환.
+    - `GET /billing/revenue-by-plan` → plan_id별 payment_count/total_amount 집계.
+    - `subscription-products.tsx` → GET/PUT/POST/PATCH /super/plans 완전 연동.
+    - `revenue-analytics.tsx` → revenue_logs API 기반 (주간/월간/연간 탭, 전기 대비 %).
+    - `billing-analytics.tsx` → revenue_logs API + revenue-by-plan API 기반 (Zustand 의존 제거).
+  - **레거시 퍼지 완료**: `유료100`, `유료300`, `plan-pro100`, `plan-free10` 등 구 플랜 문자열을 seed/subscriptions.ts, seed/operators.ts, seed/auditLogs.ts, store/operatorsStore.ts에서 전부 제거.
+  - **앱스토어 수수료**: PG(PortOne) 수수료 완전 제거, 앱스토어/구글플레이 30% 단일 항목으로 통일.
+
 ### System Design Choices
 - **API Design**: RESTful API endpoints with clear responsibilities, consistent JSON response formats (success/failure), and strong authentication/authorization middleware.
 - **Database Schema**: PostgreSQL with Drizzle ORM, featuring key tables for swimming pools, users, students, classes, attendance, photos, and activity logs, all designed with `swimming_pool_id` for multi-tenancy.

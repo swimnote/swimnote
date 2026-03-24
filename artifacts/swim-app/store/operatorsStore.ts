@@ -72,7 +72,7 @@ export const useOperatorsStore = create<OperatorsState>((set, get) => ({
       case 'storage95':    list = list.filter(o => o.storageBlocked95); break
       case 'deletion_pending': list = list.filter(o => !!o.autoDeleteScheduledAt); break
       case 'credit':       list = list.filter(o => o.creditBalance > 0); break
-      case 'free_over10':  list = list.filter(o => o.currentPlanId === 'plan-free10' && o.activeMemberCount >= 10); break
+      case 'free_over10':  list = list.filter(o => o.currentPlanId === 'free_5' && o.activeMemberCount >= 5); break
       case 'new_this_week':list = list.filter(o => new Date(o.createdAt).getTime() > Date.now() - 7 * 86400000); break
       case 'solo_coach':   list = list.filter(o => o.type === 'solo_coach'); break
       case 'franchise':    list = list.filter(o => o.type === 'franchise'); break

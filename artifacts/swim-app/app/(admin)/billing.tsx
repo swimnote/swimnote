@@ -21,6 +21,7 @@ import { ConfirmModal } from "@/components/common/ConfirmModal";
 interface Plan {
   tier: string; name: string;
   price_per_month: number; member_limit: number; storage_gb: number;
+  display_storage?: string; plan_id?: string;
 }
 interface CardInfo { id: string; card_last4: string; card_brand: string; card_nickname?: string | null; }
 interface SubInfo { tier: string; status: string; next_billing_at?: string | null; plan_name?: string; price_per_month?: number; member_limit?: number; }
@@ -145,7 +146,11 @@ export default function BillingScreen() {
       });
       const d = await r.json();
       if (!r.ok) { showConfirm("구독 실패", d.error ?? "구독 변경에 실패했습니다.", () => {}); return; }
-      if (d.change_type === "downgrade" && d.applies_at) {
+      if (d.change_type === "first_payment") {
+        const gross = d.gross_amount?.toLocaleString?.() ?? "";
+        const charged = d.charged_amount?.toLocaleString?.() ?? "";
+        showConfirm("첫 구독 50% 할인 적용!", `첫 달 결제 완료\n정가 ₩${gross} → 실결제 ₩${charged}\n다음 달부터 정상가 청구됩니다.`, () => {});
+      } else if (d.change_type === "downgrade" && d.applies_at) {
         showConfirm("다운그레이드 예약", d.message ?? `${d.applies_at} 이후 플랜이 변경됩니다.`, () => {});
       } else if (d.change_type === "upgrade") {
         showConfirm("업그레이드 완료", "플랜이 즉시 변경되었습니다.", () => {});
@@ -378,6 +383,13 @@ export default function BillingScreen() {
               const currentPrice = plans.find(pl => pl.tier === currentTier)?.price_per_month ?? 0;
               const isUpgrade    = p.price_per_month > currentPrice;
               const isDowngrade  = p.price_per_month < currentPrice && currentPrice > 0;
+              const isNewSub     = currentPrice === 0 && p.price_per_month > 0;
+              const showDiscount = isNewSub && !(billingInfo?.first_payment_used);
+              const discountedPrice = showDiscount ? Math.round(p.price_per_month * 0.5) : null;
+              const storageTxt   = p.display_storage
+                ? p.display_storage
+                : p.storage_gb >= 1 ? `${p.storage_gb}GB` : `${Math.round(p.storage_gb * 1024)}MB`;
+              const skuLabel = p.plan_id ?? PLAN_SKU[p.tier] ?? "";
               return (
                 <View key={p.tier} style={[s.planCard, isCurrent && { borderColor: pc, borderWidth: 2 }, isEnterprise && s.enterpriseCard]}>
                   <View style={{ flex: 1 }}>
@@ -385,12 +397,24 @@ export default function BillingScreen() {
                       <Text style={[s.planCardName, { color: pc }]}>{p.name}</Text>
                       {isCurrent && <View style={[s.currentTag, { backgroundColor: pc }]}><Text style={s.currentTagText}>현재</Text></View>}
                       {isEnterprise && !isCurrent && <View style={[s.currentTag, { backgroundColor: "#B45309" }]}><Text style={s.currentTagText}>엔터프라이즈</Text></View>}
-                      {PLAN_SKU[p.tier] && <Text style={s.skuBadge}>{PLAN_SKU[p.tier]}</Text>}
+                      {showDiscount && <View style={[s.currentTag, { backgroundColor: "#DC2626" }]}><Text style={s.currentTagText}>첫 달 50% 할인</Text></View>}
+                      {skuLabel !== "" && <Text style={s.skuBadge}>{skuLabel}</Text>}
                     </View>
-                    <Text style={s.planCardPrice}>
-                      {p.price_per_month === 0 ? "무료" : `₩${p.price_per_month.toLocaleString()}/월`}
-                    </Text>
-                    <Text style={s.planCardMeta}>최대 {p.member_limit.toLocaleString()}명 · {p.storage_gb >= 1 ? `${p.storage_gb}GB` : `${Math.round(p.storage_gb * 1024)}MB`}</Text>
+                    {showDiscount && discountedPrice != null ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={[s.planCardPrice, { textDecorationLine: "line-through", color: "#9A948F", fontSize: 13 }]}>
+                          ₩{p.price_per_month.toLocaleString()}/월
+                        </Text>
+                        <Text style={[s.planCardPrice, { color: "#DC2626" }]}>
+                          ₩{discountedPrice.toLocaleString()}/월
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={s.planCardPrice}>
+                        {p.price_per_month === 0 ? "무료" : `₩${p.price_per_month.toLocaleString()}/월`}
+                      </Text>
+                    )}
+                    <Text style={s.planCardMeta}>최대 {p.member_limit.toLocaleString()}명 · {storageTxt}</Text>
                   </View>
                   {!isCurrent && p.price_per_month > 0 && (
                     <Pressable
@@ -398,7 +422,9 @@ export default function BillingScreen() {
                         if (!card) { showConfirm("카드 필요", "결제 카드를 먼저 등록해주세요.", () => {}); return; }
                         const msg = isDowngrade
                           ? `₩${p.price_per_month.toLocaleString()}/월\n다운그레이드는 현재 결제 주기 종료 후 적용됩니다.`
-                          : `₩${p.price_per_month.toLocaleString()}/월\n업그레이드 시 전체 월 금액이 즉시 결제됩니다.`;
+                          : showDiscount && discountedPrice != null
+                            ? `첫 달 50% 할인\n정가 ₩${p.price_per_month.toLocaleString()} → ₩${discountedPrice.toLocaleString()} 즉시 결제\n(다음 달부터 ₩${p.price_per_month.toLocaleString()}/월)`
+                            : `₩${p.price_per_month.toLocaleString()}/월\n즉시 결제됩니다.`;
                         showConfirm(`${p.name}으로 변경`, msg, () => subscribe(p.tier));
                       }}
                       disabled={!!subscribing}
@@ -406,7 +432,7 @@ export default function BillingScreen() {
                     >
                       {subscribing === p.tier
                         ? <ActivityIndicator size="small" color="#fff" />
-                        : <Text style={s.subscribeBtnText}>{isDowngrade ? "다운그레이드" : isEnterprise ? "업그레이드" : "업그레이드"}</Text>
+                        : <Text style={s.subscribeBtnText}>{isDowngrade ? "다운그레이드" : "업그레이드"}</Text>
                       }
                     </Pressable>
                   )}
