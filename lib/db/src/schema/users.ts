@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, pgEnum, boolean, jsonb } from "drizzle-orm/pg-core";
+
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -18,6 +19,8 @@ export const usersTable = pgTable("users", {
   created_by: text("created_by"),
   permissions: jsonb("permissions"),
   roles: text("roles").array().notNull().default([]),
+  totp_secret: text("totp_secret"),
+  totp_enabled: boolean("totp_enabled").notNull().default(false),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

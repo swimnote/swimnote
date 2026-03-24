@@ -50,6 +50,7 @@ const SHORTCUTS = [
 ];
 
 const MISC = [
+  { label: "Google OTP 설정", icon: "smartphone" as const, color: "#7C3AED", bg: "#F3EDFE", route: "/totp-setup" },
   { label: "모드 변경",  icon: "grid" as const, color: "#6F6B68", bg: "#F6F3F1", route: "/(admin)/mode" },
 ];
 

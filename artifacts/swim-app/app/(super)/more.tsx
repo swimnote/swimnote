@@ -168,6 +168,11 @@ export default function SuperMoreScreen() {
           color: "rose", onPress: go("/(super)/security-settings"),
         },
         {
+          icon: "smartphone", label: "Google OTP",
+          sub: "Google Authenticator 2단계 인증 설정",
+          color: "purple", onPress: () => router.push("/totp-setup" as any),
+        },
+        {
           icon: "activity", label: "감사·리스크",
           sub: "운영로그·리스크·민감작업",
           color: "indigo", onPress: go("/(super)/audit-group"),

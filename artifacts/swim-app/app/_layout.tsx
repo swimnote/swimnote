@@ -240,6 +240,7 @@ function RootNav() {
       <Stack.Screen name="(teacher)" />
       <Stack.Screen name="(parent)" />
       <Stack.Screen name="class-assign" />
+      <Stack.Screen name="totp-setup" />
     </Stack>
   );
 }

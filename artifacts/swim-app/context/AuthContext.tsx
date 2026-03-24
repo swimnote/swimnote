@@ -104,6 +104,7 @@ interface AuthContextType {
   lastUsedTenant: string | null;
   lastSelectedStudent: string | null;
   unifiedLogin: (identifier: string, password: string) => Promise<{ available_accounts: AccountEntry[] }>;
+  completeTotpLogin: (totpSession: string, otpCode: string) => Promise<{ available_accounts: AccountEntry[] }>;
   adminLogin: (email: string, password: string) => Promise<void>;
   parentLogin: (identifier: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -324,6 +325,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     }
 
+    // TOTP 2단계 인증 필요
+    if (data.totp_required) {
+      throw Object.assign(new Error("OTP 인증이 필요합니다."), {
+        totp_required: true, totp_session: data.totp_session,
+      });
+    }
+
     const accounts: AccountEntry[] = data.available_accounts || [];
 
     // 전체 계정 목록 저장
@@ -346,6 +354,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    return { available_accounts: accounts };
+  }
+
+  async function completeTotpLogin(totpSession: string, otpCode: string): Promise<{ available_accounts: AccountEntry[] }> {
+    const res = await fetch(`${API_BASE}/auth/totp/verify-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ totp_session: totpSession, otp_code: otpCode }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) throw new Error(data.error || "OTP 인증에 실패했습니다.");
+
+    const accounts: AccountEntry[] = data.available_accounts || [];
+    await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts));
+    setAllAccounts(accounts);
+    if (accounts.length > 0) await activateAccount(accounts[0]);
     return { available_accounts: accounts };
   }
 
@@ -403,7 +427,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       kind, adminUser, parentAccount, token, pool, isLoading,
       allAccounts, ownedPools, lastUsedRole, lastUsedTenant, lastSelectedStudent,
-      unifiedLogin, adminLogin, parentLogin, logout, refreshPool, loadOwnedPools, switchPool, switchRole,
+      unifiedLogin, completeTotpLogin, adminLogin, parentLogin, logout, refreshPool, loadOwnedPools, switchPool, switchRole,
       activateAccount, setLastUsedRole, setLastUsedTenant, setLastSelectedStudent,
       updateParentNickname, checkRolePermission,
     }}>

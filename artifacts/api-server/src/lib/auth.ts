@@ -34,6 +34,21 @@ export type JwtPayload = {
   permissions?: PlatformPermissions;
 };
 
+export type TotpSessionPayload = {
+  userId: string;
+  totpPending: true;
+};
+
+export function signTotpSession(userId: string): string {
+  return jwt.sign({ userId, totpPending: true } as TotpSessionPayload, JWT_SECRET, { expiresIn: "5m" });
+}
+
+export function verifyTotpSession(token: string): TotpSessionPayload {
+  const payload = jwt.verify(token, JWT_SECRET) as any;
+  if (!payload.totpPending) throw new Error("Invalid TOTP session token");
+  return payload as TotpSessionPayload;
+}
+
 export function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }

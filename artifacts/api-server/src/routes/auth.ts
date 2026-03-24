@@ -2,8 +2,10 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, parentAccountsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { hashPassword, comparePassword, signToken } from "../lib/auth.js";
+import { hashPassword, comparePassword, signToken, signTotpSession, verifyTotpSession } from "../lib/auth.js";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
+import { generateSecret as totpGenerateSecret, verifySync as totpVerifySync, generateURI as totpGenerateURI } from "otplib";
+import QRCode from "qrcode";
 
 const router = Router();
 
@@ -333,6 +335,13 @@ router.post("/unified-login", async (req, res) => {
             res.status(403).json({ success: false, error: "계정이 아직 활성화되지 않았습니다.", error_code: "needs_activation", needs_activation: true, teacher_id: user.id }); return;
           }
         }
+        // TOTP 2단계 인증 체크
+        const totpRow = await db.execute(sql`SELECT totp_enabled FROM users WHERE id = ${user.id} LIMIT 1`);
+        const totpEnabled = (totpRow.rows[0] as any)?.totp_enabled ?? false;
+        if (totpEnabled) {
+          const totpSession = signTotpSession(user.id);
+          res.json({ success: true, totp_required: true, totp_session: totpSession }); return;
+        }
         const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
         const { password_hash: _, ...safeUser } = user;
         const rolesRow = await db.execute(sql`SELECT roles FROM users WHERE id = ${user.id} LIMIT 1`);
@@ -644,6 +653,108 @@ router.post("/parent-invite/join", async (req, res) => {
       parent: { id: parentId, name: invite.parent_name, phone: invite.phone, swimming_pool_id: invite.swimming_pool_id, pool_name: poolRow?.name || null },
     });
   } catch (e: any) { console.error(e); return err(res, 500, e.message || "서버 오류가 발생했습니다."); }
+});
+
+// ══════════════════════════════════════════════════════
+// ── TOTP (Google Authenticator) 라우트 ───────────────
+// ══════════════════════════════════════════════════════
+
+// TOTP 로그인 2단계 검증 (비밀번호 인증 후 OTP 코드 확인)
+router.post("/totp/verify-login", async (req, res) => {
+  const { totp_session, otp_code } = req.body;
+  if (!totp_session || !otp_code) return err(res, 400, "totp_session과 otp_code를 입력해주세요.");
+  try {
+    let payload: { userId: string };
+    try {
+      payload = verifyTotpSession(totp_session);
+    } catch {
+      return err(res, 401, "OTP 세션이 만료되었습니다. 다시 로그인해주세요.");
+    }
+
+    const userRow = await db.execute(sql`
+      SELECT * FROM users WHERE id = ${payload.userId} LIMIT 1
+    `);
+    const user = userRow.rows[0] as any;
+    if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
+    if (!user.totp_enabled || !user.totp_secret) return err(res, 400, "TOTP가 설정되지 않은 계정입니다.");
+
+    const isValid = totpVerifySync({ token: otp_code.replace(/\s/g, ""), secret: user.totp_secret });
+    if (!isValid) return err(res, 401, "OTP 코드가 올바르지 않습니다.");
+
+    const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
+    const { password_hash: _pw, totp_secret: _secret, ...safeUser } = user;
+    const roles: string[] = Array.isArray(user.roles) && user.roles.length > 0 ? user.roles : [user.role];
+    const account = { kind: "admin", token, user: { ...safeUser, roles } };
+
+    res.json({
+      success: true,
+      available_accounts: [account],
+      token,
+      kind: "admin",
+      user: account.user,
+    });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// TOTP 상태 조회
+router.get("/totp/status", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const row = await db.execute(sql`SELECT totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const totpEnabled = (row.rows[0] as any)?.totp_enabled ?? false;
+    res.json({ success: true, totp_enabled: totpEnabled });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// TOTP 설정 시작 — 시크릿 + QR 코드 생성 (아직 활성화 안함)
+router.post("/totp/setup", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userRow = await db.execute(sql`SELECT email, name, totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const user = userRow.rows[0] as any;
+    if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
+
+    const secret = totpGenerateSecret();
+    const otpauth = totpGenerateURI({ issuer: "수영장 관리 플랫폼", label: user.email, secret });
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauth);
+
+    await db.execute(sql`UPDATE users SET totp_secret = ${secret}, updated_at = NOW() WHERE id = ${req.user!.userId}`);
+
+    res.json({ success: true, secret, qr_code: qrCodeDataUrl, otpauth_url: otpauth });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// TOTP 활성화 — 첫 OTP 코드 검증 후 활성화
+router.post("/totp/enable", requireAuth, async (req: AuthRequest, res) => {
+  const { otp_code } = req.body;
+  if (!otp_code) return err(res, 400, "OTP 코드를 입력해주세요.");
+  try {
+    const userRow = await db.execute(sql`SELECT totp_secret FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const user = userRow.rows[0] as any;
+    if (!user?.totp_secret) return err(res, 400, "먼저 TOTP 설정을 시작해주세요.");
+
+    const isValid = totpVerifySync({ token: otp_code.replace(/\s/g, ""), secret: user.totp_secret });
+    if (!isValid) return err(res, 401, "OTP 코드가 올바르지 않습니다. Google Authenticator 앱의 코드를 확인해주세요.");
+
+    await db.execute(sql`UPDATE users SET totp_enabled = TRUE, updated_at = NOW() WHERE id = ${req.user!.userId}`);
+    res.json({ success: true, message: "Google OTP가 활성화되었습니다." });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// TOTP 비활성화 — OTP 코드 검증 후 비활성화
+router.post("/totp/disable", requireAuth, async (req: AuthRequest, res) => {
+  const { otp_code } = req.body;
+  if (!otp_code) return err(res, 400, "OTP 코드를 입력해주세요.");
+  try {
+    const userRow = await db.execute(sql`SELECT totp_secret, totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1`);
+    const user = userRow.rows[0] as any;
+    if (!user?.totp_enabled) return err(res, 400, "TOTP가 활성화되어 있지 않습니다.");
+    if (!user?.totp_secret) return err(res, 400, "TOTP 설정 정보를 찾을 수 없습니다.");
+
+    const isValid = totpVerifySync({ token: otp_code.replace(/\s/g, ""), secret: user.totp_secret });
+    if (!isValid) return err(res, 401, "OTP 코드가 올바르지 않습니다.");
+
+    await db.execute(sql`UPDATE users SET totp_enabled = FALSE, totp_secret = NULL, updated_at = NOW() WHERE id = ${req.user!.userId}`);
+    res.json({ success: true, message: "Google OTP가 비활성화되었습니다." });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
 export default router;

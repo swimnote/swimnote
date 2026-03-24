@@ -270,6 +270,23 @@ export default function MyInfoScreen() {
           </View>
         </View>
 
+        {/* ── 보안 설정 ── */}
+        <Pressable
+          style={({ pressed }) => [s.card, { opacity: pressed ? 0.85 : 1 }]}
+          onPress={() => router.push("/totp-setup" as any)}
+        >
+          <View style={[s.cardHeader, { justifyContent: "space-between" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Feather name="smartphone" size={15} color={themeColor} />
+              <Text style={s.cardTitle}>Google OTP 설정</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={[s.permLabel, { color: C.textMuted }]}>2단계 인증</Text>
+              <Feather name="chevron-right" size={16} color={C.textMuted} />
+            </View>
+          </View>
+        </Pressable>
+
         {/* ── 내반 통계 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
