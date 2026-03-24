@@ -135,18 +135,28 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    const [sub] = (await db.execute(sql`
-      SELECT ps.*, sp.name AS plan_name, sp.price_per_month, sp.member_limit, sp.storage_gb
-      FROM pool_subscriptions ps
-      LEFT JOIN subscription_plans sp ON sp.tier = ps.tier
-      WHERE ps.swimming_pool_id = ${poolId} LIMIT 1
-    `)).rows as any[];
+    let sub: any = undefined;
+    let card: any = undefined;
+    let plans: any[] = [];
+    let usedBytes = 0;
+    let storagePolicyRow: any = undefined;
 
-    const [card] = (await db.execute(sql`
-      SELECT id, card_last4, card_brand, card_nickname, is_default, created_at
-      FROM payment_cards WHERE swimming_pool_id = ${poolId}
-      ORDER BY is_default DESC, created_at DESC LIMIT 1
-    `)).rows as any[];
+    try {
+      [sub] = (await db.execute(sql`
+        SELECT ps.*, sp.name AS plan_name, sp.price_per_month, sp.member_limit, sp.storage_gb
+        FROM pool_subscriptions ps
+        LEFT JOIN subscription_plans sp ON sp.tier = ps.tier
+        WHERE ps.swimming_pool_id = ${poolId} LIMIT 1
+      `)).rows as any[];
+    } catch { /* pool_subscriptions 미존재 */ }
+
+    try {
+      [card] = (await db.execute(sql`
+        SELECT id, card_last4, card_brand, card_nickname, is_default, created_at
+        FROM payment_cards WHERE swimming_pool_id = ${poolId}
+        ORDER BY is_default DESC, created_at DESC LIMIT 1
+      `)).rows as any[];
+    } catch { /* payment_cards 미존재 */ }
 
     // 과금 카운트: active + unregistered + pending + suspended + withdrawn 포함
     // archived(기록보존) / deleted(영구삭제) 는 과금 제외
@@ -157,20 +167,26 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
     `);
     const memberCount = Number((cntResult.rows[0] as any)?.cnt ?? 0);
 
-    const plans = (await db.execute(sql`
-      SELECT * FROM subscription_plans ORDER BY price_per_month ASC
-    `)).rows;
+    try {
+      plans = (await db.execute(sql`
+        SELECT * FROM subscription_plans ORDER BY price_per_month ASC
+      `)).rows;
+    } catch { /* subscription_plans 미존재 */ }
 
-    const storageResult = await db.execute(sql`
-      SELECT COALESCE(SUM(file_size),0) AS used_bytes
-      FROM photo_assets_meta WHERE pool_id = ${poolId}
-    `);
-    const usedBytes = Number((storageResult.rows[0] as any)?.used_bytes ?? 0);
+    try {
+      const storageResult = await db.execute(sql`
+        SELECT COALESCE(SUM(file_size_bytes),0) AS used_bytes
+        FROM student_photos WHERE swimming_pool_id = ${poolId}
+      `);
+      usedBytes = Number((storageResult.rows[0] as any)?.used_bytes ?? 0);
+    } catch { /* student_photos 미존재 */ }
 
-    const [storagePolicyRow] = (await db.execute(sql`
-      SELECT quota_gb, extra_price_per_gb FROM storage_policy
-      WHERE tier = ${sub?.tier ?? "free"} LIMIT 1
-    `)).rows as any[];
+    try {
+      [storagePolicyRow] = (await db.execute(sql`
+        SELECT quota_gb, extra_price_per_gb FROM storage_policy
+        WHERE tier = ${sub?.tier ?? "free"} LIMIT 1
+      `)).rows as any[];
+    } catch { /* storage_policy 미존재 */ }
 
     const [poolRow] = (await superAdminDb.execute(sql`
       SELECT is_readonly, upload_blocked, readonly_reason, payment_failed_at,
@@ -776,28 +792,28 @@ router.post("/simulate-failure", requireAuth, requireRole("super_admin"), async 
 // 매 시간 실행
 cron.schedule("0 * * * *", async () => {
   try {
-    // 7일 경과 → pending_deletion
-    await superAdminDb.execute(sql`
+    // 7일 경과 → pending_deletion (enum 값 안전 캐스팅)
+    await superAdminDb.execute(sql.raw(`
       UPDATE swimming_pools
       SET subscription_status = 'pending_deletion',
           readonly_reason = 'pending_deletion',
           updated_at = now()
-      WHERE subscription_status = 'payment_failed'
+      WHERE subscription_status::text = 'payment_failed'
         AND payment_failed_at IS NOT NULL
         AND NOW() - payment_failed_at >= INTERVAL '7 days'
         AND NOW() - payment_failed_at < INTERVAL '14 days'
-    `);
+    `)).catch((e: any) => console.warn("[billing-cron] 7일 경과 처리 건너뜀:", e.message));
 
     // 14일 경과 → deleted
-    await superAdminDb.execute(sql`
+    await superAdminDb.execute(sql.raw(`
       UPDATE swimming_pools
       SET subscription_status = 'deleted',
           readonly_reason = 'deleted',
           updated_at = now()
-      WHERE subscription_status IN ('payment_failed', 'pending_deletion')
+      WHERE subscription_status::text IN ('payment_failed', 'pending_deletion')
         AND payment_failed_at IS NOT NULL
         AND NOW() - payment_failed_at >= INTERVAL '14 days'
-    `);
+    `)).catch((e: any) => console.warn("[billing-cron] 14일 경과 처리 건너뜀:", e.message));
 
     // 다운그레이드 예약 처리: downgrade_at이 오늘 이하인 레코드에 pending_tier 적용
     const pendingDowngrades = (await db.execute(sql`

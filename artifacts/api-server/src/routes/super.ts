@@ -17,7 +17,7 @@
  * PUT  /super/storage/:poolId     — 특정 수영장 저장 용량 변경
  */
 import { Router } from "express";
-import { superAdminDb, poolDb } from "@workspace/db";
+import { superAdminDb } from "@workspace/db";
 const db = superAdminDb;
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -297,9 +297,12 @@ router.get(
     try {
       const { id } = req.params;
 
-      const [pool, teachers, recentLogs, policyRows, studentCounts, classCounts] = await Promise.all([
+      const [pool, teachers, recentLogs, policyRows] = await Promise.all([
         superAdminDb.execute(sql`
           SELECT sp.*,
+            (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id AND st.status = 'active') AS active_member_count,
+            (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id) AS total_member_count,
+            (SELECT COUNT(*)::int FROM classes c WHERE c.swimming_pool_id = sp.id) AS total_class_count,
             CASE
               WHEN sp.used_storage_bytes IS NOT NULL AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0
               THEN ROUND(sp.used_storage_bytes::numeric / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) * 100)::int
@@ -316,30 +319,19 @@ router.get(
             AND role IN ('pool_admin','teacher')
           ORDER BY role, name
         `),
-        // event_logs는 superAdminDb에 보관 (ensureExtraTables로 자동 생성됨)
-        superAdminDb.execute(sql`
+        db.execute(sql`
           SELECT id, category, actor_name, target, description, created_at
           FROM event_logs
           WHERE pool_id = ${id}
           ORDER BY created_at DESC
           LIMIT 30
-        `).catch(() => ({ rows: [] })),
+        `),
         superAdminDb.execute(sql`
           SELECT policy_key, MAX(agreed_at) AS agreed_at
           FROM policy_consents
           WHERE pool_id = ${id}
           GROUP BY policy_key
         `).catch(() => ({ rows: [] })),
-        // students / classes 카운트는 poolDb에서 조회
-        poolDb.execute(sql`
-          SELECT
-            COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE status = 'active')::int AS active
-          FROM students WHERE swimming_pool_id = ${id}
-        `).catch(() => ({ rows: [{ total: 0, active: 0 }] })),
-        poolDb.execute(sql`
-          SELECT COUNT(*)::int AS total FROM class_groups WHERE swimming_pool_id = ${id}
-        `).catch(() => ({ rows: [{ total: 0 }] })),
       ]);
 
       if (!pool.rows[0]) { res.status(404).json({ error: "운영자 없음" }); return; }
@@ -349,15 +341,8 @@ router.get(
         policyMap[row.policy_key] = row.agreed_at ?? null;
       }
 
-      const sc = (studentCounts.rows[0] as any) ?? { total: 0, active: 0 };
-      const cc = (classCounts.rows[0] as any) ?? { total: 0 };
       res.json({
-        pool: {
-          ...(pool.rows[0] as any),
-          active_member_count: sc.active ?? 0,
-          total_member_count:  sc.total  ?? 0,
-          total_class_count:   cc.total  ?? 0,
-        },
+        pool: pool.rows[0],
         teachers: teachers.rows,
         logs: recentLogs.rows,
         policy: {
@@ -829,23 +814,6 @@ async function ensureExtraTables() {
       ON CONFLICT (key) DO NOTHING
     `).catch(() => {});
   }
-  // event_logs 테이블 — 수영장 운영 감사 로그 (superAdminDb 에 보관)
-  await superAdminDb.execute(sql`
-    CREATE TABLE IF NOT EXISTS event_logs (
-      id          TEXT PRIMARY KEY,
-      pool_id     TEXT NOT NULL,
-      category    TEXT NOT NULL,
-      actor_id    TEXT,
-      actor_name  TEXT,
-      target      TEXT,
-      description TEXT NOT NULL,
-      metadata    JSONB DEFAULT '{}',
-      created_at  TIMESTAMPTZ DEFAULT NOW()
-    )
-  `).catch(() => {});
-  await superAdminDb.execute(sql`
-    CREATE INDEX IF NOT EXISTS idx_event_logs_pool_id ON event_logs(pool_id)
-  `).catch(() => {});
   _ensureDone = true;
 }
 

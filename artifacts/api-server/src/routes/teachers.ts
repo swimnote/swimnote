@@ -31,7 +31,7 @@ router.get("/teachers", requireAuth, requireRole("pool_admin", "super_admin"),
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const teachers = await superAdminDb.execute(sql`
-        SELECT id, name, email, phone, position, is_activated, is_admin_self_teacher, created_at
+        SELECT id, name, email, phone, is_activated, is_admin_self_teacher, created_at
         FROM users
         WHERE swimming_pool_id = ${poolId}
           AND role = 'teacher'
@@ -351,12 +351,12 @@ router.get("/teacher/me/media-usage", requireAuth,
     try {
       const userId = req.user!.userId;
       const photos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size), 0) as total_bytes, COUNT(*) as count
-        FROM photo_assets_meta WHERE uploaded_by = ${userId}
+        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes, COUNT(*) as count
+        FROM student_photos WHERE uploader_id = ${userId}
       `);
       const videos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size), 0) as total_bytes, COUNT(*) as count
-        FROM video_assets_meta WHERE uploaded_by = ${userId}
+        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes, COUNT(*) as count
+        FROM student_videos WHERE uploader_id = ${userId}
       `);
       const photoRow = photos.rows[0] as any;
       const videoRow = videos.rows[0] as any;
@@ -367,15 +367,15 @@ router.get("/teacher/me/media-usage", requireAuth,
 
       // 이번 달
       const monthPhotos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size), 0) as total
-        FROM photo_assets_meta
-        WHERE uploaded_by = ${userId}
+        SELECT COALESCE(SUM(file_size_bytes), 0) as total
+        FROM student_photos
+        WHERE uploader_id = ${userId}
           AND date_trunc('month', created_at) = date_trunc('month', now())
       `);
       const monthVideos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size), 0) as total
-        FROM video_assets_meta
-        WHERE uploaded_by = ${userId}
+        SELECT COALESCE(SUM(file_size_bytes), 0) as total
+        FROM student_videos
+        WHERE uploader_id = ${userId}
           AND date_trunc('month', created_at) = date_trunc('month', now())
       `);
       const monthBytes = Number((monthPhotos.rows[0] as any)?.total || 0) + Number((monthVideos.rows[0] as any)?.total || 0);
@@ -438,30 +438,24 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      // poolDb에서 반 + 학생 수 조회
-      const rows = await db.execute(sql`
+      const rows = await superAdminDb.execute(sql`
         SELECT
           cg.id, cg.name, cg.schedule_days, cg.schedule_time,
           cg.capacity, cg.teacher_user_id,
-          COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL)::int AS current_members,
-          GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL))::int AS available_slots
+          u.name AS instructor,
+          COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL) AS current_members,
+          GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL)) AS available_slots
         FROM class_groups cg
+        LEFT JOIN users u ON cg.teacher_user_id = u.id
         LEFT JOIN students s ON s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)
         WHERE cg.swimming_pool_id = ${poolId}
           AND cg.is_deleted = false
           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
-        GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id
+        GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id, u.name
         HAVING GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active' AND s.deleted_at IS NULL)) > 0
         ORDER BY cg.schedule_days, cg.schedule_time
       `);
-      // superAdminDb에서 선생님 이름 병합
-      const tIdsSlots = [...new Set((rows.rows as any[]).map((r: any) => r.teacher_user_id).filter(Boolean))];
-      const tMapSlots: Record<string, string> = {};
-      if (tIdsSlots.length) {
-        const tRows = await superAdminDb.execute(sql`SELECT id, name FROM users WHERE id IN (${sql.join(tIdsSlots.map((id: string) => sql`${id}`), sql`, `)})`).catch(() => ({ rows: [] }));
-        for (const t of tRows.rows as any[]) tMapSlots[t.id] = t.name;
-      }
-      res.json((rows.rows as any[]).map((r: any) => ({ ...r, instructor: tMapSlots[r.teacher_user_id] || null })));
+      res.json(rows.rows);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
@@ -475,20 +469,13 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
       if (!class_group_id || !assigned_date) {
         res.status(400).json({ error: "반과 날짜를 선택해주세요." }); return;
       }
-      // poolDb에서 반 조회, superAdminDb에서 선생님 이름 병합
-      const cls = await db.execute(sql`
-        SELECT cg.name, cg.teacher_user_id
-        FROM class_groups cg
+      const cls = await superAdminDb.execute(sql`
+        SELECT cg.name, u.name AS teacher_name, cg.teacher_user_id
+        FROM class_groups cg LEFT JOIN users u ON cg.teacher_user_id = u.id
         WHERE cg.id = ${class_group_id}
       `);
       if (!cls.rows.length) { res.status(404).json({ error: "반을 찾을 수 없습니다." }); return; }
-      const clsBase = cls.rows[0] as any;
-      let clsTeacherName = null;
-      if (clsBase.teacher_user_id) {
-        const tRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${clsBase.teacher_user_id}`).catch(() => ({ rows: [] }));
-        clsTeacherName = (tRow.rows[0] as any)?.name || null;
-      }
-      const clsRow = { ...clsBase, teacher_name: clsTeacherName };
+      const clsRow = cls.rows[0] as any;
       await db.execute(sql`
         UPDATE makeup_sessions SET
           status = 'assigned',

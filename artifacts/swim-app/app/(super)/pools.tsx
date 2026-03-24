@@ -9,7 +9,7 @@ import {
   FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore, type OperatorFilter } from "@/store/operatorsStore";
@@ -80,7 +80,6 @@ const BULK_ACTIONS = [
 ];
 
 export default function SuperPoolsScreen() {
-  const insets = useSafeAreaInsets();
   const { adminUser } = useAuth();
   const actorName = adminUser?.name ?? '슈퍼관리자';
   const { filter: initFilter } = useLocalSearchParams<{ filter?: string }>();
@@ -307,7 +306,7 @@ export default function SuperPoolsScreen() {
 
       <SubScreenHeader title="운영자 관리" />
 
-      {/* 검색창 */}
+      {/* 검색 + 정렬 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
           <Feather name="search" size={14} color="#9A948F" />
@@ -319,25 +318,28 @@ export default function SuperPoolsScreen() {
             </Pressable>
           )}
         </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {SORT_OPTS.map(o => (
+            <Pressable key={o.key} style={[s.sortChip, sort === o.key && s.sortChipActive]}
+              onPress={() => setSort(o.key)}>
+              <Text style={[s.sortChipTxt, sort === o.key && s.sortChipTxtActive]}>{o.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
 
-      {/* 정렬 + 필터 칩 — 두 줄 wrap 배치 */}
-      <View style={s.chipsWrap}>
-        {SORT_OPTS.map(o => (
-          <Pressable key={o.key} style={[s.sortChip, sort === o.key && s.sortChipActive]}
-            onPress={() => setSort(o.key)}>
-            <Text style={[s.sortChipTxt, sort === o.key && s.sortChipTxtActive]}>{o.label}</Text>
-          </Pressable>
-        ))}
+      {/* 필터 칩 */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipsScroll}
+        contentContainerStyle={s.chipsContent}>
         {FILTER_CHIPS.map(chip => (
           <Pressable key={chip.key} style={[s.chip, filter === chip.key && { backgroundColor: chip.bg }]}
             onPress={() => setFilter(chip.key)}>
             <Text style={[s.chipTxt, filter === chip.key && { color: chip.color }]}>{chip.label}</Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
-      {/* 카운트 + 다중선택 바 (칩 바로 아래) */}
+      {/* 헤더: 카운트 + 다중선택 토글 */}
       <View style={s.listHeader}>
         <Text style={s.listCount}>
           <Text style={{ color: filterChip.color, fontFamily: "Inter_700Bold" }}>{sorted.length}</Text>
@@ -371,7 +373,7 @@ export default function SuperPoolsScreen() {
         renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
           onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+        contentContainerStyle={{ paddingBottom: 80 }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={s.empty}>
@@ -392,17 +394,18 @@ const s = StyleSheet.create({
   sheetInput:        { borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 8, padding: 10, color: "#1F1F1F", fontFamily: "Inter_400Regular", minHeight: 60 },
   sheetBtns:         { flexDirection: "row", gap: 10 },
   sheetBtn:          { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
-  searchRow:         { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
+  searchRow:         { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
   searchBox:         { flexDirection: "row", alignItems: "center", backgroundColor: "#FBF8F6", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
   searchInput:       { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, color: "#1F1F1F" },
-  chipsWrap:         { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, paddingBottom: 6, gap: 6 },
-  sortChip:          { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: "#F6F3F1" },
+  sortChip:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#F6F3F1", marginRight: 6 },
   sortChipActive:    { backgroundColor: "#EEDDF5" },
   sortChipTxt:       { fontFamily: "Inter_400Regular", fontSize: 12, color: "#6F6B68" },
   sortChipTxtActive: { color: P, fontFamily: "Inter_600SemiBold" },
-  chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#F6F3F1" },
+  chipsScroll:       { maxHeight: 40 },
+  chipsContent:      { paddingHorizontal: 16, gap: 6 },
+  chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#F6F3F1", marginRight: 6 },
   chipTxt:           { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6F6B68" },
-  listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "#F0EDE9", backgroundColor: "#FAFAF9" },
+  listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   listCount:         { fontFamily: "Inter_400Regular", fontSize: 13, color: "#1F1F1F" },
   listHeaderRight:   { flexDirection: "row", alignItems: "center", gap: 8 },
   bulkBtn:           { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 4 },

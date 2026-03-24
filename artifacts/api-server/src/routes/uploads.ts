@@ -41,10 +41,10 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
         return;
       }
 
-      // 실시간 저장공간 계산 (photo_assets_meta 기준)
+      // 실시간 저장공간 계산 (student_photos 기준)
       const [usageRow] = (await db.execute(sql`
-        SELECT COALESCE(SUM(file_size), 0) AS used_bytes
-        FROM photo_assets_meta WHERE pool_id = ${poolId}
+        SELECT COALESCE(SUM(file_size_bytes), 0) AS used_bytes
+        FROM student_photos WHERE swimming_pool_id = ${poolId}
       `)).rows as any[];
       const quotaBytes = (Number(poolRow?.storage_gb ?? 0.1) + Number(poolRow?.extra_storage_gb ?? 0)) * 1024 ** 3;
       const usedBytes  = Number(usageRow?.used_bytes ?? 0);

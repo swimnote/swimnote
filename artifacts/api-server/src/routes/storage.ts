@@ -21,89 +21,29 @@ async function getPoolId(userId: string): Promise<string | null> {
 }
 
 // ── 특정 user + pool 기준 카테고리별 사용량 계산 ──────────────
+async function safeBytes(query: Promise<any>): Promise<number> {
+  try { const r = await query; return Number((r.rows[0] as any)?.bytes ?? 0); } catch { return 0; }
+}
+async function safeCnt(query: Promise<any>): Promise<number> {
+  try { const r = await query; return Number((r.rows[0] as any)?.cnt ?? 0); } catch { return 0; }
+}
+
 async function calcUserStorage(userId: string, poolId: string) {
-  // 사진 (photo_assets_meta)
-  const [photoRow] = (await db.execute(sql`
-    SELECT
-      COALESCE(SUM(file_size), 0)::bigint AS bytes,
-      COUNT(*)::int                       AS cnt
-    FROM photo_assets_meta
-    WHERE uploaded_by = ${userId} AND pool_id = ${poolId}
-  `)).rows as any[];
+  const [photo_bytes, photo_count, video_bytes, video_count, messenger_bytes,
+         cd_bytes, cdn_bytes, sd_bytes, memo_bytes, notice_bytes] = await Promise.all([
+    safeBytes(db.execute(sql`SELECT COALESCE(SUM(file_size_bytes),0)::bigint AS bytes FROM student_photos WHERE uploader_id=${userId} AND swimming_pool_id=${poolId}`)),
+    safeCnt(db.execute(sql`SELECT COUNT(*)::int AS cnt FROM student_photos WHERE uploader_id=${userId} AND swimming_pool_id=${poolId}`)),
+    safeBytes(db.execute(sql`SELECT COALESCE(SUM(file_size_bytes),0)::bigint AS bytes FROM student_videos WHERE uploader_id=${userId} AND swimming_pool_id=${poolId}`)),
+    safeCnt(db.execute(sql`SELECT COUNT(*)::int AS cnt FROM student_videos WHERE uploader_id=${userId} AND swimming_pool_id=${poolId}`)),
+    safeBytes(db.execute(sql`SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(content,''))),0)::bigint AS bytes FROM work_messages WHERE sender_id=${userId} AND pool_id=${poolId}`)),
+    safeBytes(db.execute(sql`SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(common_content,''))),0)::bigint AS bytes FROM class_diaries WHERE teacher_id=${userId} AND swimming_pool_id=${poolId} AND is_deleted=false`)),
+    safeBytes(db.execute(sql`SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(n.note_content,''))),0)::bigint AS bytes FROM class_diary_student_notes n JOIN class_diaries d ON d.id=n.diary_id WHERE d.teacher_id=${userId} AND d.swimming_pool_id=${poolId} AND n.is_deleted=false`)),
+    safeBytes(db.execute(sql`SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(title,''))+OCTET_LENGTH(COALESCE(lesson_content,''))),0)::bigint AS bytes FROM swim_diary WHERE author_id=${userId} AND swimming_pool_id=${poolId}`)),
+    safeBytes(db.execute(sql`SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(note_text,''))),0)::bigint AS bytes FROM teacher_daily_memos WHERE teacher_id=${userId} AND swimming_pool_id=${poolId}`)),
+    safeBytes(db.execute(sql`SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(title,''))+OCTET_LENGTH(COALESCE(content,''))),0)::bigint AS bytes FROM notices WHERE author_id=${userId} AND swimming_pool_id=${poolId}`)),
+  ]);
 
-  // 영상 (video_assets_meta)
-  const [videoRow] = (await db.execute(sql`
-    SELECT
-      COALESCE(SUM(file_size), 0)::bigint AS bytes,
-      COUNT(*)::int                       AS cnt
-    FROM video_assets_meta
-    WHERE uploaded_by = ${userId} AND pool_id = ${poolId}
-  `)).rows as any[];
-
-  // 메신저 (work_messages — 텍스트 byte 길이)
-  const [msgRow] = (await db.execute(sql`
-    SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(content,''))), 0)::bigint AS bytes
-    FROM work_messages
-    WHERE sender_id = ${userId} AND pool_id = ${poolId}
-  `)).rows as any[];
-
-  // 수업일지 본문 (class_diaries)
-  const [cdRow] = (await db.execute(sql`
-    SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(common_content,''))), 0)::bigint AS bytes
-    FROM class_diaries
-    WHERE teacher_id = ${userId} AND swimming_pool_id = ${poolId} AND is_deleted = false
-  `)).rows as any[];
-
-  // 수업일지 학생별 메모 (class_diary_student_notes joined by diary → teacher)
-  const [cdnRow] = (await db.execute(sql`
-    SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(n.note_content,''))), 0)::bigint AS bytes
-    FROM class_diary_student_notes n
-    JOIN class_diaries d ON d.id = n.diary_id
-    WHERE d.teacher_id = ${userId}
-      AND d.swimming_pool_id = ${poolId}
-      AND n.is_deleted = false
-  `)).rows as any[];
-
-  // 수영일지 (swim_diary — 여러 텍스트 필드)
-  const [sdRow] = (await db.execute(sql`
-    SELECT COALESCE(SUM(
-      OCTET_LENGTH(COALESCE(title,''))          +
-      OCTET_LENGTH(COALESCE(lesson_content,'')) +
-      OCTET_LENGTH(COALESCE(practice_goals,'')) +
-      OCTET_LENGTH(COALESCE(good_points,''))    +
-      OCTET_LENGTH(COALESCE(next_focus,''))
-    ), 0)::bigint AS bytes
-    FROM swim_diary
-    WHERE author_id = ${userId} AND swimming_pool_id = ${poolId}
-  `)).rows as any[];
-
-  // 선생님 메모 (teacher_daily_memos)
-  const [memoRow] = (await db.execute(sql`
-    SELECT COALESCE(SUM(OCTET_LENGTH(COALESCE(note_text,''))), 0)::bigint AS bytes
-    FROM teacher_daily_memos
-    WHERE teacher_id = ${userId} AND swimming_pool_id = ${poolId}
-  `)).rows as any[];
-
-  // 공지사항 (notices — 제목+본문)
-  const [noticeRow] = (await db.execute(sql`
-    SELECT COALESCE(SUM(
-      OCTET_LENGTH(COALESCE(title,'')) +
-      OCTET_LENGTH(COALESCE(content,''))
-    ), 0)::bigint AS bytes
-    FROM notices
-    WHERE author_id = ${userId} AND swimming_pool_id = ${poolId}
-  `)).rows as any[];
-
-  const photo_bytes    = Number(photoRow?.bytes   ?? 0);
-  const photo_count    = Number(photoRow?.cnt     ?? 0);
-  const video_bytes    = Number(videoRow?.bytes   ?? 0);
-  const video_count    = Number(videoRow?.cnt     ?? 0);
-  const messenger_bytes = Number(msgRow?.bytes    ?? 0);
-  const diary_bytes    = Number(cdRow?.bytes      ?? 0)
-                       + Number(cdnRow?.bytes     ?? 0)
-                       + Number(sdRow?.bytes      ?? 0)
-                       + Number(memoRow?.bytes    ?? 0);
-  const notice_bytes   = Number(noticeRow?.bytes  ?? 0);
+  const diary_bytes = cd_bytes + cdn_bytes + sd_bytes + memo_bytes;
   const system_bytes   = SYSTEM_BASE_BYTES;
 
   const total_bytes = photo_bytes + video_bytes + messenger_bytes + diary_bytes + notice_bytes + system_bytes;
@@ -119,20 +59,23 @@ async function calcUserStorage(userId: string, poolId: string) {
   };
 }
 
-// ── 구독 쿼터 조회 헬퍼 ──────────────────────────────────────
+// ── 구독 쿼터 조회 헬퍼 (구독 데이터는 super DB) ─────────────
 async function getQuotaBytes(poolId: string): Promise<number> {
-  const [sub] = (await db.execute(sql`
-    SELECT ps.tier,
-           COALESCE(ps.extra_storage_gb, 0) AS extra_gb,
-           sp.storage_gb
-    FROM pool_subscriptions ps
-    LEFT JOIN subscription_plans sp ON sp.tier = ps.tier
-    WHERE ps.swimming_pool_id = ${poolId} LIMIT 1
-  `)).rows as any[];
-
-  const baseGb  = Number(sub?.storage_gb  ?? 5);
-  const extraGb = Number(sub?.extra_gb    ?? 0);
-  return (baseGb + extraGb) * 1024 * 1024 * 1024;
+  try {
+    const [sub] = (await superAdminDb.execute(sql`
+      SELECT ps.tier,
+             COALESCE(ps.extra_storage_gb, 0) AS extra_gb,
+             sp.storage_gb
+      FROM pool_subscriptions ps
+      LEFT JOIN subscription_plans sp ON sp.tier = ps.tier
+      WHERE ps.swimming_pool_id = ${poolId} LIMIT 1
+    `)).rows as any[];
+    const baseGb  = Number(sub?.storage_gb  ?? 5);
+    const extraGb = Number(sub?.extra_gb    ?? 0);
+    return (baseGb + extraGb) * 1024 * 1024 * 1024;
+  } catch {
+    return 5 * 1024 * 1024 * 1024; // 기본 5GB fallback
+  }
 }
 
 // ════════════════════════════════════════════════════════════════

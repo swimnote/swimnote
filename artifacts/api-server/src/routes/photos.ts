@@ -13,7 +13,7 @@
  */
 import { Router, Response } from "express";
 import multer from "multer";
-import { r2Upload, r2Download, r2Delete } from "../lib/r2.js";
+import { Client } from "@replit/object-storage";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { usersTable, parentAccountsTable } from "@workspace/db/schema";
@@ -25,6 +25,11 @@ import { genFilename, sanitizePoolName } from "../utils/filename.js";
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
+let _client: Client | null = null;
+function getClient() {
+  if (!_client) _client = new Client({ bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID });
+  return _client;
+}
 
 async function getPoolSlug(poolId: string): Promise<string> {
   const rows = await superAdminDb.execute(sql`SELECT name_en, name FROM swimming_pools WHERE id = ${poolId}`);
@@ -137,14 +142,16 @@ router.get("/photos/:photoId/file", requireAuth, async (req: AuthRequest, res: R
     }
     // super_admin: 통과
 
-    const { ok, buffer } = await r2Download(photo.object_key);
-    if (!ok || !buffer) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
+    const client = getClient();
+    const { ok, value: bytes, error } = await client.downloadAsBytes(photo.object_key);
+    if (!ok || !bytes) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
 
     const ext = (photo.object_key.split(".").pop() || "jpg").toLowerCase();
     const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
     res.setHeader("Content-Type", mime);
     res.setHeader("Cache-Control", "private, max-age=3600");
-    res.send(buffer);
+    const buf = Array.isArray(bytes) ? bytes[0] : bytes;
+    res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any));
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
@@ -263,14 +270,15 @@ router.post(
       }
 
       const poolSlug = await getPoolSlug(user.swimming_pool_id);
+      const client = getClient();
       const inserted: any[] = [];
 
       for (const file of files) {
         const ext = file.originalname.split(".").pop() || "jpg";
         const filename = genFilename(poolSlug, ext);
         const key = `photos/group/${class_id}/${filename}`;
-        const { ok, error } = await r2Upload(key, file.buffer, file.mimetype);
-        if (!ok) throw new Error(error || "업로드 실패");
+        const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
+        if (!ok) throw new Error(error?.message || "업로드 실패");
 
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         // group 앨범: student_id는 NULL (반 전체 공유)
@@ -366,14 +374,15 @@ router.post(
       }
 
       const poolSlug = await getPoolSlug(user.swimming_pool_id);
+      const client = getClient();
       const inserted: any[] = [];
 
       for (const file of files) {
         const ext = file.originalname.split(".").pop() || "jpg";
         const filename = genFilename(poolSlug, ext);
         const key = `photos/private/${student_id}/${filename}`;
-        const { ok, error } = await r2Upload(key, file.buffer, file.mimetype);
-        if (!ok) throw new Error(error || "업로드 실패");
+        const { ok, error } = await client.uploadFromBytes(key, file.buffer, { contentType: file.mimetype });
+        if (!ok) throw new Error(error?.message || "업로드 실패");
 
         const id = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const rows = await db.execute(sql`
@@ -466,13 +475,14 @@ router.delete("/photos/bulk", requireAuth, requireRole("pool_admin", "teacher", 
         res.status(400).json({ error: "삭제할 사진 ID를 지정해주세요." }); return;
       }
       const { role, userId } = req.user!;
+      const client = getClient();
       let deletedCount = 0;
       for (const id of ids) {
         const rows = await db.execute(sql`SELECT * FROM photo_assets_meta WHERE id = ${id}`);
         const photo = rows.rows[0] as any;
         if (!photo) continue;
         if (role === "teacher" && photo.uploaded_by !== userId) continue;
-        await r2Delete(photo.object_key);
+        await client.delete(photo.object_key).catch(() => {});
         await db.execute(sql`DELETE FROM photo_assets_meta WHERE id = ${id}`);
         deletedCount++;
       }
@@ -567,7 +577,8 @@ router.delete("/photos/:photoId", requireAuth,
         if (photo.pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
       }
 
-      await r2Delete(photo.object_key);
+      const client = getClient();
+      await client.delete(photo.object_key).catch(() => {});
       await db.execute(sql`DELETE FROM photo_assets_meta WHERE id = ${photoId}`);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "삭제 중 오류" }); }

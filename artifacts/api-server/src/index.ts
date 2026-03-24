@@ -1,6 +1,7 @@
 import app from "./app";
 import { startBackupJobs } from "./jobs/backup-batch.js";
-import { startEventRetryJob } from "./jobs/event-retry-job.js";
+import { initPoolDb } from "./migrations/pool-db-init.js";
+import { initSuperDb } from "./migrations/super-db-init.js";
 
 // ── DB 이원화 강제 점검 ──────────────────────────────────────────
 const POOL_URL = process.env.POOL_DATABASE_URL;
@@ -29,9 +30,12 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// 배치 잡 시작 (앱이 켜져 있는 동안 스케줄 유지)
+// DB 초기화 (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS — 멱등)
+initPoolDb().catch((e) => console.error("[pool-db-init] 초기화 오류:", e.message));
+initSuperDb().catch((e) => console.error("[super-db-init] 초기화 오류:", e.message));
+
+// 새벽 배치 잡 시작 (앱이 켜져 있는 동안 스케줄 유지)
 startBackupJobs();
-startEventRetryJob();
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

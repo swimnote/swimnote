@@ -6,7 +6,6 @@ import { requireAuth, requireRole, requirePermission, type AuthRequest } from ".
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
-import { r2Delete } from "../lib/r2.js";
 
 const router = Router();
 
@@ -151,15 +150,19 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
         res.status(400).json({ error: "이미 탈퇴 처리된 학생입니다." }); return;
       }
 
-      // 1. 개인 사진첩 삭제 (R2 + DB)
+      // 1. 개인 사진첩 삭제 (Object Storage + DB)
       const photos = await db.execute(sql`
-        SELECT id, object_key FROM photo_assets_meta WHERE student_id = ${studentId}
+        SELECT id, storage_key FROM student_photos WHERE student_id = ${studentId}
       `);
       if (photos.rows.length > 0) {
-        await Promise.allSettled(
-          (photos.rows as any[]).map(p => r2Delete(p.object_key))
-        );
-        await db.execute(sql`DELETE FROM photo_assets_meta WHERE student_id = ${studentId}`);
+        try {
+          const { Client } = await import("@replit/object-storage");
+          const client = new Client();
+          await Promise.allSettled(
+            (photos.rows as any[]).map(p => client.delete(p.storage_key).catch(() => {}))
+          );
+        } catch { /* Object Storage 오류는 무시하고 DB 정리 진행 */ }
+        await db.execute(sql`DELETE FROM student_photos WHERE student_id = ${studentId}`);
       }
 
       // 2. 마지막 반 이름 저장 후 탈퇴 처리 (출결 기록 유지)
@@ -302,18 +305,14 @@ router.get("/pools/:id/detail", requireAuth, requirePermission("canViewPools"), 
     const pool = (poolResult as any).rows[0];
     if (!pool) return res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다.", error: "pool_not_found" });
 
-    // students, class_groups는 poolDb / users(teachers)는 superAdminDb
-    const [statsPool, statsSuper] = await Promise.all([
-      db.execute(sql`
-        SELECT
-          (SELECT COUNT(*)::int FROM students WHERE swimming_pool_id = ${id} AND status = 'active') AS student_count,
-          (SELECT COUNT(*)::int FROM class_groups WHERE swimming_pool_id = ${id}) AS class_count
-      `).catch(() => ({ rows: [{ student_count: 0, class_count: 0 }] })),
+    const [stats] = await Promise.all([
       superAdminDb.execute(sql`
-        SELECT COUNT(*)::int AS teacher_count FROM users WHERE swimming_pool_id = ${id} AND role = 'teacher'
-      `).catch(() => ({ rows: [{ teacher_count: 0 }] })),
+        SELECT
+          (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${id} AND status = 'active') AS student_count,
+          (SELECT COUNT(*) FROM users WHERE swimming_pool_id = ${id} AND role = 'teacher') AS teacher_count,
+          (SELECT COUNT(*) FROM class_groups WHERE swimming_pool_id = ${id}) AS class_count
+      `)
     ]);
-    const stats = { rows: [{ ...(statsPool.rows[0] as any), ...(statsSuper.rows[0] as any) }] };
 
     const role = req.user!.role;
     const perms = req.user!.permissions;
@@ -754,16 +753,18 @@ async function writeActivityLog(opts: {
   actorId: string; actorName: string; actorRole: string; note?: string | null;
 }) {
   const id = `mal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  await db.execute(sql`
-    INSERT INTO member_activity_logs
-      (id, swimming_pool_id, student_id, parent_id, target_name, action_type, target_type,
-       before_value, after_value, actor_id, actor_name, actor_role, note)
-    VALUES
-      (${id}, ${opts.poolId}, ${opts.studentId ?? null}, ${opts.parentId ?? null},
-       ${opts.targetName}, ${opts.actionType}, ${opts.targetType},
-       ${opts.beforeValue ?? null}, ${opts.afterValue ?? null},
-       ${opts.actorId}, ${opts.actorName}, ${opts.actorRole}, ${opts.note ?? null})
-  `);
+  try {
+    await db.execute(sql`
+      INSERT INTO member_activity_logs
+        (id, swimming_pool_id, student_id, parent_id, target_name, action_type, target_type,
+         before_value, after_value, actor_id, actor_name, actor_role, note)
+      VALUES
+        (${id}, ${opts.poolId}, ${opts.studentId ?? null}, ${opts.parentId ?? null},
+         ${opts.targetName}, ${opts.actionType}, ${opts.targetType},
+         ${opts.beforeValue ?? null}, ${opts.afterValue ?? null},
+         ${opts.actorId}, ${opts.actorName}, ${opts.actorRole}, ${opts.note ?? null})
+    `);
+  } catch { /* member_activity_logs 테이블 미존재 시 무시 */ }
 }
 
 router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_admin"),
@@ -848,11 +849,14 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
       `)).rows;
 
       // 최근 활동 로그 10건
-      const activityLogs = (await db.execute(sql`
-        SELECT * FROM member_activity_logs
-        WHERE swimming_pool_id = ${poolId}
-        ORDER BY created_at DESC LIMIT 10
-      `)).rows;
+      let activityLogs: any[] = [];
+      try {
+        activityLogs = (await db.execute(sql`
+          SELECT * FROM member_activity_logs
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY created_at DESC LIMIT 10
+        `)).rows;
+      } catch { /* member_activity_logs 테이블 미존재 시 빈 배열 반환 */ }
 
       res.json({
         total_members:    statsRow?.total_members    ?? 0,
@@ -938,13 +942,15 @@ router.get("/activity-logs", requireAuth, requireRole("super_admin", "pool_admin
       const poolId = await getAdminPoolId(req);
       if (!poolId) { res.status(403).json({ error: "수영장 정보가 없습니다." }); return; }
       const { limit = "30", offset = "0" } = req.query;
-      const rows = await db.execute(sql`
-        SELECT * FROM member_activity_logs
-        WHERE swimming_pool_id = ${poolId}
-        ORDER BY created_at DESC
-        LIMIT ${parseInt(limit as string)} OFFSET ${parseInt(offset as string)}
-      `);
-      res.json(rows.rows);
+      try {
+        const rows = await db.execute(sql`
+          SELECT * FROM member_activity_logs
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY created_at DESC
+          LIMIT ${parseInt(limit as string)} OFFSET ${parseInt(offset as string)}
+        `);
+        res.json(rows.rows);
+      } catch { res.json([]); }
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
@@ -955,12 +961,14 @@ router.get("/member-logs/:studentId", requireAuth, requireRole("super_admin", "p
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { res.status(403).json({ error: "수영장 정보가 없습니다." }); return; }
-      const rows = await db.execute(sql`
-        SELECT * FROM member_activity_logs
-        WHERE swimming_pool_id = ${poolId} AND student_id = ${req.params.studentId}
-        ORDER BY created_at DESC LIMIT 50
-      `);
-      res.json(rows.rows);
+      try {
+        const rows = await db.execute(sql`
+          SELECT * FROM member_activity_logs
+          WHERE swimming_pool_id = ${poolId} AND student_id = ${req.params.studentId}
+          ORDER BY created_at DESC LIMIT 50
+        `);
+        res.json(rows.rows);
+      } catch { res.json([]); }
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
@@ -1171,7 +1179,7 @@ router.delete("/students/:id/permanent", requireAuth, requireRole("super_admin",
       await db.execute(sql`DELETE FROM attendance WHERE student_id = ${req.params.id}`);
       await db.execute(sql`DELETE FROM swim_diary WHERE student_id = ${req.params.id}`);
       await db.execute(sql`DELETE FROM parent_students WHERE student_id = ${req.params.id}`);
-      await db.execute(sql`DELETE FROM photo_assets_meta WHERE student_id = ${req.params.id}`);
+      await db.execute(sql`DELETE FROM student_photos WHERE student_id = ${req.params.id}`);
       await db.execute(sql`DELETE FROM students WHERE id = ${req.params.id}`);
       res.json({ success: true, message: "영구 삭제가 완료되었습니다. 복구할 수 없습니다." });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
@@ -1233,23 +1241,18 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
       const poolId = await getAdminPoolId(req);
       if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
 
-      // poolDb에서 학생 + class_groups + parent 정보 조회
-      const [student] = (await db.execute(sql`
+      const [student] = (await superAdminDb.execute(sql`
         SELECT s.*,
           (SELECT cg.name FROM class_groups cg WHERE cg.id = s.class_group_id LIMIT 1) AS class_name,
-          (SELECT cg.teacher_user_id FROM class_groups cg WHERE cg.id = s.class_group_id LIMIT 1) AS teacher_user_id,
+          (SELECT u.name FROM users u WHERE u.id = cg.teacher_user_id LIMIT 1) AS teacher_name,
           (SELECT pa.name FROM parent_students ps JOIN parent_accounts pa ON pa.id = ps.parent_id
            WHERE ps.student_id = s.id AND ps.status = 'approved' LIMIT 1) AS parent_account_name,
           (SELECT ps.status FROM parent_students ps WHERE ps.student_id = s.id ORDER BY ps.created_at DESC LIMIT 1) AS parent_link_status
         FROM students s
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id
         WHERE s.id = ${req.params.id} AND s.swimming_pool_id = ${poolId}
       `)).rows as any[];
       if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
-      // superAdminDb에서 선생님 이름 조회
-      if (student.teacher_user_id) {
-        const tRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${student.teacher_user_id}`).catch(() => ({ rows: [] }));
-        student.teacher_name = (tRow.rows[0] as any)?.name || null;
-      }
 
       // 최근 출결 30일
       const attendance = (await db.execute(sql`
@@ -1923,91 +1926,38 @@ router.get("/teacher-hub/:teacherId", requireAuth, requireRole("super_admin","po
 );
 
 // GET /admin/teachers — 선생님 목록 + 운영 현황 요약 (invite 상태 포함)
-// users/teacher_invites → superAdminDb, 통계 → poolDb (cross-DB 분리 병합)
 router.get("/teachers", requireAuth, requireRole("super_admin","pool_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
       const today = new Date().toISOString().split("T")[0];
-
-      // 1단계: superAdminDb — users (teachers) 조회
-      const userRows = (await superAdminDb.execute(sql.raw(`
-        SELECT id, name, email, phone, is_activated, roles,
-               (roles @> ARRAY['pool_admin']::text[]) AS is_admin_granted
-        FROM users
-        WHERE swimming_pool_id = '${poolId}' AND role = 'teacher'
-        ORDER BY name
-      `))).rows as any[];
-
-      if (userRows.length === 0) { res.json([]); return; }
-
-      const teacherIds = userRows.map((t: any) => `'${t.id}'`).join(",");
-
-      // 2단계: poolDb — teacher_invites + 수업/학생/출결/일지/보강 통계
-      const [inviteRows, statsRows, makeupRows] = await Promise.all([
-        db.execute(sql.raw(`
-          SELECT id, user_id, invite_status, rejection_reason, approved_at, created_at AS joined_at
-          FROM teacher_invites
-          WHERE swimming_pool_id = '${poolId}' AND user_id IN (${teacherIds})
-        `)).then(r => r.rows as any[]),
-
-        db.execute(sql.raw(`
-          SELECT
-            cg.teacher_user_id AS teacher_id,
-            COUNT(DISTINCT cg.id)::int AS class_count,
-            COUNT(DISTINCT CASE WHEN s.status NOT IN ('withdrawn','deleted') THEN s.id END)::int AS student_count,
-            COUNT(DISTINCT a.id) FILTER (WHERE a.date = '${today}')::int AS today_att,
-            COUNT(DISTINCT cd.id) FILTER (WHERE cd.lesson_date = '${today}' AND cd.is_deleted = false)::int AS today_diary
-          FROM class_groups cg
-          LEFT JOIN students s ON s.class_group_id = cg.id
-          LEFT JOIN attendance a ON a.class_group_id = cg.id
-          LEFT JOIN class_diaries cd ON cd.class_group_id = cg.id AND cd.swimming_pool_id = '${poolId}'
-          WHERE cg.swimming_pool_id = '${poolId}' AND cg.is_deleted = false
-            AND cg.teacher_user_id IN (${teacherIds})
-          GROUP BY cg.teacher_user_id
-        `)).then(r => r.rows as any[]),
-
-        db.execute(sql.raw(`
-          SELECT
-            COALESCE(mk.original_teacher_id, mk.assigned_teacher_id, mk.transferred_to_teacher_id) AS teacher_id,
-            COUNT(DISTINCT mk.id) FILTER (WHERE mk.status IN ('waiting','transferred'))::int AS makeup_waiting
-          FROM makeup_sessions mk
-          WHERE mk.swimming_pool_id = '${poolId}'
-            AND (mk.original_teacher_id IN (${teacherIds})
-              OR mk.assigned_teacher_id IN (${teacherIds})
-              OR mk.transferred_to_teacher_id IN (${teacherIds}))
-          GROUP BY 1
-        `)).then(r => r.rows as any[]),
-      ]);
-
-      // 3단계: 앱 레벨 병합
-      const inviteMap = new Map<string, any>();
-      for (const r of inviteRows) inviteMap.set(r.user_id, r);
-      const statsMap = new Map<string, any>();
-      for (const r of statsRows) statsMap.set(r.teacher_id, r);
-      const makeupMap = new Map<string, any>();
-      for (const r of makeupRows) makeupMap.set(r.teacher_id, r);
-
-      const teachers = userRows.map((t: any) => {
-        const inv = inviteMap.get(t.id) ?? {};
-        const s   = statsMap.get(t.id)  ?? {};
-        const m   = makeupMap.get(t.id) ?? {};
-        return {
-          ...t,
-          invite_id:       inv.id             ?? null,
-          invite_status:   inv.invite_status  ?? null,
-          rejection_reason: inv.rejection_reason ?? null,
-          approved_at:     inv.approved_at    ?? null,
-          joined_at:       inv.joined_at      ?? null,
-          class_count:     s.class_count      ?? 0,
-          student_count:   s.student_count    ?? 0,
-          today_att:       s.today_att        ?? 0,
-          today_diary:     s.today_diary      ?? 0,
-          makeup_waiting:  m.makeup_waiting   ?? 0,
-        };
-      });
-
+      const teachers = (await db.execute(sql.raw(`
+        SELECT
+          u.id, u.name, u.email, u.phone, u.is_activated, u.roles,
+          ti.id AS invite_id,
+          ti.invite_status,
+          ti.rejection_reason,
+          ti.approved_at,
+          ti.created_at AS joined_at,
+          (u.roles @> ARRAY['pool_admin']::text[]) AS is_admin_granted,
+          COUNT(DISTINCT cg.id)::int AS class_count,
+          COUNT(DISTINCT s.id)::int AS student_count,
+          COUNT(DISTINCT a.id) FILTER (WHERE a.date = '${today}')::int AS today_att,
+          COUNT(DISTINCT cd.id) FILTER (WHERE cd.lesson_date = '${today}' AND cd.is_deleted = false)::int AS today_diary,
+          COUNT(DISTINCT mk.id) FILTER (WHERE mk.status IN ('waiting','transferred'))::int AS makeup_waiting
+        FROM users u
+        LEFT JOIN teacher_invites ti ON ti.user_id = u.id AND ti.swimming_pool_id = '${poolId}'
+        LEFT JOIN class_groups cg ON cg.teacher_user_id = u.id AND cg.swimming_pool_id = '${poolId}' AND cg.is_deleted = false
+        LEFT JOIN students s ON s.class_group_id = cg.id AND s.status NOT IN ('withdrawn','deleted')
+        LEFT JOIN attendance a ON a.class_group_id = cg.id
+        LEFT JOIN class_diaries cd ON cd.class_group_id = cg.id AND cd.swimming_pool_id = '${poolId}'
+        LEFT JOIN makeup_sessions mk ON mk.swimming_pool_id = '${poolId}'
+          AND (mk.original_teacher_id = u.id OR mk.assigned_teacher_id = u.id OR mk.transferred_to_teacher_id = u.id)
+        WHERE u.swimming_pool_id = '${poolId}' AND u.role = 'teacher'
+        GROUP BY u.id, ti.id
+        ORDER BY u.name
+      `))).rows;
       res.json(teachers);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -2077,22 +2027,16 @@ router.get("/class-groups/:id/detail", requireAuth, requireRole("super_admin", "
       const { id } = req.params;
       const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
 
-      // 반 정보는 poolDb, 선생님 이름은 superAdminDb에서 별도 조회
-      const cgRows = (await db.execute(sql`
-        SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id
+      // 반 + 선생님 정보
+      const cgRows = (await superAdminDb.execute(sql`
+        SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
+               u.id AS teacher_id, u.name AS teacher_name
         FROM class_groups cg
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE cg.id = ${id} AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
       `)).rows as any[];
       if (!cgRows.length) { res.status(404).json({ error: "반 없음" }); return; }
-      const cgBase = cgRows[0];
-      // superAdminDb에서 선생님 정보 조회
-      let teacherId = cgBase.teacher_user_id || null;
-      let teacherName = null;
-      if (teacherId) {
-        const tRow = await superAdminDb.execute(sql`SELECT id, name FROM users WHERE id = ${teacherId}`).catch(() => ({ rows: [] }));
-        teacherName = (tRow.rows[0] as any)?.name || null;
-      }
-      const cg = { ...cgBase, teacher_id: teacherId, teacher_name: teacherName };
+      const cg = cgRows[0];
 
       // 학생 목록 + 보강 여부
       const students = (await db.execute(sql`

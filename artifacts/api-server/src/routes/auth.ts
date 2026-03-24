@@ -457,29 +457,31 @@ router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
     if (!userRoles.includes(role) && role === "teacher" && isPoolAdmin) {
       userRoles = [...userRoles, "teacher"];
       const rolesLiteral = `{${userRoles.map((r: string) => `"${r}"`).join(",")}}`;
-      await db.execute(sql.raw(`UPDATE users SET roles = '${rolesLiteral}'::TEXT[] WHERE id = '${req.user!.userId}'`));
+      await superAdminDb.execute(sql.raw(`UPDATE users SET roles = '${rolesLiteral}'::TEXT[] WHERE id = '${req.user!.userId}'`));
     }
 
     // pool_admin이 teacher로 전환 시 teacher_invites 승인 레코드 자동 생성 (없는 경우)
     if (role === "teacher" && isPoolAdmin) {
-      const userId = req.user!.userId;
-      const existingInvite = await superAdminDb.execute(sql`
-        SELECT id FROM teacher_invites WHERE user_id = ${userId} LIMIT 1
-      `);
-      if (!existingInvite.rows.length) {
-        const userInfo = await superAdminDb.execute(sql`
-          SELECT name, phone FROM users WHERE id = ${userId} LIMIT 1
+      try {
+        const userId = req.user!.userId;
+        const existingInvite = await superAdminDb.execute(sql`
+          SELECT id FROM teacher_invites WHERE user_id = ${userId} LIMIT 1
         `);
-        const info = userInfo.rows[0] as any;
-        const inviteId = `ti_admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await superAdminDb.execute(sql`
-          INSERT INTO teacher_invites
-            (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, requested_at, approved_at, created_at)
-          VALUES
-            (${inviteId}, ${row.swimming_pool_id}, ${info?.name ?? ""}, ${info?.phone ?? ""},
-             'approved', ${userId}, ${userId}, now(), now(), now())
-        `).catch(() => {});
-      }
+        if (!existingInvite.rows.length) {
+          const userInfo = await superAdminDb.execute(sql`
+            SELECT name, phone FROM users WHERE id = ${userId} LIMIT 1
+          `);
+          const info = userInfo.rows[0] as any;
+          const inviteId = `ti_admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await superAdminDb.execute(sql`
+            INSERT INTO teacher_invites
+              (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, requested_at, approved_at, created_at)
+            VALUES
+              (${inviteId}, ${row.swimming_pool_id}, ${info?.name ?? ""}, ${info?.phone ?? ""},
+               'approved', ${userId}, ${userId}, now(), now(), now())
+          `).catch(() => {});
+        }
+      } catch { /* teacher_invites 미존재 시 무시 */ }
     }
 
     if (!userRoles.includes(role)) return err(res, 403, "해당 역할에 대한 권한이 없습니다.");

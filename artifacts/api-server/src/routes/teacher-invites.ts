@@ -94,9 +94,19 @@ router.get("/admin/teacher-invites/:id/detail", requireAuth, requireRole("pool_a
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
-      // superAdminDb에서 초대 + 유저 정보
       const result = await superAdminDb.execute(sql`
-        SELECT ti.*, u.email as user_email, u.roles as user_roles, u.is_activated
+        SELECT
+          ti.*,
+          u.email as user_email,
+          u.roles as user_roles,
+          u.is_activated,
+          (SELECT COUNT(DISTINCT cg.id)::int
+           FROM class_groups cg
+           WHERE cg.teacher_user_id = u.id AND cg.is_deleted = false) as class_count,
+          (SELECT COUNT(DISTINCT cm.id)::int
+           FROM class_groups cg
+           JOIN class_members cm ON cm.class_id = cg.id
+           WHERE cg.teacher_user_id = u.id AND cg.is_deleted = false) as member_count
         FROM teacher_invites ti
         LEFT JOIN users u ON ti.user_id = u.id
         WHERE ti.id = ${req.params.id}
@@ -108,23 +118,7 @@ router.get("/admin/teacher-invites/:id/detail", requireAuth, requireRole("pool_a
         res.status(404).json({ success: false, message: "선생님 정보를 찾을 수 없습니다." }); return;
       }
 
-      const tiData = result.rows[0] as any;
-      // poolDb에서 반 수 / 회원 수 조회
-      let class_count = 0, member_count = 0;
-      if (tiData.user_id) {
-        const cStats = await db.execute(sql`
-          SELECT
-            COUNT(DISTINCT cg.id)::int AS class_count,
-            COUNT(DISTINCT cm.id)::int AS member_count
-          FROM class_groups cg
-          LEFT JOIN class_members cm ON cm.class_id = cg.id
-          WHERE cg.teacher_user_id = ${tiData.user_id} AND cg.is_deleted = false
-        `).catch(() => ({ rows: [] }));
-        class_count  = (cStats.rows[0] as any)?.class_count  ?? 0;
-        member_count = (cStats.rows[0] as any)?.member_count ?? 0;
-      }
-
-      res.json({ success: true, data: { ...tiData, class_count, member_count } });
+      res.json({ success: true, data: result.rows[0] });
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: "서버 오류" });

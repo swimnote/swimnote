@@ -54,11 +54,19 @@ function buildConfig(url: string | undefined, password: string | undefined) {
 
 /** 슈퍼관리자 DB 연결 풀 */
 const superAdminPool = new Pool(buildConfig(SUPER_URL, SUPER_PW));
+superAdminPool.on("error", (err) => {
+  console.error("[superAdminPool] idle client error:", err.message);
+});
 
 /** 수영장 운영 DB 연결 풀 (별도 DB 설정 시 다른 Supabase 프로젝트 사용) */
 const poolOpsPool = POOL_URL
   ? new Pool(buildConfig(POOL_URL, POOL_PW))
   : superAdminPool;
+if (poolOpsPool !== superAdminPool) {
+  poolOpsPool.on("error", (err) => {
+    console.error("[poolOpsPool] idle client error:", err.message);
+  });
+}
 
 /** 슈퍼관리자용 DB (플랫폼 운영/모니터링/감사 데이터) */
 export const superAdminDb = drizzle(superAdminPool, { schema });

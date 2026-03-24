@@ -7,6 +7,10 @@ import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 
+// pool DB members 테이블에 status 컬럼이 없으면 추가 (하위호환)
+db.execute(sql`ALTER TABLE members ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active'`)
+  .catch(() => { /* 이미 존재하거나 테이블 없음 - 무시 */ });
+
 function err(res: any, status: number, message: string) {
   return res.status(status).json({ success: false, message, error: message });
 }

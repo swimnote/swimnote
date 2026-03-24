@@ -63,28 +63,21 @@ router.get("/absences/nearby", requireAuth, requireRole("pool_admin", "teacher",
     const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
     const dayChar = weekdays[dayOfWeek];
 
-    // poolDb에서 반 목록 + 학생 수 조회
-    const rows = await db.execute(sql`
+    const rows = await superAdminDb.execute(sql`
       SELECT cg.id, cg.name, cg.schedule_time, cg.schedule_days, cg.teacher_user_id,
+        u.name AS teacher_name,
         (SELECT count(*)::int FROM students s WHERE s.class_group_id = cg.id AND s.status = 'active') AS student_count
       FROM class_groups cg
+      LEFT JOIN users u ON u.id = cg.teacher_user_id
       WHERE cg.id != ${class_group_id}
         AND cg.is_deleted = false
         AND cg.schedule_days LIKE ${'%' + dayChar + '%'}
         AND cg.swimming_pool_id = (SELECT swimming_pool_id FROM class_groups WHERE id = ${class_group_id})
       ORDER BY cg.schedule_time
     `);
-    // superAdminDb에서 선생님 이름 조회 후 병합
-    const teacherIds = [...new Set((rows.rows as any[]).map((r: any) => r.teacher_user_id).filter(Boolean))];
-    const teacherMap: Record<string, string> = {};
-    if (teacherIds.length) {
-      const tRows = await superAdminDb.execute(sql`SELECT id, name FROM users WHERE id IN (${sql.join(teacherIds.map(id => sql`${id}`), sql`, `)})`).catch(() => ({ rows: [] }));
-      for (const t of tRows.rows as any[]) teacherMap[t.id] = t.name;
-    }
-    const rowsWithName = (rows.rows as any[]).map(r => ({ ...r, teacher_name: teacherMap[r.teacher_user_id] || null }));
 
     // 시간대 필터링 (±60분)
-    const nearby = rowsWithName.filter(cg => {
+    const nearby = (rows.rows as any[]).filter(cg => {
       if (!cg.schedule_time) return true;
       const [h2, m2] = (cg.schedule_time as string).split(":").map(Number);
       return Math.abs((h2 * 60 + m2) - totalMin) <= 60;
@@ -184,16 +177,9 @@ router.post("/absences/:id/transfer", requireAuth, requireRole("pool_admin", "te
     const absence = absRow.rows[0] as any;
     if (!absence) return err(res, 404, "결근 기록을 찾을 수 없습니다.");
 
-    // poolDb에서 반 조회 후 superAdminDb에서 선생님 이름 병합
-    const toClassRow = await db.execute(sql`SELECT * FROM class_groups WHERE id = ${to_class_group_id}`);
-    const toClassBase = toClassRow.rows[0] as any;
-    if (!toClassBase) return err(res, 404, "대상 반을 찾을 수 없습니다.");
-    let teacherNameFromUser = null;
-    if (toClassBase.teacher_user_id) {
-      const uRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${toClassBase.teacher_user_id}`).catch(() => ({ rows: [] }));
-      teacherNameFromUser = (uRow.rows[0] as any)?.name || null;
-    }
-    const toClass = { ...toClassBase, teacher_name_from_user: teacherNameFromUser };
+    const toClassRow = await superAdminDb.execute(sql`SELECT cg.*, u.name AS teacher_name_from_user FROM class_groups cg LEFT JOIN users u ON u.id = cg.teacher_user_id WHERE cg.id = ${to_class_group_id}`);
+    const toClass = toClassRow.rows[0] as any;
+    if (!toClass) return err(res, 404, "대상 반을 찾을 수 없습니다.");
 
     const results = [];
 
