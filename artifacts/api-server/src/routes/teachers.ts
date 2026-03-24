@@ -5,7 +5,7 @@
  * - 관리자 본인용 선생님 계정은 최대 1개
  */
 import { Router } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";

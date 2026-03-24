@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { attendanceTable, studentsTable, usersTable, parentAccountsTable, classGroupsTable, makeupSessionsTable } from "@workspace/db/schema";
 import { eq, and, gte, lte, like, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
@@ -282,8 +282,8 @@ async function autoCreateMakeup(
   `)) as any).rows as any[];
   if (existing) return;
 
-  // 풀 정책 조회
-  const [poolRow] = ((await (db as any).execute(sql`
+  // 풀 정책 조회 (swimming_pools는 superAdminDb)
+  const [poolRow] = ((await (superAdminDb as any).execute(sql`
     SELECT make_up_expiry_type, make_up_expiry_days,
            make_up_limit_weekly_1, make_up_limit_weekly_2, make_up_limit_weekly_3
     FROM swimming_pools WHERE id = ${poolId} LIMIT 1

@@ -5,7 +5,7 @@
  * GET /admin/storage        — 관리자: 풀 전체 총합 + 선생님별 사용량
  */
 import { Router } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 

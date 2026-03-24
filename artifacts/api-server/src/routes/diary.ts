@@ -15,7 +15,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";

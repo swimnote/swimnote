@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 

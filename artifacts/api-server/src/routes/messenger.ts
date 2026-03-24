@@ -10,7 +10,7 @@
 import { Router, type Response } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { genFilename } from "../utils/filename.js";

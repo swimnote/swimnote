@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { membersTable, usersTable, classMembersTable, classesTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";

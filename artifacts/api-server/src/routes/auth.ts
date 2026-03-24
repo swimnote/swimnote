@@ -680,9 +680,9 @@ router.post("/totp/verify-login", async (req, res) => {
 
     const cleanCode = otp_code.replace(/\D/g, "").trim();
     console.log(`[totp/verify-login] userId=***${payload.userId.slice(-4)} code_len=${cleanCode.length} totp_enabled=${user.totp_enabled} secret_len=${user.totp_secret?.length ?? 0}`);
-    const isValid = totpVerifySync({ token: cleanCode, secret: user.totp_secret, window: 1 });
-    console.log(`[totp/verify-login] code_match=${isValid}`);
-    if (!isValid) return err(res, 401, "OTP 코드가 올바르지 않거나 만료되었습니다.");
+    const isValid = totpVerifySync({ token: cleanCode, secret: user.totp_secret, window: 1, strategy: "totp" });
+    console.log(`[totp/verify-login] code_match=${isValid?.valid}`);
+    if (!isValid?.valid) return err(res, 401, "OTP 코드가 올바르지 않거나 만료되었습니다.");
 
     const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
     const { password_hash: _pw, totp_secret: _secret, ...safeUser } = user;
@@ -713,8 +713,8 @@ router.post("/totp/verify-action", requireAuth, async (req: AuthRequest, res) =>
     if (!user?.totp_enabled || !user?.totp_secret) {
       return err(res, 403, "OTP가 등록되지 않았습니다. 보안 설정에서 먼저 OTP를 등록해주세요.");
     }
-    const valid = totpVerifySync({ secret: user.totp_secret, token: String(otp_code), window: 1 });
-    if (!valid) return err(res, 401, "OTP 코드가 올바르지 않습니다. 앱의 코드를 다시 확인해주세요.");
+    const valid = totpVerifySync({ secret: user.totp_secret, token: String(otp_code), window: 1, strategy: "totp" });
+    if (!valid?.valid) return err(res, 401, "OTP 코드가 올바르지 않습니다. 앱의 코드를 다시 확인해주세요.");
     res.json({ success: true });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -754,8 +754,8 @@ router.post("/totp/enable", requireAuth, async (req: AuthRequest, res) => {
     const user = userRow.rows[0] as any;
     if (!user?.totp_secret) return err(res, 400, "먼저 TOTP 설정을 시작해주세요.");
 
-    const isValid = totpVerifySync({ token: otp_code.replace(/\s/g, ""), secret: user.totp_secret });
-    if (!isValid) return err(res, 401, "OTP 코드가 올바르지 않습니다. Google Authenticator 앱의 코드를 확인해주세요.");
+    const isValid = totpVerifySync({ token: otp_code.replace(/\s/g, ""), secret: user.totp_secret, strategy: "totp" });
+    if (!isValid?.valid) return err(res, 401, "OTP 코드가 올바르지 않습니다. Google Authenticator 앱의 코드를 확인해주세요.");
 
     await superAdminDb.execute(sql`UPDATE users SET totp_enabled = TRUE, updated_at = NOW() WHERE id = ${req.user!.userId}`);
     res.json({ success: true, message: "Google OTP가 활성화되었습니다." });
@@ -772,8 +772,8 @@ router.post("/totp/disable", requireAuth, async (req: AuthRequest, res) => {
     if (!user?.totp_enabled) return err(res, 400, "TOTP가 활성화되어 있지 않습니다.");
     if (!user?.totp_secret) return err(res, 400, "TOTP 설정 정보를 찾을 수 없습니다.");
 
-    const isValid = totpVerifySync({ token: otp_code.replace(/\s/g, ""), secret: user.totp_secret });
-    if (!isValid) return err(res, 401, "OTP 코드가 올바르지 않습니다.");
+    const isValid = totpVerifySync({ token: otp_code.replace(/\s/g, ""), secret: user.totp_secret, strategy: "totp" });
+    if (!isValid?.valid) return err(res, 401, "OTP 코드가 올바르지 않습니다.");
 
     await superAdminDb.execute(sql`UPDATE users SET totp_enabled = FALSE, totp_secret = NULL, updated_at = NOW() WHERE id = ${req.user!.userId}`);
     res.json({ success: true, message: "Google OTP가 비활성화되었습니다." });

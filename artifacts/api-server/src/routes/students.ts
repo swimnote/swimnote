@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, superAdminDb , superAdminDb } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
 import {
   studentsTable, classGroupsTable, parentStudentsTable,
