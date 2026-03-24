@@ -45,7 +45,7 @@ function hoursLeft(iso: string | null | undefined): string {
 }
 
 export default function KillSwitchScreen() {
-  const { adminUser } = useAuth();
+  const { adminUser, token } = useAuth();
   const actorName = adminUser?.name ?? '슈퍼관리자';
 
   const operators          = useOperatorsStore(s => s.operators);
@@ -454,6 +454,7 @@ export default function KillSwitchScreen() {
       )}
       <OtpGateModal
         visible={otpVisible}
+        token={token}
         title="영구 삭제 OTP 인증"
         desc="킬스위치 실행은 되돌릴 수 없습니다. OTP를 인증한 후에만 실행됩니다."
         onSuccess={() => { setOtpVisible(false); executeDelete(); }}

@@ -201,6 +201,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
   visible: boolean; initial?: SubscriptionPlan | null;
   onClose: () => void; onSave: (form: FormState) => void;
 }) {
+  const { token } = useAuth();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [otpVisible, setOtpVisible] = useState(false);
   const isEdit = !!initial;
@@ -260,6 +261,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
         </KeyboardAvoidingView>
         <OtpGateModal
           visible={otpVisible}
+          token={token}
           title={isEdit ? "구독 상품 수정 OTP 인증" : "구독 상품 생성 OTP 인증"}
           desc="구독 상품 변경은 OTP 인증 후에 저장됩니다."
           onSuccess={() => { setOtpVisible(false); onSave(form); }}
@@ -275,6 +277,7 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
   visible: boolean; initial?: ExtraStorageProduct | null;
   onClose: () => void; onSave: (form: StorageFormState) => void;
 }) {
+  const { token } = useAuth();
   const [form, setForm] = useState<StorageFormState>(EMPTY_STORAGE_FORM);
   const [otpVisible, setOtpVisible] = useState(false);
   const isEdit = !!initial;
@@ -328,6 +331,7 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
         </KeyboardAvoidingView>
         <OtpGateModal
           visible={otpVisible}
+          token={token}
           title={isEdit ? "추가 용량 상품 수정 OTP 인증" : "추가 용량 상품 생성 OTP 인증"}
           desc="추가 용량 상품 변경은 OTP 인증 후에 저장됩니다."
           onSuccess={() => { setOtpVisible(false); onSave(form); }}

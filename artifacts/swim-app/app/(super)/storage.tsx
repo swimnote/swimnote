@@ -65,7 +65,7 @@ function estimateCost(extraGb: number): string {
 }
 
 export default function StorageScreen() {
-  const { adminUser } = useAuth();
+  const { adminUser, token } = useAuth();
   const actorName = adminUser?.name ?? '슈퍼관리자';
   const { operatorId: paramOpId } = useLocalSearchParams<{ operatorId?: string }>();
 
@@ -338,6 +338,7 @@ export default function StorageScreen() {
       {/* 슈퍼관리자 직접 용량 추가 OTP */}
       <OtpGateModal
         visible={otpVisible}
+        token={token}
         title="용량 추가 OTP 인증"
         desc="슈퍼관리자의 직접 용량 부여는 OTP 인증 후에 처리됩니다."
         onSuccess={() => { setOtpVisible(false); handleSave(); }}

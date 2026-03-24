@@ -45,7 +45,7 @@ const SEED_POLICIES: Policy[] = [
 ].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
 
 export default function StoragePolicyScreen() {
-  const { adminUser } = useAuth();
+  const { adminUser, token } = useAuth();
   const actorName = adminUser?.name ?? '슈퍼관리자';
   const createLog = useAuditLogStore(s => s.createLog);
   const insets = useSafeAreaInsets();
@@ -201,6 +201,7 @@ export default function StoragePolicyScreen() {
       </Modal>
       <OtpGateModal
         visible={otpVisible}
+        token={token}
         title="저장공간 정책 변경 OTP 인증"
         desc="저장공간 정책 변경은 OTP 인증 후에 저장됩니다."
         onSuccess={() => { setOtpVisible(false); handleSave(); }}

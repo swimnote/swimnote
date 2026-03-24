@@ -421,6 +421,7 @@ export default function OperatorDetailScreen() {
 
       <OtpGateModal
         visible={otpVisible}
+        token={token}
         title={
           action === "approve" ? "운영 재승인 OTP 인증"
           : action === "reject" ? "반려 처리 OTP 인증"

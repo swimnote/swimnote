@@ -1255,6 +1255,7 @@ export default function SecuritySettingsScreen() {
       {/* ── OTP 인증 게이트 ── */}
       <OtpGateModal
         visible={otpAction !== null}
+        token={token}
         title={
           otpAction === "pw"        ? "비밀번호 변경 OTP 인증"
           : otpAction === "id"      ? "관리자 ID 변경 OTP 인증"

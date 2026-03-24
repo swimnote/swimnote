@@ -696,6 +696,26 @@ router.post("/totp/verify-login", async (req, res) => {
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// TOTP 민감 작업 인증 — OTP 게이트용 (로그인과 별개, 일반 JWT 토큰 사용)
+router.post("/totp/verify-action", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { otp_code } = req.body;
+    if (!otp_code || String(otp_code).trim().length !== 6) {
+      return err(res, 400, "6자리 OTP 코드를 입력해주세요.");
+    }
+    const row = await db.execute(sql`
+      SELECT totp_secret, totp_enabled FROM users WHERE id = ${req.user!.userId} LIMIT 1
+    `);
+    const user = row.rows[0] as any;
+    if (!user?.totp_enabled || !user?.totp_secret) {
+      return err(res, 403, "OTP가 등록되지 않았습니다. 보안 설정에서 먼저 OTP를 등록해주세요.");
+    }
+    const valid = totpVerifySync({ secret: user.totp_secret, token: String(otp_code), window: 1 });
+    if (!valid) return err(res, 401, "OTP 코드가 올바르지 않습니다. 앱의 코드를 다시 확인해주세요.");
+    res.json({ success: true });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
 // TOTP 상태 조회
 router.get("/totp/status", requireAuth, async (req: AuthRequest, res) => {
   try {

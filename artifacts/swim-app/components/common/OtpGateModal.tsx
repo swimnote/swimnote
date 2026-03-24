@@ -1,37 +1,40 @@
 /**
  * components/common/OtpGateModal.tsx
- * 민감 작업 실행 전 OTP 인증 게이트 모달
- * 사용법: visible/onSuccess/onCancel 으로 제어
+ * 민감 작업 실행 전 실제 Google TOTP 인증 게이트 모달
+ * - /auth/totp/verify-action API로 실제 검증
+ * - 사용법: visible/token/onSuccess/onCancel 으로 제어
  */
 import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Keyboard, Modal, Pressable, StyleSheet,
+  ActivityIndicator, Keyboard, Modal, Pressable, StyleSheet,
   Text, TextInput, View,
 } from "react-native";
+import { apiRequest } from "@/context/AuthContext";
 
 const P      = "#7C3AED";
 const DANGER = "#D96C6C";
 const GREEN  = "#1F8F86";
-const VALID_OTP = "123456";
 
 interface OtpGateModalProps {
   visible: boolean;
   title: string;
   desc?: string;
+  token: string | null;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-export function OtpGateModal({ visible, title, desc, onSuccess, onCancel }: OtpGateModalProps) {
+export function OtpGateModal({ visible, title, desc, token, onSuccess, onCancel }: OtpGateModalProps) {
   const [code,    setCode]    = useState("");
   const [error,   setError]   = useState("");
+  const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (visible) {
-      setCode(""); setError(""); setSuccess(false);
+      setCode(""); setError(""); setSuccess(false); setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [visible]);
@@ -40,23 +43,34 @@ export function OtpGateModal({ visible, title, desc, onSuccess, onCancel }: OtpG
     const digits = val.replace(/\D/g, "").slice(0, 6);
     setCode(digits);
     setError("");
-    if (digits.length === 6) verify(digits);
   }
 
-  function verify(digits: string) {
-    if (digits === VALID_OTP) {
+  async function verify() {
+    const digits = code.replace(/\D/g, "");
+    if (digits.length !== 6) { setError("6자리 코드를 입력해주세요."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const res = await apiRequest(token, "/auth/totp/verify-action", {
+        method: "POST",
+        body: JSON.stringify({ otp_code: digits }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || "OTP 코드가 올바르지 않습니다.");
+        setCode("");
+        setTimeout(() => inputRef.current?.focus(), 100);
+        return;
+      }
       setSuccess(true);
       Keyboard.dismiss();
-      setTimeout(() => { onSuccess(); }, 800);
-    } else {
-      setError("OTP 코드가 올바르지 않습니다.");
+      setTimeout(() => { onSuccess(); }, 700);
+    } catch {
+      setError("서버 연결 오류가 발생했습니다.");
       setCode("");
+    } finally {
+      setLoading(false);
     }
-  }
-
-  function handleConfirm() {
-    if (code.length < 6) { setError("6자리 코드를 입력하세요."); return; }
-    verify(code);
   }
 
   return (
@@ -80,44 +94,59 @@ export function OtpGateModal({ visible, title, desc, onSuccess, onCancel }: OtpG
             </View>
           ) : (
             <>
-              {/* OTP 입력 */}
-              <View style={s.otpWrap}>
-                <TextInput
-                  ref={inputRef}
-                  style={s.otpInput}
-                  value={code}
-                  onChangeText={handleChange}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  placeholder="● ● ● ● ● ●"
-                  placeholderTextColor="#C9C5C0"
-                  textAlign="center"
-                  letterSpacing={8}
-                />
-              </View>
+              {/* OTP 박스 */}
+              <Pressable style={s.otpWrap} onPress={() => inputRef.current?.focus()}>
+                <View style={s.otpBoxRow}>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <View key={i} style={[
+                      s.otpBox,
+                      { borderColor: code.length === i ? P : code[i] ? P : "#E5E7EB" },
+                    ]}>
+                      <Text style={s.otpBoxTxt}>{code[i] || ""}</Text>
+                    </View>
+                  ))}
+                </View>
+              </Pressable>
+
+              <TextInput
+                ref={inputRef}
+                style={s.hiddenInput}
+                value={code}
+                onChangeText={handleChange}
+                keyboardType="number-pad"
+                maxLength={6}
+                returnKeyType="done"
+                onSubmitEditing={verify}
+              />
 
               {/* 에러 */}
               {!!error && (
                 <View style={s.errorRow}>
-                  <Feather name="alert-circle" size={12} color={DANGER} />
+                  <Feather name="alert-circle" size={13} color={DANGER} />
                   <Text style={s.errorTxt}>{error}</Text>
                 </View>
               )}
 
-              {/* 힌트 (테스트) */}
+              {/* 안내 */}
               <View style={s.hintBox}>
-                <Feather name="info" size={11} color="#9A948F" />
-                <Text style={s.hintTxt}>테스트 코드: <Text style={{ fontFamily: "Inter_700Bold" }}>123456</Text></Text>
+                <Feather name="smartphone" size={12} color="#9A948F" />
+                <Text style={s.hintTxt}>Google Authenticator 앱의 6자리 코드를 입력하세요</Text>
               </View>
 
               {/* 버튼 */}
               <View style={s.btnRow}>
-                <Pressable style={s.cancelBtn} onPress={onCancel}>
+                <Pressable style={s.cancelBtn} onPress={onCancel} disabled={loading}>
                   <Text style={s.cancelTxt}>취소</Text>
                 </Pressable>
-                <Pressable style={[s.confirmBtn, code.length < 6 && { opacity: 0.45 }]} onPress={handleConfirm}>
-                  <Feather name="unlock" size={14} color="#fff" />
-                  <Text style={s.confirmTxt}>인증 확인</Text>
+                <Pressable
+                  style={[s.confirmBtn, (code.length < 6 || loading) && { opacity: 0.55 }]}
+                  onPress={verify}
+                  disabled={loading || code.length < 6}
+                >
+                  {loading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <><Feather name="unlock" size={14} color="#fff" /><Text style={s.confirmTxt}>인증 확인</Text></>
+                  }
                 </Pressable>
               </View>
             </>
@@ -130,22 +159,26 @@ export function OtpGateModal({ visible, title, desc, onSuccess, onCancel }: OtpG
 
 const s = StyleSheet.create({
   backdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 20 },
-  sheet:       { width: "100%", backgroundColor: "#fff", borderRadius: 20, padding: 24, gap: 12, maxWidth: 380 },
-  iconRow:     { alignItems: "center", marginBottom: 4 },
+  sheet:       { width: "100%", backgroundColor: "#fff", borderRadius: 20, padding: 24, gap: 14, maxWidth: 380 },
+  iconRow:     { alignItems: "center", marginBottom: 2 },
   iconCircle:  { width: 52, height: 52, borderRadius: 26, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
   title:       { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F", textAlign: "center" },
   desc:        { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center", lineHeight: 18 },
-  otpWrap:     { borderWidth: 2, borderColor: "#E9E2DD", borderRadius: 12, backgroundColor: "#F6F3F1", paddingVertical: 4 },
-  otpInput:    { fontSize: 28, fontFamily: "Inter_700Bold", color: "#1F1F1F", paddingVertical: 12, paddingHorizontal: 16 },
-  errorRow:    { flexDirection: "row", alignItems: "center", gap: 5 },
-  errorTxt:    { fontSize: 12, fontFamily: "Inter_400Regular", color: DANGER },
-  hintBox:     { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#F6F3F1", borderRadius: 8, padding: 8 },
-  hintTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  otpWrap:     { alignItems: "center" },
+  otpBoxRow:   { flexDirection: "row", gap: 8 },
+  otpBox:      { width: 42, height: 52, borderRadius: 12, borderWidth: 2, alignItems: "center", justifyContent: "center", backgroundColor: "#F9F8FF" },
+  otpBoxTxt:   { fontSize: 22, fontFamily: "Inter_700Bold", color: P },
+  hiddenInput: { position: "absolute", opacity: 0, width: 1, height: 1 },
+  errorRow:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF2F2", padding: 10, borderRadius: 10 },
+  errorTxt:    { fontSize: 12, fontFamily: "Inter_500Medium", color: DANGER, flex: 1 },
+  hintBox:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F5F3FF", borderRadius: 10, padding: 10 },
+  hintTxt:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#7C3AED", flex: 1 },
   successBox:  { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, justifyContent: "center" },
   successTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: GREEN },
-  btnRow:      { flexDirection: "row", gap: 10, marginTop: 4 },
+  btnRow:      { flexDirection: "row", gap: 10, marginTop: 2 },
   cancelBtn:   { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center" },
   cancelTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
   confirmBtn:  { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: P, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
   confirmTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  Inter_500Medium: { fontFamily: "Inter_500Medium" },
 });

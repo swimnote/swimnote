@@ -113,7 +113,7 @@ const BLANK: FormState = {
 
 export default function NoticesScreen() {
   const insets = useSafeAreaInsets();
-  const { adminUser } = useAuth();
+  const { adminUser, token } = useAuth();
   const actorName = adminUser?.name ?? "슈퍼관리자";
 
   const notices      = useNoticeStore(s => s.notices);
@@ -305,6 +305,7 @@ export default function NoticesScreen() {
 
       <OtpGateModal
         visible={otpVisible}
+        token={token}
         title={editId ? "공지 수정 OTP 인증" : "공지 등록 OTP 인증"}
         desc="공지 등록·수정은 OTP 인증 후에 적용됩니다."
         onSuccess={() => { setOtpVisible(false); handleSave(); }}

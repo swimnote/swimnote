@@ -419,6 +419,7 @@ export default function SubscriptionsScreen() {
 
       <OtpGateModal
         visible={otpVisible}
+        token={token}
         title="구독 변경 OTP 인증"
         desc="구독 상태·크레딧 변경은 OTP 인증이 필요합니다."
         onSuccess={onOtpSuccess}
