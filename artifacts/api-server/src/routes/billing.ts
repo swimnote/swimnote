@@ -633,12 +633,17 @@ router.post("/retry", requireAuth, requireRole("pool_admin", "super_admin"), asy
       poolId,
     });
 
+    const planIdStr = (plan.plan_id && plan.plan_id !== "") ? plan.plan_id : poolRow.subscription_tier;
     await recordPayment({
       poolId,
       amount: plan.price_per_month,
       status: result.success ? "success" : "failed",
       type: "retry",
       description: `${plan.name} 재결제`,
+      planId: planIdStr,
+      planName: plan.name,
+      poolName: (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0]?.name as string | undefined,
+      eventType: "retry",
     });
 
     if (!result.success) {
@@ -688,12 +693,12 @@ router.post("/store-refund", async (req, res) => {
   const { pool_id, plan_id, amount, store_transaction_id } = req.body;
   if (!pool_id) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
   try {
-    // 구독 상태를 refunded로 변경
+    // 구독 상태를 cancelled로 변경 (CHECK: active|inactive|suspended|cancelled)
     await db.execute(sql`
       UPDATE pool_subscriptions
-      SET status = 'refunded', updated_at = now()
+      SET status = 'cancelled', updated_at = now()
       WHERE swimming_pool_id = ${pool_id}
-    `);
+    `).catch(() => {}); // 구독 레코드 없어도 계속 처리
     // 수영장 읽기모드 전환
     await db.execute(sql`
       UPDATE swimming_pools
@@ -703,7 +708,7 @@ router.post("/store-refund", async (req, res) => {
       WHERE id = ${pool_id}
     `);
     // 환불 payment_logs 기록 (음수 금액)
-    const payId = `pay_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const payId  = `pay_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const refundAmt = -Math.abs(Number(amount ?? 0));
     await db.execute(sql`
       INSERT INTO payment_logs
@@ -712,6 +717,25 @@ router.post("/store-refund", async (req, res) => {
         (${payId}, ${pool_id}, ${refundAmt}, 'refunded', 'store', 'refund',
          ${`스토어 환불 처리${store_transaction_id ? ` (${store_transaction_id})` : ""}`}, NOW())
     `);
+    // revenue_logs에 환불 차감 기록 — refunded_amount 기록 & 정산 반영
+    if (Math.abs(refundAmt) > 0) {
+      const revId     = `rev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const absAmt    = Math.abs(refundAmt);
+      const storeFee  = Math.round(absAmt * 0.3);
+      const netRev    = absAmt - storeFee;
+      const [poolInfo] = (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${pool_id} LIMIT 1`)).rows as any[];
+      await db.execute(sql`
+        INSERT INTO revenue_logs
+          (id, pool_id, pool_name, plan_id, plan_name, event_type,
+           gross_amount, intro_discount_amount, charged_amount,
+           store_fee, net_revenue, refunded_amount, payment_provider, occurred_at)
+        VALUES
+          (${revId}, ${pool_id}, ${poolInfo?.name ?? null},
+           ${plan_id ?? null}, NULL, 'refund',
+           ${-absAmt}, 0, ${-absAmt},
+           ${-storeFee}, ${-netRev}, ${absAmt}, 'store', NOW())
+      `).catch(console.error);
+    }
     logEvent({
       pool_id, category: "결제",
       actor_id: "store_webhook", actor_name: "스토어",
