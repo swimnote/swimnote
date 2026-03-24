@@ -877,6 +877,7 @@ function ExtraClassModal({ token, poolId, group, groupStudents, onClose, onCreat
   const [unregNames, setUnregNames] = useState<string[]>([]);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState("");
+  const [showUnregPicker, setShowUnregPicker] = useState(false);
 
   function toggleStu(id: string) {
     setSelectedStuIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -903,6 +904,7 @@ function ExtraClassModal({ token, poolId, group, groupStudents, onClose, onCreat
   }
 
   return (
+    <>
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={em.backdrop} onPress={onClose} />
       <View style={em.sheet}>
@@ -949,13 +951,14 @@ function ExtraClassModal({ token, poolId, group, groupStudents, onClose, onCreat
           <View style={em.field}>
             <Text style={em.label}>미등록 회원 추가</Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
-              <TextInput style={[em.input, { flex: 1 }]} value={unreg} onChangeText={setUnreg} placeholder="이름 입력" placeholderTextColor={C.textMuted} onSubmitEditing={addUnreg} returnKeyType="done" />
-              <Pressable style={[em.addBtn, { backgroundColor: themeColor }]} onPress={addUnreg}>
+              <TextInput style={[em.input, { flex: 1 }]} value={unreg} onChangeText={setUnreg} placeholder="이름 직접 입력" placeholderTextColor={C.textMuted} onSubmitEditing={addUnreg} returnKeyType="done" />
+              <Pressable style={[em.addBtn, { backgroundColor: themeColor }]} onPress={() => setShowUnregPicker(true)}>
                 <Feather name="plus" size={16} color="#fff" />
               </Pressable>
             </View>
             {unregNames.map((n, i) => (
               <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <Feather name="user" size={13} color={C.textMuted} />
                 <Text style={em.stuName}>{n}</Text>
                 <Pressable onPress={() => setUnregNames(prev => prev.filter((_, j) => j !== i))}>
                   <Feather name="x" size={14} color={C.textMuted} />
@@ -974,6 +977,22 @@ function ExtraClassModal({ token, poolId, group, groupStudents, onClose, onCreat
         </ScrollView>
       </View>
     </Modal>
+    {showUnregPicker && (
+      <ExtraClassUnregPickerModal
+        token={token}
+        themeColor={themeColor}
+        alreadyAdded={unregNames}
+        onClose={() => setShowUnregPicker(false)}
+        onSelect={(names) => {
+          setUnregNames(prev => {
+            const existing = new Set(prev);
+            return [...prev, ...names.filter(n => !existing.has(n))];
+          });
+          setShowUnregPicker(false);
+        }}
+      />
+    )}
+    </>
   );
 }
 const em = StyleSheet.create({
@@ -996,6 +1015,160 @@ const em = StyleSheet.create({
   createBtn:   { paddingVertical: 14, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   createBtnText:{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
   error:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#D96C6C", textAlign: "center" },
+});
+
+// ─── 미등록회원 선택 팝업 (기타수업 등록 전용) ───────────────────────────
+function ExtraClassUnregPickerModal({ token, themeColor, alreadyAdded, onClose, onSelect }: {
+  token: string | null;
+  themeColor: string;
+  alreadyAdded: string[];
+  onClose: () => void;
+  onSelect: (names: string[]) => void;
+}) {
+  const [list, setList]         = useState<any[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [q, setQ]               = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    (async () => {
+      const r = await apiRequest(token, "/teacher/unregistered");
+      if (r.ok) setList(await r.json());
+      setLoading(false);
+    })();
+  }, []);
+
+  const alreadySet = new Set(alreadyAdded);
+  const filtered = list.filter(u =>
+    !q || u.name?.includes(q) || u.parent_phone?.includes(q)
+  );
+
+  function toggle(name: string) {
+    setSelected(prev => {
+      const n = new Set(prev);
+      n.has(name) ? n.delete(name) : n.add(name);
+      return n;
+    });
+  }
+
+  function confirm() {
+    onSelect(Array.from(selected));
+  }
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={ep.backdrop} onPress={onClose} />
+      <View style={ep.sheet}>
+        <View style={ep.handle} />
+        <View style={ep.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={ep.title}>미등록회원 선택</Text>
+            <Text style={ep.sub}>선택한 회원이 미등록 회원으로 추가됩니다</Text>
+          </View>
+          <Pressable onPress={onClose} style={{ padding: 4 }}>
+            <Feather name="x" size={20} color={C.textSecondary} />
+          </Pressable>
+        </View>
+
+        <View style={ep.searchBar}>
+          <Feather name="search" size={14} color={C.textMuted} />
+          <TextInput
+            style={ep.searchInput}
+            value={q}
+            onChangeText={setQ}
+            placeholder="이름·전화번호 검색"
+            placeholderTextColor={C.textMuted}
+          />
+          {!!q && (
+            <Pressable onPress={() => setQ("")}>
+              <Feather name="x" size={14} color={C.textMuted} />
+            </Pressable>
+          )}
+        </View>
+
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 40 }} color={themeColor} />
+        ) : (
+          <ScrollView style={ep.list} showsVerticalScrollIndicator={false}>
+            {filtered.length === 0 ? (
+              <View style={ep.empty}>
+                <Feather name="users" size={28} color={C.textMuted} />
+                <Text style={ep.emptyTxt}>미등록회원이 없습니다</Text>
+              </View>
+            ) : filtered.map(item => {
+              const isAlready = alreadySet.has(item.name);
+              const isSel     = selected.has(item.name);
+              return (
+                <Pressable
+                  key={item.id}
+                  style={[ep.row, isAlready && { opacity: 0.4 }]}
+                  onPress={() => !isAlready && toggle(item.name)}
+                  disabled={isAlready}
+                >
+                  <View style={[ep.checkbox, isSel && { backgroundColor: themeColor, borderColor: themeColor }]}>
+                    {isSel && <Feather name="check" size={12} color="#fff" />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={ep.name}>{item.name}</Text>
+                    {!!item.parent_phone && (
+                      <Text style={ep.phone}>{item.parent_phone}</Text>
+                    )}
+                    {isAlready && (
+                      <Text style={[ep.phone, { color: themeColor }]}>이미 추가됨</Text>
+                    )}
+                  </View>
+                </Pressable>
+              );
+            })}
+            <View style={{ height: 24 }} />
+          </ScrollView>
+        )}
+
+        <View style={ep.footer}>
+          {selected.size > 0 && (
+            <Text style={ep.selectedCount}>{selected.size}명 선택됨</Text>
+          )}
+          <Pressable
+            style={[ep.confirmBtn, { backgroundColor: selected.size > 0 ? themeColor : C.border }]}
+            onPress={confirm}
+            disabled={selected.size === 0}
+          >
+            <Text style={ep.confirmTxt}>
+              {selected.size > 0 ? `${selected.size}명 추가` : "선택하세요"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+const ep = StyleSheet.create({
+  backdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet:       { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
+                 borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%", paddingBottom: 0 },
+  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  header:      { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 16, paddingVertical: 10 },
+  title:       { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  sub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  searchBar:   { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
+                 marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8,
+                 backgroundColor: "#F6F3F1", borderRadius: 10 },
+  searchInput: { flex: 1, fontSize: 14, color: C.text, fontFamily: "Inter_400Regular" },
+  list:        { flexShrink: 1 },
+  row:         { flexDirection: "row", alignItems: "center", gap: 12,
+                 paddingHorizontal: 16, paddingVertical: 12,
+                 borderTopWidth: 1, borderTopColor: "#F6F3F1" },
+  checkbox:    { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: C.border,
+                 backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  name:        { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
+  phone:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  empty:       { alignItems: "center", paddingVertical: 40, gap: 8 },
+  emptyTxt:    { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
+  footer:      { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 28,
+                 borderTopWidth: 1, borderTopColor: "#F0EDE9", gap: 8 },
+  selectedCount:{ fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, textAlign: "center" },
+  confirmBtn:  { paddingVertical: 14, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  confirmTxt:  { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
 
 // ─── 메인 스크린 ─────────────────────────────────────────────────
