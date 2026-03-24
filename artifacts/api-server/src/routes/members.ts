@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { membersTable, usersTable, classMembersTable, classesTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 
@@ -57,6 +58,11 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       parent_user_id: parent_user_id || null,
       memo: memo || null,
     }).returning();
+    logPoolEvent({
+      pool_id: poolId, event_type: "member.create", entity_type: "member",
+      entity_id: id, actor_id: req.user!.userId,
+      payload: { name, phone },
+    }).catch(() => {});
     res.status(201).json({ success: true, ...member, class_id: null, class_name: null });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -88,6 +94,11 @@ router.post("/:id/withdraw", requireAuth, requireRole("super_admin", "pool_admin
 
     await db.execute(sql`DELETE FROM class_members WHERE member_id = ${req.params.id}`);
     await db.execute(sql`UPDATE members SET status = 'withdrawn', updated_at = now() WHERE id = ${req.params.id}`);
+    logPoolEvent({
+      pool_id: member.swimming_pool_id!, event_type: "member.withdraw", entity_type: "member",
+      entity_id: req.params.id, actor_id: req.user!.userId,
+      payload: { name: member.name },
+    }).catch(() => {});
     res.json({ success: true, message: `${member.name} 회원이 탈퇴 처리되었습니다.` });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

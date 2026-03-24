@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
+import { logPoolEvent } from "../lib/pool-event-logger.js";
 import {
   studentsTable, classGroupsTable, parentStudentsTable,
   parentAccountsTable, usersTable, attendanceTable,
@@ -302,6 +303,11 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
 
     const enriched = await enrichWithClasses({ ...student, class_group_name: null });
     await logChange({ tenantId: poolId!, tableName: "students", recordId: student.id, changeType: "create", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id } });
+    logPoolEvent({
+      pool_id: poolId!, event_type: "student.create", entity_type: "student",
+      entity_id: student.id, actor_id: req.user!.userId,
+      payload: { name: student.name, class_group_id: student.class_group_id },
+    }).catch(() => {});
     res.status(201).json({ success: true, ...enriched });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

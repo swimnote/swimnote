@@ -197,6 +197,11 @@ export default function SuperMoreScreen() {
           color: "teal", onPress: go("/(super)/system-status"),
         },
         {
+          icon: "database", label: "DB 이원화 모니터링",
+          sub: "슈퍼관리자 DB · 수영장 운영 DB 용량·이벤트 로그",
+          color: "violet", onPress: go("/(super)/db-status"),
+        },
+        {
           icon: "bell", label: "공지 관리",
           sub: "전체·관리자·선생님·학부모 공지 등록",
           color: "indigo", onPress: go("/(super)/notices"),

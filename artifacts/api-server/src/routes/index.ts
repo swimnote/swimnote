@@ -36,6 +36,7 @@ import superSyncRouter from "./super-sync.js";
 import superRouter from "./super.js";
 import pushSettingsRouter from "./push-settings.js";
 import classChangeLogsRouter from "./class-change-logs.js";
+import dbStatusRouter from "./db-status.js";
 
 const router: IRouter = Router();
 
@@ -78,5 +79,6 @@ router.use("/", superSyncRouter);
 router.use("/", superRouter);
 router.use("/", pushSettingsRouter);
 router.use("/class-change-logs", classChangeLogsRouter);
+router.use("/super/db-status", dbStatusRouter);
 
 export default router;

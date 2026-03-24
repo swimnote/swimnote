@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { attendanceTable, studentsTable, usersTable, parentAccountsTable, classGroupsTable, makeupSessionsTable } from "@workspace/db/schema";
 import { eq, and, gte, lte, like, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
+import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 
@@ -378,6 +379,11 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     if (status === "absent") {
       await autoCreateMakeup(poolId, student_id, date, class_group_id, id, null);
     }
+    logPoolEvent({
+      pool_id: poolId, event_type: `attendance.${status}`, entity_type: "attendance",
+      entity_id: id, actor_id: req.user!.userId,
+      payload: { student_id, student_name: s?.name, date, status },
+    }).catch(() => {});
     res.status(201).json({ success: true, data: { ...record, student_name: s?.name || null } });
   } catch (err) {
     console.error(err);
