@@ -8,9 +8,9 @@
  * F. 보안 정책
  */
 import { Feather } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useEffect, useRef, useState } from "react";
 import {
-  Modal, Pressable, ScrollView, StyleSheet,
+  ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet,
   Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -340,6 +340,18 @@ export default function SecuritySettingsScreen() {
   const [showRecoveryCodes, setShowRecoveryCodes] = useState(false);
   const [otpReenrollModal,  setOtpReenrollModal]  = useState(false);
 
+  // ── OTP 실제 등록/변경 상태 ──
+  const [totpEnabled,    setTotpEnabled]    = useState<boolean | null>(null);
+  const [otpSetupStep,   setOtpSetupStep]   = useState<"loading"|"qr"|"verify">("loading");
+  const [otpSetupQr,     setOtpSetupQr]     = useState("");
+  const [otpSetupSecret, setOtpSetupSecret] = useState("");
+  const [otpSetupCode,   setOtpSetupCode]   = useState("");
+  const [otpSetupError,  setOtpSetupError]  = useState("");
+  const [otpSetupBusy,   setOtpSetupBusy]   = useState(false);
+  const [otpSetupDone,   setOtpSetupDone]   = useState(false);
+  const [otpShowSecret,  setOtpShowSecret]  = useState(false);
+  const otpCodeRef = useRef<TextInput>(null);
+
   // ── D. 외부 서비스 ──
   const [services,        setServices]        = useState<ExtService[]>(INITIAL_SERVICES);
   const [refreshing,      setRefreshing]      = useState<string | null>(null);
@@ -352,6 +364,63 @@ export default function SecuritySettingsScreen() {
   // ── 계정 상세 모달 ──
   const [accountDetail, setAccountDetail] = useState<string | null>(null);
   const detailAcc = useMemo(() => accounts.find(a => a.id === accountDetail), [accounts, accountDetail]);
+
+  // ── OTP 실제 등록 로직 ──
+  useEffect(() => {
+    if (!token) return;
+    apiRequest(token, "/auth/totp/status")
+      .then(r => r.json())
+      .then((d: any) => setTotpEnabled(d.totp_enabled ?? false))
+      .catch(() => setTotpEnabled(false));
+  }, [token]);
+
+  function openOtpModal() {
+    setOtpSetupStep("loading");
+    setOtpSetupQr("");
+    setOtpSetupSecret("");
+    setOtpSetupCode("");
+    setOtpSetupError("");
+    setOtpSetupDone(false);
+    setOtpShowSecret(false);
+    setOtpReenrollModal(true);
+    apiRequest(token, "/auth/totp/setup", { method: "POST" })
+      .then(r => r.json())
+      .then((d: any) => {
+        if (d.qr_code) {
+          setOtpSetupQr(d.qr_code);
+          setOtpSetupSecret(d.secret || "");
+          setOtpSetupStep("qr");
+        } else {
+          setOtpSetupError("QR 코드 생성에 실패했습니다.");
+          setOtpSetupStep("qr");
+        }
+      })
+      .catch(() => {
+        setOtpSetupError("서버 오류가 발생했습니다.");
+        setOtpSetupStep("qr");
+      });
+  }
+
+  async function verifyOtpSetup() {
+    const code = otpSetupCode.replace(/\D/g, "");
+    if (code.length !== 6) { setOtpSetupError("6자리 코드를 입력해주세요."); return; }
+    setOtpSetupBusy(true);
+    setOtpSetupError("");
+    try {
+      const res = await apiRequest(token, "/auth/totp/enable", {
+        method: "POST",
+        body: JSON.stringify({ otp_code: code }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "코드가 올바르지 않습니다.");
+      setTotpEnabled(true);
+      setOtpSetupDone(true);
+    } catch (e: any) {
+      setOtpSetupError(e.message || "코드가 올바르지 않습니다. 앱의 코드를 다시 확인해주세요.");
+    } finally {
+      setOtpSetupBusy(false);
+    }
+  }
 
   function handlePwChange() {
     setPwError("");
@@ -602,12 +671,21 @@ export default function SecuritySettingsScreen() {
             ))}
           </View>
 
-          {/* OTP 재등록 */}
+          {/* OTP 연결/재등록 */}
           {(twoFAMode === "otp" || twoFAMode === "otp_sms_backup") && (
-            <Pressable style={s.actionBtn} onPress={() => setOtpReenrollModal(true)}>
-              <Feather name="refresh-cw" size={15} color="#1F8F86" />
-              <Text style={[s.actionBtnTxt, { color: "#1F8F86" }]}>OTP 재등록 (QR 갱신)</Text>
-              <Feather name="chevron-right" size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
+            <Pressable style={s.actionBtn} onPress={openOtpModal}>
+              <Feather name={totpEnabled ? "refresh-cw" : "smartphone"} size={15} color={totpEnabled ? "#1F8F86" : P} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.actionBtnTxt, { color: totpEnabled ? "#1F8F86" : P }]}>
+                  {totpEnabled ? "OTP 재등록 (QR 갱신)" : "Google OTP 연결하기"}
+                </Text>
+                {totpEnabled === false && (
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: DANGER, marginTop: 2 }}>
+                    OTP 미등록 — 지금 연결하세요
+                  </Text>
+                )}
+              </View>
+              <Feather name="chevron-right" size={14} color="#D1D5DB" />
             </Pressable>
           )}
 
@@ -978,44 +1056,132 @@ export default function SecuritySettingsScreen() {
         </Pressable>
       </Modal>
 
-      {/* ══ OTP 재등록 모달 ══ */}
-      <Modal visible={otpReenrollModal} animationType="fade" transparent statusBarTranslucent
-        onRequestClose={() => setOtpReenrollModal(false)}>
-        <Pressable style={m.backdrop} onPress={() => setOtpReenrollModal(false)}>
-          <Pressable style={m.sheet} onPress={() => {}}>
+      {/* ══ OTP 등록/재등록 모달 ══ */}
+      <Modal visible={otpReenrollModal} animationType="slide" transparent statusBarTranslucent
+        onRequestClose={() => { if (!otpSetupBusy) setOtpReenrollModal(false); }}>
+        <Pressable style={m.backdrop} onPress={() => { if (!otpSetupBusy) setOtpReenrollModal(false); }}>
+          <Pressable style={[m.sheet, { gap: 16 }]} onPress={e => e.stopPropagation()}>
             <View style={m.handle} />
-            <Text style={m.modalTitle}>OTP 재등록</Text>
-            <Text style={{ fontSize: 13, color: "#6F6B68", fontFamily: "Inter_400Regular" }}>
-              새 QR 코드를 생성하면 기존 OTP 앱과의 연결이 끊깁니다. 새 코드로 재등록 후 사용 가능합니다.
-            </Text>
-            {/* Mock QR Placeholder */}
-            <View style={{ alignItems: "center", gap: 8 }}>
-              <View style={{ width: 140, height: 140, backgroundColor: "#F6F3F1", borderRadius: 14,
-                             alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#E9E2DD" }}>
-                <Feather name="grid" size={80} color="#D1D5DB" />
+
+            {/* 완료 상태 */}
+            {otpSetupDone ? (
+              <>
+                <View style={{ alignItems: "center", gap: 12, paddingVertical: 12 }}>
+                  <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#DCFCE7", alignItems: "center", justifyContent: "center" }}>
+                    <Feather name="check-circle" size={32} color="#16A34A" />
+                  </View>
+                  <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" }}>OTP 등록 완료</Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center", lineHeight: 20 }}>
+                    Google Authenticator와 연결되었습니다.{"\n"}다음 로그인부터 OTP 코드가 필요합니다.
+                  </Text>
+                </View>
+                <Pressable style={m.confirmBtn} onPress={() => {
+                  createLog({ category: "보안", title: totpEnabled ? "OTP 재등록 완료" : "OTP 최초 등록 완료", detail: "QR 스캔 후 코드 검증 완료", actorName, impact: "high" });
+                  setOtpReenrollModal(false);
+                }}>
+                  <Text style={m.confirmTxt}>확인</Text>
+                </Pressable>
+              </>
+            ) : otpSetupStep === "loading" ? (
+              /* 로딩 */
+              <View style={{ alignItems: "center", paddingVertical: 40, gap: 12 }}>
+                <ActivityIndicator color={P} size="large" />
+                <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#6F6B68" }}>QR 코드 생성 중...</Text>
               </View>
-              <View style={{ backgroundColor: "#FBF8F6", borderRadius: 8, padding: 10, width: "100%", alignItems: "center" }}>
-                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" }}>비밀 키 (수동 입력용)</Text>
-                <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", letterSpacing: 2, marginTop: 4 }}>
-                  JBSW Y3DP EHPK 3PXP
+            ) : (
+              /* QR + 코드 입력 */
+              <>
+                <Text style={m.modalTitle}>{totpEnabled ? "OTP 재등록 (QR 갱신)" : "Google OTP 연결"}</Text>
+                <Text style={{ fontSize: 13, color: "#6F6B68", fontFamily: "Inter_400Regular", lineHeight: 19 }}>
+                  {totpEnabled
+                    ? "새 QR 코드를 생성하면 기존 OTP 앱 연결이 끊깁니다. 새 코드로 재등록 후 사용하세요."
+                    : "Google Authenticator 앱에서 QR 코드를 스캔한 후 6자리 코드를 입력해주세요."}
                 </Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF1BF", padding: 10, borderRadius: 8 }}>
-              <Feather name="alert-triangle" size={14} color={WARN} />
-              <Text style={{ flex: 1, fontSize: 12, color: "#92400E", fontFamily: "Inter_400Regular" }}>Google Authenticator 또는 Authy 앱으로 QR을 스캔하세요.</Text>
-            </View>
-            <View style={m.btnRow}>
-              <Pressable style={m.cancelBtn} onPress={() => setOtpReenrollModal(false)}>
-                <Text style={m.cancelTxt}>취소</Text>
-              </Pressable>
-              <Pressable style={m.confirmBtn} onPress={() => {
-                createLog({ category: "보안", title: "OTP 재등록 완료", detail: "QR 코드 갱신 후 OTP 재등록", actorName, impact: "high" });
-                setOtpReenrollModal(false);
-              }}>
-                <Text style={m.confirmTxt}>등록 완료</Text>
-              </Pressable>
-            </View>
+
+                {/* QR 코드 */}
+                {!!otpSetupQr ? (
+                  <View style={{ alignItems: "center", padding: 16, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#E5E7EB" }}>
+                    <Image source={{ uri: otpSetupQr }} style={{ width: 200, height: 200 }} resizeMode="contain" />
+                  </View>
+                ) : !!otpSetupError ? (
+                  <View style={{ backgroundColor: "#F9DEDA", padding: 12, borderRadius: 10 }}>
+                    <Text style={{ fontSize: 13, color: DANGER, fontFamily: "Inter_400Regular" }}>{otpSetupError}</Text>
+                  </View>
+                ) : null}
+
+                {/* 수동 입력 키 */}
+                {!!otpSetupSecret && (
+                  <Pressable
+                    style={{ borderWidth: 1.5, borderColor: "#DDD6FE", borderRadius: 12, padding: 12, gap: 6, backgroundColor: "#F5F3FF" }}
+                    onPress={() => setOtpShowSecret(v => !v)}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Feather name="key" size={13} color={P} />
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: P, flex: 1 }}>QR이 안 되면 키 직접 입력</Text>
+                      <Feather name={otpShowSecret ? "chevron-up" : "chevron-down"} size={13} color={P} />
+                    </View>
+                    {otpShowSecret && (
+                      <>
+                        <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" }}>
+                          앱 → "설정 키 입력" 선택 후 아래 키 입력 (계정 유형: 시간 기반)
+                        </Text>
+                        <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: P, letterSpacing: 2 }} selectable>
+                          {otpSetupSecret}
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                )}
+
+                {/* 안내 배너 */}
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFF7ED", padding: 10, borderRadius: 8 }}>
+                  <Feather name="alert-triangle" size={14} color={WARN} />
+                  <Text style={{ flex: 1, fontSize: 12, color: "#92400E", fontFamily: "Inter_400Regular", lineHeight: 18 }}>
+                    Google Authenticator 앱 열기 → + → QR 코드 스캔
+                  </Text>
+                </View>
+
+                {/* 6자리 코드 입력 */}
+                <View style={{ gap: 8 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" }}>스캔 후 앱의 6자리 코드 입력</Text>
+                  <TextInput
+                    ref={otpCodeRef}
+                    style={{
+                      height: 52, borderRadius: 12, borderWidth: 2,
+                      borderColor: otpSetupCode.length === 6 ? P : "#E5E7EB",
+                      paddingHorizontal: 16, fontSize: 24, fontFamily: "Inter_700Bold",
+                      letterSpacing: 8, textAlign: "center", color: P,
+                    }}
+                    placeholder="000000"
+                    placeholderTextColor="#D1D5DB"
+                    value={otpSetupCode}
+                    onChangeText={v => { setOtpSetupCode(v.replace(/\D/g, "").slice(0, 6)); setOtpSetupError(""); }}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    onSubmitEditing={verifyOtpSetup}
+                  />
+                  {!!otpSetupError && (
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: DANGER }}>{otpSetupError}</Text>
+                  )}
+                </View>
+
+                <View style={m.btnRow}>
+                  <Pressable style={m.cancelBtn} onPress={() => setOtpReenrollModal(false)}>
+                    <Text style={m.cancelTxt}>취소</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[m.confirmBtn, { backgroundColor: otpSetupCode.length === 6 ? P : "#E5E7EB" }]}
+                    onPress={verifyOtpSetup}
+                    disabled={otpSetupBusy || otpSetupCode.length !== 6}
+                  >
+                    {otpSetupBusy
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={m.confirmTxt}>등록 완료</Text>
+                    }
+                  </Pressable>
+                </View>
+              </>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
