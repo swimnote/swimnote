@@ -9,7 +9,7 @@ import {
   FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore, type OperatorFilter } from "@/store/operatorsStore";
@@ -80,6 +80,7 @@ const BULK_ACTIONS = [
 ];
 
 export default function SuperPoolsScreen() {
+  const insets = useSafeAreaInsets();
   const { adminUser } = useAuth();
   const actorName = adminUser?.name ?? '슈퍼관리자';
   const { filter: initFilter } = useLocalSearchParams<{ filter?: string }>();
@@ -339,8 +340,24 @@ export default function SuperPoolsScreen() {
         ))}
       </ScrollView>
 
-      {/* 헤더: 카운트 + 다중선택 토글 */}
-      <View style={s.listHeader}>
+      <FlatList
+        data={sorted}
+        keyExtractor={item => item.id}
+        renderItem={renderItem}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
+          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 72 }}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={s.empty}>
+            <Feather name="inbox" size={40} color="#D1D5DB" />
+            <Text style={s.emptyTxt}>해당 조건의 운영자가 없습니다</Text>
+          </View>
+        }
+      />
+
+      {/* 하단 고정 바: 카운트 + 다중선택 */}
+      <View style={[s.listFooter, { bottom: insets.bottom + 8 }]}>
         <Text style={s.listCount}>
           <Text style={{ color: filterChip.color, fontFamily: "Inter_700Bold" }}>{sorted.length}</Text>
           <Text>/{useOperatorsStore.getState().operators.length}개</Text>
@@ -366,22 +383,6 @@ export default function SuperPoolsScreen() {
           </Pressable>
         </View>
       </View>
-
-      <FlatList
-        data={sorted}
-        keyExtractor={item => item.id}
-        renderItem={renderItem}
-        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
-        contentContainerStyle={{ paddingBottom: 80 }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={s.empty}>
-            <Feather name="inbox" size={40} color="#D1D5DB" />
-            <Text style={s.emptyTxt}>해당 조건의 운영자가 없습니다</Text>
-          </View>
-        }
-      />
     </SafeAreaView>
   );
 }
@@ -405,7 +406,7 @@ const s = StyleSheet.create({
   chipsContent:      { paddingHorizontal: 16, gap: 6 },
   chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#F6F3F1", marginRight: 6 },
   chipTxt:           { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6F6B68" },
-  listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  listFooter:        { position: "absolute", left: 8, right: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#F0EDE9", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 4 },
   listCount:         { fontFamily: "Inter_400Regular", fontSize: 13, color: "#1F1F1F" },
   listHeaderRight:   { flexDirection: "row", alignItems: "center", gap: 8 },
   bulkBtn:           { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
