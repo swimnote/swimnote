@@ -83,88 +83,182 @@ function classColor(id: string) {
   return COLORS[Math.abs(h) % COLORS.length];
 }
 
-// ─── 주간 시간표 ─────────────────────────────────────────────────
-function WeeklyTimetable({ groups, onSelectClass, selectionMode, selectedIds, toggleSelect }:
-  { groups: TeacherClassGroup[]; onSelectClass: (g: TeacherClassGroup) => void;
-    selectionMode: boolean; selectedIds: Set<string>; toggleSelect: (id: string) => void }) {
+// ─── 주간 날짜 계산 유틸 ──────────────────────────────────────────
+function getMondayStr(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00Z");
+  const day = d.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().split("T")[0];
+}
+function addDaysStr(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().split("T")[0];
+}
+// 주간 열: [월,화,수,목,금,토,일] 에 해당하는 날짜 반환 (weekStart = 월요일)
+function getWeekDates(weekStart: string): { koDay: string; dateStr: string; label: string }[] {
+  return TIMETABLE_COLS.map((koDay, i) => {
+    const dateStr = addDaysStr(weekStart, i);
+    const d = new Date(dateStr + "T12:00:00Z");
+    const label = `${d.getUTCMonth()+1}/${d.getUTCDate()}`;
+    return { koDay, dateStr, label };
+  });
+}
 
-  const hours = useMemo(() => getHourRange(groups), [groups]);
+// ─── 주간 시간표 ─────────────────────────────────────────────────
+const FIXED_HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 6 ~ 21
+const WT_COL_W = 72;
+const WT_ROW_H = 52;
+const WT_TIME_W = 38;
+
+interface ChangeLogItem {
+  id: string; class_group_id: string; change_type: string;
+  display_week_start: string; effective_date: string;
+  note?: string | null; target_student_id?: string | null;
+}
+
+function WeeklyTimetable({
+  groups, onSelectClass, selectionMode, selectedIds, toggleSelect,
+  weekStart, changeLogs, onPrevWeek, onNextWeek,
+}: {
+  groups: TeacherClassGroup[];
+  onSelectClass: (g: TeacherClassGroup) => void;
+  selectionMode: boolean;
+  selectedIds: Set<string>;
+  toggleSelect: (id: string) => void;
+  weekStart: string;
+  changeLogs: ChangeLogItem[];
+  onPrevWeek: () => void;
+  onNextWeek: () => void;
+}) {
+  const today = todayDateStr();
+  const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart]);
+
+  // 변경 이력이 있는 class_group_id 집합
+  const changedClassIds = useMemo(() => new Set(changeLogs.map(l => l.class_group_id)), [changeLogs]);
+
   const cellClasses = useMemo(() => {
     const map: Record<string, TeacherClassGroup[]> = {};
-    TIMETABLE_COLS.forEach(day => {
-      hours.forEach(h => {
-        const key = `${day}-${h}`;
+    weekDates.forEach(({ koDay }) => {
+      FIXED_HOURS.forEach(h => {
+        const key = `${koDay}-${h}`;
         map[key] = groups.filter(g => {
           const days = g.schedule_days.split(",").map(d => d.trim());
-          return days.includes(day) && parseHour(g.schedule_time) === h;
+          return days.includes(koDay) && parseHour(g.schedule_time) === h;
         });
       });
     });
     return map;
-  }, [groups, hours]);
+  }, [groups, weekDates]);
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={wt.outer}>
-      <View>
-        <View style={wt.headerRow}>
-          <View style={[wt.timeCell, wt.header]} />
-          {TIMETABLE_COLS.map(day => (
-            <View key={day} style={[wt.dayHeader, { width: COL_W }]}>
-              <Text style={wt.dayHeaderText}>{day}</Text>
-            </View>
-          ))}
-        </View>
-        {hours.map(h => (
-          <View key={h} style={[wt.row, { height: ROW_H }]}>
-            <View style={wt.timeCell}><Text style={wt.timeText}>{h}:00</Text></View>
-            {TIMETABLE_COLS.map(day => {
-              const cls = cellClasses[`${day}-${h}`] ?? [];
-              return (
-                <View key={day} style={[wt.cell, { width: COL_W }]}>
-                  {cls.map(g => {
-                    const selected = selectedIds.has(g.id);
-                    const bg = classColor(g.id);
-                    return (
-                      <Pressable key={g.id}
-                        style={[wt.classCard, { backgroundColor: bg, opacity: selected ? 0.7 : 1 }]}
-                        onPress={() => selectionMode ? toggleSelect(g.id) : onSelectClass(g)}
-                        onLongPress={() => toggleSelect(g.id)}>
-                        {selectionMode && (
-                          <View style={[wt.checkBox, { borderColor: "#fff", backgroundColor: selected ? "#fff" : "transparent" }]}>
-                            {selected && <Feather name="check" size={8} color={bg} />}
-                          </View>
-                        )}
-                        <Text style={wt.cardName} numberOfLines={2}>{g.name}</Text>
-                        <Text style={wt.cardTime} numberOfLines={1}>{g.schedule_time}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              );
-            })}
-          </View>
-        ))}
+    <View style={{ flex: 1 }}>
+      {/* 주차 네비게이션 */}
+      <View style={wt.weekNav}>
+        <Pressable style={wt.weekNavBtn} onPress={onPrevWeek}>
+          <Feather name="chevron-left" size={20} color={C.text} />
+        </Pressable>
+        <Text style={wt.weekNavTitle}>
+          {(() => {
+            const s = new Date(weekStart + "T12:00:00Z");
+            const e = addDaysStr(weekStart, 6);
+            const ed = new Date(e + "T12:00:00Z");
+            return `${s.getUTCMonth()+1}월 ${s.getUTCDate()}일 ~ ${ed.getUTCMonth()+1}월 ${ed.getUTCDate()}일`;
+          })()}
+        </Text>
+        <Pressable style={wt.weekNavBtn} onPress={onNextWeek}>
+          <Feather name="chevron-right" size={20} color={C.text} />
+        </Pressable>
       </View>
-    </ScrollView>
+
+      {/* 시간표 그리드 */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={wt.outer}>
+        <ScrollView showsVerticalScrollIndicator={false} style={wt.inner}>
+          <View>
+            {/* 헤더 행: 시간 열 + 요일/날짜 열 */}
+            <View style={wt.headerRow}>
+              <View style={[wt.timeCell, wt.header]} />
+              {weekDates.map(({ koDay, dateStr, label }) => {
+                const isToday = dateStr === today;
+                return (
+                  <View key={koDay} style={[wt.dayHeader, { width: WT_COL_W }]}>
+                    <Text style={[wt.dayHeaderDate, isToday && { color: C.tint }]}>{label}</Text>
+                    <Text style={[wt.dayHeaderText, isToday && { color: C.tint, fontFamily: "Inter_700Bold" }]}>{koDay}</Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* 시간 행: 6시~21시 고정 */}
+            {FIXED_HOURS.map(h => (
+              <View key={h} style={[wt.row, { height: WT_ROW_H }]}>
+                <View style={wt.timeCell}>
+                  <Text style={wt.timeText}>{h}:00</Text>
+                </View>
+                {weekDates.map(({ koDay }) => {
+                  const cls = cellClasses[`${koDay}-${h}`] ?? [];
+                  return (
+                    <View key={koDay} style={[wt.cell, { width: WT_COL_W }]}>
+                      {cls.map(g => {
+                        const selected = selectedIds.has(g.id);
+                        const bg = classColor(g.id);
+                        const hasDot = changedClassIds.has(g.id);
+                        return (
+                          <Pressable key={g.id}
+                            style={[wt.classCard, { backgroundColor: bg, opacity: selected ? 0.7 : 1 }]}
+                            onPress={() => selectionMode ? toggleSelect(g.id) : onSelectClass(g)}
+                            onLongPress={() => toggleSelect(g.id)}>
+                            {hasDot && (
+                              <View style={wt.changeDot} />
+                            )}
+                            {selectionMode && (
+                              <View style={[wt.checkBox, { borderColor: "#fff", backgroundColor: selected ? "#fff" : "transparent" }]}>
+                                {selected && <Feather name="check" size={8} color={bg} />}
+                              </View>
+                            )}
+                            <Text style={wt.cardName} numberOfLines={2}>{g.name}</Text>
+                            <Text style={wt.cardTime} numberOfLines={1}>{g.schedule_time}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+          <View style={{ height: 120 }} />
+        </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 const wt = StyleSheet.create({
-  outer:        { flex: 1 },
-  headerRow:    { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
-  header:       { backgroundColor: "#FBF8F6" },
-  dayHeader:    { height: 36, alignItems: "center", justifyContent: "center",
-                  borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#FBF8F6" },
-  dayHeaderText:{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text },
-  row:          { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  timeCell:     { width: TIME_W, alignItems: "center", justifyContent: "flex-start",
-                  paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border },
-  timeText:     { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
-  cell:         { borderLeftWidth: 1, borderLeftColor: "#F6F3F1", padding: 2, gap: 2 },
-  classCard:    { flex: 1, borderRadius: 6, padding: 4, minHeight: 48, justifyContent: "center" },
-  cardName:     { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#fff", lineHeight: 12 },
-  cardTime:     { fontSize: 8, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)", marginTop: 2 },
-  checkBox:     { position: "absolute", top: 3, right: 3, width: 14, height: 14,
-                  borderRadius: 7, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  weekNav:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                   paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.border },
+  weekNavBtn:    { padding: 8 },
+  weekNavTitle:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
+  outer:         { flex: 1 },
+  inner:         { flex: 1 },
+  headerRow:     { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
+  header:        { backgroundColor: "#FBF8F6" },
+  dayHeader:     { height: 44, alignItems: "center", justifyContent: "center", paddingVertical: 4,
+                   borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#FBF8F6" },
+  dayHeaderDate: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, lineHeight: 14 },
+  dayHeaderText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text, lineHeight: 16 },
+  row:           { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F0EDE9" },
+  timeCell:      { width: WT_TIME_W, alignItems: "center", justifyContent: "flex-start",
+                   paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border, backgroundColor: "#FBF8F6" },
+  timeText:      { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
+  cell:          { borderLeftWidth: 1, borderLeftColor: "#EAE7E2", padding: 2, gap: 2 },
+  classCard:     { flex: 1, borderRadius: 6, padding: 4, minHeight: 44, justifyContent: "center" },
+  cardName:      { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#fff", lineHeight: 12 },
+  cardTime:      { fontSize: 8, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)", marginTop: 2 },
+  checkBox:      { position: "absolute", top: 3, right: 3, width: 14, height: 14,
+                   borderRadius: 7, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  changeDot:     { position: "absolute", top: 4, right: 4, width: 7, height: 7,
+                   borderRadius: 4, backgroundColor: "#FCD34D", borderWidth: 1, borderColor: "#D97706", zIndex: 10 },
 });
 
 // ─── 월간 달력 ───────────────────────────────────────────────────
@@ -733,13 +827,20 @@ const dy = StyleSheet.create({
 });
 
 // ─── 반 상세 시트 (주간 뷰 클릭용) ─────────────────────────────
-function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClose, onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass }:
+function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClose, onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass, weekChangeLogs }:
   { group: TeacherClassGroup; students: StudentItem[]; attMap: Record<string,number>;
     diarySet: Set<string>; themeColor: string; onClose: () => void;
     onOpenUnreg?: () => void; onOpenRemove?: () => void;
     onDeleteClass?: () => void;
+    weekChangeLogs?: ChangeLogItem[];
     /** 페이지 이동이 필요할 때 부모가 모달 정리 후 navigate 실행 */
     onNavigateTo?: (navigate: () => void) => void; }) {
+
+  // 현재 반의 변경 이력 (이번 주)
+  const myLogs = useMemo(() =>
+    (weekChangeLogs || []).filter(l => l.class_group_id === group.id),
+    [weekChangeLogs, group.id]
+  );
 
   const groupStudents = students.filter(st =>
     (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
@@ -824,6 +925,26 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
               </Pressable>
             );
           })}
+          {/* ── 변경 메모 (이번 주 변경 이력이 있을 때만 표시) ── */}
+          {myLogs.length > 0 && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#D97706", marginBottom: 4 }}>
+                변경 이력
+              </Text>
+              {myLogs.map(log => {
+                const d = new Date(log.effective_date + "T12:00:00Z");
+                const dateLabel = `${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`;
+                return (
+                  <View key={log.id} style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginBottom: 4 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#FCD34D", marginTop: 5, borderWidth: 1, borderColor: "#D97706" }} />
+                    <Text style={{ flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 }}>
+                      {dateLabel}: {log.note || log.change_type}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
           <View style={{ height: 20 }} />
         </ScrollView>
         </Pressable>{/* /sheet */}
@@ -912,6 +1033,10 @@ export default function MyScheduleScreen() {
   // 일간 뷰 서브 선택 그룹
   const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(null);
 
+  // 주간 뷰: 현재 표시 주차 (월요일 날짜) + 변경 이력
+  const [weeklyViewStart, setWeeklyViewStart] = useState<string>(() => getMondayStr(todayDateStr()));
+  const [weekChangeLogs, setWeekChangeLogs] = useState<ChangeLogItem[]>([]); 
+
   // 최초 마운트 여부 (useFocusEffect skip)
   const isMountedRef = useRef(false);
 
@@ -975,6 +1100,15 @@ export default function MyScheduleScreen() {
       handleDatePress(params.openDate);
     }
   }, [loading, params.openDate]);
+
+  // ── 주간 변경 이력 fetch ──
+  useEffect(() => {
+    if (!token || viewMode !== "weekly") return;
+    apiRequest(token, `/class-change-logs?week_start=${weeklyViewStart}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.logs) setWeekChangeLogs(d.logs); })
+      .catch(() => {});
+  }, [token, weeklyViewStart, viewMode]);
 
   // ── 날짜별 출결/일지 로드 ──
   async function loadDayData(dateStr: string) {
@@ -1311,19 +1445,26 @@ export default function MyScheduleScreen() {
 
       {/* ── 주간 뷰 ── */}
       {viewMode === "weekly" && (
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+        <View style={{ flex: 1 }}>
           {groups.length === 0 ? (
             <View style={s.emptyBox}>
               <Feather name="calendar" size={40} color={C.textMuted} />
               <Text style={s.emptyText}>등록된 반이 없습니다</Text>
             </View>
           ) : (
-            <WeeklyTimetable groups={groups} onSelectClass={g => setDetailGroup(g)}
-              selectionMode={selectionMode} selectedIds={selectedIds} toggleSelect={toggleSelect} />
+            <WeeklyTimetable
+              groups={groups}
+              onSelectClass={g => setDetailGroup(g)}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              toggleSelect={toggleSelect}
+              weekStart={weeklyViewStart}
+              changeLogs={weekChangeLogs}
+              onPrevWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, -7))}
+              onNextWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, 7))}
+            />
           )}
-          <View style={{ height: 120 }} />
-        </ScrollView>
+        </View>
       )}
 
       {/* ── 일간 뷰 (반 목록) ── */}
@@ -1377,6 +1518,7 @@ export default function MyScheduleScreen() {
           onOpenRemove={() => { setDetailGroup(null); setRemoveClassGroup(detailGroup); }}
           onDeleteClass={() => { const g = detailGroup; setDetailGroup(null); setTimeout(() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }, 200); }}
           onNavigateTo={navigateFromSheet}
+          weekChangeLogs={viewMode === "weekly" ? weekChangeLogs : undefined}
         />
       )}
 

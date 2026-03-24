@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import {
   studentsTable, classGroupsTable, parentStudentsTable,
   parentAccountsTable, usersTable, attendanceTable,
+  classChangeLogsTable,
 } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -372,14 +373,32 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// 날짜 유틸
+function _toDateStr(d: Date): string { return d.toISOString().split("T")[0]; }
+function _getMondayOf(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00Z");
+  const day = d.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return _toDateStr(d);
+}
+function _addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return _toDateStr(d);
+}
+
 // ── POST /:id/remove-from-class — 특정 반에서 제거 (선생님 전용) ────
-// new_status: 'pending'|'suspended'|'withdrawn' 전달 시 상태변경 + 전체 반 해제
-// effective_mode: 'immediate'(기본) | 'next_month' — next_month 시 pending 예약만 저장, 클래스 변경 없음
+// effective_timing: "now"(기본) | "next_week" | "week_after"
+//   now → 즉시 제거 + change_log(is_applied=true)
+//   next_week/week_after → change_log 예약만(is_applied=false), 실제 제거는 effective_date에 자동 적용
+// new_status / effective_mode: 기존 호환용 (레거시)
 router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { class_group_id, new_status, effective_mode } = req.body as {
+  const { class_group_id, new_status, effective_mode, effective_timing } = req.body as {
     class_group_id: string;
     new_status?: string;
     effective_mode?: "immediate" | "next_month";
+    effective_timing?: "now" | "next_week" | "week_after";
   };
   if (!class_group_id) return err(res, 400, "class_group_id 필요");
 
@@ -466,7 +485,40 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       return res.json({ success: true, new_status, remaining_classes: 0 });
     }
 
-    // 기존 동작: 특정 반만 제거
+    // ── 제외 시점 계산 ───────────────────────────────────────────
+    const today = _toDateStr(new Date());
+    const thisMonday = _getMondayOf(today);
+    let effectiveDate = today;
+    if (effective_timing === "next_week") effectiveDate = _addDays(thisMonday, 7);
+    else if (effective_timing === "week_after") effectiveDate = _addDays(thisMonday, 14);
+    const displayWeekStart = _getMondayOf(effectiveDate);
+
+    // 반 이름 조회
+    const [cgRow] = await db.select({ name: classGroupsTable.name })
+      .from(classGroupsTable).where(eq(classGroupsTable.id, class_group_id)).limit(1);
+    const cgName = cgRow?.name || "";
+
+    // 제외 시점이 미래인 경우 → pending log만 생성, DB 반 배정 변경 없음
+    if (effective_timing === "next_week" || effective_timing === "week_after") {
+      const logId = `ccl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const studentName = (existing as any).name || "회원";
+      await db.insert(classChangeLogsTable).values({
+        id: logId,
+        pool_id: poolId || "",
+        class_group_id,
+        target_student_id: req.params.id,
+        change_type: "remove_from_class",
+        effective_date: effectiveDate,
+        display_week_start: displayWeekStart,
+        note: `${studentName} 반 제외 예정 → 미배정 이동 (${effective_timing === "next_week" ? "다음 주부터" : "다다음 주부터"})`,
+        created_by: req.user!.userId,
+        is_applied: false,
+        created_at: new Date(),
+      });
+      return res.json({ success: true, scheduled: true, effective_date: effectiveDate, display_week_start: displayWeekStart });
+    }
+
+    // 즉시 제거: 특정 반만 제거
     const newIds = currentIds.filter((id: string) => id !== class_group_id);
     const newPrimaryId = newIds[0] || null;
 
@@ -492,6 +544,25 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       schedule_labels: labels || null,
       updated_at: new Date(),
     }).where(eq(studentsTable.id, req.params.id));
+
+    // change_log 생성 (즉시 적용)
+    try {
+      const logId = `ccl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const studentName = (existing as any).name || "회원";
+      await db.insert(classChangeLogsTable).values({
+        id: logId,
+        pool_id: poolId || "",
+        class_group_id,
+        target_student_id: req.params.id,
+        change_type: "remove_from_class",
+        effective_date: today,
+        display_week_start: thisMonday,
+        note: `${studentName} 반 제외 → 미배정 이동 (${cgName})`,
+        created_by: req.user!.userId,
+        is_applied: true,
+        created_at: new Date(),
+      });
+    } catch (logErr) { console.error("[change_log] write error:", logErr); }
 
     return res.json({ success: true, remaining_classes: newIds.length });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }

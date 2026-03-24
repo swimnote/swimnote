@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { classGroupsTable, studentsTable, attendanceTable, usersTable } from "@workspace/db/schema";
+import { classGroupsTable, studentsTable, attendanceTable, usersTable, classChangeLogsTable } from "@workspace/db/schema";
 import { eq, and, sql, ne } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logChange } from "../utils/change-logger.js";
@@ -294,6 +294,33 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "tea
 
     console.log(`[deleteClass] class soft deleted: ${cgId}`);
     if (poolId) await logChange({ tenantId: poolId, tableName: "class_groups", recordId: cgId, changeType: "delete", payload: { pool_id: poolId } });
+
+    // change_log 기록 — 삭제 적용 주차에 점 표시용
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const d = new Date(today + "T12:00:00Z");
+      const day = d.getUTCDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      d.setUTCDate(d.getUTCDate() + diff);
+      const displayWeekStart = d.toISOString().split("T")[0];
+      const [cgInfo] = await db.select({ name: classGroupsTable.name })
+        .from(classGroupsTable).where(eq(classGroupsTable.id, cgId)).limit(1);
+      const logId = `ccl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await db.insert(classChangeLogsTable).values({
+        id: logId,
+        pool_id: poolId || "",
+        class_group_id: cgId,
+        target_student_id: null,
+        change_type: "delete_class",
+        effective_date: today,
+        display_week_start: displayWeekStart,
+        note: `반 삭제 (${(cgInfo as any)?.name || cgId}) — 소속 회원 미배정 이동`,
+        created_by: req.user!.userId,
+        is_applied: true,
+        created_at: new Date(),
+      });
+    } catch (logErr) { console.error("[change_log] delete_class error:", logErr); }
+
     res.json({ success: true });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

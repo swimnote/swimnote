@@ -35,6 +35,7 @@ import unregisteredRouter from "./unregistered.js";
 import superSyncRouter from "./super-sync.js";
 import superRouter from "./super.js";
 import pushSettingsRouter from "./push-settings.js";
+import classChangeLogsRouter from "./class-change-logs.js";
 
 const router: IRouter = Router();
 
@@ -76,5 +77,6 @@ router.use("/", unregisteredRouter);
 router.use("/", superSyncRouter);
 router.use("/", superRouter);
 router.use("/", pushSettingsRouter);
+router.use("/class-change-logs", classChangeLogsRouter);
 
 export default router;

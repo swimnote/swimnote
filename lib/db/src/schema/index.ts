@@ -13,3 +13,4 @@ export * from "./teacher-schedule-notes";
 export * from "./class-diaries";
 export * from "./makeup-sessions";
 export * from "./backups";
+export * from "./class-change-logs";

@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { UnifiedMemberCard } from "@/components/common/MemberCard";
-import { ConfirmModal } from "@/components/common/ConfirmModal";
 import type { StudentMember } from "@/utils/studentUtils";
 const C = Colors.light;
 
@@ -90,8 +89,8 @@ export default function ClassAssignScreen() {
 
   // 주횟수 선택 팝업
   const [weeklyPicker, setWeeklyPicker] = useState<Student | null>(null);
-  // 반 제외 확인 팝업
-  const [confirmRemoveTarget, setConfirmRemoveTarget] = useState<Student | null>(null);
+  // 제외 시점 선택 팝업
+  const [timingTarget, setTimingTarget] = useState<Student | null>(null);
   // 변경 여부 (배정완료 버튼 강조용)
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -187,13 +186,13 @@ export default function ClassAssignScreen() {
   }
 
   // 반 제외-미배정 이동 처리 (단순 반 해제, 학생 status 변경 없음)
-  async function doRemove(student: Student) {
+  async function doRemove(student: Student, timing: "now" | "next_week" | "week_after" = "now") {
     if (!classId) return;
     setSaving(student.id);
     try {
       const res = await apiRequest(token, `/students/${student.id}/remove-from-class`, {
         method: "POST",
-        body: JSON.stringify({ class_group_id: classId }),
+        body: JSON.stringify({ class_group_id: classId, effective_timing: timing }),
       });
       if (!res.ok) return;
       // 즉시 UI 반영: assigned 목록에서 제거, allStudents에서 해당 반 ID 제거
@@ -305,7 +304,7 @@ export default function ClassAssignScreen() {
                     color: C.error,
                     bg: "#F9DEDA",
                     loading: saving === item.id,
-                    onPress: () => setConfirmRemoveTarget(item),
+                    onPress: () => setTimingTarget(item),
                   },
                 ]}
               />
@@ -386,21 +385,18 @@ export default function ClassAssignScreen() {
         />
       )}
 
-      {/* ── 반 제외 확인 팝업 ── */}
-      <ConfirmModal
-        visible={!!confirmRemoveTarget}
-        title="반 제외"
-        message={`이 회원을 현재 반에서 제외하고 미배정 상태로 이동하시겠습니까?\n기존 수업 기록은 유지됩니다.`}
-        confirmText="이동"
-        cancelText="취소"
-        destructive
-        onConfirm={() => {
-          const target = confirmRemoveTarget!;
-          setConfirmRemoveTarget(null);
-          doRemove(target);
-        }}
-        onCancel={() => setConfirmRemoveTarget(null)}
-      />
+      {/* ── 반 제외 시점 선택 팝업 ── */}
+      {timingTarget && (
+        <RemoveTimingModal
+          studentName={timingTarget.name}
+          onSelect={(timing) => {
+            const target = timingTarget;
+            setTimingTarget(null);
+            doRemove(target, timing);
+          }}
+          onCancel={() => setTimingTarget(null)}
+        />
+      )}
     </View>
   );
 }
@@ -430,6 +426,51 @@ function WeeklyPickerModal({
     </Modal>
   );
 }
+
+// ── 반 제외 시점 선택 모달 ───────────────────────────────────────
+function RemoveTimingModal({
+  studentName, onSelect, onCancel,
+}: { studentName: string; onSelect: (t: "now" | "next_week" | "week_after") => void; onCancel: () => void }) {
+  const opts: { key: "now" | "next_week" | "week_after"; label: string; sub: string }[] = [
+    { key: "now",        label: "오늘부터",    sub: "지금 즉시 반 배정 해제" },
+    { key: "next_week",  label: "다음 주부터",  sub: "이번 주까지는 기존 반 유지" },
+    { key: "week_after", label: "다다음 주부터", sub: "이번 주/다음 주까지 기존 반 유지" },
+  ];
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
+      <Pressable style={rt.backdrop} onPress={onCancel} />
+      <View style={rt.card}>
+        <Text style={rt.title}>반 제외 시점 선택</Text>
+        <Text style={rt.sub}>{studentName} 회원을 이 반에서 제외합니다</Text>
+        <View style={rt.optList}>
+          {opts.map(o => (
+            <Pressable key={o.key} style={rt.optBtn} onPress={() => onSelect(o.key)}>
+              <Text style={rt.optLabel}>{o.label}</Text>
+              <Text style={rt.optSub}>{o.sub}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Pressable style={rt.cancelBtn} onPress={onCancel}>
+          <Text style={rt.cancelTxt}>취소</Text>
+        </Pressable>
+      </View>
+    </Modal>
+  );
+}
+const C_rt = Colors.light;
+const rt = StyleSheet.create({
+  backdrop:  { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  card:      { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: C_rt.card,
+               borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, gap: 8 },
+  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: C_rt.text, textAlign: "center" },
+  sub:       { fontSize: 13, fontFamily: "Inter_400Regular", color: C_rt.textMuted, textAlign: "center", marginBottom: 8 },
+  optList:   { gap: 8 },
+  optBtn:    { backgroundColor: "#FFF1F2", borderRadius: 12, padding: 14, gap: 3 },
+  optLabel:  { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C_rt.error },
+  optSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C_rt.textMuted },
+  cancelBtn: { marginTop: 4, paddingVertical: 14, alignItems: "center" },
+  cancelTxt: { fontSize: 15, fontFamily: "Inter_500Medium", color: C_rt.textMuted },
+});
 
 // ── 학생 카드 ────────────────────────────────────────────────────
 function StudentRow({
