@@ -12,10 +12,27 @@ if (!connectionString) {
   );
 }
 
-export const pool = new Pool({
-  connectionString,
-  ssl: process.env.SUPABASE_DATABASE_URL ? { rejectUnauthorized: false } : undefined,
-});
+function parsePoolConfig(connStr: string) {
+  try {
+    const u = new URL(connStr);
+    return {
+      host: u.hostname,
+      port: parseInt(u.port || "5432", 10),
+      user: decodeURIComponent(u.username),
+      password: decodeURIComponent(u.password),
+      database: u.pathname.replace(/^\//, ""),
+      ssl: { rejectUnauthorized: false },
+    };
+  } catch {
+    return { connectionString: connStr, ssl: { rejectUnauthorized: false } };
+  }
+}
+
+const poolConfig = process.env.SUPABASE_DATABASE_URL
+  ? parsePoolConfig(process.env.SUPABASE_DATABASE_URL)
+  : { connectionString: process.env.DATABASE_URL! };
+
+export const pool = new Pool(poolConfig);
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";
