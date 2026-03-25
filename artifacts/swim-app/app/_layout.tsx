@@ -148,6 +148,18 @@ function RootNav() {
     async function doRoute() {
       if (kind === "admin") {
         const role = adminUser?.role;
+
+        // 슈퍼관리자 계열은 activeRole 무시하고 즉시 해당 홈으로 라우팅
+        if (role === "super_admin" || role === "platform_admin" || role === "super_manager") {
+          const homePath = ROLE_HOME_MAP[role];
+          if (homePath) {
+            didRoute.current = true;
+            await setActiveRole(role);
+            router.replace(homePath as any);
+            return;
+          }
+        }
+
         if (role === "pool_admin") {
           if (!adminUser?.swimming_pool_id) {
             didRoute.current = true;

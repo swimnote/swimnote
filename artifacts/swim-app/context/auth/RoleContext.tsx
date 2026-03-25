@@ -81,7 +81,9 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     if (!res.ok) throw new Error(data.message || "역할 전환에 실패했습니다.");
 
     const newToken: string = data.token;
-    const updatedUser: AdminUser = { ...adminUser, role: role as AdminUser["role"] };
+    // API가 반환한 roles 배열 사용 (없으면 기존 adminUser.roles 유지)
+    const updatedRoles: string[] = data.roles?.length ? data.roles : adminUser.roles;
+    const updatedUser: AdminUser = { ...adminUser, role: role as AdminUser["role"], roles: updatedRoles };
 
     await applyRoleSwitch(newToken, updatedUser);
     await setActiveRole(role);

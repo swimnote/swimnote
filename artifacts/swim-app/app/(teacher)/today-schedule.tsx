@@ -62,15 +62,15 @@ export default function TodayScheduleScreen() {
   const [chipStudents,       setChipStudents]       = useState<StudentItem[]>([]);
   const [loadingChipStudents,setLoadingChipStudents]= useState(false);
 
-  const adminRoleKey = adminUser?.roles?.find(r => r === "pool_admin");
-  const canSwitchToAdmin = !!adminRoleKey;
+  // pool_admin과 연결된 선생님 계정에만 관리자 전환 버튼 표시
+  const canSwitchToAdmin = !!(adminUser?.roles?.includes("pool_admin"));
 
   async function handleSwitchToAdmin() {
-    if (switching || !adminRoleKey) return;
+    if (switching || !canSwitchToAdmin) return;
     setSwitching(true);
     try {
-      await switchRole(adminRoleKey);
-      await setLastUsedRole(adminRoleKey);
+      await switchRole("pool_admin");
+      await setLastUsedRole("pool_admin");
       router.replace("/(admin)/dashboard" as any);
     } catch (e) { console.error(e); }
     finally { setSwitching(false); }
@@ -171,7 +171,7 @@ export default function TodayScheduleScreen() {
               </Pressable>
             )}
           </View>
-          <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"} · 선생님</Text>
+          <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
         </View>
         <Pressable onPress={logout} style={h.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Feather name="log-out" size={18} color="#6F6B68" />

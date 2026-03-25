@@ -164,7 +164,8 @@ export default function DashboardScreen() {
     }))
   , []);
 
-  const canSwitchToTeacher = true;
+  // pool_admin이면 항상 선생님 모드 전환 가능 (자동 생성 구조 — 신규·기존 계정 모두 지원)
+  const canSwitchToTeacher = adminUser?.role === "pool_admin" || !!(adminUser?.roles?.includes("teacher"));
 
   async function handleSwitchToTeacher() {
     if (switching) return;
@@ -272,7 +273,7 @@ export default function DashboardScreen() {
             )}
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-            <Text style={s.greet}>안녕하세요, {adminUser?.name}님</Text>
+            <Text style={s.greet}>{pool?.name ? `${pool.name} 관리자` : (adminUser?.name ?? "관리자")}</Text>
             {sub && (
               <View style={[s.subBadge, { backgroundColor: sub.bg }]}>
                 <Text style={[s.subBadgeTxt, { color: sub.color }]}>{sub.label}</Text>

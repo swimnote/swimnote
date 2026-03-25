@@ -97,13 +97,19 @@ router.post("/register", async (req, res) => {
 
     const password_hash = await hashPassword(password);
     const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const isPoolAdmin = role === "pool_admin";
     const [user] = await superAdminDb.insert(usersTable).values({
       id, email: email.trim().toLowerCase(), password_hash, name,
-      phone: phone || null, role: role === "pool_admin" ? "pool_admin" : "parent",
+      phone: phone || null, role: isPoolAdmin ? "pool_admin" : "parent",
     }).returning();
+    // pool_admin 가입 시 teacher 역할 자동 부여 (roles 배열 즉시 설정)
+    if (isPoolAdmin) {
+      await superAdminDb.execute(sql.raw(`UPDATE users SET roles = '{"pool_admin","teacher"}'::TEXT[] WHERE id = '${id}'`));
+    }
+    const roles: string[] = isPoolAdmin ? ["pool_admin", "teacher"] : [user.role];
     const token = signToken({ userId: user.id, role: user.role, poolId: null });
     const { password_hash: _, ...safeUser } = user;
-    res.status(201).json({ success: true, token, user: safeUser });
+    res.status(201).json({ success: true, token, user: { ...safeUser, roles } });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
@@ -486,7 +492,7 @@ router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
 
     if (!userRoles.includes(role)) return err(res, 403, "해당 역할에 대한 권한이 없습니다.");
     const newToken = signToken({ userId: req.user!.userId, role, poolId: row.swimming_pool_id });
-    res.json({ success: true, token: newToken, role });
+    res.json({ success: true, token: newToken, role, roles: userRoles });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
