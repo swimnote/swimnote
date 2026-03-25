@@ -18,3 +18,9 @@ id = "3M1ws9xKr7wrZbJRYTyrG"
 uri = "file://.local/audit_report.md"
 type = "text"
 title = "수영장 관리 플랫폼 — 최종 감사 보고서"
+
+[[outputs]]
+id = "65T9wq-CGN3bxgd3qK894"
+uri = "file://.local/report_teacher_fix.md"
+type = "text"
+title = "선생님모드 수정 보고서"
