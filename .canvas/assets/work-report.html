@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>작업 보고서</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background: #F5F4F2;
+    color: #1A1714;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 640px;
+    margin: 0 auto;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1A1714;
+  }
+  .date {
+    font-size: 12px;
+    color: #9C9790;
+  }
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #1F8F86;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .copy-btn:hover { background: #177A72; }
+  .copy-btn.copied { background: #5AAD6F; }
+  .section {
+    margin-bottom: 20px;
+  }
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1F8F86;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1.5px solid #E8E4E0;
+  }
+  .item {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: flex-start;
+  }
+  .bullet {
+    width: 6px;
+    height: 6px;
+    background: #1F8F86;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+  .item-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #3A3530;
+  }
+  .item-text strong {
+    color: #1A1714;
+    font-weight: 600;
+  }
+  .sub-item {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+    margin-left: 14px;
+    align-items: flex-start;
+  }
+  .sub-bullet {
+    width: 4px;
+    height: 4px;
+    background: #C0BAB4;
+    border-radius: 50%;
+    margin-top: 8px;
+    flex-shrink: 0;
+  }
+  .sub-text {
+    font-size: 12px;
+    color: #6B6560;
+    line-height: 1.6;
+  }
+  .tag {
+    display: inline-block;
+    background: #EDF7F6;
+    color: #1F8F86;
+    border-radius: 6px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 4px;
+  }
+  .tag.red { background: #FDEAEA; color: #D96C6C; }
+  .tag.gray { background: #F2EDE9; color: #6B6560; }
+  .divider { border: none; border-top: 1px solid #F0EDE9; margin: 16px 0; }
+  .footer {
+    font-size: 11px;
+    color: #C0BAB4;
+    text-align: center;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div>
+      <div class="title">작업 보고서 · 수영장 관리 플랫폼</div>
+      <div class="date">2026년 3월 25일</div>
+    </div>
+    <button class="copy-btn" onclick="copyReport(this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      복사
+    </button>
+  </div>
+
+  <div class="section">
+    <div class="section-title">1. 선생님 daily view — 학생 행 UI 개선</div>
+    <div class="item">
+      <div class="bullet"></div>
+      <div class="item-text">
+        <strong>기존:</strong> 학생 행 전체를 탭하면 학생 상세로 이동하는 단일 Pressable 구조
+      </div>
+    </div>
+    <div class="item">
+      <div class="bullet"></div>
+      <div class="item-text">
+        <strong>변경:</strong> 이름 + 주횟수 표시 + 개별 버튼 3개 + 우측 화살표로 분리
+      </div>
+    </div>
+    <div class="sub-item">
+      <div class="sub-bullet"></div>
+      <div class="sub-text"><span class="tag">출석</span> 버튼 → 해당 반 출결 화면으로 이동</div>
+    </div>
+    <div class="sub-item">
+      <div class="sub-bullet"></div>
+      <div class="sub-text"><span class="tag red">결석</span> 버튼 → 해당 반 출결 화면으로 이동</div>
+    </div>
+    <div class="sub-item">
+      <div class="sub-bullet"></div>
+      <div class="sub-text"><span class="tag gray">반이동</span> 버튼 → 학생 상세 화면으로 이동</div>
+    </div>
+    <div class="sub-item">
+      <div class="sub-bullet"></div>
+      <div class="sub-text">→ 화살표 → 학생 상세 화면으로 이동</div>
+    </div>
+    <div class="item">
+      <div class="bullet"></div>
+      <div class="item-text">
+        메인 StyleSheet에 <strong>stBtn</strong> / <strong>stBtnTxt</strong> 스타일 추가 (daily view 전용)
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <div class="section-title">2. 디버그 배너 전체 제거</div>
+    <div class="item">
+      <div class="bullet"></div>
+      <div class="item-text">
+        <strong>my-schedule.tsx</strong> — <code>DEBUG_TEACHER_SCHEDULE_0325_V1</code> 빨간 배너 제거
+      </div>
+    </div>
+    <div class="item">
+      <div class="bullet"></div>
+      <div class="item-text">
+        <strong>attendance.tsx (선생님)</strong> — <code>DEBUG_TEACHER_ATTENDANCE_0325_V1</code> 배너 2곳 + <code>[TEST_ATT_v3]</code> 자막 제거
+      </div>
+    </div>
+    <div class="item">
+      <div class="bullet"></div>
+      <div class="item-text">
+        <strong>attendance.tsx (관리자)</strong> — <code>DEBUG_ADMIN_ATTENDANCE_0325_V1</code> 배너 4곳 제거
+      </div>
+    </div>
+    <div class="item">
+      <div class="bullet"></div>
+      <div class="item-text">
+        <strong>class-assign.tsx</strong> — <code>DEBUG_CLASS_ASSIGN_0325_V1</code> 배너 제거
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <div class="section-title">3. 빌드 상태</div>
+    <div class="item">
+      <div class="bullet"></div>
+      <div class="item-text">Expo Metro 번들링 정상 완료 (22초, 1,752 모듈)</div>
+    </div>
+    <div class="item">
+      <div class="bullet"></div>
+      <div class="item-text">TypeScript 컴파일 오류 없음</div>
+    </div>
+    <div class="item">
+      <div class="bullet"></div>
+      <div class="item-text">API 서버 정상 가동 (billing 크론 오류는 기존 이슈, 이번 변경과 무관)</div>
+    </div>
+  </div>
+
+  <div class="footer">수영장 관리 플랫폼 · swim-app / api-server</div>
+</div>
+
+<script>
+const REPORT_TEXT = `작업 보고서 · 수영장 관리 플랫폼 (2026년 3월 25일)
+
+━━━━━━━━━━━━━━━━━━━━
+1. 선생님 daily view — 학생 행 UI 개선
+━━━━━━━━━━━━━━━━━━━━
+• 기존: 학생 행 전체를 탭하면 학생 상세로 이동하는 단일 Pressable 구조
+• 변경: 이름 + 주횟수 표시 + 개별 버튼 3개 + 우측 화살표로 분리
+  - [출석] 버튼 → 해당 반 출결 화면으로 이동
+  - [결석] 버튼 → 해당 반 출결 화면으로 이동
+  - [반이동] 버튼 → 학생 상세 화면으로 이동
+  - → 화살표 → 학생 상세 화면으로 이동
+• 메인 StyleSheet에 stBtn / stBtnTxt 스타일 추가 (daily view 전용)
+
+━━━━━━━━━━━━━━━━━━━━
+2. 디버그 배너 전체 제거
+━━━━━━━━━━━━━━━━━━━━
+• my-schedule.tsx — DEBUG_TEACHER_SCHEDULE_0325_V1 빨간 배너 제거
+• attendance.tsx (선생님) — DEBUG_TEACHER_ATTENDANCE_0325_V1 배너 2곳 + [TEST_ATT_v3] 자막 제거
+• attendance.tsx (관리자) — DEBUG_ADMIN_ATTENDANCE_0325_V1 배너 4곳 제거
+• class-assign.tsx — DEBUG_CLASS_ASSIGN_0325_V1 배너 제거
+
+━━━━━━━━━━━━━━━━━━━━
+3. 빌드 상태
+━━━━━━━━━━━━━━━━━━━━
+• Expo Metro 번들링 정상 완료 (22초, 1,752 모듈)
+• TypeScript 컴파일 오류 없음
+• API 서버 정상 가동 (billing 크론 오류는 기존 이슈, 이번 변경과 무관)`;
+
+function copyReport(btn) {
+  navigator.clipboard.writeText(REPORT_TEXT).then(() => {
+    btn.textContent = '✓ 복사됨';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 복사';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+</script>
+</body>
+</html>
