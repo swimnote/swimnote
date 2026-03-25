@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { callPhone, formatPhone, isValidPhone, CALL_COLOR } from "@/utils/phoneUtils";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -193,7 +194,19 @@ export default function PeopleTeachersScreen() {
                         </View>
                       )}
                     </View>
-                    {!!item.phone && <Text style={s.sub}>{item.phone}</Text>}
+                    {!!item.phone && (
+                      <Pressable
+                        style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}
+                        onPress={(e) => { e.stopPropagation?.(); callPhone(item.phone); }}
+                        disabled={!isValidPhone(item.phone)}
+                        hitSlop={6}
+                      >
+                        <Feather name="phone" size={11} color={isValidPhone(item.phone) ? CALL_COLOR : C.textMuted} />
+                        <Text style={[s.sub, isValidPhone(item.phone) ? { color: CALL_COLOR } : {}]}>
+                          {formatPhone(item.phone)}
+                        </Text>
+                      </Pressable>
+                    )}
                     {!!item.email && <Text style={s.sub2}>{item.email}</Text>}
                     <View style={s.statsRow}>
                       <StatChip label={`담당반 ${item.class_count ?? 0}`} />

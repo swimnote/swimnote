@@ -4,6 +4,7 @@ import {
   Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { callPhone, formatPhone, isValidPhone, CALL_COLOR } from "@/utils/phoneUtils";
 import type { ParentJoinRequest, JoinStatus, MatchStatus } from "@/store/parentJoinStore";
 
 const C = Colors.light;
@@ -28,6 +29,26 @@ function PDRow({ label, value }: { label: string; value: string }) {
       <Text style={pd.infoLabel}>{label}</Text>
       <Text style={pd.infoValue}>{value}</Text>
     </View>
+  );
+}
+
+function PDPhoneRow({ label, phone }: { label: string; phone: string | null | undefined }) {
+  const valid = isValidPhone(phone);
+  return (
+    <Pressable
+      style={pd.infoRow}
+      onPress={() => callPhone(phone)}
+      disabled={!valid}
+      hitSlop={6}
+    >
+      <Text style={pd.infoLabel}>{label}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+        <Feather name="phone" size={13} color={valid ? CALL_COLOR : C.textMuted} />
+        <Text style={[pd.infoValue, valid ? { color: CALL_COLOR } : {}]}>
+          {phone ? formatPhone(phone) : "미입력"}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -81,7 +102,7 @@ export function ParentDetailModal({
             <View style={pd.section}>
               <Text style={pd.sTitle}>보호자 정보</Text>
               <PDRow label="이름"   value={req.parentName} />
-              <PDRow label="연락처" value={req.parentPhone} />
+              <PDPhoneRow label="연락처" phone={req.parentPhone} />
               <PDRow label="관계"   value={req.relation} />
               <PDRow label="호칭"   value={req.displayName} />
               <PDRow label="수영장" value={req.operatorName} />

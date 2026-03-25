@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { callPhone, formatPhone, isValidPhone, CALL_COLOR } from "@/utils/phoneUtils";
 
 const C = Colors.light;
 
@@ -46,6 +47,26 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <Text style={dm.infoLabel}>{label}</Text>
       <Text style={dm.infoValue}>{value}</Text>
     </View>
+  );
+}
+
+function PhoneRow({ label, phone }: { label: string; phone: string | null | undefined }) {
+  const valid = isValidPhone(phone);
+  return (
+    <Pressable
+      style={dm.infoRow}
+      onPress={() => callPhone(phone)}
+      disabled={!valid}
+      hitSlop={6}
+    >
+      <Text style={dm.infoLabel}>{label}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+        <Feather name="phone" size={13} color={valid ? CALL_COLOR : C.textMuted} />
+        <Text style={[dm.infoValue, valid ? { color: CALL_COLOR } : { color: C.textSecondary }]}>
+          {phone ? formatPhone(phone) : "미입력"}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -92,7 +113,7 @@ export function TeacherDetailModal({
             <View style={dm.section}>
               <Text style={dm.sectionTitle}>기본 정보</Text>
               <InfoRow label="이름"   value={detail.name} />
-              <InfoRow label="연락처" value={detail.phone} />
+              <PhoneRow label="연락처" phone={detail.phone} />
               {detail.user_email  ? <InfoRow label="이메일" value={detail.user_email} />  : null}
               {detail.position    ? <InfoRow label="직위"   value={detail.position} />    : null}
               {detail.approved_at ? <InfoRow label="승인일" value={new Date(detail.approved_at).toLocaleDateString("ko-KR")} /> : null}
