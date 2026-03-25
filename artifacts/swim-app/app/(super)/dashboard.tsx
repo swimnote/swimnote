@@ -266,8 +266,8 @@ export default function SuperDashboard() {
               <Text style={s.alertPillTxt}>{totalAlerts}건 처리 필요</Text>
             </Pressable>
           )}
-          <Pressable style={s.avatarCircle} onPress={() => router.push("/(super)/security-settings" as any)}>
-            <Feather name="shield" size={17} color="#fff" />
+          <Pressable style={s.avatarCircle} onPress={() => router.push("/(super)/backup" as any)}>
+            <Feather name="save" size={17} color="#fff" />
           </Pressable>
           <Pressable style={s.logoutBtn} onPress={logout}>
             <Feather name="log-out" size={15} color={P} />
