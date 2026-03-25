@@ -1766,9 +1766,9 @@ router.post("/makeups/:id/handover", requireAuth, requireRole("super_admin","poo
         WHERE id = ${req.params.id}
       `);
 
-      // 선택한 선생님 정산 기타 +1 (이번 달)
+      // 선택한 선생님 정산 기타 +1 (이번 달) — monthly_settlements는 superAdminDb에 있음
       const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         INSERT INTO monthly_settlements
           (pool_id, teacher_user_id, teacher_name, settlement_month, extra_manual_amount, extra_manual_memo)
         VALUES (${poolId}, ${receiver_teacher_id}, ${receiverName}, ${month}, 1, '기타 보강 인계')
@@ -1827,9 +1827,9 @@ router.post("/makeups/:id/self-extinguish", requireAuth, requireRole("super_admi
         WHERE id = ${req.params.id}
       `);
 
-      // 현재 선생님 정산 기타 +1 (이번 달)
+      // 현재 선생님 정산 기타 +1 (이번 달) — monthly_settlements는 superAdminDb에 있음
       const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         INSERT INTO monthly_settlements
           (pool_id, teacher_user_id, teacher_name, settlement_month, extra_manual_amount, extra_manual_memo)
         VALUES (${poolId}, ${actor.userId}, ${actorName}, ${month}, 1, '기타 보강 소멸')
