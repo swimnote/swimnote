@@ -796,8 +796,11 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
 
 // ── PATCH /:id/assign — 반 배정 (관리자 + 선생님 허용) ─────────────
 router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { assigned_class_ids, weekly_count, expected_updated_at } = req.body;
-  if (!Array.isArray(assigned_class_ids)) return err(res, 400, "assigned_class_ids는 배열이어야 합니다.");
+  const { assigned_class_ids: rawIds, weekly_count, expected_updated_at } = req.body;
+  if (!Array.isArray(rawIds)) return err(res, 400, "assigned_class_ids는 배열이어야 합니다.");
+
+  // null·undefined 제거 + 중복 제거
+  const assigned_class_ids: string[] = [...new Set(rawIds.filter((id: any) => typeof id === "string" && id.trim()))];
 
   try {
     const poolId = await getPoolId(req.user!.userId);

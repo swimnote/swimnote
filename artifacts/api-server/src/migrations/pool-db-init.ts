@@ -628,5 +628,32 @@ export async function initPoolDb(): Promise<void> {
     );
   `));
 
+  // ─── 데이터 정합성: assigned_class_ids null 제거 + 중복 제거 ─────────────
+  // null 값이 들어간 행 정리 (서버 버그로 null이 저장된 경우 대비)
+  await db.execute(sql.raw(`
+    UPDATE students
+    SET assigned_class_ids = COALESCE(
+      (SELECT jsonb_agg(elem)
+       FROM jsonb_array_elements(COALESCE(assigned_class_ids, '[]'::jsonb)) AS elem
+       WHERE elem IS NOT NULL AND elem <> 'null'::jsonb AND elem::text != 'null'),
+      '[]'::jsonb
+    )
+    WHERE assigned_class_ids IS NOT NULL
+      AND assigned_class_ids @> 'null'::jsonb;
+  `));
+
+  // 중복 ID 제거 (동일 ID가 2회 이상 들어간 경우)
+  await db.execute(sql.raw(`
+    UPDATE students
+    SET assigned_class_ids = (
+      SELECT jsonb_agg(DISTINCT elem ORDER BY elem)
+      FROM jsonb_array_elements(assigned_class_ids) AS elem
+    )
+    WHERE (
+      SELECT COUNT(DISTINCT elem)
+      FROM jsonb_array_elements(assigned_class_ids) AS elem
+    ) < jsonb_array_length(assigned_class_ids);
+  `));
+
   console.log("[pool-db-init] pool DB 운영 테이블 초기화 완료");
 }
