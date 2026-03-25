@@ -691,6 +691,7 @@ export default function MyScheduleScreen() {
           themeColor={themeColor}
           date={selectedDate}
           token={token}
+          classGroups={groups}
           onClose={() => setDetailGroup(null)}
           onDeleteClass={() => { const g = detailGroup; setDetailGroup(null); setTimeout(() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }, 200); }}
           onNavigateTo={navigateFromSheet}
