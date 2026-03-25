@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useRef, useState, createRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -14,7 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 
 export default function LoginScreen() {
-  const { unifiedLogin, completeTotpLogin } = useAuth();
+  const { unifiedLogin } = useAuth();
   const insets = useSafeAreaInsets();
   const pwRef = useRef<TextInput>(null);
 
@@ -25,15 +25,6 @@ export default function LoginScreen() {
   const [error, setError]           = useState("");
   const [failCount, setFailCount]   = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
-
-  // TOTP 2단계 인증 상태
-  const [totpRequired, setTotpRequired] = useState(false);
-  const [totpSession, setTotpSession]   = useState("");
-  const [digits, setDigits]             = useState<string[]>(["", "", "", "", "", ""]);
-  const digitRefs = useRef<Array<React.RefObject<TextInput>>>(
-    Array.from({ length: 6 }, () => createRef<TextInput>())
-  );
-  const otpCode = digits.join("");
 
   async function handleLogin(overrideId?: string, overridePw?: string) {
     const finalId = (overrideId ?? identifier).trim();
@@ -53,11 +44,7 @@ export default function LoginScreen() {
         error_code?: string; totp_required?: boolean; totp_session?: string;
       };
       if (e.totp_required && e.totp_session) {
-        setTotpRequired(true);
-        setTotpSession(e.totp_session);
-        setDigits(["", "", "", "", "", ""]);
-        setError("");
-        setTimeout(() => digitRefs.current[0].current?.focus(), 300);
+        router.push({ pathname: "/otp-verify", params: { session: e.totp_session } } as any);
         return;
       }
       if (e.error_code === "pending_pool_request") {
@@ -88,154 +75,6 @@ export default function LoginScreen() {
     }
   }
 
-  function handleDigitChange(index: number, value: string) {
-    const digit = value.replace(/\D/g, "").slice(-1);
-    const next = [...digits];
-    next[index] = digit;
-    setDigits(next);
-    setError("");
-    if (digit && index < 5) digitRefs.current[index + 1].current?.focus();
-    if (digit && index === 5) digitRefs.current[5].current?.blur();
-  }
-
-  function handleDigitKeyPress(index: number, key: string) {
-    if (key === "Backspace" && !digits[index] && index > 0) {
-      const next = [...digits];
-      next[index - 1] = "";
-      setDigits(next);
-      digitRefs.current[index - 1].current?.focus();
-    }
-  }
-
-  async function handleOtpVerify() {
-    const code = digits.join("");
-    if (code.length !== 6) {
-      setError("6자리 코드를 입력해주세요.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      await completeTotpLogin(totpSession, code);
-    } catch (err: unknown) {
-      const e = err as Error;
-      setError(e.message || "OTP 인증에 실패했습니다.");
-      setDigits(["", "", "", "", "", ""]);
-      setTimeout(() => digitRefs.current[0].current?.focus(), 100);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function resetToLogin() {
-    setTotpRequired(false);
-    setTotpSession("");
-    setDigits(["", "", "", "", "", ""]);
-    setError("");
-  }
-
-  // ── OTP 인증 화면 ──
-  if (totpRequired) {
-    return (
-      <KeyboardAvoidingView
-        style={[styles.root, { backgroundColor: C.background }]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <ScrollView
-          contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 60 : 48), paddingBottom: insets.bottom + 40 }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.topRow}>
-            <Pressable onPress={resetToLogin} style={styles.backBtn}>
-              <Feather name="arrow-left" size={22} color={C.text} />
-            </Pressable>
-            <View style={[styles.idChip, { backgroundColor: "#EDE9FE" }]}>
-              <Feather name="shield" size={13} color="#7C3AED" />
-              <Text style={[styles.idChipText, { color: "#7C3AED" }]} numberOfLines={1}>2단계 인증</Text>
-            </View>
-          </View>
-
-          <View style={[styles.card, { backgroundColor: C.card }]}>
-            <View style={styles.otpIconRow}>
-              <View style={[styles.otpIconBg, { backgroundColor: "#EDE9FE" }]}>
-                <Feather name="smartphone" size={28} color="#7C3AED" />
-              </View>
-            </View>
-
-            <Text style={[styles.cardTitle, { color: C.text }]}>Google OTP 인증</Text>
-            <Text style={[styles.otpDesc, { color: C.textSecondary }]}>
-              Google Authenticator 앱에서{"\n"}6자리 코드를 입력해주세요.
-            </Text>
-
-            {!!error && (
-              <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-                <Feather name="alert-circle" size={14} color={C.error} />
-                <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
-              </View>
-            )}
-
-            <View style={styles.otpBoxRow}>
-              {digits.map((d, i) => (
-                <TextInput
-                  key={i}
-                  ref={digitRefs.current[i]}
-                  style={[
-                    styles.otpBox,
-                    {
-                      borderColor: d ? "#7C3AED" : C.border,
-                      backgroundColor: d ? "#EDE9FE" : C.background,
-                      fontSize: 22,
-                      fontFamily: "Inter_700Bold",
-                      color: "#7C3AED",
-                      textAlign: "center",
-                      paddingHorizontal: 0,
-                      paddingVertical: 0,
-                    },
-                  ]}
-                  value={d}
-                  onChangeText={(v) => handleDigitChange(i, v)}
-                  onKeyPress={({ nativeEvent }) => handleDigitKeyPress(i, nativeEvent.key)}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  returnKeyType={i === 5 ? "done" : "next"}
-                  onSubmitEditing={i === 5 ? handleOtpVerify : undefined}
-                  autoFocus={i === 0}
-                  selectTextOnFocus
-                />
-              ))}
-            </View>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.loginBtn,
-                { backgroundColor: otpCode.length === 6 ? "#7C3AED" : C.border, opacity: pressed ? 0.85 : 1 },
-              ]}
-              onPress={handleOtpVerify}
-              disabled={loading || otpCode.length !== 6}
-            >
-              {loading
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={styles.loginBtnText}>인증 완료</Text>
-              }
-            </Pressable>
-
-            <Pressable style={styles.forgotBtn} onPress={resetToLogin}>
-              <Text style={[styles.forgotText, { color: C.textMuted }]}>← 비밀번호 입력으로 돌아가기</Text>
-            </Pressable>
-          </View>
-
-          <View style={[styles.otpGuideCard, { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" }]}>
-            <Feather name="info" size={14} color="#7C3AED" />
-            <Text style={[styles.otpGuideText, { color: "#5B21B6" }]}>
-              Google Authenticator 앱을 열고 계정 이름 옆의 6자리 숫자를 입력하세요. 코드는 30초마다 갱신됩니다.
-            </Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    );
-  }
-
   return (
     <KeyboardAvoidingView
       style={[styles.root, { backgroundColor: C.background }]}
@@ -247,7 +86,6 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 로고 ── */}
         <View style={styles.logoArea}>
           <Image
             source={require("../assets/images/swimnote-logo.png")}
@@ -260,7 +98,6 @@ export default function LoginScreen() {
           </Text>
         </View>
 
-        {/* ── 로그인 카드 ── */}
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <Text style={[styles.cardTitle, { color: C.text }]}>로그인</Text>
 
@@ -328,7 +165,6 @@ export default function LoginScreen() {
             }
           </Pressable>
 
-          {/* ── 비밀번호 찾기 (항상 노출) ── */}
           <Pressable
             style={({ pressed }) => [styles.forgotBtn, { opacity: pressed ? 0.7 : 1 }]}
             onPress={() => router.push({ pathname: "/forgot-password", params: { identifier } } as any)}
@@ -338,7 +174,6 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
-        {/* ── 회원가입 ── */}
         <View style={styles.signupRow}>
           <Text style={[styles.signupLabel, { color: C.textSecondary }]}>아직 계정이 없으신가요?</Text>
           <Pressable
@@ -351,7 +186,6 @@ export default function LoginScreen() {
         </View>
       </ScrollView>
 
-      {/* ── 계정 없음 모달 ── */}
       <Modal
         transparent
         visible={showNotFoundModal}
@@ -422,24 +256,4 @@ const styles = StyleSheet.create({
   modalBtn: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   modalBtnSecondary: { borderWidth: 1.5 },
   modalBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  // OTP 화면 스타일
-  topRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  idChip: {
-    flex: 1, flexDirection: "row", alignItems: "center", gap: 6,
-    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
-  },
-  idChipText: { fontSize: 14, fontFamily: "Inter_600SemiBold", flex: 1 },
-  otpIconRow: { alignItems: "center", paddingVertical: 4 },
-  otpIconBg: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center" },
-  otpDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
-  otpBoxRow: { flexDirection: "row", gap: 8, justifyContent: "center" },
-  otpBox: {
-    width: 44, height: 52, borderRadius: 12, borderWidth: 2,
-    alignItems: "center", justifyContent: "center",
-  },
-  otpGuideCard: {
-    flexDirection: "row", gap: 8, padding: 14, borderRadius: 14, borderWidth: 1, alignItems: "flex-start",
-  },
-  otpGuideText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
 });
