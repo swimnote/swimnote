@@ -4,7 +4,7 @@
  * super.ts (수동 백업 API) 및 backup-batch.ts (자동 스케줄러) 양쪽에서 사용.
  */
 
-import { superAdminDb, poolDb } from "@workspace/db";
+import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 import crypto from "crypto";
@@ -62,19 +62,17 @@ export async function runRealBackup(opts: {
   const fileName = `swimnote_backup_${prefix}_${fmtBackupDatetime(now)}.json`;
   const filePath = `backups/${prefix}/${fileName}`;
 
-  // 1. 테이블 목록 수집 (backup_data 컬럼 자체는 백업에서 제외 - 재귀 방지)
-  const [superTablesFull, poolTables] = await Promise.all([
-    getTableList(superAdminDb),
-    getTableList(poolDb),
-  ]);
-  // backup_data 컬럼만 제외 (테이블은 포함, 단 backup_data 값은 null로 처리)
-  const superTables = superTablesFull;
+  // 1. 테이블 목록 수집 (DB 단일화 이후 superAdminDb에 모든 운영 데이터 포함)
+  const allTables = await getTableList(superAdminDb);
+  console.log(`[backup] 백업 대상 테이블 ${allTables.length}개:`, allTables.join(", "));
 
   // 2. 전체 데이터 덤프
-  const superData: Record<string, unknown[]> = {};
-  for (const t of superTables) {
+  const tableData: Record<string, unknown[]> = {};
+  const tableRowCounts: Record<string, number> = {};
+
+  for (const t of allTables) {
     if (t === "platform_backups") {
-      // backup_data 컬럼 제외하고 덤프
+      // backup_data 컬럼(대용량 TEXT) 제외하고 덤프 — 재귀/메모리 방지
       try {
         const result = await superAdminDb.execute(sql.raw(
           `SELECT id, operator_id, operator_name, backup_type, backup_type_v2, status,
@@ -82,38 +80,40 @@ export async function runRealBackup(opts: {
                   super_db_tables, pool_db_tables, total_tables, created_by, created_at, completed_at
            FROM "platform_backups"`
         ));
-        superData[t] = result.rows as Record<string, unknown>[];
+        tableData[t] = result.rows as Record<string, unknown>[];
       } catch {
-        superData[t] = [];
+        tableData[t] = [];
       }
     } else {
-      superData[t] = await dumpOneTable(superAdminDb, t);
+      tableData[t] = await dumpOneTable(superAdminDb, t);
     }
-  }
-  const poolData: Record<string, unknown[]> = {};
-  for (const t of poolTables) {
-    poolData[t] = await dumpOneTable(poolDb, t);
+    tableRowCounts[t] = tableData[t].length;
   }
 
   // 3. JSON 생성
-  const superTotal = Object.values(superData).reduce((s, r) => s + r.length, 0);
-  const poolTotal  = Object.values(poolData).reduce((s, r) => s + r.length, 0);
+  const totalRows = Object.values(tableRowCounts).reduce((s, n) => s + n, 0);
+
+  // 비어있는 테이블 / 데이터 있는 테이블 구분 로그
+  const nonEmpty = Object.entries(tableRowCounts)
+    .filter(([, n]) => n > 0)
+    .sort(([, a], [, b]) => b - a)
+    .map(([t, n]) => `${t}(${n}행)`);
+  console.log(`[backup] 데이터 있는 테이블 ${nonEmpty.length}개: ${nonEmpty.join(", ")}`);
+  console.log(`[backup] 총 행 수: ${totalRows}, 빈 테이블: ${allTables.length - nonEmpty.length}개`);
 
   const payload = {
     meta: {
-      backup_id:       backupId,
-      created_at:      now.toISOString(),
-      type:            opts.type,
-      created_by:      opts.createdBy,
-      note:            opts.note ?? null,
-      super_db_tables: superTables.length,
-      pool_db_tables:  poolTables.length,
-      super_db_rows:   superTotal,
-      pool_db_rows:    poolTotal,
-      total_tables:    superTables.length + poolTables.length,
+      backup_id:      backupId,
+      created_at:     now.toISOString(),
+      type:           opts.type,
+      created_by:     opts.createdBy,
+      note:           opts.note ?? null,
+      db_mode:        "unified_superAdminDb",
+      total_tables:   allTables.length,
+      total_rows:     totalRows,
+      table_row_counts: tableRowCounts,
     },
-    super_db: superData,
-    pool_db:  poolData,
+    tables: tableData,
   };
 
   const jsonBuf   = Buffer.from(JSON.stringify(payload), "utf8");
@@ -151,19 +151,19 @@ export async function runRealBackup(opts: {
        ${opts.note ?? null}, ${storedFilePath}, ${fileName}, ${sizeBytes},
        ${storageType},
        ${storageType === "database" ? jsonStr : null},
-       ${superTables.length}, ${poolTables.length},
-       ${superTables.length + poolTables.length},
+       ${allTables.length}, ${0},
+       ${allTables.length},
        NOW(), ${opts.createdBy})
   `);
-  console.log(`[backup] 기록 완료 — id: ${backupId}, storage: ${storageType}`);
+  console.log(`[backup] 기록 완료 — id: ${backupId}, tables: ${allTables.length}, rows: ${totalRows}, size: ${(sizeBytes / 1024).toFixed(0)}KB, storage: ${storageType}`);
 
   return {
     backupId,
     fileName,
     filePath: storedFilePath,
     sizeBytes,
-    superTables: superTables.length,
-    poolTables: poolTables.length,
+    superTables: allTables.length,
+    poolTables: 0,
     storageType,
   };
 }
