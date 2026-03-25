@@ -2,13 +2,14 @@
  * 관리자 홈 — 아이콘 기반 운영 OS 허브
  * 배너(4개 핵심 지표) + 메인 아이콘 8개(4×2 그리드)
  * 메신저 외 7개 아이콘은 3열 그리드 팝업을 거쳐 페이지 이동
+ * SearchModal, AdminQuickRegisterModal → components/admin/ 로 이동됨
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Dimensions, KeyboardAvoidingView, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Dimensions, Platform, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -17,10 +18,8 @@ import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { IconPopup, type PopupItem } from "@/components/admin/IconPopup";
 import { PaymentBanner } from "@/components/common/PaymentBanner";
-import {
-  WeeklyCount, WEEKLY_BADGE,
-  normalizePhone, isValidPhone, isValidBirthYear,
-} from "@/utils/studentUtils";
+import { SearchModal } from "@/components/admin/SearchModal";
+import { AdminQuickRegisterModal } from "@/components/admin/AdminQuickRegisterModal";
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
@@ -42,132 +41,6 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
   pending_deletion:{ label: "삭제 예약", color: "#9B1C1C", bg: "#FEE2E2" },
   deleted:         { label: "삭제됨",    color: "#6F6B68", bg: "#E5E7EB" },
 };
-
-// ── 검색 모달 (기존 로직 유지) ──────────────────────────────────────────────
-function SearchModal({ visible, onClose, token }: { visible: boolean; onClose: () => void; token: string | null }) {
-  const [q, setQ] = useState("");
-  const [result, setResult] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const debounce = useRef<any>(null);
-
-  useEffect(() => { if (!visible) { setQ(""); setResult(null); } }, [visible]);
-
-  function handleChange(text: string) {
-    setQ(text);
-    if (debounce.current) clearTimeout(debounce.current);
-    if (text.trim().length < 1) { setResult(null); return; }
-    debounce.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await apiRequest(token, `/admin/search?q=${encodeURIComponent(text)}`);
-        if (res.ok) setResult(await res.json());
-      } finally { setLoading(false); }
-    }, 300);
-  }
-
-  const total = result
-    ? (result.students?.length ?? 0) + (result.teachers?.length ?? 0) + (result.classes?.length ?? 0) + (result.notices?.length ?? 0)
-    : 0;
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={sm.container}>
-        <View style={sm.header}>
-          <View style={sm.searchBar}>
-            <Feather name="search" size={18} color={C.textMuted} />
-            <TextInput style={sm.input} placeholder="회원, 반, 선생님, 공지 검색..." placeholderTextColor={C.textMuted}
-              value={q} onChangeText={handleChange} autoFocus returnKeyType="search" />
-            {q.length > 0 && (
-              <Pressable onPress={() => { setQ(""); setResult(null); }}>
-                <Feather name="x-circle" size={16} color={C.textMuted} />
-              </Pressable>
-            )}
-          </View>
-          <Pressable onPress={onClose} style={sm.closeBtn}>
-            <Text style={{ color: C.tint, fontSize: 15, fontFamily: "Inter_600SemiBold" }}>취소</Text>
-          </Pressable>
-        </View>
-        {loading ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
-        ) : result ? (
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 }}>
-            {total === 0 ? (
-              <View style={sm.empty}><Feather name="search" size={40} color={C.textMuted} /><Text style={sm.emptyText}>검색 결과가 없습니다</Text></View>
-            ) : (
-              <>
-                {(result.students ?? []).length > 0 && (
-                  <View>
-                    <Text style={sm.sectionLabel}>회원 ({result.students.length})</Text>
-                    {result.students.map((s: any) => (
-                      <Pressable key={s.id} style={sm.row} onPress={() => { onClose(); router.push({ pathname: "/(admin)/member-detail", params: { id: s.id } }); }}>
-                        <View style={[sm.avatar, { backgroundColor: C.tint + "20" }]}><Text style={[sm.avatarText, { color: C.tint }]}>{s.name[0]}</Text></View>
-                        <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{s.name}</Text><Text style={sm.rowSub}>{s.class_name || "미배정"}</Text></View>
-                        <Feather name="chevron-right" size={16} color={C.textMuted} />
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-                {(result.classes ?? []).length > 0 && (
-                  <View>
-                    <Text style={sm.sectionLabel}>반 ({result.classes.length})</Text>
-                    {result.classes.map((c: any) => (
-                      <Pressable key={c.id} style={sm.row} onPress={() => { onClose(); router.push("/(admin)/classes"); }}>
-                        <View style={[sm.avatar, { backgroundColor: "#7C3AED20" }]}><Feather name="layers" size={16} color="#7C3AED" /></View>
-                        <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{c.name}</Text><Text style={sm.rowSub}>{c.schedule_days}</Text></View>
-                        <Feather name="chevron-right" size={16} color={C.textMuted} />
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-                {(result.notices ?? []).length > 0 && (
-                  <View>
-                    <Text style={sm.sectionLabel}>공지 ({result.notices.length})</Text>
-                    {result.notices.map((n: any) => (
-                      <Pressable key={n.id} style={sm.row} onPress={() => { onClose(); router.push("/(admin)/community"); }}>
-                        <View style={[sm.avatar, { backgroundColor: "#D9770620" }]}><Feather name="bell" size={16} color="#D97706" /></View>
-                        <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{n.title}</Text></View>
-                        <Feather name="chevron-right" size={16} color={C.textMuted} />
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-                {(result.teachers ?? []).length > 0 && (
-                  <View>
-                    <Text style={sm.sectionLabel}>선생님 ({result.teachers.length})</Text>
-                    {result.teachers.map((t: any) => (
-                      <View key={t.id} style={sm.row}>
-                        <View style={[sm.avatar, { backgroundColor: "#1F8F8620" }]}><Feather name="user" size={16} color="#1F8F86" /></View>
-                        <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{t.name}</Text><Text style={sm.rowSub}>{t.phone || "연락처 없음"}</Text></View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </>
-            )}
-          </ScrollView>
-        ) : (
-          <View style={sm.empty}><Feather name="search" size={50} color={C.border} /><Text style={sm.emptyText}>이름, 반 이름, 공지 제목으로 검색</Text></View>
-        )}
-      </View>
-    </Modal>
-  );
-}
-
-const sm = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.background, paddingTop: Platform.OS === "ios" ? 58 : 24 },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10, marginBottom: 8 },
-  searchBar: { flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: C.border },
-  input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text },
-  closeBtn: { paddingHorizontal: 4 },
-  sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textMuted, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#FBF8F6" },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },
-  avatar: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  rowTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
-  rowSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  empty: { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular", color: C.textMuted },
-});
 
 // ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
 // 5대 카테고리: 운영관리·수업관리·보강관리·매출관리·데이터관리·수업설정·운영설정
@@ -219,7 +92,7 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "bar-chart-2", label: "카테고리별\n사용량", color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/data-storage-by-category") },
       { icon: "archive",     label: "삭제·보존\n정책", color: "#6F6B68", bg: "#F6F3F1", onPress: () => router.push("/(admin)/data-delete") },
     ];
-    // ─ 수업 설정 (기존 운영설정 → 이름 변경, 수업 기준/정책만) ─
+    // ─ 수업 설정 ─
     case "수업설정": return [
       { icon: "refresh-cw",  label: "보강정책\n설정",  color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/makeup-policy") },
       { icon: "shield",      label: "권한 설정",    color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/admin-grant") },
@@ -227,7 +100,7 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "award",       label: "레벨/테스트\n설정", color: "#1F8F86", bg: "#ECFEFF", onPress: () => router.push("/(admin)/level-settings" as any) },
       { icon: "message-circle", label: "피드백\n기본설정", color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/feedback-settings" as any) },
     ];
-    // ─ 운영 설정 (기존 플랫폼설정 → 이름 변경, 브랜드/인프라만) ─
+    // ─ 운영 설정 ─
     case "운영설정": return [
       { icon: "sliders",     label: "브랜드 설정",  color: "#EC4899", bg: "#F6D8E1", onPress: () => router.push("/(admin)/branding") },
       { icon: "tag",         label: "화이트라벨",   color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/white-label" as any) },
@@ -258,183 +131,6 @@ const MAIN_ICONS: Array<{
   { key: "운영설정",  label: "운영 설정",  icon: "sliders",      color: "#6F6B68", bg: "#FBF8F6" },
 ];
 
-// ── 관리자 홈 퀵등록 모달 ─────────────────────────────────────────────────────
-function AdminQuickRegisterModal({
-  visible, token, poolName, onClose, onSuccess,
-}: {
-  visible: boolean;
-  token: string | null;
-  poolName: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [name,        setName]        = useState("");
-  const [birthYear,   setBirthYear]   = useState("");
-  const [parentName,  setParentName]  = useState("");
-  const [parentPhone, setParentPhone] = useState("");
-  const [weekly,      setWeekly]      = useState<WeeklyCount>(1);
-  const [saving,      setSaving]      = useState(false);
-  const [error,       setError]       = useState("");
-  const [done,        setDone]        = useState(false);
-  const [doneName,    setDoneName]    = useState("");
-
-  function reset() {
-    setName(""); setBirthYear(""); setParentName(""); setParentPhone("");
-    setWeekly(1); setSaving(false); setError(""); setDone(false); setDoneName("");
-  }
-
-  function handleClose() { reset(); onClose(); }
-
-  function validate(): string | null {
-    if (!name.trim()) return "학생 이름을 입력해주세요.";
-    if (birthYear && !isValidBirthYear(birthYear)) return "출생년도가 올바르지 않습니다. (예: 2015)";
-    if (parentPhone && !isValidPhone(parentPhone)) return "보호자 전화번호 형식이 올바르지 않습니다.";
-    return null;
-  }
-
-  async function submit() {
-    const e = validate();
-    if (e) { setError(e); return; }
-    setSaving(true); setError("");
-    try {
-      const res = await apiRequest(token, "/students", {
-        method: "POST",
-        body: JSON.stringify({
-          name: name.trim(),
-          birth_year: birthYear || undefined,
-          parent_name: parentName || undefined,
-          parent_phone: parentPhone ? normalizePhone(parentPhone) : undefined,
-          weekly_count: weekly,
-          registration_path: "admin_created",
-          force_create: false,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.message || data.error || "오류가 발생했습니다.");
-        return;
-      }
-      setDoneName(data.name || name.trim());
-      setDone(true);
-      onSuccess();
-    } catch { setError("네트워크 오류가 발생했습니다."); }
-    finally { setSaving(false); }
-  }
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView style={qr.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={qr.sheet}>
-          <View style={qr.handle} />
-          {done ? (
-            /* ── 완료 화면 ── */
-            <View style={qr.doneWrap}>
-              <View style={[qr.doneIcon, { backgroundColor: "#1F8F86" + "18" }]}>
-                <Feather name="check-circle" size={36} color="#1F8F86" />
-              </View>
-              <Text style={qr.doneTitle}>등록 완료</Text>
-              <Text style={qr.doneSub}>{doneName} 학생이{"\n"}정식 회원으로 등록됐습니다.</Text>
-              <Text style={[qr.doneSub, { fontSize: 12, color: C.textMuted }]}>
-                회원 관리에서 초대코드를 확인할 수 있습니다.
-              </Text>
-              <Pressable style={[qr.saveBtn, { backgroundColor: "#1F8F86" }]} onPress={handleClose}>
-                <Text style={qr.saveBtnTxt}>확인</Text>
-              </Pressable>
-            </View>
-          ) : (
-            /* ── 입력 폼 ── */
-            <>
-              <View style={qr.header}>
-                <Text style={qr.title}>어린이 직접 등록</Text>
-                <Pressable onPress={handleClose}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
-              </View>
-              {error ? (
-                <View style={qr.errorRow}>
-                  <Feather name="alert-circle" size={14} color={C.error} />
-                  <Text style={qr.errorTxt}>{error}</Text>
-                </View>
-              ) : null}
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
-                <View style={qr.field}>
-                  <Text style={qr.label}>학생 이름 *</Text>
-                  <TextInput style={qr.input} value={name} onChangeText={setName} placeholder="홍길동" placeholderTextColor={C.textMuted} />
-                </View>
-                <View style={qr.field}>
-                  <Text style={qr.label}>출생년도 (중복 체크에 사용)</Text>
-                  <TextInput style={qr.input} value={birthYear} onChangeText={setBirthYear} placeholder="예: 2015" placeholderTextColor={C.textMuted} keyboardType="number-pad" maxLength={4} />
-                </View>
-                <View style={qr.field}>
-                  <Text style={qr.label}>보호자 이름</Text>
-                  <TextInput style={qr.input} value={parentName} onChangeText={setParentName} placeholder="김보호 (선택)" placeholderTextColor={C.textMuted} />
-                </View>
-                <View style={qr.field}>
-                  <Text style={qr.label}>보호자 전화번호</Text>
-                  <TextInput style={qr.input} value={parentPhone} onChangeText={setParentPhone} placeholder="010-1234-5678" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
-                </View>
-                <View style={qr.field}>
-                  <Text style={qr.label}>주 수업 횟수</Text>
-                  <View style={qr.weekRow}>
-                    {([1, 2, 3] as WeeklyCount[]).map(w => {
-                      const badge = WEEKLY_BADGE[w];
-                      return (
-                        <Pressable
-                          key={w}
-                          style={[qr.weekBtn, { backgroundColor: weekly === w ? badge.bg : C.background, borderColor: weekly === w ? badge.color : C.border }]}
-                          onPress={() => setWeekly(w)}
-                        >
-                          <Text style={[qr.weekBtnTxt, { color: weekly === w ? badge.color : C.textSecondary }]}>{badge.label}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              </ScrollView>
-              <View style={qr.notice}>
-                <Feather name="info" size={13} color={C.textMuted} />
-                <Text style={qr.noticeTxt}>등록 후 초대코드가 생성됩니다. 보호자에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
-              </View>
-              <Pressable
-                style={[qr.saveBtn, { backgroundColor: "#1F8F86", opacity: saving ? 0.7 : 1 }]}
-                onPress={submit}
-                disabled={saving}
-              >
-                {saving
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={qr.saveBtnTxt}>등록하기</Text>
-                }
-              </Pressable>
-            </>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-const qr = StyleSheet.create({
-  overlay:    { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet:      { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 14, maxHeight: "92%" },
-  handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
-  header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title:      { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
-  errorRow:   { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#F9DEDA", padding: 10, borderRadius: 10 },
-  errorTxt:   { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.error },
-  field:      { gap: 6, marginBottom: 12 },
-  label:      { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  input:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text, borderColor: C.border, backgroundColor: C.background },
-  weekRow:    { flexDirection: "row", gap: 10 },
-  weekBtn:    { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
-  weekBtnTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  notice:     { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
-  noticeTxt:  { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, lineHeight: 18 },
-  saveBtn:    { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
-  saveBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  doneWrap:   { alignItems: "center", gap: 14, paddingVertical: 20 },
-  doneIcon:   { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center" },
-  doneTitle:  { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
-  doneSub:    { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 },
-});
-
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 export default function DashboardScreen() {
   const { adminUser, pool, logout, token, switchRole, setLastUsedRole } = useAuth();
@@ -451,7 +147,6 @@ export default function DashboardScreen() {
   const [activePopup, setActivePopup] = useState<PopupKey | null>(null);
   const [switching, setSwitching] = useState(false);
 
-  // 팝업 → 하위 화면 진입 시 어느 팝업에서 왔는지 기억해 뒤로 복귀 때 복원
   const lastPopupRef = useRef<PopupKey | null>(null);
 
   useFocusEffect(useCallback(() => {
@@ -462,7 +157,6 @@ export default function DashboardScreen() {
     }
   }, []));
 
-  // 팝업 아이템의 onPress를 래핑해 팝업 키를 기억한 뒤 화면 이동
   const wrapPopupItems = useCallback((key: PopupKey, items: PopupItem[]): PopupItem[] =>
     items.map(item => ({
       ...item,
@@ -470,7 +164,6 @@ export default function DashboardScreen() {
     }))
   , []);
 
-  // 관리자 계정은 항상 선생님으로 전환 가능 (switch-role이 teacher 자동 추가)
   const canSwitchToTeacher = true;
 
   async function handleSwitchToTeacher() {
@@ -503,7 +196,6 @@ export default function DashboardScreen() {
 
   const sub = STATUS_BADGE[pool?.subscription_status || "trial"];
 
-  // 4개 배너 KPI
   const bannerItems = [
     {
       label: "데이터 사용량",
@@ -551,7 +243,7 @@ export default function DashboardScreen() {
     }
   }
 
-  const iconCellW = (SCREEN_W - 32 - 3 * 16) / 4; // 4열 기준 (gap:16, px:16)
+  const iconCellW = (SCREEN_W - 32 - 3 * 16) / 4;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F6FA" }}>
@@ -707,19 +399,16 @@ export default function DashboardScreen() {
                   >
                     <View style={[s.iconBox, { backgroundColor: item.bg }]}>
                       <Feather name={item.icon} size={26} color={item.color} />
-                      {/* 메신저 예외: 직접 이동 표시 */}
                       {item.key === "메신저" && (
                         <View style={[s.directBadge, { backgroundColor: item.color }]}>
                           <Feather name="arrow-right" size={8} color="#fff" />
                         </View>
                       )}
-                      {/* 보강 대기 배지 */}
                       {item.key === "보강관리" && (stats?.pending_makeups ?? 0) > 0 && (
                         <View style={s.notiBadge}>
                           <Text style={s.notiBadgeTxt}>{stats.pending_makeups}</Text>
                         </View>
                       )}
-                      {/* 승인 대기 배지 */}
                       {item.key === "운영관리" && (stats?.pending_requests ?? 0) > 0 && (
                         <View style={s.notiBadge}>
                           <Text style={s.notiBadgeTxt}>{stats.pending_requests}</Text>
@@ -782,7 +471,6 @@ const s = StyleSheet.create({
   headerBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
 
   sectionLabel:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 10 },
-  sectionLabel2: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 12 },
 
   bannerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   bannerCard: {
@@ -832,14 +520,6 @@ const s = StyleSheet.create({
   notiBadge:   { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 4, borderWidth: 1.5, borderColor: "#F5F6FA" },
   notiBadgeTxt:{ color: "#fff", fontSize: 9, fontWeight: "700" },
 
-  statCard: { backgroundColor: "#fff", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  statRow:  { flexDirection: "row", alignItems: "center" },
-  statItem: { flex: 1, alignItems: "center", paddingVertical: 4 },
-  statNum:  { fontSize: 22, fontFamily: "Inter_700Bold" },
-  statName: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  statDivider: { width: 1, height: 36, backgroundColor: C.border },
-
-  /* 미배정/학부모미연결 분리 카운트 행 */
   splitStatRow:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.card, borderRadius: 14, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   splitStatItem:   { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   splitStatIcon:   { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
@@ -847,7 +527,6 @@ const s = StyleSheet.create({
   splitStatLabel:  { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
   splitStatDivider: { width: 1, height: 32, backgroundColor: C.border },
 
-  /* 회원추가 퀵버튼 */
   addMemberBtn:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#1F8F86", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   addMemberIconWrap: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   addMemberLabel:    { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },

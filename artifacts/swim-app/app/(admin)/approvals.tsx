@@ -2,12 +2,15 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+  RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { ClassTransferModal }  from "@/components/admin/ClassTransferModal";
+import { TeacherDetailModal }  from "@/components/admin/TeacherDetailModal";
+import { ParentDetailModal }   from "@/components/admin/ParentDetailModal";
 import { ScreenLayout }  from "@/components/common/ScreenLayout";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { MainTabs }      from "@/components/common/MainTabs";
@@ -75,244 +78,6 @@ const FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
   { key: "approved", label: "승인",   icon: "check-circle", activeColor: STATUS_COLORS.approved.color, activeBg: STATUS_COLORS.approved.bg },
   { key: "rejected", label: "거절됨", icon: "x-circle",     activeColor: STATUS_COLORS.rejected.color, activeBg: STATUS_COLORS.rejected.bg },
 ];
-
-// ── 수업 인수 모달 ────────────────────────────────────────────────
-function ClassTransferModal({
-  sourceName, availableTeachers, processing, onConfirm, onClose,
-}: {
-  sourceName: string;
-  availableTeachers: Array<{ inviteId: string; userId: string; name: string; phone: string }>;
-  processing: boolean;
-  onConfirm: (targetUserId: string, targetName: string) => void;
-  onClose: () => void;
-}) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const selectedTeacher = availableTeachers.find(t => t.userId === selected);
-
-  return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={tm.overlay}>
-        <View style={tm.sheet}>
-          <View style={tm.handle} />
-          <View style={tm.header}>
-            <View>
-              <Text style={tm.title}>수업 인수</Text>
-              <Text style={tm.sub}>{sourceName} 선생님의 담당 반·회원을 인수할 선생님을 선택하세요</Text>
-            </View>
-            <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <Feather name="x" size={20} color={C.textSecondary} />
-            </Pressable>
-          </View>
-
-          {availableTeachers.length === 0 ? (
-            <View style={tm.emptyBox}>
-              <Feather name="users" size={32} color={C.textMuted} />
-              <Text style={tm.emptyText}>인수 가능한 선생님이 없습니다</Text>
-            </View>
-          ) : (
-            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
-              {availableTeachers.map(t => (
-                <Pressable
-                  key={t.userId}
-                  style={[tm.teacherRow, selected === t.userId && { borderColor: C.tint, backgroundColor: C.tintLight }]}
-                  onPress={() => setSelected(t.userId)}
-                >
-                  <View style={[tm.avatar, { backgroundColor: selected === t.userId ? C.tint : "#E9E2DD" }]}>
-                    <Text style={[tm.avatarText, { color: selected === t.userId ? "#fff" : C.textSecondary }]}>
-                      {t.name[0]}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[tm.teacherName, selected === t.userId && { color: C.tint }]}>{t.name}</Text>
-                    <Text style={tm.teacherPhone}>{t.phone}</Text>
-                  </View>
-                  {selected === t.userId && <Feather name="check-circle" size={20} color={C.tint} />}
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
-
-          <View style={tm.btnRow}>
-            <Pressable style={[tm.btn, { backgroundColor: "#F6F3F1" }]} onPress={onClose}>
-              <Text style={[tm.btnText, { color: C.textSecondary }]}>취소</Text>
-            </Pressable>
-            <Pressable
-              style={[tm.btn, { backgroundColor: C.tint, opacity: (!selected || processing) ? 0.5 : 1 }]}
-              onPress={() => { if (selected && selectedTeacher) onConfirm(selected, selectedTeacher.name); }}
-              disabled={!selected || processing}
-            >
-              {processing ? <ActivityIndicator color="#fff" size="small" /> : (
-                <Text style={[tm.btnText, { color: "#fff" }]}>인수 완료</Text>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const tm = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 16, maxHeight: "80%" },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  title: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
-  sub: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 4, maxWidth: "90%", lineHeight: 18 },
-  emptyBox: { alignItems: "center", paddingVertical: 32, gap: 10 },
-  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted },
-  teacherRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, marginBottom: 8 },
-  avatar: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  teacherName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
-  teacherPhone: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  btnRow: { flexDirection: "row", gap: 10, paddingTop: 8 },
-  btn: { flex: 1, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  btnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-});
-
-// ── 선생님 상세 팝업 ────────────────────────────────────────────
-function TeacherDetailModal({
-  detail, processing, onClose,
-  onApprove, onRejectOpen,
-  onRevoke, onTransfer,
-}: {
-  detail: TeacherDetail | null;
-  processing: boolean;
-  onClose: () => void;
-  onApprove?: () => void;
-  onRejectOpen?: () => void;
-  onRevoke?: () => void;
-  onTransfer?: () => void;
-}) {
-  if (!detail) return null;
-
-  const isPending   = detail.invite_status === "joinedPendingApproval";
-  const isApproved  = detail.invite_status === "approved";
-  const roles: string[] = parseRoles(detail.user_roles);
-  const isAdminGranted = roles.includes("pool_admin");
-
-  const roleLabel = () => {
-    if (isAdminGranted) return "선생님 + 관리자권한";
-    return "선생님";
-  };
-
-  const statusLabel: Record<string, string> = {
-    joinedPendingApproval: "승인 대기", approved: "승인됨", rejected: "거절됨", inactive: "비활성",
-  };
-
-  return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={dm.overlay}>
-        <View style={dm.sheet}>
-          <View style={dm.handle} />
-          <View style={dm.header}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={[dm.headerAvatar, { backgroundColor: "#DDF2EF" }]}>
-                <Text style={[dm.headerAvatarText, { color: "#1F8F86" }]}>{detail.name[0]}</Text>
-              </View>
-              <View>
-                <Text style={dm.headerName}>{detail.name}</Text>
-                <Text style={dm.headerSub}>{statusLabel[detail.invite_status] ?? detail.invite_status}</Text>
-              </View>
-            </View>
-            <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <Feather name="x" size={20} color={C.textSecondary} />
-            </Pressable>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
-            {/* 기본 정보 */}
-            <View style={dm.section}>
-              <Text style={dm.sectionTitle}>기본 정보</Text>
-              <InfoRow label="이름" value={detail.name} />
-              <InfoRow label="연락처" value={detail.phone} />
-              {detail.user_email ? <InfoRow label="이메일" value={detail.user_email} /> : null}
-              {detail.position ? <InfoRow label="직위" value={detail.position} /> : null}
-              {detail.approved_at ? <InfoRow label="승인일" value={new Date(detail.approved_at).toLocaleDateString("ko-KR")} /> : null}
-            </View>
-
-            {/* 역할 및 현황 */}
-            <View style={dm.section}>
-              <Text style={dm.sectionTitle}>역할 및 담당</Text>
-              <InfoRow label="현재 역할" value={roleLabel()} />
-              <InfoRow label="담당 반" value={`${detail.class_count ?? 0}개`} />
-              <InfoRow label="담당 회원" value={`${detail.member_count ?? 0}명`} />
-            </View>
-          </ScrollView>
-
-          {/* 액션 버튼 */}
-          <View style={dm.actionArea}>
-            {isPending && (
-              <>
-                {onRejectOpen && (
-                  <Pressable style={[dm.actionBtn, { borderWidth: 1.5, borderColor: C.error, backgroundColor: "#fff" }]} onPress={onRejectOpen} disabled={processing}>
-                    {processing ? <ActivityIndicator color={C.error} size="small" /> : (
-                      <>
-                        <Feather name="x" size={14} color={C.error} />
-                        <Text style={[dm.actionBtnText, { color: C.error }]}>거절</Text>
-                      </>
-                    )}
-                  </Pressable>
-                )}
-                {onApprove && (
-                  <Pressable style={[dm.actionBtn, { backgroundColor: C.success }]} onPress={onApprove} disabled={processing}>
-                    {processing ? <ActivityIndicator color="#fff" size="small" /> : (
-                      <>
-                        <Feather name="check" size={14} color="#fff" />
-                        <Text style={[dm.actionBtnText, { color: "#fff" }]}>승인</Text>
-                      </>
-                    )}
-                  </Pressable>
-                )}
-              </>
-            )}
-
-            {isApproved && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={dm.approvedActions}>
-                {onRevoke && (
-                  <Pressable style={[dm.smBtn, { borderWidth: 1.5, borderColor: "#D96C6C", backgroundColor: "#FEF2F2" }]} onPress={onRevoke} disabled={processing}>
-                    {processing ? <ActivityIndicator color="#D96C6C" size="small" /> : (
-                      <>
-                        <Feather name="user-minus" size={13} color="#D96C6C" />
-                        <Text style={[dm.smBtnText, { color: "#D96C6C" }]}>승인 해제</Text>
-                      </>
-                    )}
-                  </Pressable>
-                )}
-                {onTransfer && (
-                  <Pressable style={[dm.smBtn, { backgroundColor: C.tint }]} onPress={onTransfer} disabled={processing}>
-                    <Feather name="repeat" size={13} color="#fff" />
-                    <Text style={[dm.smBtnText, { color: "#fff" }]}>수업 인수</Text>
-                  </Pressable>
-                )}
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const dm = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 16, maxHeight: "85%" },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  headerAvatar: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  headerAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  headerName: { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  headerSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  section: { gap: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 14 },
-  sectionTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
-  actionArea: { paddingTop: 8 },
-  actionBtn: { flex: 1, height: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14 },
-  actionBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  approvedActions: { flexDirection: "row", gap: 10, paddingBottom: 4 },
-  smBtn: { height: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12, paddingHorizontal: 16 },
-  smBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-});
 
 // ── 메인 컴포넌트 ───────────────────────────────────────────────
 export default function ApprovalsScreen() {
@@ -732,122 +497,17 @@ export default function ApprovalsScreen() {
       />
 
       {/* 학부모 상세 팝업 (스토어 기반) */}
-      {storeParentDetail && (() => {
-        const req = storeParentDetail;
-        const isPending  = req.status === "pending";
-        const isOnHold   = req.status === "on_hold";
-        const isApproved = req.status === "approved" || req.status === "auto_approved";
-        const mc = MATCH_CFG[req.matchStatus];
-        return (
-          <Modal visible animationType="slide" transparent onRequestClose={() => setStoreParentDetail(null)}>
-            <View style={pd.overlay}>
-              <View style={pd.sheet}>
-                <View style={pd.handle} />
-                <View style={pd.header}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <View style={[pd.avatar, { backgroundColor: C.tintLight }]}>
-                      <Text style={[pd.avatarTxt, { color: C.tint }]}>{req.parentName[0]}</Text>
-                    </View>
-                    <View>
-                      <Text style={pd.name}>{req.parentName}</Text>
-                      <Text style={pd.nameSub}>{JOIN_STATUS_CFG[req.status].label}</Text>
-                    </View>
-                  </View>
-                  <Pressable onPress={() => setStoreParentDetail(null)} style={{ padding: 4 }}>
-                    <Feather name="x" size={20} color={C.textSecondary} />
-                  </Pressable>
-                </View>
-
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  {/* 매칭 배지 */}
-                  <View style={[pd.matchBadge, { backgroundColor: mc.bg }]}>
-                    <Feather name={mc.icon as any} size={13} color={mc.color} />
-                    <Text style={[pd.matchTxt, { color: mc.color }]}>{mc.label}</Text>
-                    {req.matchedStudentIds.length > 0 && (
-                      <Text style={[pd.matchSub, { color: mc.color }]}>· {req.matchedStudentIds.length}명 연결</Text>
-                    )}
-                  </View>
-
-                  {/* 보호자 정보 */}
-                  <View style={pd.section}>
-                    <Text style={pd.sTitle}>보호자 정보</Text>
-                    <PDRow label="이름"   value={req.parentName} />
-                    <PDRow label="연락처" value={req.parentPhone} />
-                    <PDRow label="관계"   value={req.relation} />
-                    <PDRow label="호칭"   value={req.displayName} />
-                    <PDRow label="수영장" value={req.operatorName} />
-                    <PDRow label="신청일" value={new Date(req.createdAt).toLocaleDateString("ko-KR")} />
-                    {req.reviewedAt && <PDRow label="처리일" value={new Date(req.reviewedAt).toLocaleDateString("ko-KR")} />}
-                    {req.reviewedBy && <PDRow label="처리자" value={req.reviewedBy} />}
-                    {req.rejectReason && <PDRow label="거절 사유" value={req.rejectReason} />}
-                  </View>
-
-                  {/* 자녀 정보 */}
-                  <View style={pd.section}>
-                    <Text style={pd.sTitle}>자녀 정보 ({req.children.length}명)</Text>
-                    {req.children.map((c, i) => (
-                      <View key={i} style={pd.childRow}>
-                        <View style={[pd.childNum, { backgroundColor: C.tintLight }]}>
-                          <Text style={[pd.childNumTxt, { color: C.tint }]}>{i + 1}</Text>
-                        </View>
-                        <View>
-                          <Text style={pd.childName}>{c.name}</Text>
-                          <Text style={pd.childBirth}>{c.birthDate}</Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                </ScrollView>
-
-                {/* 액션 버튼 */}
-                <View style={pd.actions}>
-                  {(isPending || isOnHold) && (
-                    <>
-                      <Pressable style={[pd.btn, { backgroundColor: "#FFF1BF", borderColor: "#D97706", borderWidth: 1 }]}
-                        onPress={() => handleStoreHold(req.id)}>
-                        <Feather name="pause" size={14} color="#D97706" />
-                        <Text style={[pd.btnTxt, { color: "#D97706" }]}>보류</Text>
-                      </Pressable>
-                      <Pressable style={[pd.btn, { backgroundColor: "#F9DEDA", borderColor: C.error, borderWidth: 1 }]}
-                        onPress={() => { setStoreParentDetail(null); setStoreRejectTargetId(req.id); }}>
-                        <Feather name="x" size={14} color={C.error} />
-                        <Text style={[pd.btnTxt, { color: C.error }]}>거절</Text>
-                      </Pressable>
-                      <Pressable style={[pd.btn, { backgroundColor: C.success }]}
-                        onPress={() => handleStoreApprove(req.id)}>
-                        <Feather name="check" size={14} color="#fff" />
-                        <Text style={[pd.btnTxt, { color: "#fff" }]}>승인</Text>
-                      </Pressable>
-                    </>
-                  )}
-                  {isApproved && (
-                    <Pressable style={[pd.btn, { flex: 1, backgroundColor: "#F9DEDA", borderColor: "#D96C6C", borderWidth: 1 }]}
-                      onPress={() => { storeReject(req.id, "승인 해제", actorName); setStoreParentDetail(null); }}>
-                      <Feather name="user-x" size={14} color="#D96C6C" />
-                      <Text style={[pd.btnTxt, { color: "#D96C6C" }]}>승인 해제</Text>
-                    </Pressable>
-                  )}
-                  {req.status === "rejected" && (
-                    <>
-                      <View style={pd.rejectInfo}>
-                        <Feather name="info" size={13} color="#D96C6C" />
-                        <Text style={pd.rejectInfoTxt}>
-                          거절 상태입니다. 재승인하면 가입을 허용합니다.
-                        </Text>
-                      </View>
-                      <Pressable style={[pd.btn, { flex: 1, backgroundColor: C.success }]}
-                        onPress={() => handleStoreReApprove(req.id)}>
-                        <Feather name="refresh-cw" size={14} color="#fff" />
-                        <Text style={[pd.btnTxt, { color: "#fff" }]}>재승인</Text>
-                      </Pressable>
-                    </>
-                  )}
-                </View>
-              </View>
-            </View>
-          </Modal>
-        );
-      })()}
+      {storeParentDetail && (
+        <ParentDetailModal
+          req={storeParentDetail}
+          onClose={() => setStoreParentDetail(null)}
+          onApprove={() => handleStoreApprove(storeParentDetail.id)}
+          onHold={() => handleStoreHold(storeParentDetail.id)}
+          onOpenReject={() => { setStoreParentDetail(null); setStoreRejectTargetId(storeParentDetail.id); }}
+          onRevoke={() => { storeReject(storeParentDetail.id, "승인 해제", actorName); setStoreParentDetail(null); }}
+          onReApprove={() => handleStoreReApprove(storeParentDetail.id)}
+        />
+      )}
 
       {/* 선생님 상세 팝업 */}
       {teacherDetailInvite && (
@@ -907,45 +567,6 @@ const x = StyleSheet.create({
                   backgroundColor: "#ECFEFF", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   inviteHintTxt:{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#1F8F86", flex: 1 },
 });
-
-// 학부모 상세 모달 스타일
-const pd = StyleSheet.create({
-  overlay:    { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet:      { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 22, gap: 14, maxHeight: "88%" },
-  handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
-  header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  avatar:     { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  avatarTxt:  { fontSize: 18, fontFamily: "Inter_700Bold" },
-  name:       { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  nameSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  matchBadge: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 12 },
-  matchTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  matchSub:   { fontSize: 12, fontFamily: "Inter_400Regular" },
-  section:    { gap: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 12 },
-  sTitle:     { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
-  infoRow:    { flexDirection: "row", justifyContent: "space-between", gap: 12 },
-  infoLabel:  { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  infoValue:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text, textAlign: "right", flex: 1 },
-  childRow:   { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
-  childNum:   { width: 24, height: 24, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  childNumTxt:{ fontSize: 11, fontFamily: "Inter_700Bold" },
-  childName:  { fontSize: 14, fontFamily: "Inter_500Medium", color: C.text },
-  childBirth: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  actions:       { gap: 10, paddingTop: 8 },
-  btn:           { flex: 1, height: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 12 },
-  btnTxt:        { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  rejectInfo:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FEF2F2", borderRadius: 10, padding: 12 },
-  rejectInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C", lineHeight: 17 },
-});
-
-function PDRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={pd.infoRow}>
-      <Text style={pd.infoLabel}>{label}</Text>
-      <Text style={pd.infoValue}>{value}</Text>
-    </View>
-  );
-}
 
 const s = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },

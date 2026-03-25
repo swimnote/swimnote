@@ -6,16 +6,16 @@
  * - 기타 수기 정산 / 이번 달 저장 / 다음 달 시작
  * - 보강 이월 정리 → makeups 화면 연결
  * - 단가표 → pool-settings 화면 연결
- * - 휴무일 지정 → HolidayModal (공휴일·일요일 자동, 요일 일괄, 날짜 개별)
+ * - 휴무일 지정 → HolidayModal (components/admin/revenue/ 로 이동됨)
  *
  * API: /settlement/calculator, /settlement/save, /settlement/finalize
  *      /holidays (GET, POST, DELETE)
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Dimensions, Modal, Pressable, RefreshControl,
+  ActivityIndicator, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,403 +25,9 @@ import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { addTabResetListener } from "@/utils/tabReset";
+import { HolidayModal } from "@/components/admin/revenue/HolidayModal";
 
 const C = Colors.light;
-const SCREEN_W = Dimensions.get("window").width;
-
-/* ────────────────────────────────────────────────
-   한국 공휴일 헬퍼
-   고정 공휴일 + 음력 기반 근사값 (2025~2030)
-──────────────────────────────────────────────── */
-const LUNAR_HOLIDAYS: Record<number, string[]> = {
-  2025: [
-    "2025-01-28","2025-01-29","2025-01-30",
-    "2025-05-05",
-    "2025-10-05","2025-10-06","2025-10-07",
-  ],
-  2026: [
-    "2026-02-16","2026-02-17","2026-02-18",
-    "2026-05-24",
-    "2026-09-24","2026-09-25","2026-09-26",
-  ],
-  2027: [
-    "2027-02-07","2027-02-08","2027-02-09",
-    "2027-05-13",
-    "2027-09-14","2027-09-15","2027-09-16",
-  ],
-  2028: [
-    "2028-01-26","2028-01-27","2028-01-28",
-    "2028-05-02",
-    "2028-10-02","2028-10-03","2028-10-04",
-  ],
-  2029: [
-    "2029-02-12","2029-02-13","2029-02-14",
-    "2029-05-21",
-    "2029-10-02","2029-10-03","2029-10-04",
-  ],
-  2030: [
-    "2030-02-02","2030-02-03","2030-02-04",
-    "2030-05-11",
-    "2030-09-21","2030-09-22","2030-09-23",
-  ],
-};
-const FIXED_HOLIDAYS: [number, number][] = [
-  [1,1],[3,1],[5,5],[6,6],[8,15],[10,3],[10,9],[12,25],
-];
-
-function getPublicHolidaysForMonth(year: number, month: number): string[] {
-  const mm = String(month).padStart(2, "0");
-  const result: string[] = [];
-  for (const [fm, fd] of FIXED_HOLIDAYS) {
-    if (fm === month) result.push(`${year}-${mm}-${String(fd).padStart(2,"0")}`);
-  }
-  for (const d of (LUNAR_HOLIDAYS[year] || [])) {
-    if (d.startsWith(`${year}-${mm}`)) result.push(d);
-  }
-  return result;
-}
-
-function getSundaysInMonth(year: number, month: number): string[] {
-  const mm = String(month).padStart(2, "0");
-  const total = new Date(year, month, 0).getDate();
-  const out: string[] = [];
-  for (let d = 1; d <= total; d++) {
-    if (new Date(year, month - 1, d).getDay() === 0) {
-      out.push(`${year}-${mm}-${String(d).padStart(2,"0")}`);
-    }
-  }
-  return out;
-}
-
-function getWeekdayDatesInMonth(year: number, month: number, weekday: number): string[] {
-  const mm = String(month).padStart(2, "0");
-  const total = new Date(year, month, 0).getDate();
-  const out: string[] = [];
-  for (let d = 1; d <= total; d++) {
-    if (new Date(year, month - 1, d).getDay() === weekday) {
-      out.push(`${year}-${mm}-${String(d).padStart(2,"0")}`);
-    }
-  }
-  return out;
-}
-
-/* ────────────────────────────────────────────────
-   HolidayModal
-──────────────────────────────────────────────── */
-interface HolidayItemDB { id: string; holiday_date: string; reason: string | null; }
-
-function HolidayModal({ visible, onClose, poolId, token, themeColor }: {
-  visible: boolean; onClose: () => void;
-  poolId: string; token: string; themeColor: string;
-}) {
-  const now = new Date();
-  const [year, setYear]   = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [dbHolidays, setDbHolidays]   = useState<HolidayItemDB[]>([]);
-  const [selected, setSelected]       = useState<Set<string>>(new Set());
-  const [autoPublic, setAutoPublic]   = useState(true);
-  const [autoSunday, setAutoSunday]   = useState(true);
-  const [loading, setLoading]         = useState(false);
-  const [saving, setSaving]           = useState(false);
-  const [savedMsg, setSavedMsg]       = useState("");
-
-  const KO_DAYS = ["일","월","화","수","목","금","토"];
-  const CELL = Math.floor((SCREEN_W - 48) / 7);
-
-  const calCells = useMemo(() => {
-    const firstDay = new Date(year, month - 1, 1).getDay();
-    const total    = new Date(year, month, 0).getDate();
-    const mm       = String(month).padStart(2, "0");
-    const cells: (string | null)[] = Array(firstDay).fill(null);
-    for (let d = 1; d <= total; d++) cells.push(`${year}-${mm}-${String(d).padStart(2,"0")}`);
-    while (cells.length % 7 !== 0) cells.push(null);
-    return cells;
-  }, [year, month]);
-
-  const loadAndInit = useCallback(async () => {
-    if (!visible || !poolId) return;
-    setLoading(true);
-    try {
-      const mm  = String(month).padStart(2, "0");
-      const res = await apiRequest(token, `/holidays?pool_id=${poolId}&month=${year}-${mm}`);
-      if (res.ok) {
-        const data   = await res.json();
-        const dbH: HolidayItemDB[] = data.holidays || [];
-        setDbHolidays(dbH);
-        const init = new Set(dbH.map(h => h.holiday_date));
-        if (autoPublic) getPublicHolidaysForMonth(year, month).forEach(d => init.add(d));
-        if (autoSunday) getSundaysInMonth(year, month).forEach(d => init.add(d));
-        setSelected(init);
-      }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, [visible, poolId, token, year, month]);
-
-  useEffect(() => { if (visible) loadAndInit(); }, [visible, year, month]);
-
-  function changeHoliMonth(delta: number) {
-    let y = year, m = month + delta;
-    if (m < 1) { y--; m = 12; }
-    if (m > 12){ y++; m = 1; }
-    setYear(y); setMonth(m);
-  }
-
-  function toggleAutoPublic() {
-    const next = !autoPublic;
-    setAutoPublic(next);
-    setSelected(prev => {
-      const s = new Set(prev);
-      const pubDates = getPublicHolidaysForMonth(year, month);
-      if (next) {
-        pubDates.forEach(d => s.add(d));
-      } else {
-        pubDates.forEach(d => {
-          if (!dbHolidays.some(h => h.holiday_date === d)) s.delete(d);
-        });
-      }
-      return s;
-    });
-  }
-
-  function toggleAutoSunday() {
-    const next = !autoSunday;
-    setAutoSunday(next);
-    setSelected(prev => {
-      const s = new Set(prev);
-      const sundays = getSundaysInMonth(year, month);
-      if (next) {
-        sundays.forEach(d => s.add(d));
-      } else {
-        sundays.forEach(d => {
-          if (!dbHolidays.some(h => h.holiday_date === d)) s.delete(d);
-        });
-      }
-      return s;
-    });
-  }
-
-  function toggleWeekday(weekday: number) {
-    const dates   = getWeekdayDatesInMonth(year, month, weekday);
-    const allSel  = dates.length > 0 && dates.every(d => selected.has(d));
-    setSelected(prev => {
-      const s = new Set(prev);
-      if (allSel) dates.forEach(d => s.delete(d));
-      else        dates.forEach(d => s.add(d));
-      return s;
-    });
-  }
-
-  function toggleDay(dateStr: string) {
-    setSelected(prev => {
-      const s = new Set(prev);
-      if (s.has(dateStr)) s.delete(dateStr); else s.add(dateStr);
-      return s;
-    });
-  }
-
-  async function handleSave() {
-    setSaving(true); setSavedMsg("");
-    try {
-      const mm  = String(month).padStart(2, "0");
-      const pfx = `${year}-${mm}`;
-      const dbForMonth = dbHolidays.filter(h => h.holiday_date.startsWith(pfx));
-      const dbSet      = new Set(dbForMonth.map(h => h.holiday_date));
-      const toAdd      = [...selected].filter(d => d.startsWith(pfx) && !dbSet.has(d));
-      const toRemove   = dbForMonth.filter(h => !selected.has(h.holiday_date));
-
-      await Promise.all([
-        ...toAdd.map(d => apiRequest(token, "/holidays", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pool_id: poolId, holiday_date: d, reason: null }),
-        })),
-        ...toRemove.map(h => apiRequest(token, `/holidays/${h.id}`, { method: "DELETE" })),
-      ]);
-      setSavedMsg("저장 완료!");
-      await loadAndInit();
-    } catch { setSavedMsg("저장 실패"); }
-    finally { setSaving(false); setTimeout(() => setSavedMsg(""), 2500); }
-  }
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={hm.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[hm.sheet, { backgroundColor: C.background }]}>
-
-          {/* 헤더 */}
-          <View style={[hm.header, { borderBottomColor: C.border }]}>
-            <Text style={[hm.headerTitle, { color: C.text }]}>휴무일 지정</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
-              <Feather name="x" size={22} color={C.textMuted} />
-            </Pressable>
-          </View>
-
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}
-          >
-            {/* ── 자동 옵션 ── */}
-            <View style={[hm.optCard, { backgroundColor: C.card }]}>
-              <Text style={[hm.optTitle, { color: C.textMuted }]}>기본 자동 옵션</Text>
-              <View style={hm.optRow}>
-                <Pressable
-                  style={[hm.optBtn, autoPublic && { backgroundColor: "#FFF1BF", borderColor: "#E4A93A" }]}
-                  onPress={toggleAutoPublic}
-                >
-                  <Feather name={autoPublic ? "check-square" : "square"} size={18}
-                    color={autoPublic ? "#D97706" : C.textMuted} />
-                  <View>
-                    <Text style={[hm.optBtnLabel, { color: autoPublic ? "#D97706" : C.text }]}>공휴일 자동</Text>
-                    <Text style={[hm.optBtnSub, { color: C.textMuted }]}>삼일절·광복절·추석 등</Text>
-                  </View>
-                </Pressable>
-                <Pressable
-                  style={[hm.optBtn, autoSunday && { backgroundColor: "#F9DEDA", borderColor: "#D96C6C" }]}
-                  onPress={toggleAutoSunday}
-                >
-                  <Feather name={autoSunday ? "check-square" : "square"} size={18}
-                    color={autoSunday ? "#D96C6C" : C.textMuted} />
-                  <View>
-                    <Text style={[hm.optBtnLabel, { color: autoSunday ? "#D96C6C" : C.text }]}>일요일 자동</Text>
-                    <Text style={[hm.optBtnSub, { color: C.textMuted }]}>매주 일요일 전체</Text>
-                  </View>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* ── 월 네비게이션 ── */}
-            <View style={[hm.monthNav, { backgroundColor: C.card }]}>
-              <Pressable style={hm.navBtn} onPress={() => changeHoliMonth(-1)} hitSlop={8}>
-                <Feather name="chevron-left" size={20} color={themeColor} />
-              </Pressable>
-              <Text style={[hm.monthTitle, { color: C.text }]}>{year}년 {month}월</Text>
-              <Pressable style={hm.navBtn} onPress={() => changeHoliMonth(1)} hitSlop={8}>
-                <Feather name="chevron-right" size={20} color={themeColor} />
-              </Pressable>
-            </View>
-
-            {/* ── 요일 일괄 선택 ── */}
-            <View style={[hm.weekdayCard, { backgroundColor: C.card }]}>
-              <Text style={[hm.optTitle, { color: C.textMuted }]}>요일별 일괄 지정</Text>
-              <View style={hm.weekdayRow}>
-                {KO_DAYS.map((wd, i) => {
-                  const dates  = getWeekdayDatesInMonth(year, month, i);
-                  const allSel = dates.length > 0 && dates.every(d => selected.has(d));
-                  const isSun  = i === 0;
-                  const isSat  = i === 6;
-                  return (
-                    <Pressable
-                      key={wd}
-                      style={[
-                        hm.weekdayBtn,
-                        allSel ? { backgroundColor: isSun ? "#D96C6C" : isSat ? themeColor : C.text }
-                               : { backgroundColor: C.background, borderWidth: 1, borderColor: C.border },
-                      ]}
-                      onPress={() => toggleWeekday(i)}
-                    >
-                      <Text style={[
-                        hm.weekdayBtnTxt,
-                        allSel ? { color: "#fff" }
-                               : { color: isSun ? "#D96C6C" : isSat ? themeColor : C.text },
-                      ]}>{wd}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* ── 달력 ── */}
-            {loading ? (
-              <ActivityIndicator color={themeColor} style={{ marginVertical: 30 }} />
-            ) : (
-              <View style={[hm.calCard, { backgroundColor: C.card }]}>
-                {/* 요일 헤더 */}
-                <View style={hm.calWeekRow}>
-                  {KO_DAYS.map((wd, i) => (
-                    <View key={wd} style={[hm.calHeaderCell, { width: CELL }]}>
-                      <Text style={[
-                        hm.calHeaderTxt,
-                        i === 0 && { color: "#D96C6C" },
-                        i === 6 && { color: themeColor },
-                      ]}>{wd}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {/* 날짜 그리드 */}
-                {Array.from({ length: Math.ceil(calCells.length / 7) }, (_, wi) => (
-                  <View key={wi} style={hm.calWeekRow}>
-                    {calCells.slice(wi * 7, wi * 7 + 7).map((dateStr, di) => {
-                      if (!dateStr) return <View key={di} style={[hm.calCell, { width: CELL }]} />;
-                      const dayNum   = parseInt(dateStr.split("-")[2]);
-                      const isHoli   = selected.has(dateStr);
-                      const isPubH   = getPublicHolidaysForMonth(year, month).includes(dateStr);
-                      const isSun    = di === 0;
-                      const isSat    = di === 6;
-                      return (
-                        <Pressable
-                          key={dateStr}
-                          style={[hm.calCell, { width: CELL }]}
-                          onPress={() => toggleDay(dateStr)}
-                        >
-                          <View style={[
-                            hm.dayCircle,
-                            isHoli && { backgroundColor: isSun || isPubH ? "#D96C6C" : "#1F1F1F" },
-                          ]}>
-                            <Text style={[
-                              hm.dayNum,
-                              isHoli ? { color: "#fff" }
-                                     : isSun || isPubH ? { color: "#D96C6C" }
-                                     : isSat ? { color: themeColor }
-                                     : { color: C.text },
-                            ]}>{dayNum}</Text>
-                          </View>
-                          {isHoli && (
-                            <Text style={hm.holiLabel}>휴</Text>
-                          )}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ))}
-
-                {/* 범례 */}
-                <View style={hm.legend}>
-                  <View style={hm.legendItem}>
-                    <View style={[hm.legendDot, { backgroundColor: "#D96C6C" }]} />
-                    <Text style={[hm.legendTxt, { color: C.textMuted }]}>공휴일·일요일</Text>
-                  </View>
-                  <View style={hm.legendItem}>
-                    <View style={[hm.legendDot, { backgroundColor: "#1F1F1F" }]} />
-                    <Text style={[hm.legendTxt, { color: C.textMuted }]}>지정 휴무일</Text>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* ── 저장 버튼 ── */}
-            {savedMsg ? (
-              <Text style={[hm.savedMsg, { color: themeColor }]}>{savedMsg}</Text>
-            ) : null}
-            <Pressable
-              style={[hm.saveBtn, { backgroundColor: themeColor, opacity: saving ? 0.7 : 1 }]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving
-                ? <ActivityIndicator size={18} color="#fff" />
-                : <Feather name="save" size={18} color="#fff" />}
-              <Text style={hm.saveBtnTxt}>
-                {month}월 휴무일 저장
-              </Text>
-            </Pressable>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
 /* ────────────────────────────────────────────────
    메인 타입
@@ -525,7 +131,6 @@ export default function AdminRevenueScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 같은 탭 재탭 시 → 현재 월로 초기화
   useEffect(() => {
     return addTabResetListener("admin-revenue", () => setMonth(curMonthStr()));
   }, []);
@@ -656,7 +261,6 @@ export default function AdminRevenueScreen() {
               const statusStyle = STATUS_COLOR[status];
               return (
                 <View key={t.id} style={[s.teacherCard, { backgroundColor: C.card }]}>
-                  {/* 카드 상단: 이름 + 상태 */}
                   <View style={s.teacherCardTop}>
                     <View style={{ flex: 1 }}>
                       <Text style={[s.teacherName, { color: C.text }]}>{t.name}</Text>
@@ -667,12 +271,10 @@ export default function AdminRevenueScreen() {
                     </View>
                   </View>
 
-                  {/* 매출결산액 */}
                   <Text style={[s.teacherAmt, { color: themeColor }]}>
                     {report?.total_revenue != null ? formatWon(report.total_revenue) : "—"}
                   </Text>
 
-                  {/* 통계 그리드 */}
                   <View style={s.statsGrid}>
                     <View style={s.statBox}>
                       <Text style={[s.statBoxVal, { color: C.text }]}>
@@ -806,7 +408,7 @@ export default function AdminRevenueScreen() {
         visible={holiModal}
         onClose={() => setHoliModal(false)}
         poolId={poolId}
-        token={token || ""}
+        token={token}
         themeColor={themeColor}
       />
     </View>
@@ -874,49 +476,4 @@ const s = StyleSheet.create({
   modalBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
   modalBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center" },
   modalBtnTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-});
-
-/* ────────────────────────────────────────────────
-   Styles — HolidayModal
-──────────────────────────────────────────────── */
-const hm = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "92%", overflow: "hidden" },
-
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 18, borderBottomWidth: 1 },
-  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-
-  optCard: { borderRadius: 16, padding: 14, gap: 10 },
-  optTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  optRow: { flexDirection: "row", gap: 10 },
-  optBtn: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: Colors.light.border, backgroundColor: Colors.light.background },
-  optBtnLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  optBtnSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
-
-  monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
-  navBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  monthTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
-
-  weekdayCard: { borderRadius: 16, padding: 14, gap: 10 },
-  weekdayRow: { flexDirection: "row", gap: 6 },
-  weekdayBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: "center" },
-  weekdayBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold" },
-
-  calCard: { borderRadius: 16, padding: 14, gap: 8 },
-  calWeekRow: { flexDirection: "row" },
-  calHeaderCell: { height: 28, alignItems: "center", justifyContent: "center" },
-  calHeaderTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.light.textSecondary },
-  calCell: { height: 56, alignItems: "center", paddingTop: 4, gap: 2 },
-  dayCircle: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  dayNum: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  holiLabel: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#D96C6C" },
-
-  legend: { flexDirection: "row", gap: 14, justifyContent: "center", paddingTop: 8 },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendTxt: { fontSize: 11, fontFamily: "Inter_400Regular" },
-
-  savedMsg: { textAlign: "center", fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 14 },
-  saveBtnTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });

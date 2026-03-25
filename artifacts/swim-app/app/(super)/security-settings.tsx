@@ -3,9 +3,10 @@
  * A. 계정 목록·권한·활성 여부
  * B. 1차 인증 (비밀번호 변경)
  * C. 2차 인증 옵션
- * D. 외부 서비스 연결 상태
- * E. 세션·접속 관리
- * F. 보안 정책
+ * D. 플랫폼 인프라 상태 (InfraStatusPanel)
+ * E. 데이터 백업 빠른 접근
+ * F. 세션·접속 관리 (SessionsSection)
+ * G. 보안 정책 (SecurityPolicySection) + 로그인 이력 (LoginHistorySection)
  */
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useEffect, useRef, useState } from "react";
@@ -19,233 +20,21 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useSecurityStore } from "@/store/securityStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
-import type { SuperAdminAccount, SuperAdminRole, SuperAdminSession } from "@/domain/types";
 import InfraStatusPanel from "@/components/super/InfraStatusPanel";
+import { SectionTitle } from "@/components/super/security-settings/SectionTitle";
+import { SessionsSection } from "@/components/super/security-settings/SessionsSection";
+import { SecurityPolicySection } from "@/components/super/security-settings/SecurityPolicySection";
+import { LoginHistorySection } from "@/components/super/security-settings/LoginHistorySection";
+import {
+  P, DANGER, WARN, GREEN,
+  TwoFAMode, TWO_FA_OPTIONS,
+  SensitiveTrigger, SENSITIVE_TRIGGERS,
+  ROLE_LABELS,
+  isAccountLocked, relTime,
+  FlatSession,
+} from "@/components/super/security-settings/types";
 import { router } from "expo-router";
 
-const P = "#7C3AED";
-const DANGER = "#D96C6C";
-const WARN = "#D97706";
-const GREEN = "#1F8F86";
-
-// ─── 헬퍼 ────────────────────────────────────────────────────────────────────
-function isAccountLocked(acc: SuperAdminAccount): boolean {
-  if (!acc.lockedUntil) return false;
-  return new Date(acc.lockedUntil) > new Date();
-}
-
-function relTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  const diff = Date.now() - d.getTime();
-  const m = Math.floor(Math.abs(diff) / 60000);
-  const h = Math.floor(m / 60);
-  if (m < 60)  return `${m}분 전`;
-  if (h < 24)  return `${h}시간 전`;
-  return `${Math.floor(h / 24)}일 전`;
-}
-
-// ─── 2차 인증 옵션 ───────────────────────────────────────────────────────────
-type TwoFAMode = "disabled" | "otp" | "sms" | "email" | "otp_sms_backup";
-const TWO_FA_OPTIONS: { key: TwoFAMode; label: string; desc: string }[] = [
-  { key: "disabled",       label: "비활성",         desc: "2차 인증 없음 (권장하지 않음)" },
-  { key: "otp",            label: "OTP 앱 인증",    desc: "Google Authenticator / Authy 등" },
-  { key: "sms",            label: "SMS 인증",       desc: "등록된 휴대폰 번호로 인증코드 발송" },
-  { key: "email",          label: "이메일 인증",     desc: "등록된 이메일로 인증코드 발송" },
-  { key: "otp_sms_backup", label: "OTP + SMS 백업", desc: "OTP 우선, 불가시 SMS로 백업" },
-];
-
-type SensitiveTrigger = "always" | "sensitive_only";
-const SENSITIVE_TRIGGERS: { key: SensitiveTrigger; label: string }[] = [
-  { key: "always",         label: "로그인 시 항상 2차 인증" },
-  { key: "sensitive_only", label: "킬스위치·백업·삭제·권한변경·구독변경·구독료변경·용량비용변경·운영자정보수정·슈퍼관리자 개인정보변경 시 OTP 인증" },
-];
-
-// ─── 외부 서비스 시드 ────────────────────────────────────────────────────────
-type ServiceStatus =
-  | "normal"       // 정상
-  | "caution"      // 주의
-  | "warning"      // 경고
-  | "error"        // 작동 안 됨
-  | "disconnected" // 끊김
-  | "unconnected"  // 미연결
-  | "checking"     // 점검중
-  | "planned";     // 예정
-
-interface ExtService {
-  id: string;
-  category: "data" | "payment" | "messaging" | "appstore" | "other";
-  name: string;
-  icon: string;
-  serviceType: string;
-  status: ServiceStatus;
-  isConnected: boolean;
-  endpointUrl?: string;
-  projectId?: string;
-  bucketName?: string;
-  connectedAt?: string;
-  lastCheckedAt: string | null;
-  lastErrorAt?: string | null;
-  statusMessage: string;
-  notes?: string;
-  isPlaceholder?: boolean;
-}
-
-const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string; icon: string }> = {
-  normal:       { label: "정상",       color: "#1F8F86", bg: "#DDF2EF", icon: "check-circle" },
-  caution:      { label: "주의",       color: "#D97706", bg: "#FEF3C7", icon: "alert-circle" },
-  warning:      { label: "경고",       color: "#DC6803", bg: "#FFF1BF", icon: "alert-triangle" },
-  error:        { label: "작동 안 됨", color: "#D96C6C", bg: "#FEE2E2", icon: "x-circle" },
-  disconnected: { label: "끊김",       color: "#DC2626", bg: "#FEE2E2", icon: "wifi-off" },
-  unconnected:  { label: "미연결",     color: "#6B7280", bg: "#F3F4F6", icon: "minus-circle" },
-  checking:     { label: "점검중",     color: "#8B5CF6", bg: "#EDE9FE", icon: "loader" },
-  planned:      { label: "예정",       color: "#9A948F", bg: "#F6F3F1", icon: "clock" },
-};
-
-const CATEGORY_CFG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-  data:      { label: "데이터/인프라",  icon: "database",    color: "#1F8F86", bg: "#DDF2EF" },
-  payment:   { label: "결제/정산",      icon: "credit-card", color: "#7C3AED", bg: "#EEDDF5" },
-  messaging: { label: "알림/메시징",    icon: "bell",        color: "#D97706", bg: "#FEF3C7" },
-  appstore:  { label: "앱스토어/배포",  icon: "package",     color: "#0284C7", bg: "#E0F2FE" },
-  other:     { label: "기타 외부 연동", icon: "link",        color: "#6B7280", bg: "#F3F4F6" },
-};
-
-const _ago = (min: number) => new Date(Date.now() - min * 60000).toISOString();
-function fmtChecked(iso: string | null): string {
-  if (!iso) return "확인 없음";
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return "방금 전";
-  if (s < 3600) return `${Math.floor(s / 60)}분 전`;
-  if (s < 86400) return `${Math.floor(s / 3600)}시간 전`;
-  return `${Math.floor(s / 86400)}일 전`;
-}
-
-const INITIAL_SERVICES: ExtService[] = [
-  // ── A. 데이터/인프라 ──────────────────────────────────────────────────
-  { id: "supabase_db", category: "data", name: "Supabase DB", icon: "database",
-    serviceType: "DB", status: "normal", isConnected: true,
-    endpointUrl: "https://xxxxx.supabase.co", projectId: "xxxxxxxxxxxxxx",
-    connectedAt: "2026-03-10T09:00:00Z", lastCheckedAt: _ago(5),
-    statusMessage: "DB 응답 정상 (응답 12ms)", notes: "PostgreSQL 17 · 메인 운영 데이터베이스" },
-  { id: "supabase_auth", category: "data", name: "Supabase Auth", icon: "shield",
-    serviceType: "Auth", status: "normal", isConnected: true,
-    endpointUrl: "https://xxxxx.supabase.co/auth/v1", projectId: "xxxxxxxxxxxxxx",
-    connectedAt: "2026-03-10T09:00:00Z", lastCheckedAt: _ago(5),
-    statusMessage: "인증 서비스 정상 동작 중", notes: "JWT 발급 · 세션 관리" },
-  { id: "supabase_storage", category: "data", name: "Supabase Storage", icon: "archive",
-    serviceType: "Storage", status: "caution", isConnected: true,
-    endpointUrl: "https://xxxxx.supabase.co/storage/v1", projectId: "xxxxxxxxxxxxxx",
-    bucketName: "swimnote-media", connectedAt: "2026-03-10T09:00:00Z", lastCheckedAt: _ago(12),
-    statusMessage: "용량 사용률 82% — 임박", notes: "미디어 파일·영상 보조 저장소" },
-  { id: "cloudflare_r2", category: "data", name: "Cloudflare R2", icon: "cloud",
-    serviceType: "Storage", status: "normal", isConnected: true,
-    endpointUrl: "https://xxxx.r2.cloudflarestorage.com", bucketName: "swimnote-primary",
-    connectedAt: "2026-03-01T00:00:00Z", lastCheckedAt: _ago(12),
-    statusMessage: "연결 정상 · 업로드 평균 180ms", notes: "영상 파일 메인 스토리지" },
-  { id: "backup_storage", category: "data", name: "백업 스토리지", icon: "hard-drive",
-    serviceType: "Storage", status: "unconnected", isConnected: false, lastCheckedAt: null,
-    statusMessage: "아직 연결되지 않음", notes: "재해 복구용 오프사이트 백업 예정", isPlaceholder: true },
-  { id: "cdn", category: "data", name: "CDN (Cloudflare)", icon: "globe",
-    serviceType: "CDN", status: "normal", isConnected: true,
-    endpointUrl: "https://cdn.swimnote.app", connectedAt: "2026-03-01T00:00:00Z", lastCheckedAt: _ago(3),
-    statusMessage: "전 리전 정상 · 캐시 적중률 94%", notes: "정적 파일 · 이미지 CDN" },
-
-  // ── B. 결제/정산 ──────────────────────────────────────────────────────
-  { id: "portone", category: "payment", name: "PortOne", icon: "credit-card",
-    serviceType: "Payment", status: "warning", isConnected: true,
-    endpointUrl: "https://api.portone.io", projectId: "imp_xxxxxxxxxx",
-    connectedAt: "2026-02-15T00:00:00Z", lastCheckedAt: _ago(60), lastErrorAt: _ago(30),
-    statusMessage: "인증 토큰 만료 임박 (24시간 이내)", notes: "PG사 통합 결제 인터페이스" },
-  { id: "pg_toss", category: "payment", name: "토스페이먼츠", icon: "zap",
-    serviceType: "Payment", status: "normal", isConnected: true,
-    endpointUrl: "https://api.tosspayments.com", projectId: "live_xxxxxxxxxx",
-    connectedAt: "2026-02-15T00:00:00Z", lastCheckedAt: _ago(20),
-    statusMessage: "결제 정상 처리 중", notes: "카드 · 간편결제 주 PG사" },
-  { id: "pg_inicis", category: "payment", name: "KG이니시스", icon: "shopping-bag",
-    serviceType: "Payment", status: "unconnected", isConnected: false, lastCheckedAt: null,
-    statusMessage: "아직 연결되지 않음", notes: "법인카드 · 계좌이체 보조 PG 예정", isPlaceholder: true },
-  { id: "pg_nice", category: "payment", name: "나이스페이", icon: "shopping-bag",
-    serviceType: "Payment", status: "planned", isConnected: false, lastCheckedAt: null,
-    statusMessage: "연결 예정", notes: "해외카드 지원 추가 PG 검토 중", isPlaceholder: true },
-  { id: "settlement", category: "payment", name: "정산 계좌 연동", icon: "dollar-sign",
-    serviceType: "Settlement", status: "unconnected", isConnected: false, lastCheckedAt: null,
-    statusMessage: "아직 연결되지 않음", notes: "운영자 수익 정산 자동화 예정", isPlaceholder: true },
-
-  // ── C. 알림/메시징 ───────────────────────────────────────────────────
-  { id: "apns", category: "messaging", name: "Apple Push (APNs)", icon: "bell",
-    serviceType: "Push", status: "normal", isConnected: true,
-    endpointUrl: "https://api.push.apple.com", projectId: "com.swimnote.app",
-    connectedAt: "2026-03-01T00:00:00Z", lastCheckedAt: _ago(8),
-    statusMessage: "iOS 푸시 정상 발송 중", notes: "APNs JWT p8 키 등록 완료" },
-  { id: "fcm", category: "messaging", name: "Firebase Cloud Messaging", icon: "smartphone",
-    serviceType: "Push", status: "normal", isConnected: true,
-    endpointUrl: "https://fcm.googleapis.com/v1", projectId: "swimnote-prod",
-    connectedAt: "2026-03-01T00:00:00Z", lastCheckedAt: _ago(8),
-    statusMessage: "Android 푸시 정상 발송 중", notes: "Firebase Admin SDK v2" },
-  { id: "sms_provider", category: "messaging", name: "SMS (알림톡)", icon: "message-square",
-    serviceType: "SMS", status: "error", isConnected: true,
-    endpointUrl: "https://api.bizppurio.com", projectId: "swimnote_biz",
-    connectedAt: "2026-02-01T00:00:00Z", lastCheckedAt: _ago(45), lastErrorAt: _ago(20),
-    statusMessage: "알림톡 연동 오류 — 자체 발송으로 전환됨", notes: "카카오 비즈메시지 (비즈뿌리오)" },
-  { id: "email_provider", category: "messaging", name: "Email (SendGrid)", icon: "mail",
-    serviceType: "Email", status: "disconnected", isConnected: false,
-    endpointUrl: "https://api.sendgrid.com", projectId: "swimnote-sg",
-    connectedAt: "2026-01-15T00:00:00Z", lastCheckedAt: _ago(180), lastErrorAt: _ago(60),
-    statusMessage: "SMTP 인증 실패 — API 키 재발급 필요", notes: "이메일 발송 서비스 (SendGrid)" },
-  { id: "slack_notify", category: "messaging", name: "슬랙 내부 알림", icon: "hash",
-    serviceType: "Notification", status: "unconnected", isConnected: false, lastCheckedAt: null,
-    statusMessage: "아직 연결되지 않음", notes: "슈퍼관리자 장애/이상 감지 알림 예정", isPlaceholder: true },
-
-  // ── D. 앱스토어/배포 ─────────────────────────────────────────────────
-  { id: "app_store_connect", category: "appstore", name: "App Store Connect", icon: "monitor",
-    serviceType: "AppStore", status: "unconnected", isConnected: false,
-    projectId: "com.swimnote.app", lastCheckedAt: null,
-    statusMessage: "API 연결 미구성", notes: "iOS 앱 구독 상태 조회용 — 추후 연결 예정", isPlaceholder: true },
-  { id: "google_play_console", category: "appstore", name: "Google Play Console", icon: "box",
-    serviceType: "PlayStore", status: "unconnected", isConnected: false,
-    projectId: "com.swimnote.app", lastCheckedAt: null,
-    statusMessage: "API 연결 미구성", notes: "Android 앱 구독 상태 조회용 — 추후 연결 예정", isPlaceholder: true },
-
-  // ── E. 기타 외부 연동 ────────────────────────────────────────────────
-  { id: "sentry", category: "other", name: "Sentry (오류 수집)", icon: "activity",
-    serviceType: "Monitoring", status: "caution", isConnected: true,
-    endpointUrl: "https://sentry.io/organizations/swimnote", projectId: "swimnote-react-native",
-    connectedAt: "2026-03-01T00:00:00Z", lastCheckedAt: _ago(15),
-    statusMessage: "오류 이벤트 급증 감지 (최근 1시간)", notes: "앱 오류 수집 · 성능 모니터링" },
-  { id: "analytics", category: "other", name: "분석 서비스", icon: "bar-chart-2",
-    serviceType: "Analytics", status: "planned", isConnected: false, lastCheckedAt: null,
-    statusMessage: "연결 예정", notes: "사용 패턴 분석 · 이탈률 추적 예정", isPlaceholder: true },
-  { id: "ads_provider", category: "other", name: "광고 연동", icon: "image",
-    serviceType: "Ads", status: "planned", isConnected: false, lastCheckedAt: null,
-    statusMessage: "연결 예정", notes: "학부모 화면 광고 플랫폼 검토 중", isPlaceholder: true },
-];
-
-const ROLE_LABELS: Record<string, string> = {
-  super_admin:     "슈퍼관리자",
-  senior_admin:    "시니어관리자",
-  admin:           "관리자",
-  viewer:          "뷰어",
-  support:         "지원팀",
-  read_only_admin: "읽기전용",
-  super_manager:   "슈퍼매니저",
-};
-
-const REAUTH_ACTIONS = ["운영자 강제 해지", "플랜 강제 변경", "데이터 삭제", "권한 변경", "킬스위치 실행"];
-
-// ─── 섹션 타이틀 ─────────────────────────────────────────────────────────────
-function SectionTitle({ title, sub }: { title: string; sub?: string }) {
-  return (
-    <View style={{ gap: 2, marginBottom: 8 }}>
-      <Text style={st.title}>{title}</Text>
-      {sub && <Text style={st.sub}>{sub}</Text>}
-    </View>
-  );
-}
-const st = StyleSheet.create({
-  title: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  sub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
-});
 
 // ─── 메인 ─────────────────────────────────────────────────────────────────────
 export default function SecuritySettingsScreen() {
@@ -303,7 +92,6 @@ export default function SecuritySettingsScreen() {
   }
 
   // 모든 활성 세션 (계정에서 flatten)
-  type FlatSession = SuperAdminSession & { accountId: string; accountName: string };
   const allSessions = useMemo<FlatSession[]>(() =>
     accounts.flatMap(acc =>
       acc.sessions
@@ -432,17 +220,6 @@ export default function SecuritySettingsScreen() {
     createLog({ category: "보안", title: "비밀번호 변경", detail: "슈퍼관리자 비밀번호 변경 완료 (OTP 인증)", actorName, impact: "high" });
     setTimeout(() => { setPwModal(false); setPwSuccess(false); setCurrentPw(""); setNewPw(""); setConfirmPw(""); }, 1200);
   }
-
-  // 로그인 이력 시드 데이터
-  const LOGIN_HISTORY = useMemo(() => [
-    { id: "lh-001", at: "2026-03-22 11:42", ip: "211.234.56.78",  device: "Chrome / macOS",  status: "success" as const, method: "OTP" },
-    { id: "lh-002", at: "2026-03-22 09:17", ip: "211.234.56.78",  device: "Chrome / macOS",  status: "success" as const, method: "OTP" },
-    { id: "lh-003", at: "2026-03-21 20:03", ip: "175.112.34.90",  device: "Safari / iPhone", status: "fail"    as const, method: "OTP", failReason: "OTP 코드 불일치" },
-    { id: "lh-004", at: "2026-03-21 18:55", ip: "175.112.34.90",  device: "Safari / iPhone", status: "fail"    as const, method: "OTP", failReason: "OTP 코드 만료" },
-    { id: "lh-005", at: "2026-03-21 14:30", ip: "211.234.56.78",  device: "Chrome / macOS",  status: "success" as const, method: "OTP" },
-    { id: "lh-006", at: "2026-03-20 10:11", ip: "203.0.113.45",   device: "Edge / Windows",  status: "success" as const, method: "SMS" },
-    { id: "lh-007", at: "2026-03-19 22:47", ip: "198.51.100.22",  device: "Unknown",          status: "block"   as const, method: "비밀번호", failReason: "5회 실패로 자동 차단" },
-  ], []);
 
   function handleIdChange() {
     setIdError("");
@@ -738,94 +515,18 @@ export default function SecuritySettingsScreen() {
         </View>
 
         {/* ══ F. 세션·접속 관리 ══ */}
-        <View style={s.section}>
-          <SectionTitle title="F. 세션·접속 관리" sub={`활성 세션 ${allSessions.length}개`} />
-          {allSessions.length === 0 && (
-            <Text style={s.emptyTxt}>현재 활성 세션이 없습니다</Text>
-          )}
-          {allSessions.map(sess => (
-            <View key={sess.id} style={s.sessionRow}>
-              <View style={[s.sessionIconBox, { backgroundColor: "#F6F3F1" }]}>
-                <Feather name="monitor" size={14} color="#6F6B68" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={s.sessionDevice}>{sess.device}</Text>
-                  <Text style={s.sessionOwner}>{sess.accountName}</Text>
-                </View>
-                <Text style={s.sessionMeta}>{sess.ip}</Text>
-                <Text style={s.sessionTime}>시작: {relTime(sess.startedAt)}</Text>
-              </View>
-              <Pressable style={s.terminateBtn} onPress={() => doTerminateSession(sess)}>
-                <Text style={s.terminateTxt}>종료</Text>
-              </Pressable>
-            </View>
-          ))}
-        </View>
+        <SessionsSection sessions={allSessions} onTerminate={doTerminateSession} />
 
         {/* ══ G. 보안 정책 ══ */}
-        <View style={s.section}>
-          <SectionTitle title="G. 보안 정책" />
-          <View style={s.policyRow}>
-            <Text style={s.policyLabel}>로그인 실패 제한</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Pressable style={s.policyBtn} onPress={() => setMaxFail(Math.max(3, maxFail - 1))}>
-                <Text style={s.policyBtnTxt}>−</Text>
-              </Pressable>
-              <Text style={s.policyVal}>{maxFail}회</Text>
-              <Pressable style={s.policyBtn} onPress={() => setMaxFail(Math.min(10, maxFail + 1))}>
-                <Text style={s.policyBtnTxt}>+</Text>
-              </Pressable>
-            </View>
-          </View>
-          <View style={s.policyRow}>
-            <Text style={s.policyLabel}>계정 잠금 시간</Text>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              {([15, 30, 60, 120] as const).map(min => (
-                <Pressable key={min} style={[s.policyChip, lockMinutes === min && s.policyChipActive]}
-                  onPress={() => setLockMinutes(min)}>
-                  <Text style={[s.policyChipTxt, lockMinutes === min && s.policyChipTxtActive]}>
-                    {min >= 60 ? `${min / 60}h` : `${min}m`}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-          <View style={{ gap: 6, paddingTop: 6 }}>
-            <Text style={s.policyLabel}>재인증 필요 작업</Text>
-            {REAUTH_ACTIONS.map(act => (
-              <View key={act} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 }}>
-                <Feather name="check-circle" size={12} color={P} />
-                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F" }}>{act}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
+        <SecurityPolicySection
+          maxFail={maxFail}
+          lockMinutes={lockMinutes}
+          onMaxFailChange={setMaxFail}
+          onLockMinutesChange={setLockMinutes}
+        />
 
         {/* ══ G. 로그인 이력 ══ */}
-        <View style={s.section}>
-          <SectionTitle title="G. 로그인 이력" sub="최근 7건" />
-          {LOGIN_HISTORY.map(log => {
-            const isSuccess = log.status === "success";
-            const isFail    = log.status === "fail";
-            const isBlock   = log.status === "block";
-            const color = isSuccess ? "#16A34A" : isBlock ? "#D96C6C" : "#D97706";
-            const bg    = isSuccess ? "#DFF3EC" : isBlock ? "#FEF2F2" : "#FFFBEB";
-            return (
-              <View key={log.id} style={[s.infoRow, { backgroundColor: bg, borderRadius: 10, padding: 10, flexDirection: "column", alignItems: "flex-start", gap: 3 }]}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, width: "100%" }}>
-                  <Feather name={isSuccess ? "check-circle" : isBlock ? "slash" : "alert-circle"} size={13} color={color} />
-                  <Text style={[s.infoLabel, { color, flex: 1 }]}>{isSuccess ? "로그인 성공" : isBlock ? "계정 차단" : "로그인 실패"}</Text>
-                  <Text style={[s.infoValue, { fontSize: 11 }]}>{log.at}</Text>
-                </View>
-                <Text style={[s.infoValue, { paddingLeft: 21, fontSize: 12 }]}>{log.device} · {log.ip} · {log.method}</Text>
-                {(isFail || isBlock) && log.failReason && (
-                  <Text style={[s.infoValue, { paddingLeft: 21, fontSize: 11, color }]}>{log.failReason}</Text>
-                )}
-              </View>
-            );
-          })}
-        </View>
+        <LoginHistorySection />
 
       </ScrollView>
 
@@ -1281,55 +982,6 @@ const s = StyleSheet.create({
   triggerHeader:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   triggerRow:       { flexDirection: "row", alignItems: "center", gap: 10 },
   triggerLabel:     { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-
-  // ── 외부 서비스 ──
-  refreshAllBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10,
-                      paddingVertical: 6, borderRadius: 8, backgroundColor: "#EEDDF5" },
-  refreshAllTxt:    { fontSize: 11, fontFamily: "Inter_600SemiBold", color: P },
-  catHeader:        { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  catIconBox:       { width: 20, height: 20, borderRadius: 5, alignItems: "center", justifyContent: "center" },
-  catLabel:         { fontSize: 11, fontFamily: "Inter_700Bold" },
-  catLine:          { flex: 1, height: 1, backgroundColor: "#E9E2DD", marginLeft: 4 },
-  serviceCard:      { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
-                      paddingHorizontal: 10, borderRadius: 12, backgroundColor: "#FAFAFA",
-                      borderWidth: 1, borderColor: "#E9E2DD" },
-  serviceIconBox:   { width: 34, height: 34, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  serviceName:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  statusBadge:      { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 6,
-                      paddingHorizontal: 6, paddingVertical: 2 },
-  statusTxt:        { fontSize: 10, fontFamily: "Inter_700Bold" },
-  serviceMsg:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 1 },
-  serviceLastChecked:{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
-  placeholderTag:   { backgroundColor: "#F3F4F6", borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 },
-  placeholderTagTxt:{ fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
-  refreshBtn:       { width: 28, height: 28, borderRadius: 7, backgroundColor: "#EEDDF5",
-                      alignItems: "center", justifyContent: "center" },
-  serviceRow:       { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
-                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  serviceNote:      { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },
-
-  sessionRow:       { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
-                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  sessionIconBox:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  sessionDevice:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  sessionOwner:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68",
-                      backgroundColor: "#F6F3F1", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  sessionMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
-  sessionTime:      { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
-  terminateBtn:     { backgroundColor: "#F9DEDA", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  terminateTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold", color: DANGER },
-
-  policyRow:        { flexDirection: "row", alignItems: "center", paddingVertical: 8,
-                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  policyBtn:        { width: 30, height: 30, borderRadius: 8, backgroundColor: "#F6F3F1",
-                      alignItems: "center", justifyContent: "center" },
-  policyBtnTxt:     { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F", lineHeight: 22 },
-  policyVal:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", minWidth: 32, textAlign: "center" },
-  policyChip:       { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F6F3F1" },
-  policyChipActive: { backgroundColor: P },
-  policyChipTxt:    { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
-  policyChipTxtActive:{ color: "#fff" },
 
   forceRow:           { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
                         borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },

@@ -839,8 +839,6 @@ export default function AttendanceScreen() {
   // ── 월간 ──────────────────────────────────────────────────────
   return (
     <ScreenLayout header={<>{header}{commonSubHeader}</>}>
-      <Text style={{ backgroundColor: "red", color: "white", fontWeight: "bold", fontSize: 14, padding: 6, textAlign: "center" }}>
-      </Text>
       {loadingMonthly ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
       ) : (

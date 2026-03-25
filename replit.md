@@ -20,6 +20,36 @@ The system uses a dual database connection: `superAdminDb` (Supabase ap-south-1)
 ### System Design Choices
 API design follows RESTful principles with consistent JSON formats and strong authentication. The database schema (PostgreSQL with Drizzle ORM) includes key tables for multi-tenancy via `swimming_pool_id`. Security features include JWT authentication, role/pool access checks, and API validation. A modular monorepo structure with `artifacts`, `lib`, and `packages` promotes reusability.
 
+## 구조 리팩터링 (2026-03-25 완성)
+역할별 코드 분리 · 대형 파일 분해 · 스토어 구성 — 5단계 완료:
+
+### Step 1: AuthContext 분리
+- `context/AuthContext.tsx` → `auth/types.ts`, `auth/authUtils.ts`, `auth/AdminAuthContext.tsx`, `auth/SuperAuthContext.tsx`, `auth/AuthContext.tsx` (re-export barrel)
+
+### Step 2: (admin)/ 대형 파일 분해
+- `schedules.tsx`, `members.tsx`, `makeups.tsx` → thin shells + `components/admin/` 하위 컴포넌트
+- 각 파일 800줄 미만으로 축소
+
+### Step 3: (teacher)/ 대형 파일 분해
+- `my-schedule.tsx` → thin shell + 7 components
+- `today-schedule.tsx` → thin shell + 9 components
+- `diary.tsx` → thin shell + 5 components (`components/teacher/diary/`)
+
+### Step 4: Zustand store 역할별 구성
+- `store/super/index.ts` — 슈퍼 전용 barrel
+- `store/admin/index.ts` — 관리자 전용 barrel
+- `store/shared/index.ts` — 전 역할 공용 barrel
+- `store/index.ts` — 역할 구분 주석 + 전체 re-export
+
+### Step 5: (super)/ 대형 파일 분해
+- `security-settings.tsx`: 1422줄 → 1073줄 (-25%)
+- `components/super/security-settings/types.ts` — 타입·상수·헬퍼
+- `components/super/security-settings/SectionTitle.tsx`
+- `components/super/security-settings/SessionsSection.tsx`
+- `components/super/security-settings/SecurityPolicySection.tsx`
+- `components/super/security-settings/LoginHistorySection.tsx`
+- 컴파일 검증 완료 (22270ms)
+
 ## Backup System (2026-03-25 완성)
 - **선백업 완료**: `bk_1774411347140_209a9300` (0.11MB, 82테이블, DB 저장)
 - **lib/backup.ts**: 공유 백업 로직 (runRealBackup, cleanupOldAutoBackups) — super.ts, backup-batch.ts 양쪽에서 사용

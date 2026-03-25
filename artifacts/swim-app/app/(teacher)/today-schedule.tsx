@@ -1,1283 +1,38 @@
 /**
- * (teacher)/today-schedule.tsx — 오늘 스케쥴 탭
- *
- * - 시간순 수업 카드 (출결·일지·메모 상태)
- * - 개인메모 바텀시트 (수업별 텍스트 + 음성녹음)
- * - 스케줄 메모 달력: 날짜 제한 없이 클릭, 날짜별 텍스트/음성 메모 작성
+ * (teacher)/today-schedule.tsx — 오늘 스케줄 탭 (thin shell)
+ * 컴포넌트: components/teacher/today-schedule/
  */
 import { Feather } from "@expo/vector-icons";
-import { Audio } from "expo-av";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Platform, Pressable } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
-  Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, View,
+  ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
-import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { WEEKLY_BADGE, WeeklyCount, isValidBirthYear, isValidPhone, normalizePhone } from "@/utils/studentUtils";
+
+import ScheduleCard from "@/components/teacher/today-schedule/ScheduleCard";
+import MemoSheet from "@/components/teacher/today-schedule/MemoSheet";
+import AbsenceModal from "@/components/teacher/today-schedule/AbsenceModal";
+import ScheduleMemoModal from "@/components/teacher/today-schedule/ScheduleMemoModal";
+import UnreadMessagesModal from "@/components/teacher/today-schedule/UnreadMessagesModal";
+import TeacherRegisterModal from "@/components/teacher/today-schedule/TeacherRegisterModal";
+import { ScheduleItem, formatDate, todayStr } from "@/components/teacher/today-schedule/types";
 
 const C = Colors.light;
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
 
-/* ── 타입 ────────────────────────────────────────── */
-interface ScheduleItem {
-  id: string; name: string; schedule_time: string; schedule_days: string;
-  level?: string | null; student_count: number;
-  att_total: number; att_present: number;
-  diary_done: boolean; has_note: boolean;
-  note_text: string | null; audio_file_url: string | null;
-}
-interface DailyMemo {
-  id?: string; note_text?: string | null; audio_file_url?: string | null;
-}
-interface DailyMemoDateInfo { date: string; has_text: boolean; has_audio: boolean; }
-
-/* ── 날짜 유틸 ──────────────────────────────────── */
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00");
-  const days = ["일", "월", "화", "수", "목", "금", "토"];
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
-}
-function getDaysInMonth(year: number, month: number) { return new Date(year, month, 0).getDate(); }
-function getFirstDayOfMonth(year: number, month: number) { return new Date(year, month - 1, 1).getDay(); }
-
-/* ══════════════════════════════════════════════════
-   달력 컴포넌트
-   - 모든 날짜 클릭 가능
-   - 텍스트메모: 주황 dot, 음성메모: 파란 dot
-   ═════════════════════════════════════════════════ */
-function MiniCalendar({
-  year, month, memoInfo, onSelectDate, onChangeMonth,
-}: {
-  year: number; month: number;
-  memoInfo: DailyMemoDateInfo[];
-  onSelectDate: (d: string) => void;
-  onChangeMonth: (y: number, m: number) => void;
-}) {
-  const days = getDaysInMonth(year, month);
-  const firstDay = getFirstDayOfMonth(year, month);
-  const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
-  const today = todayStr();
-
-  return (
-    <View style={cal.wrap}>
-      <View style={cal.header}>
-        <Pressable
-          style={cal.navBtn}
-          onPress={() => { const d = new Date(year, month - 2, 1); onChangeMonth(d.getFullYear(), d.getMonth() + 1); }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Feather name="chevron-left" size={24} color={C.text} />
-        </Pressable>
-        <Text style={cal.title}>{year}년 {month}월</Text>
-        <Pressable
-          style={cal.navBtn}
-          onPress={() => { const d = new Date(year, month, 1); onChangeMonth(d.getFullYear(), d.getMonth() + 1); }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Feather name="chevron-right" size={24} color={C.text} />
-        </Pressable>
-      </View>
-
-      <View style={cal.dayRow}>
-        {["일","월","화","수","목","금","토"].map(d => (
-          <Text key={d} style={[cal.dayLabel, d === "일" && { color: "#D96C6C" }, d === "토" && { color: "#4EA7D8" }]}>{d}</Text>
-        ))}
-      </View>
-
-      <View style={cal.grid}>
-        {cells.map((day, i) => {
-          if (!day) return <View key={`e-${i}`} style={cal.cell} />;
-          const dateStr = `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-          const info = memoInfo.find(m => m.date === dateStr);
-          const hasText  = !!info?.has_text;
-          const hasAudio = !!info?.has_audio;
-          const isToday  = dateStr === today;
-          const dayIdx   = new Date(dateStr + "T00:00:00").getDay();
-          const isSun    = dayIdx === 0;
-          const isSat    = dayIdx === 6;
-
-          return (
-            <Pressable key={dateStr} style={cal.cell} onPress={() => onSelectDate(dateStr)}>
-              <View style={[cal.dayBox, isToday && { backgroundColor: C.tint }]}>
-                <Text style={[
-                  cal.dayNum,
-                  isToday  ? { color: "#fff", fontFamily: "Inter_700Bold" } :
-                  isSun    ? { color: "#D96C6C" } :
-                  isSat    ? { color: "#4EA7D8" } :
-                             { color: C.text },
-                ]}>
-                  {day}
-                </Text>
-              </View>
-              {/* 메모 dot 표시 */}
-              <View style={cal.dotRow}>
-                {hasText  && <View style={[cal.dot, { backgroundColor: "#E4A93A" }]} />}
-                {hasAudio && <View style={[cal.dot, { backgroundColor: "#4EA7D8" }]} />}
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* 범례 */}
-      <View style={cal.legend}>
-        <View style={cal.legendItem}>
-          <View style={[cal.legendDot, { backgroundColor: "#E4A93A" }]} />
-          <Text style={cal.legendText}>텍스트 메모</Text>
-        </View>
-        <View style={cal.legendItem}>
-          <View style={[cal.legendDot, { backgroundColor: "#4EA7D8" }]} />
-          <Text style={cal.legendText}>음성 메모</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-/* ══════════════════════════════════════════════════
-   날짜 메모 편집 페이지 (스케줄 메모 전용)
-   ═════════════════════════════════════════════════ */
-function DailyMemoPage({
-  date, token, themeColor, onBack, onSaved,
-}: {
-  date: string; token: string | null; themeColor: string;
-  onBack: () => void;
-  onSaved: (date: string, info: DailyMemoDateInfo) => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(true);
-  const [text, setText]       = useState("");
-  const [audioKey, setAudioKey]   = useState<string | null>(null);
-  const [audioUri, setAudioUri]   = useState<string | null>(null);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [sound, setSound]     = useState<Audio.Sound | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [playPos, setPlayPos] = useState(0);
-  const [playDur, setPlayDur] = useState(0);
-  const [uploadingAudio, setUploadingAudio] = useState(false);
-  const [saving, setSaving]   = useState(false);
-  const recSecs = useRef(0);
-  const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [recDisplay, setRecDisplay] = useState("0:00");
-  const [errMsg, setErrMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await apiRequest(token, `/daily-memos?date=${date}`);
-        if (res.ok) {
-          const data: DailyMemo | null = await res.json();
-          if (data) {
-            setText(data.note_text || "");
-            setAudioKey(data.audio_file_url || null);
-          } else {
-            setText(""); setAudioKey(null);
-          }
-        }
-      } catch(e) { console.error(e); }
-      finally { setLoading(false); }
-    })();
-    return () => {
-      sound?.unloadAsync();
-      if (recTimer.current) clearInterval(recTimer.current);
-    };
-  }, [date]);
-
-  /* ── 녹음 ── */
-  async function startRecording() {
-    try {
-      const { granted } = await Audio.requestPermissionsAsync();
-      if (!granted) { Alert.alert("권한 필요", "마이크 권한이 필요합니다."); return; }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setRecording(rec); setIsRecording(true);
-      recSecs.current = 0; setRecDisplay("0:00");
-      recTimer.current = setInterval(() => {
-        recSecs.current += 1;
-        const m = Math.floor(recSecs.current / 60);
-        const s = recSecs.current % 60;
-        setRecDisplay(`${m}:${String(s).padStart(2, "0")}`);
-      }, 1000);
-    } catch (e) { setErrMsg("녹음을 시작할 수 없습니다."); }
-  }
-  async function stopRecording() {
-    if (!recording) return;
-    if (recTimer.current) clearInterval(recTimer.current);
-    await recording.stopAndUnloadAsync();
-    const uri = recording.getURI();
-    setRecording(null); setIsRecording(false);
-    setAudioUri(uri || null);
-  }
-
-  /* ── 재생 ── */
-  async function playAudio() {
-    if (playing) {
-      await sound?.pauseAsync(); setPlaying(false); return;
-    }
-    try {
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      let playUri = audioUri;
-      if (!playUri && audioKey) {
-        playUri = `${API_BASE}/api/daily-memos/audio?key=${encodeURIComponent(audioKey)}`;
-      }
-      if (!playUri) return;
-      const { sound: s } = await Audio.Sound.createAsync({ uri: playUri }, { shouldPlay: true });
-      setSound(s); setPlaying(true);
-      s.setOnPlaybackStatusUpdate(status => {
-        const st = status as any;
-        if (st.isLoaded) {
-          setPlayPos(st.positionMillis || 0);
-          setPlayDur(st.durationMillis || 0);
-        }
-        if (st.didJustFinish) {
-          setPlaying(false); setPlayPos(0);
-          s.unloadAsync(); setSound(null);
-        }
-      });
-    } catch { setErrMsg("재생에 실패했습니다."); }
-  }
-  function deleteAudio() {
-    if (sound) { sound.unloadAsync(); setSound(null); }
-    setPlaying(false);
-    setPlayPos(0);
-    setPlayDur(0);
-    setAudioUri(null);
-    setAudioKey(null);
-  }
-
-  /* ── 음성 업로드 ── */
-  async function uploadAudio(): Promise<string | null> {
-    if (!audioUri) return audioKey;
-    setUploadingAudio(true);
-    try {
-      const formData = new FormData();
-      const filename = audioUri.split("/").pop() || "audio.m4a";
-      (formData as any).append("audio", { uri: audioUri, name: filename, type: "audio/m4a" } as any);
-      const res = await fetch(`${API_BASE}/api/daily-memos/audio`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      return data.audio_file_url || null;
-    } catch {
-      setErrMsg("음성 업로드에 실패했습니다."); return null;
-    } finally { setUploadingAudio(false); }
-  }
-
-  /* ── 저장 ── */
-  async function handleSave() {
-    setSaving(true);
-    try {
-      const uploadedKey = await uploadAudio();
-      const res = await apiRequest(token, "/daily-memos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date,
-          note_text: text.trim() || null,
-          audio_file_url: uploadedKey || null,
-        }),
-      });
-      if (res.ok) {
-        onSaved(date, {
-          date,
-          has_text:  !!(text.trim()),
-          has_audio: !!(uploadedKey),
-        });
-        onBack();
-      } else {
-        const d = await res.json();
-        setErrMsg(d.error || "저장에 실패했습니다.");
-      }
-    } finally { setSaving(false); }
-  }
-
-  const hasAudio = !!(audioUri || audioKey);
-  const progPercent = playDur > 0 ? (playPos / playDur) * 100 : 0;
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={themeColor} size="large" />
-      </View>
-    );
-  }
-
-  return (
-   <>
-    <View style={{ flex: 1, backgroundColor: C.background }}>
-      {/* 헤더 */}
-      <View style={[dm.header, { paddingTop: 20, borderBottomColor: C.border }]}>
-        <Pressable
-          style={dm.backBtn}
-          onPress={onBack}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <Feather name="arrow-left" size={24} color={C.text} />
-        </Pressable>
-        <Text style={[dm.headerTitle, { color: C.text }]}>{formatDate(date)}</Text>
-        <View style={{ width: 48 }} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: insets.bottom + 100 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* 텍스트 메모 */}
-        <View style={dm.section}>
-          <View style={dm.sectionHeader}>
-            <Feather name="edit-3" size={16} color={themeColor} />
-            <Text style={[dm.sectionTitle, { color: C.text }]}>텍스트 메모</Text>
-          </View>
-          <TextInput
-            style={[dm.textArea, { borderColor: C.border, color: C.text }]}
-            value={text}
-            onChangeText={setText}
-            placeholder="수업 준비, 특이사항, 개인 스케줄 등 자유롭게 작성하세요..."
-            placeholderTextColor={C.textMuted}
-            multiline
-            numberOfLines={6}
-            textAlignVertical="top"
-          />
-        </View>
-
-        {/* 음성 메모 */}
-        <View style={dm.section}>
-          <View style={dm.sectionHeader}>
-            <Feather name="mic" size={16} color="#4EA7D8" />
-            <Text style={[dm.sectionTitle, { color: C.text }]}>음성 메모</Text>
-          </View>
-
-          <View style={[dm.audioBox, { borderColor: C.border }]}>
-            {isRecording ? (
-              /* 녹음 중 */
-              <View style={dm.recordingRow}>
-                <View style={dm.recPulse}>
-                  <View style={dm.recDot} />
-                </View>
-                <Text style={[dm.recTime, { color: "#D96C6C" }]}>{recDisplay}</Text>
-                <Text style={[dm.recLabel, { color: C.textSecondary }]}>녹음 중...</Text>
-                <Pressable style={dm.stopBtn} onPress={stopRecording}>
-                  <Feather name="square" size={14} color="#fff" />
-                  <Text style={dm.stopBtnText}>중지</Text>
-                </Pressable>
-              </View>
-            ) : hasAudio ? (
-              /* 음성 있음 → 재생/삭제 */
-              <View style={{ gap: 12 }}>
-                <View style={dm.playerRow}>
-                  <Pressable
-                    style={[dm.playerBtn, { backgroundColor: "#4EA7D8" }]}
-                    onPress={playAudio}
-                  >
-                    <Feather name={playing ? "pause" : "play"} size={18} color="#fff" />
-                  </Pressable>
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <View style={[dm.progressTrack, { backgroundColor: C.border }]}>
-                      <View style={[dm.progressFill, { width: `${progPercent}%` as any, backgroundColor: "#4EA7D8" }]} />
-                    </View>
-                    <View style={dm.playerMeta}>
-                      <Text style={[dm.playerStatus, { color: playing ? "#4EA7D8" : C.textSecondary }]}>
-                        {playing ? "재생 중" : "재생 가능"}
-                      </Text>
-                      {audioUri && <Text style={[dm.playerStatus, { color: "#E4A93A" }]}>새 녹음 (미저장)</Text>}
-                    </View>
-                  </View>
-                  <Pressable style={dm.deleteAudioBtn} onPress={deleteAudio}>
-                    <Feather name="trash-2" size={16} color="#D96C6C" />
-                  </Pressable>
-                </View>
-                <Pressable
-                  style={[dm.rerecordBtn, { borderColor: C.border }]}
-                  onPress={startRecording}
-                >
-                  <Feather name="refresh-cw" size={13} color={C.textSecondary} />
-                  <Text style={[dm.rerecordText, { color: C.textSecondary }]}>다시 녹음</Text>
-                </Pressable>
-              </View>
-            ) : (
-              /* 음성 없음 → 녹음 시작 */
-              <Pressable style={dm.startRecBtn} onPress={startRecording}>
-                <View style={[dm.micCircle, { backgroundColor: "#DDF2EF" }]}>
-                  <Feather name="mic" size={22} color="#4EA7D8" />
-                </View>
-                <Text style={[dm.startRecText, { color: C.text }]}>녹음 시작</Text>
-                <Text style={[dm.startRecSub, { color: C.textSecondary }]}>탭하면 녹음이 시작됩니다</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* 저장 버튼 - 하단 고정 */}
-      <View style={[dm.saveWrap, { paddingBottom: insets.bottom + 12, borderTopColor: C.border, backgroundColor: C.background }]}>
-        <Pressable
-          style={[dm.saveBtn, { backgroundColor: themeColor, opacity: saving || uploadingAudio ? 0.7 : 1 }]}
-          onPress={handleSave}
-          disabled={saving || uploadingAudio}
-        >
-          {saving || uploadingAudio
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <>
-                <Feather name="check" size={18} color="#fff" />
-                <Text style={dm.saveBtnText}>저장</Text>
-              </>
-          }
-        </Pressable>
-      </View>
-    </View>
-    <ConfirmModal
-      visible={!!errMsg}
-      title="오류"
-      message={errMsg ?? ""}
-      confirmText="확인"
-      onConfirm={() => setErrMsg(null)}
-    />
-   </>
-  );
-}
-
-/* ══════════════════════════════════════════════════
-   스케줄 메모 달력 모달
-   - calendarView: 달력 (모든 날짜 클릭 가능)
-   - memoView:     선택 날짜 메모 편집
-   ═════════════════════════════════════════════════ */
-function ScheduleMemoModal({
-  visible, token, themeColor, onClose,
-}: {
-  visible: boolean; token: string | null; themeColor: string; onClose: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const now = new Date();
-  const [year, setYear]     = useState(now.getFullYear());
-  const [month, setMonth]   = useState(now.getMonth() + 1);
-  const [memoInfo, setMemoInfo] = useState<DailyMemoDateInfo[]>([]);
-  const [loadingDates, setLoadingDates] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
-  const loadDates = useCallback(async (y: number, m: number) => {
-    setLoadingDates(true);
-    try {
-      const res = await apiRequest(token, `/daily-memos/dates?year=${y}&month=${m}`);
-      if (res.ok) setMemoInfo(await res.json());
-    } finally { setLoadingDates(false); }
-  }, [token]);
-
-  useEffect(() => {
-    if (visible) { loadDates(year, month); }
-  }, [visible, year, month]);
-
-  function handleChangeMonth(y: number, m: number) {
-    setYear(y); setMonth(m); setMemoInfo([]);
-  }
-
-  function handleSelectDate(date: string) {
-    setSelectedDate(date);
-  }
-
-  function handleBack() {
-    if (selectedDate) {
-      setSelectedDate(null);
-    } else {
-      onClose();
-    }
-  }
-
-  function handleMemoSaved(date: string, info: DailyMemoDateInfo) {
-    setMemoInfo(prev => {
-      const filtered = prev.filter(m => m.date !== date);
-      if (info.has_text || info.has_audio) return [...filtered, info];
-      return filtered;
-    });
-  }
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={false}
-      onRequestClose={handleBack}
-    >
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.background }} edges={["top", "left", "right"]}>
-        {selectedDate ? (
-          <DailyMemoPage
-            date={selectedDate}
-            token={token}
-            themeColor={themeColor}
-            onBack={() => setSelectedDate(null)}
-            onSaved={handleMemoSaved}
-          />
-        ) : (
-          <>
-            {/* 달력 헤더 */}
-            <View style={[sm.header, { borderBottomColor: C.border, paddingTop: 20 }]}>
-              <Pressable
-                style={sm.backBtn}
-                onPress={onClose}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Feather name="arrow-left" size={24} color={C.text} />
-              </Pressable>
-              <Text style={[sm.headerTitle, { color: C.text }]}>스케줄 메모</Text>
-              <View style={{ width: 48 }} />
-            </View>
-
-            <ScrollView
-              contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 24 }}
-              showsVerticalScrollIndicator={false}
-            >
-              {loadingDates && (
-                <ActivityIndicator color={themeColor} style={{ marginBottom: 4 }} />
-              )}
-              <MiniCalendar
-                year={year} month={month}
-                memoInfo={memoInfo}
-                onSelectDate={handleSelectDate}
-                onChangeMonth={handleChangeMonth}
-              />
-              <View style={[sm.tipBox, { backgroundColor: C.tintLight }]}>
-                <Feather name="info" size={13} color={themeColor} />
-                <Text style={[sm.tipText, { color: themeColor }]}>
-                  날짜를 탭하면 메모를 작성하거나 편집할 수 있습니다.
-                </Text>
-              </View>
-            </ScrollView>
-          </>
-        )}
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-/* ══════════════════════════════════════════════════
-   수업별 개인메모 바텀시트 (기존 유지)
-   ═════════════════════════════════════════════════ */
-function MemoSheet({
-  visible, item, date, token, themeColor, onClose, onSaved,
-}: {
-  visible: boolean; item: ScheduleItem | null; date: string;
-  token: string | null; themeColor: string;
-  onClose: () => void; onSaved: (updated: Partial<ScheduleItem>) => void;
-}) {
-  const [text, setText]       = useState("");
-  const [saving, setSaving]   = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [audioUri, setAudioUri]   = useState<string | null>(null);
-  const [audioKey, setAudioKey]   = useState<string | null>(null);
-  const [sound, setSound]     = useState<Audio.Sound | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [uploadingAudio, setUploadingAudio] = useState(false);
-  const [memoErrMsg, setMemoErrMsg] = useState<string | null>(null);
-  const recSecs = useRef(0);
-  const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [recDisplay, setRecDisplay] = useState("0:00");
-
-  useEffect(() => {
-    if (visible && item) {
-      setText(item.note_text || "");
-      setAudioKey(item.audio_file_url || null);
-      setAudioUri(null); setIsRecording(false);
-      setRecording(null); setPlaying(false);
-    }
-  }, [visible, item]);
-
-  async function startRecording() {
-    try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setRecording(rec); setIsRecording(true);
-      recSecs.current = 0; setRecDisplay("0:00");
-      recTimer.current = setInterval(() => {
-        recSecs.current += 1;
-        const m = Math.floor(recSecs.current / 60);
-        const s = recSecs.current % 60;
-        setRecDisplay(`${m}:${String(s).padStart(2, "0")}`);
-      }, 1000);
-    } catch (e) { setMemoErrMsg("녹음을 시작할 수 없습니다."); }
-  }
-  async function stopRecording() {
-    if (!recording) return;
-    if (recTimer.current) clearInterval(recTimer.current);
-    await recording.stopAndUnloadAsync();
-    const uri = recording.getURI();
-    setRecording(null); setIsRecording(false); setAudioUri(uri || null);
-  }
-  async function uploadAudio(): Promise<string | null> {
-    if (!audioUri) return audioKey;
-    setUploadingAudio(true);
-    try {
-      const formData = new FormData();
-      const filename = audioUri.split("/").pop() || "audio.m4a";
-      (formData as any).append("audio", { uri: audioUri, name: filename, type: "audio/m4a" } as any);
-      const res = await fetch(`${API_BASE}/api/schedule-notes/audio`, {
-        method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData,
-      });
-      const data = await res.json();
-      return data.audio_file_url || null;
-    } catch { setMemoErrMsg("음성 업로드에 실패했습니다."); return null; }
-    finally { setUploadingAudio(false); }
-  }
-  async function playAudio() {
-    const key = audioKey;
-    if (!key && !audioUri) return;
-    if (playing) { await sound?.pauseAsync(); setPlaying(false); return; }
-    try {
-      let playUri = audioUri;
-      if (!playUri && key) playUri = `${API_BASE}/api/schedule-notes/audio?key=${encodeURIComponent(key)}`;
-      if (!playUri) return;
-      const { sound: s } = await Audio.Sound.createAsync({ uri: playUri }, { shouldPlay: true });
-      setSound(s); setPlaying(true);
-      s.setOnPlaybackStatusUpdate(status => {
-        if ((status as any).didJustFinish) { setPlaying(false); s.unloadAsync(); setSound(null); }
-      });
-    } catch { setMemoErrMsg("재생에 실패했습니다."); }
-  }
-  async function handleSave() {
-    if (!item) return;
-    setSaving(true);
-    try {
-      const uploadedKey = await uploadAudio();
-      const res = await apiRequest(token, "/schedule-notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          class_group_id: item.id, schedule_date: date,
-          note_text: text.trim() || null,
-          audio_file_url: uploadedKey || null,
-        }),
-      });
-      if (res.ok) {
-        onSaved({ note_text: text.trim() || null, audio_file_url: uploadedKey || null, has_note: !!(text.trim() || uploadedKey) });
-        onClose();
-      }
-    } finally { setSaving(false); }
-  }
-
-  if (!item) return null;
-  return (
-   <>
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={ms.overlay} onPress={onClose} />
-      <View style={ms.sheet}>
-        <View style={ms.handle} />
-        <View style={ms.sheetHeader}>
-          <View>
-            <Text style={ms.sheetTitle}>개인 메모</Text>
-            <Text style={ms.sheetSub}>{item.name} · {item.schedule_time}</Text>
-          </View>
-          <Pressable onPress={onClose} style={ms.closeBtn}><Feather name="x" size={20} color={C.text} /></Pressable>
-        </View>
-        <TextInput style={[ms.textArea, { borderColor: C.border }]}
-          value={text} onChangeText={setText}
-          placeholder="수업 준비 메모, 특이사항 등 자유롭게 작성하세요..."
-          placeholderTextColor={C.textMuted} multiline numberOfLines={5} textAlignVertical="top"
-        />
-        <View style={[ms.audioBox, { borderColor: C.border }]}>
-          <Feather name="mic" size={16} color={themeColor} />
-          <Text style={[ms.audioLabel, { color: C.textSecondary }]}>음성 메모</Text>
-          {isRecording ? (
-            <View style={ms.recRow}>
-              <View style={ms.recDot} />
-              <Text style={[ms.recTime, { color: "#D96C6C" }]}>{recDisplay}</Text>
-              <Pressable style={[ms.recBtn, { backgroundColor: "#D96C6C" }]} onPress={stopRecording}>
-                <Feather name="square" size={14} color="#fff" />
-                <Text style={ms.recBtnText}>중지</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={ms.recRow}>
-              {(audioUri || audioKey) ? (
-                <>
-                  <Pressable style={[ms.recBtn, { backgroundColor: themeColor }]} onPress={playAudio}>
-                    <Feather name={playing ? "pause" : "play"} size={14} color="#fff" />
-                    <Text style={ms.recBtnText}>{playing ? "일시정지" : "재생"}</Text>
-                  </Pressable>
-                  <Pressable style={[ms.recBtn, { backgroundColor: "#F6F3F1" }]} onPress={() => {
-                    if (sound) { sound.unloadAsync(); setSound(null); }
-                    setPlaying(false);
-                    setAudioUri(null);
-                    setAudioKey(null);
-                  }}>
-                    <Feather name="trash-2" size={14} color={C.error} />
-                    <Text style={[ms.recBtnText, { color: C.error }]}>삭제</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <Pressable style={[ms.recBtn, { backgroundColor: "#F9DEDA" }]} onPress={startRecording}>
-                  <Feather name="mic" size={14} color="#D96C6C" />
-                  <Text style={[ms.recBtnText, { color: "#D96C6C" }]}>녹음 시작</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
-        </View>
-        <Text style={ms.privateNote}>
-          <Feather name="lock" size={11} color={C.textMuted} /> 개인 메모는 선생님 본인만 볼 수 있습니다.
-        </Text>
-        <Pressable
-          style={[ms.saveBtn, { backgroundColor: themeColor, opacity: saving || uploadingAudio ? 0.7 : 1 }]}
-          onPress={handleSave} disabled={saving || uploadingAudio}
-        >
-          {saving || uploadingAudio
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={ms.saveBtnText}>저장</Text>
-          }
-        </Pressable>
-      </View>
-    </Modal>
-    <ConfirmModal
-      visible={!!memoErrMsg}
-      title="오류"
-      message={memoErrMsg ?? ""}
-      confirmText="확인"
-      onConfirm={() => setMemoErrMsg(null)}
-    />
-   </>
-  );
-}
-
-/* ══════════════════════════════════════════════════
-   결근 처리 모달 (2단계)
-   1단계: 없음/있음 선택
-   2단계(있음): 학생 선택 → 옆 반 선택
-   ═════════════════════════════════════════════════ */
-interface NearbyClass { id: string; name: string; schedule_time: string; teacher_name: string; student_count: number; }
-interface AbsenceStudent { id: string; name: string; selected: boolean; }
-
-function AbsenceModal({
-  visible, item, date, token, themeColor, onClose, onDone,
-}: {
-  visible: boolean; item: ScheduleItem | null; date: string; token: string | null;
-  themeColor: string; onClose: () => void; onDone: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const [step, setStep] = useState<"ask" | "select">("ask");
-  const [loading, setLoading] = useState(false);
-  const [students, setStudents] = useState<AbsenceStudent[]>([]);
-  const [nearby, setNearby] = useState<NearbyClass[]>([]);
-  const [selectedClass, setSelectedClass] = useState<string>("");
-  const [absenceId, setAbsenceId] = useState<string>("");
-  const [result, setResult] = useState<string>("");
-
-  useEffect(() => {
-    if (!visible) { setStep("ask"); setResult(""); setStudents([]); setNearby([]); setSelectedClass(""); setAbsenceId(""); }
-  }, [visible]);
-
-  async function handleNoTransfer() {
-    if (!item) return;
-    setLoading(true);
-    try {
-      const res = await apiRequest(token, "/absences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pool_id: (item as any).pool_id || "", class_group_id: item.id, absence_date: date, absence_time: item.schedule_time }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setResult(`결근 처리 완료. 학생 ${data.affected_students}명이 미실시(선생님) 보강으로 이월되었습니다.`);
-      } else {
-        setResult("오류: " + (data.error || "처리 실패"));
-      }
-    } catch (e) {
-      setResult("처리 중 오류가 발생했습니다.");
-    } finally { setLoading(false); }
-  }
-
-  async function handleHasTransfer() {
-    if (!item) return;
-    setLoading(true);
-    try {
-      const [stuRes, nearbyRes] = await Promise.all([
-        apiRequest(token, `/class-groups/${item.id}/students`),
-        apiRequest(token, `/absences/nearby?class_group_id=${item.id}&date=${date}&time=${item.schedule_time}`),
-      ]);
-      const stuData = stuRes.ok ? await stuRes.json() : [];
-      const nearData = nearbyRes.ok ? await nearbyRes.json() : { classes: [] };
-      const stuList = Array.isArray(stuData) ? stuData : (stuData.students || []);
-      setStudents(stuList.map((s: any) => ({ id: s.id, name: s.name, selected: false })));
-      setNearby(nearData.classes || []);
-      setStep("select");
-    } catch { setResult("조회 실패"); }
-    finally { setLoading(false); }
-  }
-
-  async function handleSubmitTransfer() {
-    if (!item) return;
-    setLoading(true);
-    try {
-      const absRes = await apiRequest(token, "/absences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pool_id: (item as any).pool_id || "", class_group_id: item.id, absence_date: date, absence_time: item.schedule_time }),
-      });
-      const absData = await absRes.json();
-      if (!absData.success) { setResult("결근 등록 실패: " + absData.error); setLoading(false); return; }
-      const aid = absData.absence?.id;
-
-      const transferIds = students.filter(s => s.selected).map(s => s.id);
-      if (transferIds.length > 0 && selectedClass) {
-        await apiRequest(token, `/absences/${aid}/transfer`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transfer_student_ids: transferIds, to_class_group_id: selectedClass }),
-        });
-      }
-      const remaining = students.filter(s => !s.selected).length;
-      setResult(`처리 완료. 이동 ${transferIds.length}명, 미실시(선생님) ${remaining}명`);
-    } catch { setResult("처리 중 오류"); }
-    finally { setLoading(false); }
-  }
-
-  function toggleStudent(id: string) {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, selected: !s.selected } : s));
-  }
-
-  if (!visible) return null;
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={ab.overlay} onPress={onClose} />
-      <View style={[ab.sheet, { paddingBottom: insets.bottom + 20 }]}>
-        <View style={ab.handle} />
-        {result ? (
-          <View style={{ gap: 16, padding: 4 }}>
-            <View style={[ab.resultBox, { backgroundColor: result.startsWith("오류") ? "#F9DEDA" : "#DDF2EF" }]}>
-              <Feather name={result.startsWith("오류") ? "alert-circle" : "check-circle"} size={20} color={result.startsWith("오류") ? "#D96C6C" : "#1F8F86"} />
-              <Text style={[ab.resultText, { color: result.startsWith("오류") ? "#D96C6C" : "#065F46" }]}>{result}</Text>
-            </View>
-            <Pressable style={[ab.btn, { backgroundColor: themeColor }]} onPress={() => { onDone(); onClose(); }}>
-              <Text style={ab.btnText}>확인</Text>
-            </Pressable>
-          </View>
-        ) : step === "ask" ? (
-          <View style={{ gap: 16 }}>
-            <Text style={ab.title}>결근 처리</Text>
-            <View style={[ab.warnBox, { backgroundColor: "#FFF1BF" }]}>
-              <Feather name="alert-triangle" size={16} color="#D97706" />
-              <Text style={[ab.warnText, { color: "#92400E" }]}>
-                {item?.name} 수업을 결근 처리합니다.{"\n"}옆 반 이동 수업하는 학생이 있습니까?
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={[ab.choiceBtn, { backgroundColor: "#F6F3F1", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
-                {loading ? <ActivityIndicator size="small" color="#6F6B68" /> : <>
-                  <Feather name="x-circle" size={18} color="#6F6B68" />
-                  <Text style={[ab.choiceBtnText, { color: "#1F1F1F" }]}>없음</Text>
-                  <Text style={ab.choiceSub}>전원 미실시(선생님)</Text>
-                </>}
-              </Pressable>
-              <Pressable style={[ab.choiceBtn, { backgroundColor: themeColor + "15", borderColor: themeColor, borderWidth: 1.5, flex: 1 }]} onPress={handleHasTransfer} disabled={loading}>
-                {loading ? <ActivityIndicator size="small" color={themeColor} /> : <>
-                  <Feather name="users" size={18} color={themeColor} />
-                  <Text style={[ab.choiceBtnText, { color: themeColor }]}>있음</Text>
-                  <Text style={ab.choiceSub}>학생 선택 → 옆 반 이동</Text>
-                </>}
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={ab.title}>이동할 학생 및 반 선택</Text>
-            <Text style={[ab.sectionLabel, { color: C.textSecondary }]}>이동할 학생 선택</Text>
-            {students.map(s => (
-              <Pressable key={s.id} style={[ab.studentRow, { backgroundColor: s.selected ? themeColor + "15" : C.background, borderColor: s.selected ? themeColor : C.border }]}
-                onPress={() => toggleStudent(s.id)}>
-                <Feather name={s.selected ? "check-square" : "square"} size={18} color={s.selected ? themeColor : C.textMuted} />
-                <Text style={[ab.studentName, { color: C.text }]}>{s.name}</Text>
-                <Text style={[ab.studentTag, { color: s.selected ? themeColor : C.textMuted }]}>{s.selected ? "이동" : "미실시"}</Text>
-              </Pressable>
-            ))}
-            {nearby.length > 0 && (
-              <>
-                <Text style={[ab.sectionLabel, { color: C.textSecondary, marginTop: 12 }]}>이동할 반 선택</Text>
-                {nearby.map(nc => (
-                  <Pressable key={nc.id} style={[ab.studentRow, { backgroundColor: selectedClass === nc.id ? themeColor + "15" : C.background, borderColor: selectedClass === nc.id ? themeColor : C.border }]}
-                    onPress={() => setSelectedClass(nc.id)}>
-                    <Feather name={selectedClass === nc.id ? "check-circle" : "circle"} size={18} color={selectedClass === nc.id ? themeColor : C.textMuted} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[ab.studentName, { color: C.text }]}>{nc.name}</Text>
-                      <Text style={[ab.studentTag, { color: C.textSecondary }]}>{nc.schedule_time} · {nc.teacher_name} · {nc.student_count}명</Text>
-                    </View>
-                  </Pressable>
-                ))}
-              </>
-            )}
-            <Pressable style={[ab.btn, { backgroundColor: themeColor, marginTop: 16, opacity: loading ? 0.6 : 1 }]}
-              onPress={handleSubmitTransfer} disabled={loading}>
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={ab.btnText}>처리 완료</Text>}
-            </Pressable>
-          </ScrollView>
-        )}
-      </View>
-    </Modal>
-  );
-}
-
-/* ══════════════════════════════════════════════════
-   수업 카드
-   ═════════════════════════════════════════════════ */
-function ScheduleCard({
-  item, themeColor, onMemo, onAttendance, onDiary, onAbsence,
-}: {
-  item: ScheduleItem; themeColor: string;
-  onMemo: () => void; onAttendance: () => void; onDiary: () => void; onAbsence: () => void;
-}) {
-  const attDone    = item.att_total > 0 && item.att_present === item.att_total;
-  const attPartial = item.att_total > 0 && item.att_present > 0 && !attDone;
-  const noAtt      = item.att_total === 0;
-
-  return (
-    <View style={[card.wrap, { backgroundColor: C.card }]}>
-      <View style={card.topRow}>
-        <View style={[card.timeBox, { backgroundColor: themeColor + "15" }]}>
-          <Text style={[card.time, { color: themeColor }]}>{item.schedule_time}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={card.name}>{item.name}</Text>
-          <Text style={card.sub}>학생 {item.student_count}명{item.level ? ` · ${item.level}` : ""}</Text>
-        </View>
-        {item.has_note && (
-          <View style={[card.noteBadge, { backgroundColor: "#FFF1BF" }]}>
-            <Feather name="edit-3" size={10} color="#D97706" />
-            <Text style={card.noteBadgeText}>메모</Text>
-          </View>
-        )}
-      </View>
-      <View style={card.statusRow}>
-        <View style={[card.badge, { backgroundColor: attDone ? "#DDF2EF" : attPartial ? "#FFF1BF" : "#F6F3F1" }]}>
-          <Feather name={attDone ? "check-circle" : "circle"} size={11}
-            color={attDone ? "#1F8F86" : attPartial ? "#D97706" : "#9A948F"} />
-          <Text style={[card.badgeText, { color: attDone ? "#1F8F86" : attPartial ? "#D97706" : "#6F6B68" }]}>
-            {noAtt ? "출결 미시작" : `출결 ${item.att_present}/${item.att_total}`}
-          </Text>
-        </View>
-        <View style={[card.badge, { backgroundColor: item.diary_done ? "#DDF2EF" : "#FFF1BF" }]}>
-          <Feather name={item.diary_done ? "check-circle" : "edit"} size={11} color={item.diary_done ? "#1F8F86" : "#D97706"} />
-          <Text style={[card.badgeText, { color: item.diary_done ? "#1F8F86" : "#D97706" }]}>
-            {item.diary_done ? "일지 완료" : "일지 미작성"}
-          </Text>
-        </View>
-      </View>
-      <View style={card.btnRow}>
-        <Pressable style={[card.actionBtn, { borderColor: attDone ? "#1F8F86" : C.border }]} onPress={onAttendance}>
-          <Feather name="check-square" size={14} color={attDone ? "#1F8F86" : C.textSecondary} />
-          <Text style={[card.actionText, { color: attDone ? "#1F8F86" : C.textSecondary }]}>출결</Text>
-        </Pressable>
-        <Pressable style={[card.actionBtn, { borderColor: item.diary_done ? "#1F8F86" : C.border }]} onPress={onDiary}>
-          <Feather name="book" size={14} color={item.diary_done ? "#1F8F86" : C.textSecondary} />
-          <Text style={[card.actionText, { color: item.diary_done ? "#1F8F86" : C.textSecondary }]}>일지</Text>
-        </Pressable>
-        <Pressable style={[card.actionBtn, { borderColor: item.has_note ? "#D97706" : C.border }]} onPress={onMemo}>
-          <Feather name="edit-3" size={14} color={item.has_note ? "#D97706" : C.textSecondary} />
-          <Text style={[card.actionText, { color: item.has_note ? "#D97706" : C.textSecondary }]}>
-            {item.has_note ? "메모 수정" : "개인메모"}
-          </Text>
-        </Pressable>
-        <Pressable style={[card.actionBtn, { borderColor: "#D96C6C", backgroundColor: "#FEF2F2" }]} onPress={onAbsence}>
-          <Feather name="user-x" size={14} color="#D96C6C" />
-          <Text style={[card.actionText, { color: "#D96C6C" }]}>결근</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-/* ══════════════════════════════════════════════════
-   메인 화면
-   ═════════════════════════════════════════════════ */
 interface TeacherOverview {
   unread_messages: number;
   pending_diaries_today: number;
   pending_diaries_past: number;
   makeup_count: number;
 }
-interface UnreadMessage {
-  id: string; diary_id: string; sender_name: string; content: string;
-  created_at: string; lesson_date: string; class_name: string;
-}
-
-/* ══ 안읽은 쪽지 모달 ══════════════════════════════ */
-function UnreadMessagesModal({
-  visible, token, themeColor, onClose, onOpenDiary,
-}: {
-  visible: boolean; token: string | null; themeColor: string;
-  onClose: () => void; onOpenDiary: (diaryId: string) => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const [messages, setMessages] = useState<UnreadMessage[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!visible) return;
-    setLoading(true);
-    apiRequest(token, "/teacher/messages?unread=true")
-      .then(r => r.ok ? r.json() : [])
-      .then(setMessages)
-      .catch(() => setMessages([]))
-      .finally(() => setLoading(false));
-  }, [visible]);
-
-  function fmtDate(s: string) {
-    const d = new Date(s);
-    return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-  }
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={um.overlay} onPress={onClose} />
-      <View style={[um.sheet, { paddingBottom: insets.bottom + 20 }]}>
-        <View style={um.handle} />
-        <View style={um.header}>
-          <Text style={[um.title, { color: C.text }]}>읽지 않은 쪽지</Text>
-          {messages.length > 0 && (
-            <View style={[um.countBadge, { backgroundColor: C.error }]}>
-              <Text style={um.countTxt}>{messages.length}</Text>
-            </View>
-          )}
-          <Pressable onPress={onClose} style={um.closeBtn}>
-            <Feather name="x" size={18} color={C.textSecondary} />
-          </Pressable>
-        </View>
-        {loading ? (
-          <ActivityIndicator color={themeColor} style={{ marginTop: 30 }} />
-        ) : messages.length === 0 ? (
-          <View style={um.empty}>
-            <Feather name="mail" size={36} color={C.textMuted} />
-            <Text style={[um.emptyTxt, { color: C.textMuted }]}>읽지 않은 쪽지가 없습니다</Text>
-          </View>
-        ) : (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {messages.map(msg => (
-              <Pressable
-                key={msg.id}
-                style={[um.item, { borderBottomColor: C.border }]}
-                onPress={() => { onOpenDiary(msg.diary_id); onClose(); }}
-              >
-                <View style={um.itemDot} />
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={[um.itemName, { color: C.text }]}>{msg.sender_name}</Text>
-                  <Text style={[um.itemContent, { color: C.textSecondary }]} numberOfLines={1}>{msg.content}</Text>
-                  <Text style={[um.itemMeta, { color: C.textMuted }]}>{msg.class_name} · {fmtDate(msg.created_at)}</Text>
-                </View>
-                <Feather name="chevron-right" size={16} color={C.textMuted} />
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-      </View>
-    </Modal>
-  );
-}
-
-const um = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet: { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "55%" },
-  handle: { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 4 },
-  header: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingBottom: 12 },
-  title: { fontSize: 17, fontFamily: "Inter_700Bold", flex: 1 },
-  countBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  countTxt: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  closeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
-  empty: { alignItems: "center", gap: 10, paddingVertical: 40 },
-  emptyTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  item: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
-  itemDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#1F8F86" },
-  itemName: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  itemContent: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  itemMeta: { fontSize: 12, fontFamily: "Inter_400Regular" },
-});
-
-/* ══════════════════════════════════════════════════
-   선생님 회원 등록 요청 모달
-   ═════════════════════════════════════════════════ */
-function TeacherRegisterModal({
-  visible, token, themeColor, onClose, onSuccess,
-}: {
-  visible: boolean; token: string | null; themeColor: string;
-  onClose: () => void; onSuccess: () => void;
-}) {
-  const [name, setName]             = useState("");
-  const [birthYear, setBirthYear]   = useState("");
-  const [parentName, setParentName] = useState("");
-  const [parentPhone, setParentPhone] = useState("");
-  const [weekly, setWeekly]         = useState<WeeklyCount>(1);
-  const [saving, setSaving]         = useState(false);
-  const [error, setError]           = useState("");
-  const [done, setDone]             = useState(false);
-  const [doneMsg, setDoneMsg]       = useState("");
-
-  function reset() {
-    setName(""); setBirthYear(""); setParentName(""); setParentPhone("");
-    setWeekly(1); setSaving(false); setError(""); setDone(false); setDoneMsg("");
-  }
-
-  function handleClose() { reset(); onClose(); }
-
-  function validate(): string | null {
-    if (!name.trim()) return "학생 이름을 입력해주세요.";
-    if (birthYear && !isValidBirthYear(birthYear)) return "출생년도 형식이 올바르지 않습니다. (예: 2015)";
-    if (parentPhone && !isValidPhone(parentPhone)) return "보호자 전화번호 형식이 올바르지 않습니다.";
-    return null;
-  }
-
-  async function handleSubmit() {
-    const e = validate();
-    if (e) { setError(e); return; }
-    setSaving(true); setError("");
-    try {
-      const res = await apiRequest(token, "/students/teacher-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          birth_year: birthYear || undefined,
-          parent_name: parentName || undefined,
-          parent_phone: parentPhone ? normalizePhone(parentPhone) : undefined,
-          weekly_count: weekly,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message || data.error || "오류가 발생했습니다."); return; }
-      setDoneMsg(`${name.trim()} 학생 등록 요청이 접수됐습니다.`);
-      setDone(true);
-      onSuccess();
-    } catch { setError("네트워크 오류가 발생했습니다."); }
-    finally { setSaving(false); }
-  }
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView style={treg.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={treg.sheet}>
-          <View style={treg.handle} />
-          {done ? (
-            /* ── 완료 화면 ── */
-            <View style={treg.doneWrap}>
-              <View style={[treg.doneIcon, { backgroundColor: themeColor + "20" }]}>
-                <Feather name="check-circle" size={36} color={themeColor} />
-              </View>
-              <Text style={[treg.doneTitle, { color: C.text }]}>등록요청 완료</Text>
-              <Text style={[treg.doneSub, { color: C.textSecondary }]}>{doneMsg}</Text>
-              <Text style={[treg.doneSub, { color: C.textMuted, fontSize: 12 }]}>
-                관리자 승인 후 정식 회원으로 반영됩니다.
-              </Text>
-              <Pressable style={[treg.saveBtn, { backgroundColor: themeColor }]} onPress={handleClose}>
-                <Text style={treg.saveBtnText}>확인</Text>
-              </Pressable>
-            </View>
-          ) : (
-            /* ── 입력 폼 ── */
-            <>
-              <View style={treg.header}>
-                <Text style={treg.title}>회원 등록 요청</Text>
-                <Pressable onPress={handleClose}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
-              </View>
-              {error ? (
-                <View style={treg.errorRow}>
-                  <Feather name="alert-circle" size={14} color={C.error} />
-                  <Text style={treg.errorText}>{error}</Text>
-                </View>
-              ) : null}
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
-                <View style={treg.field}>
-                  <Text style={treg.label}>학생 이름 *</Text>
-                  <TextInput style={treg.input} value={name} onChangeText={setName} placeholder="홍길동" placeholderTextColor={C.textMuted} />
-                </View>
-                <View style={treg.field}>
-                  <Text style={treg.label}>출생년도 (중복 체크에 사용)</Text>
-                  <TextInput style={treg.input} value={birthYear} onChangeText={setBirthYear} placeholder="예: 2015" placeholderTextColor={C.textMuted} keyboardType="number-pad" maxLength={4} />
-                </View>
-                <View style={treg.field}>
-                  <Text style={treg.label}>보호자 이름</Text>
-                  <TextInput style={treg.input} value={parentName} onChangeText={setParentName} placeholder="김보호 (선택)" placeholderTextColor={C.textMuted} />
-                </View>
-                <View style={treg.field}>
-                  <Text style={treg.label}>보호자 전화번호</Text>
-                  <TextInput style={treg.input} value={parentPhone} onChangeText={setParentPhone} placeholder="010-1234-5678" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
-                </View>
-                <View style={treg.field}>
-                  <Text style={treg.label}>주 수업 횟수</Text>
-                  <View style={treg.weekRow}>
-                    {([1, 2, 3] as WeeklyCount[]).map(w => {
-                      const badge = WEEKLY_BADGE[w];
-                      return (
-                        <Pressable
-                          key={w}
-                          style={[treg.weekBtn, { backgroundColor: weekly === w ? badge.bg : C.background, borderColor: weekly === w ? badge.color : C.border }]}
-                          onPress={() => setWeekly(w)}
-                        >
-                          <Text style={[treg.weekBtnText, { color: weekly === w ? badge.color : C.textSecondary }]}>{badge.label}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              </ScrollView>
-              <View style={treg.notice}>
-                <Feather name="info" size={13} color={themeColor} />
-                <Text style={[treg.noticeText, { color: C.textSecondary }]}>관리자 승인 후 정식 회원으로 반영됩니다.</Text>
-              </View>
-              <Pressable style={[treg.saveBtn, { backgroundColor: themeColor, opacity: saving ? 0.7 : 1 }]} onPress={handleSubmit} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={treg.saveBtnText}>등록요청</Text>}
-              </Pressable>
-            </>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-const treg = StyleSheet.create({
-  overlay:     { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet:       { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 14, maxHeight: "90%" },
-  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
-  header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title:       { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
-  errorRow:    { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#F9DEDA", padding: 10, borderRadius: 10 },
-  errorText:   { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.error },
-  field:       { gap: 6, marginBottom: 12 },
-  label:       { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  input:       { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text, borderColor: C.border, backgroundColor: C.background },
-  weekRow:     { flexDirection: "row", gap: 10 },
-  weekBtn:     { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
-  weekBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  notice:      { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
-  noticeText:  { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
-  saveBtn:     { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
-  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  doneWrap:    { alignItems: "center", gap: 14, paddingVertical: 20 },
-  doneIcon:    { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center" },
-  doneTitle:   { fontSize: 20, fontFamily: "Inter_700Bold" },
-  doneSub:     { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
-});
-
-/* ══════════════════════════════════════════════════
-   홈 화면 — 8아이콘 OS 허브
-   ═════════════════════════════════════════════════ */
 interface HubIcon {
-  key: string;
-  label: string;
-  icon: string;
-  color: string;
-  bg: string;
-  badge?: number | null;
-  onPress: () => void;
+  key: string; label: string; icon: string; color: string; bg: string;
+  badge?: number | null; onPress: () => void;
 }
 
 export default function TodayScheduleScreen() {
@@ -1286,15 +41,20 @@ export default function TodayScheduleScreen() {
   const insets = useSafeAreaInsets();
   const today = todayStr();
 
-  const [items, setItems]             = useState<ScheduleItem[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [refreshing, setRefreshing]   = useState(false);
-  const [overview, setOverview]       = useState<TeacherOverview | null>(null);
+  const [items, setItems]           = useState<ScheduleItem[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [overview, setOverview]     = useState<TeacherOverview | null>(null);
+  const [switching, setSwitching]   = useState(false);
+
+  const [showMemo,       setShowMemo]       = useState(false);
+  const [showAbsence,    setShowAbsence]    = useState(false);
+  const [showSchedMemo,  setShowSchedMemo]  = useState(false);
   const [notePopupVisible, setNotePopupVisible] = useState(false);
-  const [switching, setSwitching]     = useState(false);
   const [showTeacherRegister, setShowTeacherRegister] = useState(false);
 
-  // 관리자로 전환 가능 여부: roles에 pool_admin 포함 시 (부관리자 개념 제거)
+  const [activeItem, setActiveItem] = useState<ScheduleItem | null>(null);
+
   const adminRoleKey = adminUser?.roles?.find(r => r === "pool_admin");
   const canSwitchToAdmin = !!adminRoleKey;
 
@@ -1323,86 +83,19 @@ export default function TodayScheduleScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  const pendingAtt = items.filter(i => i.student_count > 0 && i.att_present < i.student_count).length;
+  const pendingAtt  = items.filter(i => i.student_count > 0 && i.att_present < i.student_count).length;
+  const diaryPending = items.filter(i => !i.diary_done).length;
+  const sortedItems  = [...items].sort((a, b) => a.schedule_time.localeCompare(b.schedule_time));
 
   function handleOpenDiaryFromMsg(_diaryId: string) {
     router.push("/(teacher)/diary" as any);
   }
 
-  /* ── 8 아이콘 ───────────────────────────────── */
-  const icons: HubIcon[] = [
-    {
-      key: "my-schedule",
-      label: "수업관리",
-      icon: "layers",
-      color: themeColor,
-      bg: themeColor + "18",
-      onPress: () => router.push("/(teacher)/my-schedule" as any),
-    },
-    {
-      key: "students",
-      label: "회원관리",
-      icon: "users",
-      color: "#1F8F86",
-      bg: "#DDF2EF",
-      onPress: () => router.push("/(teacher)/students" as any),
-    },
-    {
-      key: "makeups",
-      label: "보강관리",
-      icon: "refresh-cw",
-      color: "#7C3AED",
-      bg: "#EEDDF5",
-      badge: (overview?.makeup_count ?? 0) > 0 ? overview!.makeup_count : null,
-      onPress: () => router.push("/(teacher)/makeups" as any),
-    },
-    {
-      key: "note",
-      label: "쪽지",
-      icon: "mail",
-      color: "#D97706",
-      bg: "#FFF1BF",
-      badge: (overview?.unread_messages ?? 0) > 0 ? overview!.unread_messages : null,
-      onPress: () => setNotePopupVisible(true),
-    },
-    {
-      key: "messenger",
-      label: "메신저",
-      icon: "message-circle",
-      color: "#1F8F86",
-      bg: "#DDF2EF",
-      onPress: () => router.push("/(teacher)/messenger" as any),
-    },
-    {
-      key: "revenue",
-      label: "정산",
-      icon: "dollar-sign",
-      color: "#1F8F86",
-      bg: "#CFFAFE",
-      onPress: () => router.push("/(teacher)/revenue" as any),
-    },
-    {
-      key: "my-info",
-      label: "내정보",
-      icon: "user",
-      color: "#DB2777",
-      bg: "#F6D8E1",
-      onPress: () => router.push("/(teacher)/my-info" as any),
-    },
-    {
-      key: "settings",
-      label: "설정",
-      icon: "settings",
-      color: "#6F6B68",
-      bg: "#F6F3F1",
-      onPress: () => router.push("/(teacher)/settings" as any),
-    },
-  ];
+  function updateItem(id: string, updated: Partial<ScheduleItem>) {
+    setItems(prev => prev.map(it => it.id === id ? { ...it, ...updated } : it));
+  }
 
-  const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
-  const diaryPending = items.filter(i => !i.diary_done).length;
-  const sortedItems = [...items].sort((a, b) => a.schedule_time.localeCompare(b.schedule_time));
-  const WEEK_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+  const WEEK_DAYS = ["일","월","화","수","목","금","토"];
   const weekDates = React.useMemo(() => {
     const now = new Date();
     const sun = new Date(now);
@@ -1410,9 +103,25 @@ export default function TodayScheduleScreen() {
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(sun); d.setDate(sun.getDate() + i); return d; });
   }, []);
 
+  const icons: HubIcon[] = [
+    { key: "my-schedule", label: "수업관리", icon: "layers", color: themeColor, bg: themeColor + "18", onPress: () => router.push("/(teacher)/my-schedule" as any) },
+    { key: "students",    label: "회원관리", icon: "users",   color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(teacher)/students" as any) },
+    { key: "makeups",     label: "보강관리", icon: "refresh-cw", color: "#7C3AED", bg: "#EEDDF5",
+      badge: (overview?.makeup_count ?? 0) > 0 ? overview!.makeup_count : null,
+      onPress: () => router.push("/(teacher)/makeups" as any) },
+    { key: "note",        label: "쪽지",  icon: "mail", color: "#D97706", bg: "#FFF1BF",
+      badge: (overview?.unread_messages ?? 0) > 0 ? overview!.unread_messages : null,
+      onPress: () => setNotePopupVisible(true) },
+    { key: "messenger",   label: "메신저", icon: "message-circle", color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(teacher)/messenger" as any) },
+    { key: "revenue",     label: "정산",  icon: "dollar-sign", color: "#1F8F86", bg: "#CFFAFE", onPress: () => router.push("/(teacher)/revenue" as any) },
+    { key: "my-info",     label: "내정보", icon: "user", color: "#DB2777", bg: "#F6D8E1", onPress: () => router.push("/(teacher)/my-info" as any) },
+    { key: "settings",    label: "설정",  icon: "settings", color: "#6F6B68", bg: "#F6F3F1", onPress: () => router.push("/(teacher)/settings" as any) },
+  ];
+
+  const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
+
   return (
     <SafeAreaView style={h.safe} edges={[]}>
-      {/* ── 헤더 ── */}
       <View style={[h.header, { paddingTop: topPad }]}>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -1420,68 +129,44 @@ export default function TodayScheduleScreen() {
               {pool?.name ?? "수영장"}
             </Text>
             {canSwitchToAdmin && (
-              <Pressable
-                style={({ pressed }) => [
-                  h.switchChip,
-                  { borderColor: themeColor + "50", backgroundColor: themeColor + "15", opacity: pressed || switching ? 0.7 : 1 },
-                ]}
-                onPress={handleSwitchToAdmin}
-                disabled={switching}
-              >
+              <Pressable style={({ pressed }) => [h.switchChip, { borderColor: themeColor+"50", backgroundColor: themeColor+"15", opacity: pressed || switching ? 0.7 : 1 }]}
+                onPress={handleSwitchToAdmin} disabled={switching}>
                 {switching
                   ? <ActivityIndicator size="small" color={themeColor} />
-                  : <>
-                      <Feather name="repeat" size={10} color={themeColor} />
-                      <Text style={[h.switchChipTxt, { color: themeColor }]}>관리자로 전환</Text>
-                    </>
-                }
+                  : <><Feather name="repeat" size={10} color={themeColor} /><Text style={[h.switchChipTxt, { color: themeColor }]}>관리자로 전환</Text></>}
               </Pressable>
             )}
           </View>
-          <Text style={h.greeting} numberOfLines={1}>
-            {adminUser?.name ?? "선생님"} · 선생님
-          </Text>
+          <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"} · 선생님</Text>
         </View>
-        <Pressable
-          onPress={logout}
-          style={h.logoutBtn}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
+        <Pressable onPress={logout} style={h.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Feather name="log-out" size={18} color="#6F6B68" />
         </Pressable>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <ScrollView showsVerticalScrollIndicator={false}
         contentContainerStyle={[h.scroll, { paddingBottom: insets.bottom + 40 }]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />
-        }
-      >
-        {/* ── 오늘 날짜 배너 ── */}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}>
+
         <View style={[h.todayBanner, { backgroundColor: themeColor }]}>
           <Text style={h.todayDate}>{formatDate(today)}</Text>
           <View style={h.todayStatRow}>
-            <Pressable style={h.todayStat}
-              onPress={() => router.push({ pathname: "/(teacher)/my-schedule", params: { openDate: today } } as any)}>
+            <Pressable style={h.todayStat} onPress={() => router.push({ pathname:"/(teacher)/my-schedule", params:{openDate:today} } as any)}>
               <Text style={h.todayStatNum}>{loading ? "-" : items.length}</Text>
               <Text style={h.todayStatLabel}>오늘 수업</Text>
             </Pressable>
             <View style={h.todayDivider} />
-            <Pressable style={h.todayStat}
-              onPress={() => router.push("/(teacher)/attendance" as any)}>
+            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/attendance" as any)}>
               <Text style={[h.todayStatNum, pendingAtt > 0 && { color: "#FFD6D6" }]}>{loading ? "-" : pendingAtt}</Text>
               <Text style={h.todayStatLabel}>출석 미체크</Text>
             </Pressable>
             <View style={h.todayDivider} />
-            <Pressable style={h.todayStat}
-              onPress={() => router.push("/(teacher)/diary" as any)}>
+            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/diary" as any)}>
               <Text style={[h.todayStatNum, diaryPending > 0 && { color: "#FFD6D6" }]}>{loading ? "-" : diaryPending}</Text>
               <Text style={h.todayStatLabel}>미작성 일지</Text>
             </Pressable>
             <View style={h.todayDivider} />
-            <Pressable style={h.todayStat}
-              onPress={() => router.push("/(teacher)/makeups" as any)}>
+            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/makeups" as any)}>
               <Text style={[h.todayStatNum, (overview?.makeup_count ?? 0) > 0 && { color: "#FFD6D6" }]}>
                 {loading ? "-" : (overview?.makeup_count ?? 0)}
               </Text>
@@ -1490,50 +175,35 @@ export default function TodayScheduleScreen() {
           </View>
         </View>
 
-        {/* ── 스케줄러 히어로 카드 ── */}
-        <Pressable
-          style={[h.schedHero, { backgroundColor: "#2DD4BF" }]}
-          onPress={() => router.push("/(teacher)/my-schedule" as any)}
-        >
-          {/* 타이틀 행 */}
+        <Pressable style={[h.schedHero, { backgroundColor: "#2DD4BF" }]} onPress={() => router.push("/(teacher)/my-schedule" as any)}>
           <View style={h.schedHeroTop}>
             <View>
               <Text style={h.schedHeroTitle}>월간 스케줄러</Text>
               <Text style={h.schedHeroSub}>수업 · 출결 · 일지 · 날짜메모</Text>
             </View>
           </View>
-          {/* 미니 주간 달력 */}
           <View style={h.miniWeek}>
             {WEEK_DAYS.map((dn, i) => {
               const d = weekDates[i];
               const isToday = d.toDateString() === new Date().toDateString();
-              const isSun = i === 0;
-              const isSat = i === 6;
+              const isSun = i === 0; const isSat = i === 6;
               return (
                 <View key={i} style={h.miniCell}>
-                  <Text style={[h.miniDayName, isSun && { color: "#D96C6C" }, isSat && { color: "#4EA7D8" }]}>
-                    {dn}
-                  </Text>
+                  <Text style={[h.miniDayName, isSun && { color: "#D96C6C" }, isSat && { color: "#4EA7D8" }]}>{dn}</Text>
                   <View style={[h.miniCircle, isToday && h.miniCircleToday]}>
                     <Text style={[h.miniDate, isToday && h.miniDateToday, isSun && !isToday && { color: "#D96C6C" }, isSat && !isToday && { color: "#4EA7D8" }]}>
                       {d.getDate()}
                     </Text>
                   </View>
-                  {/* 오늘 수업 있으면 점 표시 */}
-                  {isToday && items.length > 0 && (
-                    <View style={h.miniDot} />
-                  )}
+                  {isToday && items.length > 0 && <View style={h.miniDot} />}
                 </View>
               );
             })}
           </View>
         </Pressable>
 
-        {/* ── 회원추가 퀵버튼 ── */}
-        <Pressable
-          style={({ pressed }) => [h.addMemberBtn, { opacity: pressed ? 0.82 : 1 }]}
-          onPress={() => setShowTeacherRegister(true)}
-        >
+        <Pressable style={({ pressed }) => [h.addMemberBtn, { opacity: pressed ? 0.82 : 1 }]}
+          onPress={() => setShowTeacherRegister(true)}>
           <View style={[h.addMemberIconWrap, { backgroundColor: "rgba(255,255,255,0.22)" }]}>
             <Feather name="user-plus" size={20} color="#fff" />
           </View>
@@ -1544,7 +214,6 @@ export default function TodayScheduleScreen() {
           <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
         </Pressable>
 
-        {/* ── 오늘 수업 (뱃지 그리드 4×3) ── */}
         <View style={[h.sectionCard, { backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
             <View style={[h.sectionIconBox, { backgroundColor: themeColor + "18" }]}>
@@ -1555,7 +224,6 @@ export default function TodayScheduleScreen() {
               <Text style={[h.classCnt, { color: themeColor }]}>{sortedItems.length}개</Text>
             )}
           </View>
-          {/* 고정 높이 컨테이너 — 수업 수 변화에도 아이콘 위치 고정 */}
           <View style={h.badgeGrid}>
             {loading ? (
               <ActivityIndicator color={themeColor} style={{ flex: 1 }} />
@@ -1564,33 +232,24 @@ export default function TodayScheduleScreen() {
                 <Feather name="sun" size={20} color={C.textMuted} />
                 <Text style={h.emptyTxt}>오늘 수업 없음</Text>
               </View>
-            ) : (
-              sortedItems.slice(0, 12).map(item => {
-                const attDone = item.att_present >= item.student_count && item.student_count > 0;
-                const attPartial = item.att_present > 0 && !attDone;
-                const dotColor = item.att_total === 0 ? "transparent"
-                  : attDone ? "#2E9B6F" : attPartial ? "#E4A93A" : "#D96C6C";
-                return (
-                  <Pressable key={item.id}
-                    style={[h.chip, { backgroundColor: themeColor + "12" }]}
-                    onPress={() => router.push({ pathname: "/(teacher)/my-schedule", params: { openDate: today } } as any)}>
-                    <View style={h.chipTop}>
-                      <Text style={[h.chipTime, { color: themeColor }]} numberOfLines={1}>
-                        {item.schedule_time}
-                      </Text>
-                      {item.att_total > 0 && (
-                        <View style={[h.chipDot, { backgroundColor: dotColor }]} />
-                      )}
-                    </View>
-                    <Text style={h.chipName} numberOfLines={1}>{item.name}</Text>
-                  </Pressable>
-                );
-              })
-            )}
+            ) : sortedItems.slice(0, 12).map(item => {
+              const attDone    = item.att_present >= item.student_count && item.student_count > 0;
+              const attPartial = item.att_present > 0 && !attDone;
+              const dotColor   = item.att_total === 0 ? "transparent" : attDone ? "#2E9B6F" : attPartial ? "#E4A93A" : "#D96C6C";
+              return (
+                <Pressable key={item.id} style={[h.chip, { backgroundColor: themeColor + "12" }]}
+                  onPress={() => router.push({ pathname:"/(teacher)/my-schedule", params:{openDate:today} } as any)}>
+                  <View style={h.chipTop}>
+                    <Text style={[h.chipTime, { color: themeColor }]} numberOfLines={1}>{item.schedule_time}</Text>
+                    {item.att_total > 0 && <View style={[h.chipDot, { backgroundColor: dotColor }]} />}
+                  </View>
+                  <Text style={h.chipName} numberOfLines={1}>{item.name}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
-        {/* ── 기능 메뉴 그리드 ── */}
         <View style={[h.gridCard, { backgroundColor: C.card }]}>
           <View style={h.grid}>
             {icons.map(ic => (
@@ -1610,28 +269,26 @@ export default function TodayScheduleScreen() {
         </View>
       </ScrollView>
 
-      {/* 쪽지 팝업 */}
-      <UnreadMessagesModal
-        visible={notePopupVisible}
-        token={token}
-        themeColor={themeColor}
-        onClose={() => setNotePopupVisible(false)}
-        onOpenDiary={handleOpenDiaryFromMsg}
+      <MemoSheet
+        visible={showMemo} item={activeItem} date={today} token={token} themeColor={themeColor}
+        onClose={() => { setShowMemo(false); setActiveItem(null); }}
+        onSaved={updated => { if (activeItem) updateItem(activeItem.id, updated); }}
       />
-
-      {/* 회원 등록 요청 모달 */}
-      <TeacherRegisterModal
-        visible={showTeacherRegister}
-        token={token}
-        themeColor={themeColor}
-        onClose={() => setShowTeacherRegister(false)}
-        onSuccess={() => {}}
+      <AbsenceModal
+        visible={showAbsence} item={activeItem} date={today} token={token} themeColor={themeColor}
+        onClose={() => { setShowAbsence(false); setActiveItem(null); }}
+        onDone={() => { load(); }}
       />
+      <ScheduleMemoModal visible={showSchedMemo} token={token} themeColor={themeColor}
+        onClose={() => setShowSchedMemo(false)} />
+      <UnreadMessagesModal visible={notePopupVisible} token={token} themeColor={themeColor}
+        onClose={() => setNotePopupVisible(false)} onOpenDiary={handleOpenDiaryFromMsg} />
+      <TeacherRegisterModal visible={showTeacherRegister} token={token} themeColor={themeColor}
+        onClose={() => setShowTeacherRegister(false)} onSuccess={() => {}} />
     </SafeAreaView>
   );
 }
 
-/* ── StyleSheets ─────────────────────────────────── */
 const h = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: "#F6F3F1" },
   header:         { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 14, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
@@ -1641,7 +298,6 @@ const h = StyleSheet.create({
   switchChip:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   switchChipTxt:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   scroll:         { padding: 12, gap: 8 },
-  /* 오늘 날짜 배너 */
   todayBanner:    { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
   todayDate:      { fontSize: 10, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.8)", marginBottom: 4 },
   todayStatRow:   { flexDirection: "row", alignItems: "center" },
@@ -1649,20 +305,11 @@ const h = StyleSheet.create({
   todayStatNum:   { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
   todayStatLabel: { fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.78)" },
   todayDivider:   { width: 1, height: 18, backgroundColor: "rgba(255,255,255,0.25)" },
-  /* 섹션 공통 */
   sectionCard:    { borderRadius: 14, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   sectionHeaderRow:{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
   sectionIconBox: { width: 24, height: 24, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   sectionTitle:   { fontSize: 13, fontFamily: "Inter_700Bold", color: C.text },
   sectionMore:    { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  /* 오늘 할 일 */
-  taskList:       { gap: 0 },
-  taskRow:        { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5 },
-  taskIcon:       { width: 24, height: 24, borderRadius: 7, alignItems: "center", justifyContent: "center" },
-  taskLabel:      { fontSize: 13, fontFamily: "Inter_500Medium", color: C.text },
-  taskBadge:      { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  taskBadgeTxt:   { fontSize: 11, fontFamily: "Inter_700Bold" },
-  /* 오늘 수업 뱃지 그리드 */
   classCnt:       { marginLeft: "auto", fontSize: 11, fontFamily: "Inter_600SemiBold" },
   badgeGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 6, minHeight: 164, alignContent: "flex-start" },
   badgeEmpty:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
@@ -1671,16 +318,13 @@ const h = StyleSheet.create({
   chipTime:       { fontSize: 11, fontFamily: "Inter_700Bold" },
   chipDot:        { width: 6, height: 6, borderRadius: 3 },
   chipName:       { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  /* 빈 상태 */
   emptyTxt:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
-  /* 스케줄러 히어로 카드 */
   schedHero:        { borderRadius: 18, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   schedHeroTop:     { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 },
   schedHeroTitle:   { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
   schedHeroSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 3 },
   schedHeroBtn:     { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   schedHeroBtnTxt:  { fontSize: 12, fontFamily: "Inter_700Bold" },
-  /* 미니 주간 달력 (애플 스타일) */
   miniWeek:         { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 6 },
   miniCell:         { flex: 1, alignItems: "center", gap: 5 },
   miniDayName:      { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9A948F", letterSpacing: 0.3 },
@@ -1689,12 +333,10 @@ const h = StyleSheet.create({
   miniDate:         { fontSize: 14, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
   miniDateToday:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
   miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
-  /* 회원추가 퀵버튼 */
   addMemberBtn:     { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#1F8F86", borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#1F8F86", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   addMemberIconWrap:{ width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   addMemberLabel:   { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
   addMemberSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
-  /* 기능 메뉴 그리드 */
   gridCard:       { borderRadius: 18, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   grid:           { flexDirection: "row", flexWrap: "wrap" },
   gridItem:       { width: "25%", alignItems: "center", gap: 5, paddingVertical: 8 },
@@ -1702,123 +344,4 @@ const h = StyleSheet.create({
   gridBadge:      { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
   gridBadgeTxt:   { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" },
   gridLabel:      { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.text, textAlign: "center" },
-});
-
-const card = StyleSheet.create({
-  wrap:     { borderRadius: 16, padding: 14, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  topRow:   { flexDirection: "row", alignItems: "center", gap: 10 },
-  timeBox:  { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  time:     { fontSize: 15, fontFamily: "Inter_700Bold" },
-  name:     { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
-  sub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
-  statusRow:{ flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  badge:    { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  badgeText:{ fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  noteBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 7 },
-  noteBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#D97706" },
-  btnRow:   { flexDirection: "row", gap: 8 },
-  actionBtn:{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
-  actionText:{ fontSize: 12, fontFamily: "Inter_600SemiBold" },
-});
-
-const ms = StyleSheet.create({
-  overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet:      { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14, paddingBottom: 36 },
-  handle:     { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
-  sheetHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
-  sheetSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
-  textArea:   { borderWidth: 1.5, borderRadius: 12, padding: 12, minHeight: 110, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text },
-  audioBox:   { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 12, padding: 12 },
-  audioLabel: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
-  recRow:     { flexDirection: "row", alignItems: "center", gap: 8 },
-  recDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C" },
-  recTime:    { fontSize: 14, fontFamily: "Inter_700Bold", minWidth: 36 },
-  recBtn:     { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  recBtnText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  privateNote:{ fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" },
-  saveBtn:    { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  saveBtnText:{ color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-});
-
-const cal = StyleSheet.create({
-  wrap:       { backgroundColor: C.card, borderRadius: 18, padding: 16, gap: 10 },
-  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
-  navBtn:     { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10 },
-  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  dayRow:     { flexDirection: "row", justifyContent: "space-around" },
-  dayLabel:   { width: "14.28%" as any, textAlign: "center", fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  grid:       { flexDirection: "row", flexWrap: "wrap" },
-  cell:       { width: "14.28%" as any, alignItems: "center", paddingVertical: 4, gap: 2 },
-  dayBox:     { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  dayNum:     { fontSize: 14, fontFamily: "Inter_500Medium" },
-  dotRow:     { flexDirection: "row", gap: 2, minHeight: 6 },
-  dot:        { width: 5, height: 5, borderRadius: 3 },
-  legend:     { flexDirection: "row", justifyContent: "center", gap: 20, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.border },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-  legendDot:  { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary },
-});
-
-const sm = StyleSheet.create({
-  header:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 14, borderBottomWidth: 1 },
-  backBtn:     { width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: 12 },
-  headerTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  tipBox:      { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12 },
-  tipText:     { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
-});
-
-const ab = StyleSheet.create({
-  overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet:       { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14, maxHeight: "85%" },
-  handle:      { width: 36, height: 4, backgroundColor: "#E9E2DD", borderRadius: 2, alignSelf: "center", marginBottom: 4 },
-  title:       { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
-  warnBox:     { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderRadius: 14 },
-  warnText:    { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  choiceBtn:   { alignItems: "center", gap: 6, padding: 18, borderRadius: 16 },
-  choiceBtnText:{ fontSize: 16, fontFamily: "Inter_700Bold" },
-  choiceSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center" },
-  btn:         { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  btnText:     { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  sectionLabel:{ fontSize: 13, fontFamily: "Inter_600SemiBold", marginTop: 8, marginBottom: 4 },
-  studentRow:  { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1.5, marginBottom: 6 },
-  studentName: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
-  studentTag:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  resultBox:   { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 16, borderRadius: 14 },
-  resultText:  { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", lineHeight: 22 },
-});
-
-const dm = StyleSheet.create({
-  header:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1 },
-  backBtn:      { width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: 12 },
-  headerTitle:  { fontSize: 16, fontFamily: "Inter_700Bold", flex: 1, textAlign: "center" },
-  section:      { gap: 10 },
-  sectionHeader:{ flexDirection: "row", alignItems: "center", gap: 8 },
-  sectionTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  textArea:     { borderWidth: 1.5, borderRadius: 14, padding: 14, minHeight: 130, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
-  audioBox:     { borderWidth: 1.5, borderRadius: 14, padding: 16, gap: 0 },
-  recordingRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  recPulse:     { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
-  recDot:       { width: 10, height: 10, borderRadius: 5, backgroundColor: "#D96C6C" },
-  recTime:      { fontSize: 16, fontFamily: "Inter_700Bold", minWidth: 44 },
-  recLabel:     { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
-  stopBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: "#D96C6C" },
-  stopBtnText:  { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  playerRow:    { flexDirection: "row", alignItems: "center", gap: 12 },
-  playerBtn:    { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  progressTrack:{ height: 4, borderRadius: 2, overflow: "hidden" },
-  progressFill: { height: 4, borderRadius: 2 },
-  playerMeta:   { flexDirection: "row", gap: 10 },
-  playerStatus: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  deleteAudioBtn:{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#F9DEDA" },
-  rerecordBtn:  { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
-  rerecordText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  startRecBtn:  { alignItems: "center", gap: 8, paddingVertical: 16 },
-  micCircle:    { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center" },
-  startRecText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  startRecSub:  { fontSize: 12, fontFamily: "Inter_400Regular" },
-  saveWrap:     { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1 },
-  saveBtn:      { height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
-  saveBtnText:  { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
 });
