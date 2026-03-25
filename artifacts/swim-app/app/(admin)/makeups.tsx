@@ -8,7 +8,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Platform, Pressable,
+  ActivityIndicator, FlatList, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
@@ -54,6 +54,7 @@ export default function MakeupsScreen() {
   const [eligibleClasses, setEligibleClasses] = useState<any[]>([]);
   const [teachers, setTeachers]              = useState<any[]>([]);
   const [classLoading, setClassLoading]     = useState(false);
+  const [conflictVisible, setConflictVisible] = useState(false);
 
   const statusFilter: Record<MkTab, string | null> = {
     "결석자 리스트": "waiting",
@@ -90,10 +91,11 @@ export default function MakeupsScreen() {
   };
 
   const handleAssign = async (mk: any, classGroup: any) => {
-    await apiRequest(token, `/admin/makeups/${mk.id}/assign`, {
+    const r = await apiRequest(token, `/admin/makeups/${mk.id}/assign`, {
       method: "PATCH", body: JSON.stringify({ class_group_id: classGroup.id }),
     });
     setAssignModal(null);
+    if (r.status === 409) { setConflictVisible(true); return; }
     load();
   };
 
@@ -112,6 +114,7 @@ export default function MakeupsScreen() {
       confirmText: "완료 처리",
       onConfirm: async () => {
         const r = await apiRequest(token, `/admin/makeups/${mk.id}/complete`, { method: "PATCH" });
+        if (r.status === 409) { setConflictVisible(true); load(); return; }
         if (r.ok) load();
       },
     });
@@ -251,6 +254,24 @@ export default function MakeupsScreen() {
         }}
         onCancel={() => setConfirmAction(null)}
       />
+
+      {/* 동시성 충돌 팝업 */}
+      {conflictVisible && (
+        <Modal visible animationType="fade" transparent onRequestClose={() => { setConflictVisible(false); load(); }}>
+          <Pressable style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" }}
+            onPress={() => { setConflictVisible(false); load(); }} />
+          <View style={{ position: "absolute", left: 24, right: 24, top: "35%", backgroundColor: "#fff", borderRadius: 14, padding: 24, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 12, elevation: 10 }}>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: "#222", marginBottom: 8 }}>보강 상태가 변경되었습니다</Text>
+            <Text style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>다른 작업자가 먼저 처리했습니다.{"\n"}최신 목록을 다시 불러옵니다.</Text>
+            <Pressable
+              onPress={() => { setConflictVisible(false); load(); }}
+              style={{ backgroundColor: themeColor, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
+            >
+              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>확인</Text>
+            </Pressable>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }

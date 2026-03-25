@@ -43,6 +43,7 @@ interface Student {
   status?: string;
   weekly_count?: number | null;
   parent_user_id?: string | null;
+  updated_at?: string | null;
   // 예약 상태 (다음달 이동 예약)
   pending_status_change?: "suspended" | "withdrawn" | null;
   pending_effective_mode?: "next_month" | null;
@@ -93,6 +94,8 @@ export default function ClassAssignScreen() {
   const [timingTarget, setTimingTarget] = useState<Student | null>(null);
   // 변경 여부 (배정완료 버튼 강조용)
   const [hasChanges, setHasChanges] = useState(false);
+  // 동시성 충돌 팝업
+  const [conflictVisible, setConflictVisible] = useState(false);
 
   const load = useCallback(async () => {
     if (!classId) return;
@@ -161,6 +164,12 @@ export default function ClassAssignScreen() {
     doAssign(student, weekly);
   }
 
+  // 동시성 충돌 발생 시 목록 새로 고침
+  async function handleConflict() {
+    setConflictVisible(false);
+    await load();
+  }
+
   // 실제 배정 처리
   async function doAssign(student: Student, weeklyCount: number) {
     if (!classId) return;
@@ -174,8 +183,16 @@ export default function ClassAssignScreen() {
       const newIds = [...currentIds, classId];
       const res = await apiRequest(token, `/students/${student.id}/assign`, {
         method: "PATCH",
-        body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: weeklyCount }),
+        body: JSON.stringify({
+          assigned_class_ids: newIds,
+          weekly_count: weeklyCount,
+          expected_updated_at: student.updated_at ?? undefined,
+        }),
       });
+      if (res.status === 409) {
+        setConflictVisible(true);
+        return;
+      }
       if (!res.ok) return;
       const updated: Student = await res.json();
       setAllStudents(prev => prev.map(s => s.id === student.id ? { ...s, ...updated } : s));
@@ -192,8 +209,16 @@ export default function ClassAssignScreen() {
     try {
       const res = await apiRequest(token, `/students/${student.id}/remove-from-class`, {
         method: "POST",
-        body: JSON.stringify({ class_group_id: classId, effective_timing: timing }),
+        body: JSON.stringify({
+          class_group_id: classId,
+          effective_timing: timing,
+          expected_updated_at: timing === "now" ? (student.updated_at ?? undefined) : undefined,
+        }),
       });
+      if (res.status === 409) {
+        setConflictVisible(true);
+        return;
+      }
       if (!res.ok) return;
       // 즉시 UI 반영: assigned 목록에서 제거, allStudents에서 해당 반 ID 제거
       setAssigned(prev => prev.filter(s => s.id !== student.id));
@@ -396,6 +421,23 @@ export default function ClassAssignScreen() {
           }}
           onCancel={() => setTimingTarget(null)}
         />
+      )}
+
+      {/* ── 동시성 충돌 팝업 ── */}
+      {conflictVisible && (
+        <Modal visible animationType="fade" transparent onRequestClose={handleConflict}>
+          <Pressable style={[s.backdrop, { backgroundColor: "rgba(0,0,0,0.45)" }]} onPress={handleConflict} />
+          <View style={{ position: "absolute", left: 24, right: 24, top: "35%", backgroundColor: "#fff", borderRadius: 14, padding: 24, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 12, elevation: 10 }}>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: "#222", marginBottom: 8 }}>배정 상태가 변경되었습니다</Text>
+            <Text style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>다른 작업자가 먼저 처리했습니다.{"\n"}최신 목록을 다시 불러옵니다.</Text>
+            <Pressable
+              onPress={handleConflict}
+              style={{ backgroundColor: C.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
+            >
+              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>확인</Text>
+            </Pressable>
+          </View>
+        </Modal>
       )}
     </View>
   );

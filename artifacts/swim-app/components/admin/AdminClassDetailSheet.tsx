@@ -42,6 +42,7 @@ interface StudentItem {
   weekly_count?: number | null;
   status?: string;
   schedule_labels?: string | null;
+  updated_at?: string | null;
 }
 
 interface TeacherItem {
@@ -73,6 +74,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   const [saving, setSaving]       = useState<string | null>(null);
   const [search, setSearch]       = useState("");
   const [teacherSaving, setTeacherSaving] = useState(false);
+  const [conflictVisible, setConflictVisible] = useState(false);
 
   /* ── 데이터 로드 ── */
   const load = useCallback(async () => {
@@ -157,8 +159,16 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     try {
       const res = await apiRequest(token, `/students/${student.id}/move-class`, {
         method: "POST",
-        body: JSON.stringify({ from_class_id: fromClassId, to_class_id: group.id }),
+        body: JSON.stringify({
+          from_class_id: fromClassId,
+          to_class_id: group.id,
+          expected_updated_at: student.updated_at ?? undefined,
+        }),
       });
+      if (res.status === 409) {
+        setConflictVisible(true);
+        return;
+      }
       if (res.ok) {
         await load();
         onReload();
@@ -464,6 +474,23 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           </View>
         )}
       </View>
+
+      {/* ── 동시성 충돌 팝업 ── */}
+      {conflictVisible && (
+        <Modal visible animationType="fade" transparent onRequestClose={() => { setConflictVisible(false); load(); }}>
+          <Pressable style={sh.backdrop} onPress={() => { setConflictVisible(false); load(); }} />
+          <View style={{ position: "absolute", left: 24, right: 24, top: "35%", backgroundColor: "#fff", borderRadius: 14, padding: 24, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 12, elevation: 10 }}>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: "#222", marginBottom: 8 }}>배정 상태가 변경되었습니다</Text>
+            <Text style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>다른 작업자가 먼저 처리했습니다.{"\n"}최신 목록을 다시 불러옵니다.</Text>
+            <Pressable
+              onPress={() => { setConflictVisible(false); load(); }}
+              style={{ backgroundColor: themeColor, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
+            >
+              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>확인</Text>
+            </Pressable>
+          </View>
+        </Modal>
+      )}
     </Modal>
   );
 }

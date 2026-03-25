@@ -1373,7 +1373,9 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
       const [cg] = await db.select().from(classGroupsTable).where(eq(classGroupsTable.id, class_group_id)).limit(1);
       if (!cg) { res.status(404).json({ error: "반 없음" }); return; }
       const actor = req.user as any;
-      await db.execute(sql`
+
+      // ── 낙관적 잠금: status = 'waiting' 조건부 UPDATE ──
+      const assignResult = (await db.execute(sql`
         UPDATE makeup_sessions SET
           status = 'assigned',
           assigned_class_group_id = ${class_group_id},
@@ -1383,7 +1385,21 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
           assigned_date = ${assigned_date || null},
           updated_at = now()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
-      `);
+          AND status = 'waiting'
+        RETURNING id
+      `)).rows as any[];
+
+      if (assignResult.length === 0) {
+        const latestRows = (await db.execute(sql`
+          SELECT * FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+        `)).rows as any[];
+        res.status(409).json({
+          code: "MAKEUP_CONFLICT",
+          message: "다른 선생님이 먼저 보강 배정을 완료했습니다.",
+          latest_state: latestRows[0] || null,
+        });
+        return;
+      }
       await writeActivityLog({
         poolId, studentId: null, targetName: req.params.id,
         actionType: "makeup_assigned", targetType: "makeup",
@@ -1454,7 +1470,9 @@ router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin","po
       const mk = rows[0];
       if (!mk) { res.status(404).json({ error: "보강 없음" }); return; }
       const isSubstitute = substitute_teacher_id && substitute_teacher_id !== mk.original_teacher_id;
-      await db.execute(sql`
+
+      // ── 낙관적 잠금: status = 'assigned' 조건부 UPDATE ──
+      const completeResult = (await db.execute(sql`
         UPDATE makeup_sessions SET
           status = 'completed',
           is_substitute = ${isSubstitute || false},
@@ -1464,7 +1482,21 @@ router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin","po
           note = ${note || null},
           updated_at = now()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
-      `);
+          AND status = 'assigned'
+        RETURNING id
+      `)).rows as any[];
+
+      if (completeResult.length === 0) {
+        const latestRows = (await db.execute(sql`
+          SELECT * FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+        `)).rows as any[];
+        res.status(409).json({
+          code: "MAKEUP_CONFLICT",
+          message: "보강 상태가 변경되었습니다. 이미 완료 처리되었거나 다른 상태입니다.",
+          latest_state: latestRows[0] || null,
+        });
+        return;
+      }
       const completedNote = isSubstitute
         ? `대리보강 완료: ${substitute_teacher_name} 선생님 (원담당: ${mk.original_teacher_name})`
         : `보강 완료`;
