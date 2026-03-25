@@ -124,11 +124,12 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
       attMap[r.class_group_id] = { total: Number(r.cnt), present: Number(r.present_cnt) };
     }
 
-    // 일지 작성 여부
+    // 일지 작성 여부 (class_diaries 테이블 기준)
     const diaryRows = await db.execute(sql`
-      SELECT class_group_id FROM swim_diary
+      SELECT class_group_id FROM class_diaries
       WHERE swimming_pool_id = ${poolId}
-      AND DATE(created_at) = ${dateParam}::date
+        AND lesson_date = ${dateParam}
+        AND is_deleted = false
     `);
     const diarySet = new Set((diaryRows.rows as any[]).map(r => r.class_group_id));
 

@@ -194,19 +194,13 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
         `);
         const remainCount = Number((remainingResult.rows[0] as any)?.cnt || 0);
         if (remainCount === 0) {
-          // 수영일지 이미지도 Object Storage에서 삭제
-          const diaries = await db.execute(sql`
-            SELECT id, image_urls FROM swim_diary WHERE class_group_id = ${classGroupId}
-          `);
+          // class_diaries 정리 (swim_diary는 class_group_id 컬럼 없어 스킵)
           try {
-            const { Client } = await import("@replit/object-storage");
-            const client = new Client();
-            for (const d of diaries.rows as any[]) {
-              const urls: string[] = Array.isArray(d.image_urls) ? d.image_urls : [];
-              await Promise.allSettled(urls.map((key: string) => client.delete(key).catch(() => {})));
-            }
+            await db.execute(sql`
+              UPDATE class_diaries SET is_deleted = true, deleted_at = now()
+              WHERE class_group_id = ${classGroupId} AND is_deleted = false
+            `);
           } catch { /* 무시 */ }
-          await db.execute(sql`DELETE FROM swim_diary WHERE class_group_id = ${classGroupId}`);
         }
       }
 

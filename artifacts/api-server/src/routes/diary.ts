@@ -807,17 +807,9 @@ router.get("/teacher/overview",
         return;
       }
 
-      // 안읽은 학부모 쪽지 수 (내 반 수업일지에 달린 학부모 메시지 중 read_at IS NULL)
+      // 안읽은 학부모 쪽지 수 — diary_messages 테이블 미구현, 0 반환
       const classIdList = classIds.map(id => `'${id}'`).join(",");
-      const unreadMsg = await db.execute(sql`
-        SELECT COUNT(*) AS cnt
-        FROM diary_messages dm
-        JOIN class_diaries cd ON cd.id = dm.diary_id
-        WHERE cd.class_group_id IN (${sql.raw(classIdList)})
-          AND dm.sender_role = 'parent'
-          AND dm.is_deleted = false
-          AND dm.read_at IS NULL
-      `);
+      const unreadMsg = { rows: [{ cnt: 0 }] } as any;
 
       // 오늘 미작성 수업일지 (오늘 수업이 있는 반 중 diary 없는 것)
       const pendingToday = await db.execute(sql`
