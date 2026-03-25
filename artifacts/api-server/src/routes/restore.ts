@@ -23,49 +23,24 @@ import { Client as ObjectStorageClient } from "@replit/object-storage";
 
 const router = Router();
 
-// ── pool_id 기반 직접 복구 대상 테이블 (swimming_pool_id 컬럼 보유) ──────────
+// ── pool_id 기반 직접 복구 대상 테이블 (swimming_pool_id 컬럼 실제 존재 확인됨) ──
 const POOL_RESTORE_TABLES = [
   "students",
   "class_groups",
   "classes",
   "attendance",
   "class_diaries",
-  "class_diary_student_notes",
   "class_diary_audit_logs",
-  "class_members",
-  "class_change_logs",
   "makeup_sessions",
   "notices",
-  "notice_reads",
-  "push_settings",
-  "pool_holidays",
-  "pool_class_pricing",
-  "pool_level_settings",
-  "pool_push_settings",
-  "teacher_invites",
-  "teacher_absences",
   "teacher_daily_memos",
   "teacher_schedule_notes",
-  "extra_classes",
-  "student_class_schedules",
-  "student_levels",
   "student_photos",
   "student_videos",
-  "photo_assets_meta",
-  "video_assets_meta",
-  "work_messages",
-  "messenger_read_state",
   "diary_templates",
-  "monthly_settlements",
   "payment_logs",
   "member_activity_logs",
-  "member_transfers",
-  "pool_change_logs",
-  "resign_requests",
-  "support_tickets",
-  "storage_policy",
   "members",
-  "pool_branches",
 ];
 
 // 절대 복구하지 않는 테이블 (플랫폼 전역 / 메타 테이블)
