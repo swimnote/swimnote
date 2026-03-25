@@ -80,6 +80,8 @@ export async function initPoolDb(): Promise<void> {
       created_at             timestamptz NOT NULL DEFAULT now(),
       updated_at             timestamptz NOT NULL DEFAULT now()
     );
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS current_level_order integer;
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
   `));
 
   // ─── 3. class_groups ─────────────────────────────────────────────────────
