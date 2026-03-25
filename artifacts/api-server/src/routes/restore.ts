@@ -26,7 +26,10 @@ import { Client as ObjectStorageClient } from "@replit/object-storage";
 const router = Router();
 
 // ── pool_id 기반 직접 복구 대상 테이블 (swimming_pool_id 컬럼 실제 존재 확인됨) ──
+// 표준 필터 컬럼: swimming_pool_id (DB 실제 컬럼명)
+// pool_id 컬럼 사용 테이블(class_change_logs 등)은 별도 처리 불가 → 제외
 const POOL_RESTORE_TABLES = [
+  // 핵심 운영 테이블
   "students",
   "class_groups",
   "classes",
@@ -43,7 +46,21 @@ const POOL_RESTORE_TABLES = [
   "payment_logs",
   "member_activity_logs",
   "members",
+  // 학부모 관련 (정책 확정: pool_id 다르면 별도 계정 → 수영장별 복구 대상)
+  "parent_accounts",
+  "parent_students",
+  "parent_pool_requests",
+  // 등록 요청 / 수영 일지 / 인수인계 보강 (swimming_pool_id 확인됨 → 복구 포함)
+  "student_registration_requests",
+  "swim_diary",
+  "manual_handover_makeups",
 ];
+
+// 플랫폼 전역 테이블: swimming_pool_id 컬럼이 있어도 복구 대상 아님 → 경고 무시
+const GLOBAL_TABLES_IGNORE = new Set([
+  "users",         // 플랫폼 전역 사용자 계정
+  "subscriptions", // 플랫폼 구독 레코드
+]);
 
 // 절대 복구하지 않는 테이블 (플랫폼 전역 / 메타 테이블)
 const EXCLUDE_FROM_FULL_RESTORE = new Set([
@@ -118,9 +135,16 @@ async function loadBackupJson(backupId: string): Promise<Record<string, unknown[
 // ════════════════════════════════════════════════════════════════
 // 복구 대상 테이블 누락 감지
 // DB에서 swimming_pool_id 컬럼을 가진 테이블 목록을 조회하고
-// POOL_RESTORE_TABLES에 없는 테이블이 있으면 WARNING 기록
+// A: 실제 누락(경고), B: 전역(무시), C: 검토필요(review 태그) 3분류
 // ════════════════════════════════════════════════════════════════
-async function detectMissingTables(): Promise<string[]> {
+interface MissingTableResult {
+  missing:       string[]; // A: 복구 대상인데 POOL_RESTORE_TABLES 미포함
+  ignored:       string[]; // B: 전역 테이블 → 경고 제외
+  reviewRequired: string[]; // C: 검토 필요 (현재는 모두 확정됨 → 빈 배열)
+}
+
+async function detectMissingTables(): Promise<MissingTableResult> {
+  const empty: MissingTableResult = { missing: [], ignored: [], reviewRequired: [] };
   try {
     const rows = (await superAdminDb.execute(sql.raw(`
       SELECT table_name
@@ -132,17 +156,22 @@ async function detectMissingTables(): Promise<string[]> {
 
     const dbTables = rows.map(r => r.table_name);
     const poolSet  = new Set(POOL_RESTORE_TABLES);
-    const missing  = dbTables.filter(t => !poolSet.has(t) && !EXCLUDE_FROM_FULL_RESTORE.has(t));
+    const result: MissingTableResult = { missing: [], ignored: [], reviewRequired: [] };
 
-    if (missing.length > 0) {
-      for (const t of missing) {
-        console.warn(`[restore] WARNING: restore 대상 누락 테이블 발견 - ${t}`);
+    for (const t of dbTables) {
+      if (poolSet.has(t) || EXCLUDE_FROM_FULL_RESTORE.has(t)) continue;
+      if (GLOBAL_TABLES_IGNORE.has(t)) {
+        result.ignored.push(t);
+        console.log(`[restore] 전역 테이블 무시 (경고 제외): ${t}`);
+      } else {
+        result.missing.push(t);
+        console.warn(`[restore] WARNING: 복구 대상 누락 테이블 발견 - ${t}`);
       }
     }
-    return missing;
+    return result;
   } catch (e: any) {
     console.warn("[restore] 누락 테이블 감지 실패:", e.message);
-    return [];
+    return empty;
   }
 }
 
@@ -235,7 +264,30 @@ async function checkDataIntegrity(poolId?: string): Promise<string[]> {
     console.warn("[restore/integrity] 일지→반 검사 실패:", e.message);
   }
 
-  // ⑤ 일지 학생 노트 → 학생 연결 (diary_id → class_diaries)
+  // ⑤a 일지 학생 노트 → 일지 연결 (diary_id → class_diaries)
+  // 목적: 일지가 삭제되었는데 노트가 남아 있는 고아 레코드 검사
+  try {
+    const where = pf
+      ? `AND cd.swimming_pool_id = ${pf}`
+      : "";
+    const r = (await superAdminDb.execute(sql.raw(`
+      SELECT COUNT(*) AS cnt
+      FROM class_diary_student_notes cdsn
+      LEFT JOIN class_diaries cd ON cd.id = cdsn.diary_id
+      WHERE cd.id IS NULL ${where}
+    `))).rows[0] as any;
+    const cnt = Number(r.cnt);
+    if (cnt > 0) {
+      const msg = `diary_note_without_diary: ${cnt}건`;
+      broken.push(msg);
+      console.warn(`[restore/integrity] ⚠️ 일지 학생 노트→일지 연결 깨짐: ${cnt}건`);
+    }
+  } catch (e: any) {
+    console.warn("[restore/integrity] 일지 노트→일지 검사 실패:", e.message);
+  }
+
+  // ⑤b 일지 학생 노트 → 학생 연결 (student_id → students)
+  // 목적: 학생이 삭제되었는데 노트가 남아 있는 고아 레코드 검사
   try {
     const poolJoin = pf
       ? `JOIN class_diaries cd ON cd.id = cdsn.diary_id AND cd.swimming_pool_id = ${pf}`
@@ -415,25 +467,30 @@ router.post(
 
       // 6. 복구 대상 테이블 누락 감지
       console.log("[restore/full] 누락 테이블 감지 중...");
-      const missingTables = await detectMissingTables();
+      const tableResult = await detectMissingTables();
 
       // 7. 데이터 무결성 검사
       console.log("[restore/full] 데이터 무결성 검사 중...");
       const brokenRelations = await checkDataIntegrity();
 
-      // 8. warning 집계
-      const warningCount = missingTables.length + brokenRelations.length;
-      const warningDetails: Record<string, unknown> = {};
-      if (missingTables.length > 0)    warningDetails.missing_tables    = missingTables;
-      if (brokenRelations.length > 0)  warningDetails.broken_relations  = brokenRelations;
+      // 8. warning 집계 (4분류 구조로 항상 기록)
+      const warningDetails = {
+        missing_restore_tables:  tableResult.missing,
+        ignored_global_tables:   tableResult.ignored,
+        review_required_tables:  tableResult.reviewRequired,
+        broken_relations:        brokenRelations,
+      };
+      const warningCount = tableResult.missing.length + tableResult.reviewRequired.length + brokenRelations.length;
 
       if (warningCount > 0) {
         console.warn(`[restore/full] ⚠️ 경고 ${warningCount}건 발생 — ${JSON.stringify(warningDetails)}`);
+      } else {
+        console.log(`[restore/full] ✅ 경고 없음. 전역 무시: ${tableResult.ignored.join(", ") || "없음"}`);
       }
 
-      // 9. restore_logs 완료 기록
+      // 9. restore_logs 완료 기록 (warning_details 항상 저장)
       await finishRestoreLog(logId, "success", {
-        warnings: warningCount > 0 ? { count: warningCount, details: warningDetails } : undefined,
+        warnings: { count: warningCount, details: warningDetails },
       });
       console.log(`[restore/full] 완료 — 총 ${totalRows}행 복구, 오류: ${errors.length}개, 경고: ${warningCount}건`);
 
@@ -445,7 +502,7 @@ router.post(
         rows_restored: totalRows,
         restore_point: restorePoint,
         warning_count: warningCount,
-        warning_details: warningCount > 0 ? warningDetails : undefined,
+        warning_details: warningDetails,
         errors: errors.length > 0 ? errors : undefined,
       });
 
@@ -548,25 +605,30 @@ router.post(
 
       // 6. 복구 대상 테이블 누락 감지
       console.log("[restore/pool] 누락 테이블 감지 중...");
-      const missingTables = await detectMissingTables();
+      const tableResult = await detectMissingTables();
 
       // 7. 데이터 무결성 검사 (해당 수영장 범위만)
       console.log(`[restore/pool] 데이터 무결성 검사 중 (pool: ${pool_id})...`);
       const brokenRelations = await checkDataIntegrity(pool_id);
 
-      // 8. warning 집계
-      const warningCount = missingTables.length + brokenRelations.length;
-      const warningDetails: Record<string, unknown> = {};
-      if (missingTables.length > 0)    warningDetails.missing_tables   = missingTables;
-      if (brokenRelations.length > 0)  warningDetails.broken_relations = brokenRelations;
+      // 8. warning 집계 (4분류 구조로 항상 기록)
+      const warningDetails = {
+        missing_restore_tables:  tableResult.missing,
+        ignored_global_tables:   tableResult.ignored,
+        review_required_tables:  tableResult.reviewRequired,
+        broken_relations:        brokenRelations,
+      };
+      const warningCount = tableResult.missing.length + tableResult.reviewRequired.length + brokenRelations.length;
 
       if (warningCount > 0) {
         console.warn(`[restore/pool] ⚠️ 경고 ${warningCount}건 — ${JSON.stringify(warningDetails)}`);
+      } else {
+        console.log(`[restore/pool] ✅ 경고 없음. 전역 무시: ${tableResult.ignored.join(", ") || "없음"}`);
       }
 
-      // 9. restore_logs 완료 기록
+      // 9. restore_logs 완료 기록 (warning_details 항상 저장)
       await finishRestoreLog(logId, "success", {
-        warnings: warningCount > 0 ? { count: warningCount, details: warningDetails } : undefined,
+        warnings: { count: warningCount, details: warningDetails },
       });
       console.log(`[restore/pool] 완료 — pool: ${pool_id}, 총 ${totalRows}행 복구, 경고: ${warningCount}건`);
 
@@ -579,7 +641,7 @@ router.post(
         rows_restored: totalRows,
         restore_point: restorePoint,
         warning_count: warningCount,
-        warning_details: warningCount > 0 ? warningDetails : undefined,
+        warning_details: warningDetails,
         errors: errors.length > 0 ? errors : undefined,
       });
 
