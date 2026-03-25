@@ -391,7 +391,7 @@ export default function TeacherAttendanceScreen() {
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader
           title={`${group.name} 출결`}
-          subtitle={`${date} · ${group.schedule_time}`}
+          subtitle={`${date} · ${group.schedule_time} [TEST_ATT_v3]`}
           onBack={() => {
             if (params.classGroupId) router.back();
             else setSelectedGroup(null);
