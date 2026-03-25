@@ -37,6 +37,12 @@ const ROW_H = 56;
 
 type ViewMode = "monthly" | "weekly" | "daily";
 
+interface DayMakeup {
+  id: string; student_id: string; student_name: string;
+  absence_date: string; status: string;
+  original_class_group_id: string | null;
+}
+
 interface StudentItem {
   id: string; name: string; birth_year?: string | null;
   assigned_class_ids?: string[]; class_group_id?: string | null;
@@ -1089,6 +1095,10 @@ export default function MyScheduleScreen() {
   const [moveStudent,     setMoveStudent]     = useState<StudentItem | null>(null);
   const [moveSheetSaving, setMoveSheetSaving] = useState(false);
 
+  // ── daily view 보강대기 목록 ──
+  const [dayMakeups,        setDayMakeups]        = useState<DayMakeup[]>([]);
+  const [dayMakeupsLoading, setDayMakeupsLoading] = useState(false);
+
   // 주간 뷰: 현재 표시 주차 (월요일 날짜) + 변경 이력
   const [weeklyViewStart, setWeeklyViewStart] = useState<string>(() => getMondayStr(todayDateStr()));
   const [weekChangeLogs, setWeekChangeLogs] = useState<ChangeLogItem[]>([]); 
@@ -1134,9 +1144,22 @@ export default function MyScheduleScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── daily view: selectedGroup 바뀌면 출결 로드 ──
+  // ── daily view: 보강대기 로드 (현재 반 필터) ──
+  const loadDayMakeups = useCallback(async (classGroupId: string) => {
+    setDayMakeupsLoading(true);
+    try {
+      const res = await apiRequest(token, "/teacher/makeups?status=pending");
+      if (res.ok) {
+        const all: DayMakeup[] = await res.json();
+        setDayMakeups(all.filter(m => m.original_class_group_id === classGroupId));
+      }
+    } catch (e) { console.error(e); }
+    finally { setDayMakeupsLoading(false); }
+  }, [token]);
+
+  // ── daily view: selectedGroup 바뀌면 출결 + 보강 로드 ──
   useEffect(() => {
-    if (!selectedGroup || !token) { setDayViewAttState({}); return; }
+    if (!selectedGroup || !token) { setDayViewAttState({}); setDayMakeups([]); return; }
     const date = todayDateStr();
     apiRequest(token, `/class-groups/${selectedGroup.id}/attendance?date=${date}`)
       .then(r => r.ok ? r.json() : [])
@@ -1146,23 +1169,40 @@ export default function MyScheduleScreen() {
         setDayViewAttState(map);
       })
       .catch(() => {});
-  }, [selectedGroup, token]);
+    loadDayMakeups(selectedGroup.id);
+  }, [selectedGroup, token, loadDayMakeups]);
 
-  // ── daily view: 즉시 출결 처리 ──
-  const markDayAtt = useCallback(async (studentId: string, status: "present" | "absent") => {
+  // ── daily view: 즉시 출결 처리 (토글) ──
+  const markDayAtt = useCallback(async (studentId: string, requestedStatus: "present" | "absent") => {
     if (!selectedGroup) return;
+    // 토글: 이미 해당 상태면 반대로 전환
+    const currentStatus = dayViewAttState[studentId];
+    const newStatus: "present" | "absent" =
+      currentStatus === requestedStatus
+        ? (requestedStatus === "absent" ? "present" : "absent")
+        : requestedStatus;
+
     setDayViewAttSaving(prev => { const n = new Set(prev); n.add(studentId); return n; });
     const date = todayDateStr();
     try {
       const res = await apiRequest(token, "/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_id: studentId, class_group_id: selectedGroup.id, date, status }),
+        body: JSON.stringify({ student_id: studentId, class_group_id: selectedGroup.id, date, status: newStatus }),
       });
-      if (res.ok) setDayViewAttState(prev => ({ ...prev, [studentId]: status }));
+      if (res.ok) {
+        setDayViewAttState(prev => ({ ...prev, [studentId]: newStatus }));
+        // 보강대기 즉시 반영
+        if (newStatus === "absent") {
+          await loadDayMakeups(selectedGroup.id);   // 결석 → 보강 생성 후 리로드
+        } else {
+          // 출석 전환 → 해당 학생의 오늘 보강 즉시 제거
+          setDayMakeups(prev => prev.filter(m => !(m.student_id === studentId && m.absence_date === date)));
+        }
+      }
     } catch (e) { console.error(e); }
     finally { setDayViewAttSaving(prev => { const n = new Set(prev); n.delete(studentId); return n; }); }
-  }, [token, selectedGroup]);
+  }, [token, selectedGroup, dayViewAttState, loadDayMakeups]);
 
   // ── daily view: 반이동 실행 ──
   const handleMoveToClass = useCallback(async (toClassId: string) => {
@@ -1430,9 +1470,33 @@ export default function MyScheduleScreen() {
 
         <FlatList data={groupStudents} keyExtractor={i => i.id}
           contentContainerStyle={s.studentList} showsVerticalScrollIndicator={false}
-          extraData={dayViewAttState}
+          extraData={[dayViewAttState, dayMakeups]}
           ListEmptyComponent={<View style={s.emptyBox}><Feather name="users" size={32} color={C.textMuted} /><Text style={s.emptyText}>배정된 학생이 없습니다</Text></View>}
           ListHeaderComponent={<Text style={s.listHeader}>학생 {groupStudents.length}명</Text>}
+          ListFooterComponent={
+            <View style={{ marginTop: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C" }} />
+                <Text style={s.listHeader}>보강 대기 {dayMakeups.length}명</Text>
+                {dayMakeupsLoading && <ActivityIndicator size="small" color="#D96C6C" />}
+              </View>
+              {dayMakeups.length === 0 && !dayMakeupsLoading && (
+                <Text style={{ fontSize: 12, color: C.textMuted, paddingLeft: 4 }}>결석 처리 시 자동으로 추가됩니다</Text>
+              )}
+              {dayMakeups.map(mk => (
+                <View key={mk.id} style={[s.studentRow, { backgroundColor: "#FDEAEA" }]}>
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: "#D96C6C", marginRight: 2 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.studentName, { color: "#D96C6C" }]}>{mk.student_name}</Text>
+                    <Text style={s.studentSub}>결석일 {mk.absence_date} · 보강 대기 중</Text>
+                  </View>
+                  <View style={[s.stBtn, { backgroundColor: "#FDEAEA", borderColor: "#D96C6C" }]}>
+                    <Text style={[s.stBtnTxt, { color: "#D96C6C" }]}>대기</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          }
           renderItem={({ item }) => {
             const attStatus = dayViewAttState[item.id];
             const isAbsent  = attStatus === "absent";
