@@ -3,7 +3,7 @@ import { db, superAdminDb } from "@workspace/db";
 import { usersTable, parentAccountsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, signTotpSession, verifyTotpSession } from "../lib/auth.js";
-import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
+import { requireAuth, requireDbRoleCheck, type AuthRequest } from "../middlewares/auth.js";
 import { generateSecret as totpGenerateSecret, verifySync as totpVerifySync, generateURI as totpGenerateURI } from "otplib";
 import QRCode from "qrcode";
 
@@ -421,35 +421,70 @@ router.post("/check-role-permission", requireAuth, async (req: AuthRequest, res)
   if (!role) return err(res, 400, "role을 지정해주세요.");
   try {
     const userId = req.user!.userId;
+    // super 계열: DB 조회 없이 항상 유효
+    if (["super_admin", "platform_admin", "super_manager"].includes(role)) {
+      res.json({ valid: true }); return;
+    }
+    // DB에서 사용자 roles 조회 (모든 역할 공통)
+    const userRow = await superAdminDb.execute(sql`
+      SELECT is_activated, roles, role AS primary_role FROM users WHERE id = ${userId} LIMIT 1
+    `);
+    const u = userRow.rows[0] as any;
+    if (!u) { res.json({ valid: false }); return; }
+    const userRoles: string[] = u.roles?.length ? u.roles : [u.primary_role];
+
+    // 1단계: DB roles에 해당 role 존재 여부 검증 (클라이언트 조작 방지)
+    if (!userRoles.includes(role)) {
+      return res.status(403).json({ valid: false, error: "invalid_role" });
+    }
+
+    // 2단계: teacher 역할은 활성화 상태 추가 검증
     if (role === "teacher") {
-      // pool_admin은 항상 teacher 전환 가능
-      const userRow = await superAdminDb.execute(sql`
-        SELECT is_activated, roles, role AS primary_role FROM users WHERE id = ${userId} LIMIT 1
-      `);
-      const u = userRow.rows[0] as any;
-      if (!u) { res.json({ valid: false }); return; }
-      const userRoles: string[] = u.roles ?? [];
+      // pool_admin 연결 계정은 항상 유효
       if (userRoles.includes("pool_admin") || u.primary_role === "pool_admin") {
         res.json({ valid: true }); return;
       }
-      // 일반 teacher: teacher_invites에서 approved 상태 확인
+      // 일반 teacher: teacher_invites 승인 상태 확인
       const rows = await superAdminDb.execute(sql`
         SELECT invite_status FROM teacher_invites WHERE user_id = ${userId} LIMIT 1
       `);
       const row = rows.rows[0] as any;
       if (!row) {
-        // teacher_invites에 없으면 is_activated 확인
         res.json({ valid: u.is_activated === true }); return;
       }
       res.json({ valid: row.invite_status === "approved" }); return;
     }
-    // 기타 역할은 계정 존재 = 유효
+
+    // pool_admin 등 기타 역할: DB roles 포함 = 유효
     res.json({ valid: true });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── JWT 역할 DB 검증 ─────────────────────────────────────────────────
+// 클라이언트가 현재 JWT 역할이 DB에서 여전히 유효한지 확인 (조작 방지)
+router.get("/verify-role", requireAuth, async (req: AuthRequest, res) => {
+  const { userId, role } = req.user!;
+  // super 계열은 DB 검증 없이 항상 유효
+  if (["super_admin", "platform_admin", "super_manager"].includes(role)) {
+    return res.json({ valid: true, role });
+  }
+  try {
+    const rolesRow = await superAdminDb.execute(sql`
+      SELECT roles, role AS primary_role, swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+    `);
+    const row = rolesRow.rows[0] as any;
+    if (!row) return res.status(403).json({ valid: false, error: "계정 없음" });
+    const dbRoles: string[] = row.roles?.length ? row.roles : [row.primary_role];
+    if (!dbRoles.includes(role)) {
+      return res.status(403).json({ valid: false, error: "invalid_role", db_roles: dbRoles });
+    }
+    return res.json({ valid: true, role, db_roles: dbRoles, pool_id: row.swimming_pool_id });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
 // ── 역할 전환 ─────────────────────────────────────────────────────────
-router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
+// requireDbRoleCheck: 현재 JWT 역할이 DB에 유효한지 먼저 검증
+router.post("/switch-role", requireAuth, requireDbRoleCheck, async (req: AuthRequest, res) => {
   const { role } = req.body;
   if (!role) return err(res, 400, "전환할 역할을 지정해주세요.");
   try {

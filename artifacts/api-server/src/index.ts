@@ -2,6 +2,7 @@ import app from "./app";
 import { startBackupJobs } from "./jobs/backup-batch.js";
 import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
+import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
 import { isDbSeparated, isProtectDbConfigured } from "@workspace/db";
 
 // ── DB 구성 안내 ─────────────────────────────────────────────────────────────
@@ -39,6 +40,8 @@ if (Number.isNaN(port) || port <= 0) {
 // DB 초기화 (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS — 멱등)
 initPoolDb().catch((e) => console.error("[pool-db-init] 초기화 오류:", e.message));
 initSuperDb().catch((e) => console.error("[super-db-init] 초기화 오류:", e.message));
+// pool_admin 기존 계정 roles 자동 보완 (teacher 역할 미포함 시 추가 — 멱등)
+backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", e.message));
 
 // 새벽 배치 잡 시작 (앱이 켜져 있는 동안 스케줄 유지)
 startBackupJobs();

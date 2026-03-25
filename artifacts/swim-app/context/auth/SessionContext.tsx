@@ -343,19 +343,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   async function checkRolePermission(roleKey: string): Promise<boolean> {
     if (!token) return false;
     try {
-      if (roleKey === "teacher") {
-        const res = await fetch(`${API_BASE}/auth/check-role-permission`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ role: roleKey }),
-        });
-        if (!res.ok) return false;
-        const data = await safeJson(res);
-        return data.valid === true;
-      }
       if (roleKey === "parent") return !!parentAccount;
-      return true;
+      // 서버에서 현재 JWT 역할이 DB roles에 존재하는지 검증 (클라이언트 조작 방지)
+      const res = await fetch(`${API_BASE}/auth/check-role-permission`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ role: roleKey }),
+      });
+      if (!res.ok) return false;
+      const data = await safeJson(res);
+      return data.valid === true;
     } catch {
+      // 네트워크 오류 시 기존 세션 유지 (오프라인 허용)
       return true;
     }
   }
