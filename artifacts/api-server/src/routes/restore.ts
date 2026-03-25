@@ -489,10 +489,16 @@ router.post(
       }
 
       // 9. restore_logs 완료 기록 (warning_details 항상 저장)
+      // rows_restored=0 + warning=0 → 정상이지만 복구 대상 없음 안내
+      const reasonMessage =
+        totalRows === 0 && warningCount === 0
+          ? "해당 백업 시점에 변경된 데이터가 없습니다."
+          : undefined;
+
       await finishRestoreLog(logId, "success", {
         warnings: { count: warningCount, details: warningDetails },
       });
-      console.log(`[restore/full] 완료 — 총 ${totalRows}행 복구, 오류: ${errors.length}개, 경고: ${warningCount}건`);
+      console.log(`[restore/full] 완료 — 총 ${totalRows}행 복구, 오류: ${errors.length}개, 경고: ${warningCount}건${reasonMessage ? " (복구 대상 없음)" : ""}`);
 
       res.json({
         ok: true,
@@ -503,6 +509,7 @@ router.post(
         restore_point: restorePoint,
         warning_count: warningCount,
         warning_details: warningDetails,
+        reason_message: reasonMessage,
         errors: errors.length > 0 ? errors : undefined,
       });
 
@@ -627,10 +634,16 @@ router.post(
       }
 
       // 9. restore_logs 완료 기록 (warning_details 항상 저장)
+      // rows_restored=0 + warning=0 → 정상이지만 복구 대상 없음 안내
+      const reasonMessage =
+        totalRows === 0 && warningCount === 0
+          ? "해당 백업 시점에 변경된 데이터가 없습니다."
+          : undefined;
+
       await finishRestoreLog(logId, "success", {
         warnings: { count: warningCount, details: warningDetails },
       });
-      console.log(`[restore/pool] 완료 — pool: ${pool_id}, 총 ${totalRows}행 복구, 경고: ${warningCount}건`);
+      console.log(`[restore/pool] 완료 — pool: ${pool_id}, 총 ${totalRows}행 복구, 경고: ${warningCount}건${reasonMessage ? " (복구 대상 없음)" : ""}`);
 
       res.json({
         ok: true,
@@ -642,6 +655,7 @@ router.post(
         restore_point: restorePoint,
         warning_count: warningCount,
         warning_details: warningDetails,
+        reason_message: reasonMessage,
         errors: errors.length > 0 ? errors : undefined,
       });
 

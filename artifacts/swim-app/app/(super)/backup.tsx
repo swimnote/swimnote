@@ -728,7 +728,7 @@ function FullRestoreModal({
   const [confirmText,    setConfirmText]    = useState("");
   const [step,           setStep]           = useState<1 | 2>(1);
   const [busy,           setBusy]           = useState(false);
-  const [result,         setResult]         = useState<{ ok: boolean; msg: string } | null>(null);
+  const [result,         setResult]         = useState<{ ok: boolean; empty?: boolean; msg: string } | null>(null);
 
   function resetModal() {
     setSelectedBackup(null);
@@ -754,9 +754,13 @@ function FullRestoreModal({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? data.detail ?? "복구 실패");
+      const isEmpty = data.rows_restored === 0 && data.warning_count === 0;
       setResult({
         ok: true,
-        msg: `복구 완료\n테이블 ${data.tables_restored}개, ${data.rows_restored}행 복구\n선백업 ID: ${data.pre_backup_id}`,
+        empty: isEmpty,
+        msg: isEmpty
+          ? (data.reason_message ?? "해당 백업 시점에 변경된 데이터가 없습니다.")
+          : `테이블 ${data.tables_restored}개, ${data.rows_restored}행 복구\n선백업 ID: ${data.pre_backup_id}`,
       });
     } catch (e: any) {
       setResult({ ok: false, msg: e.message });
@@ -781,16 +785,24 @@ function FullRestoreModal({
         {result ? (
           /* 결과 화면 */
           <View style={fr.resultWrap}>
-            <View style={[fr.resultIcon, { backgroundColor: result.ok ? "#DDF2EF" : "#F9DEDA" }]}>
-              <Feather name={result.ok ? "check-circle" : "x-circle"} size={40}
-                color={result.ok ? GREEN : DANGER} />
+            <View style={[fr.resultIcon, {
+              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#DDF2EF" : "#F9DEDA",
+            }]}>
+              <Feather
+                name={result.empty ? "info" : result.ok ? "check-circle" : "x-circle"}
+                size={40}
+                color={result.empty ? "#D97706" : result.ok ? GREEN : DANGER}
+              />
             </View>
-            <Text style={[fr.resultTitle, { color: result.ok ? GREEN : DANGER }]}>
-              {result.ok ? "복구 완료" : "복구 실패"}
+            <Text style={[fr.resultTitle, {
+              color: result.empty ? "#D97706" : result.ok ? GREEN : DANGER,
+            }]}>
+              {result.empty ? "복구 대상 없음" : result.ok ? "복구 완료" : "복구 실패"}
             </Text>
             <Text style={fr.resultMsg}>{result.msg}</Text>
-            <Pressable style={[fr.execBtn, { backgroundColor: result.ok ? GREEN : DANGER }]}
-              onPress={handleClose}>
+            <Pressable style={[fr.execBtn, {
+              backgroundColor: result.empty ? "#D97706" : result.ok ? GREEN : DANGER,
+            }]} onPress={handleClose}>
               <Text style={fr.execTxt}>닫기</Text>
             </Pressable>
           </View>
@@ -915,7 +927,7 @@ function PoolRestoreModal({
   const [selectedBackup, setSelectedBackup] = useState<BackupRecord | null>(null);
   const [confirmName,    setConfirmName]    = useState("");
   const [busy,           setBusy]           = useState(false);
-  const [result,         setResult]         = useState<{ ok: boolean; msg: string } | null>(null);
+  const [result,         setResult]         = useState<{ ok: boolean; empty?: boolean; msg: string } | null>(null);
 
   function resetModal() {
     setSearchQ("");
@@ -966,9 +978,13 @@ function PoolRestoreModal({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? data.detail ?? "복구 실패");
+      const isEmpty = data.rows_restored === 0 && data.warning_count === 0;
       setResult({
         ok: true,
-        msg: `'${selectedPool.name}' 복구 완료\n${data.rows_restored}행 복구\n선백업 ID: ${data.pre_backup_id}`,
+        empty: isEmpty,
+        msg: isEmpty
+          ? (data.reason_message ?? "해당 백업 시점에 변경된 데이터가 없습니다.")
+          : `'${selectedPool.name}' ${data.rows_restored}행 복구\n선백업 ID: ${data.pre_backup_id}`,
       });
     } catch (e: any) {
       setResult({ ok: false, msg: e.message });
@@ -996,16 +1012,24 @@ function PoolRestoreModal({
 
         {result ? (
           <View style={fr.resultWrap}>
-            <View style={[fr.resultIcon, { backgroundColor: result.ok ? "#DDF2EF" : "#F9DEDA" }]}>
-              <Feather name={result.ok ? "check-circle" : "x-circle"} size={40}
-                color={result.ok ? GREEN : DANGER} />
+            <View style={[fr.resultIcon, {
+              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#DDF2EF" : "#F9DEDA",
+            }]}>
+              <Feather
+                name={result.empty ? "info" : result.ok ? "check-circle" : "x-circle"}
+                size={40}
+                color={result.empty ? "#D97706" : result.ok ? GREEN : DANGER}
+              />
             </View>
-            <Text style={[fr.resultTitle, { color: result.ok ? GREEN : DANGER }]}>
-              {result.ok ? "복구 완료" : "복구 실패"}
+            <Text style={[fr.resultTitle, {
+              color: result.empty ? "#D97706" : result.ok ? GREEN : DANGER,
+            }]}>
+              {result.empty ? "복구 대상 없음" : result.ok ? "복구 완료" : "복구 실패"}
             </Text>
             <Text style={fr.resultMsg}>{result.msg}</Text>
-            <Pressable style={[fr.execBtn, { backgroundColor: result.ok ? GREEN : DANGER }]}
-              onPress={handleClose}>
+            <Pressable style={[fr.execBtn, {
+              backgroundColor: result.empty ? "#D97706" : result.ok ? GREEN : DANGER,
+            }]} onPress={handleClose}>
               <Text style={fr.execTxt}>닫기</Text>
             </Pressable>
           </View>
