@@ -21,6 +21,9 @@ import ScheduleMemoModal from "@/components/teacher/today-schedule/ScheduleMemoM
 import UnreadMessagesModal from "@/components/teacher/today-schedule/UnreadMessagesModal";
 import TeacherRegisterModal from "@/components/teacher/today-schedule/TeacherRegisterModal";
 import { ScheduleItem, formatDate, todayStr } from "@/components/teacher/today-schedule/types";
+import ClassDetailSheet from "@/components/teacher/my-schedule/ClassDetailSheet";
+import { StudentItem } from "@/components/teacher/my-schedule/utils";
+import { TeacherClassGroup } from "@/components/teacher/WeeklySchedule";
 
 const C = Colors.light;
 
@@ -54,6 +57,10 @@ export default function TodayScheduleScreen() {
   const [showTeacherRegister, setShowTeacherRegister] = useState(false);
 
   const [activeItem, setActiveItem] = useState<ScheduleItem | null>(null);
+
+  const [activeChipGroup,    setActiveChipGroup]    = useState<TeacherClassGroup | null>(null);
+  const [chipStudents,       setChipStudents]       = useState<StudentItem[]>([]);
+  const [loadingChipStudents,setLoadingChipStudents]= useState(false);
 
   const adminRoleKey = adminUser?.roles?.find(r => r === "pool_admin");
   const canSwitchToAdmin = !!adminRoleKey;
@@ -93,6 +100,33 @@ export default function TodayScheduleScreen() {
 
   function updateItem(id: string, updated: Partial<ScheduleItem>) {
     setItems(prev => prev.map(it => it.id === id ? { ...it, ...updated } : it));
+  }
+
+  async function handleChipPress(item: ScheduleItem) {
+    const group: TeacherClassGroup = {
+      id: item.id,
+      name: item.name,
+      schedule_days: item.schedule_days,
+      schedule_time: item.schedule_time,
+      student_count: item.student_count,
+      level: item.level,
+    };
+    setActiveChipGroup(group);
+    setChipStudents([]);
+    setLoadingChipStudents(true);
+    try {
+      const res = await apiRequest(token, `/class-groups/${item.id}/students`);
+      if (res.ok) {
+        const data = await res.json();
+        setChipStudents(Array.isArray(data) ? data : (data.students ?? []));
+      }
+    } catch {}
+    setLoadingChipStudents(false);
+  }
+
+  function navigateFromChip(navigate: () => void) {
+    setActiveChipGroup(null);
+    setTimeout(navigate, 200);
   }
 
   const WEEK_DAYS = ["일","월","화","수","목","금","토"];
@@ -238,7 +272,7 @@ export default function TodayScheduleScreen() {
               const dotColor   = item.att_total === 0 ? "transparent" : attDone ? "#2E9B6F" : attPartial ? "#E4A93A" : "#D96C6C";
               return (
                 <Pressable key={item.id} style={[h.chip, { backgroundColor: themeColor + "12" }]}
-                  onPress={() => router.push({ pathname:"/(teacher)/my-schedule", params:{openDate:today} } as any)}>
+                  onPress={() => handleChipPress(item)}>
                   <View style={h.chipTop}>
                     <Text style={[h.chipTime, { color: themeColor }]} numberOfLines={1}>{item.schedule_time}</Text>
                     {item.att_total > 0 && <View style={[h.chipDot, { backgroundColor: dotColor }]} />}
@@ -285,6 +319,25 @@ export default function TodayScheduleScreen() {
         onClose={() => setNotePopupVisible(false)} onOpenDiary={handleOpenDiaryFromMsg} />
       <TeacherRegisterModal visible={showTeacherRegister} token={token} themeColor={themeColor}
         onClose={() => setShowTeacherRegister(false)} onSuccess={() => {}} />
+
+      {activeChipGroup && (
+        <ClassDetailSheet
+          group={activeChipGroup}
+          students={loadingChipStudents ? [] : chipStudents}
+          attMap={Object.fromEntries(items.map(it => [it.id, it.att_present]))}
+          diarySet={new Set(items.filter(it => it.diary_done).map(it => it.id))}
+          date={today}
+          token={token}
+          themeColor={themeColor}
+          classGroups={sortedItems.map(it => ({
+            id: it.id, name: it.name,
+            schedule_days: it.schedule_days, schedule_time: it.schedule_time,
+            student_count: it.student_count, level: it.level,
+          }))}
+          onClose={() => { setActiveChipGroup(null); load(); }}
+          onNavigateTo={navigateFromChip}
+        />
+      )}
     </SafeAreaView>
   );
 }
