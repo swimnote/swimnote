@@ -19,6 +19,7 @@ export interface TeacherClassGroup {
   schedule_days: string;
   schedule_time: string;
   student_count: number;
+  capacity?: number | null;
   level?: string | null;
   instructor?: string | null;
 }

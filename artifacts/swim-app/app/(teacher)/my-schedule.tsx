@@ -467,6 +467,7 @@ function DaySheet({
   onAddClass: () => void;
 }) {
   const [editingMemo, setEditingMemo] = useState(false);
+  const [showMemoPanel, setShowMemoPanel] = useState(false);
   const label = dateLabelFull(dateStr);
 
   // ── 음성 메모 상태 (다중 녹음 목록) ──
@@ -567,9 +568,15 @@ function DaySheet({
             <Text style={dy.dateSub}>{classes.length > 0 ? `수업 ${classes.length}개` : "수업 없음"}</Text>
           </View>
           <View style={dy.headerActions}>
-            <Pressable style={[dy.headerBtn, { backgroundColor: "#DDF2EF" }]} onPress={onOpenMakeup}>
-              <Feather name="repeat" size={13} color="#4338CA" />
-              <Text style={[dy.headerBtnTxt, { color: "#4338CA" }]}>보강</Text>
+            {/* 메모 아이콘 */}
+            <Pressable style={dy.iconBtnWrap} onPress={() => setShowMemoPanel(p => !p)}>
+              <Feather name="file-text" size={20} color={memo ? "#D97706" : C.textSecondary} />
+              {(memo && memo.trim()) ? <View style={dy.redDot} /> : null}
+            </Pressable>
+            {/* 음성메모 아이콘 */}
+            <Pressable style={dy.iconBtnWrap} onPress={isRecording ? stopAndSaveRecording : startRecording}>
+              <Feather name="mic" size={20} color={isRecording ? "#D96C6C" : (audioList.length > 0 ? "#4338CA" : C.textSecondary)} />
+              {(audioList.length > 0 && !isRecording) ? <View style={[dy.redDot, { backgroundColor: "#4338CA" }]} /> : null}
             </Pressable>
             <Pressable style={[dy.headerBtn, { backgroundColor: themeColor }]} onPress={onAddClass}>
               <Feather name="plus" size={13} color="#fff" />
@@ -589,17 +596,11 @@ function DaySheet({
             <View style={dy.emptyBox}>
               <Feather name="calendar" size={32} color={C.textMuted} />
               <Text style={dy.emptyTxt}>이 날은 수업이 없습니다</Text>
-              <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                <Pressable style={[dy.emptyAction, { borderColor: "#4338CA" }]} onPress={onOpenMakeup}>
-                  <Feather name="repeat" size={13} color="#4338CA" />
-                  <Text style={[dy.emptyActionTxt, { color: "#4338CA" }]}>보강 추가</Text>
-                </Pressable>
-                <Pressable style={[dy.emptyAction, { borderColor: themeColor }]}
-                  onPress={() => { onClose(); setTimeout(onAddClass, 200); }}>
-                  <Feather name="plus-circle" size={13} color={themeColor} />
-                  <Text style={[dy.emptyActionTxt, { color: themeColor }]}>수업 추가</Text>
-                </Pressable>
-              </View>
+              <Pressable style={[dy.emptyAction, { borderColor: themeColor }]}
+                onPress={() => { onClose(); setTimeout(onAddClass, 200); }}>
+                <Feather name="plus-circle" size={13} color={themeColor} />
+                <Text style={[dy.emptyActionTxt, { color: themeColor }]}>수업 추가</Text>
+              </Pressable>
             </View>
           )}
 
@@ -611,22 +612,23 @@ function DaySheet({
                 const attCnt   = attMap[g.id] || 0;
                 const done     = diarDone;
                 const color    = classColor(g.id);
+                const koDay    = getKoDay(dateStr);
+                const timeLabel = `${koDay}요일 ${g.schedule_time}`;
+                const capLabel  = g.capacity ? `${g.student_count}/${g.capacity}명` : `${g.student_count}명`;
                 return (
                   <Pressable key={g.id} style={[dy.classCard, done && dy.classCardDone]}
                     onPress={() => onSelectClass(g)}>
                     <View style={[dy.colorBar, { backgroundColor: color }]} />
                     <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <Text style={[dy.classTime, done && dy.strikeText]}>
-                          {g.schedule_time}
-                        </Text>
-                        <Text style={[dy.className, done && dy.strikeText]} numberOfLines={1}>
-                          {g.name}
-                        </Text>
-                      </View>
+                      <Text style={[dy.classTime, done && dy.strikeText]}>
+                        {timeLabel}
+                      </Text>
+                      <Text style={[dy.className, done && dy.strikeText]} numberOfLines={1}>
+                        {g.name}
+                      </Text>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
                         <Text style={[dy.classSub, done && { color: C.textMuted }]}>
-                          {g.student_count}명
+                          {capLabel}
                         </Text>
                         {attCnt > 0 && (
                           <View style={dy.attBadge}>
@@ -649,7 +651,8 @@ function DaySheet({
             </View>
           )}
 
-          {/* 날짜 메모 */}
+          {/* 메모 패널 (아이콘 탭 시 표시) */}
+          {showMemoPanel && (
           <View style={dy.memoSection}>
             <View style={dy.memoHeader}>
               <Feather name="file-text" size={14} color={C.textSecondary} />
@@ -745,6 +748,7 @@ function DaySheet({
               </View>
             )}
           </View>
+          )}
         </ScrollView>
         </Pressable>{/* /sheet */}
       </Pressable>{/* /backdrop */}
@@ -767,6 +771,9 @@ const dy = StyleSheet.create({
   headerBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10,
                     paddingVertical: 7, borderRadius: 10 },
   headerBtnTxt:   { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  iconBtnWrap:    { position: "relative", padding: 6 },
+  redDot:         { position: "absolute", top: 4, right: 4, width: 7, height: 7,
+                    borderRadius: 3.5, backgroundColor: "#D96C6C" },
   closeBtn:       { padding: 4, marginLeft: 2 },
   emptyBox:       { alignItems: "center", paddingVertical: 32, gap: 6 },
   emptyTxt:       { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary },
@@ -828,16 +835,14 @@ const dy = StyleSheet.create({
 });
 
 // ─── 반 상세 시트 (주간 뷰 클릭용) ─────────────────────────────
-function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClose, onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass, weekChangeLogs }:
+function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, date, onClose, onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass, weekChangeLogs, token }:
   { group: TeacherClassGroup; students: StudentItem[]; attMap: Record<string,number>;
-    diarySet: Set<string>; themeColor: string; onClose: () => void;
+    diarySet: Set<string>; themeColor: string; date?: string | null; token: string | null; onClose: () => void;
     onOpenUnreg?: () => void; onOpenRemove?: () => void;
     onDeleteClass?: () => void;
     weekChangeLogs?: ChangeLogItem[];
-    /** 페이지 이동이 필요할 때 부모가 모달 정리 후 navigate 실행 */
     onNavigateTo?: (navigate: () => void) => void; }) {
 
-  // 현재 반의 변경 이력 (이번 주)
   const myLogs = useMemo(() =>
     (weekChangeLogs || []).filter(l => l.class_group_id === group.id),
     [weekChangeLogs, group.id]
@@ -848,8 +853,38 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
     || st.class_group_id === group.id
   ).sort((a, b) => a.name.localeCompare(b.name));
 
-  const attDone  = (attMap[group.id] || 0) >= group.student_count && group.student_count > 0;
   const diarDone = diarySet.has(group.id);
+
+  // ── 학생별 출결 상태 (날짜 컨텍스트가 있을 때) ──
+  const effectiveDate = date || todayDateStr();
+  const [studentAttState, setStudentAttState] = useState<Record<string, "present" | "absent">>({});
+  const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest(token, `/attendance?class_group_id=${group.id}&date=${effectiveDate}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((arr: any[]) => {
+        const map: Record<string, "present" | "absent"> = {};
+        arr.forEach(r => { if (r.student_id && r.status) map[r.student_id] = r.status; });
+        setStudentAttState(map);
+      })
+      .catch(() => {});
+  }, [group.id, effectiveDate, token]);
+
+  async function toggleStudentAtt(studentId: string, currentStatus: "present" | "absent" | undefined) {
+    const newStatus: "present" | "absent" = currentStatus === "absent" ? "present" : "absent";
+    setSavingStudentId(studentId);
+    try {
+      await apiRequest(token, "/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: studentId, class_group_id: group.id, date: effectiveDate, status: newStatus }),
+      });
+      setStudentAttState(prev => ({ ...prev, [studentId]: newStatus }));
+    } catch {}
+    setSavingStudentId(null);
+  }
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
@@ -861,43 +896,29 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
             <Text style={cds.sheetTitle}>{group.name}</Text>
             <Text style={cds.sheetSub}>{group.schedule_days.split(",").join("·")} · {group.schedule_time}</Text>
           </View>
+          {/* 반삭제는 헤더 영역에 */}
+          <Pressable style={cds.deleteBtn}
+            onPress={() => { onClose(); setTimeout(() => onDeleteClass?.(), 200); }}>
+            <Feather name="trash-2" size={15} color="#E11D48" />
+          </Pressable>
           <Pressable onPress={onClose} style={cds.closeBtn}>
             <Feather name="x" size={20} color={C.textSecondary} />
           </Pressable>
         </View>
+        {/* 버튼 2개만: 반배정, 수업일지 */}
         <View style={cds.actionRow}>
-          <Pressable style={[cds.actionBtn, { backgroundColor: "#DDF2EF" }]}
+          <Pressable style={[cds.actionBtn, { backgroundColor: "#DDF2EF", flex: 1 }]}
             onPress={() => onNavigateTo?.(() => router.push(`/class-assign?classId=${group.id}` as any))}>
             <Feather name="users" size={13} color="#4338CA" />
             <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
           </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: "#DFF3EC" }]}
-            onPress={() => { onClose(); setTimeout(() => onOpenUnreg?.(), 200); }}>
-            <Feather name="user-plus" size={13} color="#1F8F86" />
-            <Text style={[cds.actionText, { color: "#1F8F86" }]}>미등록</Text>
-          </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: "#FFF1F2" }]}
-            onPress={() => { onClose(); setTimeout(() => onOpenRemove?.(), 200); }}>
-            <Feather name="log-out" size={13} color="#E11D48" />
-            <Text style={[cds.actionText, { color: "#E11D48" }]}>반이동</Text>
-          </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: attDone ? "#DDF2EF" : "#F9DEDA" }]}
-            onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: group.id} } as any))}>
-            <Feather name="check-square" size={13} color={attDone ? "#1F8F86" : "#D96C6C"} />
-            <Text style={[cds.actionText, { color: attDone ? "#1F8F86" : "#D96C6C" }]}>출결</Text>
-          </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#DDF2EF" : "#FFF1BF" }]}
+          <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#DDF2EF" : "#FFF1BF", flex: 1 }]}
             onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any))}>
             <Feather name="edit-3" size={13} color={diarDone ? "#1F8F86" : "#D97706"} />
             <Text style={[cds.actionText, { color: diarDone ? "#1F8F86" : "#D97706" }]}>수업일지</Text>
           </Pressable>
-          <Pressable style={[cds.actionBtn, { backgroundColor: "#FFF1F2" }]}
-            onPress={() => { onClose(); setTimeout(() => onDeleteClass?.(), 200); }}>
-            <Feather name="trash-2" size={13} color="#E11D48" />
-            <Text style={[cds.actionText, { color: "#E11D48" }]}>반 삭제</Text>
-          </Pressable>
         </View>
-        <Text style={cds.sectionLabel}>학생 목록</Text>
+        <Text style={cds.sectionLabel}>학생 목록 · {effectiveDate}</Text>
         <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
           {groupStudents.length === 0 ? (
             <View style={cds.empty}>
@@ -907,23 +928,43 @@ function ClassDetailSheet({ group, students, attMap, diarySet, themeColor, onClo
           ) : groupStudents.map(st => {
             const wc = Math.min(st.weekly_count || 1, 3) as 1 | 2 | 3;
             const wb = WEEKLY_BADGE[wc];
+            const attStatus = studentAttState[st.id];
+            const isAbsent  = attStatus === "absent";
+            const isSaving  = savingStudentId === st.id;
             return (
-              <Pressable key={st.id} style={cds.studentRow}
-                onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: st.id} } as any))}>
-                <View style={[cds.avatar, { backgroundColor: themeColor + "18" }]}>
-                  <Text style={[cds.avatarText, { color: themeColor }]}>{st.name[0]}</Text>
-                </View>
+              <View key={st.id} style={[cds.studentRow, isAbsent && { backgroundColor: "#FFF5F5" }]}>
+                {/* 결석 빨간 점 */}
+                {isAbsent && <View style={cds.absentDot} />}
+                {/* 이름 + 주횟수 */}
                 <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection:"row", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                    <Text style={cds.studentName}>{st.name}</Text>
-                    <View style={[cds.weeklyBadge, { backgroundColor: wb.bg }]}>
-                      <Text style={[cds.weeklyBadgeText, { color: wb.color }]}>{wb.label}</Text>
-                    </View>
-                  </View>
-                  {st.birth_year && <Text style={cds.studentSub}>{st.birth_year}년생</Text>}
+                  <Text style={[cds.studentName, isAbsent && { color: "#D96C6C" }]}>{st.name}</Text>
+                  <Text style={cds.studentSub}>주 {st.weekly_count || 1}회</Text>
                 </View>
-                <Feather name="chevron-right" size={16} color={C.textMuted} />
-              </Pressable>
+                {/* 개별 버튼: [출석][결석][반이동] */}
+                {isSaving ? (
+                  <ActivityIndicator size="small" color={themeColor} style={{ marginHorizontal: 8 }} />
+                ) : (
+                  <View style={{ flexDirection: "row", gap: 4 }}>
+                    <Pressable style={[cds.stBtn, !isAbsent && { backgroundColor: "#DDF2EF" }]}
+                      onPress={() => !isAbsent && toggleStudentAtt(st.id, attStatus)}>
+                      <Text style={[cds.stBtnTxt, { color: !isAbsent ? "#1F8F86" : C.textMuted }]}>출석</Text>
+                    </Pressable>
+                    <Pressable style={[cds.stBtn, isAbsent && { backgroundColor: "#F9DEDA" }]}
+                      onPress={() => isAbsent ? toggleStudentAtt(st.id, attStatus) : toggleStudentAtt(st.id, attStatus)}>
+                      <Text style={[cds.stBtnTxt, { color: isAbsent ? "#D96C6C" : C.textMuted }]}>결석</Text>
+                    </Pressable>
+                    <Pressable style={[cds.stBtn, { backgroundColor: "#F6F3F1" }]}
+                      onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: st.id} } as any))}>
+                      <Text style={[cds.stBtnTxt, { color: C.textSecondary }]}>반이동</Text>
+                    </Pressable>
+                  </View>
+                )}
+                {/* 우측 화살표: 학생 상세 */}
+                <Pressable onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: st.id} } as any))}
+                  style={{ padding: 4 }}>
+                  <Feather name="chevron-right" size={16} color={C.textMuted} />
+                </Pressable>
+              </View>
             );
           })}
           {/* ── 변경 메모 (이번 주 변경 이력이 있을 때만 표시) ── */}
@@ -964,22 +1005,27 @@ const cds = StyleSheet.create({
   sheetTitle:   { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
   sheetSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
   closeBtn:     { padding: 4 },
-  actionRow:    { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 16, marginBottom: 12 },
-  actionBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10,
-                  paddingVertical: 8, borderRadius: 10 },
-  actionText:   { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  deleteBtn:    { padding: 8, marginRight: 4 },
+  actionRow:    { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 12 },
+  actionBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
+                  paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10 },
+  actionText:   { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textMuted,
                   paddingHorizontal: 16, marginBottom: 6 },
   studentScroll:{ flexShrink: 1 },
-  studentRow:   { flexDirection: "row", alignItems: "center", gap: 10,
+  studentRow:   { flexDirection: "row", alignItems: "center", gap: 8,
                   paddingHorizontal: 16, paddingVertical: 10,
                   borderTopWidth: 1, borderTopColor: "#F6F3F1" },
+  absentDot:    { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#D96C6C" },
   avatar:       { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   avatarText:   { fontSize: 14, fontFamily: "Inter_700Bold" },
   studentName:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
   studentSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
   weeklyBadge:  { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   weeklyBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  stBtn:        { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8,
+                  backgroundColor: "#F6F3F1", borderWidth: 1, borderColor: "#E2DDD9" },
+  stBtnTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   empty:        { alignItems: "center", paddingVertical: 32, gap: 8 },
   emptyText:    { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
 });
@@ -1289,27 +1335,22 @@ export default function MyScheduleScreen() {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title={g.name} subtitle={`${g.schedule_days} · ${g.schedule_time}`}
-          onBack={() => setSelectedGroup(null)} homePath="/(teacher)/today-schedule" />
+          onBack={() => setSelectedGroup(null)} homePath="/(teacher)/today-schedule"
+          rightSlot={
+            <Pressable style={{ padding: 8 }} onPress={() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }}>
+              <Feather name="trash-2" size={18} color="#E11D48" />
+            </Pressable>
+          } />
         <View style={s.subHeader}>
-          <Pressable style={[s.subActionBtn, { backgroundColor: "#DDF2EF" }]}
+          <Pressable style={[s.subActionBtn, { backgroundColor: "#DDF2EF", flex: 1 }]}
             onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
             <Feather name="users" size={13} color="#4338CA" />
             <Text style={[s.subActionText, { color: "#4338CA" }]}>반배정</Text>
           </Pressable>
-          <Pressable style={[s.subActionBtn, { backgroundColor: attDone ? "#DDF2EF" : "#F9DEDA" }]}
-            onPress={() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: g.id} } as any)}>
-            <Feather name="check-square" size={13} color={attDone ? "#1F8F86" : "#D96C6C"} />
-            <Text style={[s.subActionText, { color: attDone ? "#1F8F86" : "#D96C6C" }]}>출결</Text>
-          </Pressable>
-          <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#DDF2EF" : "#FFF1BF" }]}
+          <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#DDF2EF" : "#FFF1BF", flex: 1 }]}
             onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name} } as any)}>
             <Feather name="edit-3" size={13} color={diarDone ? "#1F8F86" : "#D97706"} />
             <Text style={[s.subActionText, { color: diarDone ? "#1F8F86" : "#D97706" }]}>수업일지</Text>
-          </Pressable>
-          <Pressable style={[s.subActionBtn, { backgroundColor: "#FFF1F2" }]}
-            onPress={() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }}>
-            <Feather name="trash-2" size={13} color="#E11D48" />
-            <Text style={[s.subActionText, { color: "#E11D48" }]}>반 삭제</Text>
           </Pressable>
         </View>
         <FlatList data={groupStudents} keyExtractor={i => i.id}
@@ -1317,36 +1358,34 @@ export default function MyScheduleScreen() {
           ListEmptyComponent={<View style={s.emptyBox}><Feather name="users" size={32} color={C.textMuted} /><Text style={s.emptyText}>배정된 학생이 없습니다</Text></View>}
           ListHeaderComponent={<Text style={s.listHeader}>학생 {groupStudents.length}명</Text>}
           renderItem={({ item }) => {
-            const wc = Math.min(item.weekly_count || 1, 3) as 1 | 2 | 3;
-            const wb = WEEKLY_BADGE[wc];
             return (
-              <Pressable style={[s.studentRow, { backgroundColor: C.card }]}
-                onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id} } as any)}>
-                <View style={[s.avatar, { backgroundColor: themeColor + "18" }]}>
-                  <Text style={[s.avatarText, { color: themeColor }]}>{item.name[0]}</Text>
-                </View>
+              <View style={[s.studentRow, { backgroundColor: C.card }]}>
+                {/* 이름 + 주횟수 */}
                 <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection:"row", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                    <Text style={s.studentName}>{item.name}</Text>
-                    <View style={[s.weeklyBadge, { backgroundColor: wb.bg }]}>
-                      <Text style={[s.weeklyBadgeText, { color: wb.color }]}>{wb.label}</Text>
-                    </View>
-                  </View>
-                  {item.birth_year && <Text style={s.studentSub}>{item.birth_year}년생 · {item.schedule_labels||""}</Text>}
+                  <Text style={s.studentName}>{item.name}</Text>
+                  <Text style={s.studentSub}>주 {item.weekly_count || 1}회</Text>
                 </View>
-                {item.parent_user_id ? (
-                  <View style={[s.connBadge, { backgroundColor: "#DDF2EF" }]}>
-                    <Feather name="check-circle" size={10} color="#1F8F86" />
-                    <Text style={[s.connText, { color: "#1F8F86" }]}>연결</Text>
-                  </View>
-                ) : item.status === "pending_parent_link" ? (
-                  <View style={[s.connBadge, { backgroundColor: "#FFF1BF" }]}>
-                    <Feather name="clock" size={10} color="#EA580C" />
-                    <Text style={[s.connText, { color: "#EA580C" }]}>대기</Text>
-                  </View>
-                ) : null}
-                <Feather name="chevron-right" size={16} color={C.textMuted} />
-              </Pressable>
+                {/* 개별 버튼 */}
+                <View style={{ flexDirection: "row", gap: 4 }}>
+                  <Pressable style={s.stBtn}
+                    onPress={() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: selectedGroup?.id} } as any)}>
+                    <Text style={[s.stBtnTxt, { color: "#1F8F86" }]}>출석</Text>
+                  </Pressable>
+                  <Pressable style={s.stBtn}
+                    onPress={() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: selectedGroup?.id} } as any)}>
+                    <Text style={[s.stBtnTxt, { color: "#D96C6C" }]}>결석</Text>
+                  </Pressable>
+                  <Pressable style={s.stBtn}
+                    onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id} } as any)}>
+                    <Text style={[s.stBtnTxt, { color: C.textSecondary }]}>반이동</Text>
+                  </Pressable>
+                </View>
+                {/* 우측 화살표 */}
+                <Pressable onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id} } as any)}
+                  style={{ padding: 4 }}>
+                  <Feather name="chevron-right" size={16} color={C.textMuted} />
+                </Pressable>
+              </View>
             );
           }}
         />
@@ -1515,9 +1554,9 @@ export default function MyScheduleScreen() {
           attMap={selectedDate ? dayAttMap : todayAttMap}
           diarySet={selectedDate ? dayDiarySet : todayDiarySet}
           themeColor={themeColor}
+          date={selectedDate}
+          token={token}
           onClose={() => setDetailGroup(null)}
-          onOpenUnreg={() => { setDetailGroup(null); setUnregClassId(detailGroup.id); }}
-          onOpenRemove={() => { setDetailGroup(null); setRemoveClassGroup(detailGroup); }}
           onDeleteClass={() => { const g = detailGroup; setDetailGroup(null); setTimeout(() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }, 200); }}
           onNavigateTo={navigateFromSheet}
           weekChangeLogs={viewMode === "weekly" ? weekChangeLogs : undefined}
@@ -1613,11 +1652,14 @@ const s = StyleSheet.create({
   subActionText:{ fontSize: 12, fontFamily: "Inter_600SemiBold" },
   studentList:  { padding: 12, gap: 8, paddingBottom: 120 },
   listHeader:   { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textMuted, marginBottom: 4 },
-  studentRow:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14 },
+  studentRow:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 14 },
   avatar:       { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText:   { fontSize: 15, fontFamily: "Inter_700Bold" },
-  studentName:  { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
+  studentName:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
   studentSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  stBtn:        { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8,
+                  backgroundColor: "#F6F3F1", borderWidth: 1, borderColor: "#E2DDD9" },
+  stBtnTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   weeklyBadge:  { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   weeklyBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   connBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },

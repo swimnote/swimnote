@@ -262,9 +262,7 @@ export default function ClassAssignScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={0}
     >
-      {/* DEBUG_CLASS_ASSIGN_0325_V1 */}
       <Text style={{ backgroundColor: "red", color: "white", fontWeight: "bold", fontSize: 14, padding: 6, textAlign: "center" }}>
-        DEBUG_CLASS_ASSIGN_0325_V1
       </Text>
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
