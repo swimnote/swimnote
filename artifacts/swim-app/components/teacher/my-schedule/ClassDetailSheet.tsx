@@ -46,6 +46,11 @@ export default function ClassDetailSheet({
   const [movingToClassId, setMovingToClassId] = useState<string | null>(null);
   const [movingStudent, setMovingStudent] = useState(false);
 
+  // 미배정 이동 상태
+  const [unassignStudent,    setUnassignStudent]    = useState<StudentItem | null>(null);
+  const [showUnassignTiming, setShowUnassignTiming] = useState(false);
+  const [unassigningStudent, setUnassigningStudent] = useState(false);
+
   useEffect(() => {
     if (!token) return;
     apiRequest(token, `/attendance?class_group_id=${group.id}&date=${effectiveDate}`)
@@ -98,6 +103,29 @@ export default function ClassDetailSheet({
       }
     } catch {}
     setMovingStudent(false);
+  }
+
+  // 미배정으로 이동
+  async function doUnassignStudent(timing: "now" | "next_week" | "week_after") {
+    if (!unassignStudent) return;
+    setUnassigningStudent(true);
+    try {
+      const res = await apiRequest(token, `/students/${unassignStudent.id}/remove-from-class`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          class_group_id: group.id,
+          effective_timing: timing,
+          expected_updated_at: unassignStudent.updated_at ?? undefined,
+        }),
+      });
+      if (res.ok) {
+        setShowUnassignTiming(false);
+        setUnassignStudent(null);
+        setMoveStudent(null);
+      }
+    } catch {}
+    setUnassigningStudent(false);
   }
 
   // 결석 학생 상단 정렬 → 결석 먼저, 이후 이름순
@@ -247,6 +275,15 @@ export default function ClassDetailSheet({
                   <Feather name="x" size={20} color={C.textSecondary} />
                 </Pressable>
               </View>
+              {/* 미배정으로 이동 버튼 — 리스트 상단 고정 */}
+              <Pressable
+                style={cds.unassignBtn}
+                onPress={() => { setUnassignStudent(moveStudent); setShowUnassignTiming(true); }}
+              >
+                <Feather name="user-x" size={14} color="#D97706" />
+                <Text style={cds.unassignBtnTxt}>미배정으로 이동</Text>
+              </Pressable>
+
               <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
                 {moveTargetClasses.length === 0 ? (
                   <View style={cds.empty}>
@@ -290,6 +327,48 @@ export default function ClassDetailSheet({
                   </Pressable>
                 </View>
               )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* 미배정 적용 시점 선택 팝업 */}
+      {showUnassignTiming && unassignStudent && (
+        <Modal visible animationType="slide" transparent onRequestClose={() => setShowUnassignTiming(false)} statusBarTranslucent>
+          <Pressable style={cds.backdrop} onPress={() => setShowUnassignTiming(false)}>
+            <Pressable style={[cds.sheet, { maxHeight: "45%" }]} onPress={() => {}}>
+              <View style={cds.handle} />
+              <View style={[cds.sheetHeader, { paddingBottom: 12 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={cds.sheetTitle}>적용 시점 선택</Text>
+                  <Text style={cds.sheetSub}>{unassignStudent.name} · 미배정으로 이동</Text>
+                </View>
+                <Pressable onPress={() => setShowUnassignTiming(false)} style={cds.closeBtn}>
+                  <Feather name="x" size={20} color={C.textSecondary} />
+                </Pressable>
+              </View>
+              {([
+                { timing: "now"        as const, label: "오늘부터",     sub: "즉시 반 소속 해제" },
+                { timing: "next_week"  as const, label: "다음 주부터",  sub: "다음 주 월요일부터 적용" },
+                { timing: "week_after" as const, label: "다다음 주부터",sub: "다다음 주 월요일부터 적용" },
+              ]).map(opt => (
+                <Pressable
+                  key={opt.timing}
+                  style={[cds.timingRow, unassigningStudent && { opacity: 0.5 }]}
+                  onPress={() => doUnassignStudent(opt.timing)}
+                  disabled={unassigningStudent}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={cds.timingLabel}>{opt.label}</Text>
+                    <Text style={cds.timingSub}>{opt.sub}</Text>
+                  </View>
+                  {unassigningStudent
+                    ? <ActivityIndicator size="small" color="#D97706" />
+                    : <Feather name="chevron-right" size={16} color={C.textMuted} />
+                  }
+                </Pressable>
+              ))}
+              <View style={{ height: 20 }} />
             </Pressable>
           </Pressable>
         </Modal>
@@ -338,4 +417,15 @@ const cds = StyleSheet.create({
   moveClassSub:    { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
   moveConfirmBtn:  { height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   moveConfirmTxt:  { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  unassignBtn:     { flexDirection: "row", alignItems: "center", gap: 8,
+                     marginHorizontal: 12, marginBottom: 8,
+                     paddingHorizontal: 14, paddingVertical: 12,
+                     backgroundColor: "#FFF8EE", borderRadius: 10,
+                     borderWidth: 1, borderColor: "#FCD34D" },
+  unassignBtnTxt:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#D97706" },
+  timingRow:       { flexDirection: "row", alignItems: "center", gap: 10,
+                     paddingHorizontal: 16, paddingVertical: 14,
+                     borderTopWidth: 1, borderTopColor: "#F6F3F1" },
+  timingLabel:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
+  timingSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
 });
