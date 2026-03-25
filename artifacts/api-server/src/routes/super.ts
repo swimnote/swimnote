@@ -17,11 +17,13 @@
  * PUT  /super/storage/:poolId     — 특정 수영장 저장 용량 변경
  */
 import { Router } from "express";
-import { superAdminDb } from "@workspace/db";
+import { superAdminDb, poolDb } from "@workspace/db";
 const db = superAdminDb;
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { Client as ObjectStorageClient } from "@replit/object-storage";
+import { runRealBackup } from "../lib/backup.js";
 
 const router = Router();
 
@@ -1497,6 +1499,33 @@ async function ensurePlansTables() {
       completed_at    TIMESTAMPTZ
     )
   `).catch(() => {});
+  // 백업 테이블 컬럼 보완 (파일 경로, 저장 방식, 백업 데이터)
+  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS file_path    TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS file_name    TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS storage_type TEXT DEFAULT 'database'`).catch(() => {});
+  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS backup_type_v2 TEXT DEFAULT 'manual'`).catch(() => {});
+  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS backup_data  TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS super_db_tables INT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS pool_db_tables  INT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS total_tables    INT`).catch(() => {});
+
+  // 자동 백업 설정 테이블
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS backup_settings (
+      id              TEXT PRIMARY KEY DEFAULT 'default',
+      auto_enabled    BOOLEAN NOT NULL DEFAULT true,
+      schedule_type   TEXT NOT NULL DEFAULT 'daily',
+      run_hour        INT NOT NULL DEFAULT 3,
+      run_minute      INT NOT NULL DEFAULT 0,
+      retention_days  INT NOT NULL DEFAULT 7,
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_by      TEXT
+    )
+  `).catch(() => {});
+  // 기본 설정 행 삽입 (없으면)
+  await db.execute(sql`
+    INSERT INTO backup_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING
+  `).catch(() => {});
 
   // 읽기전용 제어 로그 테이블
   await superAdminDb.execute(sql`
@@ -1612,36 +1641,34 @@ router.get("/super/backups", requireAuth, requireRole("super_admin"), async (_re
 router.post("/super/backups", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   try {
     await ensurePlansTables();
-    const { operator_id, backup_type = "operator", note, is_snapshot = false } = req.body as any;
-    const actor = req.user?.name ?? "슈퍼관리자";
+    const { note } = req.body as any;
+    const actor = req.user?.name ?? req.user?.email ?? "슈퍼관리자";
 
-    let operatorName: string | null = null;
-    if (operator_id) {
-      const r = await superAdminDb.execute(sql`SELECT name FROM swimming_pools WHERE id = ${operator_id}`);
-      operatorName = (r.rows[0] as any)?.name ?? null;
-    }
-
-    const id = `bak_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await db.execute(sql`
-      INSERT INTO platform_backups (id, operator_id, operator_name, backup_type, status, is_snapshot, note, created_by)
-      VALUES (${id}, ${operator_id ?? null}, ${operatorName}, ${backup_type}, 'running', ${!!is_snapshot}, ${note ?? null}, ${actor})
-    `);
-
-    // 시뮬레이션: 즉시 완료 처리 (실제에서는 비동기 잡)
-    const simSizeBytes = Math.floor(Math.random() * 500 * 1024 * 1024);
-    await db.execute(sql`
-      UPDATE platform_backups SET status = 'done', completed_at = NOW(), size_bytes = ${simSizeBytes} WHERE id = ${id}
-    `);
+    console.log("[backup] 수동 백업 시작 — actor:", actor);
+    const result = await runRealBackup({ type: "manual", createdBy: actor, note: note ?? undefined });
+    console.log("[backup] 수동 백업 완료 —", result.filePath);
 
     const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     await db.execute(sql`
       INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-      VALUES (${logId}, ${operator_id ?? null}, '백업', ${req.user!.userId}, ${actor},
-              ${id}, ${is_snapshot ? `스냅샷 생성: ${operatorName ?? "플랫폼"}` : `백업 생성: ${operatorName ?? "플랫폼"}`}, '{}'::jsonb)
+      VALUES (${logId}, NULL, '백업', ${req.user!.userId}, ${actor},
+              ${result.backupId}, ${"수동 백업 생성: 전체 통합 백업 (" + result.fileName + ")"}, '{}'::jsonb)
     `).catch(() => {});
 
-    res.json({ ok: true, id, status: "done" });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+    res.json({
+      ok:         true,
+      id:         result.backupId,
+      backup_id:  result.backupId,
+      file_name:  result.fileName,
+      file_path:  result.filePath,
+      size_bytes: result.sizeBytes,
+      status:     "done",
+      created_at: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    console.error("[backup] 수동 백업 실패:", e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 router.post("/super/backups/:id/restore", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
@@ -1662,6 +1689,85 @@ router.post("/super/backups/:id/restore", requireAuth, requireRole("super_admin"
     `).catch(() => {});
 
     res.json({ ok: true, message: "복구가 기록되었습니다. 미디어 원본은 복구되지 않습니다." });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 백업 다운로드 ─────────────────────────────────────────────────────────────
+router.get("/super/backups/:id/download", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const { id } = req.params;
+    const backup = (await db.execute(sql`
+      SELECT id, file_name, storage_type, backup_data, file_path, size_bytes FROM platform_backups WHERE id = ${id}
+    `)).rows[0] as any;
+    if (!backup) { res.status(404).json({ error: "백업을 찾을 수 없습니다" }); return; }
+
+    const fileName = backup.file_name ?? `${id}.json`;
+
+    if (backup.storage_type === "database" && backup.backup_data) {
+      // DB에서 직접 스트림
+      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Length", String(Buffer.byteLength(backup.backup_data, "utf8")));
+      res.send(backup.backup_data);
+      return;
+    }
+
+    // Object Storage에서 다운로드
+    if (backup.storage_type === "object_storage" && backup.file_path) {
+      try {
+        const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+        const storageClient = bucketId ? new ObjectStorageClient({ bucketId }) : new ObjectStorageClient();
+        const dlRes = await storageClient.downloadAsBytes(backup.file_path);
+        if (!dlRes.ok) throw new Error("Object Storage 다운로드 실패");
+        res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Length", String(dlRes.value.length));
+        res.send(Buffer.from(dlRes.value));
+        return;
+      } catch (e: any) {
+        console.error("[backup] Object Storage 다운로드 실패:", e.message);
+        res.status(500).json({ error: "Object Storage에서 파일을 가져오지 못했습니다: " + e.message });
+        return;
+      }
+    }
+
+    res.status(404).json({ error: "백업 데이터를 찾을 수 없습니다 (storage_type=" + backup.storage_type + ")" });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 백업 설정 GET / PUT ────────────────────────────────────────────────────────
+router.get("/super/backup-settings", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const row = (await db.execute(sql`SELECT * FROM backup_settings WHERE id = 'default'`)).rows[0] as any;
+    res.json({ settings: row ?? {
+      id: "default", auto_enabled: true, schedule_type: "daily",
+      run_hour: 3, run_minute: 0, retention_days: 7,
+    }});
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.put("/super/backup-settings", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensurePlansTables();
+    const { auto_enabled, schedule_type, run_hour, run_minute, retention_days } = req.body as any;
+    const actor = req.user?.name ?? req.user?.email ?? "슈퍼관리자";
+
+    await db.execute(sql`
+      UPDATE backup_settings SET
+        auto_enabled   = ${!!auto_enabled},
+        schedule_type  = ${schedule_type ?? "daily"},
+        run_hour       = ${Number(run_hour ?? 3)},
+        run_minute     = ${Number(run_minute ?? 0)},
+        retention_days = ${Number(retention_days ?? 7)},
+        updated_at     = NOW(),
+        updated_by     = ${actor}
+      WHERE id = 'default'
+    `);
+
+    const updated = (await db.execute(sql`SELECT * FROM backup_settings WHERE id = 'default'`)).rows[0];
+    res.json({ ok: true, settings: updated });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

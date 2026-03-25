@@ -21,6 +21,7 @@ import { useSecurityStore } from "@/store/securityStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SuperAdminAccount, SuperAdminRole, SuperAdminSession } from "@/domain/types";
 import InfraStatusPanel from "@/components/super/InfraStatusPanel";
+import { router } from "expo-router";
 
 const P = "#7C3AED";
 const DANGER = "#D96C6C";
@@ -718,9 +719,27 @@ export default function SecuritySettingsScreen() {
           <InfraStatusPanel />
         </View>
 
-        {/* ══ E. 세션·접속 관리 ══ */}
+        {/* ══ E. 백업 빠른 접근 ══ */}
         <View style={s.section}>
-          <SectionTitle title="E. 세션·접속 관리" sub={`활성 세션 ${allSessions.length}개`} />
+          <SectionTitle title="E. 데이터 백업" sub="전체 DB 백업 및 자동 백업 관리" />
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <Pressable
+              style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
+                backgroundColor: "#EEDDF5", borderRadius: 10, padding: 14 }}
+              onPress={() => router.push("/(super)/backup")}>
+              <Feather name="save" size={16} color={P} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: P }}>백업 관리</Text>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 }}>수동 백업 · 자동 설정 · 복구</Text>
+              </View>
+              <Feather name="chevron-right" size={14} color={P} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ══ F. 세션·접속 관리 ══ */}
+        <View style={s.section}>
+          <SectionTitle title="F. 세션·접속 관리" sub={`활성 세션 ${allSessions.length}개`} />
           {allSessions.length === 0 && (
             <Text style={s.emptyTxt}>현재 활성 세션이 없습니다</Text>
           )}
@@ -744,9 +763,9 @@ export default function SecuritySettingsScreen() {
           ))}
         </View>
 
-        {/* ══ F. 보안 정책 ══ */}
+        {/* ══ G. 보안 정책 ══ */}
         <View style={s.section}>
-          <SectionTitle title="F. 보안 정책" />
+          <SectionTitle title="G. 보안 정책" />
           <View style={s.policyRow}>
             <Text style={s.policyLabel}>로그인 실패 제한</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>

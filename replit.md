@@ -20,6 +20,16 @@ The system uses a dual database connection: `superAdminDb` (Supabase ap-south-1)
 ### System Design Choices
 API design follows RESTful principles with consistent JSON formats and strong authentication. The database schema (PostgreSQL with Drizzle ORM) includes key tables for multi-tenancy via `swimming_pool_id`. Security features include JWT authentication, role/pool access checks, and API validation. A modular monorepo structure with `artifacts`, `lib`, and `packages` promotes reusability.
 
+## Backup System (2026-03-25 완성)
+- **선백업 완료**: `bk_1774411347140_209a9300` (0.11MB, 82테이블, DB 저장)
+- **lib/backup.ts**: 공유 백업 로직 (runRealBackup, cleanupOldAutoBackups) — super.ts, backup-batch.ts 양쪽에서 사용
+- **API 엔드포인트**: POST /super/backups (수동), GET /super/backups/:id/download, GET/PUT /super/backup-settings
+- **자동 스케줄러**: backup-batch.ts — 매 시간 정각 backup_settings 기반 체크, retention_days 초과 자동 정리
+- **Object Storage fallback**: 업로드 실패 시 backup_data(TEXT) 컬럼에 DB 저장 (storage_type='database')
+- **프론트엔드**: backup.tsx 전면 교체 (실제 API 연동) — 백업 목록, 수동 생성, 다운로드(expo-file-system), 복구 기록, 자동 설정
+- **security-settings.tsx**: E. 데이터 백업 섹션 추가 (백업 관리 바로가기 버튼)
+- **검증**: 4개 엔드포인트 모두 통과 (목록, 다운로드, 설정조회, 설정변경)
+
 ## Verified State (2026-03-25)
 - **pool_event_logs**: 46건 기록 / 17가지 이벤트 타입 / 3개 풀 / retry_queue=0 / DLQ=0
 - **학부모 모드**: 10가지 기능 전체 검증 완료 (자녀목록/일지/공지/사진/영상/알림설정/결제차단/공지읽음/출결/학생상세)

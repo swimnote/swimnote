@@ -1,104 +1,159 @@
 /**
- * (super)/backup.tsx — 백업/복구/스냅샷
- * backupStore + auditLogStore — API 호출 없음
+ * (super)/backup.tsx — 백업/복구 관리 (실제 API 연동)
+ *
+ * GET  /super/backups             — 백업 목록
+ * POST /super/backups             — 수동 백업 생성
+ * GET  /super/backup-settings     — 자동 백업 설정 조회
+ * PUT  /super/backup-settings     — 자동 백업 설정 변경
+ * POST /super/backups/:id/restore — 복구 기록
+ * GET  /super/backups/:id/download — 다운로드
  */
 import { Feather } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import * as FileSystem from "expo-file-system";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, FlatList, Modal, Pressable,
+  RefreshControl, ScrollView, Share, StyleSheet, Switch,
+  Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useBackupStore } from "@/store/backupStore";
-import { useAuditLogStore } from "@/store/auditLogStore";
-import type { BackupSnapshot } from "@/domain/types";
 
 const P = "#7C3AED";
+const GREEN = "#1F8F86";
+const DANGER = "#D96C6C";
+const WARN = "#D97706";
 
-const TABS = [
-  { key: "all",      label: "전체" },
-  { key: "snapshot", label: "스냅샷" },
-  { key: "operator", label: "운영자 백업" },
-  { key: "platform", label: "플랫폼 백업" },
-];
-
-const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: "대기 중", color: "#D97706", bg: "#FFF1BF" },
-  running: { label: "진행 중", color: "#1F8F86", bg: "#ECFEFF" },
-  done:    { label: "완료",    color: "#1F8F86", bg: "#DDF2EF" },
-  failed:  { label: "실패",    color: "#D96C6C", bg: "#F9DEDA" },
-};
-
-function fmtDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+// ── 타입 ──────────────────────────────────────────────────────────────────────
+interface BackupRecord {
+  id: string;
+  operator_name: string | null;
+  backup_type: string;
+  backup_type_v2: "manual" | "auto";
+  status: "pending" | "running" | "done" | "failed";
+  is_snapshot: boolean;
+  size_bytes: number | null;
+  note: string | null;
+  file_path: string | null;
+  file_name: string | null;
+  storage_type: "database" | "object_storage" | null;
+  super_db_tables: number | null;
+  pool_db_tables: number | null;
+  total_tables: number | null;
+  created_by: string | null;
+  created_at: string;
+  completed_at: string | null;
 }
 
+interface BackupSettings {
+  auto_enabled: boolean;
+  schedule_type: "daily" | "every_6h" | "every_12h" | "weekly";
+  run_hour: number;
+  run_minute: number;
+  retention_days: number;
+}
+
+// ── 유틸 ──────────────────────────────────────────────────────────────────────
+const p2 = (n: number) => String(n).padStart(2, "0");
 function fmtRelative(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
   const diff = Date.now() - d.getTime();
   const m = Math.floor(diff / 60000);
+  if (m < 1) return "방금";
   if (m < 60) return `${m}분 전`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}시간 전`;
   return `${Math.floor(h / 24)}일 전`;
 }
-
-function fmtMb(mb: number | null | undefined): string {
-  if (!mb || mb === 0) return "0 MB";
-  if (mb < 1024) return `${mb.toFixed(0)} MB`;
-  return `${(mb / 1024).toFixed(1)} GB`;
+function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function fmtSize(bytes: number | null | undefined): string {
+  if (!bytes) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
-// ── 백업 카드 ─────────────────────────────────────────────────────
+const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
+  pending: { label: "대기 중", color: WARN,    bg: "#FFF1BF" },
+  running: { label: "진행 중", color: GREEN,   bg: "#ECFEFF" },
+  done:    { label: "완료",    color: GREEN,   bg: "#DDF2EF" },
+  failed:  { label: "실패",    color: DANGER,  bg: "#F9DEDA" },
+};
+
+const TABS = [
+  { key: "all",    label: "전체" },
+  { key: "manual", label: "수동 백업" },
+  { key: "auto",   label: "자동 백업" },
+];
+
+const SCHEDULE_OPTIONS: { key: BackupSettings["schedule_type"]; label: string }[] = [
+  { key: "daily",     label: "매일" },
+  { key: "every_12h", label: "12시간마다" },
+  { key: "every_6h",  label: "6시간마다" },
+  { key: "weekly",    label: "매주 일요일" },
+];
+
+// ── 백업 카드 ─────────────────────────────────────────────────────────────────
 function BackupCard({
   item,
   onRestore,
-  isCompareSelected,
-  onToggleCompare,
+  onDownload,
 }: {
-  item: BackupSnapshot;
-  onRestore: (item: BackupSnapshot) => void;
-  isCompareSelected: boolean;
-  onToggleCompare: (item: BackupSnapshot) => void;
+  item: BackupRecord;
+  onRestore: (item: BackupRecord) => void;
+  onDownload: (item: BackupRecord) => void;
 }) {
   const cfg = STATUS_CFG[item.status] ?? STATUS_CFG.done;
-  const isSnapshot = item.bucket === "operator_snapshot";
+  const isAuto = item.backup_type_v2 === "auto";
 
   return (
-    <View style={[bc.card, isCompareSelected && bc.cardSelected]}>
+    <View style={bc.card}>
       <View style={bc.top}>
         <View style={[bc.badge, { backgroundColor: cfg.bg }]}>
           <Text style={[bc.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
         </View>
-        {isSnapshot && (
-          <View style={[bc.badge, { backgroundColor: "#EEDDF5" }]}>
-            <Text style={[bc.badgeTxt, { color: P }]}>스냅샷</Text>
+        <View style={[bc.badge, { backgroundColor: isAuto ? "#ECFEFF" : "#EEDDF5" }]}>
+          <Text style={[bc.badgeTxt, { color: isAuto ? GREEN : P }]}>{isAuto ? "자동" : "수동"}</Text>
+        </View>
+        {item.storage_type === "database" && (
+          <View style={[bc.badge, { backgroundColor: "#FFF1BF" }]}>
+            <Text style={[bc.badgeTxt, { color: WARN }]}>DB저장</Text>
           </View>
         )}
-        <Text style={bc.type}>{item.scope === "platform" ? "플랫폼 전체" : "운영자"}</Text>
-        <Text style={bc.time}>{fmtRelative(item.createdAt)}</Text>
+        <Text style={bc.time}>{fmtRelative(item.created_at)}</Text>
       </View>
 
-      <Text style={bc.name}>
-        {item.operatorName || (item.scope === "platform" ? "플랫폼 전체" : "—")}
-      </Text>
+      <Text style={bc.name}>{item.operator_name || "전체 통합 백업"}</Text>
 
       <View style={bc.meta}>
+        {item.total_tables != null && (
+          <View style={bc.metaItem}>
+            <Feather name="layers" size={11} color="#6F6B68" />
+            <Text style={bc.metaVal}>{item.total_tables}개 테이블</Text>
+          </View>
+        )}
         <View style={bc.metaItem}>
           <Feather name="hard-drive" size={11} color="#6F6B68" />
-          <Text style={bc.metaVal}>{fmtMb(item.sizeMb)}</Text>
+          <Text style={bc.metaVal}>{fmtSize(item.size_bytes)}</Text>
         </View>
         <View style={bc.metaItem}>
           <Feather name="clock" size={11} color="#6F6B68" />
-          <Text style={bc.metaVal}>{fmtDateTime(item.createdAt)}</Text>
+          <Text style={bc.metaVal}>{fmtDateTime(item.created_at)}</Text>
         </View>
+        {item.created_by && (
+          <View style={bc.metaItem}>
+            <Feather name="user" size={11} color="#6F6B68" />
+            <Text style={bc.metaVal}>{item.created_by}</Text>
+          </View>
+        )}
         {item.note && (
           <View style={bc.metaItem}>
             <Feather name="file-text" size={11} color="#6F6B68" />
@@ -107,110 +162,141 @@ function BackupCard({
         )}
       </View>
 
-      <View style={bc.actions}>
-        {item.status === "done" && (
-          <Pressable style={[bc.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => onRestore(item)}>
-            <Feather name="rotate-ccw" size={12} color="#D96C6C" />
-            <Text style={[bc.btnTxt, { color: "#D96C6C" }]}>복구</Text>
+      {item.status === "done" && (
+        <View style={bc.actions}>
+          <Pressable style={[bc.btn, { backgroundColor: "#EFF6FF" }]} onPress={() => onDownload(item)}>
+            <Feather name="download" size={12} color="#0284C7" />
+            <Text style={[bc.btnTxt, { color: "#0284C7" }]}>다운로드</Text>
           </Pressable>
-        )}
-        <Pressable
-          style={[bc.btn, { backgroundColor: isCompareSelected ? "#EEDDF5" : "#F6F3F1" }]}
-          onPress={() => onToggleCompare(item)}>
-          <Feather name="shuffle" size={12} color={isCompareSelected ? P : "#6F6B68"} />
-          <Text style={[bc.btnTxt, { color: isCompareSelected ? P : "#6F6B68" }]}>비교 선택</Text>
-        </Pressable>
-      </View>
+          <Pressable style={[bc.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => onRestore(item)}>
+            <Feather name="rotate-ccw" size={12} color={DANGER} />
+            <Text style={[bc.btnTxt, { color: DANGER }]}>복구</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
 
 const bc = StyleSheet.create({
-  card:        { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E9E2DD" },
-  cardSelected:{ borderColor: P, borderWidth: 2 },
-  top:         { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  badge:       { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeTxt:    { fontSize: 10, fontFamily: "Inter_700Bold" },
-  type:        { fontSize: 11, fontFamily: "Inter_500Medium", color: "#6F6B68" },
-  time:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginLeft: "auto" },
-  name:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 8 },
-  meta:        { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
-  metaItem:    { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaVal:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
-  actions:     { flexDirection: "row", gap: 8 },
-  btn:         { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7 },
-  btnTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  card:     { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E9E2DD" },
+  top:      { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  badge:    { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
+  badgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold" },
+  time:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginLeft: "auto" },
+  name:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 8 },
+  meta:     { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
+  metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  metaVal:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  actions:  { flexDirection: "row", gap: 8 },
+  btn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7 },
+  btnTxt:   { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 });
 
-// ── 복구 확인 모달 ────────────────────────────────────────────────
-function RestoreModal({
-  target,
-  onClose,
-  onConfirm,
+// ── 수동 백업 생성 모달 ───────────────────────────────────────────────────────
+function CreateModal({
+  visible, busy, onClose, onCreate,
 }: {
-  target: BackupSnapshot | null;
+  visible: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onCreate: (note: string) => void;
+}) {
+  const [note, setNote] = useState("");
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
+        <View style={cr.header}>
+          <Pressable onPress={onClose} disabled={busy}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
+          <Text style={cr.title}>수동 백업 생성</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+          <View style={cr.infoBox}>
+            <Feather name="info" size={14} color="#0284C7" />
+            <Text style={cr.infoTxt}>
+              슈퍼관리자 DB와 수영장 운영 DB 전체를 백업합니다.{"\n"}
+              소요 시간: 약 10~30초 (DB 크기에 따라 다름)
+            </Text>
+          </View>
+          <View>
+            <Text style={cr.label}>메모 (선택)</Text>
+            <TextInput style={cr.input} value={note} onChangeText={setNote} editable={!busy}
+              placeholder="이 백업에 대한 메모를 입력하세요" placeholderTextColor="#9A948F"
+              multiline numberOfLines={2} />
+          </View>
+          <Pressable style={[cr.confirmBtn, busy && { opacity: 0.5 }]} onPress={() => onCreate(note)} disabled={busy}>
+            {busy
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Feather name="save" size={16} color="#fff" />
+            }
+            <Text style={cr.confirmTxt}>{busy ? "백업 생성 중..." : "백업 생성"}</Text>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const cr = StyleSheet.create({
+  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  label:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 8 },
+  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  confirmBtn: { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
+  confirmTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  infoBox:    { flexDirection: "row", gap: 8, backgroundColor: "#EFF6FF", borderRadius: 8, padding: 12, alignItems: "flex-start" },
+  infoTxt:    { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#0284C7", lineHeight: 18 },
+});
+
+// ── 복구 확인 모달 ────────────────────────────────────────────────────────────
+function RestoreModal({ target, onClose, onConfirm, busy }: {
+  target: BackupRecord | null;
   onClose: () => void;
   onConfirm: (reason: string) => void;
+  busy: boolean;
 }) {
   const [reason, setReason] = useState("");
   if (!target) return null;
-
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
         <View style={rm.header}>
-          <Pressable onPress={onClose}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
+          <Pressable onPress={onClose} disabled={busy}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
           <Text style={rm.title}>데이터 복구</Text>
           <View style={{ width: 24 }} />
         </View>
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={rm.warningBox}>
-            <Feather name="alert-triangle" size={20} color="#D97706" />
+            <Feather name="alert-triangle" size={20} color={WARN} />
             <Text style={rm.warningTxt}>
-              사진 및 영상 원본은 복구되지 않습니다.{"\n"}
-              메타데이터 및 텍스트 데이터만 복구됩니다.
+              사진 및 영상 원본은 복구되지 않습니다.{"\n"}메타데이터 및 텍스트 데이터만 복구됩니다.
             </Text>
           </View>
           <View style={rm.infoBox}>
-            <Text style={rm.infoLabel}>복구 대상</Text>
-            <Text style={rm.infoVal}>{target.operatorName || "플랫폼 전체"}</Text>
             <Text style={rm.infoLabel}>백업 일시</Text>
-            <Text style={rm.infoVal}>{fmtDateTime(target.createdAt)}</Text>
+            <Text style={rm.infoVal}>{fmtDateTime(target.created_at)}</Text>
             <Text style={rm.infoLabel}>백업 크기</Text>
-            <Text style={rm.infoVal}>{fmtMb(target.sizeMb)}</Text>
-          </View>
-          <View style={rm.diffBox}>
-            <Text style={rm.diffTitle}>복구 예정 항목 (diff)</Text>
-            {["출결 기록", "일지/메모", "쪽지", "회원 정보", "수업 일정"].map(item => (
-              <View key={item} style={rm.diffRow}>
-                <Feather name="check-circle" size={14} color="#1F8F86" />
-                <Text style={rm.diffItem}>{item}</Text>
-              </View>
-            ))}
-            <View style={rm.diffRow}>
-              <Feather name="x-circle" size={14} color="#D96C6C" />
-              <Text style={[rm.diffItem, { color: "#D96C6C" }]}>사진/영상 원본 (복구 불가)</Text>
-            </View>
+            <Text style={rm.infoVal}>{fmtSize(target.size_bytes)}</Text>
+            {target.total_tables != null && (
+              <>
+                <Text style={rm.infoLabel}>테이블 수</Text>
+                <Text style={rm.infoVal}>{target.total_tables}개</Text>
+              </>
+            )}
           </View>
           <View>
             <Text style={rm.inputLabel}>복구 사유 (필수)</Text>
-            <TextInput
-              style={rm.input}
-              value={reason}
-              onChangeText={setReason}
-              placeholder="복구 사유를 입력하세요"
-              placeholderTextColor="#9A948F"
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
+            <TextInput style={rm.input} value={reason} onChangeText={setReason} editable={!busy}
+              placeholder="복구 사유를 입력하세요" placeholderTextColor="#9A948F"
+              multiline numberOfLines={3} textAlignVertical="top" />
           </View>
-          <Pressable
-            style={[rm.confirmBtn, !reason.trim() && { opacity: 0.4 }]}
+          <Pressable style={[rm.confirmBtn, (!reason.trim() || busy) && { opacity: 0.4 }]}
             onPress={() => { if (reason.trim()) onConfirm(reason); }}
-            disabled={!reason.trim()}>
-            <Feather name="rotate-ccw" size={16} color="#fff" />
-            <Text style={rm.confirmTxt}>복구 실행</Text>
+            disabled={!reason.trim() || busy}>
+            {busy ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="rotate-ccw" size={16} color="#fff" />}
+            <Text style={rm.confirmTxt}>{busy ? "처리 중..." : "복구 실행"}</Text>
           </Pressable>
         </ScrollView>
       </SafeAreaView>
@@ -226,364 +312,236 @@ const rm = StyleSheet.create({
   infoBox:    { backgroundColor: "#FBF8F6", borderRadius: 10, padding: 14, gap: 4 },
   infoLabel:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   infoVal:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 6 },
-  diffBox:    { backgroundColor: "#fff", borderRadius: 10, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E9E2DD" },
-  diffTitle:  { fontSize: 12, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 4 },
-  diffRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
-  diffItem:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
   inputLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 6 },
   input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", height: 90 },
-  confirmBtn: { backgroundColor: "#D96C6C", borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
+  confirmBtn: { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   confirmTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
 
-// ── 비교 복구 모달 ────────────────────────────────────────────────
-function CompareModal({ items, onClose }: { items: BackupSnapshot[]; onClose: () => void }) {
-  if (items.length < 2) return null;
-  const [a, b] = items;
+// ── 자동 백업 설정 패널 ───────────────────────────────────────────────────────
+function AutoBackupPanel({ token }: { token: string | null }) {
+  const [settings, setSettings] = useState<BackupSettings | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [draft, setDraft]       = useState<BackupSettings | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest(token, "/super/backup-settings")
+      .then(r => r.json())
+      .then((d: any) => { setSettings(d.settings); setDraft(d.settings); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  async function saveSettings() {
+    if (!draft || !token) return;
+    setSaving(true);
+    try {
+      const res = await apiRequest(token, "/super/backup-settings", {
+        method: "PUT",
+        body: JSON.stringify(draft),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "저장 실패");
+      setSettings(d.settings);
+      setDraft(d.settings);
+      Alert.alert("저장 완료", "자동 백업 설정이 업데이트되었습니다.");
+    } catch (e: any) {
+      Alert.alert("오류", e.message);
+    } finally { setSaving(false); }
+  }
+
+  if (loading) return <ActivityIndicator color={P} style={{ padding: 20 }} />;
+  if (!draft)  return null;
+
+  const isDirty = JSON.stringify(settings) !== JSON.stringify(draft);
+
   return (
-    <Modal visible animationType="fade" onRequestClose={onClose} transparent>
-      <View style={cm.overlay}>
-        <Pressable style={cm.backdrop} onPress={onClose} />
-        <View style={cm.sheet}>
-          <View style={cm.header}>
-            <Text style={cm.title}>스냅샷 비교</Text>
-            <Pressable onPress={onClose}><Feather name="x" size={18} color="#6F6B68" /></Pressable>
-          </View>
-          <View style={cm.row}>
-            <View style={cm.col}>
-              <Text style={cm.colLabel}>백업 A</Text>
-              <Text style={cm.colName}>{a.operatorName || "플랫폼"}</Text>
-              <Text style={cm.colDate}>{fmtDateTime(a.createdAt)}</Text>
-              <Text style={cm.colSize}>{fmtMb(a.sizeMb)}</Text>
-            </View>
-            <View style={cm.divider}><Feather name="shuffle" size={20} color={P} /></View>
-            <View style={cm.col}>
-              <Text style={cm.colLabel}>백업 B</Text>
-              <Text style={cm.colName}>{b.operatorName || "플랫폼"}</Text>
-              <Text style={cm.colDate}>{fmtDateTime(b.createdAt)}</Text>
-              <Text style={cm.colSize}>{fmtMb(b.sizeMb)}</Text>
-            </View>
-          </View>
-          <View style={cm.diffSection}>
-            <Text style={cm.diffTitle}>예상 변경사항 (시뮬레이션)</Text>
-            {[
-              ["출결 기록", "+12건",   "#1F8F86"],
-              ["일지",     "+5건",    "#1F8F86"],
-              ["회원 정보", "변경 없음", "#6F6B68"],
-              ["사진/영상", "복구 불가", "#D96C6C"],
-            ].map(([k, v, c]) => (
-              <View key={k} style={cm.diffRow}>
-                <Text style={cm.diffKey}>{k}</Text>
-                <Text style={[cm.diffVal, { color: c }]}>{v}</Text>
-              </View>
+    <View style={ap.wrap}>
+      <View style={ap.row}>
+        <View style={{ flex: 1 }}>
+          <Text style={ap.label}>자동 백업 활성화</Text>
+          <Text style={ap.sub}>{draft.auto_enabled ? "매 스케줄마다 자동 실행" : "수동 백업만 가능"}</Text>
+        </View>
+        <Switch value={draft.auto_enabled} onValueChange={v => setDraft({ ...draft, auto_enabled: v })}
+          trackColor={{ true: P, false: "#E9E2DD" }} thumbColor="#fff" />
+      </View>
+
+      {draft.auto_enabled && (
+        <>
+          <View style={ap.divider} />
+          <Text style={ap.label}>백업 주기</Text>
+          <View style={ap.segRow}>
+            {SCHEDULE_OPTIONS.map(o => (
+              <Pressable key={o.key} style={[ap.seg, draft.schedule_type === o.key && ap.segActive]}
+                onPress={() => setDraft({ ...draft, schedule_type: o.key })}>
+                <Text style={[ap.segTxt, draft.schedule_type === o.key && ap.segActiveTxt]}>{o.label}</Text>
+              </Pressable>
             ))}
           </View>
-          <Pressable style={cm.closeBtn} onPress={onClose}>
-            <Text style={cm.closeBtnTxt}>닫기</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
-const cm = StyleSheet.create({
-  overlay:     { flex: 1, justifyContent: "flex-end" },
-  backdrop:    { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet:       { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  header:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  title:       { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  row:         { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 },
-  col:         { flex: 1, backgroundColor: "#FBF8F6", borderRadius: 10, padding: 12 },
-  colLabel:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#9A948F" },
-  colName:     { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginTop: 4 },
-  colDate:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
-  colSize:     { fontSize: 11, fontFamily: "Inter_600SemiBold", color: P, marginTop: 4 },
-  divider:     { width: 32, alignItems: "center" },
-  diffSection: { backgroundColor: "#FBF8F6", borderRadius: 10, padding: 14, gap: 8, marginBottom: 16 },
-  diffTitle:   { fontSize: 12, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 4 },
-  diffRow:     { flexDirection: "row", justifyContent: "space-between" },
-  diffKey:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
-  diffVal:     { fontSize: 12, fontFamily: "Inter_700Bold" },
-  closeBtn:    { backgroundColor: "#F6F3F1", borderRadius: 10, padding: 14, alignItems: "center" },
-  closeBtnTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-});
-
-// ── 생성 모달 ─────────────────────────────────────────────────────
-function CreateModal({
-  visible,
-  onClose,
-  onCreate,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onCreate: (scope: "operator" | "platform", operatorId: string, note: string) => void;
-}) {
-  const [scope, setScope]       = useState<"operator" | "platform">("platform");
-  const [operatorId, setOpId]   = useState("");
-  const [note, setNote]         = useState("");
-
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
-        <View style={cr.header}>
-          <Pressable onPress={onClose}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
-          <Text style={cr.title}>백업/스냅샷 생성</Text>
-          <View style={{ width: 24 }} />
-        </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
-          <View>
-            <Text style={cr.label}>백업 범위</Text>
-            <View style={cr.segRow}>
-              {(["platform", "operator"] as const).map(t => (
-                <Pressable key={t} style={[cr.seg, scope === t && cr.segActive]} onPress={() => setScope(t)}>
-                  <Text style={[cr.segTxt, scope === t && cr.segActiveTxt]}>
-                    {t === "platform" ? "플랫폼 전체" : "운영자별"}
-                  </Text>
-                </Pressable>
-              ))}
+          <View style={ap.divider} />
+          <View style={ap.row}>
+            <Text style={ap.label}>실행 시간</Text>
+            <View style={ap.hourPicker}>
+              <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, run_hour: (draft.run_hour - 1 + 24) % 24 })}>
+                <Feather name="chevron-left" size={16} color="#1F1F1F" />
+              </Pressable>
+              <Text style={ap.hourVal}>{p2(draft.run_hour)}:00</Text>
+              <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, run_hour: (draft.run_hour + 1) % 24 })}>
+                <Feather name="chevron-right" size={16} color="#1F1F1F" />
+              </Pressable>
             </View>
           </View>
 
-          {scope === "operator" && (
-            <View>
-              <Text style={cr.label}>운영자 ID</Text>
-              <TextInput style={cr.input} value={operatorId} onChangeText={setOpId}
-                placeholder="운영자 ID를 입력하세요" placeholderTextColor="#9A948F" />
+          <View style={ap.divider} />
+          <View style={ap.row}>
+            <Text style={ap.label}>보관 기간</Text>
+            <View style={ap.hourPicker}>
+              <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, retention_days: Math.max(1, draft.retention_days - 1) })}>
+                <Feather name="chevron-left" size={16} color="#1F1F1F" />
+              </Pressable>
+              <Text style={ap.hourVal}>{draft.retention_days}일</Text>
+              <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, retention_days: Math.min(90, draft.retention_days + 1) })}>
+                <Feather name="chevron-right" size={16} color="#1F1F1F" />
+              </Pressable>
             </View>
-          )}
-
-          <View>
-            <Text style={cr.label}>메모 (선택)</Text>
-            <TextInput style={cr.input} value={note} onChangeText={setNote}
-              placeholder="이 백업에 대한 메모를 입력하세요" placeholderTextColor="#9A948F"
-              multiline numberOfLines={2} />
           </View>
+        </>
+      )}
 
-          <Pressable style={cr.confirmBtn}
-            onPress={() => { onCreate(scope, operatorId, note); setScope("platform"); setOpId(""); setNote(""); }}>
-            <Feather name="save" size={16} color="#fff" />
-            <Text style={cr.confirmTxt}>스냅샷 생성</Text>
-          </Pressable>
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+      {isDirty && (
+        <Pressable style={[ap.saveBtn, saving && { opacity: 0.5 }]} onPress={saveSettings} disabled={saving}>
+          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="check" size={14} color="#fff" />}
+          <Text style={ap.saveTxt}>{saving ? "저장 중..." : "설정 저장"}</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
-const cr = StyleSheet.create({
-  header:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
-  title:        { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  label:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 8 },
-  segRow:       { flexDirection: "row", gap: 8 },
-  seg:          { flex: 1, padding: 10, borderRadius: 8, backgroundColor: "#F6F3F1", alignItems: "center" },
-  segActive:    { backgroundColor: P },
-  segTxt:       { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
-  segActiveTxt: { color: "#fff" },
-  input:        { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
-  confirmBtn:   { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
-  confirmTxt:   { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+const ap = StyleSheet.create({
+  wrap:        { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 10, borderWidth: 1, borderColor: "#E9E2DD", marginBottom: 10 },
+  row:         { flexDirection: "row", alignItems: "center", gap: 10 },
+  label:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", flex: 1 },
+  sub:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  divider:     { height: 1, backgroundColor: "#F6F3F1" },
+  segRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  seg:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: "#F6F3F1" },
+  segActive:   { backgroundColor: P },
+  segTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  segActiveTxt:{ color: "#fff" },
+  hourPicker:  { flexDirection: "row", alignItems: "center", gap: 8 },
+  hourBtn:     { width: 30, height: 30, borderRadius: 8, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
+  hourVal:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", minWidth: 50, textAlign: "center" },
+  saveBtn:     { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12, marginTop: 4 },
+  saveTxt:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
 });
 
-// ── 복구 결과 모달 ────────────────────────────────────────────────
-function RestoreResultModal({
-  result,
-  onClose,
-}: {
-  result: { success: boolean; detail: string; target: string } | null;
-  onClose: () => void;
-}) {
-  if (!result) return null;
-  const ok = result.success;
-  return (
-    <Modal visible animationType="fade" transparent onRequestClose={onClose}>
-      <View style={rr.overlay}>
-        <Pressable style={rr.backdrop} onPress={onClose} />
-        <View style={rr.card}>
-          <View style={[rr.iconCircle, { backgroundColor: ok ? "#DFF3EC" : "#F9DEDA" }]}>
-            <Feather name={ok ? "check-circle" : "alert-circle"} size={36} color={ok ? "#2E9B6F" : "#D96C6C"} />
-          </View>
-          <Text style={[rr.title, { color: ok ? "#2E9B6F" : "#D96C6C" }]}>
-            {ok ? "복구 완료" : "복구 실패"}
-          </Text>
-          <Text style={rr.target}>{result.target}</Text>
-          <Text style={rr.detail}>{result.detail}</Text>
-          {!ok && (
-            <View style={rr.contactBox}>
-              <Feather name="phone-call" size={14} color={P} />
-              <Text style={rr.contactTxt}>
-                고객지원 메뉴에서 긴급 문의를 등록하세요.{"\n"}복구 실패 사유는 감사 로그에 자동 기록됩니다.
-              </Text>
-            </View>
-          )}
-          <Pressable style={[rr.closeBtn, { backgroundColor: ok ? "#2E9B6F" : "#D96C6C" }]} onPress={onClose}>
-            <Text style={rr.closeBtnTxt}>확인</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const rr = StyleSheet.create({
-  overlay:    { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)" },
-  backdrop:   { ...StyleSheet.absoluteFillObject },
-  card:       { backgroundColor: "#fff", borderRadius: 20, padding: 24, width: "85%", alignItems: "center", gap: 12, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 12, elevation: 8 },
-  iconCircle: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center" },
-  title:      { fontSize: 20, fontFamily: "Inter_700Bold" },
-  target:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
-  detail:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F", textAlign: "center", lineHeight: 20 },
-  contactBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12, width: "100%" },
-  contactTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#5B21B6", flex: 1, lineHeight: 18 },
-  closeBtn:   { borderRadius: 12, paddingHorizontal: 32, paddingVertical: 12, marginTop: 4 },
-  closeBtnTxt:{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-});
-
-// ── 메인 컴포넌트 ─────────────────────────────────────────────────
+// ── 메인 ─────────────────────────────────────────────────────────────────────
 export default function BackupScreen() {
-  const { adminUser } = useAuth();
-  const actorName = adminUser?.name ?? '슈퍼관리자';
+  const { token } = useAuth();
 
-  const snapshots       = useBackupStore(s => s.snapshots);
-  const createSnapshot  = useBackupStore(s => s.createSnapshot);
-  const createRestoreJob = useBackupStore(s => s.createRestoreJob);
-  const startRestore    = useBackupStore(s => s.startRestoreSimulation);
-  const createLog       = useAuditLogStore(s => s.createLog);
+  const [backups,       setBackups]       = useState<BackupRecord[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [createVisible, setCreateVisible] = useState(false);
+  const [createBusy,    setCreateBusy]    = useState(false);
+  const [restoreTarget, setRestoreTarget] = useState<BackupRecord | null>(null);
+  const [restoreBusy,   setRestoreBusy]   = useState(false);
+  const [downloadBusy,  setDownloadBusy]  = useState<string | null>(null);
+  const [activeTab,     setActiveTab]     = useState("all");
+  const [showSettings,  setShowSettings]  = useState(false);
 
-  const [activeTab,      setActiveTab]      = useState("all");
-  const [refreshing,     setRefreshing]     = useState(false);
-  const [createVisible,  setCreateVisible]  = useState(false);
-  const [restoreTarget,  setRestoreTarget]  = useState<BackupSnapshot | null>(null);
-  const [compareItems,   setCompareItems]   = useState<BackupSnapshot[]>([]);
-  const [operating,      setOperating]      = useState(false);
-  const [showCompare,    setShowCompare]    = useState(false);
-  const [restoreResult,  setRestoreResult]  = useState<{ success: boolean; detail: string; target: string } | null>(null);
+  const loadBackups = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await apiRequest(token, "/super/backups");
+      const data = await res.json();
+      setBackups(data.backups ?? []);
+    } catch { /* silent */ }
+  }, [token]);
+
+  useEffect(() => {
+    loadBackups().finally(() => setLoading(false));
+  }, [loadBackups]);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await loadBackups();
+    setRefreshing(false);
+  }
+
+  async function handleCreate(note: string) {
+    if (!token) return;
+    setCreateBusy(true);
+    try {
+      const res = await apiRequest(token, "/super/backups", {
+        method: "POST",
+        body: JSON.stringify({ note: note || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "백업 생성 실패");
+      setCreateVisible(false);
+      await loadBackups();
+      Alert.alert("백업 완료", `${data.file_name ?? "백업"} 생성 완료\n크기: ${fmtSize(data.size_bytes)}`);
+    } catch (e: any) {
+      Alert.alert("오류", e.message);
+    } finally { setCreateBusy(false); }
+  }
+
+  async function handleRestore(reason: string) {
+    if (!restoreTarget || !token) return;
+    setRestoreBusy(true);
+    try {
+      const res = await apiRequest(token, `/super/backups/${restoreTarget.id}/restore`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "복구 실패");
+      setRestoreTarget(null);
+      Alert.alert("복구 기록 완료", "복구 요청이 감사 로그에 기록되었습니다.\n실제 데이터 복구는 백업 JSON 파일을 이용하세요.");
+    } catch (e: any) {
+      Alert.alert("오류", e.message);
+    } finally { setRestoreBusy(false); }
+  }
+
+  async function handleDownload(item: BackupRecord) {
+    if (!token) return;
+    setDownloadBusy(item.id);
+    try {
+      const res = await apiRequest(token, `/super/backups/${item.id}/download`);
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({ error: "다운로드 실패" }));
+        throw new Error(d.error ?? "다운로드 실패");
+      }
+      const text = await res.text();
+      const fileName = item.file_name ?? `${item.id}.json`;
+      const path = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(path, text, { encoding: FileSystem.EncodingType.UTF8 });
+      await Share.share({
+        title: fileName,
+        message: `백업 파일: ${fileName}\n크기: ${fmtSize(item.size_bytes)}\n\n데이터 미리보기:\n${text.slice(0, 300)}...`,
+      });
+    } catch (e: any) {
+      Alert.alert("다운로드 실패", e.message);
+    } finally { setDownloadBusy(null); }
+  }
 
   const filtered = useMemo(() => {
-    if (activeTab === "snapshot") return snapshots.filter(b => b.bucket === "operator_snapshot");
-    if (activeTab === "operator") return snapshots.filter(b => b.scope === "operator" && b.bucket !== "operator_snapshot");
-    if (activeTab === "platform") return snapshots.filter(b => b.scope === "platform");
-    return snapshots;
-  }, [activeTab, snapshots]);
+    if (activeTab === "manual") return backups.filter(b => b.backup_type_v2 === "manual");
+    if (activeTab === "auto")   return backups.filter(b => b.backup_type_v2 === "auto");
+    return backups;
+  }, [activeTab, backups]);
 
-  function handleCreate(scope: "operator" | "platform", operatorId: string, note: string) {
-    setOperating(true);
-    try {
-      const snap = createSnapshot({ scope, operatorId: operatorId || undefined, note: note || undefined, actorName });
-      createLog({
-        category: '백업',
-        title: scope === "platform" ? "플랫폼 전체 스냅샷 생성" : "운영자 스냅샷 생성",
-        actorName,
-        impact: 'medium',
-        detail: `범위: ${scope}${note ? `, 메모: ${note}` : ""}`,
-      });
-      setCreateVisible(false);
-      Alert.alert("완료", "스냅샷이 생성되었습니다.");
-    } finally { setOperating(false); }
-  }
-
-  function handleRestore(reason: string) {
-    if (!restoreTarget) return;
-    setOperating(true);
-    const targetName = restoreTarget.operatorName || "플랫폼 전체";
-
-    // 실패 상태 백업은 복구 불가
-    if (restoreTarget.status === "failed") {
-      setRestoreTarget(null);
-      setOperating(false);
-      setRestoreResult({
-        success: false,
-        detail: "선택한 백업이 실패 상태입니다. 다른 정상 백업 시점을 선택하거나 고객센터에 긴급 문의를 등록하세요.",
-        target: targetName,
-      });
-      return;
-    }
-
-    try {
-      const job = createRestoreJob({
-        snapshotId: restoreTarget.id,
-        operatorId: restoreTarget.operatorId,
-        operatorName: targetName,
-        mode: "single",
-        note: reason,
-        actorName,
-      });
-      startRestore(job.id);
-      createLog({
-        category: '백업',
-        title: `데이터 복구 실행: ${targetName}`,
-        actorName,
-        impact: 'critical',
-        detail: reason,
-      });
-      setRestoreTarget(null);
-      setRestoreResult({ success: true, detail: reason, target: targetName });
-    } catch (e) {
-      setRestoreTarget(null);
-      createLog({
-        category: '백업',
-        title: `복구 실패: ${targetName}`,
-        actorName,
-        impact: 'critical',
-        detail: `사유: ${(e as Error)?.message ?? "알 수 없는 오류"}`,
-      });
-      setRestoreResult({
-        success: false,
-        detail: "복구 처리 중 예기치 않은 오류가 발생했습니다. 고객센터에 긴급 문의를 등록하세요.",
-        target: targetName,
-      });
-    } finally { setOperating(false); }
-  }
-
-  function toggleCompare(item: BackupSnapshot) {
-    setCompareItems(prev => {
-      if (prev.some(b => b.id === item.id)) return prev.filter(b => b.id !== item.id);
-      if (prev.length >= 2) return [prev[1], item];
-      return [...prev, item];
-    });
-  }
+  const latestBackup = backups[0];
+  const totalSize = backups.reduce((s, b) => s + (b.size_bytes ?? 0), 0);
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <SubScreenHeader title="백업/복구/스냅샷" subtitle="운영자 데이터 보호 및 복구" />
-
-      <View style={s.topBar}>
-        <Pressable style={[s.createBtn, operating && { opacity: 0.5 }]}
-          onPress={() => setCreateVisible(true)} disabled={operating}>
-          <Feather name="save" size={14} color="#fff" />
-          <Text style={s.createBtnTxt}>새 백업/스냅샷</Text>
-        </Pressable>
-        {compareItems.length === 2 && (
-          <Pressable style={s.compareBtn} onPress={() => setShowCompare(true)}>
-            <Feather name="shuffle" size={14} color={P} />
-            <Text style={[s.createBtnTxt, { color: P }]}>비교 보기 (2개 선택)</Text>
-          </Pressable>
-        )}
-      </View>
-
-      {compareItems.length > 0 && (
-        <View style={s.compareBar}>
-          <Feather name="info" size={13} color="#1F8F86" />
-          <Text style={s.compareBarTxt}>
-            {compareItems.length}개 선택됨 — {compareItems.length < 2 ? "1개 더 선택하세요" : "비교 준비됨"}
-          </Text>
-          {compareItems.length >= 1 && (
-            <Pressable onPress={() => setCompareItems([])} style={s.clearCompare}>
-              <Text style={s.clearCompareTxt}>초기화</Text>
-            </Pressable>
-          )}
-        </View>
-      )}
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        contentContainerStyle={s.tabRow} style={{ flexGrow: 0 }}>
-        {TABS.map(t => (
-          <Pressable key={t.key} style={[s.tab, activeTab === t.key && s.tabActive]}
-            onPress={() => setActiveTab(t.key)}>
-            <Text style={[s.tabTxt, activeTab === t.key && s.tabActiveTxt]}>{t.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <SubScreenHeader title="백업/복구" subtitle="DB 전체 백업 및 복구 관리" />
 
       <FlatList
         data={filtered}
@@ -592,62 +550,107 @@ export default function BackupScreen() {
           <BackupCard
             item={item}
             onRestore={setRestoreTarget}
-            isCompareSelected={compareItems.some(b => b.id === item.id)}
-            onToggleCompare={toggleCompare}
+            onDownload={b => { if (!downloadBusy) handleDownload(b); }}
           />
         )}
-        contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
-        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
-        ListEmptyComponent={
-          <View style={s.empty}>
-            <Feather name="save" size={36} color="#D1D5DB" />
-            <Text style={s.emptyTxt}>백업 기록이 없습니다</Text>
-            <Text style={s.emptySubTxt}>새 백업 또는 스냅샷을 생성하세요</Text>
+        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={onRefresh} />}
+        ListHeaderComponent={
+          <View style={{ gap: 12, marginBottom: 16 }}>
+            {/* 요약 카드 */}
+            <View style={s.summaryRow}>
+              <View style={s.summaryCard}>
+                <Feather name="clock" size={16} color={P} />
+                <Text style={s.summaryVal}>{latestBackup ? fmtRelative(latestBackup.created_at) : "없음"}</Text>
+                <Text style={s.summaryKey}>최근 백업</Text>
+              </View>
+              <View style={s.summaryCard}>
+                <Feather name="layers" size={16} color={GREEN} />
+                <Text style={s.summaryVal}>{backups.length}개</Text>
+                <Text style={s.summaryKey}>총 백업 수</Text>
+              </View>
+              <View style={s.summaryCard}>
+                <Feather name="hard-drive" size={16} color={WARN} />
+                <Text style={s.summaryVal}>{fmtSize(totalSize)}</Text>
+                <Text style={s.summaryKey}>총 용량</Text>
+              </View>
+            </View>
+
+            {/* 액션 버튼들 */}
+            <View style={s.btnRow}>
+              <Pressable style={[s.actionBtn, { flex: 1 }]}
+                onPress={() => setCreateVisible(true)} disabled={createBusy}>
+                <Feather name="save" size={14} color="#fff" />
+                <Text style={s.actionBtnTxt}>지금 백업</Text>
+              </Pressable>
+              <Pressable style={[s.outlineBtn]}
+                onPress={() => setShowSettings(v => !v)}>
+                <Feather name="settings" size={14} color={P} />
+                <Text style={s.outlineBtnTxt}>{showSettings ? "설정 닫기" : "자동 백업 설정"}</Text>
+              </Pressable>
+            </View>
+
+            {/* 자동 백업 설정 패널 */}
+            {showSettings && <AutoBackupPanel token={token} />}
+
+            {/* 탭 */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingHorizontal: 0 }}>
+              {TABS.map(t => (
+                <Pressable key={t.key} style={[s.tab, activeTab === t.key && s.tabActive]}
+                  onPress={() => setActiveTab(t.key)}>
+                  <Text style={[s.tabTxt, activeTab === t.key && s.tabActiveTxt]}>{t.label}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
+        }
+        ListEmptyComponent={
+          loading
+            ? <ActivityIndicator color={P} style={{ paddingTop: 60 }} />
+            : (
+              <View style={s.empty}>
+                <Feather name="save" size={36} color="#D1D5DB" />
+                <Text style={s.emptyTxt}>백업 기록이 없습니다</Text>
+                <Text style={s.emptySubTxt}>지금 백업 버튼을 눌러 첫 백업을 생성하세요</Text>
+              </View>
+            )
         }
       />
 
       <CreateModal
         visible={createVisible}
-        onClose={() => setCreateVisible(false)}
+        busy={createBusy}
+        onClose={() => { if (!createBusy) setCreateVisible(false); }}
         onCreate={handleCreate}
       />
 
       <RestoreModal
         target={restoreTarget}
-        onClose={() => setRestoreTarget(null)}
+        busy={restoreBusy}
+        onClose={() => { if (!restoreBusy) setRestoreTarget(null); }}
         onConfirm={handleRestore}
-      />
-
-      {showCompare && compareItems.length === 2 && (
-        <CompareModal items={compareItems} onClose={() => setShowCompare(false)} />
-      )}
-
-      <RestoreResultModal
-        result={restoreResult}
-        onClose={() => setRestoreResult(null)}
       />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#FBF8F6" },
-  topBar:         { flexDirection: "row", gap: 8, margin: 16, marginBottom: 0 },
-  createBtn:      { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, backgroundColor: P, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
-  createBtnTxt:   { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
-  compareBtn:     { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
-  compareBar:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#ECFEFF", marginHorizontal: 16, marginTop: 10, borderRadius: 8, padding: 10 },
-  compareBarTxt:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F8F86", flex: 1 },
-  clearCompare:   { marginLeft: "auto" },
-  clearCompareTxt:{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
-  tabRow:         { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  tab:            { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#F6F3F1" },
-  tabActive:      { backgroundColor: P },
-  tabTxt:         { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
-  tabActiveTxt:   { color: "#fff" },
-  empty:          { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#9A948F" },
-  emptySubTxt:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  safe:          { flex: 1, backgroundColor: "#FBF8F6" },
+  summaryRow:    { flexDirection: "row", gap: 8 },
+  summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 4, borderWidth: 1, borderColor: "#E9E2DD" },
+  summaryVal:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  summaryKey:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  btnRow:        { flexDirection: "row", gap: 8 },
+  actionBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: P, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },
+  actionBtnTxt:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+  outlineBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
+  outlineBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: P },
+  tab:           { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#F6F3F1" },
+  tabActive:     { backgroundColor: P },
+  tabTxt:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  tabActiveTxt:  { color: "#fff" },
+  empty:         { alignItems: "center", paddingTop: 60, gap: 10 },
+  emptyTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#9A948F" },
+  emptySubTxt:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
 });

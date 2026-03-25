@@ -9,7 +9,7 @@ export function getStorageClient(): Client {
 
 export async function uploadFile(buffer: Buffer, key: string, mimeType: string): Promise<string> {
   const client = getStorageClient();
-  await client.uploadFromBuffer(buffer, key, { contentType: mimeType });
+  await client.uploadFromBytes(key, buffer, { contentType: mimeType });
   return key;
 }
 
