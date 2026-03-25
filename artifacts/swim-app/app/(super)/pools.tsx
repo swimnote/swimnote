@@ -328,16 +328,15 @@ export default function SuperPoolsScreen() {
         </ScrollView>
       </View>
 
-      {/* 필터 칩 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipsScroll}
-        contentContainerStyle={s.chipsContent}>
+      {/* 필터 칩 — 전체 표시 (wrap) */}
+      <View style={s.chipsWrap}>
         {FILTER_CHIPS.map(chip => (
           <Pressable key={chip.key} style={[s.chip, filter === chip.key && { backgroundColor: chip.bg }]}
             onPress={() => setFilter(chip.key)}>
             <Text style={[s.chipTxt, filter === chip.key && { color: chip.color }]}>{chip.label}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
 
       {/* 헤더: 카운트 + 다중선택 토글 */}
       <View style={s.listHeader}>
@@ -401,9 +400,8 @@ const s = StyleSheet.create({
   sortChipActive:    { backgroundColor: "#EEDDF5" },
   sortChipTxt:       { fontFamily: "Inter_400Regular", fontSize: 12, color: "#6F6B68" },
   sortChipTxtActive: { color: P, fontFamily: "Inter_600SemiBold" },
-  chipsScroll:       { maxHeight: 40 },
-  chipsContent:      { paddingHorizontal: 16, gap: 6 },
-  chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#F6F3F1", marginRight: 6 },
+  chipsWrap:         { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#F6F3F1" },
   chipTxt:           { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6F6B68" },
   listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
   listCount:         { fontFamily: "Inter_400Regular", fontSize: 13, color: "#1F1F1F" },
