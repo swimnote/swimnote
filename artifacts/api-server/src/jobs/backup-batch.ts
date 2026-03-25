@@ -11,10 +11,11 @@
  *   3. retention_days 초과 자동 백업 정리 (cleanupOldAutoBackups)
  */
 import cron from "node-cron";
-import { db, superAdminDb } from "@workspace/db";
+import { db, superAdminDb, poolDb, backupProtectDb, isDbSeparated, isProtectDbConfigured } from "@workspace/db";
 import { dataChangeLogsTable, backupSnapshotsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { runRealBackup, cleanupOldAutoBackups } from "../lib/backup.js";
+import { runBackupToTarget } from "../lib/backup-target.js";
 
 // ─── 증분 동기화 ───────────────────────────────────────────────────────────
 export async function runIncrementalSync(): Promise<{
@@ -127,12 +128,36 @@ export async function runAutoBackup(): Promise<void> {
 
   console.log("[auto-backup] 자동 백업 시작 →", new Date().toISOString());
   try {
+    // 기존 Object Storage 백업 실행
     const result = await runRealBackup({
       type:      "auto",
       createdBy: "system",
       note:      `자동 백업 (${settings.schedule_type})`,
     });
-    console.log(`[auto-backup] 완료 — id: ${result.backupId}, size: ${(result.sizeBytes / 1024 / 1024).toFixed(2)}MB`);
+    console.log(`[auto-backup] Object Storage 완료 — id: ${result.backupId}, size: ${(result.sizeBytes / 1024 / 1024).toFixed(2)}MB`);
+
+    // pool 백업 DB로 백업 기록 (설정된 경우)
+    if (isDbSeparated) {
+      runBackupToTarget({
+        target: "pool",
+        targetDb: poolDb,
+        createdBy: "system",
+        note: `자동 백업 (${settings.schedule_type})`,
+        backupType: "auto",
+      }).catch(e => console.error("[auto-backup] pool 백업 실패:", e.message));
+    }
+
+    // super 보호백업 DB로 백업 기록 (설정된 경우)
+    if (backupProtectDb) {
+      runBackupToTarget({
+        target: "super_protect",
+        targetDb: backupProtectDb,
+        createdBy: "system",
+        note: `자동 보호백업 (${settings.schedule_type})`,
+        backupType: "auto",
+      }).catch(e => console.error("[auto-backup] 보호백업 실패:", e.message));
+    }
+
     await cleanupOldAutoBackups(settings.retention_days);
   } catch (err) {
     console.error("[auto-backup] 실패:", err);

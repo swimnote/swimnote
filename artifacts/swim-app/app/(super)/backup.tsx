@@ -1,8 +1,10 @@
 /**
  * (super)/backup.tsx — 백업/복구 관리 (실제 API 연동)
  *
+ * GET  /super/backup-status       — DB 백업 상태 4개 카드
+ * POST /super/backup/run          — 수동 백업 실행 (full | pool_only)
  * GET  /super/backups             — 백업 목록
- * POST /super/backups             — 수동 백업 생성
+ * POST /super/backups             — 수동 백업 생성 (Object Storage)
  * GET  /super/backup-settings     — 자동 백업 설정 조회
  * PUT  /super/backup-settings     — 자동 백업 설정 변경
  * POST /super/backups/:id/restore — 복구 기록
@@ -100,6 +102,269 @@ const SCHEDULE_OPTIONS: { key: BackupSettings["schedule_type"]; label: string }[
   { key: "every_6h",  label: "6시간마다" },
   { key: "weekly",    label: "매주 일요일" },
 ];
+
+// ── DB 백업 상태 타입 ──────────────────────────────────────────────────────────
+type CardStatus = "normal" | "warning" | "error" | "not_configured";
+
+interface BackupStatusData {
+  checked_at: string;
+  cards: {
+    operational_db: {
+      label: string;
+      connected: boolean;
+      latency_ms: number;
+      error: string | null;
+      status: CardStatus;
+      status_label: string;
+    };
+    pool_backup: {
+      label: string;
+      configured: boolean;
+      status: CardStatus;
+      status_label: string;
+      last_backup_at: string | null;
+      last_success_at: string | null;
+      last_status: string | null;
+      error_message: string | null;
+      size_bytes: number | null;
+    };
+    protect_backup: {
+      label: string;
+      configured: boolean;
+      status: CardStatus;
+      status_label: string;
+      last_backup_at: string | null;
+      last_success_at: string | null;
+      last_status: string | null;
+      error_message: string | null;
+      size_bytes: number | null;
+    };
+    summary: {
+      label: string;
+      status: CardStatus;
+      status_label: string;
+      recent_success: boolean;
+      failure_count_24h: number;
+      pool_configured: boolean;
+      protect_configured: boolean;
+    };
+  };
+}
+
+const DB_STATUS_CFG: Record<CardStatus, { color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
+  normal:         { color: "#1F8F86", bg: "#DDF2EF", icon: "check-circle" },
+  warning:        { color: "#D97706", bg: "#FFF1BF", icon: "alert-circle" },
+  error:          { color: "#D96C6C", bg: "#F9DEDA", icon: "alert-triangle" },
+  not_configured: { color: "#9A948F", bg: "#F6F3F1", icon: "minus-circle" },
+};
+
+// ── 4개 DB 상태 카드 ──────────────────────────────────────────────────────────
+function DbStatusCards({ token, onManualBackup, backingUp }: {
+  token: string | null;
+  onManualBackup: (type: "full" | "pool_only") => void;
+  backingUp: boolean;
+}) {
+  const [status, setStatus]     = useState<BackupStatusData | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchStatus = useCallback(async () => {
+    if (!token) return;
+    try {
+      setError(null);
+      const res = await apiRequest(token, "/super/backup-status");
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "상태 조회 실패");
+      }
+      setStatus(await res.json());
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchStatus().finally(() => setLoading(false));
+  }, [fetchStatus]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await fetchStatus();
+    setRefreshing(false);
+  }
+
+  if (loading) {
+    return (
+      <View style={dc.loadingBox}>
+        <ActivityIndicator color={P} size="small" />
+        <Text style={dc.loadingTxt}>DB 상태 조회 중...</Text>
+      </View>
+    );
+  }
+
+  if (error || !status) {
+    return (
+      <View style={dc.errorBox}>
+        <Feather name="alert-circle" size={16} color={DANGER} />
+        <Text style={dc.errorTxt}>{error ?? "상태 조회 실패"}</Text>
+        <Pressable onPress={handleRefresh}>
+          <Text style={dc.retryTxt}>다시 시도</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const { operational_db, pool_backup, protect_backup, summary } = status.cards;
+
+  function DbCard({ label, status: st, statusLabel, sub1, sub2, errorMsg, icon }: {
+    label: string;
+    status: CardStatus;
+    statusLabel: string;
+    sub1?: string;
+    sub2?: string;
+    errorMsg?: string | null;
+    icon: React.ComponentProps<typeof Feather>["name"];
+  }) {
+    const cfg = DB_STATUS_CFG[st];
+    return (
+      <View style={[dc.card, { borderLeftColor: cfg.color, borderLeftWidth: 3 }]}>
+        <View style={dc.cardTop}>
+          <View style={[dc.iconWrap, { backgroundColor: cfg.bg }]}>
+            <Feather name={icon} size={16} color={cfg.color} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={dc.cardLabel}>{label}</Text>
+            {sub1 ? <Text style={dc.cardSub}>{sub1}</Text> : null}
+          </View>
+          <View style={[dc.statusBadge, { backgroundColor: cfg.bg }]}>
+            <Feather name={cfg.icon} size={10} color={cfg.color} />
+            <Text style={[dc.statusTxt, { color: cfg.color }]}>{statusLabel}</Text>
+          </View>
+        </View>
+        {sub2 ? <Text style={dc.cardSub2}>{sub2}</Text> : null}
+        {errorMsg ? (
+          <Text style={dc.errorLine} numberOfLines={2}>{errorMsg}</Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <View style={dc.wrap}>
+      {/* 헤더 + 갱신 버튼 */}
+      <View style={dc.header}>
+        <Feather name="shield" size={14} color={P} />
+        <Text style={dc.headerTxt}>DB 백업 상태</Text>
+        <Pressable onPress={handleRefresh} disabled={refreshing} style={dc.refreshBtn}>
+          <Feather name="refresh-cw" size={13} color={refreshing ? "#D1D5DB" : P} />
+        </Pressable>
+      </View>
+
+      {/* 카드 1: 운영 DB */}
+      <DbCard
+        label={operational_db.label}
+        status={operational_db.status}
+        statusLabel={operational_db.status_label}
+        icon="database"
+        sub1={`응답 ${operational_db.latency_ms}ms`}
+        errorMsg={operational_db.error}
+      />
+
+      {/* 카드 2: pool 백업 */}
+      <DbCard
+        label={pool_backup.label}
+        status={pool_backup.status}
+        statusLabel={pool_backup.status_label}
+        icon="server"
+        sub1={pool_backup.configured
+          ? (pool_backup.last_success_at
+              ? `마지막 성공: ${fmtRelative(pool_backup.last_success_at)}`
+              : "백업 기록 없음")
+          : "POOL_DATABASE_URL 미설정"}
+        errorMsg={pool_backup.error_message}
+      />
+
+      {/* 카드 3: 보호백업 */}
+      <DbCard
+        label={protect_backup.label}
+        status={protect_backup.status}
+        statusLabel={protect_backup.status_label}
+        icon="lock"
+        sub1={protect_backup.configured
+          ? (protect_backup.last_success_at
+              ? `마지막 성공: ${fmtRelative(protect_backup.last_success_at)}`
+              : "백업 기록 없음")
+          : "SUPER_PROTECT_DATABASE_URL 미설정"}
+        errorMsg={protect_backup.error_message}
+      />
+
+      {/* 카드 4: 전체 요약 */}
+      <DbCard
+        label={summary.label}
+        status={summary.status}
+        statusLabel={summary.status_label}
+        icon="activity"
+        sub1={`24시간 내 실패: ${summary.failure_count_24h}건`}
+        sub2={`pool ${summary.pool_configured ? "✓" : "✗"}  보호백업 ${summary.protect_configured ? "✓" : "✗"}`}
+      />
+
+      {/* 수동 백업 버튼 */}
+      <View style={dc.btnRow}>
+        <Pressable
+          style={[dc.manualBtn, backingUp && { opacity: 0.5 }]}
+          onPress={() => onManualBackup("full")}
+          disabled={backingUp}
+        >
+          {backingUp
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Feather name="save" size={13} color="#fff" />}
+          <Text style={dc.manualBtnTxt}>{backingUp ? "백업 중..." : "전체 백업 실행"}</Text>
+        </Pressable>
+        <Pressable
+          style={[dc.poolBtn, backingUp && { opacity: 0.5 }]}
+          onPress={() => onManualBackup("pool_only")}
+          disabled={backingUp}
+        >
+          <Feather name="server" size={13} color={P} />
+          <Text style={dc.poolBtnTxt}>pool만</Text>
+        </Pressable>
+      </View>
+
+      <Text style={dc.checkedAt}>상태 기준: {fmtRelative(status.checked_at)}</Text>
+    </View>
+  );
+}
+
+const dc = StyleSheet.create({
+  wrap:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E9E2DD", marginBottom: 4 },
+  header:     { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  refreshBtn: { padding: 4 },
+  loadingBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#E9E2DD" },
+  loadingTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  errorBox:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, backgroundColor: "#FDE8E8", borderRadius: 12 },
+  errorTxt:   { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: DANGER },
+  retryTxt:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: DANGER },
+  card:       { backgroundColor: "#FAFAF9", borderRadius: 10, padding: 10, gap: 2 },
+  cardTop:    { flexDirection: "row", alignItems: "center", gap: 8 },
+  iconWrap:   { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  cardLabel:  { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  cardSub:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 1 },
+  cardSub2:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginLeft: 40 },
+  statusBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  statusTxt:  { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  errorLine:  { fontSize: 10, fontFamily: "Inter_400Regular", color: DANGER, marginLeft: 40, marginTop: 2 },
+  btnRow:     { flexDirection: "row", gap: 8, marginTop: 4 },
+  manualBtn:  { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+                backgroundColor: P, borderRadius: 10, paddingVertical: 10 },
+  manualBtnTxt:{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+  poolBtn:    { flexDirection: "row", alignItems: "center", gap: 5,
+                backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  poolBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: P },
+  checkedAt:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", textAlign: "right" },
+});
 
 // ── 백업 카드 ─────────────────────────────────────────────────────────────────
 function BackupCard({
@@ -453,6 +718,34 @@ export default function BackupScreen() {
   const [downloadBusy,  setDownloadBusy]  = useState<string | null>(null);
   const [activeTab,     setActiveTab]     = useState("all");
   const [showSettings,  setShowSettings]  = useState(false);
+  const [dbBackingUp,   setDbBackingUp]   = useState(false);
+
+  async function handleManualBackupToDb(type: "full" | "pool_only") {
+    if (!token || dbBackingUp) return;
+    setDbBackingUp(true);
+    try {
+      const res = await apiRequest(token, "/super/backup/run", {
+        method: "POST",
+        body: JSON.stringify({ type }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "백업 실패");
+      const poolResult    = data.results?.pool;
+      const protectResult = data.results?.protect;
+      const lines = [];
+      if (poolResult?.skipped)  lines.push(`pool: ${poolResult.reason}`);
+      else if (poolResult?.status === "success") lines.push(`pool: 성공`);
+      else if (poolResult?.status === "failed") lines.push(`pool: 실패 — ${poolResult.error}`);
+      if (protectResult?.skipped)  lines.push(`보호백업: ${protectResult.reason}`);
+      else if (protectResult?.status === "success") lines.push(`보호백업: 성공`);
+      else if (protectResult?.status === "failed") lines.push(`보호백업: 실패 — ${protectResult.error}`);
+      Alert.alert("백업 DB 실행 완료", lines.join("\n") || "완료");
+    } catch (e: any) {
+      Alert.alert("백업 실패", e.message);
+    } finally {
+      setDbBackingUp(false);
+    }
+  }
 
   const loadBackups = useCallback(async () => {
     if (!token) return;
@@ -557,6 +850,13 @@ export default function BackupScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={onRefresh} />}
         ListHeaderComponent={
           <View style={{ gap: 12, marginBottom: 16 }}>
+            {/* DB 백업 상태 4개 카드 */}
+            <DbStatusCards
+              token={token}
+              onManualBackup={handleManualBackupToDb}
+              backingUp={dbBackingUp}
+            />
+
             {/* 요약 카드 */}
             <View style={s.summaryRow}>
               <View style={s.summaryCard}>

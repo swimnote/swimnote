@@ -1,14 +1,21 @@
 /**
- * pool-db-init.ts — pool DB 운영 테이블 초기화 DDL
+ * pool-db-init.ts — 운영 테이블 초기화 DDL
  *
  * 서버 기동 시 한 번 실행: CREATE TABLE IF NOT EXISTS로 안전하게 멱등 처리
  * 20개+ 운영 테이블 생성 + 누락 컬럼 보완
+ *
+ * DB 단일화 이후:
+ * - superAdminDb (운영 원본) — 모든 테이블 생성
+ * - poolDb (백업 DB, POOL_DATABASE_URL 설정 시) — 백업 스키마 동기화
  */
-import { poolDb } from "@workspace/db";
+import { superAdminDb, poolDb, isDbSeparated } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
 export async function initPoolDb(): Promise<void> {
-  const db = poolDb;
+  // 운영 DB (superAdminDb)에 모든 테이블 초기화
+  const db = superAdminDb;
+  // 백업 DB가 분리되어 있으면 동일 스키마를 백업 DB에도 초기화
+  const backupDb = isDbSeparated ? poolDb : null;
 
   // ─── ENUM 타입 (중복 시 무시) ────────────────────────────────────────────
   await db.execute(sql.raw(`
@@ -706,5 +713,42 @@ export async function initPoolDb(): Promise<void> {
     );
   `));
 
-  console.log("[pool-db-init] pool DB 운영 테이블 초기화 완료");
+  console.log("[pool-db-init] superAdminDb 운영 테이블 초기화 완료");
+
+  // 백업 DB가 분리되어 있으면 동일 스키마 초기화 (에러 무시)
+  if (backupDb) {
+    try {
+      await backupDb.execute(sql.raw(`
+        DO $$ BEGIN
+          CREATE TYPE attendance_status AS ENUM ('present', 'absent', 'late');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+        DO $$ BEGIN
+          CREATE TYPE change_type AS ENUM ('create', 'update', 'delete');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+        DO $$ BEGIN
+          CREATE TYPE sync_status AS ENUM ('pending', 'synced', 'error');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+        DO $$ BEGIN
+          CREATE TYPE snapshot_type AS ENUM ('incremental', 'full');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      `));
+      // backup_logs 테이블만 생성 (백업 메타데이터 저장용)
+      await backupDb.execute(sql.raw(`
+        CREATE TABLE IF NOT EXISTS backup_snapshots_meta (
+          id           text PRIMARY KEY,
+          source_db    text NOT NULL DEFAULT 'superAdminDb',
+          tables_count integer,
+          row_count    integer,
+          size_bytes   bigint,
+          backup_type  text,
+          created_by   text,
+          note         text,
+          created_at   timestamptz NOT NULL DEFAULT now()
+        );
+      `));
+      console.log("[pool-db-init] pool 백업 DB 스키마 초기화 완료");
+    } catch (e: any) {
+      console.warn("[pool-db-init] pool 백업 DB 초기화 건너뜀:", e.message);
+    }
+  }
 }

@@ -2,13 +2,19 @@
  * DB 연결 레이어
  *
  * superAdminDb — 슈퍼관리자용 DB (SUPABASE_DATABASE_URL)
- *                플랫폼 운영/구독/결제/감사/모니터링 데이터
+ *                모든 운영 데이터: 학생/반/출결/보강/일지/공지/정산/결제 전부 저장
+ *                앱은 오직 superAdminDb만 사용
  *
- * poolDb       — 수영장 운영용 DB (POOL_DATABASE_URL)
- *                회원/선생님/출결/수업/학부모 등 운영 데이터
+ * poolDb       — pool 백업 DB (POOL_DATABASE_URL)
+ *                운영 사용 금지, 백업 전용
  *                POOL_DATABASE_URL 미설정 시 superAdminDb와 동일 DB 사용 (fallback)
  *
+ * backupProtectDb — super 보호백업 DB (SUPER_PROTECT_DATABASE_URL)
+ *                   운영 사용 금지, 전체 백업 전용
+ *                   미설정 시 null (백업 비활성화)
+ *
  * db           — 하위 호환용 (= superAdminDb)
+ *                모든 운영 쿼리는 superAdminDb로 라우팅
  */
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -22,6 +28,9 @@ const FALLBACK  = process.env.DATABASE_URL;
 
 const POOL_URL  = process.env.POOL_DATABASE_URL;
 const POOL_PW   = process.env.POOL_DB_PASSWORD;
+
+const PROTECT_URL = process.env.SUPER_PROTECT_DATABASE_URL;
+const PROTECT_PW  = process.env.SUPER_PROTECT_DB_PASSWORD;
 
 if (!SUPER_URL && !FALLBACK) {
   throw new Error(
@@ -52,13 +61,13 @@ function buildConfig(url: string | undefined, password: string | undefined) {
   return { connectionString: FALLBACK! };
 }
 
-/** 슈퍼관리자 DB 연결 풀 */
+/** 슈퍼관리자 DB 연결 풀 (운영 원본 — 앱이 유일하게 사용하는 DB) */
 const superAdminPool = new Pool(buildConfig(SUPER_URL, SUPER_PW));
 superAdminPool.on("error", (err) => {
   console.error("[superAdminPool] idle client error:", err.message);
 });
 
-/** 수영장 운영 DB 연결 풀 (별도 DB 설정 시 다른 Supabase 프로젝트 사용) */
+/** pool 백업 DB 연결 풀 (백업 전용 — 운영 사용 금지) */
 const poolOpsPool = POOL_URL
   ? new Pool(buildConfig(POOL_URL, POOL_PW))
   : superAdminPool;
@@ -68,17 +77,35 @@ if (poolOpsPool !== superAdminPool) {
   });
 }
 
-/** 슈퍼관리자용 DB (플랫폼 운영/모니터링/감사 데이터) */
+/** super 보호백업 DB 연결 풀 (전체 백업 전용 — 운영 사용 금지) */
+const protectPool = PROTECT_URL
+  ? new Pool(buildConfig(PROTECT_URL, PROTECT_PW))
+  : null;
+if (protectPool) {
+  protectPool.on("error", (err) => {
+    console.error("[protectPool] idle client error:", err.message);
+  });
+}
+
+/** 슈퍼관리자용 DB (운영 원본 — 모든 읽기/쓰기) */
 export const superAdminDb = drizzle(superAdminPool, { schema });
 
-/** 수영장 운영용 DB (회원/출결/수업/학부모 운영 데이터) */
+/** pool 백업 DB (백업 전용 — 운영 사용 금지) */
 export const poolDb = drizzle(poolOpsPool, { schema });
 
-/** 하위 호환용 — 기존 코드에서 db로 접근하는 쿼리는 poolDb로 라우팅 (운영 원본 기준) */
-export const pool = superAdminPool;
-export const db = poolDb;
+/** super 보호백업 DB (전체 백업 전용 — 미설정 시 null) */
+export const backupProtectDb = protectPool
+  ? drizzle(protectPool, { schema })
+  : null;
 
-/** 두 DB가 물리적으로 분리되어 있는지 여부 */
+/** 하위 호환용 — superAdminDb와 동일 (DB 단일화: 앱은 항상 superAdminDb 사용) */
+export const pool = superAdminPool;
+export const db = superAdminDb;
+
+/** pool 백업 DB가 물리적으로 분리되어 있는지 여부 */
 export const isDbSeparated = !!POOL_URL;
+
+/** super 보호백업 DB가 설정되어 있는지 여부 */
+export const isProtectDbConfigured = !!PROTECT_URL;
 
 export * from "./schema";

@@ -2,18 +2,24 @@ import app from "./app";
 import { startBackupJobs } from "./jobs/backup-batch.js";
 import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
+import { isDbSeparated, isProtectDbConfigured } from "@workspace/db";
 
-// ── DB 이원화 강제 점검 ──────────────────────────────────────────
-const POOL_URL = process.env.POOL_DATABASE_URL;
-if (!POOL_URL) {
-  console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.error("🔴 [DB 이원화 오류] POOL_DATABASE_URL 환경변수가 설정되지 않았습니다.");
-  console.error("   수영장 운영 DB와 슈퍼관리자 DB는 반드시 분리되어야 합니다.");
-  console.error("   ▶ Replit Secrets에 POOL_DATABASE_URL을 추가하세요:");
-  console.error("     POOL_DATABASE_URL = (신규 Supabase 프로젝트 Connection String)");
-  console.error("     POOL_DB_PASSWORD  = (신규 Supabase 프로젝트 DB 비밀번호)");
-  console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  process.exit(1);
+// ── DB 구성 안내 ─────────────────────────────────────────────────────────────
+// 앱은 superAdminDb(SUPABASE_DATABASE_URL)만 운영 DB로 사용합니다.
+// pool 백업 DB(POOL_DATABASE_URL)와 보호백업 DB(SUPER_PROTECT_DATABASE_URL)는
+// 백업 전용으로, 미설정 시에는 백업 기능이 비활성화됩니다.
+
+if (!isDbSeparated) {
+  console.warn("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.warn("⚠️  [백업 DB 미설정] POOL_DATABASE_URL이 설정되지 않았습니다.");
+  console.warn("   pool 백업 기능이 비활성화됩니다.");
+  console.warn("   ▶ Replit Secrets에 POOL_DATABASE_URL을 추가하면 활성화됩니다.");
+  console.warn("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+}
+
+if (!isProtectDbConfigured) {
+  console.warn("⚠️  [보호백업 DB 미설정] SUPER_PROTECT_DATABASE_URL이 설정되지 않았습니다.");
+  console.warn("   super 보호백업 기능이 비활성화됩니다.");
 }
 
 const rawPort = process.env["PORT"];
@@ -39,4 +45,7 @@ startBackupJobs();
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
+  console.log(`[DB] 운영 DB: superAdminDb (단일화 완료)`);
+  console.log(`[DB] pool 백업: ${isDbSeparated ? "활성화" : "미설정 (비활성화)"}`);
+  console.log(`[DB] 보호백업: ${isProtectDbConfigured ? "활성화" : "미설정 (비활성화)"}`);
 });

@@ -14,8 +14,12 @@ The administrator application features a 6-tab structure (Dashboard, People, Cla
 ### Technical Implementations
 The platform uses a pnpm workspace monorepo with TypeScript, Node.js 24, pnpm, TypeScript 5.9, Express 5 for the API, PostgreSQL with Drizzle ORM, Zod for validation, and Orval for API codegen. Esbuild is used for CJS bundling. Key features include a subscription plan structure with various tiers, payment failure and deletion policies, write blocking middleware (`readonlyGuard`), member limit enforcement, storage blocking, and a comprehensive read-only UI. Role-Based Access Control differentiates permissions for all user types. A swimming pool approval flow manages new registrations. Database-level multi-tenancy is achieved using `swimming_pool_id`. A photo album system supports group and private albums. Makeup lesson management and activity logging are implemented. An event log timeline tracks significant system events. Server-based change collection and daily/weekly backups are implemented, including a change logger and batch jobs. A kill switch feature allows secure deletion of data. A bulk unregistered member management system facilitates mass registration and invitation. A feedback template manager allows teachers to customize feedback sentences. Storage management provides insights into data usage. A Work Messenger facilitates internal collaboration between administrators and teachers. A complete settlement/payroll system handles monthly teacher payments. A refactored login/signup system supports unified login and a three-step parent onboarding process. Role switching and route guards manage access based on user roles. A multi-pool management system with white-label capabilities allows managing multiple swimming pools under one account and customizing branding. The invite system was rebuilt to use the device's native SMS app instead of a custom SMS service. The super_admin console includes extended security settings for external services and a full MVP for operational features like subscription product management, backup/restore, and read-only control. A centralized push notification system supports various notification types, scheduled pushes, and user/pool-specific settings. The subscription payment system has been refactored with new plan structures, first-month discounts, and expanded revenue logging.
 
-### DB Architecture
-The system uses a dual database connection: `superAdminDb` (Supabase ap-south-1) for platform, audit, and subscription data, and `poolDb` (Supabase ap-northeast-2) for individual swimming pool operational data. Tables are explicitly assigned to either `superAdminDb` or `db` (`poolDb`). `photo_assets_meta` and `video_assets_meta` tables manage media metadata. Event logs are redundantly stored in both `pool_change_logs` (pool DB) and `pool_event_logs` (super DB). Change logging directs `data_change_logs` to `superAdminDb`. A DB monitoring API provides connection status, diagnostics, event verification, and dead-letter queue management.
+### DB Architecture (단일화 완료 — 2026-03-25)
+**운영 DB**: `superAdminDb` (SUPABASE_DATABASE_URL) — 앱의 모든 읽기/쓰기. 학생/반/출결/보강/일지/공지/정산/결제 전부 저장. `db` export가 `superAdminDb`의 alias.
+**pool 백업 DB**: `poolDb` (POOL_DATABASE_URL) — 백업 전용, 운영 사용 금지. 미설정 시 superAdminDb와 동일 연결.
+**super 보호백업 DB**: `backupProtectDb` (SUPER_PROTECT_DATABASE_URL) — 전체 백업 전용, 운영 사용 금지. 미설정 시 null.
+
+`photo_assets_meta` and `video_assets_meta` tables manage media metadata. Event logs are redundantly stored in both `pool_change_logs` and `pool_event_logs`. Change logging directs `data_change_logs` to `superAdminDb`. A DB monitoring API provides connection status, diagnostics, event verification, and dead-letter queue management. `backup_logs` table tracks backup status (target, status, last_success_at, error_message, size_bytes, row_count).
 
 ### System Design Choices
 API design follows RESTful principles with consistent JSON formats and strong authentication. The database schema (PostgreSQL with Drizzle ORM) includes key tables for multi-tenancy via `swimming_pool_id`. Security features include JWT authentication, role/pool access checks, and API validation. A modular monorepo structure with `artifacts`, `lib`, and `packages` promotes reusability.
@@ -50,15 +54,18 @@ API design follows RESTful principles with consistent JSON formats and strong au
 - `components/super/security-settings/LoginHistorySection.tsx`
 - 컴파일 검증 완료 (22270ms)
 
-## Backup System (2026-03-25 완성)
-- **선백업 완료**: `bk_1774411347140_209a9300` (0.11MB, 82테이블, DB 저장)
-- **lib/backup.ts**: 공유 백업 로직 (runRealBackup, cleanupOldAutoBackups) — super.ts, backup-batch.ts 양쪽에서 사용
-- **API 엔드포인트**: POST /super/backups (수동), GET /super/backups/:id/download, GET/PUT /super/backup-settings
-- **자동 스케줄러**: backup-batch.ts — 매 시간 정각 backup_settings 기반 체크, retention_days 초과 자동 정리
-- **Object Storage fallback**: 업로드 실패 시 backup_data(TEXT) 컬럼에 DB 저장 (storage_type='database')
-- **프론트엔드**: backup.tsx 전면 교체 (실제 API 연동) — 백업 목록, 수동 생성, 다운로드(expo-file-system), 복구 기록, 자동 설정
-- **security-settings.tsx**: E. 데이터 백업 섹션 추가 (백업 관리 바로가기 버튼)
-- **검증**: 4개 엔드포인트 모두 통과 (목록, 다운로드, 설정조회, 설정변경)
+## Backup System (2026-03-25 아키텍처 재정비 완료)
+**DB 단일화**: `db` export = `superAdminDb` alias. 앱은 superAdminDb만 사용.
+**백업 흐름**: superAdminDb → pool 백업 DB (POOL_DATABASE_URL) + super 보호백업 DB (SUPER_PROTECT_DATABASE_URL)
+**backup_logs 테이블**: target(pool/super_protect), status(pending/running/success/failed), started_at, finished_at, last_success_at, error_message, size_bytes, row_count
+**신규 API**: GET /super/backup-status (4개 카드 상태), POST /super/backup/run (수동 백업, full|pool_only)
+**lib/backup-target.ts**: 대상 백업 DB로 백업 실행 + backup_logs 기록 공유 모듈
+**자동 백업**: backup-batch.ts — runAutoBackup이 Object Storage + pool/protect 백업 동시 실행
+**모바일 UI**: backup.tsx 상단에 4개 DB 상태 카드 추가 (운영DB, pool백업, 보호백업, 전체요약) + 수동 백업 버튼
+**pool-db-init.ts**: superAdminDb에 운영 테이블 초기화 (isDbSeparated 시 pool 백업 DB도 스키마 초기화)
+**기존 유지**: Object Storage 백업(lib/backup.ts), 자동 스케줄러, backup.tsx 기존 기능 전체 유지
+- **선백업**: `bk_1774411347140_209a9300` (0.11MB, 82테이블, DB 저장)
+- **검증**: health OK, backup-status 401 (인증 필요), DB 단일화 로그 확인
 
 ## Verified State (2026-03-25)
 - **pool_event_logs**: 46건 기록 / 17가지 이벤트 타입 / 3개 풀 / retry_queue=0 / DLQ=0
