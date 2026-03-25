@@ -1659,11 +1659,11 @@ router.get("/makeup-policy", requireAuth, requireRole("super_admin","pool_admin"
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
-      const [row] = (await db.execute(sql.raw(`
+      const [row] = (await superAdminDb.execute(sql`
         SELECT make_up_expiry_type, make_up_expiry_days,
                make_up_limit_weekly_1, make_up_limit_weekly_2, make_up_limit_weekly_3
-        FROM swimming_pools WHERE id = '${poolId}' LIMIT 1
-      `))).rows as any[];
+        FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `)).rows as any[];
       res.json({
         expiry_type:    row?.make_up_expiry_type    ?? "end_of_month",
         expiry_days:    row?.make_up_expiry_days    ?? null,
@@ -1689,16 +1689,16 @@ router.put("/makeup-policy", requireAuth, requireRole("super_admin","pool_admin"
       if (expiry_type === "fixed_days" && (!expiry_days || isNaN(Number(expiry_days)))) {
         res.status(400).json({ error: "fixed_days 선택 시 만료일수 필요" }); return;
       }
-      await db.execute(sql.raw(`
+      await superAdminDb.execute(sql`
         UPDATE swimming_pools SET
-          make_up_expiry_type    = '${expiry_type}',
-          make_up_expiry_days    = ${expiry_type === "fixed_days" ? Number(expiry_days) : "NULL"},
+          make_up_expiry_type    = ${expiry_type},
+          make_up_expiry_days    = ${expiry_type === "fixed_days" ? Number(expiry_days) : null},
           make_up_limit_weekly_1 = ${Number(limit_weekly_1) || 2},
           make_up_limit_weekly_2 = ${Number(limit_weekly_2) || 4},
           make_up_limit_weekly_3 = ${Number(limit_weekly_3) || 5},
           updated_at = now()
-        WHERE id = '${poolId}'
-      `));
+        WHERE id = ${poolId}
+      `);
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }

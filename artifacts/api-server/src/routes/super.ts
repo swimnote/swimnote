@@ -1453,13 +1453,19 @@ async function ensurePlansTables() {
   await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
   // 기존 amount 컬럼은 charged_amount와 동일 — 하위 호환 유지
 
+  // growth → advance 티어 이름 마이그레이션 (기존 DB 데이터 정리)
+  await superAdminDb.execute(sql`
+    UPDATE subscription_plans SET tier = 'advance', plan_id = 'swimnote_300'
+    WHERE tier = 'growth'
+  `).catch(() => {});
+
   // 최종 확정 플랜 시드 (ON CONFLICT DO UPDATE로 항상 최신값 유지)
   for (const plan of [
     { tier: "free",            plan_id: "free_5",        name: "무료",             price: 0,      limit: 5,    storage_gb: 0.09765625, storage_mb: 100,    display: "100MB" },
     { tier: "starter",         plan_id: "swimnote_30",   name: "스타터",           price: 2900,   limit: 30,   storage_gb: 0.5859375,  storage_mb: 600,    display: "600MB" },
     { tier: "basic",           plan_id: "swimnote_50",   name: "베이직",           price: 3900,   limit: 50,   storage_gb: 1,          storage_mb: 1024,   display: "1GB"   },
     { tier: "standard",        plan_id: "swimnote_100",  name: "스탠다드",         price: 9900,   limit: 100,  storage_gb: 5,          storage_mb: 5120,   display: "5GB"   },
-    { tier: "growth",          plan_id: "swimnote_300",  name: "어드밴스",         price: 29000,  limit: 300,  storage_gb: 20,         storage_mb: 20480,  display: "20GB"  },
+    { tier: "advance",         plan_id: "swimnote_300",  name: "어드밴스",         price: 29000,  limit: 300,  storage_gb: 20,         storage_mb: 20480,  display: "20GB"  },
     { tier: "pro",             plan_id: "swimnote_500",  name: "프로",             price: 59000,  limit: 500,  storage_gb: 40,         storage_mb: 40960,  display: "40GB"  },
     { tier: "max",             plan_id: "swimnote_1000", name: "맥스",             price: 99000,  limit: 1000, storage_gb: 100,        storage_mb: 102400, display: "100GB" },
     { tier: "enterprise_2000", plan_id: "swimnote_2000", name: "엔터프라이즈 2000", price: 179000, limit: 2000, storage_gb: 250,        storage_mb: 256000, display: "250GB" },

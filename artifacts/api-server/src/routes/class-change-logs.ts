@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, classChangeLogsTable, studentsTable, usersTable } from "@workspace/db";
+import { db, superAdminDb, classChangeLogsTable, studentsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 
@@ -10,8 +10,8 @@ function err(res: any, status: number, message: string) {
 }
 
 async function getPoolId(userId: string): Promise<string | null> {
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  return user?.swimming_pool_id || null;
+  const r = await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1`);
+  return (r.rows[0] as any)?.swimming_pool_id || null;
 }
 
 // 날짜 유틸 (서버 사이드)

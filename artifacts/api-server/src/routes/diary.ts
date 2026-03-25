@@ -43,6 +43,11 @@ async function getUserPoolId(userId: string): Promise<string | null> {
   return (r.rows[0] as any)?.swimming_pool_id || null;
 }
 
+async function getUserDbRole(userId: string): Promise<string | null> {
+  const r = await superAdminDb.execute(sql`SELECT role FROM users WHERE id = ${userId} LIMIT 1`);
+  return (r.rows[0] as any)?.role || null;
+}
+
 async function getUserName(userId: string): Promise<string> {
   const r = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
   return (r.rows[0] as any)?.name || userId;
@@ -249,12 +254,25 @@ router.get("/diaries",
 
       // 역할별 제한
       if (role === "teacher") {
-        // 선생님: 본인 반만 조회
-        const rows = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId}`);
-        const myClassIds = (rows.rows as any[]).map(r => r.id);
-        if (myClassIds.length === 0) { res.json([]); return; }
-        // 삭제된 데이터는 본인 것도 숨김
-        const classFilter = myClassIds.map(id => `cd.class_group_id = '${id}'`).join(" OR ");
+        // pool_admin이 teacher로 전환한 경우 → 수영장 전체 반 일지 접근 허용
+        const dbRole = await getUserDbRole(userId);
+        const isAdminAsTeacher = dbRole === "pool_admin";
+
+        let classFilter: string;
+        if (isAdminAsTeacher) {
+          // pool_admin은 소속 수영장 전체 반 일지 조회 가능
+          const poolRows = await db.execute(sql`SELECT id FROM class_groups WHERE swimming_pool_id = ${poolId} AND is_deleted = false`);
+          const allIds = (poolRows.rows as any[]).map(r => r.id);
+          if (allIds.length === 0) { res.json([]); return; }
+          classFilter = allIds.map(id => `cd.class_group_id = '${id}'`).join(" OR ");
+        } else {
+          // 일반 선생님: 본인 반만 조회
+          const rows = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId}`);
+          const myClassIds = (rows.rows as any[]).map(r => r.id);
+          if (myClassIds.length === 0) { res.json([]); return; }
+          classFilter = myClassIds.map(id => `cd.class_group_id = '${id}'`).join(" OR ");
+        }
+
         const rows2 = await db.execute(sql`
           SELECT
             cd.*,

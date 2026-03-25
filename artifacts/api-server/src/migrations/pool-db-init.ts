@@ -571,5 +571,26 @@ export async function initPoolDb(): Promise<void> {
     );
   `));
 
+  // ─── 21. pool_level_settings (레벨 설정) ─────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS pool_level_settings (
+      id                  text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      pool_id             text        NOT NULL,
+      level_order         integer     NOT NULL,
+      level_name          text        NOT NULL DEFAULT '',
+      level_description   text,
+      learning_content    text,
+      promotion_test_rule text,
+      badge_type          text        NOT NULL DEFAULT 'text',
+      badge_label         text,
+      badge_color         text        NOT NULL DEFAULT '#3B82F6',
+      badge_text_color    text        NOT NULL DEFAULT '#FFFFFF',
+      is_active           boolean     NOT NULL DEFAULT true,
+      created_at          timestamptz NOT NULL DEFAULT now(),
+      updated_at          timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (pool_id, level_order)
+    );
+  `));
+
   console.log("[pool-db-init] pool DB 운영 테이블 초기화 완료");
 }

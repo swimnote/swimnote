@@ -75,7 +75,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: 'plan-advance300',
     code: 'swimnote_300',
-    tier: 'growth',
+    tier: 'advance',
     plan_id: 'swimnote_300',
     name: '어드밴스',
     memberLimit: 300,

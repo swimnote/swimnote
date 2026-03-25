@@ -74,7 +74,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     color: "#6366F1",
   },
   {
-    tier: "growth",
+    tier: "advance",
     plan_id: "swimnote_300",
     name: "어드밴스",
     max_members: 300,
