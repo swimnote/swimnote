@@ -392,6 +392,19 @@ export async function initPoolDb(): Promise<void> {
     END $$;
   `)).catch(() => {});
 
+  // ─── 12b. push_tokens ────────────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      id                 text        PRIMARY KEY,
+      user_id            text,
+      parent_account_id  text,
+      token              text        NOT NULL UNIQUE,
+      updated_at         timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_tokens_user_id ON push_tokens (user_id);
+    CREATE INDEX IF NOT EXISTS idx_push_tokens_parent ON push_tokens (parent_account_id);
+  `));
+
   // ─── 13. photo_assets_meta + video_assets_meta (신규 미디어 테이블) ───────
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS photo_assets_meta (
