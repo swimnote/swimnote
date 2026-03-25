@@ -40,7 +40,14 @@ async function getLastBackupLog(target: "pool" | "super_protect") {
       ORDER BY started_at DESC
       LIMIT 1
     `)).rows as any[];
-    return rows[0] ?? null;
+    const row = rows[0];
+    if (!row) return null;
+    // bigint 컬럼은 pg driver가 string으로 반환 → Number() 변환
+    return {
+      ...row,
+      size_bytes: row.size_bytes != null ? Number(row.size_bytes) : null,
+      row_count:  row.row_count  != null ? Number(row.row_count)  : null,
+    };
   } catch {
     return null;
   }

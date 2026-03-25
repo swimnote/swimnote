@@ -1633,8 +1633,13 @@ router.get("/super/backups", requireAuth, requireRole("super_admin"), async (_re
       FROM platform_backups pb
       LEFT JOIN swimming_pools sp ON sp.id = pb.operator_id
       ORDER BY pb.created_at DESC LIMIT 100
-    `)).rows;
-    res.json({ backups: rows });
+    `)).rows as any[];
+    // bigint 컬럼(size_bytes)은 pg driver가 string으로 반환 → Number() 변환
+    const backups = rows.map((r) => ({
+      ...r,
+      size_bytes: r.size_bytes != null ? Number(r.size_bytes) : null,
+    }));
+    res.json({ backups });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

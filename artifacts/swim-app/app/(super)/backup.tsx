@@ -76,11 +76,14 @@ function fmtDateTime(iso: string | null | undefined): string {
   if (isNaN(d.getTime())) return "—";
   return d.toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
-function fmtSize(bytes: number | null | undefined): string {
-  if (!bytes) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+function fmtSize(bytes: number | string | null | undefined): string {
+  const n = Number(bytes ?? 0);
+  if (!n || isNaN(n) || n <= 0) return "—";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  const mb = n / 1024 / 1024;
+  if (mb > 1024) return `${(mb / 1024).toFixed(2)} GB`;
+  return `${Math.round(mb)} MB`;
 }
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
@@ -830,7 +833,12 @@ export default function BackupScreen() {
   }, [activeTab, backups]);
 
   const latestBackup = backups[0];
-  const totalSize = backups.reduce((s, b) => s + (b.size_bytes ?? 0), 0);
+  const totalSize = backups.reduce((s, b) => {
+    const n = Number(b.size_bytes ?? 0);
+    console.log("[backup] size_bytes raw:", b.size_bytes, "→ Number:", n);
+    return s + (isNaN(n) ? 0 : n);
+  }, 0);
+  console.log("[backup] totalSize (bytes):", totalSize);
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>

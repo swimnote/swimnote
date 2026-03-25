@@ -137,7 +137,9 @@ export async function runBackupToTarget(opts: {
       const r = (await superAdminDb.execute(sql`
         SELECT pg_database_size(current_database())::bigint AS bytes
       `)).rows[0] as any;
-      sizeBytes = Number(r?.bytes ?? 0);
+      const raw = r?.bytes;
+      sizeBytes = Number(raw ?? 0);
+      console.log(`[backup-target] pg_database_size raw:`, raw, "→ Number:", sizeBytes, `(${(sizeBytes / 1024 / 1024).toFixed(2)} MB)`);
     } catch { /* 무시 */ }
 
     // 5. 대상 DB에 백업 스냅샷 메타데이터 저장 시도
