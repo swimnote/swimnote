@@ -60,5 +60,33 @@ export async function initSuperDb(): Promise<void> {
     // 실패해도 서버 기동은 계속 (backup-status API에서 오류로 표시됨)
   }
 
-  console.log("[super-db-init] super DB 컬럼 보완 + backup_logs 초기화 완료");
+  // restore_logs 테이블 — 복구 실행 이력
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS restore_logs (
+        id              text        PRIMARY KEY,
+        restore_type    text        NOT NULL CHECK (restore_type IN ('full', 'pool')),
+        pool_id         text,
+        backup_id       text        NOT NULL,
+        restore_point   timestamptz NOT NULL,
+        pre_backup_id   text,
+        status          text        NOT NULL DEFAULT 'running'
+                                    CHECK (status IN ('running', 'success', 'failed')),
+        started_at      timestamptz NOT NULL DEFAULT now(),
+        finished_at     timestamptz,
+        error_message   text,
+        triggered_by    text        NOT NULL DEFAULT 'system'
+      );
+    `));
+    await db.execute(sql.raw(`
+      CREATE INDEX IF NOT EXISTS restore_logs_type_idx   ON restore_logs (restore_type, started_at DESC);
+      CREATE INDEX IF NOT EXISTS restore_logs_pool_idx   ON restore_logs (pool_id, started_at DESC);
+      CREATE INDEX IF NOT EXISTS restore_logs_status_idx ON restore_logs (status, started_at DESC);
+    `)).catch(() => {});
+    console.log("[super-db-init] restore_logs 테이블 생성/확인 완료");
+  } catch (e: any) {
+    console.error("[super-db-init] ❌ restore_logs 생성 실패:", e.message);
+  }
+
+  console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }

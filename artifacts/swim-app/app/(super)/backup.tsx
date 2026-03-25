@@ -56,6 +56,14 @@ interface BackupSettings {
   retention_days: number;
 }
 
+interface SwimmingPool {
+  id: string;
+  name: string;
+  owner_name: string | null;
+  approval_status: string;
+  subscription_status: string;
+}
+
 // ── 유틸 ──────────────────────────────────────────────────────────────────────
 const p2 = (n: number) => String(n).padStart(2, "0");
 function fmtRelative(iso: string | null | undefined): string {
@@ -707,6 +715,451 @@ const ap = StyleSheet.create({
   saveTxt:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
 });
 
+// ── 전체 복구 모달 ────────────────────────────────────────────────────────────
+function FullRestoreModal({
+  visible, onClose, backups, token,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  backups: BackupRecord[];
+  token: string | null;
+}) {
+  const [selectedBackup, setSelectedBackup] = useState<BackupRecord | null>(null);
+  const [confirmText,    setConfirmText]    = useState("");
+  const [step,           setStep]           = useState<1 | 2>(1);
+  const [busy,           setBusy]           = useState(false);
+  const [result,         setResult]         = useState<{ ok: boolean; msg: string } | null>(null);
+
+  function resetModal() {
+    setSelectedBackup(null);
+    setConfirmText("");
+    setStep(1);
+    setBusy(false);
+    setResult(null);
+  }
+
+  function handleClose() {
+    if (busy) return;
+    resetModal();
+    onClose();
+  }
+
+  async function handleExecute() {
+    if (!token || !selectedBackup || confirmText !== "전체 복구" || busy) return;
+    setBusy(true);
+    try {
+      const res = await apiRequest(token, "/super/restore/full", {
+        method: "POST",
+        body: JSON.stringify({ backup_id: selectedBackup.id, confirmed_text: "전체 복구" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? data.detail ?? "복구 실패");
+      setResult({
+        ok: true,
+        msg: `복구 완료\n테이블 ${data.tables_restored}개, ${data.rows_restored}행 복구\n선백업 ID: ${data.pre_backup_id}`,
+      });
+    } catch (e: any) {
+      setResult({ ok: false, msg: e.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const canExecute = selectedBackup !== null && confirmText === "전체 복구" && !busy;
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
+        <View style={fr.header}>
+          <Pressable onPress={handleClose} disabled={busy}>
+            <Feather name="x" size={20} color="#6F6B68" />
+          </Pressable>
+          <Text style={fr.title}>전체 복구</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        {result ? (
+          /* 결과 화면 */
+          <View style={fr.resultWrap}>
+            <View style={[fr.resultIcon, { backgroundColor: result.ok ? "#DDF2EF" : "#F9DEDA" }]}>
+              <Feather name={result.ok ? "check-circle" : "x-circle"} size={40}
+                color={result.ok ? GREEN : DANGER} />
+            </View>
+            <Text style={[fr.resultTitle, { color: result.ok ? GREEN : DANGER }]}>
+              {result.ok ? "복구 완료" : "복구 실패"}
+            </Text>
+            <Text style={fr.resultMsg}>{result.msg}</Text>
+            <Pressable style={[fr.execBtn, { backgroundColor: result.ok ? GREEN : DANGER }]}
+              onPress={handleClose}>
+              <Text style={fr.execTxt}>닫기</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+            {/* 1단계: 백업 시점 선택 */}
+            <Text style={fr.stepTitle}>1단계 — 복구할 백업 시점 선택</Text>
+            {backups.length === 0 ? (
+              <View style={fr.emptyBox}>
+                <Text style={fr.emptyTxt}>백업 기록이 없습니다. 먼저 백업을 생성하세요.</Text>
+              </View>
+            ) : (
+              <ScrollView style={fr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
+                {backups.map(bk => (
+                  <Pressable key={bk.id} style={[fr.backupItem, selectedBackup?.id === bk.id && fr.backupItemSel]}
+                    onPress={() => setSelectedBackup(bk)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={fr.backupItemDate}>
+                        {fmtDateTime(bk.created_at)} {bk.backup_type_v2 === "auto" ? "자동" : "수동"}백업
+                      </Text>
+                      <Text style={fr.backupItemMeta}>
+                        {bk.total_tables ?? "?"}테이블 · {fmtSize(bk.size_bytes)}
+                      </Text>
+                      {bk.note ? <Text style={fr.backupItemNote} numberOfLines={1}>{bk.note}</Text> : null}
+                    </View>
+                    {selectedBackup?.id === bk.id && (
+                      <Feather name="check-circle" size={18} color={P} />
+                    )}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* 선택된 백업 요약 */}
+            {selectedBackup && (
+              <View style={fr.selectedBox}>
+                <Feather name="calendar" size={14} color={P} />
+                <Text style={fr.selectedTxt}>
+                  선택: {fmtDateTime(selectedBackup.created_at)} · {fmtSize(selectedBackup.size_bytes)}
+                </Text>
+              </View>
+            )}
+
+            {/* 경고 문구 */}
+            <View style={fr.warnBox}>
+              <Feather name="alert-triangle" size={18} color={DANGER} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={fr.warnTitle}>⚠️ 전체 플랫폼 데이터 복구</Text>
+                <Text style={fr.warnTxt}>선택한 시점으로 전체 DB가 되돌아갑니다.</Text>
+                <Text style={fr.warnTxt}>복구 전 현재 상태를 자동으로 선백업합니다.</Text>
+                <Text style={fr.warnTxt}>사진/영상 원본은 복구되지 않습니다.</Text>
+              </View>
+            </View>
+
+            {/* 확인 문구 입력 */}
+            <View>
+              <Text style={fr.inputLabel}>
+                확인 입력 — 아래에 <Text style={{ fontFamily: "Inter_700Bold", color: DANGER }}>'전체 복구'</Text>를 입력하세요
+              </Text>
+              <TextInput style={[fr.input, confirmText === "전체 복구" && { borderColor: DANGER }]}
+                value={confirmText} onChangeText={setConfirmText}
+                placeholder="전체 복구" placeholderTextColor="#9A948F"
+                editable={!busy} autoCapitalize="none" />
+            </View>
+
+            {/* 실행 버튼 */}
+            <Pressable style={[fr.execBtn, (!canExecute) && { opacity: 0.4 }]}
+              onPress={handleExecute} disabled={!canExecute}>
+              {busy
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Feather name="rotate-ccw" size={16} color="#fff" />
+              }
+              <Text style={fr.execTxt}>{busy ? "복구 실행 중..." : "전체 복구 실행"}</Text>
+            </Pressable>
+          </ScrollView>
+        )}
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const fr = StyleSheet.create({
+  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  title:          { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  stepTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  backupList:     { maxHeight: 220, borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 10 },
+  backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F6F3F1", flexDirection: "row", alignItems: "center", gap: 10 },
+  backupItemSel:  { backgroundColor: "#F3EEFF" },
+  backupItemDate: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  backupItemMeta: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
+  backupItemNote: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+  selectedBox:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
+  selectedTxt:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: P, flex: 1 },
+  warnBox:        { flexDirection: "row", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14, alignItems: "flex-start" },
+  warnTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#92400E", marginBottom: 2 },
+  warnTxt:        { fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
+  emptyBox:       { backgroundColor: "#F6F3F1", borderRadius: 8, padding: 16, alignItems: "center" },
+  emptyTxt:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  inputLabel:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 8 },
+  input:          { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  execBtn:        { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
+  execTxt:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  resultWrap:     { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 16 },
+  resultIcon:     { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
+  resultTitle:    { fontSize: 20, fontFamily: "Inter_700Bold" },
+  resultMsg:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center", lineHeight: 22 },
+});
+
+// ── 수영장별 복구 모달 ─────────────────────────────────────────────────────────
+function PoolRestoreModal({
+  visible, onClose, backups, token,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  backups: BackupRecord[];
+  token: string | null;
+}) {
+  const [searchQ,        setSearchQ]        = useState("");
+  const [searchResults,  setSearchResults]  = useState<SwimmingPool[]>([]);
+  const [searching,      setSearching]      = useState(false);
+  const [selectedPool,   setSelectedPool]   = useState<SwimmingPool | null>(null);
+  const [selectedBackup, setSelectedBackup] = useState<BackupRecord | null>(null);
+  const [confirmName,    setConfirmName]    = useState("");
+  const [busy,           setBusy]           = useState(false);
+  const [result,         setResult]         = useState<{ ok: boolean; msg: string } | null>(null);
+
+  function resetModal() {
+    setSearchQ("");
+    setSearchResults([]);
+    setSelectedPool(null);
+    setSelectedBackup(null);
+    setConfirmName("");
+    setBusy(false);
+    setResult(null);
+  }
+
+  function handleClose() {
+    if (busy) return;
+    resetModal();
+    onClose();
+  }
+
+  async function doSearch(q: string) {
+    if (!token || q.length < 1) { setSearchResults([]); return; }
+    setSearching(true);
+    try {
+      const res = await apiRequest(token, `/super/pools/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setSearchResults(data.pools ?? []);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  useEffect(() => {
+    const t = setTimeout(() => doSearch(searchQ), 350);
+    return () => clearTimeout(t);
+  }, [searchQ, token]);
+
+  async function handleExecute() {
+    if (!token || !selectedPool || !selectedBackup || confirmName !== selectedPool.name || busy) return;
+    setBusy(true);
+    try {
+      const res = await apiRequest(token, "/super/restore/pool", {
+        method: "POST",
+        body: JSON.stringify({
+          pool_id: selectedPool.id,
+          backup_id: selectedBackup.id,
+          confirmed_pool_name: confirmName,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? data.detail ?? "복구 실패");
+      setResult({
+        ok: true,
+        msg: `'${selectedPool.name}' 복구 완료\n${data.rows_restored}행 복구\n선백업 ID: ${data.pre_backup_id}`,
+      });
+    } catch (e: any) {
+      setResult({ ok: false, msg: e.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const canExecute =
+    selectedPool !== null &&
+    selectedBackup !== null &&
+    confirmName === selectedPool?.name &&
+    !busy;
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
+        <View style={pr.header}>
+          <Pressable onPress={handleClose} disabled={busy}>
+            <Feather name="x" size={20} color="#6F6B68" />
+          </Pressable>
+          <Text style={pr.title}>수영장별 복구</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        {result ? (
+          <View style={fr.resultWrap}>
+            <View style={[fr.resultIcon, { backgroundColor: result.ok ? "#DDF2EF" : "#F9DEDA" }]}>
+              <Feather name={result.ok ? "check-circle" : "x-circle"} size={40}
+                color={result.ok ? GREEN : DANGER} />
+            </View>
+            <Text style={[fr.resultTitle, { color: result.ok ? GREEN : DANGER }]}>
+              {result.ok ? "복구 완료" : "복구 실패"}
+            </Text>
+            <Text style={fr.resultMsg}>{result.msg}</Text>
+            <Pressable style={[fr.execBtn, { backgroundColor: result.ok ? GREEN : DANGER }]}
+              onPress={handleClose}>
+              <Text style={fr.execTxt}>닫기</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}
+            keyboardShouldPersistTaps="handled">
+
+            {/* Step 1: 수영장 검색 */}
+            <Text style={pr.stepTitle}>1단계 — 수영장 검색 및 선택</Text>
+            <View style={pr.searchBox}>
+              <Feather name="search" size={16} color="#9A948F" />
+              <TextInput style={pr.searchInput} value={searchQ}
+                onChangeText={setSearchQ}
+                placeholder="수영장명 검색 (예: 토이키즈)"
+                placeholderTextColor="#9A948F"
+                autoCapitalize="none" editable={!busy} />
+              {searching && <ActivityIndicator size="small" color={P} />}
+            </View>
+
+            {/* 검색 결과 */}
+            {searchQ.length > 0 && (
+              <View style={pr.resultList}>
+                {searchResults.length === 0 && !searching ? (
+                  <View style={pr.noResult}>
+                    <Text style={pr.noResultTxt}>검색 결과 없음</Text>
+                  </View>
+                ) : (
+                  searchResults.map(pool => (
+                    <Pressable key={pool.id}
+                      style={[pr.poolItem, selectedPool?.id === pool.id && pr.poolItemSel]}
+                      onPress={() => { setSelectedPool(pool); setConfirmName(""); }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={pr.poolName}>{pool.name}</Text>
+                        {pool.owner_name ? (
+                          <Text style={pr.poolSub}>{pool.owner_name}</Text>
+                        ) : null}
+                      </View>
+                      {selectedPool?.id === pool.id && (
+                        <Feather name="check-circle" size={18} color={P} />
+                      )}
+                    </Pressable>
+                  ))
+                )}
+              </View>
+            )}
+
+            {/* 선택된 수영장 */}
+            {selectedPool && (
+              <View style={pr.selectedPoolBox}>
+                <Feather name="anchor" size={14} color={P} />
+                <Text style={pr.selectedPoolTxt}>선택된 수영장: <Text style={{ fontFamily: "Inter_700Bold" }}>{selectedPool.name}</Text></Text>
+              </View>
+            )}
+
+            {/* Step 2: 복구 시점 선택 */}
+            <Text style={pr.stepTitle}>2단계 — 복구 기준 백업 시점 선택</Text>
+            {backups.length === 0 ? (
+              <View style={fr.emptyBox}>
+                <Text style={fr.emptyTxt}>백업 기록이 없습니다.</Text>
+              </View>
+            ) : (
+              <ScrollView style={pr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
+                {backups.map(bk => (
+                  <Pressable key={bk.id}
+                    style={[pr.backupItem, selectedBackup?.id === bk.id && pr.backupItemSel]}
+                    onPress={() => setSelectedBackup(bk)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={fr.backupItemDate}>
+                        {fmtDateTime(bk.created_at)} {bk.backup_type_v2 === "auto" ? "자동" : "수동"}백업
+                      </Text>
+                      <Text style={fr.backupItemMeta}>
+                        {bk.total_tables ?? "?"}테이블 · {fmtSize(bk.size_bytes)}
+                      </Text>
+                    </View>
+                    {selectedBackup?.id === bk.id && (
+                      <Feather name="check-circle" size={18} color={P} />
+                    )}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+
+            {selectedBackup && (
+              <View style={fr.selectedBox}>
+                <Feather name="calendar" size={14} color={P} />
+                <Text style={fr.selectedTxt}>
+                  시점: {fmtDateTime(selectedBackup.created_at)} · {fmtSize(selectedBackup.size_bytes)}
+                </Text>
+              </View>
+            )}
+
+            {/* 경고 */}
+            <View style={fr.warnBox}>
+              <Feather name="alert-triangle" size={18} color={WARN} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={fr.warnTitle}>⚠️ 수영장별 부분 복구</Text>
+                <Text style={fr.warnTxt}>선택한 수영장 데이터만 복구됩니다.</Text>
+                <Text style={fr.warnTxt}>다른 수영장 데이터는 변경되지 않습니다.</Text>
+                <Text style={fr.warnTxt}>복구 전 현재 상태를 자동으로 선백업합니다.</Text>
+              </View>
+            </View>
+
+            {/* Step 3: 수영장명 확인 입력 */}
+            {selectedPool && (
+              <View>
+                <Text style={pr.inputLabel}>
+                  확인 입력 — 수영장명{" "}
+                  <Text style={{ fontFamily: "Inter_700Bold", color: DANGER }}>'{selectedPool.name}'</Text>을 입력하세요
+                </Text>
+                <TextInput style={[fr.input, confirmName === selectedPool.name && { borderColor: DANGER }]}
+                  value={confirmName} onChangeText={setConfirmName}
+                  placeholder={selectedPool.name}
+                  placeholderTextColor="#9A948F"
+                  editable={!busy} autoCapitalize="none" />
+              </View>
+            )}
+
+            {/* 실행 버튼 */}
+            <Pressable style={[fr.execBtn, { backgroundColor: WARN }, !canExecute && { opacity: 0.4 }]}
+              onPress={handleExecute} disabled={!canExecute}>
+              {busy
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Feather name="refresh-cw" size={16} color="#fff" />
+              }
+              <Text style={fr.execTxt}>{busy ? "복구 중..." : "수영장별 복구 실행"}</Text>
+            </Pressable>
+          </ScrollView>
+        )}
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const pr = StyleSheet.create({
+  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  title:          { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  stepTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  searchBox:      { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  searchInput:    { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  resultList:     { borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 10, overflow: "hidden", maxHeight: 200 },
+  noResult:       { padding: 16, alignItems: "center" },
+  noResultTxt:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  poolItem:       { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F6F3F1", flexDirection: "row", alignItems: "center", gap: 8 },
+  poolItemSel:    { backgroundColor: "#F3EEFF" },
+  poolName:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  poolSub:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+  selectedPoolBox:{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
+  selectedPoolTxt:{ fontSize: 13, fontFamily: "Inter_400Regular", color: P, flex: 1 },
+  backupList:     { maxHeight: 200, borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 10 },
+  backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F6F3F1", flexDirection: "row", alignItems: "center", gap: 10 },
+  backupItemSel:  { backgroundColor: "#F3EEFF" },
+  inputLabel:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 8 },
+});
+
 // ── 메인 ─────────────────────────────────────────────────────────────────────
 export default function BackupScreen() {
   const { token } = useAuth();
@@ -720,8 +1173,10 @@ export default function BackupScreen() {
   const [restoreBusy,   setRestoreBusy]   = useState(false);
   const [downloadBusy,  setDownloadBusy]  = useState<string | null>(null);
   const [activeTab,     setActiveTab]     = useState("all");
-  const [showSettings,  setShowSettings]  = useState(false);
-  const [dbBackingUp,   setDbBackingUp]   = useState(false);
+  const [showSettings,      setShowSettings]      = useState(false);
+  const [dbBackingUp,       setDbBackingUp]       = useState(false);
+  const [fullRestoreVisible, setFullRestoreVisible] = useState(false);
+  const [poolRestoreVisible, setPoolRestoreVisible] = useState(false);
 
   async function handleManualBackupToDb(type: "full" | "pool_only") {
     if (!token || dbBackingUp) return;
@@ -884,18 +1339,36 @@ export default function BackupScreen() {
               </View>
             </View>
 
-            {/* 액션 버튼들 */}
-            <View style={s.btnRow}>
-              <Pressable style={[s.actionBtn, { flex: 1 }]}
-                onPress={() => setCreateVisible(true)} disabled={createBusy}>
-                <Feather name="save" size={14} color="#fff" />
-                <Text style={s.actionBtnTxt}>지금 백업</Text>
-              </Pressable>
-              <Pressable style={[s.outlineBtn]}
-                onPress={() => setShowSettings(v => !v)}>
-                <Feather name="settings" size={14} color={P} />
-                <Text style={s.outlineBtnTxt}>{showSettings ? "설정 닫기" : "자동 백업 설정"}</Text>
-              </Pressable>
+            {/* 액션 버튼들 (2×2 그리드) */}
+            <View style={{ gap: 8 }}>
+              <View style={s.btnRow}>
+                {/* 전체 백업 */}
+                <Pressable style={[s.actionBtn, { flex: 1 }]}
+                  onPress={() => setCreateVisible(true)} disabled={createBusy}>
+                  <Feather name="save" size={14} color="#fff" />
+                  <Text style={s.actionBtnTxt}>전체 백업</Text>
+                </Pressable>
+                {/* 자동 백업 설정 */}
+                <Pressable style={[s.outlineBtn, { flex: 1 }]}
+                  onPress={() => setShowSettings(v => !v)}>
+                  <Feather name="settings" size={14} color={P} />
+                  <Text style={s.outlineBtnTxt}>{showSettings ? "설정 닫기" : "자동백업 설정"}</Text>
+                </Pressable>
+              </View>
+              <View style={s.btnRow}>
+                {/* 전체 복구 */}
+                <Pressable style={[s.actionBtn, { flex: 1, backgroundColor: DANGER }]}
+                  onPress={() => setFullRestoreVisible(true)} disabled={backups.length === 0}>
+                  <Feather name="rotate-ccw" size={14} color="#fff" />
+                  <Text style={s.actionBtnTxt}>전체 복구</Text>
+                </Pressable>
+                {/* 수영장별 복구 */}
+                <Pressable style={[s.outlineBtn, { flex: 1, borderColor: WARN }]}
+                  onPress={() => setPoolRestoreVisible(true)} disabled={backups.length === 0}>
+                  <Feather name="refresh-cw" size={14} color={WARN} />
+                  <Text style={[s.outlineBtnTxt, { color: WARN }]}>수영장별 복구</Text>
+                </Pressable>
+              </View>
             </View>
 
             {/* 자동 백업 설정 패널 */}
@@ -938,6 +1411,20 @@ export default function BackupScreen() {
         busy={restoreBusy}
         onClose={() => { if (!restoreBusy) setRestoreTarget(null); }}
         onConfirm={handleRestore}
+      />
+
+      <FullRestoreModal
+        visible={fullRestoreVisible}
+        onClose={() => setFullRestoreVisible(false)}
+        backups={backups}
+        token={token}
+      />
+
+      <PoolRestoreModal
+        visible={poolRestoreVisible}
+        onClose={() => setPoolRestoreVisible(false)}
+        backups={backups}
+        token={token}
       />
     </SafeAreaView>
   );

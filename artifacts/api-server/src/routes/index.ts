@@ -39,6 +39,7 @@ import classChangeLogsRouter from "./class-change-logs.js";
 import dbStatusRouter from "./db-status.js";
 import infraUsageRouter from "./infra-usage.js";
 import backupStatusRouter from "./backup-status.js";
+import restoreRouter from "./restore.js";
 
 const router: IRouter = Router();
 
@@ -84,5 +85,6 @@ router.use("/class-change-logs", classChangeLogsRouter);
 router.use("/super/db-status", dbStatusRouter);
 router.use("/super/infra-usage", infraUsageRouter);
 router.use("/", backupStatusRouter);
+router.use("/", restoreRouter);
 
 export default router;
