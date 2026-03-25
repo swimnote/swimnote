@@ -12,3 +12,9 @@ id = "QbU0IJmFzFn55XF7b5jmn"
 uri = "file://.local/db-separation-report.md"
 type = "text"
 title = "DB 이원화 구현 보고서 (2026-03-24)"
+
+[[outputs]]
+id = "3M1ws9xKr7wrZbJRYTyrG"
+uri = "file://.local/audit_report.md"
+type = "text"
+title = "수영장 관리 플랫폼 — 최종 감사 보고서"
