@@ -4,19 +4,29 @@
  * - 가운데: 화면 제목
  * - 오른쪽: 홈 버튼 + rightSlot (동시에 표시 가능)
  *
- * 뒤로가기: router.back() — 글로벌 라우터 히스토리 기반 직전 화면 복귀
- *           admin/teacher는 Tabs 레이아웃 → useNavigation().canGoBack()이
- *           탭 기준으로 항상 false 반환하는 버그 있음. router.back()으로 해결.
- * 홈 버튼: router.navigate(homePath) — 사용자가 명시적으로 눌렀을 때만 이동
+ * 홈 버튼: homePath prop 명시 시 우선. 없으면 현재 로그인 역할 자동 감지.
+ * → 보안: 역할 불일치 홈 이동 방지 (슈퍼→수영장관리자 홈 접근 차단)
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useContext } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { AuthContext } from "@/context/AuthContext";
 
 const C = Colors.light;
+
+const ROLE_HOME_MAP: Record<string, string> = {
+  super_admin:    "/(super)/dashboard",
+  platform_admin: "/(super)/dashboard",
+  super_manager:  "/(super)/dashboard",
+  pool_admin:     "/(admin)/dashboard",
+  sub_admin:      "/(admin)/dashboard",
+  teacher:        "/(teacher)/today-schedule",
+  parent:         "/(parent)/home",
+  parent_account: "/(parent)/home",
+};
 
 interface SubScreenHeaderProps {
   title: string;
@@ -33,10 +43,21 @@ export function SubScreenHeader({
   onBack,
   showHome = true,
   rightSlot,
-  homePath = "/(admin)/dashboard",
+  homePath,
 }: SubScreenHeaderProps) {
   const insets = useSafeAreaInsets();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
+  const auth = useContext(AuthContext);
+
+  // homePath prop이 있으면 그대로 사용, 없으면 현재 로그인 역할로 자동 결정
+  const resolvedHome = (() => {
+    if (homePath) return homePath;
+    if (!auth) return "/(admin)/dashboard";
+    const { adminUser, parentAccount, sessionKind } = auth;
+    if (sessionKind === "parent" && parentAccount) return ROLE_HOME_MAP["parent_account"];
+    if (adminUser?.role) return ROLE_HOME_MAP[adminUser.role] ?? "/(admin)/dashboard";
+    return "/(admin)/dashboard";
+  })();
 
   const handleBack = () => {
     if (onBack) {
@@ -47,7 +68,7 @@ export function SubScreenHeader({
   };
 
   const handleHome = () => {
-    router.navigate(homePath as any);
+    router.navigate(resolvedHome as any);
   };
 
   return (
