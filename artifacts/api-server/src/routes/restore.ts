@@ -11,7 +11,9 @@
  *   2. 선백업 (runRealBackup)
  *   3. backup_id로 platform_backups에서 JSON 로드
  *   4. 테이블 복구
- *   5. restore_logs 기록
+ *   5. 복구 대상 테이블 누락 감지 (WARNING)
+ *   6. 데이터 무결성 검사 (WARNING)
+ *   7. restore_logs 기록 (warning_count, warning_details 포함)
  */
 import { Router } from "express";
 import crypto from "crypto";
@@ -113,6 +115,154 @@ async function loadBackupJson(backupId: string): Promise<Record<string, unknown[
   return merged;
 }
 
+// ════════════════════════════════════════════════════════════════
+// 복구 대상 테이블 누락 감지
+// DB에서 swimming_pool_id 컬럼을 가진 테이블 목록을 조회하고
+// POOL_RESTORE_TABLES에 없는 테이블이 있으면 WARNING 기록
+// ════════════════════════════════════════════════════════════════
+async function detectMissingTables(): Promise<string[]> {
+  try {
+    const rows = (await superAdminDb.execute(sql.raw(`
+      SELECT table_name
+      FROM information_schema.columns
+      WHERE column_name = 'swimming_pool_id'
+        AND table_schema = 'public'
+      ORDER BY table_name
+    `))).rows as { table_name: string }[];
+
+    const dbTables = rows.map(r => r.table_name);
+    const poolSet  = new Set(POOL_RESTORE_TABLES);
+    const missing  = dbTables.filter(t => !poolSet.has(t) && !EXCLUDE_FROM_FULL_RESTORE.has(t));
+
+    if (missing.length > 0) {
+      for (const t of missing) {
+        console.warn(`[restore] WARNING: restore 대상 누락 테이블 발견 - ${t}`);
+      }
+    }
+    return missing;
+  } catch (e: any) {
+    console.warn("[restore] 누락 테이블 감지 실패:", e.message);
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 복구 후 데이터 무결성 검사
+// poolId 지정 시 해당 수영장 범위만 검사, 없으면 전체 검사
+// 반환: 깨진 관계 목록 (빈 배열이면 이상 없음)
+// ════════════════════════════════════════════════════════════════
+async function checkDataIntegrity(poolId?: string): Promise<string[]> {
+  const broken: string[] = [];
+  const pf = poolId ? `'${poolId.replace(/'/g, "''")}'` : null;
+
+  // ① 출결 → 학생 연결
+  try {
+    const where = pf ? `AND a.swimming_pool_id = ${pf}` : "";
+    const r = (await superAdminDb.execute(sql.raw(`
+      SELECT COUNT(*) AS cnt
+      FROM attendance a
+      LEFT JOIN students s ON s.id = a.student_id
+      WHERE s.id IS NULL ${where}
+    `))).rows[0] as any;
+    const cnt = Number(r.cnt);
+    if (cnt > 0) {
+      const msg = `attendance_without_student: ${cnt}건`;
+      broken.push(msg);
+      console.warn(`[restore/integrity] ⚠️ 출결→학생 연결 깨짐: ${cnt}건`);
+    }
+  } catch (e: any) {
+    console.warn("[restore/integrity] 출결→학생 검사 실패:", e.message);
+  }
+
+  // ② 반 멤버 → 멤버 연결 (class_members.member_id → members)
+  try {
+    // classes 테이블에 swimming_pool_id 직접 존재
+    const poolJoin = pf
+      ? `JOIN classes cl ON cl.id = cm.class_id AND cl.swimming_pool_id = ${pf}`
+      : "";
+    const r = (await superAdminDb.execute(sql.raw(`
+      SELECT COUNT(*) AS cnt
+      FROM class_members cm
+      ${poolJoin}
+      LEFT JOIN members m ON m.id = cm.member_id
+      WHERE m.id IS NULL
+    `))).rows[0] as any;
+    const cnt = Number(r.cnt);
+    if (cnt > 0) {
+      const msg = `class_member_without_member: ${cnt}건`;
+      broken.push(msg);
+      console.warn(`[restore/integrity] ⚠️ 반 멤버→멤버 연결 깨짐: ${cnt}건`);
+    }
+  } catch (e: any) {
+    console.warn("[restore/integrity] 반 멤버→멤버 검사 실패:", e.message);
+  }
+
+  // ③ 보강 → 출결 연결 (absence_attendance_id → attendance)
+  try {
+    const where = pf ? `AND ms.swimming_pool_id = ${pf}` : "";
+    const r = (await superAdminDb.execute(sql.raw(`
+      SELECT COUNT(*) AS cnt
+      FROM makeup_sessions ms
+      LEFT JOIN attendance a ON a.id = ms.absence_attendance_id
+      WHERE ms.absence_attendance_id IS NOT NULL AND a.id IS NULL ${where}
+    `))).rows[0] as any;
+    const cnt = Number(r.cnt);
+    if (cnt > 0) {
+      const msg = `makeup_without_attendance: ${cnt}건`;
+      broken.push(msg);
+      console.warn(`[restore/integrity] ⚠️ 보강→출결 연결 깨짐: ${cnt}건`);
+    }
+  } catch (e: any) {
+    console.warn("[restore/integrity] 보강→출결 검사 실패 (건너뜀):", e.message);
+  }
+
+  // ④ 일지 → 반 연결
+  try {
+    const where = pf ? `AND cd.swimming_pool_id = ${pf}` : "";
+    const r = (await superAdminDb.execute(sql.raw(`
+      SELECT COUNT(*) AS cnt
+      FROM class_diaries cd
+      LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+      WHERE cg.id IS NULL ${where}
+    `))).rows[0] as any;
+    const cnt = Number(r.cnt);
+    if (cnt > 0) {
+      const msg = `diary_without_class_group: ${cnt}건`;
+      broken.push(msg);
+      console.warn(`[restore/integrity] ⚠️ 일지→반 연결 깨짐: ${cnt}건`);
+    }
+  } catch (e: any) {
+    console.warn("[restore/integrity] 일지→반 검사 실패:", e.message);
+  }
+
+  // ⑤ 일지 학생 노트 → 학생 연결 (diary_id → class_diaries)
+  try {
+    const poolJoin = pf
+      ? `JOIN class_diaries cd ON cd.id = cdsn.diary_id AND cd.swimming_pool_id = ${pf}`
+      : "";
+    const r = (await superAdminDb.execute(sql.raw(`
+      SELECT COUNT(*) AS cnt
+      FROM class_diary_student_notes cdsn
+      ${poolJoin}
+      LEFT JOIN students s ON s.id = cdsn.student_id
+      WHERE s.id IS NULL
+    `))).rows[0] as any;
+    const cnt = Number(r.cnt);
+    if (cnt > 0) {
+      const msg = `diary_note_without_student: ${cnt}건`;
+      broken.push(msg);
+      console.warn(`[restore/integrity] ⚠️ 일지 학생 노트→학생 연결 깨짐: ${cnt}건`);
+    }
+  } catch (e: any) {
+    console.warn("[restore/integrity] 일지 학생 노트→학생 검사 실패:", e.message);
+  }
+
+  if (broken.length === 0) {
+    console.log("[restore/integrity] ✅ 무결성 검사 통과 — 깨진 연결 없음");
+  }
+  return broken;
+}
+
 // ── restore_logs CRUD ─────────────────────────────────────────────────────────
 async function insertRestoreLog(opts: {
   id: string;
@@ -135,20 +285,38 @@ async function insertRestoreLog(opts: {
   `);
 }
 
-async function finishRestoreLog(id: string, status: "success" | "failed", errorMsg?: string) {
+async function finishRestoreLog(
+  id: string,
+  status: "success" | "failed",
+  opts?: {
+    errorMsg?: string;
+    warnings?: { count: number; details: Record<string, unknown> };
+  }
+) {
+  const warningCount   = opts?.warnings?.count ?? 0;
+  const warningDetails = opts?.warnings?.details ?? null;
+  const detailsJson    = warningDetails ? JSON.stringify(warningDetails) : null;
+
   if (status === "success") {
-    await superAdminDb.execute(sql`
+    await superAdminDb.execute(sql.raw(`
       UPDATE restore_logs
-      SET status = 'success', finished_at = NOW()
-      WHERE id = ${id}
-    `);
+      SET status = 'success',
+          finished_at = NOW(),
+          warning_count = ${warningCount},
+          warning_details = ${detailsJson ? `'${detailsJson.replace(/'/g, "''")}'::jsonb` : "NULL"}
+      WHERE id = '${id}'
+    `));
   } else {
-    await superAdminDb.execute(sql`
+    const errMsg = (opts?.errorMsg ?? "알 수 없는 오류").replace(/'/g, "''");
+    await superAdminDb.execute(sql.raw(`
       UPDATE restore_logs
-      SET status = 'failed', finished_at = NOW(),
-          error_message = ${errorMsg ?? "알 수 없는 오류"}
-      WHERE id = ${id}
-    `);
+      SET status = 'failed',
+          finished_at = NOW(),
+          error_message = '${errMsg}',
+          warning_count = ${warningCount},
+          warning_details = ${detailsJson ? `'${detailsJson.replace(/'/g, "''")}'::jsonb` : "NULL"}
+      WHERE id = '${id}'
+    `));
   }
 }
 
@@ -228,16 +396,13 @@ router.post(
         const rows = tableData[tableName];
         if (!Array.isArray(rows)) continue;
         try {
-          // CASCADE DELETE 대신 안전한 개별 DELETE
           await superAdminDb.execute(sql.raw(`DELETE FROM "${tableName}"`));
           let inserted = 0;
           for (const row of rows) {
             try {
               await insertRow(tableName, row as Record<string, unknown>);
               inserted++;
-            } catch (re: any) {
-              // 행 단위 오류는 경고로 처리 (계속 진행)
-            }
+            } catch { /* 행 단위 오류 건너뜀 */ }
           }
           totalRows += inserted;
           console.log(`[restore/full] ${tableName}: ${inserted}/${rows.length}행 복구`);
@@ -248,8 +413,29 @@ router.post(
         }
       }
 
-      await finishRestoreLog(logId, "success");
-      console.log(`[restore/full] 완료 — 총 ${totalRows}행 복구, 오류: ${errors.length}개`);
+      // 6. 복구 대상 테이블 누락 감지
+      console.log("[restore/full] 누락 테이블 감지 중...");
+      const missingTables = await detectMissingTables();
+
+      // 7. 데이터 무결성 검사
+      console.log("[restore/full] 데이터 무결성 검사 중...");
+      const brokenRelations = await checkDataIntegrity();
+
+      // 8. warning 집계
+      const warningCount = missingTables.length + brokenRelations.length;
+      const warningDetails: Record<string, unknown> = {};
+      if (missingTables.length > 0)    warningDetails.missing_tables    = missingTables;
+      if (brokenRelations.length > 0)  warningDetails.broken_relations  = brokenRelations;
+
+      if (warningCount > 0) {
+        console.warn(`[restore/full] ⚠️ 경고 ${warningCount}건 발생 — ${JSON.stringify(warningDetails)}`);
+      }
+
+      // 9. restore_logs 완료 기록
+      await finishRestoreLog(logId, "success", {
+        warnings: warningCount > 0 ? { count: warningCount, details: warningDetails } : undefined,
+      });
+      console.log(`[restore/full] 완료 — 총 ${totalRows}행 복구, 오류: ${errors.length}개, 경고: ${warningCount}건`);
 
       res.json({
         ok: true,
@@ -258,12 +444,14 @@ router.post(
         tables_restored: tableNames.length - errors.length,
         rows_restored: totalRows,
         restore_point: restorePoint,
+        warning_count: warningCount,
+        warning_details: warningCount > 0 ? warningDetails : undefined,
         errors: errors.length > 0 ? errors : undefined,
       });
 
     } catch (e: any) {
       console.error("[restore/full] 실패:", e.message);
-      await finishRestoreLog(logId, "failed", e.message).catch(() => {});
+      await finishRestoreLog(logId, "failed", { errorMsg: e.message }).catch(() => {});
       res.status(500).json({ error: "전체 복구 실패", detail: e.message });
     }
   }
@@ -328,29 +516,28 @@ router.post(
       // 5. pool 테이블 복구 (DELETE WHERE swimming_pool_id = ? → INSERT filtered)
       let totalRows = 0;
       const errors: string[] = [];
-
       const safePoolId = pool_id.replace(/'/g, "''");
 
       for (const tableName of POOL_RESTORE_TABLES) {
         const allRows = tableData[tableName];
         if (!Array.isArray(allRows)) continue;
 
-        const poolRows = allRows.filter((r: any) => r.swimming_pool_id === pool_id);
+        const poolRows2 = allRows.filter((r: any) => r.swimming_pool_id === pool_id);
 
         try {
           await superAdminDb.execute(
             sql.raw(`DELETE FROM "${tableName}" WHERE swimming_pool_id = '${safePoolId}'`)
           );
           let inserted = 0;
-          for (const row of poolRows) {
+          for (const row of poolRows2) {
             try {
               await insertRow(tableName, row as Record<string, unknown>);
               inserted++;
             } catch { /* 행 단위 오류 건너뜀 */ }
           }
           totalRows += inserted;
-          if (poolRows.length > 0) {
-            console.log(`[restore/pool] ${tableName}: ${inserted}/${poolRows.length}행 복구`);
+          if (poolRows2.length > 0) {
+            console.log(`[restore/pool] ${tableName}: ${inserted}/${poolRows2.length}행 복구`);
           }
         } catch (e: any) {
           const msg = `${tableName}: ${e.message}`;
@@ -359,8 +546,29 @@ router.post(
         }
       }
 
-      await finishRestoreLog(logId, "success");
-      console.log(`[restore/pool] 완료 — pool: ${pool_id}, 총 ${totalRows}행 복구`);
+      // 6. 복구 대상 테이블 누락 감지
+      console.log("[restore/pool] 누락 테이블 감지 중...");
+      const missingTables = await detectMissingTables();
+
+      // 7. 데이터 무결성 검사 (해당 수영장 범위만)
+      console.log(`[restore/pool] 데이터 무결성 검사 중 (pool: ${pool_id})...`);
+      const brokenRelations = await checkDataIntegrity(pool_id);
+
+      // 8. warning 집계
+      const warningCount = missingTables.length + brokenRelations.length;
+      const warningDetails: Record<string, unknown> = {};
+      if (missingTables.length > 0)    warningDetails.missing_tables   = missingTables;
+      if (brokenRelations.length > 0)  warningDetails.broken_relations = brokenRelations;
+
+      if (warningCount > 0) {
+        console.warn(`[restore/pool] ⚠️ 경고 ${warningCount}건 — ${JSON.stringify(warningDetails)}`);
+      }
+
+      // 9. restore_logs 완료 기록
+      await finishRestoreLog(logId, "success", {
+        warnings: warningCount > 0 ? { count: warningCount, details: warningDetails } : undefined,
+      });
+      console.log(`[restore/pool] 완료 — pool: ${pool_id}, 총 ${totalRows}행 복구, 경고: ${warningCount}건`);
 
       res.json({
         ok: true,
@@ -370,12 +578,14 @@ router.post(
         pool_name: poolName,
         rows_restored: totalRows,
         restore_point: restorePoint,
+        warning_count: warningCount,
+        warning_details: warningCount > 0 ? warningDetails : undefined,
         errors: errors.length > 0 ? errors : undefined,
       });
 
     } catch (e: any) {
       console.error("[restore/pool] 실패:", e.message);
-      await finishRestoreLog(logId, "failed", e.message).catch(() => {});
+      await finishRestoreLog(logId, "failed", { errorMsg: e.message }).catch(() => {});
       res.status(500).json({ error: "수영장별 복구 실패", detail: e.message });
     }
   }

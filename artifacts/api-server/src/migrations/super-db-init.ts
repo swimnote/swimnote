@@ -83,6 +83,13 @@ export async function initSuperDb(): Promise<void> {
       CREATE INDEX IF NOT EXISTS restore_logs_pool_idx   ON restore_logs (pool_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS restore_logs_status_idx ON restore_logs (status, started_at DESC);
     `)).catch(() => {});
+
+    // warning 컬럼 추가 (기존 테이블에도 적용)
+    await db.execute(sql.raw(`
+      ALTER TABLE restore_logs ADD COLUMN IF NOT EXISTS warning_count   integer NOT NULL DEFAULT 0;
+      ALTER TABLE restore_logs ADD COLUMN IF NOT EXISTS warning_details jsonb;
+    `)).catch((e: any) => console.warn("[super-db-init] restore_logs warning 컬럼 추가 건너뜀:", e.message));
+
     console.log("[super-db-init] restore_logs 테이블 생성/확인 완료");
   } catch (e: any) {
     console.error("[super-db-init] ❌ restore_logs 생성 실패:", e.message);
