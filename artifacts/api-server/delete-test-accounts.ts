@@ -19,6 +19,11 @@ const OLD_PARENT_ID   = "pa_test4444_1774413178496";
 async function main() {
   console.log("🗑️ 테스트 계정 삭제 시작...\n");
 
+  // parent_students + students (poolDb)
+  await db.execute(sql`DELETE FROM parent_students WHERE swimming_pool_id = ${POOL_ID}`).catch(() => {});
+  await db.execute(sql`DELETE FROM students WHERE swimming_pool_id = ${POOL_ID}`).catch(() => {});
+  console.log("✅ 학생(오오오) 및 parent_students 연결 삭제");
+
   // 학생 등록 요청 삭제
   await superAdminDb.execute(sql`DELETE FROM student_registration_requests WHERE swimming_pool_id = ${POOL_ID}`);
   await db.execute(sql`DELETE FROM student_registration_requests WHERE swimming_pool_id = ${POOL_ID}`).catch(() => {});
