@@ -406,6 +406,7 @@ export default function AttendanceScreen() {
   if (viewMode === "makeup") {
     return (
       <ScreenLayout header={header}>
+        <Text style={{ backgroundColor: "red", color: "white", fontWeight: "bold", fontSize: 14, padding: 6, textAlign: "center" }}>DEBUG_ADMIN_ATTENDANCE_0325_V1</Text>
         {/* 보강 지정 모달 */}
         <Modal visible={!!assignTarget} transparent animationType="slide" onRequestClose={() => setAssignTarget(null)}>
           <View style={a.modalOverlay}>
@@ -634,6 +635,7 @@ export default function AttendanceScreen() {
   if (viewMode === "search") {
     return (
       <ScreenLayout header={header}>
+        <Text style={{ backgroundColor: "red", color: "white", fontWeight: "bold", fontSize: 14, padding: 6, textAlign: "center" }}>DEBUG_ADMIN_ATTENDANCE_0325_V1</Text>
         {/* 검색창 */}
         <View style={[a.searchBox, { backgroundColor: C.card, borderColor: C.border, marginTop: 10 }]}>
           <Feather name="search" size={16} color={C.textMuted} style={{ marginLeft: 12 }} />
@@ -722,6 +724,7 @@ export default function AttendanceScreen() {
   if (viewMode === "daily") {
     return (
       <ScreenLayout header={<>{header}{commonSubHeader}</>}>
+        <Text style={{ backgroundColor: "red", color: "white", fontWeight: "bold", fontSize: 14, padding: 6, textAlign: "center" }}>DEBUG_ADMIN_ATTENDANCE_0325_V1</Text>
         {(loadingDaily || loadingInit) ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
         ) : (
@@ -779,6 +782,7 @@ export default function AttendanceScreen() {
   if (viewMode === "weekly") {
     return (
       <ScreenLayout header={<>{header}{commonSubHeader}</>}>
+        <Text style={{ backgroundColor: "red", color: "white", fontWeight: "bold", fontSize: 14, padding: 6, textAlign: "center" }}>DEBUG_ADMIN_ATTENDANCE_0325_V1</Text>
         {loadingWeekly ? (
           <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
         ) : (
@@ -839,6 +843,10 @@ export default function AttendanceScreen() {
   // ── 월간 ──────────────────────────────────────────────────────
   return (
     <ScreenLayout header={<>{header}{commonSubHeader}</>}>
+      {/* DEBUG_ADMIN_ATTENDANCE_0325_V1 */}
+      <Text style={{ backgroundColor: "red", color: "white", fontWeight: "bold", fontSize: 14, padding: 6, textAlign: "center" }}>
+        DEBUG_ADMIN_ATTENDANCE_0325_V1
+      </Text>
       {loadingMonthly ? (
         <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
       ) : (

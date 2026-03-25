@@ -389,6 +389,7 @@ export default function TeacherAttendanceScreen() {
 
     return (
       <SafeAreaView style={s.safe} edges={[]}>
+        <Text style={{ backgroundColor: "red", color: "white", fontWeight: "bold", fontSize: 14, padding: 6, textAlign: "center" }}>DEBUG_TEACHER_ATTENDANCE_0325_V1</Text>
         <SubScreenHeader
           title={`${group.name} 출결`}
           subtitle={`${date} · ${group.schedule_time} [TEST_ATT_v3]`}
@@ -653,6 +654,10 @@ export default function TeacherAttendanceScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
+      {/* DEBUG_TEACHER_ATTENDANCE_0325_V1 */}
+      <Text style={{ backgroundColor: "red", color: "white", fontWeight: "bold", fontSize: 14, padding: 6, textAlign: "center" }}>
+        DEBUG_TEACHER_ATTENDANCE_0325_V1
+      </Text>
       <SubScreenHeader title="출결 관리" homePath="/(teacher)/today-schedule" />
 
       <View style={s.subTabBar}>

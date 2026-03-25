@@ -53,7 +53,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       return { ...r, student_name };
     }));
 
-    res.json(enriched);
+    res.json({ debug_version: "ATTENDANCE_0325_V1", data: enriched });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });
