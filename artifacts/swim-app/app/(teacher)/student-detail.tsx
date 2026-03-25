@@ -19,6 +19,7 @@ import {
   StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { callPhone, formatPhone, CALL_COLOR } from "@/utils/phoneUtils";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -321,7 +322,14 @@ export default function StudentDetailScreen() {
               <InfoRow icon="user" label="보호자" value={student.parent_name} />
             )}
             {student.parent_phone && (
-              <InfoRow icon="phone" label="보호자 연락처" value={student.parent_phone} />
+              <Pressable
+                style={s.infoRow}
+                onPress={() => callPhone(student.parent_phone)}
+              >
+                <Feather name="phone" size={14} color={CALL_COLOR} style={{ marginTop: 1 }} />
+                <Text style={s.infoLabel}>연락처</Text>
+                <Text style={[s.infoValue, { color: CALL_COLOR }]}>{formatPhone(student.parent_phone)}</Text>
+              </Pressable>
             )}
           </View>
         </View>

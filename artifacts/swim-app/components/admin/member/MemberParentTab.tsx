@@ -4,6 +4,7 @@ import { Share } from "react-native";
 import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { callPhone, formatPhone, CALL_COLOR } from "@/utils/phoneUtils";
 import { buildInviteMessage } from "@/utils/studentUtils";
 import { ms } from "./memberDetailStyles";
 import type { DetailData } from "./memberDetailTypes";
@@ -76,20 +77,32 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
 
       <View style={ms.section}>
         <Text style={ms.sectionTitle}>보호자 정보</Text>
-        {[
-          { icon: "user" as const, label: "보호자 이름", value: data.parent_name || "미입력" },
-          { icon: "phone" as const, label: "연락처", value: data.parent_phone || "미입력" },
-          { icon: "phone" as const, label: "연락처2", value: (data as any).parent_phone2 || "미입력" },
-        ].map(({ icon, label, value }) => (
-          <View key={label} style={ms.infoRow}>
-            <Feather name={icon} size={13} color={C.textMuted} />
-            <Text style={ms.infoLabel}>{label}</Text>
-            <Text style={ms.infoValue}>{value}</Text>
-          </View>
-        ))}
-        <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 8 }}>
-          * 보호자 정보 수정은 기본정보 탭에서 할 수 있습니다.
-        </Text>
+        <View style={ms.infoRow}>
+          <Feather name="user" size={13} color={C.textMuted} />
+          <Text style={ms.infoLabel}>이름</Text>
+          <Text style={ms.infoValue}>{data.parent_name || "미입력"}</Text>
+        </View>
+        {[data.parent_phone, (data as any).parent_phone2].map((ph, i) => {
+          const label = i === 0 ? "연락처" : "연락처2";
+          const hasPhone = !!ph;
+          return (
+            <View key={label} style={ms.infoRow}>
+              <Feather name="phone" size={13} color={hasPhone ? CALL_COLOR : C.textMuted} />
+              <Text style={ms.infoLabel}>{label}</Text>
+              {hasPhone ? (
+                <Pressable
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                  onPress={() => callPhone(ph)}
+                  hitSlop={8}
+                >
+                  <Text style={[ms.infoValue, { color: CALL_COLOR }]}>{formatPhone(ph)}</Text>
+                </Pressable>
+              ) : (
+                <Text style={ms.infoValue}>미입력</Text>
+              )}
+            </View>
+          );
+        })}
       </View>
     </ScrollView>
   );

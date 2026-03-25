@@ -10,6 +10,7 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { callPhone, formatPhone, CALL_COLOR } from "@/utils/phoneUtils";
 import {
   StudentMember,
   getPrimaryStatus,
@@ -155,10 +156,21 @@ export function UnifiedMemberCard({
 
           {/* 보호자 */}
           {(student.parent_name || student.parent_phone) ? (
-            <Text style={s.subTxt} numberOfLines={1}>
-              보호자: {student.parent_name || ""}
-              {student.parent_phone ? ` · ${student.parent_phone}` : ""}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+              {student.parent_name ? (
+                <Text style={s.subTxt}>{student.parent_name}</Text>
+              ) : null}
+              {student.parent_phone ? (
+                <Pressable
+                  style={{ flexDirection: "row", alignItems: "center", gap: 2 }}
+                  onPress={() => callPhone(student.parent_phone)}
+                  hitSlop={6}
+                >
+                  <Feather name="phone" size={11} color={CALL_COLOR} />
+                  <Text style={[s.subTxt, { color: CALL_COLOR }]}>{formatPhone(student.parent_phone)}</Text>
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
 
           {/* 퇴원일 */}

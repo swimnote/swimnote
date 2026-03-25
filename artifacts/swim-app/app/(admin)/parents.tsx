@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { callPhone, formatPhone, CALL_COLOR } from "@/utils/phoneUtils";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useSelectionMode } from "@/hooks/useSelectionMode";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -558,7 +559,18 @@ export default function ParentsScreen() {
                   </View>
                   <View style={s.accountInfo}>
                     <Text style={[s.accountName, { color: C.text }]}>{pa.name}</Text>
-                    <Text style={[s.accountPhone, { color: C.textSecondary }]}>{pa.phone}</Text>
+                    {pa.phone ? (
+                      <Pressable
+                        style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
+                        onPress={() => callPhone(pa.phone)}
+                        hitSlop={6}
+                      >
+                        <Feather name="phone" size={11} color={CALL_COLOR} />
+                        <Text style={[s.accountPhone, { color: CALL_COLOR }]}>{formatPhone(pa.phone)}</Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={[s.accountPhone, { color: C.textSecondary }]}>연락처 없음</Text>
+                    )}
                   </View>
                   {!sel.selectionMode && (
                     <View style={s.cardActions}>
