@@ -1402,6 +1402,7 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
           content: `${mk.student_name} 회원 보강 수업이 ${cg.name}반에 배정되었습니다${dateStr}.`,
         });
       }
+      logPoolEvent({ pool_id: poolId, event_type: "makeup_assign", entity_type: "makeup_session", entity_id: req.params.id, actor_id: actor.userId, payload: { class_group_id, class_name: cg.name, assigned_date } }).catch(console.error);
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -1435,6 +1436,7 @@ router.patch("/makeups/:id/transfer", requireAuth, requireRole("super_admin","po
         actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
         note: `보강 이동: ${target_teacher_name} 선생님`,
       });
+      logPoolEvent({ pool_id: poolId, event_type: "makeup_transfer", entity_type: "makeup_session", entity_id: req.params.id, actor_id: actor.userId, payload: { target_teacher_id, target_teacher_name } }).catch(console.error);
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -1473,6 +1475,7 @@ router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin","po
         actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
         note: completedNote,
       });
+      logPoolEvent({ pool_id: poolId, event_type: "makeup_complete", entity_type: "makeup_session", entity_id: req.params.id, actor_id: actor.userId, payload: { student_id: mk.student_id, student_name: mk.student_name } }).catch(console.error);
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }

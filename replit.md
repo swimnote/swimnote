@@ -20,6 +20,18 @@ The system uses a dual database connection: `superAdminDb` (Supabase ap-south-1)
 ### System Design Choices
 API design follows RESTful principles with consistent JSON formats and strong authentication. The database schema (PostgreSQL with Drizzle ORM) includes key tables for multi-tenancy via `swimming_pool_id`. Security features include JWT authentication, role/pool access checks, and API validation. A modular monorepo structure with `artifacts`, `lib`, and `packages` promotes reusability.
 
+## Verified State (2026-03-25)
+- **pool_event_logs**: 46건 기록 / 17가지 이벤트 타입 / 3개 풀 / retry_queue=0 / DLQ=0
+- **학부모 모드**: 10가지 기능 전체 검증 완료 (자녀목록/일지/공지/사진/영상/알림설정/결제차단/공지읽음/출결/학생상세)
+- **CRUD**: 학생수정/반수정/반삭제/일지수정/공지생성삭제/휴일삭제/보강배정/보강완료
+- **notice_reads**: poolDb에 DDL 추가 (pool-db-init.ts) — 학부모 공지 500 버그 수정
+- **parent-student 링크 승인**: `PATCH /api/admin/parents/:id/students/:link_id` body `{action:"approve"}`
+- **올바른 학부모 API 경로**: `/api/parent/students` (자녀목록), `/api/parent/students/:id/diary` (일지), `/api/parent/notices` (공지)
+- **올바른 CRUD PATCH 경로**: `PATCH /api/students/:id`, `PATCH /api/class-groups/:id`
+- **반 생성 필수 필드**: `schedule_days`, `schedule_time` (name 선택)
+- **보강 생성 방식**: 출결 absent 처리 시 자동 생성, `PATCH /api/admin/makeups/:id/assign` → complete
+- **tier 버그**: growth → advance 수정 완료
+
 ## External Dependencies
 - **PostgreSQL**: Primary database for all application data.
 - **Drizzle ORM**: Object-relational mapper for interacting with PostgreSQL.

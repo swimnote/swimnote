@@ -11,6 +11,7 @@ import { Router, Response } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 
@@ -158,6 +159,7 @@ router.put(
           tpl_photo    = EXCLUDED.tpl_photo,
           updated_at   = now()
       `);
+      logPoolEvent({ pool_id: poolId, event_type: "push_settings_update", entity_type: "pool_push_settings", actor_id: userId, payload: { prev_day_push_time, same_day_push_offset } }).catch(console.error);
       return res.json({ success: true });
     } catch (e) {
       console.error("[push-settings/pool PUT]", e);

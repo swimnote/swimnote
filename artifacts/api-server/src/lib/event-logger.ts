@@ -1,7 +1,7 @@
 /**
  * 이벤트 로거 — 운영 행위를 event_logs 테이블에 기록
  */
-import { db } from "@workspace/db";
+import { superAdminDb as db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
 export type EventCategory =

@@ -214,6 +214,17 @@ export async function initPoolDb(): Promise<void> {
     );
   `));
 
+  // ─── 7b. notice_reads ────────────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS notice_reads (
+      id         text        PRIMARY KEY,
+      notice_id  text        NOT NULL REFERENCES notices(id) ON DELETE CASCADE,
+      parent_id  text        NOT NULL,
+      read_at    timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_notice_reads ON notice_reads (notice_id, parent_id);
+  `));
+
   // ─── 8. teacher_schedule_notes ───────────────────────────────────────────
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS teacher_schedule_notes (
@@ -357,7 +368,7 @@ export async function initPoolDb(): Promise<void> {
     );
     CREATE TABLE IF NOT EXISTS pool_push_settings (
       id                   text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      pool_id              text,
+      pool_id              text        UNIQUE,
       prev_day_push_time   text        DEFAULT '20:00',
       same_day_push_offset integer     DEFAULT 1,
       tpl_notice           text,
@@ -368,6 +379,18 @@ export async function initPoolDb(): Promise<void> {
       updated_at           timestamptz DEFAULT now()
     );
   `));
+
+  // pool_push_settings pool_id unique constraint (기존 테이블 보완)
+  await db.execute(sql.raw(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'pool_push_settings' AND constraint_type = 'UNIQUE'
+      ) THEN
+        ALTER TABLE pool_push_settings ADD CONSTRAINT pool_push_settings_pool_id_unique UNIQUE (pool_id);
+      END IF;
+    END $$;
+  `)).catch(() => {});
 
   // ─── 13. photo_assets_meta + video_assets_meta (신규 미디어 테이블) ───────
   await db.execute(sql.raw(`

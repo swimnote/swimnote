@@ -4,6 +4,7 @@ import { classGroupsTable, studentsTable, attendanceTable, usersTable, classChan
 import { eq, and, sql, ne } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logChange } from "../utils/change-logger.js";
+import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 
@@ -147,6 +148,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
       one_time_date: isOneTime ? (one_time_date || null) : null,
     }).returning();
     await logChange({ tenantId: poolId, tableName: "class_groups", recordId: group.id, changeType: "create", payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time } });
+    logPoolEvent({ pool_id: poolId, event_type: "class_create", entity_type: "class_group", entity_id: group.id, actor_id: req.user!.userId, payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time, level: group.level } }).catch(console.error);
     res.status(201).json({ success: true, ...group, student_count: 0 });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -243,6 +245,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
       .where(eq(classGroupsTable.id, req.params.id))
       .returning();
     await logChange({ tenantId: group.swimming_pool_id, tableName: "class_groups", recordId: group.id, changeType: "update", payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time } });
+    logPoolEvent({ pool_id: group.swimming_pool_id, event_type: "class_update", entity_type: "class_group", entity_id: group.id, actor_id: req.user!.userId, payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time } }).catch(console.error);
     res.json({ success: true, ...group });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -313,6 +316,7 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "tea
 
     console.log(`[deleteClass] class soft deleted: ${cgId}`);
     if (poolId) await logChange({ tenantId: poolId, tableName: "class_groups", recordId: cgId, changeType: "delete", payload: { pool_id: poolId } });
+    if (poolId) logPoolEvent({ pool_id: poolId, event_type: "class_delete", entity_type: "class_group", entity_id: cgId, actor_id: req.user!.userId, payload: { pool_id: poolId } }).catch(console.error);
 
     // change_log 기록 — 삭제 적용 주차에 점 표시용
     try {

@@ -5,6 +5,7 @@ import { noticesTable, usersTable, studentsTable, parentAccountsTable, parentStu
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { sendPushToPoolParents, sendPushToClassParents } from "../lib/push-service.js";
+import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
 
@@ -86,6 +87,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       }
     } catch { /* 푸시 실패는 무시 */ }
 
+    logPoolEvent({ pool_id: poolId, event_type: "notice_create", entity_type: "notice", entity_id: notice.id, actor_id: req.user!.userId, actor_name: user?.name || "관리자", payload: { title, notice_type: notice.notice_type, student_id: notice.student_id } }).catch(console.error);
     res.status(201).json({ success: true, ...notice });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -128,6 +130,7 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
     }
 
     await db.delete(noticesTable).where(eq(noticesTable.id, req.params.id));
+    if (poolId) logPoolEvent({ pool_id: poolId, event_type: "notice_delete", entity_type: "notice", entity_id: req.params.id, actor_id: req.user!.userId, payload: {} }).catch(console.error);
     res.json({ success: true });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });

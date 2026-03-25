@@ -375,6 +375,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
 
     const enriched = await enrichWithClasses(student);
     await logChange({ tenantId: existing.swimming_pool_id, tableName: "students", recordId: student.id, changeType: "update", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id } });
+    logPoolEvent({ pool_id: existing.swimming_pool_id, event_type: "member_update", entity_type: "student", entity_id: student.id, actor_id: req.user!.userId, payload: { name: student.name, status: student.status } }).catch(console.error);
     res.json({ success: true, ...enriched });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
