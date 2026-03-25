@@ -10,6 +10,7 @@ import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword } from "../lib/auth.js";
+import { sendPushToUser } from "../lib/push-service.js";
 
 const router = Router();
 
@@ -469,6 +470,16 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
       if (!class_group_id || !assigned_date) {
         res.status(400).json({ error: "반과 날짜를 선택해주세요." }); return;
       }
+
+      // 기존 보강 세션 조회 (신규 배정 vs 변경 판단)
+      const prevRows = (await db.execute(sql`
+        SELECT student_id, student_name, status, assigned_class_group_id
+        FROM makeup_sessions WHERE id = ${sessionId} LIMIT 1
+      `)).rows as any[];
+      if (!prevRows.length) { res.status(404).json({ error: "보강 세션을 찾을 수 없습니다." }); return; }
+      const prev = prevRows[0];
+      const isChange = prev.status === "assigned" && !!prev.assigned_class_group_id;
+
       const cls = await superAdminDb.execute(sql`
         SELECT cg.name, u.name AS teacher_name, cg.teacher_user_id
         FROM class_groups cg LEFT JOIN users u ON cg.teacher_user_id = u.id
@@ -476,6 +487,7 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
       `);
       if (!cls.rows.length) { res.status(404).json({ error: "반을 찾을 수 없습니다." }); return; }
       const clsRow = cls.rows[0] as any;
+
       await db.execute(sql`
         UPDATE makeup_sessions SET
           status = 'assigned',
@@ -487,7 +499,32 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
           updated_at                = now()
         WHERE id = ${sessionId}
       `);
+
       res.json({ success: true });
+
+      // 학부모 푸시 알림 (백그라운드)
+      try {
+        const parents = (await db.execute(sql`
+          SELECT ps.parent_account_id
+          FROM parent_students ps
+          WHERE ps.student_id = ${prev.student_id} AND ps.status = 'approved'
+        `)).rows as any[];
+
+        const title = isChange ? "📅 보충 수업 일정 변경" : "📅 보충 수업 일정 등록";
+        const body  = isChange
+          ? `${prev.student_name}의 보충 수업 일정이 변경되었습니다.\n${assigned_date} · ${clsRow.name}`
+          : `${prev.student_name}의 보충 수업 일정이 등록되었습니다.\n${assigned_date} · ${clsRow.name}`;
+
+        for (const p of parents) {
+          await sendPushToUser(
+            p.parent_account_id, true,
+            "makeup_schedule",
+            title, body,
+            { type: isChange ? "makeup_changed" : "makeup_assigned", makeupId: sessionId, date: assigned_date },
+            `makeup_assign_${sessionId}`
+          );
+        }
+      } catch (e) { console.error("[makeup-assign] 푸시 알림 오류:", e); }
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );

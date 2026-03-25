@@ -7,7 +7,7 @@
 import cron from "node-cron";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { sendPushToClassParents, sendRawPush, checkPushEnabled } from "../lib/push-service.js";
+import { sendPushToClassParents, sendPushToUser, sendRawPush, checkPushEnabled } from "../lib/push-service.js";
 
 function getKSTNow(): Date {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
@@ -161,6 +161,63 @@ async function runSameDaySchedule(): Promise<void> {
   }
 }
 
+// ── 보강 당일 알림 (매일 오전 8시) ──────────────────────────────────
+async function runMakeupDaySchedule(): Promise<void> {
+  const now = getKSTNow();
+  const todayDateStr = kstDateStr(now);
+
+  try {
+    // 오늘 배정된 보강 세션 조회 (poolDb)
+    const makeups = (await db.execute(sql`
+      SELECT ms.id, ms.student_id, ms.student_name,
+             ms.swimming_pool_id,
+             ms.assigned_class_group_name, ms.assigned_date
+      FROM makeup_sessions ms
+      WHERE ms.assigned_date = ${todayDateStr}
+        AND ms.status = 'assigned'
+        AND ms.cancelled_at IS NULL
+    `)).rows as any[];
+
+    for (const mk of makeups) {
+      // 중복 방지: push_scheduled_sent에 기록
+      const alreadySent = (await superAdminDb.execute(sql`
+        SELECT id FROM push_scheduled_sent
+        WHERE class_id = ${mk.id} AND type = 'makeup_day_of' AND sent_date = ${todayDateStr}
+        LIMIT 1
+      `)).rows;
+      if (alreadySent.length > 0) continue;
+
+      // 학부모 목록 조회
+      const parents = (await db.execute(sql`
+        SELECT ps.parent_account_id
+        FROM parent_students ps
+        WHERE ps.student_id = ${mk.student_id} AND ps.status = 'approved'
+      `)).rows as any[];
+
+      for (const p of parents) {
+        await sendPushToUser(
+          p.parent_account_id, true,
+          "makeup_schedule",
+          "📅 오늘 보충 수업이 있습니다",
+          `${mk.student_name}의 보충 수업이 오늘 있습니다.\n${mk.assigned_class_group_name}`,
+          { type: "makeup_day_of", makeupId: mk.id, date: mk.assigned_date },
+          `makeup_day_${mk.id}`
+        );
+      }
+
+      // 발송 기록 저장 (superAdminDb - push_scheduled_sent는 superAdminDb 테이블)
+      const sentId = `pss_mk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      await superAdminDb.execute(sql`
+        INSERT INTO push_scheduled_sent (id, pool_id, class_id, type, sent_date, sent_time)
+        VALUES (${sentId}, ${mk.swimming_pool_id}, ${mk.id}, 'makeup_day_of', ${todayDateStr}, '08:00')
+        ON CONFLICT DO NOTHING
+      `);
+    }
+  } catch (e) {
+    console.error("[push-scheduler] makeup_day_of 오류:", e);
+  }
+}
+
 // ── 스케줄러 등록 ────────────────────────────────────────────────────
 export function startPushScheduler(): void {
   // 매 분 실행 (전날 알림 + 당일 알림 시간 체크)
@@ -168,5 +225,9 @@ export function startPushScheduler(): void {
     await runPrevDaySchedule();
     await runSameDaySchedule();
   });
+  // 매일 오전 8시 보강 당일 알림
+  cron.schedule("0 8 * * *", async () => {
+    await runMakeupDaySchedule();
+  }, { timezone: "Asia/Seoul" });
   console.log("[push-scheduler] 예약 푸시 스케줄러 시작");
 }
