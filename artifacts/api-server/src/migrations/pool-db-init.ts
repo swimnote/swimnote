@@ -565,15 +565,41 @@ export async function initPoolDb(): Promise<void> {
     );
   `));
 
-  // ─── 18. work_messages (storage.ts 사용 테이블 - 업무 메신저) ────────────
+  // ─── 18. work_messages (업무 메신저) ────────────────────────────────────
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS work_messages (
-      id         text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      pool_id    text        NOT NULL,
-      sender_id  text        NOT NULL,
-      content    text,
-      created_at timestamptz NOT NULL DEFAULT now()
+      id                text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      pool_id           text        NOT NULL,
+      sender_id         text        NOT NULL,
+      sender_name       text,
+      sender_role       text,
+      msg_type          text        NOT NULL DEFAULT 'text',
+      channel_type      text        NOT NULL DEFAULT 'talk',
+      message_type      text        NOT NULL DEFAULT 'normal',
+      content           text,
+      target_id         text,
+      target_name       text,
+      photo_url         text,
+      photo_key         text,
+      member_transfer_id text,
+      extra_data        jsonb,
+      created_at        timestamptz NOT NULL DEFAULT now()
     );
+  `));
+  // 기존 minimal 컬럼 테이블 보완 (ADD COLUMN IF NOT EXISTS)
+  await db.execute(sql.raw(`
+    ALTER TABLE work_messages
+      ADD COLUMN IF NOT EXISTS sender_name        text,
+      ADD COLUMN IF NOT EXISTS sender_role        text,
+      ADD COLUMN IF NOT EXISTS msg_type           text NOT NULL DEFAULT 'text',
+      ADD COLUMN IF NOT EXISTS channel_type       text NOT NULL DEFAULT 'talk',
+      ADD COLUMN IF NOT EXISTS message_type       text NOT NULL DEFAULT 'normal',
+      ADD COLUMN IF NOT EXISTS target_id          text,
+      ADD COLUMN IF NOT EXISTS target_name        text,
+      ADD COLUMN IF NOT EXISTS photo_url          text,
+      ADD COLUMN IF NOT EXISTS photo_key          text,
+      ADD COLUMN IF NOT EXISTS member_transfer_id text,
+      ADD COLUMN IF NOT EXISTS extra_data         jsonb;
   `));
 
   // ─── 19. pool_holidays (휴무일 관리) ─────────────────────────────────────
