@@ -124,9 +124,6 @@ function NewsCard({ item, onPress }: { item: NewsItem; onPress: () => void }) {
         </View>
       ) : null}
 
-      <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-        <Text style={[s.moreLink, { color: accentColor }]}>자세히 보기 →</Text>
-      </View>
     </Pressable>
   );
 }
@@ -443,7 +440,6 @@ const s = StyleSheet.create({
   newsBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
   noteBox: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#EEDDF5", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
   noteTxt: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
-  moreLink: { fontSize: 12, fontFamily: "Inter_500Medium" },
 
   emptyBox: { borderRadius: 16, padding: 32, alignItems: "center", gap: 8 },
   emptyEmoji: { fontSize: 40 },

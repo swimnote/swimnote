@@ -454,10 +454,7 @@ export default function TeacherAttendanceScreen() {
                 </View>
 
                 {/* 이름 + 주횟수 */}
-                <Pressable
-                  style={{ flex: 1 }}
-                  onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id } } as any)}
-                >
+                <View style={{ flex: 1 }}>
                   <Text style={[
                     s.attName,
                     classOver && s.strikethrough,
@@ -470,7 +467,7 @@ export default function TeacherAttendanceScreen() {
                       주 {item.weekly_count}회
                     </Text>
                   ) : null}
-                </Pressable>
+                </View>
 
                 {/* 출결 버튼 */}
                 <View style={s.attBtns}>
@@ -490,14 +487,15 @@ export default function TeacherAttendanceScreen() {
                       >
                         <Text style={[s.attBtnText, isAbsent && { color: "#fff" }]}>결석</Text>
                       </Pressable>
-                      <Pressable
-                        style={[s.attBtn, s.moveBtn, !isAbsent && { opacity: 0.3 }]}
-                        onPress={() => handleMove(item)}
-                        disabled={!isAbsent}
-                      >
-                        <Feather name="repeat" size={13} color={isAbsent ? themeColor : C.textMuted} />
-                        <Text style={[s.attBtnText, isAbsent && { color: themeColor }]}>반이동</Text>
-                      </Pressable>
+                      {isAbsent && (
+                        <Pressable
+                          style={[s.attBtn, s.moveBtn]}
+                          onPress={() => handleMove(item)}
+                        >
+                          <Feather name="repeat" size={13} color={themeColor} />
+                          <Text style={[s.attBtnText, { color: themeColor }]}>반이동</Text>
+                        </Pressable>
+                      )}
                     </>
                   )}
                 </View>

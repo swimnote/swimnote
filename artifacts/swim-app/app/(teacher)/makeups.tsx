@@ -191,17 +191,12 @@ export default function MakeupsScreen() {
     setAssigning(false);
   };
 
-  // ── 기타 보강 모달 열기 ─────────────────────────────────────────────────
-  const openHandoverMenu = (mk: MakeupSession) => {
+  // ── 기타 보강: 인계 직접 진입 (메뉴 단계 생략) ──────────────────────────
+  const openHandoverDirect = async (mk: MakeupSession) => {
     setHandoverTarget(mk);
-    setHandoverStep("menu");
+    setHandoverStep("teacher_select");
     setSelectedTeacher(null);
     setHandoverDoneMsg("");
-  };
-
-  // 선생님 목록 불러오기 (A 선택 시)
-  const openTeacherSelect = async () => {
-    setHandoverStep("teacher_select");
     setTeachersLoading(true);
     try {
       const r = await apiRequest(token, "/admin/pool-teachers");
@@ -424,11 +419,18 @@ export default function MakeupsScreen() {
                       <Text style={[s.actionTxt, { color: "#fff" }]}>보강반 배정</Text>
                     </Pressable>
                     <Pressable
-                      style={[s.actionBtn, { backgroundColor: "#FFF1BF", flex: undefined, paddingHorizontal: 12 }]}
-                      onPress={() => openHandoverMenu(mk)}
+                      style={[s.actionBtn, { backgroundColor: "#EEF2FF", flex: undefined, paddingHorizontal: 12 }]}
+                      onPress={() => openHandoverDirect(mk)}
                     >
-                      <Feather name="more-horizontal" size={14} color="#D97706" />
-                      <Text style={[s.actionTxt, { color: "#D97706" }]}>기타 보강</Text>
+                      <Feather name="user-plus" size={14} color="#4F46E5" />
+                      <Text style={[s.actionTxt, { color: "#4F46E5" }]}>인계</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[s.actionBtn, { backgroundColor: "#FEF2F2", flex: undefined, paddingHorizontal: 12 }]}
+                      onPress={() => setSelfExtTarget(mk)}
+                    >
+                      <Feather name="x-circle" size={14} color="#DC2626" />
+                      <Text style={[s.actionTxt, { color: "#DC2626" }]}>소멸</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -455,10 +457,6 @@ export default function MakeupsScreen() {
               </View>
             ) : (
               <>
-                <View style={s.assignedInfo}>
-                  <Feather name="info" size={13} color="#7C3AED" />
-                  <Text style={s.assignedInfoTxt}>다른 선생님 수업의 학생이 나에게 보강 배정된 목록입니다. 수업 진행 후 완료 버튼을 눌러주세요.</Text>
-                </View>
                 {assignedList.map(mk => {
                   const expireInfo = formatExpireAt(mk.expire_at);
                   return (
@@ -600,50 +598,11 @@ export default function MakeupsScreen() {
             <Pressable style={[s.sheet, { maxHeight: "70%" }]} onPress={() => {}}>
               <View style={s.sheetHandle} />
 
-              {/* ── 메뉴 단계 ── */}
-              {handoverStep === "menu" && (
-                <>
-                  <View style={s.sheetHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.sheetTitle}>기타 보강</Text>
-                      <Text style={s.sheetSub}>{handoverTarget.student_name} · 결석일: {fmtDate(handoverTarget.absence_date)}</Text>
-                    </View>
-                    <Pressable onPress={closeHandover} style={{ padding: 4 }}>
-                      <Feather name="x" size={20} color={C.textSecondary} />
-                    </Pressable>
-                  </View>
-                  <View style={{ paddingHorizontal: 16, paddingBottom: 32, gap: 12 }}>
-                    {/* A. 다른 선생님에게 */}
-                    <Pressable style={s.menuOption} onPress={openTeacherSelect}>
-                      <View style={[s.menuIcon, { backgroundColor: "#EEF2FF" }]}>
-                        <Feather name="user-plus" size={20} color="#4F46E5" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.menuTitle}>다른 선생님한테 보내기</Text>
-                        <Text style={s.menuDesc}>선택한 선생님 정산에 기타 1시수가 반영됩니다.</Text>
-                      </View>
-                      <Feather name="chevron-right" size={18} color={C.textMuted} />
-                    </Pressable>
-                    {/* B. 보강 소멸 */}
-                    <Pressable style={s.menuOption} onPress={() => { setSelfExtTarget(handoverTarget); }}>
-                      <View style={[s.menuIcon, { backgroundColor: "#FEF2F2" }]}>
-                        <Feather name="x-circle" size={20} color="#DC2626" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.menuTitle, { color: "#DC2626" }]}>보강 소멸</Text>
-                        <Text style={s.menuDesc}>이 보강을 기타 처리로 종료하고 내 정산에 1시수를 반영합니다.</Text>
-                      </View>
-                      <Feather name="chevron-right" size={18} color={C.textMuted} />
-                    </Pressable>
-                  </View>
-                </>
-              )}
-
               {/* ── 선생님 선택 단계 ── */}
               {handoverStep === "teacher_select" && (
                 <>
                   <View style={s.sheetHeader}>
-                    <Pressable onPress={() => setHandoverStep("menu")} style={{ padding: 4, marginRight: 8 }}>
+                    <Pressable onPress={closeHandover} style={{ padding: 4, marginRight: 8 }}>
                       <Feather name="arrow-left" size={20} color={C.text} />
                     </Pressable>
                     <View style={{ flex: 1 }}>

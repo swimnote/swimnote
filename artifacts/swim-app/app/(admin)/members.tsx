@@ -313,13 +313,7 @@ export default function MembersScreen() {
           ListHeaderComponent={filter === "suspended" ? (
             <View style={ms.suspendedBanner}>
               <Feather name="info" size={14} color="#B45309" />
-              <View style={{ flex: 1 }}>
-                <Text style={ms.suspendedBannerTitle}>연기회원 과금 안내</Text>
-                <Text style={ms.suspendedBannerBody}>
-                  연기 회원은 정상회원과 동일하게 월 과금에 100% 포함됩니다.{"\n"}
-                  감액·일할계산·예외처리 없이 동일 요금이 적용됩니다.
-                </Text>
-              </View>
+              <Text style={ms.suspendedBannerTitle}>연기 회원도 정상 요금 100% 과금</Text>
             </View>
           ) : null}
           ListEmptyComponent={
@@ -459,7 +453,7 @@ const ms = StyleSheet.create({
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 16, marginBottom: 4 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
   list: { paddingTop: 10 },
-  suspendedBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 12, padding: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#FDE68A" },
-  suspendedBannerTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#92400E", marginBottom: 3 },
+  suspendedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF1BF", borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#FDE68A" },
+  suspendedBannerTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#92400E" },
   suspendedBannerBody: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
 });
