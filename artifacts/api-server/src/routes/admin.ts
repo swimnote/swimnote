@@ -1610,6 +1610,104 @@ router.post("/makeups/:id/extinguish", requireAuth, requireRole("super_admin","p
   }
 );
 
+// POST /admin/handover-makeups — 기타 보강 인계 생성 (스케줄 없이 정산 기록 + 메신저)
+router.post("/handover-makeups", requireAuth, requireRole("super_admin","pool_admin","teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const actor = req.user!;
+      const {
+        makeup_session_id, student_id, student_name,
+        original_class_group_name, original_teacher_id, original_teacher_name,
+        absence_date, lesson_date, lesson_time, note,
+      } = req.body as {
+        makeup_session_id?: string; student_id?: string; student_name?: string;
+        original_class_group_name?: string; original_teacher_id?: string; original_teacher_name?: string;
+        absence_date?: string; lesson_date: string; lesson_time: string; note?: string;
+      };
+      if (!lesson_date || !lesson_time) return res.status(400).json({ error: "lesson_date, lesson_time 필수" });
+
+      // 생성자 이름 조회
+      const [actorRow] = (await superAdminDb.execute(
+        sql`SELECT name FROM users WHERE id = ${actor.userId} LIMIT 1`
+      )).rows as any[];
+      const actorName = actorRow?.name || "선생님";
+
+      // 기타 보강 기록 INSERT
+      const [record] = (await db.execute(sql.raw(`
+        INSERT INTO manual_handover_makeups
+          (swimming_pool_id, makeup_session_id, student_id, student_name,
+           original_class_group_name, original_teacher_id, original_teacher_name,
+           absence_date, lesson_date, lesson_time, settlement_unit, status, note,
+           created_by, created_by_name)
+        VALUES
+          ('${poolId}', ${makeup_session_id ? `'${makeup_session_id}'` : "NULL"},
+           ${student_id ? `'${student_id}'` : "NULL"},
+           ${student_name ? `'${student_name.replace(/'/g,"''")}'` : "NULL"},
+           ${original_class_group_name ? `'${original_class_group_name.replace(/'/g,"''")}'` : "NULL"},
+           ${original_teacher_id ? `'${original_teacher_id}'` : "NULL"},
+           ${original_teacher_name ? `'${original_teacher_name.replace(/'/g,"''")}'` : "NULL"},
+           ${absence_date ? `'${absence_date}'` : "NULL"},
+           '${lesson_date}', '${lesson_time}', 1, 'requested',
+           ${note ? `'${note.replace(/'/g,"''")}'` : "NULL"},
+           '${actor.userId}', '${actorName.replace(/'/g,"''")}')
+        RETURNING *
+      `))).rows as any[];
+
+      // 메신저 자동 문구 전송 (pool talk 채널)
+      const absentLabel = absence_date ? `결석일: ${absence_date}\n` : "";
+      const classLabel  = original_class_group_name ? `원반: ${original_class_group_name}\n` : "";
+      const teacherLabel= original_teacher_name ? `담당: ${original_teacher_name}\n` : "";
+      const msgContent  =
+        `📋 보강 인계 요청\n` +
+        `학생: ${student_name || "미상"}\n` +
+        `${classLabel}${teacherLabel}${absentLabel}` +
+        `일시: ${lesson_date} ${lesson_time}\n` +
+        `처리: 다른 선생님 진행\n` +
+        `정산: 기타 1시수 반영`;
+
+      await db.execute(sql.raw(`
+        INSERT INTO work_messages
+          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content)
+        VALUES
+          ('${poolId}', '${actor.userId}', '${actorName.replace(/'/g,"''")}',
+           '${actor.role}', 'text', 'talk', 'normal',
+           '${msgContent.replace(/'/g,"''")}')
+      `));
+
+      // 풀 이벤트 로그
+      logPoolEvent({
+        pool_id: poolId,
+        event_type: "handover_makeup_created", entity_type: "manual_handover_makeup", entity_id: record?.id,
+        actor_id: actor.userId,
+        payload: { lesson_date, lesson_time, student_id, student_name },
+      }).catch(console.error);
+
+      res.status(201).json({ success: true, data: record });
+    } catch (err) { console.error("[handover-makeups POST]", err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// GET /admin/handover-makeups — 기타 보강 인계 목록 (관리자/선생님)
+router.get("/handover-makeups", requireAuth, requireRole("super_admin","pool_admin","teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const { teacher_id } = req.query;
+      const teacherFilter = teacher_id ? `AND original_teacher_id = '${teacher_id}'` : "";
+      const rows = (await db.execute(sql.raw(`
+        SELECT * FROM manual_handover_makeups
+        WHERE swimming_pool_id = '${poolId}' ${teacherFilter}
+        ORDER BY created_at DESC
+        LIMIT 200
+      `))).rows;
+      res.json(rows);
+    } catch (err) { console.error("[handover-makeups GET]", err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // GET /admin/makeups/pending — 보강 대기 목록 (waiting/transferred, absence_date 오름차순)
 router.get("/makeups/pending", requireAuth, requireRole("super_admin","pool_admin","teacher"),
   async (req: AuthRequest, res) => {

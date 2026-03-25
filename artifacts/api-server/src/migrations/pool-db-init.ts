@@ -657,5 +657,28 @@ export async function initPoolDb(): Promise<void> {
     ) < jsonb_array_length(assigned_class_ids);
   `));
 
+  // ─── manual_handover_makeups (기타 보강 인계 기록) ──────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS manual_handover_makeups (
+      id                    text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      swimming_pool_id      text        NOT NULL,
+      makeup_session_id     text,
+      student_id            text,
+      student_name          text,
+      original_class_group_name text,
+      original_teacher_id   text,
+      original_teacher_name text,
+      absence_date          text,
+      lesson_date           text        NOT NULL,
+      lesson_time           text        NOT NULL,
+      settlement_unit       int         NOT NULL DEFAULT 1,
+      status                text        NOT NULL DEFAULT 'requested',
+      note                  text,
+      created_by            text,
+      created_by_name       text,
+      created_at            timestamptz NOT NULL DEFAULT now()
+    );
+  `));
+
   console.log("[pool-db-init] pool DB 운영 테이블 초기화 완료");
 }

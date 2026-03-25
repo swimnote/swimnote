@@ -10,7 +10,7 @@ import { Feather } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, View,
+  StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -84,6 +84,18 @@ function formatExpireAt(expire_at: string | null) {
   return { text: label, color: col };
 }
 
+function dateOffsetStr(offset: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function fmtShortDate(s: string) {
+  const d = new Date(s + "T00:00:00");
+  const days = ["일","월","화","수","목","금","토"];
+  return `${d.getMonth()+1}/${d.getDate()}(${days[d.getDay()]})`;
+}
+
 export default function MakeupsScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
@@ -103,6 +115,13 @@ export default function MakeupsScreen() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [assigning,       setAssigning]       = useState(false);
   const [confirmMsg,      setConfirmMsg]      = useState<string | null>(null);
+
+  // 기타 보강 인계 모달
+  const [handoverTarget,     setHandoverTarget]     = useState<MakeupSession | null>(null);
+  const [handoverDate,       setHandoverDate]       = useState<string>(dateOffsetStr(0));
+  const [handoverTime,       setHandoverTime]       = useState<string>("09:00");
+  const [handoverSubmitting, setHandoverSubmitting] = useState(false);
+  const [handoverDone,       setHandoverDone]       = useState(false);
 
   // 배정된 보강 (탭 2)
   const [assignedList,    setAssignedList]    = useState<any[]>([]);
@@ -178,6 +197,55 @@ export default function MakeupsScreen() {
     setAssigning(false);
   };
 
+  // ── 기타 보강 인계 ────────────────────────────────────────────────────
+  const openHandoverModal = (mk: MakeupSession) => {
+    setHandoverTarget(mk);
+    setHandoverDate(dateOffsetStr(0));
+    setHandoverTime("09:00");
+    setHandoverDone(false);
+  };
+
+  const doHandover = async () => {
+    if (!handoverTarget) return;
+    // 시간 형식 간단 검증 HH:MM
+    if (!/^\d{1,2}:\d{2}$/.test(handoverTime.trim())) {
+      setConfirmMsg("수업 시간을 올바른 형식으로 입력해주세요 (예: 09:00)");
+      return;
+    }
+    setHandoverSubmitting(true);
+    try {
+      const body = {
+        makeup_session_id:        handoverTarget.id,
+        student_id:               handoverTarget.student_id,
+        student_name:             handoverTarget.student_name,
+        original_class_group_name: handoverTarget.original_class_group_name,
+        original_teacher_id:      handoverTarget.original_teacher_id,
+        original_teacher_name:    handoverTarget.original_teacher_name,
+        absence_date:             handoverTarget.absence_date,
+        lesson_date:              handoverDate,
+        lesson_time:              handoverTime.trim(),
+      };
+      const r = await apiRequest(token, "/admin/handover-makeups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (r.ok) {
+        setHandoverDone(true);
+      } else {
+        const d = await r.json().catch(() => ({}));
+        setConfirmMsg(d.error || "요청에 실패했습니다.");
+      }
+    } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
+    setHandoverSubmitting(false);
+  };
+
+  const closeHandover = () => {
+    if (handoverDone) loadWaiting();
+    setHandoverTarget(null);
+    setHandoverDone(false);
+  };
+
   // ── 배정된 보강 완료 ─────────────────────────────────────────────────────
   async function handleTeacherComplete(id: string) {
     try {
@@ -245,6 +313,13 @@ export default function MakeupsScreen() {
       </View>
     );
   }
+
+  // 날짜 선택 3버튼 라벨
+  const dayOptions = [
+    { label: "오늘", value: dateOffsetStr(0) },
+    { label: "내일", value: dateOffsetStr(1) },
+    { label: "모레", value: dateOffsetStr(2) },
+  ];
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
@@ -337,6 +412,13 @@ export default function MakeupsScreen() {
                     >
                       <Feather name="calendar" size={14} color="#fff" />
                       <Text style={[s.actionTxt, { color: "#fff" }]}>보강반 배정</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[s.actionBtn, { backgroundColor: "#FFF1BF", flex: undefined, paddingHorizontal: 12 }]}
+                      onPress={() => openHandoverModal(mk)}
+                    >
+                      <Feather name="share-2" size={14} color="#D97706" />
+                      <Text style={[s.actionTxt, { color: "#D97706" }]}>기타 보강</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -504,6 +586,115 @@ export default function MakeupsScreen() {
         </Modal>
       )}
 
+      {/* ── 기타 보강 인계 모달 ──────────────────────────────────────────── */}
+      {handoverTarget && (
+        <Modal visible animationType="slide" transparent onRequestClose={closeHandover} statusBarTranslucent>
+          <Pressable style={s.backdrop} onPress={closeHandover}>
+            <Pressable style={[s.assignSheet, { maxHeight: "70%" }]} onPress={() => {}}>
+              <View style={s.sheetHandle} />
+              <View style={s.sheetHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.sheetTitle}>기타 보강 인계</Text>
+                  <Text style={s.sheetSub}>
+                    {handoverTarget.student_name} · 결석일: {fmtDate(handoverTarget.absence_date)}
+                  </Text>
+                </View>
+                <Pressable onPress={closeHandover} style={{ padding: 4 }}>
+                  <Feather name="x" size={20} color={C.textSecondary} />
+                </Pressable>
+              </View>
+
+              {handoverDone ? (
+                /* 완료 상태 */
+                <View style={{ alignItems: "center", padding: 32, gap: 14 }}>
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#DDF2EF", alignItems: "center", justifyContent: "center" }}>
+                    <Feather name="check" size={28} color="#1F8F86" />
+                  </View>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: C.text }}>기타 보강 인계 완료</Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 }}>
+                    {"메신저 대화방에 보강 인계 내용이\n자동으로 전송되었습니다."}
+                  </Text>
+                  <Pressable
+                    style={[s.confirmBtn, { backgroundColor: "#1F8F86", paddingHorizontal: 32, alignSelf: "stretch" }]}
+                    onPress={closeHandover}
+                  >
+                    <Text style={s.confirmTxt}>확인</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                  {/* 안내 배너 */}
+                  <View style={s.handoverBanner}>
+                    <Feather name="info" size={13} color="#D97706" />
+                    <Text style={s.handoverBannerTxt}>
+                      기존 보강 시스템 외 다른 방식으로 보강이 진행될 때 사용합니다.
+                      {"\n"}정산에 1시수가 기록되고 메신저 대화방에 자동 알림이 전송됩니다.
+                    </Text>
+                  </View>
+
+                  {/* 날짜 선택 */}
+                  <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+                    <Text style={s.fieldLabel}>수업 날짜</Text>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      {dayOptions.map(opt => (
+                        <Pressable
+                          key={opt.value}
+                          style={[
+                            s.dayBtn,
+                            handoverDate === opt.value && { backgroundColor: themeColor, borderColor: themeColor },
+                          ]}
+                          onPress={() => setHandoverDate(opt.value)}
+                        >
+                          <Text style={[s.dayBtnTxt, handoverDate === opt.value && { color: "#fff" }]}>{opt.label}</Text>
+                          <Text style={[s.dayBtnSub, handoverDate === opt.value && { color: "#fff" }]}>
+                            {fmtShortDate(opt.value)}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* 시간 입력 */}
+                  <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+                    <Text style={s.fieldLabel}>수업 시간</Text>
+                    <View style={s.timeInputWrap}>
+                      <Feather name="clock" size={15} color={C.textSecondary} />
+                      <TextInput
+                        style={s.timeInput}
+                        value={handoverTime}
+                        onChangeText={setHandoverTime}
+                        placeholder="예: 09:00"
+                        placeholderTextColor={C.textMuted}
+                        keyboardType="numbers-and-punctuation"
+                        maxLength={5}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+                    <Pressable
+                      style={[s.confirmBtn, { backgroundColor: "#D97706", opacity: handoverSubmitting ? 0.6 : 1 }]}
+                      onPress={doHandover}
+                      disabled={handoverSubmitting}
+                    >
+                      {handoverSubmitting
+                        ? <ActivityIndicator color="#fff" />
+                        : (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Feather name="share-2" size={16} color="#fff" />
+                            <Text style={s.confirmTxt}>기타 보강 인계하기</Text>
+                          </View>
+                        )
+                      }
+                    </Pressable>
+                  </View>
+                </ScrollView>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
       {/* 보강 완료 확인 모달 */}
       <ConfirmModal
         visible={!!completeTarget}
@@ -526,37 +717,48 @@ export default function MakeupsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#F6F3F1" },
-  tabBtn:         { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
-  tabTxt:         { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  tabBadge:       { width: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },
-  tabBadgeTxt:    { fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" },
-  list:           { padding: 14, gap: 10 },
-  groupLabel:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 6, marginTop: 4 },
-  empty:          { alignItems: "center", gap: 12, paddingVertical: 60 },
-  emptyTxt:       { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" },
-  card:           { borderRadius: 16, padding: 14, gap: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  cardTop:        { flexDirection: "row", alignItems: "flex-start" },
-  studentName:    { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
-  className:      { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  statusBadge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  statusTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  infoRow:        { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  infoTxt:        { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, flex: 1 },
-  btnRow:         { flexDirection: "row", gap: 8, marginTop: 4 },
-  actionBtn:      { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 10 },
-  actionTxt:      { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  assignedInfo:   { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 10, marginBottom: 10 },
-  assignedInfoTxt:{ flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#7C3AED", lineHeight: 18 },
-  backdrop:       { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  assignSheet:    { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-                    borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "65%", paddingBottom: 32 },
-  sheetHandle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
-  sheetHeader:    { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
-  sheetTitle:     { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  sheetSub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
-  classRow:       { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12,
-                    borderWidth: 1, borderColor: "transparent", marginHorizontal: 12, marginBottom: 4, borderRadius: 10 },
-  confirmBtn:     { height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  confirmTxt:     { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  safe:              { flex: 1, backgroundColor: "#F6F3F1" },
+  tabBtn:            { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
+  tabTxt:            { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  tabBadge:          { width: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },
+  tabBadgeTxt:       { fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" },
+  list:              { padding: 14, gap: 10 },
+  groupLabel:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 6, marginTop: 4 },
+  empty:             { alignItems: "center", gap: 12, paddingVertical: 60 },
+  emptyTxt:          { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" },
+  card:              { borderRadius: 16, padding: 14, gap: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  cardTop:           { flexDirection: "row", alignItems: "flex-start" },
+  studentName:       { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
+  className:         { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  statusBadge:       { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  statusTxt:         { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  infoRow:           { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  infoTxt:           { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, flex: 1 },
+  btnRow:            { flexDirection: "row", gap: 8, marginTop: 4 },
+  actionBtn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 10 },
+  actionTxt:         { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  assignedInfo:      { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 10, marginBottom: 10 },
+  assignedInfoTxt:   { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#7C3AED", lineHeight: 18 },
+  backdrop:          { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  assignSheet:       { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
+                       borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "65%", paddingBottom: 32 },
+  sheetHandle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  sheetHeader:       { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
+  sheetTitle:        { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  sheetSub:          { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  classRow:          { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12,
+                       borderWidth: 1, borderColor: "transparent", marginHorizontal: 12, marginBottom: 4, borderRadius: 10 },
+  confirmBtn:        { height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  confirmTxt:        { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  handoverBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFF8EC",
+                       borderRadius: 10, padding: 12, marginHorizontal: 16, marginBottom: 16 },
+  handoverBannerTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
+  fieldLabel:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 8 },
+  dayBtn:            { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 10,
+                       borderWidth: 1.5, borderColor: C.border, gap: 2 },
+  dayBtnTxt:         { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
+  dayBtnSub:         { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  timeInputWrap:     { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: C.border,
+                       borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  timeInput:         { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
 });
