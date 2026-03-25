@@ -10,7 +10,7 @@ import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Modal, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
   Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
@@ -108,8 +108,8 @@ export default function ClassAssignScreen() {
       if (cgRes.ok) setClassInfo(await cgRes.json());
       if (stuRes.ok) {
         const allStu: Student[] = await stuRes.json();
-        // active 상태만 (정상회원)
-        const active = allStu.filter(s => s.status === "active");
+        // active + pending_parent_link 상태 (관리자 등록 후 학부모 미연결 포함)
+        const active = allStu.filter(s => s.status === "active" || s.status === "pending_parent_link");
         setAllStudents(active);
         const inClass = active.filter(s => {
           const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
@@ -257,7 +257,11 @@ export default function ClassAssignScreen() {
   }
 
   return (
-    <View style={[s.root, { backgroundColor: C.background }]}>
+    <KeyboardAvoidingView
+      style={[s.root, { backgroundColor: C.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
+    >
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
         <Pressable onPress={goBack} style={s.backBtn}>
@@ -439,7 +443,7 @@ export default function ClassAssignScreen() {
           </View>
         </Modal>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

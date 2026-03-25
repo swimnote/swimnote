@@ -1481,7 +1481,8 @@ export default function MyScheduleScreen() {
       )}
 
       {/* ── 날짜 상세 팝업 (월간 뷰) ── */}
-      {viewMode === "monthly" && selectedDate && (
+      {/* 다른 Modal이 열려 있을 때 DaySheet를 숨겨 iOS Modal 중첩 터치 freeze 방지 */}
+      {viewMode === "monthly" && selectedDate && !detailGroup && !unregClassId && !removeClassGroup && (
         <DaySheet
           dateStr={selectedDate}
           classes={dayClasses}

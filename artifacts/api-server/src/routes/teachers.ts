@@ -594,13 +594,14 @@ router.get("/teacher/me/members", requireAuth,
       let rows;
 
       if (tab === "unassigned") {
-        // 미배정: active이지만 반 배정 없는 회원
+        // 미배정: active 또는 pending_parent_link 이지만 반 배정 없는 회원
+        // (관리자가 학부모 정보와 함께 등록한 학생은 pending_parent_link 상태이지만 미배정 목록에 표시)
         rows = await db.execute(sql`
           SELECT ${COLS}
           FROM students s
           LEFT JOIN class_groups cg ON s.class_group_id = cg.id
           WHERE s.swimming_pool_id = ${poolId}
-            AND s.status = 'active'
+            AND s.status IN ('active', 'pending_parent_link')
             AND s.deleted_at IS NULL
             AND s.class_group_id IS NULL
             AND (s.assigned_class_ids IS NULL OR jsonb_array_length(s.assigned_class_ids) = 0)
@@ -629,14 +630,17 @@ router.get("/teacher/me/members", requireAuth,
           ORDER BY s.name ASC
         `);
       } else {
-        // 전체: active 상태이거나 pending_status_change 있는 회원
+        // 전체: active/pending_parent_link 상태이거나 pending_status_change 있는 회원
         rows = await db.execute(sql`
           SELECT ${COLS}
           FROM students s
           LEFT JOIN class_groups cg ON s.class_group_id = cg.id
           WHERE s.swimming_pool_id = ${poolId}
             AND s.deleted_at IS NULL
-            AND (s.status = 'active' OR s.pending_status_change IS NOT NULL)
+            AND (
+              s.status IN ('active', 'pending_parent_link')
+              OR s.pending_status_change IS NOT NULL
+            )
           ORDER BY s.name ASC
         `);
       }
