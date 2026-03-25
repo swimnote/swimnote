@@ -432,13 +432,25 @@ export default function ClassAssignScreen() {
         <Modal visible animationType="fade" transparent onRequestClose={handleConflict}>
           <Pressable style={[s.backdrop, { backgroundColor: "rgba(0,0,0,0.45)" }]} onPress={handleConflict} />
           <View style={{ position: "absolute", left: 24, right: 24, top: "35%", backgroundColor: "#fff", borderRadius: 14, padding: 24, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 12, elevation: 10 }}>
-            <Text style={{ fontSize: 17, fontWeight: "700", color: "#222", marginBottom: 8 }}>배정 상태가 변경되었습니다</Text>
-            <Text style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>다른 작업자가 먼저 처리했습니다.{"\n"}최신 목록을 다시 불러옵니다.</Text>
+            {/* X 닫기 버튼 */}
             <Pressable
               onPress={handleConflict}
-              style={{ backgroundColor: C.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
+              style={{ position: "absolute", top: 12, right: 12, padding: 4 }}
+              hitSlop={8}
             >
-              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>확인</Text>
+              <Feather name="x" size={20} color="#999" />
+            </Pressable>
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#FFF3CD", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+              <Feather name="alert-triangle" size={24} color="#E8A000" />
+            </View>
+            <Text style={{ fontSize: 17, fontWeight: "700", color: "#222", marginBottom: 8 }}>배정 상태가 변경되었습니다</Text>
+            <Text style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>다른 선생님이 먼저 배정을 완료했습니다.{"\n"}목록을 새로고침하여 최신 상태를 확인하세요.</Text>
+            <Pressable
+              onPress={handleConflict}
+              style={{ backgroundColor: C.tint, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Feather name="refresh-cw" size={15} color="#fff" />
+              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>목록 새로고침</Text>
             </Pressable>
           </View>
         </Modal>
@@ -535,7 +547,9 @@ function StudentRow({
   const weekly = student.weekly_count;
 
   const progressLabel = weekly
-    ? `${assignedCount} / ${weekly}반 배정`
+    ? assignedCount > 0
+      ? `${assignedCount} / ${weekly}반 배정`
+      : `주 ${weekly}회 · 미배정`
     : assignedCount > 0
       ? `${assignedCount}개 반 배정 중 · 주횟수 미설정`
       : "미배정 · 주횟수 미설정";
