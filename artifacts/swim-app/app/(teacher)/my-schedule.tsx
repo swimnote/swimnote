@@ -1080,6 +1080,15 @@ export default function MyScheduleScreen() {
   // 일간 뷰 서브 선택 그룹
   const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(null);
 
+  // ── daily view 인라인 출결 상태 ──
+  const [dayViewAttState,  setDayViewAttState]  = useState<Record<string, "present" | "absent">>({});
+  const [dayViewAttSaving, setDayViewAttSaving] = useState<Set<string>>(new Set());
+
+  // ── 반이동 바텀시트 ──
+  const [showMoveSheet,   setShowMoveSheet]   = useState(false);
+  const [moveStudent,     setMoveStudent]     = useState<StudentItem | null>(null);
+  const [moveSheetSaving, setMoveSheetSaving] = useState(false);
+
   // 주간 뷰: 현재 표시 주차 (월요일 날짜) + 변경 이력
   const [weeklyViewStart, setWeeklyViewStart] = useState<string>(() => getMondayStr(todayDateStr()));
   const [weekChangeLogs, setWeekChangeLogs] = useState<ChangeLogItem[]>([]); 
@@ -1124,6 +1133,55 @@ export default function MyScheduleScreen() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── daily view: selectedGroup 바뀌면 출결 로드 ──
+  useEffect(() => {
+    if (!selectedGroup || !token) { setDayViewAttState({}); return; }
+    const date = todayDateStr();
+    apiRequest(token, `/class-groups/${selectedGroup.id}/attendance?date=${date}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((arr: { student_id: string; status: string | null }[]) => {
+        const map: Record<string, "present" | "absent"> = {};
+        arr.forEach(a => { if (a.status === "present" || a.status === "absent") map[a.student_id] = a.status; });
+        setDayViewAttState(map);
+      })
+      .catch(() => {});
+  }, [selectedGroup, token]);
+
+  // ── daily view: 즉시 출결 처리 ──
+  const markDayAtt = useCallback(async (studentId: string, status: "present" | "absent") => {
+    if (!selectedGroup) return;
+    setDayViewAttSaving(prev => { const n = new Set(prev); n.add(studentId); return n; });
+    const date = todayDateStr();
+    try {
+      const res = await apiRequest(token, "/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: studentId, class_group_id: selectedGroup.id, date, status }),
+      });
+      if (res.ok) setDayViewAttState(prev => ({ ...prev, [studentId]: status }));
+    } catch (e) { console.error(e); }
+    finally { setDayViewAttSaving(prev => { const n = new Set(prev); n.delete(studentId); return n; }); }
+  }, [token, selectedGroup]);
+
+  // ── daily view: 반이동 실행 ──
+  const handleMoveToClass = useCallback(async (toClassId: string) => {
+    if (!moveStudent || !selectedGroup) return;
+    setMoveSheetSaving(true);
+    try {
+      const res = await apiRequest(token, `/students/${moveStudent.id}/move-class`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from_class_id: selectedGroup.id, to_class_id: toClassId }),
+      });
+      if (res.ok) {
+        setShowMoveSheet(false);
+        setMoveStudent(null);
+        load();
+      }
+    } catch (e) { console.error(e); }
+    finally { setMoveSheetSaving(false); }
+  }, [token, moveStudent, selectedGroup, load]);
 
   // ── 반 삭제 ──
   const handleDeleteClass = useCallback(async () => {
@@ -1280,7 +1338,12 @@ export default function MyScheduleScreen() {
     ? students.filter(st =>
         (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(selectedGroup.id))
         || st.class_group_id === selectedGroup.id
-      ).sort((a, b) => a.name.localeCompare(b.name))
+      ).sort((a, b) => {
+        const aAbs = dayViewAttState[a.id] === "absent";
+        const bAbs = dayViewAttState[b.id] === "absent";
+        if (aAbs !== bAbs) return aAbs ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      })
     : [];
 
   const statusMap: Record<string, SlotStatus> = {};
@@ -1330,8 +1393,19 @@ export default function MyScheduleScreen() {
   // ─ 일간 뷰 서브뷰 ─
   if (viewMode === "daily" && selectedGroup) {
     const g = selectedGroup;
-    const attDone  = (todayAttMap[g.id] || 0) >= g.student_count && g.student_count > 0;
     const diarDone = todayDiarySet.has(g.id);
+
+    // 수업 종료 여부: schedule_time "HH:MM-HH:MM" 파싱
+    const classDone = (() => {
+      const m = g.schedule_time?.match(/(\d+):(\d+)\s*[-~]\s*(\d+):(\d+)/);
+      if (!m) return false;
+      const now = new Date();
+      return now.getHours() * 60 + now.getMinutes() > parseInt(m[3]) * 60 + parseInt(m[4]);
+    })();
+
+    // 타반 목록 (반이동 시트용)
+    const otherGroups = groups.filter(og => og.id !== g.id);
+
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title={g.name} subtitle={`${g.schedule_days} · ${g.schedule_time}`}
@@ -1353,34 +1427,61 @@ export default function MyScheduleScreen() {
             <Text style={[s.subActionText, { color: diarDone ? "#1F8F86" : "#D97706" }]}>수업일지</Text>
           </Pressable>
         </View>
+
         <FlatList data={groupStudents} keyExtractor={i => i.id}
           contentContainerStyle={s.studentList} showsVerticalScrollIndicator={false}
+          extraData={dayViewAttState}
           ListEmptyComponent={<View style={s.emptyBox}><Feather name="users" size={32} color={C.textMuted} /><Text style={s.emptyText}>배정된 학생이 없습니다</Text></View>}
           ListHeaderComponent={<Text style={s.listHeader}>학생 {groupStudents.length}명</Text>}
           renderItem={({ item }) => {
+            const attStatus = dayViewAttState[item.id];
+            const isAbsent  = attStatus === "absent";
+            const isPresent = attStatus === "present";
+            const saving    = dayViewAttSaving.has(item.id);
+
             return (
               <View style={[s.studentRow, { backgroundColor: C.card }]}>
-                {/* 이름 + 주횟수 */}
-                <View style={{ flex: 1 }}>
-                  <Text style={s.studentName}>{item.name}</Text>
-                  <Text style={s.studentSub}>주 {item.weekly_count || 1}회</Text>
+                {/* 이름 영역 */}
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  {/* 결석 빨간 점 */}
+                  {isAbsent && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: "#D96C6C" }} />}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.studentName,
+                      classDone && { textDecorationLine: "line-through", color: C.textSecondary }
+                    ]}>{item.name}</Text>
+                    <Text style={s.studentSub}>주 {item.weekly_count || 1}회</Text>
+                  </View>
                 </View>
-                {/* 개별 버튼 */}
+
+                {/* 출석 / 결석 / 반이동 버튼 */}
                 <View style={{ flexDirection: "row", gap: 4 }}>
-                  <Pressable style={s.stBtn}
-                    onPress={() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: selectedGroup?.id} } as any)}>
-                    <Text style={[s.stBtnTxt, { color: "#1F8F86" }]}>출석</Text>
+                  <Pressable
+                    disabled={saving}
+                    style={[s.stBtn,
+                      isPresent && { backgroundColor: "#DDF2EF", borderColor: "#1F8F86" }
+                    ]}
+                    onPress={() => markDayAtt(item.id, "present")}>
+                    {saving && !isPresent
+                      ? <ActivityIndicator size="small" color="#1F8F86" style={{ width: 20 }} />
+                      : <Text style={[s.stBtnTxt, { color: isPresent ? "#1F8F86" : C.textMuted }]}>출석</Text>}
+                  </Pressable>
+                  <Pressable
+                    disabled={saving}
+                    style={[s.stBtn,
+                      isAbsent && { backgroundColor: "#FDEAEA", borderColor: "#D96C6C" }
+                    ]}
+                    onPress={() => markDayAtt(item.id, "absent")}>
+                    {saving && !isAbsent
+                      ? <ActivityIndicator size="small" color="#D96C6C" style={{ width: 20 }} />
+                      : <Text style={[s.stBtnTxt, { color: isAbsent ? "#D96C6C" : C.textMuted }]}>결석</Text>}
                   </Pressable>
                   <Pressable style={s.stBtn}
-                    onPress={() => router.push({ pathname:"/(teacher)/attendance", params:{classGroupId: selectedGroup?.id} } as any)}>
-                    <Text style={[s.stBtnTxt, { color: "#D96C6C" }]}>결석</Text>
-                  </Pressable>
-                  <Pressable style={s.stBtn}
-                    onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id} } as any)}>
+                    onPress={() => { setMoveStudent(item); setShowMoveSheet(true); }}>
                     <Text style={[s.stBtnTxt, { color: C.textSecondary }]}>반이동</Text>
                   </Pressable>
                 </View>
-                {/* 우측 화살표 */}
+
+                {/* > 학생 상세 */}
                 <Pressable onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id} } as any)}
                   style={{ padding: 4 }}>
                   <Feather name="chevron-right" size={16} color={C.textMuted} />
@@ -1389,6 +1490,40 @@ export default function MyScheduleScreen() {
             );
           }}
         />
+
+        {/* 반이동 바텀시트 */}
+        <Modal visible={showMoveSheet} transparent animationType="slide"
+          onRequestClose={() => { setShowMoveSheet(false); setMoveStudent(null); }}>
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }}
+            onPress={() => { setShowMoveSheet(false); setMoveStudent(null); }} />
+          <View style={{ backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 }}>
+            <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 4 }}>
+              반이동
+            </Text>
+            <Text style={{ fontSize: 12, color: C.textSecondary, marginBottom: 16 }}>
+              {moveStudent?.name} 학생을 이동할 반을 선택하세요
+            </Text>
+            {otherGroups.length === 0 && (
+              <Text style={{ color: C.textMuted, fontSize: 13, textAlign: "center", paddingVertical: 20 }}>
+                이동 가능한 다른 반이 없습니다
+              </Text>
+            )}
+            {otherGroups.map(og => (
+              <Pressable key={og.id} disabled={moveSheetSaving}
+                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 14,
+                  borderBottomWidth: 1, borderBottomColor: "#F0EDE9" }}
+                onPress={() => handleMoveToClass(og.id)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text }}>{og.name}</Text>
+                  <Text style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>{og.schedule_days} · {og.schedule_time}</Text>
+                </View>
+                {moveSheetSaving
+                  ? <ActivityIndicator size="small" color={themeColor} />
+                  : <Feather name="chevron-right" size={16} color={C.textMuted} />}
+              </Pressable>
+            ))}
+          </View>
+        </Modal>
       </SafeAreaView>
     );
   }
