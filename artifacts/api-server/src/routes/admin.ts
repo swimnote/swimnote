@@ -514,10 +514,8 @@ router.patch("/student-requests/:id", requireAuth, requireRole("super_admin", "p
     if (srr.status !== "pending") { res.status(400).json({ error: "이미 처리된 요청입니다." }); return; }
 
     if (action === "link") {
-      if (!Array.isArray(student_ids) || student_ids.length === 0) {
-        res.status(400).json({ error: "연결할 학생을 1명 이상 선택해주세요." }); return;
-      }
-      for (const studentId of student_ids) {
+      const ids: string[] = Array.isArray(student_ids) ? student_ids : [];
+      for (const studentId of ids) {
         const existing = await db.select().from(parentStudentsTable)
           .where(and(eq(parentStudentsTable.parent_id, srr.parent_id), eq(parentStudentsTable.student_id, studentId))).limit(1);
         if (existing.length > 0) continue;
@@ -531,7 +529,7 @@ router.patch("/student-requests/:id", requireAuth, requireRole("super_admin", "p
       await superAdminDb.update(studentRegistrationRequestsTable)
         .set({ status: "approved", reviewed_by: req.user!.userId, reviewed_at: new Date() })
         .where(eq(studentRegistrationRequestsTable.id, req.params.id));
-      res.json({ linked: true, student_ids });
+      res.json({ linked: true, student_ids: ids });
     } else {
       await superAdminDb.update(studentRegistrationRequestsTable)
         .set({ status: "rejected", reviewed_by: req.user!.userId, reviewed_at: new Date(), rejection_reason: reason || "관리자 거부" })

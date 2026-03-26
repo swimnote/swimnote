@@ -1,13 +1,12 @@
 /**
- * 커뮤니티 탭 — 공지사항, 사진첩, 학부모 요청
- * 실 DB 연결 (notices, photos, parent_students)
+ * 커뮤니티 탭 — 공지사항 + 학부모 가입 요청(student_registration_requests)
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, View,
+  RefreshControl, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -19,8 +18,19 @@ const C = Colors.light;
 const TABS = ["공지사항", "학부모 요청"] as const;
 type Tab = typeof TABS[number];
 
-interface Notice { id: string; title: string; content: string; notice_type: string; is_pinned: boolean; view_count: number; created_at: string; author_name: string; }
-interface ParentReq { link_id: string; status: string; created_at: string; parent: { id: string; name: string; phone: string } | null; student: { id: string; name: string } | null; }
+interface Notice {
+  id: string; title: string; content: string; notice_type: string;
+  is_pinned: boolean; view_count: number; created_at: string; author_name: string;
+}
+
+interface ParentReq {
+  id: string;
+  status: string;
+  created_at: string;
+  child_names: string[];
+  memo: string | null;
+  parent: { id: string; name: string; phone: string } | null;
+}
 
 export default function CommunityScreen() {
   const { token } = useAuth();
@@ -38,43 +48,92 @@ export default function CommunityScreen() {
     try {
       const [nRes, rRes] = await Promise.all([
         apiRequest(token, "/notices"),
-        apiRequest(token, "/admin/pending-connections"),
+        apiRequest(token, "/admin/student-requests?status=pending"),
       ]);
       if (nRes.ok) setNotices(await nRes.json());
-      if (rRes.ok) setRequests(await rRes.json());
+      if (rRes.ok) {
+        const data = await rRes.json();
+        setRequests(Array.isArray(data) ? data : []);
+      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleRequest(linkId: string, studentId: string, action: "approve" | "reject") {
-    setProcessingId(linkId);
-    try {
-      const res = await apiRequest(token, `/admin/student-requests/${studentId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: action === "approve" ? "approved" : "rejected", link_id: linkId }),
-      });
-      if (res.ok) {
-        setRequests(prev => prev.filter(r => r.link_id !== linkId));
-        Alert.alert(action === "approve" ? "승인 완료" : "거절 완료",
-          action === "approve" ? "학부모 연결이 승인되었습니다." : "요청이 거절되었습니다.");
-      } else {
-        const err = await res.json();
-        Alert.alert("오류", err.error || "처리에 실패했습니다.");
-      }
-    } catch { Alert.alert("오류", "네트워크 오류가 발생했습니다."); }
-    finally { setProcessingId(null); }
+  async function handleApprove(req: ParentReq) {
+    Alert.alert(
+      "가입 승인",
+      `${req.parent?.name || "학부모"}님의 가입 요청을 승인하시겠습니까?\n자녀 연결은 학부모 관리 화면에서 추가할 수 있습니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "승인",
+          onPress: async () => {
+            setProcessingId(req.id);
+            try {
+              const res = await apiRequest(token, `/admin/student-requests/${req.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "link", student_ids: [] }),
+              });
+              if (res.ok) {
+                setRequests(prev => prev.filter(r => r.id !== req.id));
+                Alert.alert("승인 완료", "학부모 가입이 승인되었습니다.\n학부모 관리에서 자녀를 연결해주세요.");
+              } else {
+                const err = await res.json();
+                Alert.alert("오류", err.error || "처리에 실패했습니다.");
+              }
+            } catch { Alert.alert("오류", "네트워크 오류가 발생했습니다."); }
+            finally { setProcessingId(null); }
+          },
+        },
+      ]
+    );
+  }
+
+  async function handleReject(req: ParentReq) {
+    Alert.alert(
+      "가입 거절",
+      `${req.parent?.name || "학부모"}님의 요청을 거절하시겠습니까?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "거절",
+          style: "destructive",
+          onPress: async () => {
+            setProcessingId(req.id);
+            try {
+              const res = await apiRequest(token, `/admin/student-requests/${req.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "reject", reason: "관리자 거부" }),
+              });
+              if (res.ok) {
+                setRequests(prev => prev.filter(r => r.id !== req.id));
+                Alert.alert("거절 완료", "요청이 거절되었습니다.");
+              } else {
+                const err = await res.json();
+                Alert.alert("오류", err.error || "처리에 실패했습니다.");
+              }
+            } catch { Alert.alert("오류", "네트워크 오류가 발생했습니다."); }
+            finally { setProcessingId(null); }
+          },
+        },
+      ]
+    );
   }
 
   async function deleteNotice(id: string) {
     Alert.alert("공지 삭제", "이 공지를 삭제할까요?", [
       { text: "취소", style: "cancel" },
-      { text: "삭제", style: "destructive", onPress: async () => {
-        const res = await apiRequest(token, `/notices/${id}`, { method: "DELETE" });
-        if (res.ok) setNotices(prev => prev.filter(n => n.id !== id));
-        else Alert.alert("오류", "삭제에 실패했습니다.");
-      }},
+      {
+        text: "삭제", style: "destructive", onPress: async () => {
+          const res = await apiRequest(token, `/notices/${id}`, { method: "DELETE" });
+          if (res.ok) setNotices(prev => prev.filter(n => n.id !== id));
+          else Alert.alert("오류", "삭제에 실패했습니다.");
+        }
+      },
     ]);
   }
 
@@ -85,6 +144,8 @@ export default function CommunityScreen() {
     class_info: { label: "수업 안내", color: "#1F8F86", bg: "#DDF2EF" },
     fee:        { label: "요금 안내", color: "#D97706", bg: "#FFF1BF" },
   };
+
+  const pendingCount = requests.filter(r => r.status === "pending").length;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
@@ -108,8 +169,8 @@ export default function CommunityScreen() {
           <Pressable key={t} style={[s.tabItem, tab === t && { borderBottomColor: themeColor, borderBottomWidth: 2 }]} onPress={() => setTab(t)}>
             <Text style={[s.tabText, { color: tab === t ? themeColor : C.textSecondary }]}>
               {t}
-              {t === "학부모 요청" && requests.length > 0 && (
-                <Text style={[s.tabBadge, { color: themeColor }]}> {requests.length}</Text>
+              {t === "학부모 요청" && pendingCount > 0 && (
+                <Text style={[s.tabBadge, { color: themeColor }]}> {pendingCount}</Text>
               )}
             </Text>
           </Pressable>
@@ -169,23 +230,24 @@ export default function CommunityScreen() {
           }}
         />
       ) : (
-        /* 학부모 연결 요청 */
+        /* ── 학부모 가입 요청 ── */
         <FlatList
           data={requests}
-          keyExtractor={r => r.link_id}
+          keyExtractor={r => r.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
           contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: insets.bottom + 100 }}
           ListEmptyComponent={
             <View style={s.empty}>
               <Feather name="check-circle" size={40} color={C.textMuted} />
-              <Text style={s.emptyText}>처리 대기 중인 연결 요청이 없습니다</Text>
+              <Text style={s.emptyText}>처리 대기 중인 가입 요청이 없습니다</Text>
             </View>
           }
           renderItem={({ item: r }) => (
             <View style={[s.reqCard, { backgroundColor: C.card }]}>
+              {/* 학부모 정보 */}
               <View style={s.reqHeader}>
-                <View style={[s.reqAvatar, { backgroundColor: "#7C3AED20" }]}>
-                  <Feather name="user" size={18} color="#7C3AED" />
+                <View style={[s.reqAvatar, { backgroundColor: themeColor + "20" }]}>
+                  <Feather name="user" size={18} color={themeColor} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.reqParent}>{r.parent?.name || "알 수 없음"}</Text>
@@ -195,26 +257,40 @@ export default function CommunityScreen() {
                   {new Date(r.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
                 </Text>
               </View>
-              <View style={s.reqStudentRow}>
-                <Feather name="link" size={14} color={C.textMuted} />
-                <Text style={s.reqStudentLabel}>연결 요청 학생:</Text>
-                <Text style={s.reqStudentName}>{r.student?.name || "알 수 없음"}</Text>
-              </View>
+
+              {/* 신청 자녀 */}
+              {r.child_names && r.child_names.length > 0 && (
+                <View style={s.childRow}>
+                  <Feather name="users" size={13} color={C.textSecondary} />
+                  <Text style={s.childLabel}>신청 자녀:</Text>
+                  <Text style={s.childNames}>{r.child_names.join(", ")}</Text>
+                </View>
+              )}
+
+              {/* 메모 */}
+              {r.memo ? (
+                <View style={s.memoRow}>
+                  <Feather name="message-square" size={13} color={C.textSecondary} />
+                  <Text style={s.memoText} numberOfLines={2}>{r.memo}</Text>
+                </View>
+              ) : null}
+
+              {/* 버튼 */}
               <View style={s.reqBtns}>
                 <Pressable
-                  style={[s.reqBtn, { backgroundColor: "#F9DEDA", opacity: processingId === r.link_id ? 0.5 : 1 }]}
-                  onPress={() => r.student && handleRequest(r.link_id, r.student.id, "reject")}
-                  disabled={processingId === r.link_id}
+                  style={[s.reqBtn, { backgroundColor: "#F9DEDA", opacity: processingId === r.id ? 0.5 : 1 }]}
+                  onPress={() => handleReject(r)}
+                  disabled={processingId === r.id}
                 >
                   <Feather name="x" size={15} color="#D96C6C" />
                   <Text style={[s.reqBtnText, { color: "#D96C6C" }]}>거절</Text>
                 </Pressable>
                 <Pressable
-                  style={[s.reqBtn, { backgroundColor: "#DDF2EF", flex: 1.5, opacity: processingId === r.link_id ? 0.5 : 1 }]}
-                  onPress={() => r.student && handleRequest(r.link_id, r.student.id, "approve")}
-                  disabled={processingId === r.link_id}
+                  style={[s.reqBtn, { backgroundColor: "#DDF2EF", flex: 1.5, opacity: processingId === r.id ? 0.5 : 1 }]}
+                  onPress={() => handleApprove(r)}
+                  disabled={processingId === r.id}
                 >
-                  {processingId === r.link_id ? (
+                  {processingId === r.id ? (
                     <ActivityIndicator color="#1F8F86" size="small" />
                   ) : (
                     <>
@@ -254,15 +330,17 @@ const s = StyleSheet.create({
   noticeAuthor: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
   noticeView: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
 
-  reqCard: { borderRadius: 16, padding: 16, gap: 12, shadowColor: "#00000012", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
+  reqCard: { borderRadius: 16, padding: 16, gap: 10, shadowColor: "#00000012", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   reqHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   reqAvatar: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   reqParent: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
   reqPhone: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   reqDate: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
-  reqStudentRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FBF8F6", padding: 10, borderRadius: 10 },
-  reqStudentLabel: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
-  reqStudentName: { fontSize: 14, fontFamily: "Inter_700Bold", color: C.text },
+  childRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F6F3F1", padding: 10, borderRadius: 10 },
+  childLabel: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  childNames: { fontSize: 13, fontFamily: "Inter_700Bold", color: C.text, flex: 1 },
+  memoRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, paddingHorizontal: 4 },
+  memoText: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, flex: 1 },
   reqBtns: { flexDirection: "row", gap: 10 },
   reqBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12 },
   reqBtnText: { fontSize: 14, fontFamily: "Inter_700Bold" },
