@@ -1,0 +1,239 @@
+[스윔노트 — 개발용 SMS 우회 인증 임시 적용 + SENS 실전 교체 대비 구조화 지시문]
+
+현재 상황:
+- 실제 가입 흐름은 SMS 인증 때문에 막혀 있음
+- SENS 발신번호는 등록했지만 승인 전이라 실제 문자 발송 불가
+- 가입/로그인/권한/공지/푸시 흐름 테스트를 계속 진행해야 함
+
+이번 작업은
+“개발용 우회 SMS 인증”을 임시로 적용하되,
+SENS 승인 완료 후 코드 구조를 다시 뜯지 않고
+provider만 바꿔 바로 실전 SMS로 전환되게 만드는 작업이다.
+
+━━━━━━━━━━━━━━━━━━
+1. 핵심 원칙
+━━━━━━━━━━━━━━━━━━
+
+- 지금은 개발용 우회 인증을 임시로 사용
+- 운영용 실 SMS 구조는 미리 분리
+- 나중에 SENS 승인되면 provider만 교체
+- 가입/검증 로직 자체는 다시 만들지 않음
+- fake 인증은 개발 환경에서만 허용
+- 운영 환경에서는 fake 인증 절대 금지
+
+핵심:
+👉 개발용 우회는 “임시 provider”
+👉 운영용은 “SENS provider”
+👉 인증 흐름은 하나로 유지
+
+━━━━━━━━━━━━━━━━━━
+2. 구조 설계 방식
+━━━━━━━━━━━━━━━━━━
+
+SMS 인증 구조를 provider 분리 방식으로 만든다.
+
+예시 구조:
+
+- services/sms/index.ts
+- services/sms/providers/devSmsProvider.ts
+- services/sms/providers/sensSmsProvider.ts
+
+공통 인터페이스 예:
+- sendVerificationCode(phone, code)
+- verifyCode(phone, code, purpose)
+
+동작 방식:
+- 개발 환경: devSmsProvider 사용
+- 운영 환경: sensSmsProvider 사용
+
+조건:
+- register.tsx, parent-signup.tsx 등 화면 로직은 provider를 몰라야 함
+- 화면은 오직 send-sms-code / verify-sms-code API만 호출
+- provider 변경은 서버 설정에서만 바뀌게 만들 것
+
+━━━━━━━━━━━━━━━━━━
+3. 개발용 우회 인증 규칙
+━━━━━━━━━━━━━━━━━━
+
+개발용 provider에서는 실제 문자 발송 대신 아래 방식 사용:
+
+- 인증번호 6자리 생성
+- phone_verifications 테이블에 저장
+- 서버 응답에 dev_code를 포함하거나
+- 서버 로그에만 출력
+- 앱 화면에는 필요 시 개발 모드에서만 보이게 처리 가능
+
+권장:
+- 기본은 서버 로그 출력
+- 필요 시 개발 모드에서만 코드 표시
+
+예:
+[DEV SMS] phone=01012345678 code=483921 purpose=pool_admin_signup
+
+중요:
+- 123456 고정코드 금지
+- 매번 랜덤 6자리 생성
+- 실제 verify API는 그대로 사용
+- 즉, “가짜 통과”가 아니라 “문자만 안 보내고 코드 저장/검증은 진짜처럼”
+
+━━━━━━━━━━━━━━━━━━
+4. 운영/개발 환경 분리
+━━━━━━━━━━━━━━━━━━
+
+환경변수 추가:
+
+- SMS_PROVIDER=dev 또는 sens
+- SMS_DEV_EXPOSE_CODE=true/false
+- SENS 관련 키는 기존 유지
+
+동작:
+- SMS_PROVIDER=dev → devSmsProvider
+- SMS_PROVIDER=sens → sensSmsProvider
+
+중요:
+- prod 환경에서는 dev provider 절대 사용 금지
+- dev provider인데 prod 배포되면 서버 시작 시 경고 또는 실패 처리
+
+권장:
+- NODE_ENV=production && SMS_PROVIDER=dev 이면 서버 에러 또는 강한 경고 출력
+
+━━━━━━━━━━━━━━━━━━
+5. phone_verifications 유지
+━━━━━━━━━━━━━━━━━━
+
+개발용이든 SENS든 인증 흐름은 동일하게 유지:
+
+- phone_verifications 저장
+- code_hash 저장
+- expires_at 저장
+- is_used 처리
+- verified_at 처리
+- attempt_count 처리
+
+즉:
+- provider만 다르고
+- 검증 구조는 동일해야 함
+
+중요:
+- 개발용이라고 평문 저장으로 바꾸지 말 것
+- 운영 전환 시 DB/검증 로직 다시 짜지 않게 할 것
+
+━━━━━━━━━━━━━━━━━━
+6. API 규칙
+━━━━━━━━━━━━━━━━━━
+
+POST /auth/send-sms-code
+- phone
+- purpose
+- provider 분기만 내부 처리
+- 외부 응답 구조는 동일 유지
+
+개발용 응답 예:
+- success: true
+- expires_in: 180
+- dev_code: 483921   ← 개발 환경에서만 허용
+
+운영용 응답 예:
+- success: true
+- expires_in: 180
+
+POST /auth/verify-sms-code
+- 개발/운영 동일 로직
+- phone_verifications 기준으로 검증
+
+즉:
+👉 verify API는 provider와 무관하게 동일해야 함
+
+━━━━━━━━━━━━━━━━━━
+7. 앱 UI 규칙
+━━━━━━━━━━━━━━━━━━
+
+현재 가입 화면(register.tsx, parent-signup.tsx 등)은 유지하되,
+개발 환경에서만 다음 중 하나 허용:
+
+방법 A:
+- 서버 응답 dev_code를 화면에 작게 표시
+
+방법 B:
+- 개발 모드 안내 문구 + 콘솔 확인
+
+권장:
+- 개발 속도를 위해 화면에 dev_code 표시 가능
+- 단, dev 환경에서만 노출
+- production에서는 절대 노출 금지
+
+예:
+[개발용] 인증번호: 483921
+
+중요:
+- UI가 운영용처럼 유지되어야 함
+- 개발용 우회라고 별도 흐름 만들지 말 것
+
+━━━━━━━━━━━━━━━━━━
+8. SENS 전환 준비
+━━━━━━━━━━━━━━━━━━
+
+SENS 승인 후 해야 할 일은 아래만 남게 만든다.
+
+1. SMS_PROVIDER=dev → sens 변경
+2. SENS 환경변수 입력 확인
+3. 실제 발송 테스트
+4. dev_code 응답 제거 또는 자동 비노출 확인
+
+즉:
+- 코드 구조 재작성 금지
+- provider만 교체
+- API/화면/검증 로직은 그대로 사용
+
+━━━━━━━━━━━━━━━━━━
+9. 보안/안전장치
+━━━━━━━━━━━━━━━━━━
+
+반드시 적용:
+
+- 개발용 provider는 production에서 차단
+- dev_code 노출은 production에서 차단
+- 고정 코드 금지
+- 인증 만료 3분 유지
+- 재발송 제한 유지
+- 시도 횟수 제한 유지
+- 사용 완료 코드 재사용 금지
+
+━━━━━━━━━━━━━━━━━━
+10. 테스트
+━━━━━━━━━━━━━━━━━━
+
+반드시 실제로 확인:
+
+1. 개발용 provider로 인증번호 생성
+2. phone_verifications 저장 확인
+3. dev_code 또는 로그에서 코드 확인
+4. 올바른 코드 검증 성공
+5. 잘못된 코드 실패
+6. 만료 실패
+7. 재사용 실패
+8. 재발송 제한 유지
+9. SMS_PROVIDER=sens로 바꾸면 코드 구조 수정 없이 전환 가능한지 확인
+
+━━━━━━━━━━━━━━━━━━
+11. 보고 형식
+━━━━━━━━━━━━━━━━━━
+
+반드시 포함:
+
+- 수정 파일 경로
+- provider 분리 구조
+- dev provider 동작 방식
+- phone_verifications 저장 결과
+- 개발용 인증 테스트 결과
+- 운영용 SENS 전환 절차
+- production 차단 장치 결과
+
+“임시로 만들었음”만 쓰지 말고
+나중에 SENS로 어떻게 바로 바뀌는지까지 같이 제출할 것
+
+━━━━━━━━━━━━━━━━━━
+핵심 한 줄
+━━━━━━━━━━━━━━━━━━
+
+지금은 개발용 우회 인증으로 가입 흐름을 살리되, 나중에 SENS 승인되면 provider만 바꿔 즉시 실전 전환 가능하게 만들 것.

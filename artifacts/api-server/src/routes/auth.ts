@@ -7,7 +7,13 @@ import { hashPassword, comparePassword, signToken, signTotpSession, verifyTotpSe
 import { requireAuth, requireDbRoleCheck, type AuthRequest } from "../middlewares/auth.js";
 import { generateSecret as totpGenerateSecret, verifySync as totpVerifySync, generateURI as totpGenerateURI } from "otplib";
 import QRCode from "qrcode";
-import { sendSms, isSmsConfigured, getSmsConfigError } from "../lib/sms/sendSms.js";
+import {
+  sendSms,
+  sendDevVerification,
+  getActiveProvider,
+  isSmsConfigured,
+  getSmsConfigError,
+} from "../lib/sms/sendSms.js";
 
 const router = Router();
 
@@ -830,6 +836,16 @@ router.post("/totp/disable", requireAuth, async (req: AuthRequest, res) => {
 // POST /auth/send-sms-code
 // body: { phone, purpose }
 // purpose: pool_admin_signup | parent_signup | password_reset
+//
+// provider 분기:
+//   SMS_PROVIDER=dev  → 개발용 우회 (로그 출력, dev_code 응답 포함)
+//   NAVER_SENS_* 설정  → 실제 SENS SMS 발송
+//   기타               → coolsms / aligo
+//
+// 보안:
+//   - dev provider는 NODE_ENV=production 에서 절대 차단
+//   - 고정 코드 금지 — 매번 랜덤 6자리 생성
+//   - phone_verifications 저장/검증 구조는 provider 무관 동일
 // ════════════════════════════════════════════════════════════════
 router.post("/send-sms-code", async (req, res) => {
   const { phone, purpose } = req.body;
@@ -845,12 +861,25 @@ router.post("/send-sms-code", async (req, res) => {
     return res.status(400).json({ success: false, error: "invalid_phone", message: "올바른 휴대폰 번호를 입력해주세요. (010-0000-0000 형식)" });
   }
 
+  // ── provider 확인 ─────────────────────────────────────────────
+  const provider = getActiveProvider();
+
+  // 운영 환경에서 dev provider 차단 (이중 안전장치)
+  if (provider === null && (process.env.SMS_PROVIDER ?? "").toLowerCase() === "dev") {
+    return res.status(503).json({
+      success: false,
+      error: "dev_provider_blocked",
+      message: "운영 환경에서는 개발용 SMS provider를 사용할 수 없습니다.",
+    });
+  }
+
   if (!isSmsConfigured()) {
     const configErr = getSmsConfigError();
     return res.status(503).json({ success: false, error: "provider_not_configured", message: configErr || "SMS 서비스가 설정되지 않았습니다." });
   }
 
   try {
+    // ── 재발송 쿨다운 (60초) ──────────────────────────────────
     const recent = await superAdminDb.execute(sql`
       SELECT created_at FROM phone_verifications
       WHERE phone = ${cleaned} AND purpose = ${purpose}
@@ -863,19 +892,35 @@ router.post("/send-sms-code", async (req, res) => {
       }
     }
 
-    const digits = String(Math.floor(100_000 + Math.random() * 900_000));
-    const id     = randomUUID();
-    const hash   = createHash("sha256").update(digits + id).digest("hex");
+    // ── 인증번호 생성 (랜덤 6자리, 고정 코드 금지) ──────────
+    const digits    = String(Math.floor(100_000 + Math.random() * 900_000));
+    const id        = randomUUID();
+    const hash      = createHash("sha256").update(digits + id).digest("hex");
     const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
 
+    // ── phone_verifications 저장 (provider 무관 동일 구조) ───
     await superAdminDb.execute(sql`
       INSERT INTO phone_verifications (id, phone, code, code_hash, purpose, expires_at, attempt_count, request_ip)
       VALUES (${id}, ${cleaned}, '', ${hash}, ${purpose}, ${expiresAt.toISOString()}, 0, ${ip})
     `);
 
+    // ── provider 분기 발송 ────────────────────────────────────
+    if (provider === "dev") {
+      // 개발용: 실제 발송 없이 로그 출력 + dev_code 반환
+      const devCode = sendDevVerification({ phone: cleaned, code: digits, purpose });
+
+      const isDev = process.env.SMS_DEV_EXPOSE_CODE !== "false";
+      return res.json({
+        success:    true,
+        expires_in: 180,
+        ...(isDev && { dev_code: devCode }),
+      });
+    }
+
+    // 실제 SMS 발송 (sens / coolsms / aligo)
     try {
       await sendSms({
-        phone: cleaned,
+        phone:   cleaned,
         message: `[수영노트] 인증번호는 ${digits}입니다. 3분 내 입력해주세요.`,
       });
     } catch (smsErr: any) {

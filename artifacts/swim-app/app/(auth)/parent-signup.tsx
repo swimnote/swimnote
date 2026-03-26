@@ -33,6 +33,7 @@ export default function ParentSignupScreen() {
   const [smsCode,   setSmsCode]   = useState("");
   const [smsError,  setSmsError]  = useState("");
   const [timer,     setTimer]     = useState(0);
+  const [devCode,   setDevCode]   = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function startTimer(seconds = 180) {
@@ -58,6 +59,7 @@ export default function ParentSignupScreen() {
 
   async function handleSendSms() {
     setSmsError("");
+    setDevCode(null);
     const cleaned = phone.replace(/[-\s]/g, "");
     if (!/^01[016789]\d{7,8}$/.test(cleaned)) {
       setSmsError("올바른 휴대폰 번호를 입력해주세요."); return;
@@ -74,6 +76,8 @@ export default function ParentSignupScreen() {
       setSmsState("sent");
       setSmsCode("");
       startTimer(180);
+      // 개발용 provider인 경우 인증번호를 화면에 표시
+      if (data.dev_code) setDevCode(data.dev_code);
     } catch (e: any) {
       setSmsState("error");
       setSmsError(e.message || "잠시 후 다시 시도해주세요.");
@@ -284,6 +288,12 @@ export default function ParentSignupScreen() {
                 <Text style={[styles.codeSent, { color: "#1F8F86" }]}>
                   인증번호를 {phone}으로 보냈습니다.
                 </Text>
+                {!!devCode && (
+                  <View style={styles.devCodeBox}>
+                    <Text style={styles.devCodeLabel}>[개발용] 인증번호:</Text>
+                    <Text style={styles.devCodeNum}>{devCode}</Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -358,6 +368,10 @@ const styles = StyleSheet.create({
   codeSent:      { fontSize: 12, fontFamily: "Inter_400Regular" },
   verifiedTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F8F86" },
   smsErrTxt:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C" },
+  devCodeBox:    { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6,
+                   backgroundColor: "#FFF3CD", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
+  devCodeLabel:  { fontSize: 11, fontFamily: "Inter_500Medium", color: "#856404" },
+  devCodeNum:    { fontSize: 16, fontFamily: "Inter_700Bold", color: "#856404", letterSpacing: 2 },
   primaryBtn:    { height: 50, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   primaryBtnTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
   loginLink:     { alignItems: "center", paddingVertical: 4 },
