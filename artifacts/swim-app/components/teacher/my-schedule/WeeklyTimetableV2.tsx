@@ -86,11 +86,35 @@ export default function WeeklyTimetableV2({
     return m;
   }, [weekDates, today]);
 
+  /* groups 기반 동적 시간축 계산 */
+  const { wdHours, weHours } = useMemo(() => {
+    const wdTimes: number[] = [];
+    const weTimes: number[] = [];
+    groups.forEach(g => {
+      const days = g.schedule_days.split(",").map(d => d.trim());
+      const h = parseHour(g.schedule_time);
+      const isWd = WEEKDAYS.some(d => days.includes(d));
+      const isWe = ["토", "일"].some(d => days.includes(d));
+      if (isWd) wdTimes.push(h);
+      if (isWe) weTimes.push(h);
+    });
+    function toRange(times: number[], fallback: number[]) {
+      if (!times.length) return fallback;
+      const min = Math.max(6, Math.min(...times));
+      const max = Math.min(23, Math.max(...times));
+      return Array.from({ length: max - min + 1 }, (_, i) => i + min);
+    }
+    return {
+      wdHours: toRange(wdTimes, WEEKDAY_HOURS),
+      weHours: toRange(weTimes, SAT_HOURS),
+    };
+  }, [groups]);
+
   /* 셀 맵 */
   const cellMap = useMemo(() => {
     const map: Record<string, TeacherClassGroup[]> = {};
     weekDates.forEach(({ koDay }) => {
-      const hours = WEEKDAYS.includes(koDay) ? WEEKDAY_HOURS : SAT_HOURS;
+      const hours = WEEKDAYS.includes(koDay) ? wdHours : weHours;
       hours.forEach(h => {
         const key = `${koDay}-${h}`;
         map[key] = groups.filter(g => {
@@ -100,7 +124,7 @@ export default function WeeklyTimetableV2({
       });
     });
     return map;
-  }, [groups, weekDates]);
+  }, [groups, weekDates, wdHours, weHours]);
 
   /* ── 슬림 운영형 카드 ── */
   function renderCard(g: TeacherClassGroup, isToday: boolean) {
@@ -268,13 +292,15 @@ export default function WeeklyTimetableV2({
       {/* 그리드 */}
       <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
         {renderSection(
-          WEEKDAYS, WEEKDAY_HOURS, WD_COL_W,
-          "주중  13 – 22시", "#1F6FAE", "#EFF6FF",
+          WEEKDAYS, wdHours, WD_COL_W,
+          `주중  ${wdHours[0] ?? 13} – ${(wdHours[wdHours.length - 1] ?? 22)}시`,
+          "#1F6FAE", "#EFF6FF",
         )}
         <View style={wt.sectionDivider} />
         {renderSection(
-          WEEKEND, SAT_HOURS, WE_COL_W,
-          "주말  07 – 16시", "#92400E", "#FEF3C7",
+          WEEKEND, weHours, WE_COL_W,
+          `주말  ${weHours[0] ?? 7} – ${(weHours[weHours.length - 1] ?? 16)}시`,
+          "#92400E", "#FEF3C7",
         )}
         <View style={{ height: 100 }} />
       </ScrollView>
