@@ -4,13 +4,14 @@
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import {
   FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
+import { API_BASE } from "@/context/auth/SessionContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore, type OperatorFilter } from "@/store/operatorsStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
@@ -97,6 +98,7 @@ export default function SuperPoolsScreen() {
   const storeFilter     = useOperatorsStore(s => s.filter);
   const storeSearch     = useOperatorsStore(s => s.search);
   const operators       = useOperatorsStore(s => s.operators);
+  const loading         = useOperatorsStore(s => s.loading);
   const setStoreFilter  = useOperatorsStore(s => s.setFilter);
   const setStoreSearch  = useOperatorsStore(s => s.setSearch);
   const getFiltered     = useOperatorsStore(s => s.getFiltered);
@@ -104,10 +106,21 @@ export default function SuperPoolsScreen() {
   const rejectOp        = useOperatorsStore(s => s.rejectOperator);
   const setReadonly     = useOperatorsStore(s => s.setOperatorReadonly);
   const blockUpload     = useOperatorsStore(s => s.setOperatorUploadBlocked);
+  const fetchOperators  = useOperatorsStore(s => s.fetchOperators);
   const createLog       = useAuditLogStore(s => s.createLog);
 
+  const { token } = useAuth();
+
+  // API에서 실데이터 로드
+  const loadOperators = useCallback(async () => {
+    if (!token) return;
+    await fetchOperators(token, API_BASE);
+  }, [token, fetchOperators]);
+
+  useEffect(() => { loadOperators(); }, [loadOperators]);
+
   // sync local filter to store
-  React.useEffect(() => {
+  useEffect(() => {
     setStoreFilter(filter);
     setStoreSearch(search);
   }, [filter, search]);
@@ -371,7 +384,7 @@ export default function SuperPoolsScreen() {
         keyExtractor={item => item.id}
         renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+          onRefresh={async () => { setRefreshing(true); await loadOperators(); setRefreshing(false); }} />}
         contentContainerStyle={{ paddingBottom: 80 }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={

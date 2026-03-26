@@ -1,11 +1,82 @@
 /**
  * store/operatorsStore.ts
- * 운영자 상태 관리 — seed data로 초기화, 모든 액션 상태 반영
+ * 운영자 상태 관리 — API 연동 (DB 실데이터 기준)
  */
 
 import { create } from 'zustand'
 import type { Operator, OperatorStatus, BillingStatus } from '../domain/types'
-import { SEED_OPERATORS } from '../seed/operators'
+
+/** API 응답 → Operator 도메인 타입 변환 */
+function mapApiOperator(raw: any): Operator {
+  const approvalToStatus = (s: string): OperatorStatus => {
+    if (s === 'approved') return 'active';
+    if (s === 'rejected') return 'rejected';
+    return 'pending';
+  };
+  const subToBilling = (s: string | null): BillingStatus => {
+    if (!s) return 'trial';
+    if (s === 'trial') return 'trial';
+    if (s === 'active') return 'active';
+    if (s === 'expired' || s === 'suspended') return 'payment_failed';
+    if (s === 'cancelled') return 'cancelled';
+    return 'trial';
+  };
+  const totalStorageMb = (raw.total_storage_gb ?? 0) * 1024;
+  const usedStorageMb  = raw.used_storage_bytes ? Math.round(raw.used_storage_bytes / 1048576) : 0;
+  const usagePct       = raw.usage_pct ?? 0;
+  return {
+    id:                   raw.id,
+    code:                 raw.id.slice(0, 10).toUpperCase(),
+    name:                 raw.name ?? '',
+    type:                 raw.pool_type ?? 'swimming_pool',
+    representativeName:   raw.owner_name ?? '',
+    phone:                raw.phone ?? '',
+    email:                raw.email ?? '',
+    address:              raw.address ?? '',
+    createdAt:            raw.created_at ?? new Date().toISOString(),
+    updatedAt:            raw.updated_at ?? new Date().toISOString(),
+    lastLoginAt:          raw.last_login_at ?? null,
+    status:               approvalToStatus(raw.approval_status ?? 'pending'),
+    isApproved:           raw.approval_status === 'approved',
+    isReadOnly:           raw.is_readonly ?? false,
+    isUploadBlocked:      raw.upload_blocked ?? false,
+    isDeletionDeferred:   false,
+    normalMemberCount:    raw.active_member_count ?? 0,
+    pausedMemberCount:    0,
+    withdrawnMemberCount: 0,
+    activeMemberCount:    raw.active_member_count ?? 0,
+    currentPlanId:        raw.subscription_tier ?? 'free',
+    currentPlanName:      raw.subscription_tier ?? '무료',
+    billingStatus:        subToBilling(raw.subscription_status),
+    nextBillingAt:        raw.next_billing_at ?? null,
+    lastPaymentAt:        null,
+    lastPaymentStatus:    'pending',
+    paymentFailCount:     0,
+    creditBalance:        raw.credit_balance ?? 0,
+    hasChargeback:        false,
+    hasRefundDispute:     false,
+    refundRepeatFlag:     false,
+    churnRepeatFlag:      false,
+    storageUsedMb:        usedStorageMb,
+    storageTotalMb:       totalStorageMb,
+    storageWarning80:     usagePct >= 80,
+    storageBlocked95:     usagePct >= 95,
+    uploadGrowth7dMb:     0,
+    uploadSpikeFlag:      raw.upload_blocked ?? false,
+    autoDeleteScheduledAt: raw.deletion_pending ? new Date(Date.now() + 86400000).toISOString() : null,
+    policyRefundRead:     true,
+    policyPrivacyRead:    true,
+    policyTermsAgreed:    true,
+    policyLastConfirmedAt: null,
+    policyVersionRefund:  null,
+    policyVersionPrivacy: null,
+    policyVersionTerms:   null,
+    riskLevel:            'low',
+    riskFlags:            [],
+    authorityStructure:   'single',
+    memo:                 '',
+  };
+}
 
 export type OperatorFilter =
   | 'all' | 'pending' | 'payment_failed' | 'storage95' | 'deletion_pending'
@@ -50,12 +121,12 @@ interface OperatorsState {
   applyCredit: (id: string, amount: number) => void
   applyGrace: (id: string) => void
   setRestricted: (id: string, reason: string) => void
+  fetchOperators: (token: string, apiBase: string) => Promise<void>
+  setOperators: (operators: Operator[]) => void
 }
 
-const daysLater = (d: number) => new Date(Date.now() + d * 86400000).toISOString()
-
 export const useOperatorsStore = create<OperatorsState>((set, get) => ({
-  operators: SEED_OPERATORS,
+  operators: [],
   loading: false,
   filter: 'all',
   search: '',
@@ -230,5 +301,23 @@ export const useOperatorsStore = create<OperatorsState>((set, get) => ({
         o.id === id ? { ...o, status: 'restricted' as OperatorStatus, isUploadBlocked: true } : o
       ),
     }))
+  },
+
+  setOperators: (operators) => set({ operators }),
+
+  fetchOperators: async (token, apiBase) => {
+    set({ loading: true });
+    try {
+      const res = await fetch(`${apiBase}/super/operators`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const rows: any[] = await res.json();
+      set({ operators: rows.map(mapApiOperator) });
+    } catch (e) {
+      console.error('[operatorsStore] fetchOperators 오류:', e);
+    } finally {
+      set({ loading: false });
+    }
   },
 }))
