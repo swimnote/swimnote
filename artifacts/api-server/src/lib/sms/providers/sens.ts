@@ -33,13 +33,22 @@ export async function sendSensSmS({
 }): Promise<void> {
   const accessKey  = process.env.NAVER_SENS_ACCESS_KEY;
   const secretKey  = process.env.NAVER_SENS_SECRET_KEY;
-  const serviceId  = process.env.NAVER_SENS_SERVICE_ID;
-  const senderPhone = process.env.NAVER_SENS_SENDER_PHONE;
+  const rawA = process.env.NAVER_SENS_SERVICE_ID   ?? "";
+  const rawB = process.env.NAVER_SENS_SENDER_PHONE ?? "";
 
-  if (!accessKey || !secretKey || !serviceId || !senderPhone) {
+  if (!accessKey || !secretKey || !rawA || !rawB) {
     throw new Error(
       "SENS 환경변수 미설정: NAVER_SENS_ACCESS_KEY / NAVER_SENS_SECRET_KEY / NAVER_SENS_SERVICE_ID / NAVER_SENS_SENDER_PHONE",
     );
+  }
+
+  // 두 값 중 콜론(:) 포함 → 서비스 ID, 숫자만 → 발신번호로 자동 판별
+  const isServiceId = (v: string) => v.includes(":");
+  const serviceId   = isServiceId(rawA) ? rawA : rawB;
+  const senderPhone = isServiceId(rawA) ? rawB : rawA;
+
+  if (!serviceId || !senderPhone) {
+    throw new Error("SENS 서비스 ID 또는 발신번호를 판별할 수 없습니다. 환경변수 값을 확인해주세요.");
   }
 
   const urlPath  = `/sms/v2/services/${serviceId}/messages`;
@@ -57,14 +66,14 @@ export async function sendSensSmS({
     ],
   };
 
-  console.log(`[SENS] SMS 발송 시도 → ${phone.slice(0, 3)}****${phone.slice(-4)}`);
+  console.log(`[SENS] SMS 발송 시도 → ${phone.slice(0, 3)}****${phone.slice(-4)} | serviceId: ${serviceId} | from: ${senderPhone}`);
 
   const res = await fetch(`${API_HOST}${urlPath}`, {
     method: "POST",
     headers: {
-      "Content-Type":           "application/json; charset=utf-8",
-      "x-ncp-apigw-timestamp":  timestamp,
-      "x-ncp-iam-access-key":   accessKey,
+      "Content-Type":             "application/json; charset=utf-8",
+      "x-ncp-apigw-timestamp":    timestamp,
+      "x-ncp-iam-access-key":     accessKey,
       "x-ncp-apigw-signature-v2": signature,
     },
     body: JSON.stringify(body),
@@ -73,18 +82,20 @@ export async function sendSensSmS({
   const data = await res.json().catch(() => ({})) as any;
 
   if (!res.ok) {
-    const reason = data?.error?.message ?? data?.message ?? `HTTP ${res.status}`;
-    console.error(`[SENS] 발송 실패: ${reason}`);
-    throw new Error(`SENS SMS 발송 실패: ${reason}`);
+    const reason = data?.errorMessage ?? data?.error?.message ?? data?.message ?? `HTTP ${res.status}`;
+    const errors = Array.isArray(data?.errors) ? data.errors.join(", ") : "";
+    const detail = errors ? `${reason} (${errors})` : reason;
+    console.error(`[SENS] 발송 실패 [${res.status}]: ${detail}`);
+    throw new Error(`SENS SMS 발송 실패: ${detail}`);
   }
 
   const statusCode = data?.statusCode ?? data?.status ?? "";
   // SENS 성공 응답: statusCode "202"
   if (String(statusCode) !== "202") {
-    const reason = data?.statusName ?? data?.message ?? String(statusCode);
-    console.error(`[SENS] 발송 거부: ${reason}`);
+    const reason = data?.statusName ?? data?.errorMessage ?? data?.message ?? String(statusCode);
+    console.error(`[SENS] 발송 거부 [${statusCode}]: ${reason}`);
     throw new Error(`SENS SMS 발송 거부: ${reason}`);
   }
 
-  console.log(`[SENS] 발송 성공 (requestId: ${data?.requestId ?? "N/A"})`);
+  console.log(`[SENS] 발송 성공 ✓ (requestId: ${data?.requestId ?? "N/A"})`);
 }
