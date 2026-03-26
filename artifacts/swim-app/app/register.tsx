@@ -32,6 +32,10 @@ export default function RegisterScreen() {
     passwordConfirm: "",
     name:            "",
     phone:           "",
+    pool_name:       "",
+    pool_address:    "",
+    pool_phone:      "",
+    pool_owner_name: "",
   });
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState("");
@@ -123,6 +127,10 @@ export default function RegisterScreen() {
     if (smsState !== "verified") { setError("휴대폰 인증을 완료해주세요."); return false; }
     if (form.password.length < 6) { setError("비밀번호는 6자 이상이어야 합니다."); return false; }
     if (form.password !== form.passwordConfirm) { setError("비밀번호가 일치하지 않습니다."); return false; }
+    if (!form.pool_name.trim()) { setError("수영장 이름을 입력해주세요."); return false; }
+    if (!form.pool_address.trim()) { setError("수영장 주소를 입력해주세요."); return false; }
+    if (!form.pool_phone.trim()) { setError("수영장 전화번호를 입력해주세요."); return false; }
+    if (!form.pool_owner_name.trim()) { setError("대표자 이름을 입력해주세요."); return false; }
     return true;
   }
 
@@ -134,11 +142,15 @@ export default function RegisterScreen() {
       const res = await apiRequest(null, "/auth/register", {
         method: "POST",
         body: JSON.stringify({
-          email:    form.email.trim(),
-          password: form.password,
-          name:     form.name.trim(),
-          phone:    form.phone.replace(/[-\s]/g, ""),
-          role:     "pool_admin",
+          email:           form.email.trim(),
+          password:        form.password,
+          name:            form.name.trim(),
+          phone:           form.phone.replace(/[-\s]/g, ""),
+          role:            "pool_admin",
+          pool_name:       form.pool_name.trim(),
+          pool_address:    form.pool_address.trim(),
+          pool_phone:      form.pool_phone.trim(),
+          pool_owner_name: form.pool_owner_name.trim(),
         }),
       });
       const data = await res.json();
@@ -175,7 +187,7 @@ export default function RegisterScreen() {
         <View style={styles.header}>
           <Text style={[styles.title, { color: C.text }]}>수영장 관리자 가입</Text>
           <Text style={[styles.subtitle, { color: C.textSecondary }]}>
-            가입 후 수영장 등록 신청을 진행해주세요
+            가입과 동시에 수영장이 즉시 개설됩니다
           </Text>
         </View>
 
@@ -341,6 +353,74 @@ export default function RegisterScreen() {
             </View>
           </View>
 
+          {/* 수영장 정보 구분선 */}
+          <View style={styles.sectionDivider}>
+            <View style={[styles.sectionLine, { backgroundColor: C.border }]} />
+            <Text style={[styles.sectionLabel, { color: C.textMuted, backgroundColor: C.card }]}>수영장 정보</Text>
+            <View style={[styles.sectionLine, { backgroundColor: C.border }]} />
+          </View>
+
+          {/* 수영장 이름 */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>수영장 이름 *</Text>
+            <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="map-pin" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={form.pool_name}
+                onChangeText={v => setForm(f => ({ ...f, pool_name: v }))}
+                placeholder="예: 토이키즈 수영장"
+                placeholderTextColor={C.textMuted}
+              />
+            </View>
+          </View>
+
+          {/* 수영장 주소 */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>주소 *</Text>
+            <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="home" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={form.pool_address}
+                onChangeText={v => setForm(f => ({ ...f, pool_address: v }))}
+                placeholder="도로명 주소"
+                placeholderTextColor={C.textMuted}
+              />
+            </View>
+          </View>
+
+          {/* 수영장 전화번호 */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>수영장 전화번호 *</Text>
+            <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="phone" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={form.pool_phone}
+                onChangeText={v => setForm(f => ({ ...f, pool_phone: v }))}
+                placeholder="02-0000-0000"
+                placeholderTextColor={C.textMuted}
+                keyboardType="phone-pad"
+              />
+            </View>
+          </View>
+
+          {/* 대표자 이름 */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>대표자 이름 *</Text>
+            <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="briefcase" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={form.pool_owner_name}
+                onChangeText={v => setForm(f => ({ ...f, pool_owner_name: v }))}
+                placeholder="사업자 대표자 이름"
+                placeholderTextColor={C.textMuted}
+              />
+            </View>
+          </View>
+
           <Pressable
             style={({ pressed }) => [
               styles.btn,
@@ -390,11 +470,14 @@ const styles = StyleSheet.create({
   codeSent:     { fontSize: 12, fontFamily: "Inter_400Regular" },
   verifiedTxt:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F8F86" },
   smsErrTxt:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C" },
-  devCodeBox:   { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6,
-                  backgroundColor: "#FFF3CD", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
-  devCodeLabel: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#856404" },
-  devCodeNum:   { fontSize: 16, fontFamily: "Inter_700Bold", color: "#856404", letterSpacing: 2 },
-  btn:          { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 4 },
+  devCodeBox:     { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6,
+                    backgroundColor: "#FFF3CD", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
+  devCodeLabel:   { fontSize: 11, fontFamily: "Inter_500Medium", color: "#856404" },
+  devCodeNum:     { fontSize: 16, fontFamily: "Inter_700Bold", color: "#856404", letterSpacing: 2 },
+  sectionDivider: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 4 },
+  sectionLine:    { flex: 1, height: 1 },
+  sectionLabel:   { fontSize: 12, fontFamily: "Inter_600SemiBold", paddingHorizontal: 4 },
+  btn:            { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 4 },
   btnText:      { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
   footer:       { flexDirection: "row", justifyContent: "center", alignItems: "center" },
   footerText:   { fontSize: 14, fontFamily: "Inter_400Regular" },

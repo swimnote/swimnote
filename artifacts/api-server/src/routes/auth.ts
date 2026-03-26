@@ -95,29 +95,93 @@ router.post("/login", async (req, res) => {
 
 // ── 관리자 계정 가입 ──────────────────────────────────────────────────
 router.post("/register", async (req, res) => {
-  const { email, password, name, phone, role } = req.body;
+  const { email, password, name, phone, role,
+          pool_name, pool_address, pool_phone, pool_owner_name, pool_name_en } = req.body;
   if (!email || !password || !name) return err(res, 400, "필수 정보를 입력해주세요.");
   if (password.length < 6) return err(res, 400, "비밀번호는 6자 이상이어야 합니다.");
+  const isPoolAdmin = role === "pool_admin";
+  if (isPoolAdmin && (!pool_name || !pool_address || !pool_phone || !pool_owner_name)) {
+    return err(res, 400, "수영장 정보를 모두 입력해주세요.");
+  }
   try {
     const [existing] = await superAdminDb.select().from(usersTable)
       .where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
     if (existing) return err(res, 400, "이미 사용 중인 이메일입니다.");
 
     const password_hash = await hashPassword(password);
-    const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const isPoolAdmin = role === "pool_admin";
-    const [user] = await superAdminDb.insert(usersTable).values({
-      id, email: email.trim().toLowerCase(), password_hash, name,
-      phone: phone || null, role: isPoolAdmin ? "pool_admin" : "parent",
-    }).returning();
-    // pool_admin 가입 시 teacher 역할 자동 부여 (roles 배열 즉시 설정)
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    let poolId: string | null = null;
+
     if (isPoolAdmin) {
-      await superAdminDb.execute(sql.raw(`UPDATE users SET roles = '{"pool_admin","teacher"}'::TEXT[] WHERE id = '${id}'`));
+      // ── 1) 수영장 즉시 생성 (approved, trial) ───────────────────────
+      poolId = `pool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const resolvedNameEn = pool_name_en?.trim()
+        ? pool_name_en.trim().toLowerCase().replace(/[^a-z0-9_]/g, "")
+        : pool_name.trim().toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "").substring(0, 30) || `pool_${Date.now()}`;
+
+      await superAdminDb.execute(sql`
+        INSERT INTO swimming_pools
+          (id, name, name_en, address, phone, owner_name, owner_email,
+           admin_name, admin_email, admin_phone, approval_status, subscription_status, trial_end_at)
+        VALUES
+          (${poolId}, ${pool_name.trim()}, ${resolvedNameEn}, ${pool_address.trim()},
+           ${pool_phone.trim()}, ${pool_owner_name.trim()}, ${email.trim().toLowerCase()},
+           ${name.trim()}, ${email.trim().toLowerCase()}, ${phone || null},
+           'approved', 'trial', NOW() + INTERVAL '30 days')
+      `);
+
+      // ── 2) 관리자 계정 생성 (is_activated=true, is_admin_self_teacher=true) ─
+      await superAdminDb.execute(sql`
+        INSERT INTO users
+          (id, email, password_hash, name, phone, role,
+           swimming_pool_id, is_activated, is_admin_self_teacher,
+           phone_verified, roles, created_at, updated_at)
+        VALUES
+          (${userId}, ${email.trim().toLowerCase()}, ${password_hash}, ${name.trim()},
+           ${phone || null}, 'pool_admin'::user_role,
+           ${poolId}, true, true,
+           true, '{"pool_admin","teacher"}'::TEXT[], now(), now())
+      `);
+
+      // ── 3) 선생님 엔티티 자동 생성 (teacher_invites — approved 상태) ─
+      const inviteId = `tinv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO teacher_invites
+          (id, swimming_pool_id, name, phone, position,
+           invite_token, invite_status, invited_by, user_id,
+           approved_at, approved_by, approved_role, created_at, requested_at)
+        VALUES
+          (${inviteId}, ${poolId}, ${'관리자선생님'}, ${phone || null}, ${'관리자'},
+           ${inviteId}, ${'approved'}, ${userId}, ${userId},
+           now(), ${userId}, ${'teacher'}, now(), now())
+      `);
+
+      const token = signToken({ userId, role: "pool_admin", poolId });
+      res.status(201).json({
+        success: true,
+        token,
+        activated: true,
+        pool_created: true,
+        teacher_profile_created: true,
+        roles: ["pool_admin", "teacher"],
+        user: {
+          id: userId, email: email.trim().toLowerCase(), name: name.trim(),
+          phone: phone || null, role: "pool_admin", swimming_pool_id: poolId,
+          is_activated: true, is_admin_self_teacher: true,
+          roles: ["pool_admin", "teacher"],
+        },
+      });
+    } else {
+      // 일반(parent/teacher) 가입 — 기존 로직 유지
+      const [user] = await superAdminDb.insert(usersTable).values({
+        id: userId, email: email.trim().toLowerCase(), password_hash, name,
+        phone: phone || null, role: "parent",
+      }).returning();
+      const token = signToken({ userId: user.id, role: user.role, poolId: null });
+      const { password_hash: _, ...safeUser } = user;
+      res.status(201).json({ success: true, token, user: { ...safeUser, roles: [user.role] } });
     }
-    const roles: string[] = isPoolAdmin ? ["pool_admin", "teacher"] : [user.role];
-    const token = signToken({ userId: user.id, role: user.role, poolId: null });
-    const { password_hash: _, ...safeUser } = user;
-    res.status(201).json({ success: true, token, user: { ...safeUser, roles } });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 

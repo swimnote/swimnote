@@ -249,6 +249,32 @@ export async function initPoolDb(): Promise<void> {
     );
   `));
 
+  // ─── 8b. teacher_invites ─────────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS teacher_invites (
+      id               text        PRIMARY KEY,
+      swimming_pool_id text        NOT NULL,
+      name             text        NOT NULL,
+      phone            text        NOT NULL DEFAULT '',
+      position         text,
+      invite_token     text        UNIQUE,
+      invite_status    text        NOT NULL DEFAULT 'invited'
+        CHECK (invite_status IN ('invited','joinedPendingApproval','approved','rejected','inactive')),
+      invited_by       text        NOT NULL,
+      requested_at     timestamptz,
+      approved_at      timestamptz,
+      approved_by      text,
+      user_id          text,
+      notes            text,
+      created_at       timestamptz NOT NULL DEFAULT now(),
+      rejection_reason text,
+      approved_role    text,
+      rejected_at      timestamptz,
+      rejected_by      text
+    );
+    CREATE INDEX IF NOT EXISTS idx_ti_pool ON teacher_invites (swimming_pool_id);
+  `));
+
   // ─── 9. class_diaries + 관련 테이블 ─────────────────────────────────────
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS class_diaries (
