@@ -261,11 +261,17 @@ export default function MembersScreen() {
     finally { setStatusSaving(false); }
   }
 
-  const filtered = searchStudents(applyStudentFilter(students, filter), search);
+  // "전체" 필터에서 퇴원 회원 제외 (withdrawn-members 화면에서 별도 관리)
+  const baseStudents = filter === "all"
+    ? students.filter(s => s.status !== "withdrawn")
+    : students;
+  const filtered = searchStudents(applyStudentFilter(baseStudents, filter), search);
 
   const chipsWithCount: FilterChipItem<StudentFilterKey>[] = FILTER_CHIPS.map(chip => ({
     ...chip,
-    count: applyStudentFilter(students, chip.key).length,
+    count: chip.key === "all"
+      ? students.filter(s => s.status !== "withdrawn").length
+      : applyStudentFilter(students, chip.key).length,
     activeColor: chip.activeColor || themeColor,
     activeBg: chip.activeBg || (themeColor + "18"),
   }));
