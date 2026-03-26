@@ -11,7 +11,7 @@
  *   3. retention_days 초과 자동 백업 정리 (cleanupOldAutoBackups)
  */
 import cron from "node-cron";
-import { db, superAdminDb, poolDb, backupProtectDb, isDbSeparated, isProtectDbConfigured } from "@workspace/db";
+import { db, superAdminDb, getBackupDb, backupProtectDb, isDbSeparated, isProtectDbConfigured } from "@workspace/db";
 import { dataChangeLogsTable, backupSnapshotsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { runRealBackup, cleanupOldAutoBackups } from "../lib/backup.js";
@@ -138,9 +138,10 @@ export async function runAutoBackup(): Promise<void> {
 
     // pool 백업 DB로 백업 기록 (설정된 경우)
     if (isDbSeparated) {
+      const backupDb = getBackupDb();
       runBackupToTarget({
         target: "pool",
-        targetDb: poolDb,
+        targetDb: backupDb!,
         createdBy: "system",
         note: `자동 백업 (${settings.schedule_type})`,
         backupType: "auto",

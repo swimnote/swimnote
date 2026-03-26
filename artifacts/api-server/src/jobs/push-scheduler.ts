@@ -167,7 +167,7 @@ async function runMakeupDaySchedule(): Promise<void> {
   const todayDateStr = kstDateStr(now);
 
   try {
-    // 오늘 배정된 보강 세션 조회 (poolDb)
+    // 오늘 배정된 보강 세션 조회 (superAdminDb)
     const makeups = (await db.execute(sql`
       SELECT ms.id, ms.student_id, ms.student_name,
              ms.swimming_pool_id,

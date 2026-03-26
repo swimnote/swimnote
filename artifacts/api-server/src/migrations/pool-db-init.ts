@@ -8,14 +8,14 @@
  * - superAdminDb (운영 원본) — 모든 테이블 생성
  * - poolDb (백업 DB, POOL_DATABASE_URL 설정 시) — 백업 스키마 동기화
  */
-import { superAdminDb, poolDb, isDbSeparated } from "@workspace/db";
+import { superAdminDb, getBackupDb, isDbSeparated } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
 export async function initPoolDb(): Promise<void> {
   // 운영 DB (superAdminDb)에 모든 테이블 초기화
   const db = superAdminDb;
   // 백업 DB가 분리되어 있으면 동일 스키마를 백업 DB에도 초기화
-  const backupDb = isDbSeparated ? poolDb : null;
+  const backupDb = isDbSeparated ? getBackupDb() : null;
 
   // ─── ENUM 타입 (중복 시 무시) ────────────────────────────────────────────
   await db.execute(sql.raw(`

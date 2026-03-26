@@ -12,7 +12,7 @@
  * POST /api/super/db-status/dead-letters/:id/resend — DLQ 수동 재전송
  */
 import { Router } from "express";
-import { superAdminDb, poolDb, isDbSeparated } from "@workspace/db";
+import { superAdminDb, isDbSeparated, getBackupDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requirePermission, type AuthRequest } from "../middlewares/auth.js";
 import { resendDeadLetter } from "../lib/pool-event-logger.js";
@@ -110,11 +110,12 @@ async function pingDb(dbConn: typeof superAdminDb, label: string) {
 // ═══════════════════════════════════════════════════════════════
 router.get("/", async (_req: AuthRequest, res) => {
   try {
+    const _backupForStatus = isDbSeparated ? getBackupDb() : null;
     const [superInfo, poolInfo, superPing, poolPing] = await Promise.all([
       getDbSize(superAdminDb, "슈퍼관리자 DB"),
-      isDbSeparated ? getDbSize(poolDb, "수영장 운영 DB") : Promise.resolve(null),
+      _backupForStatus ? getDbSize(_backupForStatus, "백업 DB") : Promise.resolve(null),
       pingDb(superAdminDb, "슈퍼관리자 DB"),
-      isDbSeparated ? pingDb(poolDb, "수영장 운영 DB") : Promise.resolve(null),
+      _backupForStatus ? pingDb(_backupForStatus, "백업 DB") : Promise.resolve(null),
     ]);
 
     const superTables = await getTableSizes(superAdminDb);
@@ -194,9 +195,10 @@ router.get("/pools", async (_req: AuthRequest, res) => {
 // ═══════════════════════════════════════════════════════════════
 router.get("/tables", async (_req: AuthRequest, res) => {
   try {
+    const _backupDb2 = isDbSeparated ? getBackupDb() : null;
     const [superTables, poolTables] = await Promise.all([
       getTableSizes(superAdminDb),
-      isDbSeparated ? getTableSizes(poolDb) : Promise.resolve([]),
+      _backupDb2 ? getTableSizes(_backupDb2) : Promise.resolve([]),
     ]);
     res.json({
       super_admin_tables: superTables,
@@ -261,14 +263,17 @@ router.get("/retry-queue", async (_req: AuthRequest, res) => {
 router.get("/diagnostic", async (_req: AuthRequest, res) => {
   const t0 = Date.now();
   try {
+    const _diagBackupDb = isDbSeparated ? getBackupDb() : null;
     const [superPing, poolPing] = await Promise.all([
       pingDb(superAdminDb, "슈퍼관리자 DB"),
-      isDbSeparated ? pingDb(poolDb, "수영장 운영 DB") : Promise.resolve({ label: "수영장 운영 DB", ok: true, latency_ms: 0, note: "동일 DB" }),
+      _diagBackupDb
+        ? pingDb(_diagBackupDb, "백업 DB")
+        : Promise.resolve({ label: "백업 DB", ok: true, latency_ms: 0, note: "미설정" }),
     ]);
 
     const [superSize, poolSize] = await Promise.all([
       getDbSize(superAdminDb, "슈퍼관리자 DB"),
-      isDbSeparated ? getDbSize(poolDb, "수영장 운영 DB") : Promise.resolve(null),
+      _diagBackupDb ? getDbSize(_diagBackupDb, "백업 DB") : Promise.resolve(null),
     ]);
 
     // 이벤트 타입별 집계
@@ -298,10 +303,10 @@ router.get("/diagnostic", async (_req: AuthRequest, res) => {
       FROM dead_letter_queue
     `)).rows as any[];
 
-    // pool_change_logs 기록수 (poolDb)
+    // pool_change_logs 기록수 (superAdminDb — DB 단일화 이후 여기에 저장)
     let poolChangeLogs = { count: 0, error: null as string | null };
     try {
-      const [pcl] = (await poolDb.execute(sql`SELECT COUNT(*)::int AS cnt FROM pool_change_logs`)).rows as any[];
+      const [pcl] = (await superAdminDb.execute(sql`SELECT COUNT(*)::int AS cnt FROM pool_change_logs`)).rows as any[];
       poolChangeLogs.count = Number(pcl?.cnt ?? 0);
     } catch (e) { poolChangeLogs.error = String(e); }
 
@@ -345,7 +350,7 @@ router.get("/verify", async (req: AuthRequest, res) => {
     // 최근 N시간 pool_change_logs 대비 pool_event_logs 누락 비교
     let verifyResults: any[] = [];
     try {
-      verifyResults = (await poolDb.execute(sql`
+      verifyResults = (await superAdminDb.execute(sql`
         SELECT
           pool_id,
           event_type,
@@ -354,7 +359,7 @@ router.get("/verify", async (req: AuthRequest, res) => {
         WHERE created_at >= NOW() - INTERVAL '1 hour' * ${hours}
         GROUP BY pool_id, event_type
       `)).rows as any[];
-    } catch { /* poolDb 미분리 시 skip */ }
+    } catch { /* pool_change_logs 테이블 없는 경우 skip */ }
 
     // super_admin_db pool_event_logs 집계
     const superLogs = (await superAdminDb.execute(sql`

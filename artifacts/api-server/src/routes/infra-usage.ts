@@ -7,7 +7,7 @@
  * GET /super/infra-usage/storage    — 사진/영상 저장소 상세
  */
 import { Router } from "express";
-import { superAdminDb, poolDb, isDbSeparated } from "@workspace/db";
+import { superAdminDb, isDbSeparated, getBackupDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requirePermission, type AuthRequest } from "../middlewares/auth.js";
 
@@ -126,9 +126,9 @@ async function getSuperDbCounts() {
   }
 }
 
-// ── 헬퍼: pool DB 운영 카운트 ───────────────────────────────────────────────
+// ── 헬퍼: pool DB 운영 카운트 (superAdminDb 단독 사용) ──────────────────────
 async function getPoolDbCounts() {
-  const targetDb = isDbSeparated ? poolDb : superAdminDb;
+  const targetDb = superAdminDb;
   try {
     const results: Record<string, number> = {};
     const tables = [
@@ -245,9 +245,9 @@ router.get("/summary", async (_req: AuthRequest, res) => {
 
     const [superPing, poolPing, superSize, poolSize, photoStats, videoStats, superCounts] = await Promise.all([
       pingDb(superAdminDb),
-      pingDb(isDbSeparated ? poolDb : superAdminDb),
+      pingDb(superAdminDb),
       getDbSize(superAdminDb),
-      isDbSeparated ? getDbSize(poolDb) : getDbSize(superAdminDb),
+      getDbSize(superAdminDb),
       getPhotoStorageStats(),
       getVideoStorageStats(),
       getSuperDbCounts(),
@@ -391,11 +391,21 @@ router.get("/super-db", async (_req: AuthRequest, res) => {
 router.get("/pool-db", async (_req: AuthRequest, res) => {
   try {
     const now = new Date().toISOString();
-    const targetDb = isDbSeparated ? poolDb : superAdminDb;
+    const backupDb = getBackupDb();
+
+    if (!isDbSeparated || !backupDb) {
+      return res.json({
+        ok: true,
+        timestamp: now,
+        status: "not_configured",
+        note: "백업 DB(POOL_DATABASE_URL) 미설정 — 단일 DB 아키텍처 운영 중",
+        is_separated: false,
+      });
+    }
 
     const [ping, size, counts] = await Promise.all([
-      pingDb(targetDb),
-      getDbSize(targetDb),
+      pingDb(backupDb),
+      getDbSize(backupDb),
       getPoolDbCounts(),
     ]);
 

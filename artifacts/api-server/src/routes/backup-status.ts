@@ -11,7 +11,7 @@
  *   4. 전체 요약 — 최근 백업 성공 여부, 실패 횟수
  */
 import { Router } from "express";
-import { superAdminDb, poolDb, backupProtectDb, isDbSeparated, isProtectDbConfigured } from "@workspace/db";
+import { superAdminDb, getBackupDb, backupProtectDb, isDbSeparated, isProtectDbConfigured } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { runBackupToTarget } from "../lib/backup-target.js";
@@ -181,9 +181,10 @@ router.post(
     try {
       // pool 백업
       if (isDbSeparated) {
+        const backupDb = getBackupDb();
         results.pool = await runBackupToTarget({
           target: "pool",
-          targetDb: poolDb,
+          targetDb: backupDb!,
           createdBy,
           note: note ?? `수동 백업 (${type})`,
           backupType: "manual",

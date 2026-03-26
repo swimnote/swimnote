@@ -1,15 +1,17 @@
 /**
  * pool-event-logger.ts
- * 수영장 운영 이벤트 이중 저장 서비스
+ * 수영장 운영 이벤트 저장 서비스
  *
  * 흐름:
  *   1. 이벤트 발생
- *   2-A. superAdminDb.pool_event_logs 즉시 저장 시도
- *   2-B. poolDb.pool_change_logs 즉시 저장 시도 (독립적)
- *   3. super 저장 실패 → event_retry_queue 적재 → 지수 백오프 재시도
+ *   2. superAdminDb.pool_event_logs + pool_change_logs 즉시 저장
+ *   3. 저장 실패 → event_retry_queue 적재 → 지수 백오프 재시도
  *   4. 재시도 max_retries 초과 → dead_letter_queue 이동 (수동 재전송)
+ *
+ * [DB 규칙] 모든 데이터는 superAdminDb(Supabase)에만 저장.
+ *           poolDb는 사용 금지 (백업 모듈 전용).
  */
-import { superAdminDb, poolDb } from "@workspace/db";
+import { superAdminDb } from "@workspace/db";
 import {
   poolEventLogsTable,
   eventRetryQueueTable,
@@ -47,10 +49,10 @@ async function writeToSuperAdmin(params: PoolEventParams, source = "pool_ops"): 
   });
 }
 
-// ── 2. 수영장 운영 DB 변경 로그 저장 (독립, 실패해도 super에 영향 없음) ─
+// ── 2. superAdminDb에 pool_change_logs 저장 (poolDb 사용 금지) ────────
 async function writeToPoolChangeLogs(params: PoolEventParams): Promise<void> {
   try {
-    await poolDb.insert(poolChangeLogsTable).values({
+    await superAdminDb.insert(poolChangeLogsTable).values({
       id:          genId("pcl"),
       pool_id:     params.pool_id,
       event_type:  params.event_type,
@@ -113,18 +115,18 @@ async function moveToDeadLetter(row: any): Promise<void> {
   }
 }
 
-// ── 메인 함수: 이벤트 이중 저장 ─────────────────────────────────────
-// 순서: pool DB(pool_change_logs) 먼저 저장 → super DB 복제
-// super DB 실패 시 retry queue → DLQ로 보관
+// ── 메인 함수: 이벤트 저장 (superAdminDb 단독) ───────────────────────
+// 순서: superAdminDb pool_change_logs + pool_event_logs 저장
+// 저장 실패 시 retry queue → DLQ로 보관
 export async function logPoolEvent(params: PoolEventParams): Promise<void> {
-  // 1. pool DB에 원본 변경 로그 먼저 저장 (완료 대기)
+  // 1. superAdminDb pool_change_logs 저장
   await writeToPoolChangeLogs(params);
 
-  // 2. super admin DB에 복제 저장 시도
+  // 2. superAdminDb pool_event_logs 저장
   try {
     await writeToSuperAdmin(params);
   } catch (err) {
-    console.error("[pool-event-logger] super DB 복제 실패, 재시도 큐 적재:", (err as Error).message);
+    console.error("[pool-event-logger] DB 저장 실패, 재시도 큐 적재:", (err as Error).message);
     await enqueueRetry(params, String(err));
   }
 }

@@ -17,7 +17,7 @@
  * PUT  /super/storage/:poolId     — 특정 수영장 저장 용량 변경
  */
 import { Router } from "express";
-import { superAdminDb, poolDb } from "@workspace/db";
+import { superAdminDb } from "@workspace/db";
 const db = superAdminDb;
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";

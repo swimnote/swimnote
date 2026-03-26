@@ -2206,7 +2206,7 @@ router.get("/teacher-hub/:teacherId", requireAuth, requireRole("super_admin","po
 );
 
 // GET /admin/teachers — 선생님 목록 + 운영 현황 요약 (invite 상태 포함)
-// users는 superAdminDb, 운영 통계는 poolDb에서 2-단계 조회 후 합산
+// 모든 쿼리는 superAdminDb 단독 사용
 router.get("/teachers", requireAuth, requireRole("super_admin","pool_admin"),
   async (req: AuthRequest, res) => {
     try {
@@ -2227,7 +2227,7 @@ router.get("/teachers", requireAuth, requireRole("super_admin","pool_admin"),
 
       const userIds = userRows.map((u: any) => `'${u.id}'`).join(",");
 
-      // ② poolDb: 초대 상태 + 운영 통계
+      // ② superAdminDb: 초대 상태 + 운영 통계
       const statRows = (await db.execute(sql.raw(`
         SELECT
           ti.user_id,
