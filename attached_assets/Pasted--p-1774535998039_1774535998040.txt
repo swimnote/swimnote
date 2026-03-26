@@ -1,0 +1,265 @@
+[스윔노트 — 회원관리 상태 탭 구조 정리 + 월초 자동 확정 작업 지시]
+
+현재 회원관리 구조에서
+예정 상태와 확정 상태를 운영용으로 분리해야 한다.
+
+이미 존재하는 것:
+- pending_status_change
+- pending_effective_mode
+- pending_effective_month
+- getMemberPendingBadge() 배지 표시
+- status = "suspended" / "withdrawn" 확정 상태
+- POST /students/:id/apply-pending-now 수동 확정 API
+
+이번 작업 목표는 아래 두 가지다.
+
+1. 회원관리 필터 탭에
+   - 연기예정
+   - 퇴원예정
+   - 연기
+   - 퇴원
+   을 명확히 분리해서 보이게 한다
+
+2. 월이 바뀌면
+   - pending_effective_month 기준으로
+   - 예정 상태를 자동으로 확정 상태로 전환한다
+
+UI/UX 큰 변경 금지
+기존 회원카드 구조 유지
+기존 배지 구조 유지
+이번 작업은 “필터 구조 + 자동 월전환”만 추가한다
+
+━━━━━━━━━━━━━━━━━━
+1. 수정 대상 파일
+━━━━━━━━━━━━━━━━━━
+
+프론트:
+- artifacts/swim-app/app/(admin)/members.tsx
+- artifacts/swim-app/utils/studentUtils.ts
+
+서버:
+- artifacts/api-server/src/routes/students.ts 또는
+- 기존 cron이 있는 서버 파일에 월전환 배치 추가
+- 단, 구조상 더 맞는 위치를 선택하되 보고서에 이유 명시할 것
+
+━━━━━━━━━━━━━━━━━━
+2. 필터 탭 구조 변경
+━━━━━━━━━━━━━━━━━━
+
+현재 FILTER_CHIPS:
+- 전체
+- 정상
+- 미배정
+- 주1회
+- 주2회
+- 주3회
+- 학부모미연결
+- 연기
+- 퇴원
+
+변경 후:
+- 전체
+- 정상
+- 미배정
+- 주1회
+- 주2회
+- 주3회
+- 학부모미연결
+- 연기예정
+- 퇴원예정
+- 연기
+- 퇴원
+
+즉,
+예정 상태 2개를 확정 상태와 분리해서 추가한다.
+
+라벨:
+- pending_suspended → 연기예정
+- pending_withdrawn → 퇴원예정
+
+━━━━━━━━━━━━━━━━━━
+3. 타입 확장
+━━━━━━━━━━━━━━━━━━
+
+studentUtils.ts 의 StudentFilterKey 에 아래 2개 추가
+
+- "pending_suspended"
+- "pending_withdrawn"
+
+기존 타입과 충돌 없이 확장할 것
+
+━━━━━━━━━━━━━━━━━━
+4. 필터 로직 수정
+━━━━━━━━━━━━━━━━━━
+
+applyStudentFilter() 에 예정 상태 분기 추가
+
+기준:
+- pending_suspended:
+  pending_status_change === "suspended"
+  AND pending_effective_mode === "next_month"
+
+- pending_withdrawn:
+  pending_status_change === "withdrawn"
+  AND pending_effective_mode === "next_month"
+
+중요:
+예정 상태는 현재 status가 아직 active일 수 있으므로
+getPrimaryStatus() 기준이 아니라 pending 필드 기준으로 판별해야 한다
+
+즉,
+확정 상태와 예정 상태는 완전히 다른 분기로 처리한다
+
+━━━━━━━━━━━━━━━━━━
+5. 카운트 계산 수정
+━━━━━━━━━━━━━━━━━━
+
+members.tsx 의 chipsWithCount 계산에서도
+새 필터 2개 카운트가 정상 반영되어야 한다
+
+확인:
+- 연기예정 수
+- 퇴원예정 수
+- 연기 수
+- 퇴원 수
+서로 독립적으로 계산
+
+주의:
+"전체"는 현재처럼 withdrawn 제외 유지 가능
+단, pending 상태 회원은 전체에 계속 포함
+
+━━━━━━━━━━━━━━━━━━
+6. members.tsx 표시 기준 정리
+━━━━━━━━━━━━━━━━━━
+
+현재 유지:
+- 전체 = withdrawn 제외
+- pending 상태 회원 = 전체에 포함
+- 연기(suspended) = 연기 탭
+- 퇴원(withdrawn) = 퇴원 탭
+- withdrawn-members 화면은 계속 별도 운영
+
+이번 작업 후 의미:
+- 연기예정 / 퇴원예정 = 아직 재원 중이지만 다음달 변경 예약된 회원
+- 연기 / 퇴원 = 확정 상태
+
+즉 운영자가
+“다음달 바뀔 사람”과 “이미 바뀐 사람”을 분리해서 볼 수 있어야 한다
+
+━━━━━━━━━━━━━━━━━━
+7. 월초 자동 확정 로직 추가
+━━━━━━━━━━━━━━━━━━
+
+현재 자동 실행 없음
+수동 API POST /students/:id/apply-pending-now 만 존재
+
+이번 작업:
+월이 바뀌었을 때
+pending_effective_month <= 현재 YYYY-MM 인 회원들을 찾아
+예정 상태를 실제 status로 자동 반영하는 서버 로직 추가
+
+기준:
+대상 조건:
+- pending_status_change IS NOT NULL
+- pending_effective_mode = "next_month"
+- pending_effective_month IS NOT NULL
+- pending_effective_month <= 현재월(YYYY-MM)
+
+적용 결과:
+- status = pending_status_change
+- class_group_id = null
+- assigned_class_ids = []
+- schedule_labels = null
+- pending_status_change = null
+- pending_effective_mode = null
+- pending_effective_month = null
+- archived_reason = newStatus
+- updated_at = now()
+
+추가 규칙:
+- newStatus === "withdrawn" 이면 withdrawn_at = now()
+- newStatus === "suspended" 이면 withdrawn_at 건드리지 말 것
+
+━━━━━━━━━━━━━━━━━━
+8. 자동 실행 방식
+━━━━━━━━━━━━━━━━━━
+
+권장:
+- 기존 서버 cron 스케줄 구조에 추가
+- 하루 1회 또는 매시간 1회 실행 가능
+- 지금은 안전하게 “매시간 1회”도 가능
+- 중복 실행되어도 같은 회원이 다시 처리되지 않게 pending 필드 초기화 구조 유지
+
+중요:
+- 월초 00:00 정확히만 고집할 필요 없음
+- 1일 새벽~아침 사이 자동 반영되면 운영상 충분
+- 재실행 안전해야 함 (idempotent)
+
+━━━━━━━━━━━━━━━━━━
+9. 금지 사항
+━━━━━━━━━━━━━━━━━━
+
+- withdrawn-members 화면 구조 건드리지 말 것
+- MemberCard 디자인 바꾸지 말 것
+- 예정 상태를 status 컬럼 새 값으로 만들지 말 것
+- DB 스키마 새 컬럼 추가하지 말 것
+- 수동 apply-pending-now API 삭제 금지
+
+즉,
+기존 구조를 살리고
+필터와 자동 전환만 추가한다
+
+━━━━━━━━━━━━━━━━━━
+10. 반드시 테스트할 항목
+━━━━━━━━━━━━━━━━━━
+
+[필터]
+- 연기예정 회원이 연기예정 탭에만 잡히는지
+- 퇴원예정 회원이 퇴원예정 탭에만 잡히는지
+- 확정 연기 회원은 연기 탭에만 잡히는지
+- 확정 퇴원 회원은 퇴원 탭에 잡히는지
+
+[배지]
+- 예정 회원 카드에 기존 연기예정/퇴원예정 배지 계속 표시되는지
+
+[월전환]
+- pending_effective_month 를 이번달 또는 과거월로 둔 테스트 데이터 생성
+- 자동 실행 후 status 전환 확인
+- assigned_class_ids 초기화 확인
+- schedule_labels 초기화 확인
+- pending 필드 null 초기화 확인
+
+[특수]
+- suspended 예정 → 자동 연기 전환 확인
+- withdrawn 예정 → 자동 퇴원 전환 확인
+- withdrawn-members 화면에 퇴원 확정 회원이 정상 표시되는지
+
+━━━━━━━━━━━━━━━━━━
+11. 보고서 제출 형식
+━━━━━━━━━━━━━━━━━━
+
+반드시 아래 포함
+
+- 수정 파일 목록
+- StudentFilterKey 수정 내용
+- FILTER_CHIPS 수정 내용
+- applyStudentFilter 수정 코드
+- 월초 자동 확정 로직 코드
+- cron 또는 배치 등록 위치
+- 연기예정/퇴원예정 필터 테스트 결과
+- 자동 전환 테스트 결과
+- pending 필드 초기화 결과
+- withdrawn-members 영향 없음 확인
+
+증거 없이
+“완료”
+“정상 작동”
+이렇게만 쓰는 것 금지
+
+━━━━━━━━━━━━━━━━━━
+12. 핵심 한 줄
+━━━━━━━━━━━━━━━━━━
+
+회원관리에서
+“다음달 바뀔 회원(예정)”과 “이미 바뀐 회원(확정)”을 분리해서 보고,
+월이 바뀌면 예정 상태를 자동으로 확정 상태로 전환하게 만든다

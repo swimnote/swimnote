@@ -842,6 +842,64 @@ cron.schedule("0 * * * *", async () => {
     }
 
     console.log("[billing-cron] 타임라인/다운그레이드 업데이트 완료");
+
+    // ── pending 상태 자동 확정 (연기예정/퇴원예정 → 연기/퇴원) ──────────
+    // 기준: pending_effective_month <= 현재 YYYY-MM 인 회원 전체 자동 전환
+    // idempotent: pending 필드를 null로 초기화하므로 중복 실행 안전
+    const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+    try {
+      const pendingStudents = (await db.execute(sql`
+        SELECT id, pending_status_change, class_group_id
+        FROM students
+        WHERE pending_status_change IS NOT NULL
+          AND pending_effective_mode = 'next_month'
+          AND pending_effective_month IS NOT NULL
+          AND pending_effective_month <= ${currentMonth}
+      `)).rows as any[];
+
+      if (pendingStudents.length > 0) {
+        for (const s of pendingStudents) {
+          const newStatus = s.pending_status_change as string;
+          // suspended: withdrawn_at 건드리지 않음
+          // withdrawn: withdrawn_at = NOW() 추가
+          if (newStatus === "withdrawn") {
+            await db.execute(sql`
+              UPDATE students
+              SET
+                status                  = ${newStatus},
+                class_group_id          = NULL,
+                assigned_class_ids      = '[]'::jsonb,
+                schedule_labels         = NULL,
+                archived_reason         = ${newStatus},
+                pending_status_change   = NULL,
+                pending_effective_mode  = NULL,
+                pending_effective_month = NULL,
+                withdrawn_at            = NOW(),
+                updated_at              = NOW()
+              WHERE id = ${s.id}
+            `);
+          } else {
+            await db.execute(sql`
+              UPDATE students
+              SET
+                status                  = ${newStatus},
+                class_group_id          = NULL,
+                assigned_class_ids      = '[]'::jsonb,
+                schedule_labels         = NULL,
+                archived_reason         = ${newStatus},
+                pending_status_change   = NULL,
+                pending_effective_mode  = NULL,
+                pending_effective_month = NULL,
+                updated_at              = NOW()
+              WHERE id = ${s.id}
+            `);
+          }
+        }
+        console.log(`[pending-cron] 자동 확정 완료: ${pendingStudents.length}명 (월: ${currentMonth})`);
+      }
+    } catch (e: any) {
+      console.warn("[pending-cron] pending 자동 확정 건너뜀:", e.message);
+    }
   } catch (err) {
     console.error("[billing-cron] 크론 오류:", err);
   }

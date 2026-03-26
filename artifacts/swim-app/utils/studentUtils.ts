@@ -123,7 +123,7 @@ export function getNextMonthStr(): string {
 
 // ── 필터 ─────────────────────────────────────────────────────────
 
-/** 필터 타입 — 전체/정상/미배정/주1/주2/주3/미연결/휴원/퇴원 */
+/** 필터 타입 — 전체/정상/미배정/주1/주2/주3/미연결/연기예정/퇴원예정/휴원/퇴원 */
 export type StudentFilterKey =
   | "all"
   | "normal"
@@ -132,6 +132,8 @@ export type StudentFilterKey =
   | "weekly_2"
   | "weekly_3"
   | "unlinked"
+  | "pending_suspended"
+  | "pending_withdrawn"
   | "suspended"
   | "withdrawn";
 
@@ -141,7 +143,8 @@ export type StudentFilterKey =
  * - 미배정 = 대표상태 unassigned
  * - 주1/2/3 = 정상이면서 해당 주횟수 (3회 이상은 주3에 포함)
  * - 미연결 = parent_user_id 없음 (주 상태 무관)
- * - 휴원/퇴원 = 해당 대표 상태
+ * - 연기예정/퇴원예정 = pending_status_change 기준 (getPrimaryStatus 아님)
+ * - 연기/퇴원 = 확정 상태 (getPrimaryStatus 기준)
  */
 export function applyStudentFilter(students: StudentMember[], filter: StudentFilterKey): StudentMember[] {
   if (filter === "all") return students;
@@ -155,6 +158,12 @@ export function applyStudentFilter(students: StudentMember[], filter: StudentFil
       case "weekly_2":   return ps === "normal" && wc === 2;
       case "weekly_3":   return ps === "normal" && wc >= 3;
       case "unlinked":   return !s.parent_user_id;
+      // 예정 상태: pending 필드 기준 (현재 status와 무관)
+      case "pending_suspended":
+        return s.pending_status_change === "suspended" && s.pending_effective_mode === "next_month";
+      case "pending_withdrawn":
+        return s.pending_status_change === "withdrawn" && s.pending_effective_mode === "next_month";
+      // 확정 상태: getPrimaryStatus 기준
       case "suspended":  return ps === "suspended";
       case "withdrawn":  return ps === "withdrawn";
       default:           return true;
