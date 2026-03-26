@@ -4,7 +4,10 @@ import { z } from "zod/v4";
 
 export const noticesTable = pgTable("notices", {
   id: text("id").primaryKey().default("gen_random_uuid()"),
-  swimming_pool_id: text("swimming_pool_id").notNull(),
+  // audience_scope: 'global'(전체) | 'pool'(수영장별)
+  // global 공지는 swimming_pool_id null 허용 — 모든 수영장에 노출
+  audience_scope: text("audience_scope").notNull().default("pool"),
+  swimming_pool_id: text("swimming_pool_id"),   // pool 범위일 때만 필수, global이면 null
   title: text("title").notNull(),
   content: text("content").notNull(),
   author_id: text("author_id").notNull(),

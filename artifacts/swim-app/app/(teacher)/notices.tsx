@@ -24,6 +24,7 @@ interface Notice {
   created_at: string;
   notice_type?: string;
   student_name?: string | null;
+  audience_scope?: "global" | "pool";
 }
 
 export default function TeacherNoticesScreen() {

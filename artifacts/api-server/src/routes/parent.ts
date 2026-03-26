@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { parentAccountsTable, parentStudentsTable, studentsTable, attendanceTable, noticesTable, classGroupsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ne, or } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, comparePassword } from "../lib/auth.js";
 import { logChange } from "../utils/change-logger.js";
@@ -187,8 +187,20 @@ router.get("/notices", requireAuth, requireParent, async (req: AuthRequest, res)
   try {
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
-    // general + class 모두 포함
-    const notices = await db.select().from(noticesTable).where(eq(noticesTable.swimming_pool_id, pa.swimming_pool_id));
+
+    // 전체 공지(global) + 소속 수영장 공지(pool) 모두 반환, 소프트삭제 제외
+    const notices = await db.select().from(noticesTable).where(
+      and(
+        ne(noticesTable.status, "deleted"),
+        or(
+          eq(noticesTable.audience_scope, "global"),
+          and(
+            eq(noticesTable.audience_scope, "pool"),
+            eq(noticesTable.swimming_pool_id, pa.swimming_pool_id),
+          ),
+        ),
+      )
+    );
 
     const readRows = await db.execute(sql`SELECT notice_id FROM notice_reads WHERE parent_id = ${pa.id}`);
     const readSet = new Set((readRows.rows as any[]).map((r: any) => r.notice_id));

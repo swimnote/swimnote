@@ -18,7 +18,9 @@ const C = Colors.light;
 
 interface Notice {
   id: string; title: string; content: string; author_name: string;
-  is_pinned: boolean; is_read: boolean; created_at: string; notice_type?: string;
+  is_pinned: boolean; is_read: boolean; created_at: string;
+  notice_type?: string;
+  audience_scope?: "global" | "pool";
 }
 type FilterKey = "all" | "general" | "class";
 
@@ -26,13 +28,15 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
 }
 
-function TypeBadge({ type }: { type?: string }) {
-  const isClass = type === "class";
+function TypeBadge({ type, scope }: { type?: string; scope?: string }) {
+  const isClass   = type === "class";
+  const isGlobal  = scope === "global";
+  const label     = isGlobal ? "플랫폼 전체" : isClass ? "우리반 공지" : "수영장 공지";
+  const bg        = isGlobal ? "#EEDDF5" : isClass ? "#F3EDFE" : "#DDF2EF";
+  const color     = isGlobal ? "#7C3AED" : isClass ? "#6D28D9" : "#1F8F86";
   return (
-    <View style={[tb.badge, { backgroundColor: isClass ? "#EEDDF5" : "#DDF2EF" }]}>
-      <Text style={[tb.txt, { color: isClass ? "#6D28D9" : "#1F8F86" }]}>
-        {isClass ? "우리반 공지" : "전체 공지"}
-      </Text>
+    <View style={[tb.badge, { backgroundColor: bg }]}>
+      <Text style={[tb.txt, { color }]}>{label}</Text>
     </View>
   );
 }
@@ -119,7 +123,7 @@ export default function ParentNoticesScreen() {
                 onPress={() => toggleExpand(n)}
               >
                 <View style={s.cardTop}>
-                  <TypeBadge type={n.notice_type} />
+                  <TypeBadge type={n.notice_type} scope={n.audience_scope} />
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     {!n.is_read && <View style={[s.dot, { backgroundColor: C.tint }]} />}
                     {n.is_pinned && <Feather name="bookmark" size={13} color={C.tint} />}

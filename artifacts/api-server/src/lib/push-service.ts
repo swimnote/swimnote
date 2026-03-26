@@ -296,6 +296,60 @@ export async function sendPushToPoolTeachers(
   }
 }
 
+// ── 플랫폼 전체 푸시 (global 공지) ───────────────────────────────────
+
+/**
+ * 플랫폼 전체 사용자에게 푸시 발송
+ * - 모든 수영장의 관리자·선생님·학부모를 대상으로 함
+ * - 삭제되지 않은(deleted_at IS NULL) 활성 계정만 포함
+ * - 각 사용자의 알림 ON/OFF 설정 준수
+ */
+export async function sendPushToAllUsers(
+  notifType: string,
+  title: string,
+  body: string,
+  data: Record<string, unknown> = {},
+  triggeredBy?: string
+): Promise<void> {
+  try {
+    // 1) 모든 관리자·선생님
+    const userRows = await superAdminDb.execute(sql`
+      SELECT id, role FROM users
+      WHERE role IN ('pool_admin', 'sub_admin', 'teacher')
+        AND deleted_at IS NULL
+        AND swimming_pool_id IS NOT NULL
+    `);
+    for (const u of userRows.rows as any[]) {
+      const uid = u.id;
+      const roleLabel = u.role === "teacher" ? "teacher" : "admin";
+      const enabled = await checkPushEnabled(uid, notifType, false);
+      if (!enabled) continue;
+      const tokens = await getTokensByUserId(uid);
+      if (!tokens.length) continue;
+      await sendRawPush(tokens, title, body, data);
+      await logPush(uid, roleLabel, notifType, "sent", body, triggeredBy);
+    }
+
+    // 2) 모든 학부모
+    const parentRows = await db.execute(sql`
+      SELECT DISTINCT id AS parent_account_id
+      FROM parent_accounts
+      WHERE swimming_pool_id IS NOT NULL
+    `);
+    for (const p of parentRows.rows as any[]) {
+      const pid = p.parent_account_id;
+      const enabled = await checkPushEnabled(pid, notifType, true);
+      if (!enabled) continue;
+      const tokens = await getTokensByParentId(pid);
+      if (!tokens.length) continue;
+      await sendRawPush(tokens, title, body, data);
+      await logPush(pid, "parent", notifType, "sent", body, triggeredBy);
+    }
+  } catch (e) {
+    console.error("[push-service] sendPushToAllUsers 오류:", e);
+  }
+}
+
 // ── DB 테이블 자동 생성 ───────────────────────────────────────────────
 
 export async function initPushTables(): Promise<void> {
