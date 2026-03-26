@@ -24,6 +24,8 @@ import { useSelectionMode } from "@/hooks/useSelectionMode";
 import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 import { InviteModal } from "@/components/admin/members/InviteModal";
 import { RegisterModal } from "@/components/admin/members/RegisterModal";
+import { ClassPickerModal } from "@/components/admin/member/ClassPickerModal";
+import type { ClassGroup } from "@/components/admin/member/memberDetailTypes";
 
 const C = Colors.light;
 
@@ -46,6 +48,7 @@ export default function MembersScreen() {
   const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
 
   const [students,          setStudents]          = useState<StudentMember[]>([]);
+  const [classGroups,       setClassGroups]       = useState<ClassGroup[]>([]);
   const [loading,           setLoading]           = useState(true);
   const [refreshing,        setRefreshing]        = useState(false);
   const [showMemberLimitModal, setShowMemberLimitModal] = useState(false);
@@ -66,11 +69,22 @@ export default function MembersScreen() {
   const [infoModal,        setInfoModal]        = useState<string | null>(null);
   const sel = useSelectionMode();
 
+  // ── 반이동 ─────────────────────────────────────────────────────────
+  const [transferTarget,    setTransferTarget]    = useState<StudentMember | null>(null);
+  const [transferPickedIds, setTransferPickedIds] = useState<string[]>([]);
+  const [transferSaving,    setTransferSaving]    = useState(false);
+
+  // ── 연기 / 퇴원 ────────────────────────────────────────────────────
+  const [statusTarget, setStatusTarget] = useState<StudentMember | null>(null);
+  const [statusAction, setStatusAction] = useState<"suspended" | "withdrawn" | null>(null);
+  const [statusSaving, setStatusSaving] = useState(false);
+
   const load = useCallback(async () => {
     try {
-      const [res, reqRes] = await Promise.all([
+      const [res, reqRes, cgRes] = await Promise.all([
         apiRequest(token, "/students"),
         apiRequest(token, "/students/teacher-requests"),
+        apiRequest(token, "/class-groups"),
       ]);
       if (res.ok) {
         const data = await res.json();
@@ -79,6 +93,10 @@ export default function MembersScreen() {
       if (reqRes.ok) {
         const reqData = await reqRes.json();
         setTeacherRequests(Array.isArray(reqData) ? reqData : []);
+      }
+      if (cgRes.ok) {
+        const cgData = await cgRes.json();
+        setClassGroups(Array.isArray(cgData) ? cgData : []);
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
@@ -170,6 +188,77 @@ export default function MembersScreen() {
     } finally {
       setBulkDeleting(false);
     }
+  }
+
+  // ── 반이동 ─────────────────────────────────────────────────────────
+  function handleTransfer(item: StudentMember) {
+    setTransferPickedIds(Array.isArray(item.assigned_class_ids) ? item.assigned_class_ids : []);
+    setTransferTarget(item);
+  }
+
+  async function confirmTransfer(newIds: string[]) {
+    if (!transferTarget) return;
+    setTransferTarget(null);
+    setTransferSaving(true);
+    const wc = typeof transferTarget.weekly_count === "number" ? transferTarget.weekly_count : 1;
+    try {
+      const res = await apiRequest(token, `/students/${transferTarget.id}/assign`, {
+        method: "PATCH",
+        body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: wc }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setStudents(prev => prev.map(s =>
+          s.id === transferTarget.id
+            ? { ...s, ...updated, assigned_class_ids: newIds, status: "active" }
+            : s
+        ));
+        load();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setInfoModal(d.message || "반이동에 실패했습니다.");
+      }
+    } catch { setInfoModal("네트워크 오류가 발생했습니다."); }
+    finally { setTransferSaving(false); }
+  }
+
+  // ── 연기 / 퇴원 ────────────────────────────────────────────────────
+  function openStatusAction(item: StudentMember, action: "suspended" | "withdrawn") {
+    setStatusTarget(item);
+    setStatusAction(action);
+  }
+
+  async function confirmStatusAction() {
+    if (!statusTarget || !statusAction) return;
+    const { id, name } = statusTarget;
+    const action = statusAction;
+    setStatusTarget(null);
+    setStatusAction(null);
+    setStatusSaving(true);
+    try {
+      const res = await apiRequest(token, `/students/${id}/change-status`, {
+        method: "POST",
+        body: JSON.stringify({ new_status: action, effective_mode: "immediate" }),
+      });
+      if (res.ok) {
+        if (action === "withdrawn") {
+          // optimistic: 퇴원 → 리스트에서 제거
+          setStudents(prev => prev.filter(s => s.id !== id));
+        } else {
+          // optimistic: 연기 → 상태 갱신 + 반배정 초기화
+          setStudents(prev => prev.map(s =>
+            s.id === id
+              ? { ...s, status: "suspended", assigned_class_ids: [], class_group_id: null, schedule_labels: null }
+              : s
+          ));
+        }
+        load();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setInfoModal(d.message || "처리에 실패했습니다.");
+      }
+    } catch { setInfoModal("네트워크 오류가 발생했습니다."); }
+    finally { setStatusSaving(false); }
   }
 
   const filtered = searchStudents(applyStudentFilter(students, filter), search);
@@ -336,6 +425,30 @@ export default function MembersScreen() {
                 onToggle={() => sel.toggleItem(item.id)}
                 actions={[
                   {
+                    label: "반이동",
+                    icon: "shuffle",
+                    color: themeColor,
+                    bg: themeColor + "15",
+                    onPress: () => handleTransfer(item),
+                    loading: transferSaving && transferTarget === null,
+                  },
+                  {
+                    label: "연기",
+                    icon: "pause-circle",
+                    color: "#B45309",
+                    bg: "#FFF1BF",
+                    onPress: () => openStatusAction(item, "suspended"),
+                    loading: statusSaving && statusTarget?.id === item.id && statusAction === "suspended",
+                  },
+                  {
+                    label: "퇴원",
+                    icon: "log-out",
+                    color: "#991B1B",
+                    bg: "#FEF2F2",
+                    onPress: () => openStatusAction(item, "withdrawn"),
+                    loading: statusSaving && statusTarget?.id === item.id && statusAction === "withdrawn",
+                  },
+                  {
                     label: "삭제",
                     icon: "trash-2",
                     color: C.error,
@@ -361,6 +474,17 @@ export default function MembersScreen() {
         />
       </ScreenLayout>
 
+      {/* ── 반이동 모달 ── */}
+      {transferTarget && (
+        <ClassPickerModal
+          groups={classGroups}
+          selectedIds={transferPickedIds}
+          maxSelect={typeof transferTarget.weekly_count === "number" ? transferTarget.weekly_count : 1}
+          onSelect={confirmTransfer}
+          onClose={() => setTransferTarget(null)}
+        />
+      )}
+
       {showRegister && (
         <RegisterModal
           token={token}
@@ -379,6 +503,29 @@ export default function MembersScreen() {
           onClose={() => setInviteTarget(null)}
         />
       )}
+
+      {/* ── 연기 확인 ── */}
+      <ConfirmModal
+        visible={statusTarget !== null && statusAction === "suspended"}
+        title="연기 처리"
+        message={statusTarget ? `"${statusTarget.name}" 회원을 즉시 연기 처리합니다.\n\n반 배정이 해제되며 연기 상태로 변경됩니다.` : ""}
+        confirmText="연기 처리"
+        cancelText="취소"
+        onConfirm={confirmStatusAction}
+        onCancel={() => { setStatusTarget(null); setStatusAction(null); }}
+      />
+
+      {/* ── 퇴원 확인 ── */}
+      <ConfirmModal
+        visible={statusTarget !== null && statusAction === "withdrawn"}
+        title="퇴원 처리"
+        message={statusTarget ? `"${statusTarget.name}" 회원을 즉시 퇴원 처리합니다.\n\n반 배정이 해제되며 목록에서 제거됩니다.` : ""}
+        confirmText="퇴원 처리"
+        cancelText="취소"
+        destructive
+        onConfirm={confirmStatusAction}
+        onCancel={() => { setStatusTarget(null); setStatusAction(null); }}
+      />
 
       <ConfirmModal
         visible={!!deleteTarget}
