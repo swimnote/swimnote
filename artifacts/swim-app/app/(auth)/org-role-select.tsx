@@ -13,12 +13,13 @@ const C = Colors.light;
 
 // 역할 키 → 홈 경로
 const ROLE_HOME_MAP: Record<string, string> = {
-  super_admin: "/(super)/dashboard",
+  super_admin:    "/(super)/dashboard",
   platform_admin: "/(super)/dashboard",
-  pool_admin: "/(admin)/dashboard",
-  sub_admin: "/(admin)/dashboard",
-  teacher: "/(teacher)/today-schedule",
-  parent: "/(parent)/home",
+  super_manager:  "/(super)/dashboard",
+  pool_admin:     "/(admin)/dashboard",
+  sub_admin:      "/(admin)/dashboard",
+  teacher:        "/(teacher)/today-schedule",
+  parent:         "/(parent)/home",
   parent_account: "/(parent)/home",
 };
 

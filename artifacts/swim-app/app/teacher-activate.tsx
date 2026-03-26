@@ -57,11 +57,19 @@ export default function TeacherActivateScreen() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "활성화 실패");
       setSuccess(true);
-      // 토큰 저장 후 관리자 화면으로 이동
+      // 토큰 저장 후 역할에 맞는 홈으로 이동
       if (data.token && setTokenAndUser) {
         await setTokenAndUser(data.token, data.user);
       }
-      setTimeout(() => router.replace("/(admin)/dashboard"), 1500);
+      // 역할 기반 라우팅: super 계열 → super, pool_admin → admin, teacher/기타 → teacher
+      const role: string = data.user?.role ?? "";
+      const SUPER_ROLES = new Set(["super_admin", "platform_admin", "super_manager"]);
+      const POOL_ADMIN_ROLES = new Set(["pool_admin", "sub_admin"]);
+      const dest =
+        SUPER_ROLES.has(role)      ? "/(super)/dashboard" :
+        POOL_ADMIN_ROLES.has(role) ? "/(admin)/dashboard" :
+                                     "/(teacher)/today-schedule";
+      setTimeout(() => router.replace(dest as any), 1500);
     } catch (err: any) {
       setError(err.message || "활성화에 실패했습니다.");
     } finally { setLoading(false); }
