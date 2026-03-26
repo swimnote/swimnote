@@ -31,24 +31,15 @@ export async function sendSensSmS({
   message: string;
   from?: string;
 }): Promise<void> {
-  const accessKey  = process.env.NAVER_SENS_ACCESS_KEY;
-  const secretKey  = process.env.NAVER_SENS_SECRET_KEY;
-  const rawA = process.env.NAVER_SENS_SERVICE_ID   ?? "";
-  const rawB = process.env.NAVER_SENS_SENDER_PHONE ?? "";
+  const accessKey   = process.env.NAVER_SENS_ACCESS_KEY;
+  const secretKey   = process.env.NAVER_SENS_SECRET_KEY;
+  const serviceId   = process.env.NAVER_SENS_SERVICE_ID   ?? "";
+  const senderPhone = process.env.NAVER_SENS_SENDER_PHONE ?? "";
 
-  if (!accessKey || !secretKey || !rawA || !rawB) {
+  if (!accessKey || !secretKey || !serviceId || !senderPhone) {
     throw new Error(
       "SENS 환경변수 미설정: NAVER_SENS_ACCESS_KEY / NAVER_SENS_SECRET_KEY / NAVER_SENS_SERVICE_ID / NAVER_SENS_SENDER_PHONE",
     );
-  }
-
-  // 두 값 중 콜론(:) 포함 → 서비스 ID, 숫자만 → 발신번호로 자동 판별
-  const isServiceId = (v: string) => v.includes(":");
-  const serviceId   = isServiceId(rawA) ? rawA : rawB;
-  const senderPhone = isServiceId(rawA) ? rawB : rawA;
-
-  if (!serviceId || !senderPhone) {
-    throw new Error("SENS 서비스 ID 또는 발신번호를 판별할 수 없습니다. 환경변수 값을 확인해주세요.");
   }
 
   const urlPath  = `/sms/v2/services/${serviceId}/messages`;
