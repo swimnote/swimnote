@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHash, randomUUID } from "crypto";
 import { db, superAdminDb } from "@workspace/db";
 import { usersTable, parentAccountsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -6,6 +7,7 @@ import { hashPassword, comparePassword, signToken, signTotpSession, verifyTotpSe
 import { requireAuth, requireDbRoleCheck, type AuthRequest } from "../middlewares/auth.js";
 import { generateSecret as totpGenerateSecret, verifySync as totpVerifySync, generateURI as totpGenerateURI } from "otplib";
 import QRCode from "qrcode";
+import { sendSms, isSmsConfigured, getSmsConfigError } from "../lib/sms/sendSms.js";
 
 const router = Router();
 
@@ -821,6 +823,140 @@ router.post("/totp/disable", requireAuth, async (req: AuthRequest, res) => {
     await superAdminDb.execute(sql`UPDATE users SET totp_enabled = FALSE, totp_secret = NULL, updated_at = NOW() WHERE id = ${req.user!.userId}`);
     res.json({ success: true, message: "Google OTP가 비활성화되었습니다." });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ════════════════════════════════════════════════════════════════
+// SMS 인증 — 발송
+// POST /auth/send-sms-code
+// body: { phone, purpose }
+// purpose: pool_admin_signup | parent_signup | password_reset
+// ════════════════════════════════════════════════════════════════
+router.post("/send-sms-code", async (req, res) => {
+  const { phone, purpose } = req.body;
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "";
+
+  const validPurposes = ["pool_admin_signup", "parent_signup", "password_reset"];
+  if (!validPurposes.includes(purpose)) {
+    return err(res, 400, "invalid_purpose");
+  }
+
+  const cleaned = (phone || "").replace(/[-\s]/g, "");
+  if (!/^01[016789]\d{7,8}$/.test(cleaned)) {
+    return res.status(400).json({ success: false, error: "invalid_phone", message: "올바른 휴대폰 번호를 입력해주세요. (010-0000-0000 형식)" });
+  }
+
+  if (!isSmsConfigured()) {
+    const configErr = getSmsConfigError();
+    return res.status(503).json({ success: false, error: "provider_not_configured", message: configErr || "SMS 서비스가 설정되지 않았습니다." });
+  }
+
+  try {
+    const recent = await superAdminDb.execute(sql`
+      SELECT created_at FROM phone_verifications
+      WHERE phone = ${cleaned} AND purpose = ${purpose}
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    if (recent.rows.length > 0) {
+      const lastAt = new Date((recent.rows[0] as any).created_at).getTime();
+      if (Date.now() - lastAt < 60_000) {
+        return res.status(429).json({ success: false, error: "cooldown_active", message: "60초 후 다시 시도해주세요." });
+      }
+    }
+
+    const digits = String(Math.floor(100_000 + Math.random() * 900_000));
+    const id     = randomUUID();
+    const hash   = createHash("sha256").update(digits + id).digest("hex");
+    const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
+
+    await superAdminDb.execute(sql`
+      INSERT INTO phone_verifications (id, phone, code, code_hash, purpose, expires_at, attempt_count, request_ip)
+      VALUES (${id}, ${cleaned}, '', ${hash}, ${purpose}, ${expiresAt.toISOString()}, 0, ${ip})
+    `);
+
+    try {
+      await sendSms({
+        phone: cleaned,
+        message: `[수영노트] 인증번호는 ${digits}입니다. 3분 내 입력해주세요.`,
+      });
+    } catch (smsErr: any) {
+      await superAdminDb.execute(sql`DELETE FROM phone_verifications WHERE id = ${id}`);
+      console.error("[SMS] 발송 실패:", smsErr.message);
+      return res.status(500).json({ success: false, error: "sms_send_failed", message: "SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요." });
+    }
+
+    return res.json({ success: true, expires_in: 180 });
+  } catch (e) {
+    console.error("[send-sms-code]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// SMS 인증 — 검증
+// POST /auth/verify-sms-code
+// body: { phone, code, purpose }
+// ════════════════════════════════════════════════════════════════
+router.post("/verify-sms-code", async (req, res) => {
+  const { phone, code, purpose } = req.body;
+  if (!phone || !code || !purpose) {
+    return res.status(400).json({ success: false, error: "missing_fields", message: "필수 항목이 누락되었습니다." });
+  }
+
+  const cleaned = (phone as string).replace(/[-\s]/g, "");
+  const trimmed = (code as string).trim();
+
+  try {
+    const rows = (await superAdminDb.execute(sql`
+      SELECT id, code_hash, expires_at, is_used, attempt_count
+      FROM phone_verifications
+      WHERE phone = ${cleaned}
+        AND purpose = ${purpose}
+        AND code_hash IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+    `)).rows as any[];
+
+    if (!rows.length) {
+      return res.status(400).json({ success: false, error: "code_not_found", message: "인증번호를 먼저 요청해주세요." });
+    }
+
+    const rec = rows[0];
+
+    if (rec.is_used) {
+      return res.status(400).json({ success: false, error: "already_used", message: "이미 사용된 인증번호입니다." });
+    }
+
+    if (new Date(rec.expires_at) < new Date()) {
+      return res.status(400).json({ success: false, error: "code_expired", message: "인증시간이 만료되었습니다. 다시 요청해주세요." });
+    }
+
+    if (rec.attempt_count >= 5) {
+      await superAdminDb.execute(sql`
+        UPDATE phone_verifications SET is_used = true WHERE id = ${rec.id}
+      `);
+      return res.status(400).json({ success: false, error: "too_many_attempts", message: "인증 시도 횟수를 초과했습니다. 다시 요청해주세요." });
+    }
+
+    const inputHash = createHash("sha256").update(trimmed + rec.id).digest("hex");
+    if (inputHash !== rec.code_hash) {
+      await superAdminDb.execute(sql`
+        UPDATE phone_verifications SET attempt_count = attempt_count + 1 WHERE id = ${rec.id}
+      `);
+      const remaining = 4 - rec.attempt_count;
+      return res.status(400).json({ success: false, error: "invalid_code", message: `인증번호가 올바르지 않습니다. (남은 시도: ${remaining}회)` });
+    }
+
+    await superAdminDb.execute(sql`
+      UPDATE phone_verifications
+      SET is_used = true, verified_at = now()
+      WHERE id = ${rec.id}
+    `);
+
+    return res.json({ success: true, verified: true, message: "휴대폰 인증이 완료되었습니다." });
+  } catch (e) {
+    console.error("[verify-sms-code]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
 });
 
 export default router;

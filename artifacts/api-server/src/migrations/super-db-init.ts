@@ -95,5 +95,38 @@ export async function initSuperDb(): Promise<void> {
     console.error("[super-db-init] ❌ restore_logs 생성 실패:", e.message);
   }
 
+  // ── phone_verifications — SMS 인증 테이블 보완 ─────────────────────────────
+  // 기존: id, phone, code, purpose, ref_id, expires_at, is_used, created_at
+  // 추가: code_hash, attempt_count, request_ip, verified_at
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS phone_verifications (
+        id            text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        phone         text        NOT NULL,
+        code          text        NOT NULL DEFAULT '',
+        code_hash     text,
+        purpose       text        NOT NULL,
+        ref_id        text,
+        expires_at    timestamptz NOT NULL,
+        is_used       boolean     NOT NULL DEFAULT false,
+        attempt_count integer     NOT NULL DEFAULT 0,
+        request_ip    text,
+        verified_at   timestamptz,
+        created_at    timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS pv_phone_purpose_idx ON phone_verifications (phone, purpose, created_at DESC);
+      CREATE INDEX IF NOT EXISTS pv_phone_used_idx    ON phone_verifications (phone, purpose, is_used);
+    `));
+    await db.execute(sql.raw(`
+      ALTER TABLE phone_verifications ADD COLUMN IF NOT EXISTS code_hash     text;
+      ALTER TABLE phone_verifications ADD COLUMN IF NOT EXISTS attempt_count integer NOT NULL DEFAULT 0;
+      ALTER TABLE phone_verifications ADD COLUMN IF NOT EXISTS request_ip    text;
+      ALTER TABLE phone_verifications ADD COLUMN IF NOT EXISTS verified_at   timestamptz;
+    `)).catch(() => {});
+    console.log("[super-db-init] phone_verifications 테이블 보완 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] phone_verifications 보완 오류:", e.message);
+  }
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }

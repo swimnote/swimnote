@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,6 +16,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { API_BASE } from "@/context/auth/SessionContext";
+
+type SmsState = "idle" | "sending" | "sent" | "verifying" | "verified" | "error";
 
 export default function RegisterScreen() {
   const { unifiedLogin } = useAuth();
@@ -24,25 +27,98 @@ export default function RegisterScreen() {
   const C = Colors.light;
 
   const [form, setForm] = useState({
-    email: prefillId || "",
-    password: "",
+    email:           prefillId || "",
+    password:        "",
     passwordConfirm: "",
-    name: "",
-    phone: "",
+    name:            "",
+    phone:           "",
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState("");
+
+  const [smsState,      setSmsState]      = useState<SmsState>("idle");
+  const [smsCode,       setSmsCode]       = useState("");
+  const [smsError,      setSmsError]      = useState("");
+  const [timer,         setTimer]         = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function startTimer(seconds = 180) {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setTimer(seconds);
+    timerRef.current = setInterval(() => {
+      setTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          if (smsState !== "verified") setSmsState("error");
+          setSmsError("인증시간이 만료되었습니다. 다시 요청해주세요.");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  function fmtTimer(s: number) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${String(sec).padStart(2, "0")}`;
+  }
+
+  async function handleSendSms() {
+    setSmsError("");
+    const cleaned = form.phone.replace(/[-\s]/g, "");
+    if (!/^01[016789]\d{7,8}$/.test(cleaned)) {
+      setSmsError("올바른 휴대폰 번호를 입력해주세요.");
+      return;
+    }
+    setSmsState("sending");
+    try {
+      const res = await fetch(`${API_BASE}/auth/send-sms-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleaned, purpose: "pool_admin_signup" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "발송에 실패했습니다.");
+      setSmsState("sent");
+      setSmsCode("");
+      startTimer(180);
+    } catch (e: any) {
+      setSmsState("error");
+      setSmsError(e.message || "잠시 후 다시 시도해주세요.");
+    }
+  }
+
+  async function handleVerifySms() {
+    setSmsError("");
+    if (smsCode.trim().length !== 6) { setSmsError("6자리 인증번호를 입력해주세요."); return; }
+    setSmsState("verifying");
+    try {
+      const cleaned = form.phone.replace(/[-\s]/g, "");
+      const res = await fetch(`${API_BASE}/auth/verify-sms-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleaned, code: smsCode.trim(), purpose: "pool_admin_signup" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "인증에 실패했습니다.");
+      if (timerRef.current) clearInterval(timerRef.current);
+      setSmsState("verified");
+    } catch (e: any) {
+      setSmsState("sent");
+      setSmsError(e.message || "인증번호가 올바르지 않습니다.");
+    }
+  }
 
   function validateForm() {
-    if (!form.email || !form.password || !form.name) {
-      setError("필수 항목을 모두 입력해주세요."); return false;
-    }
-    if (form.password !== form.passwordConfirm) {
-      setError("비밀번호가 일치하지 않습니다."); return false;
-    }
-    if (form.password.length < 6) {
-      setError("비밀번호는 6자 이상이어야 합니다."); return false;
-    }
+    if (!form.name.trim()) { setError("이름을 입력해주세요."); return false; }
+    if (!form.email.trim()) { setError("이메일을 입력해주세요."); return false; }
+    if (!form.phone.trim()) { setError("휴대폰 번호를 입력해주세요."); return false; }
+    if (smsState !== "verified") { setError("휴대폰 인증을 완료해주세요."); return false; }
+    if (form.password.length < 6) { setError("비밀번호는 6자 이상이어야 합니다."); return false; }
+    if (form.password !== form.passwordConfirm) { setError("비밀번호가 일치하지 않습니다."); return false; }
     return true;
   }
 
@@ -54,11 +130,11 @@ export default function RegisterScreen() {
       const res = await apiRequest(null, "/auth/register", {
         method: "POST",
         body: JSON.stringify({
-          email: form.email.trim(),
+          email:    form.email.trim(),
           password: form.password,
-          name: form.name,
-          phone: form.phone.trim() || null,
-          role: "pool_admin",
+          name:     form.name.trim(),
+          phone:    form.phone.replace(/[-\s]/g, ""),
+          role:     "pool_admin",
         }),
       });
       const data = await res.json();
@@ -70,6 +146,8 @@ export default function RegisterScreen() {
       setLoading(false);
     }
   }
+
+  const phoneVerified = smsState === "verified";
 
   return (
     <KeyboardAvoidingView
@@ -105,47 +183,161 @@ export default function RegisterScreen() {
             </View>
           )}
 
-          {[
-            { key: "name",            label: "이름 *",          placeholder: "담당자 이름",           icon: "user"  as const, keyboardType: "default"   as const },
-            { key: "email",           label: "아이디(이메일) *", placeholder: "로그인에 사용할 이메일", icon: "mail"  as const, keyboardType: "email-address" as const },
-            { key: "phone",           label: "휴대폰 번호",      placeholder: "010-0000-0000 (선택)", icon: "phone" as const, keyboardType: "phone-pad"  as const },
-            { key: "password",        label: "비밀번호 *",       placeholder: "6자 이상",              icon: "lock"  as const, secure: true, keyboardType: "default" as const },
-            { key: "passwordConfirm", label: "비밀번호 확인 *",  placeholder: "비밀번호 재입력",       icon: "lock"  as const, secure: true, keyboardType: "default" as const },
-          ].map(({ key, label, placeholder, icon, secure, keyboardType }) => (
-            <View key={key} style={styles.field}>
-              <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
-              <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                <Feather name={icon} size={16} color={C.textMuted} style={styles.inputIcon} />
+          {/* 이름 */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>이름 *</Text>
+            <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="user" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={form.name}
+                onChangeText={v => setForm(f => ({ ...f, name: v }))}
+                placeholder="담당자 이름"
+                placeholderTextColor={C.textMuted}
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
+
+          {/* 이메일 */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>아이디(이메일) *</Text>
+            <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="mail" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={form.email}
+                onChangeText={v => setForm(f => ({ ...f, email: v }))}
+                placeholder="로그인에 사용할 이메일"
+                placeholderTextColor={C.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
+
+          {/* 휴대폰 번호 + 인증번호 받기 */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>휴대폰 번호 *</Text>
+            <View style={styles.phoneRow}>
+              <View style={[styles.inputBox, { flex: 1, borderColor: phoneVerified ? "#1F8F86" : C.border, backgroundColor: C.background }]}>
+                <Feather name="phone" size={16} color={phoneVerified ? "#1F8F86" : C.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
-                  value={form[key as keyof typeof form]}
-                  onChangeText={(v) => setForm((f) => ({ ...f, [key]: v }))}
-                  placeholder={placeholder}
+                  value={form.phone}
+                  onChangeText={v => {
+                    setForm(f => ({ ...f, phone: v }));
+                    if (smsState !== "idle") { setSmsState("idle"); setSmsCode(""); setSmsError(""); }
+                  }}
+                  placeholder="010-0000-0000"
                   placeholderTextColor={C.textMuted}
-                  secureTextEntry={!!secure}
-                  keyboardType={keyboardType}
-                  autoCapitalize="none"
+                  keyboardType="phone-pad"
+                  editable={!phoneVerified}
                 />
+                {phoneVerified && <Feather name="check-circle" size={16} color="#1F8F86" />}
               </View>
+              {!phoneVerified && (
+                <Pressable
+                  style={[styles.smsBtn, { backgroundColor: smsState === "sending" ? "#ccc" : C.tint }]}
+                  onPress={handleSendSms}
+                  disabled={smsState === "sending" || smsState === "verifying"}
+                >
+                  {smsState === "sending"
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={styles.smsBtnTxt}>{smsState === "sent" ? "재발송" : "인증번호"}</Text>
+                  }
+                </Pressable>
+              )}
             </View>
-          ))}
 
-          {/* SMS 미연결 안내 */}
-          <View style={styles.smsNotice}>
-            <Feather name="info" size={13} color="#D97706" />
-            <Text style={styles.smsNoticeTxt}>
-              휴대폰 SMS 인증은 현재 미연결 상태입니다.{"\n"}
-              번호는 저장되지만 인증 없이 가입됩니다.
-            </Text>
+            {/* 인증번호 입력칸 */}
+            {(smsState === "sent" || smsState === "verifying") && (
+              <View style={styles.codeSection}>
+                <View style={styles.codeRow}>
+                  <View style={[styles.inputBox, { flex: 1, borderColor: C.border, backgroundColor: C.background }]}>
+                    <Feather name="key" size={16} color={C.textMuted} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: C.text }]}
+                      value={smsCode}
+                      onChangeText={setSmsCode}
+                      placeholder="인증번호 6자리"
+                      placeholderTextColor={C.textMuted}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                    />
+                    {timer > 0 && (
+                      <Text style={[styles.timerTxt, { color: timer < 60 ? C.error : "#D97706" }]}>
+                        {fmtTimer(timer)}
+                      </Text>
+                    )}
+                  </View>
+                  <Pressable
+                    style={[styles.smsBtn, { backgroundColor: smsState === "verifying" ? "#ccc" : "#1F8F86" }]}
+                    onPress={handleVerifySms}
+                    disabled={smsState === "verifying"}
+                  >
+                    {smsState === "verifying"
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Text style={styles.smsBtnTxt}>확인</Text>
+                    }
+                  </Pressable>
+                </View>
+                <Text style={[styles.codeSent, { color: "#1F8F86" }]}>
+                  인증번호를 {form.phone}으로 보냈습니다.
+                </Text>
+              </View>
+            )}
+
+            {phoneVerified && (
+              <Text style={styles.verifiedTxt}>✓ 휴대폰 인증이 완료되었습니다.</Text>
+            )}
+
+            {!!smsError && (
+              <Text style={styles.smsErrTxt}>{smsError}</Text>
+            )}
+          </View>
+
+          {/* 비밀번호 */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>비밀번호 *</Text>
+            <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="lock" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={form.password}
+                onChangeText={v => setForm(f => ({ ...f, password: v }))}
+                placeholder="6자 이상"
+                placeholderTextColor={C.textMuted}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
+
+          {/* 비밀번호 확인 */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: C.textSecondary }]}>비밀번호 확인 *</Text>
+            <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+              <Feather name="lock" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                value={form.passwordConfirm}
+                onChangeText={v => setForm(f => ({ ...f, passwordConfirm: v }))}
+                placeholder="비밀번호 재입력"
+                placeholderTextColor={C.textMuted}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+            </View>
           </View>
 
           <Pressable
             style={({ pressed }) => [
               styles.btn,
-              { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 },
+              { backgroundColor: phoneVerified ? C.tint : "#B0B0B0", opacity: pressed ? 0.85 : 1 },
             ]}
             onPress={handleRegister}
-            disabled={loading}
+            disabled={loading || !phoneVerified}
           >
             {loading
               ? <ActivityIndicator color="#fff" size="small" />
@@ -179,8 +371,15 @@ const styles = StyleSheet.create({
   inputBox:     { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 48 },
   inputIcon:    { marginRight: 8 },
   input:        { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
-  smsNotice:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFFBEB", padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "#FDE68A" },
-  smsNoticeTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
+  phoneRow:     { flexDirection: "row", gap: 8, alignItems: "center" },
+  smsBtn:       { height: 48, paddingHorizontal: 14, borderRadius: 12, alignItems: "center", justifyContent: "center", minWidth: 72 },
+  smsBtnTxt:    { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  codeSection:  { gap: 6, marginTop: 4 },
+  codeRow:      { flexDirection: "row", gap: 8, alignItems: "center" },
+  timerTxt:     { fontSize: 13, fontFamily: "Inter_600SemiBold", marginRight: 4 },
+  codeSent:     { fontSize: 12, fontFamily: "Inter_400Regular" },
+  verifiedTxt:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F8F86" },
+  smsErrTxt:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C" },
   btn:          { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 4 },
   btnText:      { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
   footer:       { flexDirection: "row", justifyContent: "center", alignItems: "center" },
