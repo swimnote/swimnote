@@ -1,8 +1,8 @@
 /**
- * components/common/NoticePopup.tsx — 공지 팝업
+ * components/common/NoticePopup.tsx — 플랫폼 공지 팝업
  * 앱 실행 후 최신 공지를 강제 확인 팝업으로 표시.
- * - "확인": 팝업 닫기 (다음 실행 시 또 보임)
- * - "다시 보지 않기": dismissForever → 이 공지ID는 다시 표시 안 함
+ * - "닫기": 팝업 닫기 (다음 실행 시 다시 보임)
+ * - "다시 보지 않기": dismissForever → AsyncStorage 영속화, 다음 실행에도 미노출
  * - 팝업이 열린 상태에서는 배경 터치로 닫기 불가 (강제 확인 구조)
  */
 import { Feather } from "@expo/vector-icons";
@@ -24,8 +24,14 @@ export function NoticePopup() {
   const { kind, adminUser, parentAccount } = useAuth();
   const getLatestForRole  = useNoticeStore(s => s.getLatestForRole);
   const dismissForever    = useNoticeStore(s => s.dismissForever);
+  const hydrateDismissed  = useNoticeStore(s => s.hydrateDismissed);
+  const hydrated          = useNoticeStore(s => s._hydrated);
+
   const [visible, setVisible] = useState(false);
   const [noticeId, setNoticeId] = useState<string | null>(null);
+
+  // AsyncStorage에서 dismissed 목록 복원
+  useEffect(() => { hydrateDismissed(); }, []);
 
   // 현재 역할 계산
   function getRole(): string {
@@ -38,6 +44,7 @@ export function NoticePopup() {
   }
 
   useEffect(() => {
+    if (!hydrated) return; // AsyncStorage 복원 완료 후에만 팝업 결정
     const role = getRole();
     if (!role) return;
     const notice = getLatestForRole(role);
@@ -45,7 +52,7 @@ export function NoticePopup() {
       setNoticeId(notice.id);
       setVisible(true);
     }
-  }, [kind, adminUser?.role, parentAccount]);
+  }, [kind, adminUser?.role, parentAccount, hydrated]);
 
   const notice = noticeId ? useNoticeStore.getState().notices.find(n => n.id === noticeId) : null;
 
@@ -53,11 +60,13 @@ export function NoticePopup() {
 
   const cfg = TARGET_CFG[notice.target];
 
-  function handleConfirm() {
+  function handleClose() {
+    // 닫기 = 이번 세션만 닫기. 다음 로그인 시 다시 보일 수 있음
     setVisible(false);
   }
 
   function handleDismiss() {
+    // 다시 보지 않기 = AsyncStorage에 영속화. 다음 실행에도 미노출
     if (noticeId) dismissForever(noticeId);
     setVisible(false);
   }
@@ -87,7 +96,7 @@ export function NoticePopup() {
           {/* 제목 */}
           <Text style={s.title}>{notice.title}</Text>
 
-          {/* 내용 */}
+          {/* 내용 (길면 스크롤) */}
           <ScrollView style={s.contentScroll} showsVerticalScrollIndicator={false}>
             <Text style={s.content}>{notice.content}</Text>
           </ScrollView>
@@ -110,10 +119,13 @@ export function NoticePopup() {
             <Pressable style={s.dismissBtn} onPress={handleDismiss}>
               <Text style={s.dismissTxt}>다시 보지 않기</Text>
             </Pressable>
-            <Pressable style={s.confirmBtn} onPress={handleConfirm}>
-              <Text style={s.confirmTxt}>확인</Text>
+            <Pressable style={s.confirmBtn} onPress={handleClose}>
+              <Text style={s.confirmTxt}>닫기</Text>
             </Pressable>
           </View>
+
+          {/* 구분 설명 */}
+          <Text style={s.hint}>닫기: 이번만 닫기 · 다시보지않기: 이 공지 영구 숨김</Text>
         </View>
       </View>
     </Modal>
@@ -143,4 +155,5 @@ const s = StyleSheet.create({
   dismissTxt:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
   confirmBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: P, alignItems: "center" },
   confirmTxt:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  hint:          { fontSize: 10, fontFamily: "Inter_400Regular", color: "#C4B5FD", textAlign: "center", marginTop: 10 },
 });

@@ -3,9 +3,12 @@
  * 슈퍼관리자가 등록한 공지를 대상별로 강제 확인 팝업으로 노출.
  * - 최신 1개만 사용자에게 노출
  * - 이전 공지는 슈퍼관리자 보관용으로만 저장 (사용자에게 노출 안 함)
- * - 다시 보지 않기: dismissedIds에 noticeId 저장 (세션 내 유지)
+ * - 다시 보지 않기: dismissedIds에 noticeId 저장 (AsyncStorage 영속화)
  */
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from 'zustand'
+
+const DISMISSED_KEY = "swimnote_dismissed_notice_ids";
 
 export type NoticeTarget = 'all' | 'admin' | 'teacher' | 'parent'
 
@@ -46,6 +49,7 @@ function roleMatchesTarget(role: string, target: NoticeTarget): boolean {
 interface NoticeState {
   notices: Notice[]
   dismissedIds: string[]
+  _hydrated: boolean
 
   // selectors
   getLatestForRole: (role: string) => Notice | null
@@ -56,6 +60,7 @@ interface NoticeState {
   updateNotice: (id: string, patch: Partial<Omit<Notice, 'id' | 'createdAt'>>) => void
   deleteNotice: (id: string) => void
   dismissForever: (noticeId: string) => void
+  hydrateDismissed: () => Promise<void>
 }
 
 let counter = 10
@@ -65,7 +70,7 @@ const SEED_NOTICES: Notice[] = [
   {
     id: 'notice-001',
     title: '스윔노트 앱 업데이트 안내',
-    content: '스윔노트 앱이 v2.1로 업데이트되었습니다.\n주요 변경사항:\n- 학부모 가입 승인 흐름 개선\n- 문자 발송 기록 로그 추가\n- 성능 개선 및 버그 수정\n\n불편하신 점은 고객센터로 문의해 주세요.',
+    content: '스윔노트 앱이 v2.1로 업데이트되었습니다.\n주요 변경사항:\n- 학부모 가입 승인 흐름 개선\n- 성능 개선 및 버그 수정\n\n불편하신 점은 고객센터로 문의해 주세요.',
     target: 'all',
     noticeType: 'update',
     showFrom: new Date(now.getTime() - 2 * 86400000).toISOString(),
@@ -78,16 +83,15 @@ const SEED_NOTICES: Notice[] = [
 export const useNoticeStore = create<NoticeState>((set, get) => ({
   notices: SEED_NOTICES,
   dismissedIds: [],
+  _hydrated: false,
 
   getLatestForRole: (role) => {
     const { notices, dismissedIds } = get()
     const now = new Date()
     const candidates = notices
       .filter(n => roleMatchesTarget(role, n.target))
-      // 노출 시작일시 이후에만 표시
       .filter(n => !n.showFrom || new Date(n.showFrom) <= now)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    // 최신 1개만 — 다시 보지 않기 처리되지 않았으면 표시
     const latest = candidates[0] ?? null
     if (!latest) return null
     if (dismissedIds.includes(latest.id)) return null
@@ -117,10 +121,28 @@ export const useNoticeStore = create<NoticeState>((set, get) => ({
   },
 
   dismissForever: (noticeId) => {
-    set(s => ({
-      dismissedIds: s.dismissedIds.includes(noticeId)
-        ? s.dismissedIds
-        : [...s.dismissedIds, noticeId],
-    }))
+    set(s => {
+      if (s.dismissedIds.includes(noticeId)) return s
+      const next = [...s.dismissedIds, noticeId]
+      // AsyncStorage에 영속화
+      AsyncStorage.setItem(DISMISSED_KEY, JSON.stringify(next)).catch(console.error)
+      return { dismissedIds: next }
+    })
+  },
+
+  // 앱 시작 시 AsyncStorage에서 dismissedIds 복원
+  hydrateDismissed: async () => {
+    if (get()._hydrated) return
+    try {
+      const raw = await AsyncStorage.getItem(DISMISSED_KEY)
+      if (raw) {
+        const ids: string[] = JSON.parse(raw)
+        set({ dismissedIds: ids, _hydrated: true })
+      } else {
+        set({ _hydrated: true })
+      }
+    } catch {
+      set({ _hydrated: true })
+    }
   },
 }))

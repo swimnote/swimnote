@@ -20,6 +20,14 @@ const MENUS = [
     bg: "#E0F2FE",
   },
   {
+    icon: "bell" as const,
+    title: "공지사항 관리",
+    sub: "수영장별 공지 작성·수정·발송 관리",
+    path: "/(super)/pool-notices",
+    color: "#7C3AED",
+    bg: "#EEDDF5",
+  },
+  {
     icon: "file-text" as const,
     title: "정책·컴플라이언스",
     sub: "환불정책·개인정보·약관 버전·동의 확인",

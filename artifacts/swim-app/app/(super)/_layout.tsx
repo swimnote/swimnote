@@ -72,6 +72,7 @@ export default function SuperLayout() {
       <Stack.Screen name="system-status" />
       <Stack.Screen name="ads" />
       <Stack.Screen name="notices" />
+      <Stack.Screen name="pool-notices" />
       <Stack.Screen name="db-status" />
     </Stack>
   );

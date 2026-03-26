@@ -113,6 +113,16 @@ export default function TeacherSettingsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
       >
 
+        {/* ── 공지함 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#EEDDF5", borderColor: "#C4B5FD" }]}
+          onPress={() => router.push("/(teacher)/notices" as any)}
+        >
+          <Feather name="bell" size={18} color="#7C3AED" />
+          <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>공지함</Text>
+          <Feather name="chevron-right" size={16} color="#7C3AED" />
+        </Pressable>
+
         {/* ── 피드백 기본 설정 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#DDF2EF", borderColor: "#DDF2EF" }]}
