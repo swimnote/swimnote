@@ -147,8 +147,8 @@ export default function WeeklyTimetableV2({
       <Pressable
         key={g.id}
         style={[wt.card, {
-          backgroundColor: "#ADFF2F",
-          borderColor:     "#7CFC00",
+          backgroundColor: cardBg,
+          borderColor:     cardBdr,
           opacity:         selected ? 0.75 : 1,
         }]}
         onPress={() => selectionMode ? toggleSelect(g.id) : onSelectClass(g)}
@@ -166,7 +166,7 @@ export default function WeeklyTimetableV2({
         <View style={[wt.accentBar, { backgroundColor: accent }]} />
 
         {/* 반 이름 */}
-        <Text style={wt.cardName} numberOfLines={1}>★ {g.name}</Text>
+        <Text style={wt.cardName} numberOfLines={1}>{g.name}</Text>
 
         {/* 학생 이름 */}
         {namesLine ? (
@@ -264,13 +264,6 @@ export default function WeeklyTimetableV2({
 
   return (
     <View style={{ flex: 1 }}>
-      {/* ★ V2 강제 표시 배너 — 렌더 증명용, 확인 후 제거 */}
-      <View style={{ backgroundColor: "#FF0000", paddingVertical: 6, alignItems: "center" }}>
-        <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 14, letterSpacing: 1 }}>
-          V2_TEST_0317 ✅ WeeklyTimetableV2
-        </Text>
-      </View>
-
       {/* 주간 네비게이션 */}
       <View style={wt.weekNav}>
         <Pressable style={wt.weekNavBtn} onPress={onPrevWeek}>
