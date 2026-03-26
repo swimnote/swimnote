@@ -5,7 +5,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/WeeklySchedule";
 import {
-  SCREEN_W, WEEKDAY_NAMES, classColor, classesForDate, fmtHour,
+  SCREEN_W, WEEKDAY_NAMES, classesForDate, fmtHour,
   parseHour, todayDateStr,
 } from "./utils";
 
@@ -144,9 +144,12 @@ export default function MonthlyCalendar({
                     {timePills.map((label, ti) => {
                       const pillIsPast = isPast ||
                         (isToday && parseHour(cls[ti].schedule_time) < nowHour);
+                      const rawColor = cls[ti].color;
+                      const pillBg = rawColor && rawColor !== "#FFFFFF" ? rawColor : "#FFFFFF";
+                      const pillBorder = pillBg === "#FFFFFF" ? "#E5E7EB" : "transparent";
                       return (
-                        <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id) + "22" }]}>
-                          <Text style={[mc.timePillText, { color: classColor(cls[ti].id) }]}>{label}</Text>
+                        <View key={ti} style={[mc.timePill, { backgroundColor: pillBg, borderWidth: 0.5, borderColor: pillBorder }]}>
+                          <Text style={[mc.timePillText, { color: "#111827" }]}>{label}</Text>
                           {pillIsPast && (
                             <View style={mc.strikeOverlay} pointerEvents="none">
                               <View style={mc.strikeLine} />
