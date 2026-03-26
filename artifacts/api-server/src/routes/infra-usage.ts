@@ -181,14 +181,13 @@ async function getPoolDbCounts() {
 
 // ── 헬퍼: 사진 저장소 집계 ───────────────────────────────────────────────────
 async function getPhotoStorageStats() {
-  const targetDb = isDbSeparated ? poolDb : superAdminDb;
   try {
-    const [row] = (await targetDb.execute(sql`
+    const [row] = (await superAdminDb.execute(sql`
       SELECT
         COUNT(*)::int                                AS file_count,
         COALESCE(SUM(file_size), 0)::bigint          AS total_bytes,
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours')::int AS upload_count_24h,
-        COUNT(*) FILTER (WHERE is_deleted = true AND updated_at >= NOW() - INTERVAL '24 hours')::int AS delete_count_24h
+        COUNT(*) FILTER (WHERE status = 'deleted' AND created_at >= NOW() - INTERVAL '24 hours')::int AS delete_count_24h
       FROM photo_assets_meta
     `)).rows as any[];
     const total_bytes = Number(row?.total_bytes ?? 0);
@@ -206,9 +205,8 @@ async function getPhotoStorageStats() {
 
 // ── 헬퍼: 영상 저장소 집계 ───────────────────────────────────────────────────
 async function getVideoStorageStats() {
-  const targetDb = isDbSeparated ? poolDb : superAdminDb;
   try {
-    const [row] = (await targetDb.execute(sql`
+    const [row] = (await superAdminDb.execute(sql`
       SELECT
         COUNT(*)::int                                AS file_count,
         COALESCE(SUM(file_size), 0)::bigint          AS total_bytes,
