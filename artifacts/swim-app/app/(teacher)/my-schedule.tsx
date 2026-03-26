@@ -21,7 +21,9 @@ import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
 import StudentManagementSheet from "@/components/teacher/StudentManagementSheet";
 
-import WeeklyTimetable from "@/components/teacher/my-schedule/WeeklyTimetable";
+// WeeklyTimetable V1 보존 (롤백용)
+// import WeeklyTimetable from "@/components/teacher/my-schedule/WeeklyTimetable";
+import WeeklyTimetable from "@/components/teacher/my-schedule/WeeklyTimetableV2";
 import MonthlyCalendar from "@/components/teacher/my-schedule/MonthlyCalendar";
 import DaySheet from "@/components/teacher/my-schedule/DaySheet";
 import ClassDetailSheet from "@/components/teacher/my-schedule/ClassDetailSheet";

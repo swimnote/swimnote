@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>주간 스케줄러 시안 V2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+         background: #F5F2EF; display: flex; justify-content: center; padding: 20px 0; }
+  .phone { width: 390px; background: #fff; border-radius: 32px;
+           box-shadow: 0 12px 48px rgba(0,0,0,.18); overflow: hidden; }
+  .screen { overflow: hidden; }
+
+  /* ── 주간 네비 ── */
+  .week-nav { display: flex; align-items: center; justify-content: space-between;
+              padding: 8px 8px; border-bottom: 1px solid #E8E3DE; }
+  .week-nav-btn { padding: 8px; cursor: pointer; color: #374151; font-size: 18px; }
+  .week-nav-title { font-size: 13px; font-weight: 600; color: #1F2937; }
+
+  /* ── 섹션 배지 ── */
+  .section-badge-row { padding: 10px 10px 4px; }
+  .section-badge { display: inline-flex; align-items: center; gap: 5px;
+                   padding: 3px 9px; border-radius: 12px; font-size: 10px; font-weight: 600; }
+  .badge-weekday { background: #EFF6FF; color: #1F6FAE; }
+  .badge-weekend { background: #FEF3C7; color: #92400E; }
+
+  /* ── 그리드 ── */
+  .grid { display: flex; flex-direction: column; }
+  .grid-row { display: flex; }
+  .header-row { border-bottom: 1px solid #E8E3DE; }
+
+  /* ── 시간축 ── */
+  .time-axis { width: 32px; background: #FBF8F6; border-right: 1px solid #E8E3DE;
+               display: flex; align-items: flex-start; justify-content: center;
+               padding-top: 5px; flex-shrink: 0; }
+  .time-axis-top { width: 32px; background: #FBF8F6; border-right: 1px solid #E8E3DE; flex-shrink: 0; }
+  .time-text { font-size: 10px; color: #B0A89D; font-weight: 400; }
+
+  /* ── 요일 헤더 ── */
+  .day-header { height: 46px; display: flex; flex-direction: column;
+                align-items: center; justify-content: center;
+                border-left: 1px solid #E8E3DE; background: #FBF8F6; flex-shrink: 0; }
+  .day-header.today { background: #1F8F861A; }
+  .day-date { font-size: 10px; color: #9CA3AF; line-height: 1.3; }
+  .day-name { font-size: 12px; font-weight: 600; color: #1F2937; line-height: 1.3; }
+  .day-header.today .day-date,
+  .day-header.today .day-name { color: #1F8F86; }
+
+  /* ── 셀 ── */
+  .cell { border-left: 1px solid #EAE7E2; border-bottom: 1px solid #F0EDE9;
+          padding: 2px; display: flex; flex-direction: column; gap: 2px;
+          flex-shrink: 0; overflow: hidden; }
+  .cell-sunday { background: #FAFAFA; position: relative; }
+  .hour-row { display: flex; }
+
+  /* ── 반 카드 ── */
+  .card { border-radius: 5px; padding: 4px 5px 4px 7px; min-height: 32px;
+          display: flex; flex-direction: column; justify-content: center;
+          border: 1px solid; position: relative; overflow: hidden; flex: 1; }
+  .card-name { font-size: 9px; font-weight: 600; color: #111827; line-height: 1.35; }
+  .accent-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px 0 0 2px; }
+
+  /* ── 섹션 구분선 ── */
+  .section-divider { height: 8px; background: #F0EDE9; margin: 4px 0; }
+
+  /* ── 일요일 휴무 ── */
+  .closed-pill { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+                 display: flex; align-items: center; gap: 4px;
+                 background: #FEF3C7; padding: 3px 8px; border-radius: 12px;
+                 border: 1px solid #F59E0B; white-space: nowrap; }
+  .closed-pill-text { font-size: 10px; font-weight: 500; color: #92400E; }
+
+  /* ── 레이블 ── */
+  .caption { text-align: center; font-size: 11px; color: #9CA3AF; padding: 12px 0 4px;
+             font-weight: 500; }
+  .page-title { text-align: center; font-size: 16px; font-weight: 700; color: #1F2937;
+                padding: 16px; background: #fff; border-bottom: 1px solid #E8E3DE; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="screen">
+
+    <div class="page-title">내 스케줄 — 주간표 시안 V2</div>
+
+    <!-- 주간 네비 -->
+    <div class="week-nav">
+      <span class="week-nav-btn">‹</span>
+      <span class="week-nav-title">3월 24일 ~ 3월 30일</span>
+      <span class="week-nav-btn">›</span>
+    </div>
+
+    <!-- ════════════════════════════════ 주중 섹션 -->
+    <div class="section-badge-row">
+      <span class="section-badge badge-weekday">주중&nbsp;&nbsp;13 – 22시</span>
+    </div>
+
+    <div class="grid" id="weekday-grid"></div>
+
+    <div class="section-divider"></div>
+
+    <!-- ════════════════════════════════ 주말 섹션 -->
+    <div class="section-badge-row">
+      <span class="section-badge badge-weekend">주말&nbsp;&nbsp;07 – 16시</span>
+    </div>
+
+    <div class="grid" id="weekend-grid"></div>
+
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<script>
+const W = 390;
+const TIME_W = 32;
+const WD_COL_W = Math.floor((W - TIME_W) / 5);   // ≈ 71px  × 5
+const WE_COL_W = Math.floor((W - TIME_W) / 2);   // ≈ 179px × 2
+const ROW_H    = 56;
+
+const WEEKDAYS = ["월","화","수","목","금"];
+const WEEKEND  = ["토","일"];
+
+const WEEKDAY_HOURS = Array.from({length:10}, (_,i) => i+13);
+const SAT_HOURS     = Array.from({length:10}, (_,i) => i+7);
+
+// 오늘 요일
+const koDay = ["일","월","화","수","목","금","토"][new Date().getDay()];
+
+// 날짜 라벨 (월24~금28, 토29, 일30 기준)
+const dateLabels = {
+  월:"3/24", 화:"3/25", 수:"3/26", 목:"3/27", 금:"3/28",
+  토:"3/29", 일:"3/30"
+};
+
+// 반 데이터 (mock)
+const ACCENT = ["#1F8F86","#EC4899","#14B8A6","#E4A93A","#8B5CF6",
+                "#2E9B6F","#4EA7D8","#D96C6C","#F97316","#06B6D4"];
+function accent(idx){ return ACCENT[idx % ACCENT.length]; }
+
+const classes = [
+  {name:"아이핀반", days:["월","화","수","목","금"], hour:14, color:"#D6F0EE", accent:"#1F8F86"},
+  {name:"돌고래반",  days:["월","수","금"],            hour:15, color:"#FCE7F3", accent:"#EC4899"},
+  {name:"상어반",    days:["화","목"],                  hour:15, color:"#FEF3C7", accent:"#E4A93A"},
+  {name:"고래반",    days:["월","화","수","목","금"], hour:17, color:"#EDE9FE", accent:"#8B5CF6"},
+  {name:"물고기반",  days:["월","화","수","목","금"], hour:19, color:"#D1FAE5", accent:"#2E9B6F"},
+  {name:"오리반",    days:["월","화","수","목","금"], hour:20, color:"#DBEAFE", accent:"#4EA7D8"},
+  {name:"토토반",    days:["토"],                       hour:9,  color:"#D6F0EE", accent:"#1F8F86"},
+  {name:"꼬마상어반",days:["토"],                       hour:10, color:"#FEF3C7", accent:"#E4A93A"},
+  {name:"수영왕반",  days:["토"],                       hour:13, color:"#EDE9FE", accent:"#8B5CF6"},
+];
+
+function getClasses(day, hour) {
+  return classes.filter(c => c.days.includes(day) && c.hour === hour);
+}
+
+function makeCard(c) {
+  return `<div class="card" style="background:${c.color};border-color:transparent">
+    <div class="accent-bar" style="background:${c.accent}"></div>
+    <div class="card-name">${c.name}</div>
+  </div>`;
+}
+
+function makeSection(days, hours, colW, containerId) {
+  const container = document.getElementById(containerId);
+
+  // Header
+  let header = `<div class="grid-row header-row">
+    <div class="time-axis-top" style="height:46px"></div>`;
+  days.forEach(d => {
+    const isToday = d === koDay;
+    header += `<div class="day-header${isToday?' today':''}" style="width:${colW}px">
+      <span class="day-date">${dateLabels[d]}</span>
+      <span class="day-name">${d}</span>
+    </div>`;
+  });
+  header += `</div>`;
+  container.innerHTML = header;
+
+  // Hour rows
+  hours.forEach(h => {
+    let row = `<div class="hour-row" style="height:${ROW_H}px">
+      <div class="time-axis" style="height:${ROW_H}px">
+        <span class="time-text">${h}</span>
+      </div>`;
+    days.forEach(d => {
+      const isSun = d === "일";
+      const cls = getClasses(d, h);
+      row += `<div class="cell${isSun?' cell-sunday':''}" style="width:${colW}px;height:${ROW_H}px">
+        ${cls.map(makeCard).join("")}
+        ${isSun && h===12 ? `<div class="closed-pill"><span>🌙</span><span class="closed-pill-text">휴무</span></div>` : ""}
+      </div>`;
+    });
+    row += `</div>`;
+    container.innerHTML += row;
+  });
+}
+
+makeSection(WEEKDAYS, WEEKDAY_HOURS, WD_COL_W, "weekday-grid");
+makeSection(WEEKEND,  SAT_HOURS,     WE_COL_W,  "weekend-grid");
+</script>
+</body>
+</html>
