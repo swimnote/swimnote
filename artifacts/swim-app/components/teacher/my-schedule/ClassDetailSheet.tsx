@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
@@ -16,7 +16,7 @@ const C = Colors.light;
 export default function ClassDetailSheet({
   group, students, attMap, diarySet, themeColor, date, onClose,
   onOpenUnreg, onOpenRemove, onNavigateTo, onDeleteClass, weekChangeLogs, token,
-  classGroups,
+  classGroups, onColorChange,
 }: {
   group: TeacherClassGroup;
   students: StudentItem[];
@@ -32,6 +32,7 @@ export default function ClassDetailSheet({
   weekChangeLogs?: ChangeLogItem[];
   onNavigateTo?: (navigate: () => void) => void;
   classGroups?: TeacherClassGroup[];
+  onColorChange?: (id: string, color: string) => void;
 }) {
   const myLogs = useMemo(() =>
     (weekChangeLogs || []).filter(l => l.class_group_id === group.id),
@@ -52,17 +53,32 @@ export default function ClassDetailSheet({
   const [showUnassignTiming, setShowUnassignTiming] = useState(false);
   const [unassigningStudent, setUnassigningStudent] = useState(false);
 
-  // 반 색상
-  const [classColor, setClassColor] = useState<string>(group.color || "#FFFFFF");
+  // 반 색상 (draft: 즉시 프리뷰, 저장은 팝업 닫힐 때)
+  const originalColorRef = useRef<string>(group.color || "#FFFFFF");
+  const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
+  const [colorSaving, setColorSaving] = useState(false);
 
-  async function handleColorChange(color: string) {
-    setClassColor(color);
-    try {
-      await apiRequest(token, `/class-groups/${group.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ color }),
-      });
-    } catch (e) { console.error(e); }
+  function handleColorSelect(color: string) {
+    setDraftColor(color);
+  }
+
+  async function handleClose() {
+    if (draftColor !== originalColorRef.current) {
+      setColorSaving(true);
+      try {
+        await apiRequest(token, `/class-groups/${group.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ color: draftColor }),
+        });
+        onColorChange?.(group.id, draftColor);
+        originalColorRef.current = draftColor;
+      } catch (e) {
+        console.error(e);
+        setDraftColor(originalColorRef.current);
+      }
+      setColorSaving(false);
+    }
+    onClose();
   }
 
   useEffect(() => {
@@ -162,8 +178,8 @@ export default function ClassDetailSheet({
 
   return (
     <>
-      <Modal visible animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
-        <Pressable style={cds.backdrop} onPress={onClose}>
+      <Modal visible animationType="slide" transparent onRequestClose={handleClose} statusBarTranslucent>
+        <Pressable style={cds.backdrop} onPress={handleClose}>
           <Pressable style={cds.sheet} onPress={() => {}}>
             <View style={cds.handle} />
             <View style={cds.sheetHeader}>
@@ -175,8 +191,10 @@ export default function ClassDetailSheet({
                 onPress={() => { onClose(); setTimeout(() => onDeleteClass?.(), 200); }}>
                 <Feather name="trash-2" size={15} color="#E11D48" />
               </Pressable>
-              <Pressable onPress={onClose} style={cds.closeBtn}>
-                <Feather name="x" size={20} color={C.textSecondary} />
+              <Pressable onPress={handleClose} style={cds.closeBtn}>
+                {colorSaving
+                  ? <ActivityIndicator size="small" color={C.textSecondary} />
+                  : <Feather name="x" size={20} color={C.textSecondary} />}
               </Pressable>
             </View>
             <View style={cds.actionRow}>
@@ -192,7 +210,7 @@ export default function ClassDetailSheet({
               </Pressable>
             </View>
             {/* 반 색상 */}
-            <PastelColorPicker selected={classColor} onSelect={handleColorChange} />
+            <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
             <Text style={cds.sectionLabel}>학생 목록 · {effectiveDate}</Text>
             <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
               {groupStudents.length === 0 ? (

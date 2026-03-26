@@ -9,7 +9,7 @@
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal,
   Pressable, ScrollView, StyleSheet, Text,
@@ -58,15 +58,16 @@ interface TeacherItem {
 type SubView = "unregistered" | "transfer" | "teacher" | null;
 
 interface Props {
-  group: { id: string; name: string; schedule_days: string; schedule_time: string; instructor?: string | null };
+  group: { id: string; name: string; schedule_days: string; schedule_time: string; instructor?: string | null; color?: string | null };
   token: string | null;
   themeColor: string;
   onClose: () => void;
   onReload: () => void;
+  onColorChange?: (id: string, color: string) => void;
 }
 
 /* ══════════════════════════════════════════════════ */
-export default function AdminClassDetailSheet({ group, token, themeColor, onClose, onReload }: Props) {
+export default function AdminClassDetailSheet({ group, token, themeColor, onClose, onReload, onColorChange }: Props) {
   const [detail, setDetail]       = useState<ClassGroupDetail | null>(null);
   const [students, setStudents]   = useState<StudentItem[]>([]);  // 이 반 학생
   const [allStudents, setAll]     = useState<StudentItem[]>([]);   // 풀 전체 학생
@@ -77,18 +78,32 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   const [search, setSearch]       = useState("");
   const [teacherSaving, setTeacherSaving] = useState(false);
   const [conflictVisible, setConflictVisible] = useState(false);
-  const [classColor, setClassColor] = useState<string>(group.color || "#FFFFFF");
+  const [colorSaving, setColorSaving] = useState(false);
 
-  async function handleColorChange(color: string) {
-    setClassColor(color);
-    try {
-      await apiRequest(token, `/class-groups/${group.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ color }),
-      });
-      setDetail(prev => prev ? { ...prev, color } : prev);
-      onReload();
-    } catch (e) { console.error(e); }
+  const originalColorRef = useRef<string>(group.color || "#FFFFFF");
+  const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
+
+  function handleColorSelect(color: string) {
+    setDraftColor(color);
+  }
+
+  async function handleClose() {
+    if (draftColor !== originalColorRef.current) {
+      setColorSaving(true);
+      try {
+        await apiRequest(token, `/class-groups/${group.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ color: draftColor }),
+        });
+        onColorChange?.(group.id, draftColor);
+        originalColorRef.current = draftColor;
+      } catch (e) {
+        console.error(e);
+        setDraftColor(originalColorRef.current);
+      }
+      setColorSaving(false);
+    }
+    onClose();
   }
 
   /* ── 데이터 로드 ── */
@@ -102,7 +117,9 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
       if (cgRes.ok) {
         const d = await cgRes.json();
         setDetail(d);
-        if (d.color) setClassColor(d.color);
+        const loaded = d.color || "#FFFFFF";
+        originalColorRef.current = loaded;
+        setDraftColor(loaded);
       }
       if (stuAllRes.ok) {
         const all: StudentItem[] = await stuAllRes.json();
@@ -236,8 +253,8 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
 
   /* ──────────────────────────────────────────────── */
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={sh.backdrop} onPress={onClose} />
+    <Modal visible animationType="slide" transparent onRequestClose={handleClose}>
+      <Pressable style={sh.backdrop} onPress={handleClose} />
       <View style={sh.sheet}>
         <View style={sh.handle} />
 
@@ -261,8 +278,10 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               <Text style={sh.headerSub}>{days} · {detail?.schedule_time || group.schedule_time}</Text>
             )}
           </View>
-          <Pressable onPress={onClose} style={sh.closeBtn}>
-            <Feather name="x" size={20} color={C.textSecondary} />
+          <Pressable onPress={handleClose} style={sh.closeBtn}>
+            {colorSaving
+              ? <ActivityIndicator size="small" color={C.textSecondary} />
+              : <Feather name="x" size={20} color={C.textSecondary} />}
           </Pressable>
         </View>
 
@@ -289,7 +308,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                   {capacityFull && <View style={sh.fullBadge}><Text style={sh.fullBadgeText}>정원 마감</Text></View>}
                 </View>
                 {/* 반 색상 */}
-                <PastelColorPicker selected={classColor} onSelect={handleColorChange} />
+                <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
               </View>
 
               {/* 액션 버튼 */}

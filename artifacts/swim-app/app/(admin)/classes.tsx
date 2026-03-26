@@ -676,6 +676,9 @@ export default function ClassesScreen() {
           themeColor={themeColor}
           onClose={() => setDetailGroup(null)}
           onReload={() => { load(); setDetailGroup(null); }}
+          onColorChange={(id, color) =>
+            setGroups(prev => prev.map(g => g.id === id ? { ...g, color } : g))
+          }
         />
       )}
 

@@ -694,6 +694,9 @@ export default function MyScheduleScreen() {
           onDeleteClass={() => { const g = detailGroup; setDetailGroup(null); setTimeout(() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }, 200); }}
           onNavigateTo={navigateFromSheet}
           weekChangeLogs={viewMode === "weekly" ? weekChangeLogs : undefined}
+          onColorChange={(id, color) =>
+            setGroups(prev => prev.map(g => g.id === id ? { ...g, color } : g))
+          }
         />
       )}
 
