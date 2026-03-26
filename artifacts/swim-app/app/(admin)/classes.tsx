@@ -23,6 +23,8 @@ import { addTabResetListener } from "@/utils/tabReset";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
+import WeeklyTimetableV2 from "@/components/teacher/my-schedule/WeeklyTimetableV2";
+import { getMondayStr, addDaysStr, ChangeLogItem } from "@/components/teacher/my-schedule/utils";
 import StudentManagementSheet from "@/components/teacher/StudentManagementSheet";
 import AdminClassDetailSheet from "@/components/admin/AdminClassDetailSheet";
 
@@ -31,9 +33,6 @@ const SCREEN_W = Dimensions.get("window").width;
 const KO_DAY_ARR   = ["일", "월", "화", "수", "목", "금", "토"];
 const TIMETABLE_COLS = ["월", "화", "수", "목", "금", "토", "일"];
 const WEEKDAY_NAMES  = ["일", "월", "화", "수", "목", "금", "토"];
-const COL_W = 64;
-const TIME_W = 40;
-const ROW_H  = 56;
 
 type ViewMode = "monthly" | "weekly" | "daily";
 
@@ -69,86 +68,6 @@ function classColor(id: string) {
   return COLORS[Math.abs(h) % COLORS.length];
 }
 
-// ─── 주간 시간표 ────────────────────────────────────────────────
-function WeeklyTimetable({ groups, onSelectClass }: {
-  groups: TeacherClassGroup[];
-  onSelectClass: (g: TeacherClassGroup) => void;
-}) {
-  const hours = useMemo(() => getHourRange(groups), [groups]);
-  const cellClasses = useMemo(() => {
-    const map: Record<string, TeacherClassGroup[]> = {};
-    TIMETABLE_COLS.forEach(day => {
-      hours.forEach(h => {
-        const key = `${day}-${h}`;
-        map[key] = groups.filter(g => {
-          const days = g.schedule_days.split(",").map(d => d.trim());
-          return days.includes(day) && parseHour(g.schedule_time) === h;
-        });
-      });
-    });
-    return map;
-  }, [groups, hours]);
-
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={wt.outer}>
-      <View>
-        <View style={wt.headerRow}>
-          <View style={[wt.timeCell, wt.header]} />
-          {TIMETABLE_COLS.map(day => (
-            <View key={day} style={[wt.dayHeader, { width: COL_W }]}>
-              <Text style={wt.dayHeaderText}>{day}</Text>
-            </View>
-          ))}
-        </View>
-        {hours.map(h => (
-          <View key={h} style={[wt.row, { height: ROW_H }]}>
-            <View style={wt.timeCell}>
-              <Text style={wt.timeText}>{h}:00</Text>
-            </View>
-            {TIMETABLE_COLS.map(day => {
-              const cls = cellClasses[`${day}-${h}`] ?? [];
-              return (
-                <View key={day} style={[wt.cell, { width: COL_W }]}>
-                  {cls.map(g => {
-                    const cardBg = g.color && g.color !== "#FFFFFF" ? g.color : "#FFFFFF";
-                    const barBg = classColor(g.id);
-                    const borderColor = cardBg === "#FFFFFF" ? "#E5E7EB" : "transparent";
-                    return (
-                      <Pressable key={g.id}
-                        style={[wt.classCard, { backgroundColor: cardBg, borderColor }]}
-                        onPress={() => onSelectClass(g)}>
-                        <View style={[wt.accentBar, { backgroundColor: barBg }]} />
-                        <Text style={wt.cardName} numberOfLines={2}>{g.name}</Text>
-                        <Text style={wt.cardTime} numberOfLines={1}>{g.schedule_time}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              );
-            })}
-          </View>
-        ))}
-      </View>
-    </ScrollView>
-  );
-}
-const wt = StyleSheet.create({
-  outer:         { flex: 1 },
-  headerRow:     { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
-  header:        { backgroundColor: "#FBF8F6" },
-  dayHeader:     { height: 36, alignItems: "center", justifyContent: "center",
-                   borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#FBF8F6" },
-  dayHeaderText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text },
-  row:           { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  timeCell:      { width: TIME_W, alignItems: "center", justifyContent: "flex-start",
-                   paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border },
-  timeText:      { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
-  cell:          { borderLeftWidth: 1, borderLeftColor: "#F6F3F1", padding: 2, gap: 2 },
-  classCard:     { flex: 1, borderRadius: 6, padding: 4, paddingLeft: 7, minHeight: 48, justifyContent: "center", borderWidth: 1, overflow: "hidden" },
-  accentBar:     { position: "absolute", left: 0, top: 0, bottom: 0, width: 3 },
-  cardName:      { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#111827", lineHeight: 12 },
-  cardTime:      { fontSize: 8, fontFamily: "Inter_400Regular", color: "#374151", marginTop: 2 },
-});
 
 // ─── 월간 달력 ──────────────────────────────────────────────────
 function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
@@ -447,6 +366,9 @@ export default function ClassesScreen() {
   // 반 상세 시트
   const [detailGroup, setDetailGroup] = useState<TeacherClassGroup | null>(null);
 
+  // 주간 시간표 네비게이션
+  const [weeklyViewStart, setWeeklyViewStart] = useState(() => getMondayStr(todayDateStr()));
+
   // 포커스 복귀 시 날짜 팝업 복원용
   const isMountedRef          = useRef(false);
   const pendingRestoreDateRef = useRef<string | null>(null);
@@ -634,7 +556,18 @@ export default function ClassesScreen() {
               <Text style={s.emptyHintText}>등록된 수업이 없습니다</Text>
             </View>
           )}
-          <WeeklyTimetable groups={groups} onSelectClass={setDetailGroup} />
+          <WeeklyTimetableV2
+            groups={groups}
+            onSelectClass={setDetailGroup}
+            selectionMode={false}
+            selectedIds={new Set()}
+            toggleSelect={() => {}}
+            weekStart={weeklyViewStart}
+            changeLogs={[]}
+            onPrevWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, -7))}
+            onNextWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, 7))}
+            statusMap={statusMap}
+          />
         </View>
       )}
 
