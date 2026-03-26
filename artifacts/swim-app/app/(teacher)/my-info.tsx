@@ -74,6 +74,13 @@ export default function MyInfoScreen() {
   const [resignSaving,  setResignSaving]  = useState(false);
   const [resignMsg,     setResignMsg]     = useState("");
 
+  const [pwVisible,    setPwVisible]    = useState(false);
+  const [pwCurrent,    setPwCurrent]    = useState("");
+  const [pwNew,        setPwNew]        = useState("");
+  const [pwConfirm,    setPwConfirm]    = useState("");
+  const [pwSaving,     setPwSaving]     = useState(false);
+  const [pwMsg,        setPwMsg]        = useState("");
+
   const [switchModalVisible, setSwitchModalVisible] = useState(false);
   const [switching, setSwitching] = useState(false);
   const hasMultipleRoles = (adminUser?.roles?.length ?? 0) >= 2;
@@ -154,6 +161,25 @@ export default function MyInfoScreen() {
       setResignMsg(d.message || (res.ok ? "요청이 접수되었습니다." : "오류가 발생했습니다."));
       if (res.ok) { setResignReason(""); setTimeout(() => { setResignMsg(""); setResignVisible(false); }, 2000); }
     } finally { setResignSaving(false); }
+  }
+
+  async function submitPasswordChange() {
+    if (!pwCurrent || !pwNew || !pwConfirm) { setPwMsg("모든 항목을 입력해주세요."); return; }
+    if (pwNew !== pwConfirm) { setPwMsg("새 비밀번호가 일치하지 않습니다."); return; }
+    if (pwNew.length < 6) { setPwMsg("새 비밀번호는 6자 이상이어야 합니다."); return; }
+    setPwSaving(true); setPwMsg("");
+    try {
+      const res = await apiRequest(token, "/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current_password: pwCurrent, new_password: pwNew }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setPwMsg("비밀번호가 변경되었습니다.");
+        setTimeout(() => { setPwVisible(false); setPwCurrent(""); setPwNew(""); setPwConfirm(""); setPwMsg(""); }, 1500);
+      } else { setPwMsg(d.message || "변경에 실패했습니다."); }
+    } finally { setPwSaving(false); }
   }
 
   /* ── 회원 목록 서브뷰 ── */
@@ -271,21 +297,35 @@ export default function MyInfoScreen() {
         </View>
 
         {/* ── 보안 설정 ── */}
-        <Pressable
-          style={({ pressed }) => [s.card, { opacity: pressed ? 0.85 : 1 }]}
-          onPress={() => router.push("/totp-setup" as any)}
-        >
-          <View style={[s.cardHeader, { justifyContent: "space-between" }]}>
+        <View style={s.card}>
+          <View style={s.cardHeader}>
+            <Feather name="lock" size={15} color={themeColor} />
+            <Text style={s.cardTitle}>보안 설정</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [s.secItem, { opacity: pressed ? 0.7 : 1, borderBottomWidth: 1, borderBottomColor: C.border }]}
+            onPress={() => { setPwCurrent(""); setPwNew(""); setPwConfirm(""); setPwMsg(""); setPwVisible(true); }}
+          >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Feather name="smartphone" size={15} color={themeColor} />
-              <Text style={s.cardTitle}>Google OTP 설정</Text>
+              <Feather name="key" size={14} color={C.textSecondary} />
+              <Text style={[s.secItemLabel, { color: C.text }]}>비밀번호 변경</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={C.textMuted} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [s.secItem, { opacity: pressed ? 0.7 : 1 }]}
+            onPress={() => router.push("/totp-setup" as any)}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Feather name="smartphone" size={14} color={C.textSecondary} />
+              <Text style={[s.secItemLabel, { color: C.text }]}>Google OTP 설정</Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={[s.permLabel, { color: C.textMuted }]}>2단계 인증</Text>
               <Feather name="chevron-right" size={16} color={C.textMuted} />
             </View>
-          </View>
-        </Pressable>
+          </Pressable>
+        </View>
 
         {/* ── 내반 통계 ── */}
         <View style={s.card}>
@@ -415,6 +455,32 @@ export default function MyInfoScreen() {
         </View>
       </Modal>
 
+      {/* ═══ 비밀번호 변경 모달 ═══ */}
+      <Modal visible={pwVisible} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={s.modalOverlay}>
+          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>비밀번호 변경</Text>
+              <Pressable onPress={() => setPwVisible(false)} hitSlop={8}><Feather name="x" size={22} color={C.text} /></Pressable>
+            </View>
+            <Text style={s.inputLabel}>현재 비밀번호</Text>
+            <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwCurrent} onChangeText={setPwCurrent} placeholder="현재 비밀번호" placeholderTextColor={C.textMuted} secureTextEntry />
+            <Text style={s.inputLabel}>새 비밀번호</Text>
+            <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwNew} onChangeText={setPwNew} placeholder="6자 이상" placeholderTextColor={C.textMuted} secureTextEntry />
+            <Text style={s.inputLabel}>새 비밀번호 확인</Text>
+            <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwConfirm} onChangeText={setPwConfirm} placeholder="새 비밀번호 재입력" placeholderTextColor={C.textMuted} secureTextEntry />
+            {pwMsg ? (
+              <View style={[s.msgBox, { backgroundColor: pwMsg.includes("변경") ? "#DDF2EF" : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: pwMsg.includes("변경") ? "#1F8F86" : "#D96C6C" }}>{pwMsg}</Text>
+              </View>
+            ) : null}
+            <Pressable style={[s.confirmBtn, { backgroundColor: themeColor, opacity: pwSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitPasswordChange} disabled={pwSaving}>
+              {pwSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnText}>변경 완료</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       {/* ═══ 역할 전환 모달 ═══ */}
       <Modal visible={switchModalVisible} animationType="fade" transparent presentationStyle="overFullScreen">
         <View style={s.modalOverlay}>
@@ -488,5 +554,7 @@ const s = StyleSheet.create({
   confirmBtn:       { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   confirmBtnText:   { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
   warnBox:          { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#FFF1BF", padding: 10, borderRadius: 10 },
+  secItem:          { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14 },
+  secItemLabel:     { fontSize: 14, fontFamily: "Inter_500Medium" },
   warnText:         { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E" },
 });

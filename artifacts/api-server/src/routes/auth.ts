@@ -295,6 +295,25 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── 내 정보 수정 (이름/전화번호) ────────────────────────────────────
+router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
+  const { name, phone } = req.body;
+  if (!name?.trim() && !phone?.trim()) return err(res, 400, "수정할 항목이 없습니다.");
+  try {
+    await superAdminDb.execute(sql`
+      UPDATE users SET
+        name  = COALESCE(NULLIF(${name?.trim() || ''}, ''), name),
+        phone = COALESCE(NULLIF(${phone?.trim() || ''}, ''), phone),
+        updated_at = now()
+      WHERE id = ${req.user!.userId}
+    `);
+    const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
+    const { password_hash: _, ...safeUser } = user;
+    res.json(safeUser);
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
 // ── 승인된 수영장 목록 (학부모 가입용) ───────────────────────────────
 router.get("/pools", async (req, res) => {
   try {
@@ -624,6 +643,23 @@ router.post("/reset-password", async (req, res) => {
       res.json({ success: true, message: "비밀번호가 변경되었습니다." }); return;
     }
     return err(res, 404, "해당 아이디로 등록된 계정이 없습니다.");
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 비밀번호 변경 (인증된 사용자 — 현재 비밀번호 확인 후 변경) ──────────
+router.post("/change-password", requireAuth, async (req: AuthRequest, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) return err(res, 400, "현재 비밀번호와 새 비밀번호를 입력해주세요.");
+  if (new_password.length < 6) return err(res, 400, "새 비밀번호는 6자 이상이어야 합니다.");
+  try {
+    const [user] = await superAdminDb.select({ id: usersTable.id, password_hash: usersTable.password_hash })
+      .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
+    const valid = await comparePassword(current_password, user.password_hash);
+    if (!valid) return err(res, 400, "현재 비밀번호가 올바르지 않습니다.");
+    const hash = await hashPassword(new_password);
+    await superAdminDb.execute(sql`UPDATE users SET password_hash = ${hash}, updated_at = now() WHERE id = ${user.id}`);
+    res.json({ success: true, message: "비밀번호가 변경되었습니다." });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 

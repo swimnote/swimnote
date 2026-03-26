@@ -35,6 +35,23 @@ router.get("/search", async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── 수영장 이름 검색 (public-search — pool-join-request 호환) ────────────
+router.get("/public-search", async (req, res) => {
+  const name = (req.query.name as string || "").trim();
+  try {
+    const q = name.length >= 1 ? name : "";
+    const rows = await superAdminDb.execute(sql`
+      SELECT id, name, address, phone
+      FROM swimming_pools
+      WHERE approval_status = 'approved'
+        ${q ? sql`AND (name ILIKE ${"%" + q + "%"} OR address ILIKE ${"%" + q + "%"})` : sql``}
+      ORDER BY name
+      LIMIT 30
+    `);
+    res.json({ success: true, data: rows.rows });
+  } catch (e) { console.error(e); res.status(500).json({ success: false, data: [] }); }
+});
+
 // ── 수영장 등록 신청 (기본 정보만 입력, JSON) ─────────────────────────
 router.post("/apply", requireAuth,
   async (req: AuthRequest, res) => {
@@ -136,7 +153,7 @@ router.put("/settings", requireAuth, requireRole("pool_admin", "super_admin"),
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!user?.swimming_pool_id) { res.status(404).json({ error: "소속 수영장 없음" }); return; }
 
-      const { name, name_en, address, phone, owner_name } = req.body;
+      const { name, name_en, address, phone, owner_name, business_reg_number } = req.body;
 
       let imageKey: string | null = null;
       if (req.file) {
@@ -148,6 +165,7 @@ router.put("/settings", requireAuth, requireRole("pool_admin", "super_admin"),
       }
 
       const cleanNameEn = name_en ? name_en.toLowerCase().replace(/[^a-z0-9_]/g, "") : null;
+      const cleanBizNum = business_reg_number ? business_reg_number.replace(/[^0-9\-]/g, "").trim() : null;
 
       const rows = await superAdminDb.execute(sql`
         UPDATE swimming_pools SET
@@ -156,6 +174,7 @@ router.put("/settings", requireAuth, requireRole("pool_admin", "super_admin"),
           address    = COALESCE(NULLIF(${address?.trim() || ''}, ''), address),
           phone      = COALESCE(NULLIF(${phone?.trim() || ''}, ''), phone),
           owner_name = COALESCE(NULLIF(${owner_name?.trim() || ''}, ''), owner_name),
+          business_reg_number = CASE WHEN ${cleanBizNum} IS NOT NULL THEN ${cleanBizNum} ELSE business_reg_number END,
           business_reg_image_key = CASE WHEN ${imageKey} IS NOT NULL THEN ${imageKey} ELSE business_reg_image_key END
         WHERE id = ${user.swimming_pool_id}
         RETURNING *

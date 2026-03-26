@@ -189,20 +189,6 @@ export default function TeacherSettingsScreen() {
           </View>
         </View>
 
-        {/* ── 앱 설정 ── */}
-        <View style={s.card}>
-          <View style={s.cardHeader}>
-            <Feather name="sliders" size={15} color={themeColor} />
-            <Text style={s.cardTitle}>앱 설정</Text>
-          </View>
-          <View style={{ padding: 16, gap: 10 }}>
-            <View style={[s.infoRow, { backgroundColor: "#FBF8F6", borderRadius: 12, padding: 12 }]}>
-              <Feather name="info" size={14} color={C.textMuted} />
-              <Text style={[s.switchSub, { flex: 1 }]}>앱 테마 색상은 관리자 페이지에서 설정됩니다</Text>
-            </View>
-          </View>
-        </View>
-
         {/* ── 저장공간 (데이터 정보) ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>

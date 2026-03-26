@@ -22,7 +22,7 @@ export default function PoolSettingsScreen() {
   const { token, refreshPool } = useAuth();
   const insets = useSafeAreaInsets();
   const [settings, setSettings] = useState<PoolSettings | null>(null);
-  const [form, setForm] = useState({ name: "", name_en: "", address: "", phone: "", owner_name: "" });
+  const [form, setForm] = useState({ name: "", name_en: "", address: "", phone: "", owner_name: "", business_reg_number: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -49,7 +49,7 @@ export default function PoolSettingsScreen() {
         if (settingsRes.ok) {
           const data = await settingsRes.json();
           setSettings(data);
-          setForm({ name: data.name || "", name_en: data.name_en || "", address: data.address || "", phone: data.phone || "", owner_name: data.owner_name || "" });
+          setForm({ name: data.name || "", name_en: data.name_en || "", address: data.address || "", phone: data.phone || "", owner_name: data.owner_name || "", business_reg_number: data.business_reg_number || "" });
           // 단가표 로드
           if (data.id) {
             const priceRes = await apiRequest(token, `/pricing?pool_id=${data.id}`);
@@ -170,6 +170,7 @@ export default function PoolSettingsScreen() {
             { key: "address", label: "주소", icon: "map-pin", placeholder: "수영장 주소" },
             { key: "phone", label: "대표 전화", icon: "phone", placeholder: "02-0000-0000" },
             { key: "owner_name", label: "대표자 이름", icon: "user", placeholder: "대표자명" },
+            { key: "business_reg_number", label: "사업자등록번호", icon: "file-text", placeholder: "000-00-00000" },
           ].map(({ key, label, icon, placeholder }) => (
             <View key={key} style={styles.field}>
               <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
@@ -326,10 +327,6 @@ export default function PoolSettingsScreen() {
         {settings && (
           <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
             <Text style={[styles.sectionTitle, { color: C.text }]}>계정 상태</Text>
-            <View style={styles.statusRow}>
-              <Text style={[styles.statusLabel, { color: C.textSecondary }]}>사업자등록번호</Text>
-              <Text style={[styles.statusValue, { color: C.text }]}>{settings.business_reg_number || "미입력"}</Text>
-            </View>
             <View style={styles.statusRow}>
               <Text style={[styles.statusLabel, { color: C.textSecondary }]}>승인 상태</Text>
               <View style={[styles.badge, {

@@ -101,6 +101,19 @@ export default function WhiteLabelScreen() {
             <Text style={[styles.poolChipName, { color: C.text }]}>{pool?.name ?? "—"}</Text>
           </View>
 
+          {/* 구독 잠금 안내 */}
+          {pool?.subscription_status === "trial" && (
+            <View style={[styles.lockCard, { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }]}>
+              <Feather name="lock" size={16} color="#C2410C" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.lockTitle, { color: "#C2410C" }]}>구독 전용 기능</Text>
+                <Text style={[styles.lockBody, { color: "#9A3412" }]}>
+                  화이트 라벨 옵션에 구독하실 경우 스윔노트 이름 대신 등록된 수영장 이름 또는 관리자 이름만 표시됩니다.
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* 설정 토글 목록 */}
           <View style={[styles.section, { backgroundColor: C.card, borderColor: C.border }]}>
             <Text style={[styles.sectionTitle, { color: C.textSecondary }]}>화이트라벨 옵션</Text>
@@ -112,6 +125,7 @@ export default function WhiteLabelScreen() {
               value={settings.white_label_enabled}
               onToggle={() => toggle("white_label_enabled")}
               tint={TINT}
+              disabled={pool?.subscription_status === "trial"}
             />
 
             <View style={[styles.divider, { backgroundColor: C.border }]} />
@@ -123,7 +137,7 @@ export default function WhiteLabelScreen() {
               value={settings.hide_platform_name}
               onToggle={() => toggle("hide_platform_name")}
               tint={TINT}
-              disabled={!settings.white_label_enabled}
+              disabled={!settings.white_label_enabled || pool?.subscription_status === "trial"}
             />
           </View>
 
@@ -233,6 +247,9 @@ const styles = StyleSheet.create({
   previewPowered: {},
   previewPoweredTxt: { fontSize: 11, fontFamily: "Inter_400Regular" },
   previewNote: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  lockCard: { flexDirection: "row", gap: 12, padding: 16, borderRadius: 14, borderWidth: 1, alignItems: "flex-start" },
+  lockTitle: { fontSize: 13, fontFamily: "Inter_700Bold", marginBottom: 3 },
+  lockBody: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
   errTxt: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
   saveBtn: { height: 52, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   saveBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },

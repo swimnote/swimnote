@@ -364,8 +364,8 @@ router.get("/parents", requireAuth, requireRole("super_admin", "pool_admin"), as
 
 router.post("/parents", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const { name, phone, pin } = req.body;
-  if (!name || !phone || !pin) { res.status(400).json({ error: "이름, 전화번호, PIN을 입력해주세요." }); return; }
-  if (pin.length < 4) { res.status(400).json({ error: "PIN은 4자리 이상이어야 합니다." }); return; }
+  if (!name || !phone) { res.status(400).json({ error: "이름과 전화번호를 입력해주세요." }); return; }
+  const effectivePin = (pin && pin.length >= 4) ? pin : "0000";
   try {
     let poolId: string | null = null;
     if (req.user!.role === "pool_admin") {
@@ -375,7 +375,7 @@ router.post("/parents", requireAuth, requireRole("super_admin", "pool_admin"), a
       poolId = req.body.swimming_pool_id || null;
     }
     if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
-    const pin_hash = await hashPassword(pin);
+    const pin_hash = await hashPassword(effectivePin);
     const id = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const [pa] = await db.insert(parentAccountsTable).values({ id, swimming_pool_id: poolId, phone, pin_hash, name }).returning();
     res.status(201).json({ ...pa, pin_hash: undefined, students: [] });

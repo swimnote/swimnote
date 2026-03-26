@@ -72,58 +72,7 @@ export function checkAutoApproval(
 const now   = () => new Date().toISOString()
 const dAgo  = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString()
 
-const SEED: ParentJoinRequest[] = [
-  {
-    id: 'pjr-001', operatorId: 'op-002', operatorName: '서울아쿠아클럽',
-    parentId: 'usr-p01', parentName: '김영희', parentPhone: '010-1234-5678',
-    relation: '모', displayName: '민수엄마',
-    children: [{ name: '김민수', birthDate: '2015-03-15' }, { name: '정다은', birthDate: '2018-09-10' }],
-    status: 'auto_approved', matchStatus: 'full_match',
-    matchedStudentIds: ['stu-001', 'stu-005'],
-    createdAt: dAgo(3), reviewedAt: dAgo(3), reviewedBy: '시스템 자동승인',
-  },
-  {
-    id: 'pjr-002', operatorId: 'op-002', operatorName: '서울아쿠아클럽',
-    parentId: 'usr-p02', parentName: '이철수', parentPhone: '010-9876-5432',
-    relation: '부', displayName: '지수아빠',
-    children: [{ name: '이지수', birthDate: '2017-07-20' }],
-    status: 'auto_approved', matchStatus: 'full_match',
-    matchedStudentIds: ['stu-002'],
-    createdAt: dAgo(5), reviewedAt: dAgo(5), reviewedBy: '시스템 자동승인',
-  },
-  {
-    id: 'pjr-003', operatorId: 'op-002', operatorName: '서울아쿠아클럽',
-    parentId: 'usr-p03', parentName: '박수진', parentPhone: '010-3333-4444',
-    relation: '모', displayName: '예린엄마',
-    children: [{ name: '박예린', birthDate: '2016-11-01' }],
-    status: 'pending', matchStatus: 'no_match', matchedStudentIds: [],
-    createdAt: dAgo(1),
-  },
-  {
-    id: 'pjr-004', operatorId: 'op-002', operatorName: '서울아쿠아클럽',
-    parentId: 'usr-p04', parentName: '최민호', parentPhone: '010-5555-6666',
-    relation: '부', displayName: '준혁아빠',
-    children: [{ name: '최준혁', birthDate: '2015-04-22' }, { name: '최민지', birthDate: '2018-01-08' }],
-    status: 'pending', matchStatus: 'no_match', matchedStudentIds: [],
-    createdAt: dAgo(2),
-  },
-  {
-    id: 'pjr-005', operatorId: 'op-003', operatorName: '부산수영센터',
-    parentId: 'usr-p05', parentName: '강지현', parentPhone: '010-7777-8888',
-    relation: '기타', displayName: '할머니',
-    children: [{ name: '강지민', birthDate: '2014-09-15' }],
-    status: 'on_hold', matchStatus: 'phone_only', matchedStudentIds: ['stu-003'],
-    createdAt: dAgo(4),
-  },
-  {
-    id: 'pjr-006', operatorId: 'op-004', operatorName: '인천아쿠아파크',
-    parentId: 'usr-p06', parentName: '정미경', parentPhone: '010-2222-9999',
-    relation: '모', displayName: '서연엄마',
-    children: [{ name: '최서연', birthDate: '2016-06-02' }],
-    status: 'rejected', matchStatus: 'no_match', matchedStudentIds: [],
-    createdAt: dAgo(7), reviewedAt: dAgo(6), reviewedBy: '관리자', rejectReason: '자녀 정보 불일치',
-  },
-]
+const SEED: ParentJoinRequest[] = []
 
 interface ParentJoinState {
   requests: ParentJoinRequest[]

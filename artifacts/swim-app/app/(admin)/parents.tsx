@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Animated, KeyboardAvoidingView,
+  ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Linking,
   Modal, PanResponder, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
@@ -306,25 +306,66 @@ function AddParentSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (name: string, phone: string, pin: string) => Promise<void>;
+  onSubmit: (name: string, phone: string) => Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
   const [formName, setFormName] = useState("");
   const [formPhone, setFormPhone] = useState("");
-  const [formPin, setFormPin] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [showSmsConfirm, setShowSmsConfirm] = useState(false);
+  const [addedPhone, setAddedPhone] = useState("");
 
   useEffect(() => {
-    if (visible) { setFormName(""); setFormPhone(""); setFormPin(""); setError(""); }
+    if (visible) { setFormName(""); setFormPhone(""); setError(""); setShowSmsConfirm(false); }
   }, [visible]);
 
   async function handleSubmit() {
-    if (!formName || !formPhone || !formPin) { setError("모든 필드를 입력해주세요."); return; }
+    if (!formName.trim() || !formPhone.trim()) { setError("이름과 전화번호를 입력해주세요."); return; }
     setSubmitting(true);
-    try { await onSubmit(formName, formPhone, formPin); }
-    catch { setError("오류가 발생했습니다."); }
+    try {
+      await onSubmit(formName.trim(), formPhone.trim());
+      setAddedPhone(formPhone.trim());
+      setShowSmsConfirm(true);
+    } catch (e: any) { setError(e.message || "오류가 발생했습니다."); }
     finally { setSubmitting(false); }
+  }
+
+  function openSmsApp() {
+    const phone = addedPhone.replace(/[^0-9]/g, "");
+    const msg = encodeURIComponent(
+      "안녕하세요. 스윔노트 학부모 앱 설치 안내입니다.\n아래 경로에서 앱을 다운로드 후 회원가입을 진행해주세요.\n[앱 다운로드 링크]"
+    );
+    const url = Platform.OS === "ios" ? `sms:${phone}&body=${msg}` : `sms:${phone}?body=${msg}`;
+    Linking.openURL(url);
+    setShowSmsConfirm(false);
+    onClose();
+  }
+
+  if (showSmsConfirm) {
+    return (
+      <DraggableSheet visible={visible} onClose={onClose} paddingBottom={insets.bottom + 16}>
+        <View style={{ alignItems: "center", gap: 12, paddingVertical: 8 }}>
+          <View style={[s.smsIcon, { backgroundColor: "#DDF2EF" }]}>
+            <Feather name="message-square" size={26} color="#1F8F86" />
+          </View>
+          <Text style={[s.sheetTitle, { textAlign: "center" }]}>앱 안내 문자 발송</Text>
+          <Text style={[s.smsDesc, { color: C.textSecondary }]}>
+            해당 학부모에게 애플리케이션 다운로드 안내 메시지가 발송됩니다.
+          </Text>
+          <Text style={[s.smsPhone, { color: C.text }]}>{addedPhone}</Text>
+        </View>
+        <View style={s.modalActions}>
+          <Pressable style={[s.cancelBtn, { borderColor: C.border }]} onPress={() => { setShowSmsConfirm(false); onClose(); }}>
+            <Text style={[s.cancelText, { color: C.textSecondary }]}>나중에</Text>
+          </Pressable>
+          <Pressable style={[s.submitBtn, { backgroundColor: C.tint, flexDirection: "row", gap: 6 }]} onPress={openSmsApp}>
+            <Feather name="send" size={15} color="#fff" />
+            <Text style={s.submitText}>문자 앱 열기</Text>
+          </Pressable>
+        </View>
+      </DraggableSheet>
+    );
   }
 
   return (
@@ -332,16 +373,12 @@ function AddParentSheet({
       <Text style={s.sheetTitle}>학부모 계정 직접 추가</Text>
       {!!error && <View style={[s.errBox, { backgroundColor: "#F9DEDA" }]}><Text style={[s.errText, { color: C.error }]}>{error}</Text></View>}
       <View style={s.field}>
-        <Text style={[s.label, { color: C.textSecondary }]}>이름</Text>
+        <Text style={[s.label, { color: C.textSecondary }]}>학부모 이름</Text>
         <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={formName} onChangeText={setFormName} placeholder="홍길동" placeholderTextColor={C.textMuted} />
       </View>
       <View style={s.field}>
-        <Text style={[s.label, { color: C.textSecondary }]}>전화번호</Text>
+        <Text style={[s.label, { color: C.textSecondary }]}>학부모 전화번호</Text>
         <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={formPhone} onChangeText={setFormPhone} placeholder="010-0000-0000" keyboardType="phone-pad" placeholderTextColor={C.textMuted} />
-      </View>
-      <View style={s.field}>
-        <Text style={[s.label, { color: C.textSecondary }]}>PIN 번호 (4자리 이상)</Text>
-        <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={formPin} onChangeText={setFormPin} placeholder="****" keyboardType="number-pad" secureTextEntry maxLength={8} placeholderTextColor={C.textMuted} />
       </View>
       <View style={s.modalActions}>
         <Pressable style={[s.cancelBtn, { borderColor: C.border }]} onPress={onClose}>
@@ -400,13 +437,12 @@ export default function ParentsScreen() {
     ]);
   }
 
-  async function handleAddParent(name: string, phone: string, pin: string) {
+  async function handleAddParent(name: string, phone: string) {
     const res = await apiRequest(token, "/admin/parents", {
-      method: "POST", body: JSON.stringify({ name, phone, pin }),
+      method: "POST", body: JSON.stringify({ name, phone }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "오류가 발생했습니다.");
-    setShowAddParent(false);
     await load();
   }
 
@@ -751,6 +787,9 @@ const s = StyleSheet.create({
 
   // 하단 버튼
   modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
+  smsIcon: { width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  smsDesc: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20, textAlign: "center" },
+  smsPhone: { fontSize: 16, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
   cancelBtn: { flex: 1, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1.5 },
   cancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   submitBtn: { flex: 2, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
