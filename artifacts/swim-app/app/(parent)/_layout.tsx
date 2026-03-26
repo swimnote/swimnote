@@ -1,6 +1,7 @@
 /**
  * 학부모 레이아웃 — Stack 기반 (탭바 없음)
- * 미승인 학부모(pending / on_hold / rejected)는 홈 진입 차단 → 대기 화면 표시
+ * 미승인 학부모(pending / rejected)는 홈 진입 차단 → 대기 화면 표시
+ * join_status는 로그인 응답(unified-login)에서 받아 SessionContext에 저장
  */
 import { Feather } from "@expo/vector-icons";
 import { Stack } from "expo-router";
@@ -10,13 +11,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentProvider } from "@/context/ParentContext";
 import { useAuth } from "@/context/AuthContext";
-import { useParentJoinStore, type JoinStatus } from "@/store/parentJoinStore";
 
 const C = Colors.light;
 
-const BLOCKED_STATUSES: JoinStatus[] = ["pending", "on_hold", "rejected"];
+const BLOCKED_STATUSES = ["pending", "on_hold", "rejected"];
 
-function ApprovalPendingScreen({ status }: { status: JoinStatus }) {
+function ApprovalPendingScreen({ status }: { status: string }) {
   const insets = useSafeAreaInsets();
   const { logout } = useAuth();
   const isRejected = status === "rejected";
@@ -35,7 +35,7 @@ function ApprovalPendingScreen({ status }: { status: JoinStatus }) {
         <Text style={g.message}>
           {isRejected
             ? "수영장 관리자가 가입 요청을 거절했습니다.\n다시 가입하거나 수영장에 직접 문의해 주세요."
-            : `가입 요청이 접수되었습니다.\n수영장 관리자가 요청을 검토한 후 승인합니다.\n\n자녀 정보가 학생 명부와 일치하는 경우\n`}
+            : "가입 요청이 접수되었습니다.\n수영장 관리자가 요청을 검토한 후 승인합니다.\n\n자녀 정보가 학생 명부와 일치하는 경우 "}
           {!isRejected && (
             <Text style={{ fontFamily: "Inter_600SemiBold", color: C.text }}>자동으로 즉시 승인</Text>
           )}
@@ -118,17 +118,12 @@ function ParentStack() {
 }
 
 export default function ParentLayout() {
-  const { kind, isLoading } = useAuth();
-  const currentParentRequestId = useParentJoinStore(s => s.currentParentRequestId);
-  const requests               = useParentJoinStore(s => s.requests);
+  const { kind, isLoading, parentJoinStatus } = useAuth();
 
   if (isLoading || kind !== "parent") return null;
 
-  if (currentParentRequestId) {
-    const req = requests.find(r => r.id === currentParentRequestId);
-    if (req && BLOCKED_STATUSES.includes(req.status)) {
-      return <ApprovalPendingScreen status={req.status} />;
-    }
+  if (parentJoinStatus && BLOCKED_STATUSES.includes(parentJoinStatus)) {
+    return <ApprovalPendingScreen status={parentJoinStatus} />;
   }
 
   return (

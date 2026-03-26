@@ -88,6 +88,8 @@ export interface AccountEntry {
   token: string;
   user?: AdminUser;
   parent?: ParentAccount;
+  join_status?: string;
+  join_request_id?: string | null;
 }
 
 interface SessionContextType {
@@ -99,6 +101,8 @@ interface SessionContextType {
   isLoading: boolean;
   allAccounts: AccountEntry[];
   ownedPools: OwnedPool[];
+  parentJoinStatus: string | null;
+  parentJoinRequestId: string | null;
   unifiedLogin: (identifier: string, password: string) => Promise<{ available_accounts: AccountEntry[] }>;
   completeTotpLogin: (totpSession: string, otpCode: string) => Promise<{ available_accounts: AccountEntry[] }>;
   adminLogin: (email: string, password: string) => Promise<void>;
@@ -124,6 +128,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [allAccounts, setAllAccounts] = useState<AccountEntry[]>([]);
   const [ownedPools, setOwnedPools] = useState<OwnedPool[]>([]);
+  const [parentJoinStatus, setParentJoinStatus] = useState<string | null>(null);
+  const [parentJoinRequestId, setParentJoinRequestId] = useState<string | null>(null);
 
   useEffect(() => { loadStored(); }, []);
 
@@ -131,12 +137,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const [
         storedToken, storedKind, storedAdmin, storedParent, storedAccounts,
+        storedJoinStatus, storedJoinRequestId,
       ] = await Promise.all([
         AsyncStorage.getItem("auth_token"),
         AsyncStorage.getItem("auth_kind"),
         AsyncStorage.getItem("auth_admin"),
         AsyncStorage.getItem("auth_parent"),
         AsyncStorage.getItem("auth_all_accounts"),
+        AsyncStorage.getItem("parent_join_status"),
+        AsyncStorage.getItem("parent_join_request_id"),
       ]);
 
       if (storedAccounts) {
@@ -158,6 +167,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const pa: ParentAccount = JSON.parse(storedParent);
         setParentAccount(pa);
         setKind("parent");
+        setParentJoinStatus(storedJoinStatus || null);
+        setParentJoinRequestId(storedJoinRequestId || null);
       }
     } catch (err) { console.error(err); }
     finally { setIsLoading(false); }
@@ -207,7 +218,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
 
   async function activateAccount(entry: AccountEntry) {
-    const { kind: k, token: t, user, parent } = entry;
+    const { kind: k, token: t, user, parent, join_status, join_request_id } = entry;
     await AsyncStorage.setItem("auth_token", t);
     await AsyncStorage.setItem("auth_kind", k);
     setToken(t);
@@ -220,6 +231,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } else if (k === "parent" && parent) {
       await AsyncStorage.setItem("auth_parent", JSON.stringify(parent));
       setParentAccount(parent);
+      const js = join_status ?? "approved";
+      const jri = join_request_id ?? null;
+      await AsyncStorage.setItem("parent_join_status", js);
+      if (jri) await AsyncStorage.setItem("parent_join_request_id", jri);
+      else await AsyncStorage.removeItem("parent_join_request_id");
+      setParentJoinStatus(js);
+      setParentJoinRequestId(jri);
     }
   }
 
@@ -326,6 +344,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       "auth_token", "auth_kind", "auth_admin", "auth_parent",
       "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
       "parent_selected_student_id", "brand_data",
+      "parent_join_status", "parent_join_request_id",
     ]);
     setToken(null);
     setKind(null);
@@ -334,6 +353,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setPool(null);
     setAllAccounts([]);
     setOwnedPools([]);
+    setParentJoinStatus(null);
+    setParentJoinRequestId(null);
   }
 
   function updateParentNickname(nickname: string) {
@@ -362,7 +383,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return (
     <SessionContext.Provider value={{
       kind, adminUser, parentAccount, token, pool, isLoading,
-      allAccounts, ownedPools,
+      allAccounts, ownedPools, parentJoinStatus, parentJoinRequestId,
       unifiedLogin, completeTotpLogin, adminLogin, parentLogin,
       logout, refreshPool, loadOwnedPools, switchPool,
       activateAccount, updateParentNickname, checkRolePermission, applyRoleSwitch,

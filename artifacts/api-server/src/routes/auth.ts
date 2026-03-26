@@ -467,10 +467,24 @@ router.post("/unified-login", async (req, res) => {
             .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, parentRow.swimming_pool_id)).limit(1);
           poolName = pool?.name ?? null;
         } catch {}
+        // 최신 SRR 상태 조회 — pending/rejected 시 앱 게이트에 표시
+        let joinStatus: string = "approved";
+        let joinRequestId: string | null = null;
+        try {
+          const srrRows = await superAdminDb.execute(sql`
+            SELECT id, status FROM student_registration_requests
+            WHERE parent_id = ${parentRow.id}
+            ORDER BY created_at DESC LIMIT 1
+          `);
+          const srr = (srrRows.rows as any[])[0];
+          if (srr) { joinStatus = srr.status; joinRequestId = srr.id; }
+        } catch {}
         const token = signToken({ userId: parentRow.id, role: "parent_account", poolId: parentRow.swimming_pool_id });
         available_accounts.push({
           kind: "parent",
           token,
+          join_status: joinStatus,
+          join_request_id: joinRequestId,
           parent: { id: parentRow.id, name: parentRow.name, nickname: parentRow.nickname || null, phone: parentRow.phone, login_id: parentRow.login_id, swimming_pool_id: parentRow.swimming_pool_id, pool_name: poolName },
         });
       }
