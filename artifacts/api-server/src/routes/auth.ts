@@ -993,6 +993,23 @@ router.post("/send-sms-code", async (req, res) => {
   }
 
   try {
+    // ── IP 기반 전역 요청 제한 (1분 5회) ─────────────────────
+    const IP_WINDOW_MS  = 60_000;
+    const IP_MAX_REQ    = 5;
+    const windowStart   = new Date(Date.now() - IP_WINDOW_MS).toISOString();
+    const ipCount = await superAdminDb.execute(sql`
+      SELECT COUNT(*) AS cnt FROM phone_verifications
+      WHERE request_ip = ${ip} AND created_at > ${windowStart}
+    `);
+    if (Number((ipCount.rows[0] as any).cnt) >= IP_MAX_REQ) {
+      console.warn(`[SMS] IP 제한 초과: ${ip} (1분 내 ${IP_MAX_REQ}회 이상)`);
+      return res.status(429).json({
+        success: false,
+        error:   "too_many_requests",
+        message: "잠시 후 다시 시도해주세요.",
+      });
+    }
+
     // ── 재발송 쿨다운 (60초) ──────────────────────────────────
     const recent = await superAdminDb.execute(sql`
       SELECT created_at FROM phone_verifications
