@@ -6,10 +6,27 @@ export const KO_DAY_ARR = ["일", "월", "화", "수", "목", "금", "토"];
 export const TIMETABLE_COLS = ["월", "화", "수", "목", "금", "토", "일"];
 export const WEEKDAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
+/** 기존 전체 시간축 (하위 호환, 더 이상 주간표에서 사용 안 함) */
 export const FIXED_HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
-export const WT_COL_W = 72;
-export const WT_ROW_H = 52;
+export const WT_COL_W = 76;
+export const WT_ROW_H = 56;
 export const WT_TIME_W = 38;
+
+/** 어린이 수영장 운영 시간 — 요일별 표시 시간축 */
+export const WEEKDAY_HOURS = Array.from({ length: 10 }, (_, i) => i + 13); // 13~22시 (평일)
+export const SAT_HOURS     = Array.from({ length: 10 }, (_, i) => i + 7);  // 7~16시 (토요일)
+
+/**
+ * 요일별 표시 시간 배열
+ * - 월~금: 13~22시 (어린이 오후반 중심)
+ * - 토:   7~16시 (오전오후 어린이반)
+ * - 일:   [] → 휴무 처리
+ */
+export function getDayHours(koDay: string): number[] {
+  if (koDay === "토") return SAT_HOURS;
+  if (koDay === "일") return [];
+  return WEEKDAY_HOURS;
+}
 
 export interface ChangeLogItem {
   id: string; class_group_id: string; change_type: string;
