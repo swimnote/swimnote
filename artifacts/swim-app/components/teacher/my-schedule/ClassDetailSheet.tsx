@@ -192,10 +192,7 @@ export default function ClassDetailSheet({
               </Pressable>
             </View>
             {/* 반 색상 */}
-            <View style={{ paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" }}>
-              <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Inter_400Regular", marginBottom: 6 }}>반 색상</Text>
-              <PastelColorPicker selected={classColor} onSelect={handleColorChange} />
-            </View>
+            <PastelColorPicker selected={classColor} onSelect={handleColorChange} />
             <Text style={cds.sectionLabel}>학생 목록 · {effectiveDate}</Text>
             <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
               {groupStudents.length === 0 ? (

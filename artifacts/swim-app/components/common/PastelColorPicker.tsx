@@ -29,16 +29,17 @@ export const PASTEL_COLORS = [
 ];
 
 interface Props {
-  value: string;
-  onChange: (color: string) => void;
+  selected: string;
+  onSelect: (color: string) => void;
   label?: string;
 }
 
-export default function PastelColorPicker({ value, onChange, label = "반 색상" }: Props) {
+export default function PastelColorPicker({ selected, onSelect, label = "반 색상" }: Props) {
   const [open, setOpen] = useState(false);
 
-  const isWhite = value === "#FFFFFF" || !value;
-  const displayColor = value || "#FFFFFF";
+  const value = selected || "#FFFFFF";
+  const isWhite = value === "#FFFFFF";
+  const displayColor = value;
 
   return (
     <View>
@@ -62,7 +63,7 @@ export default function PastelColorPicker({ value, onChange, label = "반 색상
         <View style={pc.panel}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={pc.chipRow}>
             {PASTEL_COLORS.map(col => {
-              const isSelected = (value || "#FFFFFF") === col;
+              const isSelected = value === col;
               const isWhiteChip = col === "#FFFFFF";
               return (
                 <Pressable
@@ -73,7 +74,7 @@ export default function PastelColorPicker({ value, onChange, label = "반 색상
                     isWhiteChip && pc.chipWhite,
                     isSelected && pc.chipSelected,
                   ]}
-                  onPress={() => { onChange(col); setOpen(false); }}
+                  onPress={() => { onSelect(col); setOpen(false); }}
                 >
                   {isSelected && (
                     <Feather name="check" size={13} color="#111827" />

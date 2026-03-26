@@ -15,7 +15,7 @@ export const classGroupsTable = pgTable("class_groups", {
   description: text("description"),
   is_one_time: boolean("is_one_time").notNull().default(false),
   one_time_date: text("one_time_date"),
-  color: text("color").default("#FFFFFF"),
+  color: text("color").notNull().default("#FFFFFF"),
   is_deleted: boolean("is_deleted").notNull().default(false),
   deleted_at: timestamp("deleted_at"),
   created_at: timestamp("created_at").notNull().defaultNow(),

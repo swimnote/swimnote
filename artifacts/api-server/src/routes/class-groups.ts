@@ -241,7 +241,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin", "teac
         ...(level !== undefined && { level }),
         ...(capacity !== undefined && { capacity }),
         ...(description !== undefined && { description }),
-        ...(color !== undefined && { color }),
+        ...(color !== undefined && { color: (!color || color === "") ? "#FFFFFF" : color }),
         updated_at: new Date(),
       })
       .where(eq(classGroupsTable.id, req.params.id))

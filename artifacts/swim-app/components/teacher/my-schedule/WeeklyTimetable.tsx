@@ -91,8 +91,8 @@ export default function WeeklyTimetable({
                         const selected = selectedIds.has(g.id);
                         const bg = classColor(g.id);
                         const hasDot = changedClassIds.has(g.id);
-                        const cardBg = g.color || "#F1F5F9";
-                        const cardBorder = !g.color || g.color === "#FFFFFF" ? "#E5E7EB" : "transparent";
+                        const cardBg = g.color && g.color !== "#FFFFFF" ? g.color : "#FFFFFF";
+                        const cardBorder = cardBg === "#FFFFFF" ? "#E5E7EB" : "transparent";
                         return (
                           <Pressable key={g.id}
                             style={[wt.classCard, { backgroundColor: cardBg, borderColor: cardBorder, opacity: selected ? 0.8 : 1 }]}

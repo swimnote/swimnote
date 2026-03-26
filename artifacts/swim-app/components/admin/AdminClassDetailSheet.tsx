@@ -99,7 +99,11 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
         apiRequest(token, `/class-groups/${group.id}`),
         apiRequest(token, "/students?pool_all=true"),
       ]);
-      if (cgRes.ok) setDetail(await cgRes.json());
+      if (cgRes.ok) {
+        const d = await cgRes.json();
+        setDetail(d);
+        if (d.color) setClassColor(d.color);
+      }
       if (stuAllRes.ok) {
         const all: StudentItem[] = await stuAllRes.json();
         const active = all.filter(s => s.status === "active" || !s.status);
@@ -285,16 +289,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                   {capacityFull && <View style={sh.fullBadge}><Text style={sh.fullBadgeText}>정원 마감</Text></View>}
                 </View>
                 {/* 반 색상 */}
-                <View style={[sh.summaryRow, { alignItems: "flex-start", marginTop: 4 }]}>
-                  <Feather name="droplet" size={14} color={C.textMuted} style={{ marginTop: 2 }} />
-                  <View style={{ marginLeft: 8, flex: 1 }}>
-                    <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Inter_400Regular", marginBottom: 4 }}>반 색상</Text>
-                    <PastelColorPicker
-                      selected={classColor}
-                      onSelect={handleColorChange}
-                    />
-                  </View>
-                </View>
+                <PastelColorPicker selected={classColor} onSelect={handleColorChange} />
               </View>
 
               {/* 액션 버튼 */}
