@@ -7,6 +7,7 @@ import {
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/WeeklySchedule";
+import PastelColorPicker from "@/components/common/PastelColorPicker";
 import { WEEKLY_BADGE } from "@/utils/studentUtils";
 import { ChangeLogItem, StudentItem, todayDateStr } from "./utils";
 
@@ -50,6 +51,19 @@ export default function ClassDetailSheet({
   const [unassignStudent,    setUnassignStudent]    = useState<StudentItem | null>(null);
   const [showUnassignTiming, setShowUnassignTiming] = useState(false);
   const [unassigningStudent, setUnassigningStudent] = useState(false);
+
+  // 반 색상
+  const [classColor, setClassColor] = useState<string>(group.color || "#FFFFFF");
+
+  async function handleColorChange(color: string) {
+    setClassColor(color);
+    try {
+      await apiRequest(token, `/class-groups/${group.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ color }),
+      });
+    } catch (e) { console.error(e); }
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -176,6 +190,11 @@ export default function ClassDetailSheet({
                 <Feather name="edit-3" size={13} color={diarDone ? "#1F8F86" : "#D97706"} />
                 <Text style={[cds.actionText, { color: diarDone ? "#1F8F86" : "#D97706" }]}>수업일지</Text>
               </Pressable>
+            </View>
+            {/* 반 색상 */}
+            <View style={{ paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" }}>
+              <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Inter_400Regular", marginBottom: 6 }}>반 색상</Text>
+              <PastelColorPicker selected={classColor} onSelect={handleColorChange} />
             </View>
             <Text style={cds.sectionLabel}>학생 목록 · {effectiveDate}</Text>
             <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>

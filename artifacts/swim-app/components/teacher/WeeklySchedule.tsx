@@ -22,6 +22,7 @@ export interface TeacherClassGroup {
   capacity?: number | null;
   level?: string | null;
   instructor?: string | null;
+  color?: string | null;
 }
 
 export interface SlotStatus {
@@ -158,7 +159,8 @@ export function WeeklySchedule({
             const diaryDone = status?.diaryDone ?? true;
             const hasPhotos = status?.hasPhotos ?? false;
             const inactive  = total === 0;
-            const color     = classColor(g.id);
+            const barColor  = classColor(g.id);
+            const bgColor   = g.color && g.color !== "#FFFFFF" ? g.color : "#FFFFFF";
             const isSelected = selectedIds.has(g.id);
 
             return (
@@ -166,7 +168,7 @@ export function WeeklySchedule({
                 key={g.id}
                 style={[
                   ws.slot,
-                  { borderColor: isSelected ? themeColor : C.border },
+                  { borderColor: isSelected ? themeColor : "#E5E7EB", backgroundColor: bgColor },
                   inactive && ws.slotInactive,
                 ]}
                 onPress={() => selectionMode ? onToggleSelect?.(g.id) : (!inactive && onSelectClass(g))}
@@ -174,7 +176,7 @@ export function WeeklySchedule({
                 disabled={!selectionMode && inactive}
               >
                 {/* 왼쪽 컬러 바 */}
-                <View style={[ws.colorBar, { backgroundColor: inactive ? "#D1D5DB" : color }]} />
+                <View style={[ws.colorBar, { backgroundColor: inactive ? "#D1D5DB" : barColor }]} />
 
                 {/* 선택 모드 체크박스 */}
                 {selectionMode && !inactive && (
@@ -184,7 +186,7 @@ export function WeeklySchedule({
                 )}
 
                 {/* 시간 */}
-                <Text style={[ws.timeCol, { color: inactive ? C.textMuted : color }]}>
+                <Text style={[ws.timeCol, { color: inactive ? C.textMuted : barColor }]}>
                   {g.schedule_time.replace(/:00$/, "").replace(/:00 /, " ")}
                 </Text>
 

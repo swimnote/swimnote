@@ -91,19 +91,20 @@ export default function WeeklyTimetable({
                         const selected = selectedIds.has(g.id);
                         const bg = classColor(g.id);
                         const hasDot = changedClassIds.has(g.id);
+                        const cardBg = g.color || "#F1F5F9";
+                        const cardBorder = !g.color || g.color === "#FFFFFF" ? "#E5E7EB" : "transparent";
                         return (
                           <Pressable key={g.id}
-                            style={[wt.classCard, { backgroundColor: bg, opacity: selected ? 0.7 : 1 }]}
+                            style={[wt.classCard, { backgroundColor: cardBg, borderColor: cardBorder, opacity: selected ? 0.8 : 1 }]}
                             onPress={() => selectionMode ? toggleSelect(g.id) : onSelectClass(g)}
                             onLongPress={() => toggleSelect(g.id)}>
-                            {hasDot && (
-                              <View style={wt.changeDot} />
-                            )}
+                            {hasDot && <View style={wt.changeDot} />}
                             {selectionMode && (
-                              <View style={[wt.checkBox, { borderColor: "#fff", backgroundColor: selected ? "#fff" : "transparent" }]}>
-                                {selected && <Feather name="check" size={8} color={bg} />}
+                              <View style={[wt.checkBox, { borderColor: "#374151", backgroundColor: selected ? "#374151" : "transparent" }]}>
+                                {selected && <Feather name="check" size={8} color="#fff" />}
                               </View>
                             )}
+                            <View style={[wt.accentBar, { backgroundColor: bg }]} />
                             <Text style={wt.cardName} numberOfLines={2}>{g.name}</Text>
                             <Text style={wt.cardTime} numberOfLines={1}>{g.schedule_time}</Text>
                           </Pressable>
@@ -140,9 +141,10 @@ const wt = StyleSheet.create({
                    paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border, backgroundColor: "#FBF8F6" },
   timeText:      { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
   cell:          { borderLeftWidth: 1, borderLeftColor: "#EAE7E2", padding: 2, gap: 2 },
-  classCard:     { flex: 1, borderRadius: 6, padding: 4, minHeight: 44, justifyContent: "center" },
-  cardName:      { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#fff", lineHeight: 12 },
-  cardTime:      { fontSize: 8, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)", marginTop: 2 },
+  classCard:     { flex: 1, borderRadius: 6, padding: 4, paddingLeft: 7, minHeight: 44, justifyContent: "center", borderWidth: 1, overflow: "hidden" },
+  cardName:      { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#111827", lineHeight: 12 },
+  cardTime:      { fontSize: 8, fontFamily: "Inter_400Regular", color: "#374151", marginTop: 2 },
+  accentBar:     { position: "absolute", left: 0, top: 0, bottom: 0, width: 3 },
   checkBox:      { position: "absolute", top: 3, right: 3, width: 14, height: 14,
                    borderRadius: 7, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   changeDot:     { position: "absolute", top: 4, right: 4, width: 7, height: 7,

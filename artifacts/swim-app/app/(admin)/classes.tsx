@@ -109,14 +109,20 @@ function WeeklyTimetable({ groups, onSelectClass }: {
               const cls = cellClasses[`${day}-${h}`] ?? [];
               return (
                 <View key={day} style={[wt.cell, { width: COL_W }]}>
-                  {cls.map(g => (
-                    <Pressable key={g.id}
-                      style={[wt.classCard, { backgroundColor: classColor(g.id) }]}
-                      onPress={() => onSelectClass(g)}>
-                      <Text style={wt.cardName} numberOfLines={2}>{g.name}</Text>
-                      <Text style={wt.cardTime} numberOfLines={1}>{g.schedule_time}</Text>
-                    </Pressable>
-                  ))}
+                  {cls.map(g => {
+                    const cardBg = g.color || "#F1F5F9";
+                    const barBg = classColor(g.id);
+                    const borderColor = !g.color || g.color === "#FFFFFF" ? "#E5E7EB" : "transparent";
+                    return (
+                      <Pressable key={g.id}
+                        style={[wt.classCard, { backgroundColor: cardBg, borderColor }]}
+                        onPress={() => onSelectClass(g)}>
+                        <View style={[wt.accentBar, { backgroundColor: barBg }]} />
+                        <Text style={wt.cardName} numberOfLines={2}>{g.name}</Text>
+                        <Text style={wt.cardTime} numberOfLines={1}>{g.schedule_time}</Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               );
             })}
@@ -138,9 +144,10 @@ const wt = StyleSheet.create({
                    paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border },
   timeText:      { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
   cell:          { borderLeftWidth: 1, borderLeftColor: "#F6F3F1", padding: 2, gap: 2 },
-  classCard:     { flex: 1, borderRadius: 6, padding: 4, minHeight: 48, justifyContent: "center" },
-  cardName:      { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#fff", lineHeight: 12 },
-  cardTime:      { fontSize: 8, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)", marginTop: 2 },
+  classCard:     { flex: 1, borderRadius: 6, padding: 4, paddingLeft: 7, minHeight: 48, justifyContent: "center", borderWidth: 1, overflow: "hidden" },
+  accentBar:     { position: "absolute", left: 0, top: 0, bottom: 0, width: 3 },
+  cardName:      { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#111827", lineHeight: 12 },
+  cardTime:      { fontSize: 8, fontFamily: "Inter_400Regular", color: "#374151", marginTop: 2 },
 });
 
 // ─── 월간 달력 ──────────────────────────────────────────────────

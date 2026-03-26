@@ -112,6 +112,7 @@ export async function initPoolDb(): Promise<void> {
       updated_at       timestamptz NOT NULL DEFAULT now()
     );
   `));
+  await db.execute(sql.raw(`ALTER TABLE class_groups ADD COLUMN IF NOT EXISTS color text NOT NULL DEFAULT '#FFFFFF';`));
 
   // ─── 4. classes + class_members ──────────────────────────────────────────
   await db.execute(sql.raw(`

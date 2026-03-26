@@ -75,7 +75,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 
 // 반 등록: pool_admin + teacher 모두 허용
 router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { name, schedule_days, schedule_time, instructor, teacher_user_id, level, capacity, description, is_one_time, one_time_date } = req.body;
+  const { name, schedule_days, schedule_time, instructor, teacher_user_id, level, capacity, description, is_one_time, one_time_date, color } = req.body;
   if (!schedule_days || !schedule_time) {
     return err(res, 400, "수업 요일과 수업 시간을 입력해주세요.");
   }
@@ -146,6 +146,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
       description: description || null,
       is_one_time: isOneTime,
       one_time_date: isOneTime ? (one_time_date || null) : null,
+      color: color || "#FFFFFF",
     }).returning();
     await logChange({ tenantId: poolId, tableName: "class_groups", recordId: group.id, changeType: "create", payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time } });
     logPoolEvent({ pool_id: poolId, event_type: "class_create", entity_type: "class_group", entity_id: group.id, actor_id: req.user!.userId, payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time, level: group.level } }).catch(console.error);
@@ -218,8 +219,8 @@ router.get("/:id/attendance", requireAuth, async (req: AuthRequest, res) => {
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
-router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  const { name, schedule_days, schedule_time, instructor, teacher_user_id, level, capacity, description } = req.body;
+router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
+  const { name, schedule_days, schedule_time, instructor, teacher_user_id, level, capacity, description, color } = req.body;
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [existing] = await db.select({ swimming_pool_id: classGroupsTable.swimming_pool_id, is_deleted: classGroupsTable.is_deleted })
@@ -240,6 +241,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
         ...(level !== undefined && { level }),
         ...(capacity !== undefined && { capacity }),
         ...(description !== undefined && { description }),
+        ...(color !== undefined && { color }),
         updated_at: new Date(),
       })
       .where(eq(classGroupsTable.id, req.params.id))

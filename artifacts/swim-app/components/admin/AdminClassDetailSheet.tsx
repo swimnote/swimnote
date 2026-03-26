@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
+import PastelColorPicker from "@/components/common/PastelColorPicker";
 
 const C = Colors.light;
 
@@ -30,6 +31,7 @@ export interface ClassGroupDetail {
   teacher_user_id: string | null;
   capacity: number | null;
   level: string | null;
+  color?: string | null;
 }
 
 interface StudentItem {
@@ -75,6 +77,19 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   const [search, setSearch]       = useState("");
   const [teacherSaving, setTeacherSaving] = useState(false);
   const [conflictVisible, setConflictVisible] = useState(false);
+  const [classColor, setClassColor] = useState<string>(group.color || "#FFFFFF");
+
+  async function handleColorChange(color: string) {
+    setClassColor(color);
+    try {
+      await apiRequest(token, `/class-groups/${group.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ color }),
+      });
+      setDetail(prev => prev ? { ...prev, color } : prev);
+      onReload();
+    } catch (e) { console.error(e); }
+  }
 
   /* ── 데이터 로드 ── */
   const load = useCallback(async () => {
@@ -268,6 +283,17 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                   <Feather name="users" size={14} color={C.textMuted} />
                   <Text style={sh.summaryVal}>{capacityLabel}</Text>
                   {capacityFull && <View style={sh.fullBadge}><Text style={sh.fullBadgeText}>정원 마감</Text></View>}
+                </View>
+                {/* 반 색상 */}
+                <View style={[sh.summaryRow, { alignItems: "flex-start", marginTop: 4 }]}>
+                  <Feather name="droplet" size={14} color={C.textMuted} style={{ marginTop: 2 }} />
+                  <View style={{ marginLeft: 8, flex: 1 }}>
+                    <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Inter_400Regular", marginBottom: 4 }}>반 색상</Text>
+                    <PastelColorPicker
+                      selected={classColor}
+                      onSelect={handleColorChange}
+                    />
+                  </View>
                 </View>
               </View>
 

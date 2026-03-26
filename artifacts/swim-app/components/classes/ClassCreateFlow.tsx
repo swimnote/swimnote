@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
+import PastelColorPicker from "@/components/common/PastelColorPicker";
 
 const C = Colors.light;
 const SCREEN_H = Dimensions.get("window").height;
@@ -174,6 +175,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string>("#FFFFFF");
 
   // 1회성 반
   const [isOneTime, setIsOneTime]   = useState(false);
@@ -270,6 +272,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
         capacity: defaultCapacity,
         is_one_time: isOneTime,
         one_time_date: isOneTime ? oneTimeDate : undefined,
+        color: selectedColor !== "#FFFFFF" ? selectedColor : undefined,
       };
       const res = await apiRequest(token, "/class-groups", {
         method: "POST",
@@ -485,7 +488,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
               <View style={s4.wrap}>
                 <Text style={fl.stepTitle}>반 개설을 확인하세요</Text>
                 <View style={[s4.card, { borderColor: (isOneTime ? "#7C3AED" : C.tint) + "50" }]}>
-                  <View style={[s4.nameRow, { backgroundColor: isOneTime ? "#F3E8FF" : C.tintLight }]}>
+                  <View style={[s4.nameRow, { backgroundColor: selectedColor !== "#FFFFFF" ? selectedColor : (isOneTime ? "#F3E8FF" : C.tintLight) }]}>
                     {isOneTime && (
                       <View style={[ot.oneTimeBadge, { backgroundColor: "#7C3AED" }]}>
                         <Text style={{ color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" }}>1회성</Text>
@@ -503,6 +506,18 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                     <InfoRow icon="user" label="선생님" value={teacherName} />
                     <InfoRow icon="users" label="기본 정원" value={`${defaultCapacity}명`} />
                   </View>
+                </View>
+
+                {/* 반 색상 선택 */}
+                <View style={{ marginTop: 20 }}>
+                  <Text style={[fl.stepTitle, { fontSize: 14, marginBottom: 6 }]}>반 색상 (선택)</Text>
+                  <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Inter_400Regular", marginBottom: 10 }}>
+                    시간표에서 반을 구분할 색상을 선택하세요
+                  </Text>
+                  <PastelColorPicker
+                    selected={selectedColor}
+                    onSelect={setSelectedColor}
+                  />
                 </View>
               </View>
             )}
