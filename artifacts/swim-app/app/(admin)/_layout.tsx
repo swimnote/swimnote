@@ -12,11 +12,20 @@ export default function AdminLayout() {
   const { themeColor } = useBrand();
   const { kind, isLoading, adminUser } = useAuth();
 
-  // 권한 보호: teacher 모드 상태에서 관리자 화면 접근 시 선생님 홈으로 리다이렉트
+  // 권한 보호: 슈퍼관리자 계열이 admin 화면으로 진입 시 슈퍼 홈으로 강제 리다이렉트
+  // pool_admin / sub_admin 만 admin 화면 허용
   useEffect(() => {
     if (isLoading || !kind) return;
-    if (kind === "admin" && adminUser?.role === "teacher") {
-      router.replace("/(teacher)/today-schedule" as any);
+    if (kind === "admin") {
+      const role = adminUser?.role;
+      if (role === "super_admin" || role === "platform_admin" || role === "super_manager") {
+        router.replace("/(super)/dashboard" as any);
+        return;
+      }
+      if (role === "teacher") {
+        router.replace("/(teacher)/today-schedule" as any);
+        return;
+      }
     }
   }, [isLoading, kind, adminUser?.role]);
 

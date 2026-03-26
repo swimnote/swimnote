@@ -6,16 +6,20 @@
  *
  * 홈 버튼: homePath prop 명시 시 우선. 없으면 현재 로그인 역할 자동 감지.
  * → 보안: 역할 불일치 홈 이동 방지 (슈퍼→수영장관리자 홈 접근 차단)
+ *
+ * ⚠️ useAuth() 사용 (AuthContext 직접 참조 금지 — Provider 미주입으로 null 반환됨)
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useContext } from "react";
+import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { AuthContext } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
+
+const SUPER_ROLES = new Set(["super_admin", "platform_admin", "super_manager"]);
 
 const ROLE_HOME_MAP: Record<string, string> = {
   super_admin:    "/(super)/dashboard",
@@ -47,16 +51,24 @@ export function SubScreenHeader({
 }: SubScreenHeaderProps) {
   const insets = useSafeAreaInsets();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
-  const auth = useContext(AuthContext);
+
+  // ✅ useAuth() 사용 — AuthContext 직접 참조 금지 (값 미주입으로 항상 null)
+  const { kind, adminUser, parentAccount } = useAuth();
 
   // homePath prop이 있으면 그대로 사용, 없으면 현재 로그인 역할로 자동 결정
-  const resolvedHome = (() => {
+  const resolvedHome: string = (() => {
     if (homePath) return homePath;
-    if (!auth) return "/(admin)/dashboard";
-    const { adminUser, parentAccount, sessionKind } = auth;
-    if (sessionKind === "parent" && parentAccount) return ROLE_HOME_MAP["parent_account"];
-    if (adminUser?.role) return ROLE_HOME_MAP[adminUser.role] ?? "/(admin)/dashboard";
-    return "/(admin)/dashboard";
+
+    // 학부모 세션
+    if (kind === "parent" && parentAccount) return ROLE_HOME_MAP["parent_account"];
+
+    // 관리자 세션 — 실제 role 기반으로 결정 (저장된 activeRole 무시)
+    if (kind === "admin" && adminUser?.role) {
+      return ROLE_HOME_MAP[adminUser.role] ?? "/(super)/dashboard";
+    }
+
+    // 슈퍼 계열의 경우 절대 admin 홈으로 보내지 않도록 방어
+    return "/";
   })();
 
   const handleBack = () => {
@@ -68,7 +80,8 @@ export function SubScreenHeader({
   };
 
   const handleHome = () => {
-    router.navigate(resolvedHome as any);
+    // router.replace 사용 — navigate/push 는 스택에 admin 화면이 쌓일 수 있음
+    router.replace(resolvedHome as any);
   };
 
   return (
