@@ -9,7 +9,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import { useRiskStore } from "@/store/riskStore";
-import { useSmsStore } from "@/store/smsStore";
 
 const MENUS = [
   {
@@ -49,14 +48,12 @@ const MENUS = [
 export default function AuditGroupScreen() {
   const allLogs      = useAuditLogStore(s => s.logs);
   const riskSummary  = useRiskStore(s => s.summary);
-  const smsRecords   = useSmsStore(s => s.records);
   const todayLogs    = allLogs.filter(l => {
     const d = new Date(l.createdAt);
     const now = new Date();
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
   }).length;
   const criticalLogs = allLogs.filter(l => l.impact === 'critical').length;
-  const smsFailLogs  = (smsRecords ?? []).filter(r => r.status === 'failed').length;
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
@@ -79,10 +76,6 @@ export default function AuditGroupScreen() {
           <View style={[s.summaryCard, riskSummary.securityEvents > 0 && s.summaryAlertRed]}>
             <Text style={[s.summaryNum, riskSummary.securityEvents > 0 && { color: "#D96C6C" }]}>{riskSummary.securityEvents}</Text>
             <Text style={s.summaryLabel}>보안 이벤트</Text>
-          </View>
-          <View style={[s.summaryCard, smsFailLogs > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, smsFailLogs > 0 && { color: "#D96C6C" }]}>{smsFailLogs}</Text>
-            <Text style={s.summaryLabel}>SMS 실패</Text>
           </View>
         </View>
 

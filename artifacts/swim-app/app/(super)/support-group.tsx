@@ -1,6 +1,6 @@
 /**
  * (super)/support-group.tsx — 지원 센터 그룹
- * 스펙 섹션 9: 고객센터 / 정책·컴플라이언스 / SMS 템플릿 관리 / 발송 로그 관리 / 인증번호 발송 기록
+ * 스펙 섹션 9: 고객센터 / 정책·컴플라이언스
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -9,8 +9,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useSupportStore } from "@/store/supportStore";
-import { useSmsStore } from "@/store/smsStore";
-import { useSmsCreditStore } from "@/store/smsCreditStore";
 
 const MENUS = [
   {
@@ -29,44 +27,11 @@ const MENUS = [
     color: "#D97706",
     bg: "#FFF1BF",
   },
-  {
-    icon: "edit-3" as const,
-    title: "SMS 템플릿 관리",
-    sub: "발송 템플릿 편집·활성/비활성·버전 관리",
-    path: "/(super)/invite-sms",
-    color: "#7C3AED",
-    bg: "#EEDDF5",
-  },
-  {
-    icon: "list" as const,
-    title: "발송 로그 관리",
-    sub: "전체 SMS 발송 이력·실패 내역·운영자별 조회",
-    path: "/(super)/sms-billing",
-    color: "#1F8F86",
-    bg: "#ECFEFF",
-  },
-  {
-    icon: "key" as const,
-    title: "인증번호 발송 기록",
-    sub: "휴대폰 인증·2FA 인증·재발송·실패 기록",
-    path: "/(super)/sms-billing",
-    color: "#1F8F86",
-    bg: "#DDF2EF",
-  },
 ];
 
 export default function SupportGroupScreen() {
   const openCount   = useSupportStore(s => s.getOpenCount());
   const slaOverdue  = useSupportStore(s => s.getSlaOverdueCount());
-  const rawRecords  = useSmsStore(s => s.records);
-  const rawInvites  = useSmsStore(s => s.invites);
-  const smsAccounts = useSmsCreditStore(s => s.accounts);
-
-  const smsRecords  = rawRecords  ?? [];
-  const invites     = rawInvites  ?? [];
-  const failedSms   = smsRecords.filter(r => r.status === "failed").length;
-  const pendingInv  = invites.filter(r => r.status === "pending").length;
-  const blockedOps  = smsAccounts.filter(a => a.smsBlocked).length;
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
@@ -82,18 +47,6 @@ export default function SupportGroupScreen() {
           <View style={[s.summaryCard, slaOverdue > 0 && s.summaryAlertRed]}>
             <Text style={[s.summaryNum, slaOverdue > 0 && { color: "#D96C6C" }]}>{slaOverdue}</Text>
             <Text style={s.summaryLabel}>SLA 초과</Text>
-          </View>
-          <View style={[s.summaryCard, pendingInv > 0 && s.summaryAlertPurple]}>
-            <Text style={[s.summaryNum, pendingInv > 0 && { color: "#7C3AED" }]}>{pendingInv}</Text>
-            <Text style={s.summaryLabel}>대기 초대</Text>
-          </View>
-          <View style={[s.summaryCard, failedSms > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, failedSms > 0 && { color: "#D96C6C" }]}>{failedSms}</Text>
-            <Text style={s.summaryLabel}>SMS 실패</Text>
-          </View>
-          <View style={[s.summaryCard, blockedOps > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, blockedOps > 0 && { color: "#D96C6C" }]}>{blockedOps}</Text>
-            <Text style={s.summaryLabel}>SMS 차단</Text>
           </View>
         </View>
 

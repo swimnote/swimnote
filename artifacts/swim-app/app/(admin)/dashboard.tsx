@@ -107,7 +107,6 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "layers",      label: "수영장 관리",  color: "#0D9488", bg: "#CCFBF1", onPress: () => router.push("/(admin)/branches") },
       { icon: "settings",    label: "수영장 설정",  color: "#6F6B68", bg: "#F6F3F1", onPress: () => router.push("/(admin)/pool-settings") },
       { icon: "file-text",   label: "공지사항",     color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/notices") },
-      { icon: "users",       label: "초대방식\n설정", color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/invite-sms") },
     ];
     default: return [];
   }
