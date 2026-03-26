@@ -625,24 +625,22 @@ export default function MyScheduleScreen() {
 
       {viewMode === "weekly" && (
         <View style={{ flex: 1 }}>
-          {groups.length === 0 ? (
-            <View style={s.emptyBox}>
-              <Feather name="calendar" size={40} color={C.textMuted} />
-              <Text style={s.emptyText}>등록된 반이 없습니다</Text>
+          {groups.length === 0 && (
+            <View style={s.emptyHintBanner}>
+              <Text style={s.emptyHintText}>등록된 수업이 없습니다</Text>
             </View>
-          ) : (
-            <WeeklyTimetable
-              groups={groups}
-              onSelectClass={g => setDetailGroup(g)}
-              selectionMode={selectionMode}
-              selectedIds={selectedIds}
-              toggleSelect={toggleSelect}
-              weekStart={weeklyViewStart}
-              changeLogs={weekChangeLogs}
-              onPrevWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, -7))}
-              onNextWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, 7))}
-            />
           )}
+          <WeeklyTimetable
+            groups={groups}
+            onSelectClass={g => setDetailGroup(g)}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            toggleSelect={toggleSelect}
+            weekStart={weeklyViewStart}
+            changeLogs={weekChangeLogs}
+            onPrevWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, -7))}
+            onNextWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, 7))}
+          />
         </View>
       )}
 
@@ -790,4 +788,6 @@ const s = StyleSheet.create({
   stBtnTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   emptyBox:     { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
+  emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: "#FBF8F6", borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
+  emptyHintText:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
 });

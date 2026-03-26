@@ -621,18 +621,14 @@ export default function ClassesScreen() {
 
       {/* ── 주간 뷰 ── */}
       {viewMode === "weekly" && (
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
-          {groups.length === 0 ? (
-            <View style={s.emptyBox}>
-              <Feather name="calendar" size={40} color={C.textMuted} />
-              <Text style={s.emptyText}>등록된 반이 없습니다</Text>
+        <View style={{ flex: 1 }}>
+          {groups.length === 0 && (
+            <View style={s.emptyHintBanner}>
+              <Text style={s.emptyHintText}>등록된 수업이 없습니다</Text>
             </View>
-          ) : (
-            <WeeklyTimetable groups={groups} onSelectClass={setDetailGroup} />
           )}
-          <View style={{ height: 120 }} />
-        </ScrollView>
+          <WeeklyTimetable groups={groups} onSelectClass={setDetailGroup} />
+        </View>
       )}
 
       {/* ── 일간 뷰 ── */}
@@ -648,12 +644,6 @@ export default function ClassesScreen() {
             selectedIds={new Set()}
             onToggleSelect={() => {}}
           />
-          {groups.length === 0 && (
-            <View style={s.emptyBox}>
-              <Feather name="layers" size={40} color={C.textMuted} />
-              <Text style={s.emptyText}>등록된 반이 없습니다</Text>
-            </View>
-          )}
           <View style={{ height: 80 }} />
         </ScrollView>
       )}
@@ -738,4 +728,6 @@ const s = StyleSheet.create({
 
   emptyBox:    { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyText:   { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
+  emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: "#FBF8F6", borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
+  emptyHintText:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
 });
