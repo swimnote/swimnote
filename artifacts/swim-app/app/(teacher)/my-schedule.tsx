@@ -642,6 +642,8 @@ export default function MyScheduleScreen() {
             changeLogs={weekChangeLogs}
             onPrevWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, -7))}
             onNextWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, 7))}
+            students={students}
+            statusMap={statusMap}
           />
         </View>
       )}

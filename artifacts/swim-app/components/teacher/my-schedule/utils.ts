@@ -9,7 +9,7 @@ export const WEEKDAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 /** 기존 전체 시간축 (하위 호환, 더 이상 주간표에서 사용 안 함) */
 export const FIXED_HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
 export const WT_COL_W = 76;
-export const WT_ROW_H = 56;
+export const WT_ROW_H = 60;
 export const WT_TIME_W = 38;
 
 /** 어린이 수영장 운영 시간 — 요일별 표시 시간축 */
