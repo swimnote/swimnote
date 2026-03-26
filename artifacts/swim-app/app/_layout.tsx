@@ -106,6 +106,52 @@ function PushTokenSync() {
 }
 
 /**
+ * 푸시 탭 딥링크 핸들러
+ * 푸시 알림 탭 시 역할에 맞는 공지함 화면으로 이동
+ *
+ * 라우팅 규칙:
+ *  - parent          → /(parent)/notices
+ *  - teacher         → /(teacher)/notices
+ *  - pool_admin/sub_admin → /(admin)/notices
+ *  - super_admin/etc → /(super)/pool-notices (관리 화면)
+ *
+ * 데이터 페이로드 { noticeId } 가 없는 알림(타입 불일치 등)은 무시.
+ */
+function PushNavSync() {
+  const { kind, adminUser } = useAuth();
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data as Record<string, unknown> | null;
+
+      // 공지 타입 알림이 아니면 무시
+      const category = (data?.category as string | undefined) ?? (data?.type as string | undefined);
+      if (category && category !== "notice") return;
+
+      // 역할에 따라 공지함 화면으로 이동
+      if (kind === "parent") {
+        router.push("/(parent)/notices" as any);
+        return;
+      }
+      if (kind === "admin" && adminUser) {
+        const role = adminUser.roles?.[0] ?? adminUser.role;
+        if (role === "super_admin" || role === "platform_admin" || role === "super_manager") {
+          router.push("/(super)/pool-notices" as any);
+        } else if (role === "teacher") {
+          router.push("/(teacher)/notices" as any);
+        } else {
+          // pool_admin, sub_admin
+          router.push("/(admin)/notices" as any);
+        }
+      }
+    });
+    return () => sub.remove();
+  }, [kind, adminUser?.role]);
+
+  return null;
+}
+
+/**
  * 앱 시작 라우팅 로직:
  * 1. 세션 없음 → /index (로그인)
  * 2. 세션 있음 + activeRole 유효 → 해당 홈 바로
@@ -273,6 +319,7 @@ export default function RootLayout() {
               <AuthProvider>
                 <BrandSync />
                 <PushTokenSync />
+                <PushNavSync />
                 <NoticePopup />
                 <RootNav />
               </AuthProvider>

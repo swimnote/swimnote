@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { noticesTable, usersTable, studentsTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import {
   sendPushToPoolParents, sendPushToClassParents,
@@ -38,7 +38,11 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     }
 
     const notices = await db.select().from(noticesTable).where(
-      and(eq(noticesTable.swimming_pool_id, poolId), eq(noticesTable.notice_type, "general"))
+      and(
+        eq(noticesTable.swimming_pool_id, poolId),
+        eq(noticesTable.notice_type, "general"),
+        ne(noticesTable.status, "deleted"),
+      )
     );
     res.json(notices.sort((a, b) => {
       if (a.is_pinned && !b.is_pinned) return -1;
@@ -165,7 +169,9 @@ router.get("/:id/read-stats", requireAuth, requireRole("super_admin", "pool_admi
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
-// DELETE /:id — 공지 삭제
+// DELETE /:id — 공지 소프트 삭제 (status='deleted')
+// 이력 추적 가능 · 푸시 발송 이력 보존 · 실수 복구 가능
+// 완전 삭제(hard delete)는 별도 배치 정책으로만 수행
 router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {
     const role = req.user!.role;
@@ -173,15 +179,21 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
       ? null
       : await getPoolId(req.user!.userId);
 
-    const [notice] = await db.select({ swimming_pool_id: noticesTable.swimming_pool_id })
+    const [notice] = await db.select({ swimming_pool_id: noticesTable.swimming_pool_id, status: noticesTable.status })
       .from(noticesTable).where(eq(noticesTable.id, req.params.id)).limit(1);
     if (!notice) return err(res, 404, "공지를 찾을 수 없습니다.");
+    if (notice.status === "deleted") return err(res, 404, "이미 삭제된 공지입니다.");
     if (poolId && notice.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
     }
 
-    await db.delete(noticesTable).where(eq(noticesTable.id, req.params.id));
-    if (poolId) logPoolEvent({ pool_id: poolId, event_type: "notice_delete", entity_type: "notice", entity_id: req.params.id, actor_id: req.user!.userId, payload: {} }).catch(console.error);
+    // 소프트 삭제: status='deleted' + updated_at 갱신
+    await db.update(noticesTable)
+      .set({ status: "deleted", updated_at: new Date() })
+      .where(eq(noticesTable.id, req.params.id));
+
+    const logPoolId = poolId ?? notice.swimming_pool_id;
+    logPoolEvent({ pool_id: logPoolId, event_type: "notice_delete", entity_type: "notice", entity_id: req.params.id, actor_id: req.user!.userId, payload: {} }).catch(console.error);
     res.json({ success: true });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -215,11 +227,20 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
       const pushBody = title || notice.title;
 
       setImmediate(async () => {
-        await Promise.allSettled([
-          sendPushToPoolParents(targetPoolId, "notice", pushTitle, pushBody, { noticeId: req.params.id }, `notice_re_${req.params.id}`),
-          sendPushToPoolAdmins(targetPoolId, "notice", pushTitle, pushBody, { noticeId: req.params.id }, `notice_re_${req.params.id}`),
-          sendPushToPoolTeachers(targetPoolId, "notice", pushTitle, pushBody, { noticeId: req.params.id }, `notice_re_${req.params.id}`),
-        ]);
+        try {
+          await Promise.allSettled([
+            sendPushToPoolParents(targetPoolId, "notice", pushTitle, pushBody, { noticeId: req.params.id }, `notice_re_${req.params.id}`),
+            sendPushToPoolAdmins(targetPoolId, "notice", pushTitle, pushBody, { noticeId: req.params.id }, `notice_re_${req.params.id}`),
+            sendPushToPoolTeachers(targetPoolId, "notice", pushTitle, pushBody, { noticeId: req.params.id }, `notice_re_${req.params.id}`),
+          ]);
+          // 재발송 시에도 push_sent_count 증가 및 push_sent_at 갱신
+          await db.execute(sql`
+            UPDATE notices SET push_sent_at = NOW(), push_sent_count = COALESCE(push_sent_count, 0) + 1
+            WHERE id = ${req.params.id}
+          `).catch(console.error);
+        } catch (e) {
+          console.error("[notices] 재발송 오류:", e);
+        }
       });
     }
 

@@ -16,6 +16,9 @@ export const noticesTable = pgTable("notices", {
   image_urls: text("image_urls").array(),
   push_sent_at: timestamp("push_sent_at"),
   push_sent_count: integer("push_sent_count").default(0),
+  // status: 'published'(정상) | 'hidden'(숨김) | 'deleted'(소프트 삭제)
+  // 소프트 삭제로 이력 추적 가능 — 완전 삭제는 별도 배치로만 수행
+  status: text("status").notNull().default("published"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at"),
 });

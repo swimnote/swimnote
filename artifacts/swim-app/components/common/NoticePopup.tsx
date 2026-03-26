@@ -1,8 +1,17 @@
 /**
  * components/common/NoticePopup.tsx — 플랫폼 공지 팝업
  * 앱 실행 후 최신 공지를 강제 확인 팝업으로 표시.
- * - "닫기": 팝업 닫기 (다음 실행 시 다시 보임)
- * - "다시 보지 않기": dismissForever → AsyncStorage 영속화, 다음 실행에도 미노출
+ *
+ * 버튼 정책:
+ * - "닫기": 이번 세션만 닫음 → 앱 재시작 시 다시 보임
+ * - "다시 보지 않기": 이 기기의 AsyncStorage에 해당 공지 ID 저장 → 재시작 후에도 미노출
+ *
+ * [기기 기준 숨김 정책]
+ * 현재 "다시 보지 않기"는 AsyncStorage 기반으로 현재 기기에만 적용됩니다.
+ * - 같은 계정 다른 기기에서는 다시 표시될 수 있습니다.
+ * - 앱 삭제 후 재설치 시 다시 표시될 수 있습니다.
+ * (향후 서버 기반 계정 숨김이 필요하면 notice_hidden_logs 테이블 이전)
+ *
  * - 팝업이 열린 상태에서는 배경 터치로 닫기 불가 (강제 확인 구조)
  */
 import { Feather } from "@expo/vector-icons";
@@ -124,8 +133,8 @@ export function NoticePopup() {
             </Pressable>
           </View>
 
-          {/* 구분 설명 */}
-          <Text style={s.hint}>닫기: 이번만 닫기 · 다시보지않기: 이 공지 영구 숨김</Text>
+          {/* 구분 설명 — 기기 기준 숨김 정책 명시 */}
+          <Text style={s.hint}>닫기: 이번만 닫기 · 다시보지않기: 이 기기에서 영구 숨김</Text>
         </View>
       </View>
     </Modal>
