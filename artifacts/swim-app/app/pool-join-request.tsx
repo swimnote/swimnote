@@ -10,9 +10,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { API_BASE } from "@/context/AuthContext";
 
 const C = Colors.light;
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
 
 interface PoolResult { id: string; name: string; address: string | null; }
 type Step = "search" | "form" | "done";
@@ -41,7 +41,7 @@ export default function PoolJoinRequestScreen() {
     if (!query.trim()) return;
     setSearching(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/pools/public-search?name=${encodeURIComponent(query)}`);
+      const res = await fetch(`${API_BASE}/pools/public-search?name=${encodeURIComponent(query)}`);
       const data = await res.json();
       if (data.success) setResults(data.data);
       else setError("검색 중 오류가 발생했습니다.");
@@ -65,16 +65,16 @@ export default function PoolJoinRequestScreen() {
     if (!selectedPool) return;
     setSubmitting(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/auth/pool-join-request`, {
+      const res = await fetch(`${API_BASE}/auth/parent-register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           swimming_pool_id: selectedPool.id,
-          parent_name: parentName.trim(),
+          name: parentName.trim(),
           phone: phone.trim(),
           loginId: loginId.trim(),
           password,
-          children_requested: validChildren,
+          child_names: validChildren.map(c => c.childName.trim()).filter(Boolean),
         }),
       });
       const data = await res.json();

@@ -8,7 +8,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 
 interface Notice {
   id: string; title: string; content: string;
@@ -18,7 +18,6 @@ interface Notice {
 }
 
 const C = Colors.light;
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
 
 export default function NoticeDetailScreen() {
   const { token } = useAuth();
@@ -82,7 +81,7 @@ export default function NoticeDetailScreen() {
               {images.map((key, i) => (
                 <Image
                   key={i}
-                  source={{ uri: `${API_BASE}/api/uploads/${encodeURIComponent(key)}` }}
+                  source={{ uri: `${API_BASE}/uploads/${encodeURIComponent(key)}` }}
                   style={styles.fullImage}
                   resizeMode="cover"
                 />

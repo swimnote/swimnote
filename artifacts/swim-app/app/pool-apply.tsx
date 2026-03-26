@@ -15,9 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
-import { useAuth } from "@/context/AuthContext";
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
+import { useAuth, API_BASE } from "@/context/AuthContext";
 
 export default function PoolApplyScreen() {
   const { token, refreshPool, logout } = useAuth();
@@ -52,7 +50,7 @@ export default function PoolApplyScreen() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/pools/apply`, {
+      const res = await fetch(`${API_BASE}/pools/apply`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

@@ -7,8 +7,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
+import { API_BASE } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -43,7 +42,7 @@ export default function TeacherSignupScreen() {
     if (!query.trim()) return;
     setSearching(true);
     try {
-      const res = await fetch(`${API_BASE}/api/pools/public-search?name=${encodeURIComponent(query.trim())}`);
+      const res = await fetch(`${API_BASE}/pools/public-search?name=${encodeURIComponent(query.trim())}`);
       const data = await res.json();
       setPools(data.data || []);
     } catch { setPools([]); } finally { setSearching(false); }
@@ -58,7 +57,7 @@ export default function TeacherSignupScreen() {
     }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/auth/teacher-self-signup`, {
+      const res = await fetch(`${API_BASE}/auth/teacher-self-signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase() || undefined, loginId: loginId.trim().toLowerCase(), password: pw, phone: phone.trim(), pool_id: selectedPool!.id }),

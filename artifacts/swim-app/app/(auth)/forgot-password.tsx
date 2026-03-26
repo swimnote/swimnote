@@ -8,7 +8,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
+import { API_BASE } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -30,7 +30,7 @@ export default function ForgotPasswordScreen() {
     if (!identifier.trim()) { setError("아이디를 입력해주세요."); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/auth/unified-login`, {
+      const res = await fetch(`${API_BASE}/auth/unified-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier: identifier.trim(), password: "____check____" }),
@@ -48,7 +48,7 @@ export default function ForgotPasswordScreen() {
     if (newPw !== newPw2) { setError("비밀번호가 일치하지 않습니다."); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+      const res = await fetch(`${API_BASE}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier: identifier.trim(), new_password: newPw }),

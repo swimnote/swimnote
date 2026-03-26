@@ -8,7 +8,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
+import { API_BASE } from "@/context/AuthContext";
 const C = Colors.light;
 
 type InviteInfo = {
@@ -39,7 +39,7 @@ export default function ParentCodeSignupScreen() {
     if (code.trim().length < 6) { setError("코드를 올바르게 입력해주세요."); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/auth/parent-invite/verify?code=${encodeURIComponent(code.trim().toUpperCase())}`);
+      const res = await fetch(`${API_BASE}/auth/parent-invite/verify?code=${encodeURIComponent(code.trim().toUpperCase())}`);
       const data = await res.json();
       if (!res.ok) { setError(data.error || "유효하지 않은 코드입니다."); return; }
       setInvite(data.invite);
@@ -54,7 +54,7 @@ export default function ParentCodeSignupScreen() {
     if (password !== passwordConfirm) { setError("비밀번호가 일치하지 않습니다."); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/auth/parent-invite/join`, {
+      const res = await fetch(`${API_BASE}/auth/parent-invite/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: code.trim().toUpperCase(), loginId: loginId.trim(), password }),

@@ -8,12 +8,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal }   from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
 
 interface Student { id: string; name: string; phone: string; class_name?: string | null; }
 
@@ -70,7 +69,7 @@ export default function PhotoUploadScreen() {
         const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
         fd.append("photos", { uri: img.uri, name: filename, type: ext === "png" ? "image/png" : "image/jpeg" } as any);
       }
-      const res = await fetch(`${API_BASE}/api/photos/batch`, {
+      const res = await fetch(`${API_BASE}/photos/batch`, {
         method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd,
       });
       const data = await res.json();

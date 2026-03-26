@@ -12,9 +12,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { API_BASE } from "@/context/AuthContext";
 
 const C = Colors.light;
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
 
 interface InviteInfo { id: string; name: string; phone: string; position: string | null; pool_name: string; invite_status: string; }
 
@@ -47,7 +47,7 @@ export default function TeacherInviteJoinScreen() {
     if (!t.trim()) { setTokenError("초대 코드를 입력해주세요."); return; }
     setVerifying(true); setTokenError("");
     try {
-      const res = await fetch(`${API_BASE}/api/public/teacher-invite/${encodeURIComponent(t.trim())}`);
+      const res = await fetch(`${API_BASE}/public/teacher-invite/${encodeURIComponent(t.trim())}`);
       const data = await res.json();
       if (!res.ok) { setTokenError(data.message || "유효하지 않은 초대 코드입니다."); return; }
       setInviteInfo(data.data);
@@ -63,7 +63,7 @@ export default function TeacherInviteJoinScreen() {
     if (password !== passwordConfirm) { setFormError("비밀번호가 일치하지 않습니다."); return; }
     setSubmitting(true); setFormError("");
     try {
-      const res = await fetch(`${API_BASE}/api/public/teacher-invite/join`, {
+      const res = await fetch(`${API_BASE}/public/teacher-invite/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: token.trim(), email: email.trim(), password, name: name.trim() }),

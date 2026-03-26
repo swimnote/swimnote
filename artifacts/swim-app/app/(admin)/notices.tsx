@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 import { useSelectionMode } from "@/hooks/useSelectionMode";
 import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -27,7 +27,6 @@ interface Notice {
 
 interface ReadStats { read_count: number; unread_count: number; total: number; }
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
 const MAX_IMAGES = 5;
 
 export default function NoticesScreen() {
@@ -114,7 +113,7 @@ export default function NoticesScreen() {
         const mimeType = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
         formData.append("images", { uri: img.uri, name: filename, type: mimeType } as any);
       }
-      const res = await fetch(`${API_BASE}/api/uploads`, {
+      const res = await fetch(`${API_BASE}/uploads`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -413,7 +412,7 @@ function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C, selecti
               {images.map((key, i) => (
                 <Image
                   key={i}
-                  source={{ uri: `${API_BASE}/api/uploads/${encodeURIComponent(key)}` }}
+                  source={{ uri: `${API_BASE}/uploads/${encodeURIComponent(key)}` }}
                   style={styles.thumbImage}
                   resizeMode="cover"
                 />
