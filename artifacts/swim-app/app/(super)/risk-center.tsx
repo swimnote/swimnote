@@ -246,7 +246,7 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === op.id} onPress={() => setReadonly(op)}>
                   <Text style={[g.btnTxt, { color: "#D96C6C" }]}>RO</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -279,7 +279,7 @@ export default function RiskCenterScreen() {
                   <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === op.id} onPress={() => blockUpload(op)}>
                     <Text style={[g.btnTxt, { color: "#D96C6C" }]}>차단</Text>
                   </Pressable>
-                  <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                  <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
                     <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                   </Pressable>
                 </View>
@@ -304,7 +304,7 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#E6FFFA" }]} disabled={processing === op.id} onPress={() => cancelDeletion(op)}>
                   <Text style={[g.btnTxt, { color: "#2EC4B6" }]}>해제</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -325,7 +325,7 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === (op.pool_id ?? op.id)} onPress={() => limitUpload(op)}>
                   <Text style={[g.btnTxt, { color: "#D96C6C" }]}>제한</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.pool_id ?? op.id}` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.pool_id ?? op.id}` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -390,7 +390,7 @@ export default function RiskCenterScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:          { flex: 1, backgroundColor: C.background },
   summaryCard:   { backgroundColor: "#1F1235", borderRadius: 14, padding: 16, gap: 12 },
   summaryRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
   summaryTitle:  { fontSize: 16, fontFamily: "Inter_700Bold", color: "#F1F5F9" },

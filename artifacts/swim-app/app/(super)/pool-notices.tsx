@@ -551,7 +551,7 @@ export default function PoolNoticesScreen() {
 // ── 스타일 ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:          { flex: 1, backgroundColor: C.background },
   tabBar:        { flexDirection: "row", padding: 12, gap: 8, backgroundColor: "#fff",
                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:           { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",

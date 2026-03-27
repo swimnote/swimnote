@@ -77,7 +77,7 @@ export default function SupportGroupScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:              { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:              { flex: 1, backgroundColor: C.background },
   summaryRow:        { flexDirection: "row", gap: 5, marginBottom: 6, flexWrap: "wrap" },
   summaryCard:       { flex: 1, minWidth: "18%", backgroundColor: "#fff", borderRadius: 12, padding: 10,
                        alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB" },

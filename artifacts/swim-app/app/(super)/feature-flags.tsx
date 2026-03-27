@@ -410,7 +410,7 @@ export default function FeatureFlagsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:          { flex: 1, backgroundColor: C.background },
   infoBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#E0F2FE",
                    padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#BAE6FD" },
   infoBannerTxt: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#0369A1", lineHeight: 17 },

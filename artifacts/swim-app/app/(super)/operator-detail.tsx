@@ -436,7 +436,7 @@ export default function OperatorDetailScreen() {
 }
 
 const d = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:           { flex: 1, backgroundColor: C.background },
   banner:         { flexDirection: "row", alignItems: "center", gap: 8,
                     paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
                     borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },

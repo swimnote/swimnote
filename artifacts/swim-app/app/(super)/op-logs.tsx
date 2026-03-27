@@ -244,7 +244,7 @@ export default function OpLogsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:         { flex: 1, backgroundColor: C.background },
   countBanner:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   countTxt:     { fontFamily: "Inter_400Regular", fontSize: 13, color: "#111827" },
   tabBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },

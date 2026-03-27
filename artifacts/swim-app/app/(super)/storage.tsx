@@ -372,7 +372,7 @@ export default function StorageScreen() {
                   <Text style={m.ctaOptionTitle}>상위 플랜 업그레이드</Text>
                   <Text style={m.ctaOptionDesc}>더 많은 저장공간 · 추가 기능 포함</Text>
                 </View>
-                <Pressable style={[m.ctaBtn, { backgroundColor: "#7C3AED" }]}
+                <Pressable style={[m.ctaBtn, { backgroundColor: C.button }]}
                   onPress={() => { setCtaModal(null); router.push("/(super)/subscriptions" as any); }}>
                   <Text style={m.ctaBtnTxt}>업그레이드</Text>
                 </Pressable>

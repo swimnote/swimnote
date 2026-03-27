@@ -918,7 +918,7 @@ export default function SecuritySettingsScreen() {
 
 // ─── StyleSheet ──────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:             { flex: 1, backgroundColor: C.background },
   section:          { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 10,
                       borderWidth: 1, borderColor: "#E5E7EB" },
   emptyTxt:         { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center", paddingVertical: 12 },

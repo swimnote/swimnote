@@ -314,7 +314,7 @@ export default function BillingAnalyticsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:             { flex: 1, backgroundColor: C.background },
   periodRow:        { flexDirection: "row", gap: 8 },
   periodTab:        { flex: 1, padding: 10, borderRadius: 10, backgroundColor: "#fff",
                       borderWidth: 1.5, borderColor: "#E5E7EB", alignItems: "center" },

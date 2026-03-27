@@ -197,7 +197,7 @@ export default function UsersScreen() {
           <Text style={[styles.subtitle, { color: C.textSecondary }]}>계정 및 권한 관리</Text>
         </View>
         {isSuperAdmin && (
-          <Pressable style={[styles.addBtn, { backgroundColor: "#7C3AED" }]}
+          <Pressable style={[styles.addBtn, { backgroundColor: C.button }]}
             onPress={() => { setShowCreate(true); setError(""); }}>
             <Feather name="user-plus" size={16} color="#fff" />
             <Text style={styles.addBtnText}>추가</Text>
@@ -281,7 +281,7 @@ export default function UsersScreen() {
           <Text style={[styles.permSectionTitle, { color: C.text }]}>초기 권한 설정</Text>
           <PermToggle perms={formPerms} setPerms={setFormPerms} />
         </View>
-        <Pressable style={({ pressed }) => [styles.saveBtn, { backgroundColor: "#7C3AED", opacity: pressed ? 0.85 : 1 }]}
+        <Pressable style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
           onPress={handleCreate}>
           <Text style={styles.saveBtnText}>계정 생성하기</Text>
         </Pressable>

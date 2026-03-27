@@ -361,7 +361,7 @@ function ActionBtn({ label, icon, color, bg, onPress, loading }: {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:         { flex: 1, backgroundColor: C.background },
   kpiBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   kpiCard:      { width: 80, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: "#F1F5F9",
                   borderRadius: 10, borderTopWidth: 2, alignItems: "center", gap: 2 },

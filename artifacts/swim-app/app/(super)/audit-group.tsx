@@ -116,7 +116,7 @@ export default function AuditGroupScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:            { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:            { flex: 1, backgroundColor: C.background },
   summaryRow:      { flexDirection: "row", gap: 6, marginBottom: 6 },
   summaryCard:     { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 10,
                      alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB" },

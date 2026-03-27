@@ -282,7 +282,7 @@ export default function PolicyScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:            { flex: 1, backgroundColor: "#EEDDF5" },
+  safe:            { flex: 1, backgroundColor: C.background },
   tabBar:          { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   tabContent:      { paddingHorizontal: 12, paddingVertical: 6, gap: 4, flexDirection: "row" },
   tab:             { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },

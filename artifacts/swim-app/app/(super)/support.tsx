@@ -589,7 +589,7 @@ export default function SupportScreen() {
 // ── 스타일 ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#EEDDF5" },
+  safe: { flex: 1, backgroundColor: C.background },
 
   // SLA 배너
   slaBanner: {
