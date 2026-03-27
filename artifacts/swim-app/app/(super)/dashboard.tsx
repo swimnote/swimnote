@@ -43,12 +43,16 @@ interface AuditLogItem {
   actor_name?: string; pool_name?: string; created_at: string;
 }
 
+const MINT = "#2EC4B6"; const MINT_BG = "#E6FAF8";
+const ORNG = "#F97316"; const ORNG_BG = "#FFF1E8";
+const NAVY = "#1B4965"; const NAVY_BG = "#E8EEF4";
+
 const MENUS = [
-  { id: "op",       icon: "briefcase" as const,      title: "운영 관리",   sub: "운영자·구독·저장공간·공지관리",  path: "/(super)/op-group",            color: P,         bg: "#EEDDF5" },
-  { id: "support",  icon: "message-circle" as const, title: "지원 센터",   sub: "고객센터·정책·초대·인증번호",    path: "/(super)/support-group",        color: "#0284C7", bg: "#E0F2FE" },
-  { id: "protect",  icon: "shield" as const,         title: "보호·통제",   sub: "킬스위치·백업·플래그·읽기전용", path: "/(super)/protect-group",        color: "#D96C6C", bg: "#F9DEDA" },
-  { id: "security", icon: "lock" as const,           title: "보안·설정",   sub: "계정·2FA·외부서비스·세션·정책", path: "/(super)/security-settings",    color: "#991B1B", bg: "#FEF2F2" },
-  { id: "audit",    icon: "activity" as const,       title: "감사·리스크", sub: "운영로그·리스크·보안·민감작업",  path: "/(super)/audit-group",          color: "#2EC4B6", bg: "#E6FFFA" },
+  { id: "op",       icon: "briefcase" as const,      title: "운영 관리",   sub: "운영자·구독·저장공간·공지관리",  path: "/(super)/op-group",         color: ORNG, bg: ORNG_BG },
+  { id: "support",  icon: "message-circle" as const, title: "지원 센터",   sub: "고객센터·정책·초대·인증번호",    path: "/(super)/support-group",    color: NAVY, bg: NAVY_BG },
+  { id: "protect",  icon: "shield" as const,         title: "보호·통제",   sub: "킬스위치·백업·플래그·읽기전용", path: "/(super)/protect-group",    color: NAVY, bg: NAVY_BG },
+  { id: "security", icon: "lock" as const,           title: "보안·설정",   sub: "계정·2FA·외부서비스·세션·정책", path: "/(super)/security-settings",color: NAVY, bg: NAVY_BG },
+  { id: "audit",    icon: "activity" as const,       title: "감사·리스크", sub: "운영로그·리스크·보안·민감작업",  path: "/(super)/audit-group",      color: NAVY, bg: NAVY_BG },
 ];
 
 const POOL_TYPE_LABELS: Record<string, string> = {

@@ -115,32 +115,32 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 공지함 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#EEDDF5", borderColor: "#C4B5FD" }]}
+          style={[s.actionBtn, { backgroundColor: "#E8EEF4", borderColor: "#1B4965" }]}
           onPress={() => router.push("/(teacher)/notices" as any)}
         >
-          <Feather name="bell" size={18} color="#7C3AED" />
-          <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>공지함</Text>
-          <Feather name="chevron-right" size={16} color="#7C3AED" />
+          <Feather name="bell" size={18} color="#1B4965" />
+          <Text style={[s.actionBtnText, { color: "#1B4965" }]}>공지함</Text>
+          <Feather name="chevron-right" size={16} color="#1B4965" />
         </Pressable>
 
         {/* ── 피드백 기본 설정 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#E6FFFA", borderColor: "#E6FFFA" }]}
+          style={[s.actionBtn, { backgroundColor: "#E8EEF4", borderColor: "#1B4965" }]}
           onPress={() => router.push("/(teacher)/feedback-custom" as any)}
         >
-          <Feather name="edit-3" size={18} color="#4EA7D8" />
-          <Text style={[s.actionBtnText, { color: "#4EA7D8" }]}>피드백 기본 설정</Text>
-          <Feather name="chevron-right" size={16} color="#4EA7D8" />
+          <Feather name="edit-3" size={18} color="#1B4965" />
+          <Text style={[s.actionBtnText, { color: "#1B4965" }]}>피드백 기본 설정</Text>
+          <Feather name="chevron-right" size={16} color="#1B4965" />
         </Pressable>
 
         {/* ── 사진·영상 앨범 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#FFF1BF", borderColor: "#F97316" }]}
+          style={[s.actionBtn, { backgroundColor: "#E8EEF4", borderColor: "#1B4965" }]}
           onPress={() => router.push("/(teacher)/photos" as any)}
         >
-          <Feather name="camera" size={18} color="#F97316" />
-          <Text style={[s.actionBtnText, { color: "#F97316" }]}>사진·영상 앨범</Text>
-          <Feather name="chevron-right" size={16} color="#F97316" />
+          <Feather name="camera" size={18} color="#1B4965" />
+          <Text style={[s.actionBtnText, { color: "#1B4965" }]}>사진·영상 앨범</Text>
+          <Feather name="chevron-right" size={16} color="#1B4965" />
         </Pressable>
 
         {/* ── 알림 설정 ── */}
@@ -217,12 +217,12 @@ export default function TeacherSettingsScreen() {
             </View>
 
             {([
-              { icon: "image"          as const, bg: "#FFF1BF", color: "#E4A93A", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
-              { icon: "video"          as const, bg: "#EEDDF5", color: "#7C3AED", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
-              { icon: "message-square" as const, bg: "#E6FFFA", color: "#2EC4B6", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
-              { icon: "book-open"      as const, bg: "#E6FFFA", color: "#2EC4B6", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
-              { icon: "bell"           as const, bg: "#F6D8E1", color: "#EC4899", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
-              { icon: "cpu"            as const, bg: "#F8FAFC", color: "#6B7280", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
+              { icon: "image"          as const, bg: "#FFF1E8", color: "#F97316", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
+              { icon: "video"          as const, bg: "#FFF1E8", color: "#F97316", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
+              { icon: "message-square" as const, bg: "#E8EEF4", color: "#1B4965", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
+              { icon: "book-open"      as const, bg: "#E6FAF8", color: "#2EC4B6", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
+              { icon: "bell"           as const, bg: "#E8EEF4", color: "#1B4965", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
+              { icon: "cpu"            as const, bg: "#E8EEF4", color: "#1B4965", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
             ]).map(item => (
               <View key={item.label} style={s.usageRow}>
                 <View style={[s.usageIcon, { backgroundColor: item.bg }]}>

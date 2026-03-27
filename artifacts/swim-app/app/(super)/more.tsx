@@ -16,16 +16,23 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 const PURPLE = "#7C3AED";
 
+const MINT_C = "#2EC4B6"; const MINT_BG = "#E6FAF8";
+const ORNG_C = "#F97316"; const ORNG_BG = "#FFF1E8";
+const NAVY_C = "#1B4965"; const NAVY_BG = "#E8EEF4";
+
 const ICON_COLOR_MAP: Record<string, { bg: string; icon: string }> = {
+  mint:    { bg: MINT_BG, icon: MINT_C },
+  orange:  { bg: ORNG_BG, icon: ORNG_C },
+  navy:    { bg: NAVY_BG, icon: NAVY_C },
   purple:  { bg: "#F3E8FF", icon: PURPLE },
-  blue:    { bg: "#E0F2FE", icon: "#2EC4B6" },
-  green:   { bg: "#E6FFFA", icon: "#2EC4B6" },
-  red:     { bg: "#F9DEDA", icon: "#D96C6C" },
-  orange:  { bg: "#FFF1BF", icon: "#D97706" },
-  indigo:  { bg: "#E6FFFA", icon: "#2EC4B6" },
-  slate:   { bg: "#F1F5F9", icon: "#475569" },
-  teal:    { bg: "#CCFBF1", icon: "#0D9488" },
-  rose:    { bg: "#FFE4E6", icon: "#E11D48" },
+  violet:  { bg: NAVY_BG,  icon: NAVY_C },
+  blue:    { bg: NAVY_BG,  icon: NAVY_C },
+  green:   { bg: MINT_BG,  icon: MINT_C },
+  red:     { bg: NAVY_BG,  icon: NAVY_C },
+  indigo:  { bg: NAVY_BG,  icon: NAVY_C },
+  slate:   { bg: NAVY_BG,  icon: NAVY_C },
+  teal:    { bg: NAVY_BG,  icon: NAVY_C },
+  rose:    { bg: NAVY_BG,  icon: NAVY_C },
 };
 
 type MenuEntry = {
@@ -109,7 +116,7 @@ export default function SuperMoreScreen() {
         {
           icon: "briefcase", label: "운영 관리",
           sub: "운영자·저장공간·상태 관리",
-          color: "purple", onPress: go("/(super)/op-group"),
+          color: "orange", onPress: go("/(super)/op-group"),
         },
       ],
     },
@@ -119,7 +126,7 @@ export default function SuperMoreScreen() {
         {
           icon: "shield", label: "보호·통제",
           sub: "킬스위치·백업·기능플래그·읽기전용",
-          color: "red", onPress: go("/(super)/protect-group"),
+          color: "navy", onPress: go("/(super)/protect-group"),
           badge: risk.storage_risk > 0 ? `저장 위험 ${risk.storage_risk}` : undefined,
         },
       ],
@@ -130,7 +137,7 @@ export default function SuperMoreScreen() {
         {
           icon: "message-circle", label: "지원 센터",
           sub: "문의·복구·보안·SLA 관리",
-          color: "blue", onPress: go("/(super)/support-group"),
+          color: "navy", onPress: go("/(super)/support-group"),
           badge: risk.sla_overdue > 0 ? `SLA 초과 ${risk.sla_overdue}` : undefined,
         },
       ],
@@ -141,7 +148,7 @@ export default function SuperMoreScreen() {
         {
           icon: "file-text", label: "정책·컴플라이언스",
           sub: "약관·개인정보·환불정책·동의상태",
-          color: "indigo", onPress: go("/(super)/policy"),
+          color: "navy", onPress: go("/(super)/policy"),
         },
       ],
     },
@@ -151,7 +158,7 @@ export default function SuperMoreScreen() {
         {
           icon: "lock", label: "보안·설정",
           sub: "계정·2FA·외부서비스·세션·이상감지",
-          color: "rose", onPress: go("/(super)/security-settings"),
+          color: "navy", onPress: go("/(super)/security-settings"),
         },
         {
           icon: "smartphone", label: "Google OTP",
@@ -161,7 +168,7 @@ export default function SuperMoreScreen() {
         {
           icon: "activity", label: "감사·리스크",
           sub: "운영로그·리스크·민감작업",
-          color: "indigo", onPress: go("/(super)/audit-group"),
+          color: "navy", onPress: go("/(super)/audit-group"),
         },
       ],
     },
@@ -171,17 +178,17 @@ export default function SuperMoreScreen() {
         {
           icon: "server", label: "시스템 상태",
           sub: "DB·스토리지·이메일·푸시·장애",
-          color: "teal", onPress: go("/(super)/system-status"),
+          color: "navy", onPress: go("/(super)/system-status"),
         },
         {
           icon: "database", label: "DB 이원화 모니터링",
           sub: "슈퍼관리자 DB · 수영장 운영 DB 용량·이벤트 로그",
-          color: "violet", onPress: go("/(super)/db-status"),
+          color: "navy", onPress: go("/(super)/db-status"),
         },
         {
           icon: "bell", label: "공지 관리",
           sub: "전체·관리자·선생님·학부모 공지 등록",
-          color: "indigo", onPress: go("/(super)/notices"),
+          color: "navy", onPress: go("/(super)/notices"),
         },
       ],
     },

@@ -23,18 +23,26 @@ import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
 
+const MINT_C = "#2EC4B6"; const MINT_BG = "#E6FAF8";
+const ORNG_C = "#F97316"; const ORNG_BG = "#FFF1E8";
+const NAVY_C = "#1B4965"; const NAVY_BG = "#E8EEF4";
+
 function MenuItem({
   icon, label, sub, onPress, danger = false,
+  iconColor, iconBg,
 }: {
   icon: any; label: string; sub?: string; onPress?: () => void; danger?: boolean;
+  iconColor?: string; iconBg?: string;
 }) {
+  const ic = danger ? "#D96C6C" : (iconColor ?? NAVY_C);
+  const bg = danger ? "#F9DEDA" : (iconBg ?? NAVY_BG);
   return (
     <Pressable
       style={({ pressed }) => [s.menuItem, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
       onPress={onPress}
     >
-      <View style={[s.menuIcon, { backgroundColor: danger ? "#F9DEDA" : C.tintLight }]}>
-        <Feather name={icon} size={18} color={danger ? "#D96C6C" : C.tint} />
+      <View style={[s.menuIcon, { backgroundColor: bg }]}>
+        <Feather name={icon} size={18} color={ic} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={[s.menuLabel, { color: danger ? "#D96C6C" : C.text }]}>{label}</Text>
@@ -79,40 +87,47 @@ export default function ParentMoreScreen() {
           icon="user"
           label="부모 정보 수정"
           sub="이름·전화번호·비밀번호"
+          iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/(parent)/parent-profile" as any)}
         />
         <MenuItem
           icon="users"
           label="자녀 관리"
           sub={students.length > 0 ? `연결된 자녀 ${students.length}명` : "자녀를 연결해주세요"}
+          iconColor={ORNG_C} iconBg={ORNG_BG}
           onPress={() => router.push("/(parent)/children" as any)}
         />
         <MenuItem
           icon="bell"
           label="공지함"
           sub="수영장 공지 전체 보기"
+          iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/(parent)/notices" as any)}
         />
         <MenuItem
           icon="settings"
           label="푸시 알림 설정"
           sub="공지·수업·일지·사진 알림 on/off"
+          iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/(parent)/push-settings" as any)}
         />
         {/* 약관 및 정책 */}
         <MenuItem
           icon="file-text"
           label="이용약관"
+          iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/terms" as any)}
         />
         <MenuItem
           icon="lock"
           label="개인정보처리방침"
+          iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/privacy" as any)}
         />
         <MenuItem
           icon="credit-card"
           label="환불 및 결제 정책"
+          iconColor={ORNG_C} iconBg={ORNG_BG}
           onPress={() => router.push("/refund" as any)}
         />
 
