@@ -158,12 +158,12 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       `)).rows as any[];
     } catch { /* payment_cards 미존재 */ }
 
-    // 과금 카운트: active + unregistered + pending + suspended + withdrawn 포함
-    // archived(기록보존) / deleted(영구삭제) 는 과금 제외
+    // 과금 카운트: active + suspended 만 포함 (유료회원 기준)
+    // withdrawn / archived / deleted 는 과금 제외
     const cntResult = await db.execute(sql`
       SELECT COUNT(*) AS cnt FROM students
       WHERE swimming_pool_id = ${poolId}
-        AND status NOT IN ('archived', 'deleted')
+        AND status IN ('active', 'suspended')
     `);
     const memberCount = Number((cntResult.rows[0] as any)?.cnt ?? 0);
 
@@ -860,6 +860,7 @@ cron.schedule("0 * * * *", async () => {
       if (pendingStudents.length > 0) {
         for (const s of pendingStudents) {
           const newStatus = s.pending_status_change as string;
+          const fromPending = s.pending_status_change as string;
           // suspended: withdrawn_at 건드리지 않음
           // withdrawn: withdrawn_at = NOW() 추가
           if (newStatus === "withdrawn") {
@@ -894,8 +895,9 @@ cron.schedule("0 * * * *", async () => {
               WHERE id = ${s.id}
             `);
           }
+          console.log(`[MONTHLY_STATUS_UPDATE] student: ${s.id} from: ${fromPending} → status 적용 완료`);
         }
-        console.log(`[pending-cron] 자동 확정 완료: ${pendingStudents.length}명 (월: ${currentMonth})`);
+        console.log(`[MONTHLY_STATUS_UPDATE] 월 전환 완료: ${pendingStudents.length}명 (월: ${currentMonth})`);
       }
     } catch (e: any) {
       console.warn("[pending-cron] pending 자동 확정 건너뜀:", e.message);

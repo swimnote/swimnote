@@ -30,7 +30,7 @@ interface Profile {
   position: string | null; role: string;
 }
 interface DayStat { day: string; count: number; }
-interface MemberStatus { active: number; suspended: number; withdrawn: number; }
+interface MemberStatus { active: number; suspended: number; withdrawn: number; paid_count?: number; }
 interface MemberItem {
   id: string; name: string; status: string;
   class_name: string | null; updated_at: string | null; deleted_at: string | null;
@@ -358,6 +358,14 @@ export default function MyInfoScreen() {
           <View style={s.cardHeader}>
             <Feather name="users" size={15} color={themeColor} />
             <Text style={s.cardTitle}>회원 현황</Text>
+          </View>
+          {/* 유료회원 총계 (active + suspended) */}
+          <View style={[s.memRow, { borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: themeColor + "0D" }]}>
+            <View style={[s.memDot, { backgroundColor: themeColor }]} />
+            <Text style={[s.memLabel, { fontFamily: "Inter_600SemiBold" }]}>유료회원</Text>
+            <Text style={[s.memCount, { color: themeColor, fontFamily: "Inter_700Bold" }]}>
+              {memStatus.paid_count ?? (memStatus.active + memStatus.suspended)}명
+            </Text>
           </View>
           {([
             { key: "active",    label: "정상회원", count: memStatus.active,    color: "#1F8F86" },

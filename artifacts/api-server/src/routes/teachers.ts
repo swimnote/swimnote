@@ -340,7 +340,7 @@ router.get("/teacher/me/stats", requireAuth,
 
       res.json({
         day_stats: dayStats,
-        member_status: { active, suspended, withdrawn },
+        member_status: { active, suspended, withdrawn, paid_count: active + suspended },
       });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
