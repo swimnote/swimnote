@@ -87,7 +87,7 @@ export default function LoginScreen() {
       keyboardVerticalOffset={0}
     >
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 72 : 60), paddingBottom: insets.bottom + 40 }]}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 100 : 90), paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -233,10 +233,10 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, paddingHorizontal: 20 },
-  logoArea: { alignItems: "center", gap: 10, paddingBottom: 8 },
-  logoImage: { width: 160, height: 160, borderRadius: 38, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.28, shadowRadius: 24, elevation: 12 },
-  appSub: { fontSize: 15, fontFamily: "Inter_600SemiBold", textAlign: "center" },
-  appDesc: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  logoArea: { alignItems: "center", gap: 12, paddingBottom: 10 },
+  logoImage: { width: 192, height: 192, borderRadius: 44, shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
+  appSub: { fontSize: 18, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  appDesc: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
   spacer: { height: 140 },
   card: { borderRadius: 20, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 },
   cardTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
