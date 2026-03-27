@@ -106,9 +106,6 @@ export default function OrgRoleSelectScreen() {
     <View style={[styles.root, { backgroundColor: C.background, paddingBottom: insets.bottom }]}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 16) }]}>
         <View style={[styles.orgSelector, { backgroundColor: C.card, borderColor: C.border }]}>
-          <View style={[styles.orgAvatar, { backgroundColor: C.tintLight }]}>
-            <Text style={[styles.orgAvatarText, { color: C.tint }]}>{orgInitial}</Text>
-          </View>
           <Text style={[styles.orgName, { color: C.text }]} numberOfLines={1}>{orgName}</Text>
         </View>
         <Pressable onPress={handleLogout} style={styles.logoutBtn} hitSlop={8}>
