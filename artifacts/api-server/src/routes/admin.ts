@@ -390,17 +390,36 @@ router.delete("/parents/:id", requireAuth, requireRole("super_admin", "pool_admi
   const parentId = req.params.id;
   console.log(`[ADMIN DELETE PARENT] 요청 수신: parentId=${parentId}, userId=${req.user?.userId}, role=${req.user?.role}`);
   try {
+    // 삭제 전 학부모 login_id, phone 조회 (parent_pool_requests 정리에 사용)
+    const paRows = await db.execute(sql`SELECT login_id, phone FROM parent_accounts WHERE id = ${parentId} LIMIT 1`);
+    const pa = (paRows.rows as any[])[0];
+    const loginId: string | null = pa?.login_id ?? null;
+    const phone: string | null = pa?.phone ?? null;
+
     // 1. 학생 parent_user_id 초기화 (자녀 기록은 보존, 연결만 해제)
     await db.execute(sql`UPDATE students SET parent_user_id = NULL, updated_at = NOW() WHERE parent_user_id = ${parentId}`);
     // 2. parent_students 링크 삭제
     await db.delete(parentStudentsTable).where(eq(parentStudentsTable.parent_id, parentId));
-    // 3. parent_pool_requests 상태 취소 처리 (superAdminDb)
+    // 3. parent_pool_requests 취소 처리 — parent_account_id 기준 + login_id/phone 기준 모두 정리
     await superAdminDb.execute(sql`
       UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW()
-      WHERE parent_account_id = ${parentId} AND request_status IN ('pending', 'approved', 'auto_approved')
+      WHERE parent_account_id = ${parentId} AND request_status NOT IN ('revoked', 'rejected')
     `).catch(() => {});
-    // 4. 학부모 계정 삭제 (강제탈퇴)
+    if (loginId) {
+      await superAdminDb.execute(sql`
+        UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW()
+        WHERE login_id = ${loginId} AND request_status NOT IN ('revoked', 'rejected')
+      `).catch(() => {});
+    }
+    if (phone) {
+      await superAdminDb.execute(sql`
+        UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW()
+        WHERE phone = ${phone} AND request_status NOT IN ('revoked', 'rejected')
+      `).catch(() => {});
+    }
+    // 4. 학부모 계정 삭제 (강제탈퇴 — phone 포함 모든 정보 삭제)
     await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${parentId}`);
+    console.log(`[ADMIN DELETE PARENT] 삭제 완료: parentId=${parentId}, loginId=${loginId}, phone=${phone}`);
     res.json({ success: true, message: "학부모 계정이 삭제되었습니다." });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });

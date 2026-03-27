@@ -387,14 +387,13 @@ router.post("/simple-parent-register", async (req, res) => {
   if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
   if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
   try {
-    // 아이디 중복 확인
+    // 아이디 중복 확인 (loginId는 전역 유일해야 함)
     if (lid) {
       const dupId = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
       if ((dupId.rows as any[]).length > 0) return err(res, 409, "이미 사용 중인 아이디입니다.");
     }
-    // 전화번호 중복 확인 (pool 무관하게 전체)
-    const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} LIMIT 1`);
-    if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다.");
+    // 전화번호 중복 확인 제거: 동일 학부모가 여러 수영장에 가입할 수 있으며
+    // 관리자 삭제 후 재가입도 허용해야 하므로 전화번호 전역 중복 체크를 하지 않음
 
     const pin_hash = await hashPassword(pw);
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
