@@ -211,10 +211,10 @@ export default function TodayScheduleScreen() {
           </View>
         </View>
 
-        <Pressable style={[h.schedHero, { backgroundColor: "#2DD4BF" }]} onPress={() => router.push("/(teacher)/my-schedule" as any)}>
+        <Pressable style={[h.schedHero, { backgroundColor: "#CCFBF1" }]} onPress={() => router.push("/(teacher)/my-schedule" as any)}>
           <View style={h.schedHeroTop}>
             <View>
-              <Text style={h.schedHeroTitle}>월간 스케줄러</Text>
+              <Text style={h.schedHeroTitle}>스케줄러 바로 가기</Text>
               <Text style={h.schedHeroSub}>수업 · 출결 · 일지 · 날짜메모</Text>
             </View>
           </View>
@@ -376,8 +376,8 @@ const h = StyleSheet.create({
   emptyTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   schedHero:        { borderRadius: 18, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   schedHeroTop:     { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 },
-  schedHeroTitle:   { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#fff" },
-  schedHeroSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.8)", marginTop: 3 },
+  schedHeroTitle:   { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  schedHeroSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3 },
   schedHeroBtn:     { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   schedHeroBtnTxt:  { fontSize: 12, fontFamily: "Pretendard-Bold" },
   miniWeek:         { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 6 },
