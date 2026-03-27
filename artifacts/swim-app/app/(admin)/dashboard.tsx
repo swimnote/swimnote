@@ -254,16 +254,16 @@ export default function DashboardScreen() {
               <Pressable
                 style={({ pressed }) => [
                   s.switchChip,
-                  { borderColor: "#2EC4B6" + "50", backgroundColor: "#E6FFFA", opacity: pressed || switching ? 0.7 : 1 },
+                  { borderColor: "#1B496530", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
                 ]}
                 onPress={handleSwitchToTeacher}
                 disabled={switching}
               >
                 {switching
-                  ? <ActivityIndicator size="small" color="#2EC4B6" />
+                  ? <ActivityIndicator size="small" color="#1B4965" />
                   : <>
-                      <Feather name="repeat" size={10} color="#2EC4B6" />
-                      <Text style={[s.switchChipTxt, { color: "#2EC4B6" }]}>선생님으로 전환</Text>
+                      <Feather name="repeat" size={10} color="#1B4965" />
+                      <Text style={[s.switchChipTxt, { color: C.text }]}>선생님으로 전환</Text>
                     </>
                 }
               </Pressable>
