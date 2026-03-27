@@ -99,15 +99,21 @@ export default function ParentMoreScreen() {
           sub="공지·수업·일지·사진 알림 on/off"
           onPress={() => router.push("/(parent)/push-settings" as any)}
         />
+        {/* 약관 및 정책 */}
         <MenuItem
           icon="file-text"
           label="이용약관"
-          onPress={() => {}}
+          onPress={() => router.push("/terms" as any)}
         />
         <MenuItem
           icon="lock"
           label="개인정보처리방침"
-          onPress={() => {}}
+          onPress={() => router.push("/privacy" as any)}
+        />
+        <MenuItem
+          icon="credit-card"
+          label="환불 및 결제 정책"
+          onPress={() => router.push("/refund" as any)}
         />
 
         {/* 앱 버전 */}

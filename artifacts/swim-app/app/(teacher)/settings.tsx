@@ -238,6 +238,31 @@ export default function TeacherSettingsScreen() {
           </View>
         </View>
 
+        {/* ── 약관 및 정책 ── */}
+        <View style={s.card}>
+          <View style={s.cardHeader}>
+            <Feather name="file-text" size={15} color={themeColor} />
+            <Text style={s.cardTitle}>약관 및 정책</Text>
+          </View>
+          {[
+            { label: "이용약관",          path: "/terms"   },
+            { label: "개인정보처리방침",   path: "/privacy" },
+            { label: "환불 및 결제 정책", path: "/refund"  },
+          ].map((item, i) => (
+            <Pressable
+              key={item.label}
+              style={[
+                s.policyRow,
+                i > 0 && { borderTopWidth: 1, borderTopColor: C.border },
+              ]}
+              onPress={() => router.push(item.path as any)}
+            >
+              <Text style={s.policyLabel}>{item.label}</Text>
+              <Feather name="chevron-right" size={16} color={C.textMuted} />
+            </Pressable>
+          ))}
+        </View>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -269,4 +294,6 @@ const s = StyleSheet.create({
   infoRow:          { flexDirection: "row", alignItems: "center", gap: 8 },
   actionBtn:        { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderRadius: 16, borderWidth: 1.5 },
   actionBtnText:    { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  policyRow:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 15 },
+  policyLabel:      { fontSize: 14, fontFamily: "Inter_400Regular", color: C.text },
 });
