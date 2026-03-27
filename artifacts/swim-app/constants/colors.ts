@@ -14,7 +14,7 @@ export default {
   light: {
     // ── 텍스트 ─────────────────────────────────────────────────────────
     text:           "#1C1C1E",   // primary (iOS 스타일 검정)
-    textSecondary:  "#8E8E93",   // secondary
+    textSecondary:  "#64748B",   // secondary
     textMuted:      "#C7C7CC",   // hint / meta
 
     // ── 배경 ──────────────────────────────────────────────────────────
