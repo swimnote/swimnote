@@ -29,18 +29,19 @@ import type { ClassGroup } from "@/components/admin/member/memberDetailTypes";
 
 const C = Colors.light;
 
+const _IC = "#1B4965"; const _IB = "#E6FAF8";
 const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "all",               label: "전체",       icon: "list" },
-  { key: "normal",            label: "정상",       icon: "check-circle",  activeColor: "#2EC4B6", activeBg: "#E6FFFA" },
-  { key: "unassigned",        label: "미배정",     icon: "alert-circle",  activeColor: "#D96C6C", activeBg: "#F9DEDA" },
-  { key: "weekly_1",          label: "주1회",      icon: "sun",           activeColor: WEEKLY_BADGE[1].color, activeBg: WEEKLY_BADGE[1].bg },
-  { key: "weekly_2",          label: "주2회",      icon: "wind",          activeColor: WEEKLY_BADGE[2].color, activeBg: WEEKLY_BADGE[2].bg },
-  { key: "weekly_3",          label: "주3회",      icon: "zap",           activeColor: WEEKLY_BADGE[3].color, activeBg: WEEKLY_BADGE[3].bg },
-  { key: "unlinked",          label: "학부모미연결", icon: "user-x",        activeColor: "#EA580C", activeBg: "#FFF1BF" },
-  { key: "pending_suspended", label: "연기예정",   icon: "clock",         activeColor: "#B45309", activeBg: "#FFFBEB" },
-  { key: "pending_withdrawn", label: "퇴원예정",   icon: "clock",         activeColor: "#DC2626", activeBg: "#FFF1F2" },
-  { key: "suspended",         label: "연기",       icon: "pause-circle",  activeColor: "#B45309", activeBg: "#FFF1BF" },
-  { key: "withdrawn",         label: "퇴원",       icon: "log-out",       activeColor: "#6B7280", activeBg: "#F8FAFC" },
+  { key: "normal",            label: "정상",       icon: "check-circle",  activeColor: _IC, activeBg: _IB },
+  { key: "unassigned",        label: "미배정",     icon: "alert-circle",  activeColor: _IC, activeBg: _IB },
+  { key: "weekly_1",          label: "주1회",      icon: "sun",           activeColor: _IC, activeBg: _IB },
+  { key: "weekly_2",          label: "주2회",      icon: "wind",          activeColor: _IC, activeBg: _IB },
+  { key: "weekly_3",          label: "주3회",      icon: "zap",           activeColor: _IC, activeBg: _IB },
+  { key: "unlinked",          label: "학부모미연결", icon: "user-x",        activeColor: _IC, activeBg: _IB },
+  { key: "pending_suspended", label: "연기예정",   icon: "clock",         activeColor: _IC, activeBg: _IB },
+  { key: "pending_withdrawn", label: "퇴원예정",   icon: "clock",         activeColor: _IC, activeBg: _IB },
+  { key: "suspended",         label: "연기",       icon: "pause-circle",  activeColor: _IC, activeBg: _IB },
+  { key: "withdrawn",         label: "퇴원",       icon: "log-out",       activeColor: _IC, activeBg: _IB },
 ];
 
 export default function MembersScreen() {

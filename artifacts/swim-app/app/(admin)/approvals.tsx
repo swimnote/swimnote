@@ -79,14 +79,15 @@ function parseRoles(roles: any): string[] {
   return [];
 }
 
+const _IC = "#1B4965"; const _IB = "#E6FAF8";
 const PARENT_FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
-  { key: "unlinked", label: "미연결", icon: "link",         activeColor: "#D97706",                    activeBg: "#FFF1BF"                 },
-  { key: "approved", label: "연결됨", icon: "check-circle", activeColor: STATUS_COLORS.approved.color, activeBg: STATUS_COLORS.approved.bg },
+  { key: "unlinked", label: "미연결", icon: "link",         activeColor: _IC, activeBg: _IB },
+  { key: "approved", label: "연결됨", icon: "check-circle", activeColor: _IC, activeBg: _IB },
 ];
 const TEACHER_FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
-  { key: "unlinked", label: "대기",   icon: "clock",        activeColor: STATUS_COLORS.pending.color,  activeBg: STATUS_COLORS.pending.bg  },
-  { key: "approved", label: "승인",   icon: "check-circle", activeColor: STATUS_COLORS.approved.color, activeBg: STATUS_COLORS.approved.bg },
-  { key: "rejected", label: "거절됨", icon: "x-circle",     activeColor: STATUS_COLORS.rejected.color, activeBg: STATUS_COLORS.rejected.bg },
+  { key: "unlinked", label: "대기",   icon: "clock",        activeColor: _IC, activeBg: _IB },
+  { key: "approved", label: "승인",   icon: "check-circle", activeColor: _IC, activeBg: _IB },
+  { key: "rejected", label: "거절됨", icon: "x-circle",     activeColor: _IC, activeBg: _IB },
 ];
 
 // ── 메인 컴포넌트 ───────────────────────────────────────────────

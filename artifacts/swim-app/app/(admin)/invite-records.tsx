@@ -23,15 +23,16 @@ const C = Colors.light;
 
 type FilterKey = "all" | InviteTargetType;
 
+const _IC = "#1B4965"; const _IB = "#E6FAF8";
 const FILTER_CHIPS: FilterChipItem<FilterKey>[] = [
   { key: "all",      label: "전체",   icon: "list"   },
-  { key: "guardian", label: "학부모", icon: "users",      activeColor: "#2EC4B6", activeBg: "#E6FFFA" },
-  { key: "teacher",  label: "선생님", icon: "user-check", activeColor: "#7C3AED", activeBg: "#EEDDF5" },
+  { key: "guardian", label: "학부모", icon: "users",      activeColor: _IC, activeBg: _IB },
+  { key: "teacher",  label: "선생님", icon: "user-check", activeColor: _IC, activeBg: _IB },
 ];
 
 const TARGET_CFG: Record<InviteTargetType, { label: string; color: string; bg: string; icon: string }> = {
-  guardian: { label: "학부모", color: "#2EC4B6", bg: "#E6FFFA", icon: "users"      },
-  teacher:  { label: "선생님", color: "#7C3AED", bg: "#EEDDF5", icon: "user-check" },
+  guardian: { label: "학부모", color: _IC, bg: _IB, icon: "users"      },
+  teacher:  { label: "선생님", color: _IC, bg: _IB, icon: "user-check" },
 };
 
 function fmtDate(iso: string) {
