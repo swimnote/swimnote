@@ -635,7 +635,7 @@ router.get("/subscription-status", requireAuth, requireRole("super_admin", "pool
 
       const countResult = await db.execute(sql`
         SELECT COUNT(*) AS cnt FROM students
-        WHERE swimming_pool_id = ${poolId} AND status = 'active'
+        WHERE swimming_pool_id = ${poolId} AND status IN ('active', 'suspended')
       `);
       const count = Number((countResult.rows[0] as any)?.cnt ?? 0);
 

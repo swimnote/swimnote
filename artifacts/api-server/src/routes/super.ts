@@ -302,7 +302,7 @@ router.get(
       const [pool, teachers, recentLogs, policyRows] = await Promise.all([
         superAdminDb.execute(sql`
           SELECT sp.*,
-            (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id AND st.status = 'active') AS active_member_count,
+            (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id AND st.status IN ('active','suspended')) AS active_member_count,
             (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id) AS total_member_count,
             (SELECT COUNT(*)::int FROM classes c WHERE c.swimming_pool_id = sp.id) AS total_class_count,
             CASE

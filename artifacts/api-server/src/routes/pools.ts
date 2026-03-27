@@ -98,10 +98,10 @@ router.get("/my", requireAuth, async (req: AuthRequest, res) => {
     if (!rows.rows.length) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
     const pool = rows.rows[0] as any;
 
-    // 회원 수 조회
+    // 회원 수 조회: 유료회원 기준 (active + suspended, withdrawn 제외)
     const [cntRow] = (await db.execute(sql`
       SELECT COUNT(*) AS cnt FROM students
-      WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
+      WHERE swimming_pool_id = ${poolId} AND status IN ('active', 'suspended')
     `)).rows as any[];
     const memberCount = Number(cntRow?.cnt ?? 0);
 
