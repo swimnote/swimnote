@@ -44,7 +44,7 @@ function getDayClasses(groups: TeacherClassGroup[], day: string) {
 }
 
 const CLASS_COLORS = [
-  "#1F8F86","#EC4899","#14B8A6","#E4A93A","#8B5CF6",
+  "#2EC4B6","#EC4899","#14B8A6","#E4A93A","#8B5CF6",
   "#2E9B6F","#4EA7D8","#D96C6C","#F97316","#06B6D4",
 ];
 function classColor(id: string) {
@@ -191,11 +191,11 @@ export function WeeklySchedule({
                   </Text>
                   {!inactive && (
                     <View style={ws.dots}>
-                      <View style={[ws.dot, { backgroundColor: attDone ? "#DDF2EF" : "#F9DEDA" }]}>
-                        <Feather name={attDone ? "check" : "x"} size={7} color={attDone ? "#1F8F86" : "#D96C6C"} />
+                      <View style={[ws.dot, { backgroundColor: attDone ? "#E6FFFA" : "#F9DEDA" }]}>
+                        <Feather name={attDone ? "check" : "x"} size={7} color={attDone ? "#2EC4B6" : "#D96C6C"} />
                       </View>
-                      <View style={[ws.dot, { backgroundColor: diaryDone ? "#DDF2EF" : "#FFF1BF" }]}>
-                        <Feather name={diaryDone ? "check" : "edit-3"} size={7} color={diaryDone ? "#1F8F86" : "#D97706"} />
+                      <View style={[ws.dot, { backgroundColor: diaryDone ? "#E6FFFA" : "#FFF1BF" }]}>
+                        <Feather name={diaryDone ? "check" : "edit-3"} size={7} color={diaryDone ? "#2EC4B6" : "#D97706"} />
                       </View>
                       {hasPhotos && (
                         <View style={[ws.dot, { backgroundColor: "#EEDDF5" }]}>

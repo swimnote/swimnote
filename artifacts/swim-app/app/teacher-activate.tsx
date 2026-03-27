@@ -78,8 +78,8 @@ export default function TeacherActivateScreen() {
   if (success) {
     return (
       <View style={[styles.root, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}>
-        <View style={[styles.successIcon, { backgroundColor: "#DDF2EF" }]}>
-          <Feather name="check-circle" size={48} color="#1F8F86" />
+        <View style={[styles.successIcon, { backgroundColor: "#E6FFFA" }]}>
+          <Feather name="check-circle" size={48} color="#2EC4B6" />
         </View>
         <Text style={[styles.successTitle, { color: C.text }]}>계정 활성화 완료!</Text>
         <Text style={[styles.successSub, { color: C.textSecondary }]}>잠시 후 이동합니다...</Text>
@@ -130,7 +130,7 @@ export default function TeacherActivateScreen() {
         </View>
 
         <Pressable
-          style={({ pressed }) => [styles.btn, { backgroundColor: C.tint, opacity: pressed || loading ? 0.85 : 1 }]}
+          style={({ pressed }) => [styles.btn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
           onPress={handleActivate} disabled={loading}
         >
           {loading ? <ActivityIndicator color="#fff" size="small" /> : (

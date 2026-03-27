@@ -146,7 +146,7 @@ export default function PhotoUploadScreen() {
         )}
 
         {selected.size > 0 && (
-          <View style={[styles.selectionBar, { bottom: insets.bottom + 12, backgroundColor: C.tint }]}>
+          <View style={[styles.selectionBar, { bottom: insets.bottom + 12, backgroundColor: C.button }]}>
             <Text style={styles.selectionText}>{selected.size}명 선택됨</Text>
             <Pressable onPress={() => setStep("photos")} style={styles.selectionBtn}>
               <Text style={styles.selectionBtnText}>사진 선택 →</Text>
@@ -162,7 +162,7 @@ export default function PhotoUploadScreen() {
         onBack={() => setStep("students")}
         rightSlot={
           <Pressable
-            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#1F8F86" : C.border, opacity: uploading ? 0.6 : 1 }]}
+            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#2EC4B6" : C.border, opacity: uploading ? 0.6 : 1 }]}
             onPress={handleUpload}
             disabled={uploading || images.length === 0}
           >

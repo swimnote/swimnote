@@ -103,9 +103,9 @@ export default function AbsenceModal({
         <View style={ab.handle} />
         {result ? (
           <View style={{ gap: 16, padding: 4 }}>
-            <View style={[ab.resultBox, { backgroundColor: result.startsWith("오류") ? "#F9DEDA" : "#DDF2EF" }]}>
+            <View style={[ab.resultBox, { backgroundColor: result.startsWith("오류") ? "#F9DEDA" : "#E6FFFA" }]}>
               <Feather name={result.startsWith("오류") ? "alert-circle" : "check-circle"} size={20}
-                color={result.startsWith("오류") ? "#D96C6C" : "#1F8F86"} />
+                color={result.startsWith("오류") ? "#D96C6C" : "#2EC4B6"} />
               <Text style={[ab.resultText, { color: result.startsWith("오류") ? "#D96C6C" : "#065F46" }]}>{result}</Text>
             </View>
             <Pressable style={[ab.btn, { backgroundColor: themeColor }]} onPress={() => { onDone(); onClose(); }}>
@@ -122,10 +122,10 @@ export default function AbsenceModal({
               </Text>
             </View>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={[ab.choiceBtn, { backgroundColor: "#F6F3F1", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
-                {loading ? <ActivityIndicator size="small" color="#6F6B68" /> : <>
-                  <Feather name="x-circle" size={18} color="#6F6B68" />
-                  <Text style={[ab.choiceBtnText, { color: "#1F1F1F" }]}>없음</Text>
+              <Pressable style={[ab.choiceBtn, { backgroundColor: "#F8FAFC", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
+                {loading ? <ActivityIndicator size="small" color="#6B7280" /> : <>
+                  <Feather name="x-circle" size={18} color="#6B7280" />
+                  <Text style={[ab.choiceBtnText, { color: "#111827" }]}>없음</Text>
                   <Text style={ab.choiceSub}>전원 미실시(선생님)</Text>
                 </>}
               </Pressable>
@@ -181,7 +181,7 @@ export default function AbsenceModal({
 const ab = StyleSheet.create({
   overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
   sheet:        { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14, maxHeight: "85%" },
-  handle:       { width: 36, height: 4, backgroundColor: "#E9E2DD", borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  handle:       { width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center", marginBottom: 4 },
   title:        { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
   warnBox:      { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderRadius: 14 },
   warnText:     { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },

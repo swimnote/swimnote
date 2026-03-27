@@ -24,8 +24,8 @@ interface Notification {
 }
 
 const TYPE_CONFIG: Record<string, { icon: "book-open" | "image" | "bell"; color: string; bg: string }> = {
-  diary_upload: { icon: "book-open", color: "#1F8F86", bg: "#DDF2EF" },
-  photo_upload: { icon: "image", color: "#1F8F86", bg: "#DDF2EF" },
+  diary_upload: { icon: "book-open", color: "#2EC4B6", bg: "#E6FFFA" },
+  photo_upload: { icon: "image", color: "#2EC4B6", bg: "#E6FFFA" },
 };
 
 function timeAgo(iso: string): string {
@@ -99,11 +99,11 @@ export default function ParentNotificationsScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color="#1F8F86" style={{ marginTop: 60 }} />
+        <ActivityIndicator color="#2EC4B6" style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 10 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchNotifications(); }} tintColor="#1F8F86" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchNotifications(); }} tintColor="#2EC4B6" />}
           showsVerticalScrollIndicator={false}
         >
           {notifications.length === 0 && (
@@ -134,7 +134,7 @@ export default function ParentNotificationsScreen() {
                   <Text style={[styles.cardTime, { color: C.textMuted }]}>{timeAgo(n.created_at)}</Text>
                 </View>
                 <View style={styles.cardRight}>
-                  {!n.is_read && <View style={[styles.dot, { backgroundColor: "#1F8F86" }]} />}
+                  {!n.is_read && <View style={[styles.dot, { backgroundColor: "#2EC4B6" }]} />}
                   <Pressable onPress={() => deleteNotif(n.id)} hitSlop={8}>
                     <Feather name="x" size={14} color={C.textMuted} />
                   </Pressable>

@@ -236,8 +236,8 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>휴대폰 번호 *</Text>
             <View style={styles.phoneRow}>
-              <View style={[styles.inputBox, { flex: 1, borderColor: phoneVerified ? "#1F8F86" : C.border, backgroundColor: C.background }]}>
-                <Feather name="phone" size={16} color={phoneVerified ? "#1F8F86" : C.textMuted} style={styles.inputIcon} />
+              <View style={[styles.inputBox, { flex: 1, borderColor: phoneVerified ? "#2EC4B6" : C.border, backgroundColor: C.background }]}>
+                <Feather name="phone" size={16} color={phoneVerified ? "#2EC4B6" : C.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={form.phone}
@@ -250,7 +250,7 @@ export default function RegisterScreen() {
                   keyboardType="phone-pad"
                   editable={!phoneVerified}
                 />
-                {phoneVerified && <Feather name="check-circle" size={16} color="#1F8F86" />}
+                {phoneVerified && <Feather name="check-circle" size={16} color="#2EC4B6" />}
               </View>
               {!phoneVerified && (
                 <Pressable
@@ -288,7 +288,7 @@ export default function RegisterScreen() {
                     )}
                   </View>
                   <Pressable
-                    style={[styles.smsBtn, { backgroundColor: smsState === "verifying" ? "#ccc" : "#1F8F86" }]}
+                    style={[styles.smsBtn, { backgroundColor: smsState === "verifying" ? "#ccc" : "#2EC4B6" }]}
                     onPress={handleVerifySms}
                     disabled={smsState === "verifying"}
                   >
@@ -298,7 +298,7 @@ export default function RegisterScreen() {
                     }
                   </Pressable>
                 </View>
-                <Text style={[styles.codeSent, { color: "#1F8F86" }]}>
+                <Text style={[styles.codeSent, { color: "#2EC4B6" }]}>
                   인증번호를 {form.phone}으로 보냈습니다.
                 </Text>
                 {!!devCode && (
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
   codeRow:      { flexDirection: "row", gap: 8, alignItems: "center" },
   timerTxt:     { fontSize: 13, fontFamily: "Inter_600SemiBold", marginRight: 4 },
   codeSent:     { fontSize: 12, fontFamily: "Inter_400Regular" },
-  verifiedTxt:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F8F86" },
+  verifiedTxt:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "#2EC4B6" },
   smsErrTxt:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C" },
   devCodeBox:     { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6,
                     backgroundColor: "#FFF3CD", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },

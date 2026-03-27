@@ -20,7 +20,7 @@ import type { SubscriptionPlan } from "@/domain/types";
 import type { ExtraStorageProduct } from "@/store/extraStorageStore";
 
 const P = "#7C3AED";
-const G = "#1F8F86";
+const G = "#2EC4B6";
 
 const TABS = ["구독 플랜", "추가 용량 상품"] as const;
 type Tab = typeof TABS[number];
@@ -70,7 +70,7 @@ function PlanCard({ plan, onEdit, onToggle }: {
         <View style={pc.tierBadge}>
           <Text style={pc.tierTxt}>{plan.code.toUpperCase()}</Text>
         </View>
-        <Text style={[pc.name, (!plan.isActive || plan.isArchived) && { color: "#9A948F" }]}>{plan.name}</Text>
+        <Text style={[pc.name, (!plan.isActive || plan.isArchived) && { color: "#9CA3AF" }]}>{plan.name}</Text>
         <Text style={pc.price}>{priceStr}</Text>
       </View>
       <View style={pc.row}>
@@ -100,7 +100,7 @@ function PlanCard({ plan, onEdit, onToggle }: {
           <Text style={[pc.btnTxt, { color: P }]}>수정</Text>
         </Pressable>
         <Pressable
-          style={[pc.btn, { backgroundColor: plan.isActive ? "#FFF1BF" : "#DDF2EF" }]}
+          style={[pc.btn, { backgroundColor: plan.isActive ? "#FFF1BF" : "#E6FFFA" }]}
           onPress={() => onToggle(plan)}>
           <Feather name={plan.isActive ? "pause-circle" : "play-circle"} size={13}
             color={plan.isActive ? "#D97706" : G} />
@@ -115,23 +115,23 @@ function PlanCard({ plan, onEdit, onToggle }: {
 }
 
 const pc = StyleSheet.create({
-  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#E9E2DD" },
+  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#E5E7EB" },
   cardInactive:{ opacity: 0.55, borderStyle: "dashed" },
   top:         { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   tierBadge:   { backgroundColor: "#EEDDF5", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   tierTxt:     { fontSize: 10, fontFamily: "Inter_700Bold", color: P },
-  name:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F", flex: 1 },
+  name:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827", flex: 1 },
   price:       { fontSize: 13, fontFamily: "Inter_700Bold", color: G },
   row:         { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
-  infoItem:    { flex: 1, minWidth: "20%", backgroundColor: "#FBF8F6", borderRadius: 8, padding: 8 },
-  infoLabel:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68" },
-  infoVal:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginTop: 2 },
+  infoItem:    { flex: 1, minWidth: "20%", backgroundColor: "#F1F5F9", borderRadius: 8, padding: 8 },
+  infoLabel:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  infoVal:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginTop: 2 },
   noteBox:     { backgroundColor: "#FFF1BF", borderRadius: 8, padding: 8, marginBottom: 10 },
   noteTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#92400E" },
   actions:     { flexDirection: "row", gap: 8, alignItems: "center" },
   btn:         { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   btnTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  updatedAt:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginLeft: "auto" },
+  updatedAt:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginLeft: "auto" },
 });
 
 // ── 추가 용량 상품 카드 ─────────────────────────────────────────
@@ -143,8 +143,8 @@ function StorageProductCard({ product, onEdit, onToggle }: {
   return (
     <View style={[ep.card, !product.isActive && ep.cardInactive]}>
       <View style={ep.top}>
-        <View style={[ep.iconBox, { backgroundColor: product.isActive ? "#DDF2EF" : "#F6F3F1" }]}>
-          <Feather name="hard-drive" size={20} color={product.isActive ? G : "#9A948F"} />
+        <View style={[ep.iconBox, { backgroundColor: product.isActive ? "#E6FFFA" : "#F8FAFC" }]}>
+          <Feather name="hard-drive" size={20} color={product.isActive ? G : "#9CA3AF"} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={ep.name}>{product.name}</Text>
@@ -152,7 +152,7 @@ function StorageProductCard({ product, onEdit, onToggle }: {
         </View>
         <View style={{ alignItems: "flex-end" }}>
           <Text style={ep.price}>₩{product.price.toLocaleString()}</Text>
-          <View style={[ep.statusBadge, { backgroundColor: product.isActive ? "#DDF2EF" : "#F9DEDA" }]}>
+          <View style={[ep.statusBadge, { backgroundColor: product.isActive ? "#E6FFFA" : "#F9DEDA" }]}>
             <Text style={[ep.statusTxt, { color: product.isActive ? G : "#D96C6C" }]}>
               {product.isActive ? "판매중" : "비활성"}
             </Text>
@@ -166,7 +166,7 @@ function StorageProductCard({ product, onEdit, onToggle }: {
           <Text style={[ep.btnTxt, { color: P }]}>수정</Text>
         </Pressable>
         <Pressable
-          style={[ep.btn, { backgroundColor: product.isActive ? "#FFF1BF" : "#DDF2EF" }]}
+          style={[ep.btn, { backgroundColor: product.isActive ? "#FFF1BF" : "#E6FFFA" }]}
           onPress={() => onToggle(product)}>
           <Feather name={product.isActive ? "pause-circle" : "play-circle"} size={13}
             color={product.isActive ? "#D97706" : G} />
@@ -181,20 +181,20 @@ function StorageProductCard({ product, onEdit, onToggle }: {
 }
 
 const ep = StyleSheet.create({
-  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#E9E2DD" },
+  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#E5E7EB" },
   cardInactive:{ opacity: 0.6, borderStyle: "dashed" },
   top:         { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
   iconBox:     { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  name:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  name:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
   size:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: G, marginTop: 2 },
-  price:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  price:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
   statusBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, marginTop: 4 },
   statusTxt:   { fontSize: 10, fontFamily: "Inter_700Bold" },
-  note:        { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginBottom: 8, lineHeight: 17 },
+  note:        { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 8, lineHeight: 17 },
   actions:     { flexDirection: "row", gap: 8, alignItems: "center" },
   btn:         { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   btnTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  updatedAt:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginLeft: "auto" },
+  updatedAt:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginLeft: "auto" },
 });
 
 // ── 구독 플랜 폼 모달 ───────────────────────────────────────────
@@ -231,9 +231,9 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
+          <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#6B7280" /></Pressable>
           <Text style={fm.title}>{isEdit ? "구독 상품 수정" : "구독 상품 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
@@ -243,14 +243,14 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
               <View key={f.key}>
                 <Text style={fm.label}>{f.label}</Text>
                 <TextInput style={fm.input} value={String(form[f.key])} onChangeText={v => setVal(f.key, v)}
-                  placeholder={f.placeholder ?? ""} placeholderTextColor="#9A948F"
+                  placeholder={f.placeholder ?? ""} placeholderTextColor="#9CA3AF"
                   keyboardType={f.numeric ? "numeric" : "default"} />
               </View>
             ))}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 }}>
               <Text style={[fm.label, { marginBottom: 0, flex: 1 }]}>영상 업로드 포함</Text>
               <Switch value={form.includesVideo} onValueChange={v => setVal("includesVideo", v)}
-                trackColor={{ false: "#E9E2DD", true: "#C4B5FD" }} thumbColor={form.includesVideo ? P : "#9A948F"} />
+                trackColor={{ false: "#E5E7EB", true: "#C4B5FD" }} thumbColor={form.includesVideo ? P : "#9CA3AF"} />
             </View>
           </ScrollView>
           <View style={fm.bottomBar}>
@@ -297,9 +297,9 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
+          <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#6B7280" /></Pressable>
           <Text style={fm.title}>{isEdit ? "추가 용량 상품 수정" : "추가 용량 상품 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
@@ -307,20 +307,20 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
           <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
             <View>
               <Text style={fm.label}>상품명</Text>
-              <TextInput style={fm.input} value={form.name} onChangeText={v => setVal("name", v)} placeholder="예: 추가 30GB" placeholderTextColor="#9A948F" />
+              <TextInput style={fm.input} value={form.name} onChangeText={v => setVal("name", v)} placeholder="예: 추가 30GB" placeholderTextColor="#9CA3AF" />
             </View>
             <View>
               <Text style={fm.label}>추가 용량 (MB)</Text>
-              <TextInput style={fm.input} value={form.extraStorageMb} onChangeText={v => setVal("extraStorageMb", v)} placeholder="30720 (30GB)" placeholderTextColor="#9A948F" keyboardType="numeric" />
-              <Text style={{ fontSize: 11, color: "#9A948F", marginTop: 4, fontFamily: "Inter_400Regular" }}>1024MB = 1GB</Text>
+              <TextInput style={fm.input} value={form.extraStorageMb} onChangeText={v => setVal("extraStorageMb", v)} placeholder="30720 (30GB)" placeholderTextColor="#9CA3AF" keyboardType="numeric" />
+              <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4, fontFamily: "Inter_400Regular" }}>1024MB = 1GB</Text>
             </View>
             <View>
               <Text style={fm.label}>가격 (원)</Text>
-              <TextInput style={fm.input} value={form.price} onChangeText={v => setVal("price", v)} placeholder="24900" placeholderTextColor="#9A948F" keyboardType="numeric" />
+              <TextInput style={fm.input} value={form.price} onChangeText={v => setVal("price", v)} placeholder="24900" placeholderTextColor="#9CA3AF" keyboardType="numeric" />
             </View>
             <View>
               <Text style={fm.label}>메모 (선택)</Text>
-              <TextInput style={fm.input} value={form.note} onChangeText={v => setVal("note", v)} placeholder="내부 참고용" placeholderTextColor="#9A948F" />
+              <TextInput style={fm.input} value={form.note} onChangeText={v => setVal("note", v)} placeholder="내부 참고용" placeholderTextColor="#9CA3AF" />
             </View>
           </ScrollView>
           <View style={fm.bottomBar}>
@@ -344,13 +344,13 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
 }
 
 const fm = StyleSheet.create({
-  header:        { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  header:        { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   close:         { padding: 4 },
-  title:         { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  title:         { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
   saveTxt:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-  label:         { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 6 },
-  input:         { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", minHeight: 42 },
-  bottomBar:     { padding: 16, paddingBottom: 24, borderTopWidth: 1, borderTopColor: "#E9E2DD", backgroundColor: "#FBF8F6" },
+  label:         { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 6 },
+  input:         { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827", minHeight: 42 },
+  bottomBar:     { padding: 16, paddingBottom: 24, borderTopWidth: 1, borderTopColor: "#E5E7EB", backgroundColor: "#F1F5F9" },
   bottomSaveBtn: { backgroundColor: P, borderRadius: 14, height: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
 });
 
@@ -553,7 +553,7 @@ export default function SubscriptionProductsScreen() {
                 <Text style={s.storageStatLabel}>총 판매액</Text>
               </View>
               <View style={s.storageStatCard}>
-                <Text style={[s.storageStatNum, { color: "#1F8F86" }]}>{unlockedCount}개</Text>
+                <Text style={[s.storageStatNum, { color: "#2EC4B6" }]}>{unlockedCount}개</Text>
                 <Text style={s.storageStatLabel}>영상 잠금해제</Text>
               </View>
             </View>
@@ -595,23 +595,23 @@ export default function SubscriptionProductsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#FBF8F6" },
-  tabBar:           { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  safe:             { flex: 1, backgroundColor: "#F1F5F9" },
+  tabBar:           { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tabItem:          { flex: 1, paddingVertical: 14, alignItems: "center" },
   tabItemActive:    { borderBottomWidth: 2, borderBottomColor: P },
-  tabTxt:           { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#9A948F" },
+  tabTxt:           { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#9CA3AF" },
   tabTxtActive:     { color: P },
   createBtn:        { flexDirection: "row", alignItems: "center", gap: 6, margin: 16, marginBottom: 0, backgroundColor: P, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12 },
   createBtnTxt:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
   infoBox:          { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12, marginBottom: 12 },
   infoTxt:          { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#5B21B6", lineHeight: 17 },
   empty:            { alignItems: "center", paddingTop: 60, gap: 12 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  emptyTxt:         { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   storageSummary:   { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
-  storageStatCard:  { flex: 1, minWidth: "45%", backgroundColor: "#fff", borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#E9E2DD" },
-  storageStatNum:   { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  storageStatLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 3, textAlign: "center" },
-  sectionDivider:   { borderTopWidth: 1, borderTopColor: "#E9E2DD", paddingTop: 12, marginBottom: 12 },
-  sectionLabel:     { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  sectionHint:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
+  storageStatCard:  { flex: 1, minWidth: "45%", backgroundColor: "#fff", borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB" },
+  storageStatNum:   { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
+  storageStatLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 3, textAlign: "center" },
+  sectionDivider:   { borderTopWidth: 1, borderTopColor: "#E5E7EB", paddingTop: 12, marginBottom: 12 },
+  sectionLabel:     { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
+  sectionHint:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
 });

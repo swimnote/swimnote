@@ -70,7 +70,7 @@ export default function ParentProfileScreen() {
       <View style={f.wrap}>
         <Text style={[f.label, { color: C.textSecondary }]}>{label}</Text>
         <TextInput
-          style={[f.input, { backgroundColor: "#F6F3F1", color: C.text }]}
+          style={[f.input, { backgroundColor: "#F8FAFC", color: C.text }]}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -117,7 +117,7 @@ export default function ParentProfileScreen() {
           ) : null}
 
           <Pressable
-            style={[s.saveBtn, { backgroundColor: C.tint, opacity: saving ? 0.7 : 1 }]}
+            style={[s.saveBtn, { backgroundColor: C.button, opacity: saving ? 0.7 : 1 }]}
             disabled={saving}
             onPress={handleSave}
           >

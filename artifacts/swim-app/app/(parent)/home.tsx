@@ -85,8 +85,8 @@ function IconCell({
 // ─── 뉴스 카드 ────────────────────────────────────────────────────────────
 function NewsCard({ item, onPress }: { item: NewsItem; onPress: () => void }) {
   const isNotice = item.kind === "notice";
-  const accentColor = isNotice ? "#1F8F86" : "#1F8F86";
-  const accentBg    = isNotice ? "#DDF2EF" : "#DFF3EC";
+  const accentColor = isNotice ? "#2EC4B6" : "#2EC4B6";
+  const accentBg    = isNotice ? "#E6FFFA" : "#DFF3EC";
 
   return (
     <Pressable
@@ -192,17 +192,17 @@ export default function ParentHomeScreen() {
   // 기능 아이콘 6개: 수업일지, 출결, 앨범, 공지, 쪽지, 수영정보
   const icons = [
     { icon: "book-open", label: "수업일지", badge: null,
-      color: "#1F8F86", bg: "#DFF3EC", path: "/(parent)/diary" },
+      color: "#2EC4B6", bg: "#DFF3EC", path: "/(parent)/diary" },
     { icon: "calendar",  label: "출결",     badge: null,
       color: "#7C3AED", bg: "#EEDDF5", path: "/(parent)/attendance-history" },
     { icon: "image",     label: "앨범",     badge: null,
       color: "#D97706", bg: "#FFF1BF", path: "/(parent)/photos" },
     { icon: "bell",      label: "공지",     badge: unread.unread_notices,
-      color: "#1F8F86", bg: "#DDF2EF", path: "/(parent)/notices" },
+      color: "#2EC4B6", bg: "#E6FFFA", path: "/(parent)/notices" },
     { icon: "mail",      label: "쪽지",     badge: unread.unread_messages,
       color: "#0EA5E9", bg: "#F0F9FF", path: "/(parent)/messages" },
     { icon: "droplet",   label: "수영정보", badge: null,
-      color: "#1F8F86", bg: "#DDF2EF", path: "/(parent)/swim-info" },
+      color: "#2EC4B6", bg: "#E6FFFA", path: "/(parent)/swim-info" },
   ] as const;
 
   const scheduleText = selectedStudent ? getScheduleText(selectedStudent.class_group) : null;
@@ -250,7 +250,7 @@ export default function ParentHomeScreen() {
               </Text>
             </View>
             <Pressable
-              style={{ backgroundColor: C.tint, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40 }}
+              style={{ backgroundColor: C.button, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40 }}
               onPress={() => router.push("/(parent)/link-child" as any)}
             >
               <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" }}>자녀 연결하기</Text>

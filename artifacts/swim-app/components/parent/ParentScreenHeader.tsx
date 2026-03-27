@@ -86,7 +86,7 @@ const s = StyleSheet.create({
   btn: {
     width: 38, height: 38,
     alignItems: "center", justifyContent: "center",
-    borderRadius: 10, backgroundColor: "#F6F3F1",
+    borderRadius: 10, backgroundColor: "#F8FAFC",
   },
   placeholder: { width: 38, height: 38 },
   titleBlock: { flex: 1, alignItems: "center" },

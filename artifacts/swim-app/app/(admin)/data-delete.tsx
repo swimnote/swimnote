@@ -28,7 +28,7 @@ function fmtBytes(b: number) {
 const KS_TYPES = [
   { key: "photo",  label: "사진",      icon: "image"     as const, color: "#E4A93A", bg: "#FFF1BF" },
   { key: "video",  label: "영상",      icon: "video"     as const, color: "#7C3AED", bg: "#EEDDF5" },
-  { key: "record", label: "기록/일지", icon: "book-open" as const, color: "#1F8F86", bg: "#DDF2EF" },
+  { key: "record", label: "기록/일지", icon: "book-open" as const, color: "#2EC4B6", bg: "#E6FFFA" },
 ];
 
 const MONTH_OPTIONS = [1, 3, 6, 12];
@@ -36,8 +36,8 @@ const MONTH_OPTIONS = [1, 3, 6, 12];
 const RETENTION_TYPES = [
   { key: "photo",     label: "사진",       icon: "image"      as const, color: "#E4A93A", bg: "#FFF1BF" },
   { key: "video",     label: "영상",       icon: "video"      as const, color: "#7C3AED", bg: "#EEDDF5" },
-  { key: "record",    label: "기록/일지",  icon: "book-open"  as const, color: "#1F8F86", bg: "#DDF2EF" },
-  { key: "messenger", label: "메신저",     icon: "message-square" as const, color: "#1F8F86", bg: "#DDF2EF" },
+  { key: "record",    label: "기록/일지",  icon: "book-open"  as const, color: "#2EC4B6", bg: "#E6FFFA" },
+  { key: "messenger", label: "메신저",     icon: "message-square" as const, color: "#2EC4B6", bg: "#E6FFFA" },
 ];
 const RETENTION_OPTIONS = [6, 12, 24, 36, 0]; // 0 = 영구 보관
 
@@ -131,7 +131,7 @@ export default function DataDeleteScreen() {
         {/* ═══ A. 복구 가능 데이터 ═══ */}
         <View>
           <View style={s.sectionHeader}>
-            <View style={[s.sectionDot, { backgroundColor: "#1F8F86" }]} />
+            <View style={[s.sectionDot, { backgroundColor: "#2EC4B6" }]} />
             <View>
               <Text style={s.sectionTitle}>복구 가능 데이터</Text>
               <Text style={s.sectionSub}>소프트 삭제된 회원·데이터 — 아직 복구 가능</Text>
@@ -142,8 +142,8 @@ export default function DataDeleteScreen() {
               style={({ pressed }) => [s.menuRow, { opacity: pressed ? 0.7 : 1 }]}
               onPress={() => router.push("/(admin)/withdrawn-members")}
             >
-              <View style={[s.menuIcon, { backgroundColor: "#DDF2EF" }]}>
-                <Feather name="user-x" size={20} color="#1F8F86" />
+              <View style={[s.menuIcon, { backgroundColor: "#E6FFFA" }]}>
+                <Feather name="user-x" size={20} color="#2EC4B6" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.menuLabel}>탈퇴·삭제 회원</Text>
@@ -153,7 +153,7 @@ export default function DataDeleteScreen() {
             </Pressable>
           </View>
           <View style={s.infoBox}>
-            <Feather name="info" size={13} color="#1F8F86" />
+            <Feather name="info" size={13} color="#2EC4B6" />
             <Text style={s.infoText}>탈퇴 후 보존 기간 안에는 관리자가 데이터를 복구할 수 있습니다. 보존 기간 초과 시 자동 파기됩니다.</Text>
           </View>
         </View>
@@ -161,7 +161,7 @@ export default function DataDeleteScreen() {
         {/* ═══ B. 보존 기간 정책 ═══ */}
         <View>
           <View style={s.sectionHeader}>
-            <View style={[s.sectionDot, { backgroundColor: "#1F8F86" }]} />
+            <View style={[s.sectionDot, { backgroundColor: "#2EC4B6" }]} />
             <View>
               <Text style={s.sectionTitle}>보존 기간 정책</Text>
               <Text style={s.sectionSub}>데이터 유형별 자동 파기 기간 설정</Text>
@@ -184,10 +184,10 @@ export default function DataDeleteScreen() {
                       onPress={() => { setRetention(prev => ({ ...prev, [rt.key]: m })); setRetentionSaved(false); }}
                       style={[
                         s.chip,
-                        retention[rt.key] === m && { backgroundColor: "#DDF2EF", borderColor: "#1F8F86" },
+                        retention[rt.key] === m && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" },
                       ]}
                     >
-                      <Text style={[s.chipText, retention[rt.key] === m && { color: "#1F8F86" }]}>
+                      <Text style={[s.chipText, retention[rt.key] === m && { color: "#2EC4B6" }]}>
                         {retentionLabel(m)}
                       </Text>
                     </Pressable>
@@ -197,7 +197,7 @@ export default function DataDeleteScreen() {
             ))}
           </View>
           <Pressable
-            style={[s.saveBtn, { backgroundColor: retentionSaved ? "#1F8F86" : themeColor }]}
+            style={[s.saveBtn, { backgroundColor: retentionSaved ? "#2EC4B6" : themeColor }]}
             onPress={() => setRetentionSaved(true)}
           >
             <Feather name={retentionSaved ? "check" : "save"} size={15} color="#fff" />
@@ -318,10 +318,10 @@ export default function DataDeleteScreen() {
           {step === "done" && result && (
             <View style={{ gap: 12, marginTop: 12 }}>
               <View style={s.resultCard}>
-                <View style={[s.resultIcon, { backgroundColor: result.ok ? "#DDF2EF" : "#F9DEDA" }]}>
-                  <Feather name={result.ok ? "check-circle" : "alert-circle"} size={36} color={result.ok ? "#1F8F86" : "#D96C6C"} />
+                <View style={[s.resultIcon, { backgroundColor: result.ok ? "#E6FFFA" : "#F9DEDA" }]}>
+                  <Feather name={result.ok ? "check-circle" : "alert-circle"} size={36} color={result.ok ? "#2EC4B6" : "#D96C6C"} />
                 </View>
-                <Text style={[s.resultMsg, { color: result.ok ? "#1F8F86" : "#D96C6C" }]}>{result.message}</Text>
+                <Text style={[s.resultMsg, { color: result.ok ? "#2EC4B6" : "#D96C6C" }]}>{result.message}</Text>
               </View>
               <Pressable style={[s.primaryBtn, { backgroundColor: themeColor }]} onPress={resetKs}>
                 <Text style={s.primaryBtnText}>다시 시작</Text>
@@ -351,9 +351,9 @@ const s = StyleSheet.create({
   infoText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#065F46", lineHeight: 18 },
 
   retentionRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, padding: 14 },
-  rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   chipRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip:         { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#FBF8F6" },
+  chip:         { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#F1F5F9" },
   chipText:     { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
 
   saveBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 46, borderRadius: 14, marginTop: 10 },
@@ -362,23 +362,23 @@ const s = StyleSheet.create({
   warnBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FEF2F2", padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "#FECACA" },
   warnText:   { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#D96C6C", lineHeight: 18 },
 
-  stepLabel:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  stepLabel:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   typeRow:      { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 16, borderWidth: 1.5 },
   monthChip:    { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
   monthChipText:{ fontSize: 14, fontFamily: "Inter_600SemiBold" },
 
   primaryBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 50, borderRadius: 16 },
   primaryBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-  secondaryBtn:   { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#F6F3F1" },
-  secondaryBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  secondaryBtn:   { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" },
+  secondaryBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
 
   previewCard:  { backgroundColor: "#FEF2F2", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#FECACA" },
   previewRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  previewLabel: { fontSize: 14, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
+  previewLabel: { fontSize: 14, fontFamily: "Inter_500Medium", color: "#111827" },
   previewValue: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#D96C6C" },
 
-  pwInput:   { height: 50, borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 14, paddingHorizontal: 16, fontSize: 15, fontFamily: "Inter_400Regular", backgroundColor: "#FBF8F6" },
-  resultCard:{ alignItems: "center", gap: 16, paddingVertical: 32, backgroundColor: "#FBF8F6", borderRadius: 18 },
+  pwInput:   { height: 50, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 14, paddingHorizontal: 16, fontSize: 15, fontFamily: "Inter_400Regular", backgroundColor: "#F1F5F9" },
+  resultCard:{ alignItems: "center", gap: 16, paddingVertical: 32, backgroundColor: "#F1F5F9", borderRadius: 18 },
   resultIcon:{ width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   resultMsg: { fontSize: 16, fontFamily: "Inter_700Bold", textAlign: "center", paddingHorizontal: 16 },
 });

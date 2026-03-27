@@ -37,7 +37,7 @@ const s = StyleSheet.create({
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, paddingBottom: 80 },
   icon: { width: 100, height: 100, borderRadius: 30, alignItems: "center", justifyContent: "center" },
   heading: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  sub: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 24, color: "#6F6B68" },
+  sub: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 24, color: "#6B7280" },
   badge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   badgeTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });

@@ -30,7 +30,7 @@ export default function RejectedScreen() {
         ) : null}
 
         <Pressable
-          style={({ pressed }) => [styles.reapplyBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [styles.reapplyBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
           onPress={() => router.replace("/pool-apply")}
         >
           <Text style={styles.reapplyText}>다시 신청하기</Text>

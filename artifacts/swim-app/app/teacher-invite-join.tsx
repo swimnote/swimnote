@@ -118,7 +118,7 @@ export default function TeacherInviteJoinScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.primaryBtn, { backgroundColor: C.tint, opacity: pressed || verifying ? 0.8 : 1 }]}
+            style={({ pressed }) => [styles.primaryBtn, { backgroundColor: C.button, opacity: pressed || verifying ? 0.8 : 1 }]}
             onPress={() => handleVerifyToken()}
             disabled={verifying}
           >
@@ -217,7 +217,7 @@ export default function TeacherInviteJoinScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.primaryBtn, { backgroundColor: C.tint, opacity: pressed || submitting ? 0.8 : 1 }]}
+            style={({ pressed }) => [styles.primaryBtn, { backgroundColor: C.button, opacity: pressed || submitting ? 0.8 : 1 }]}
             onPress={handleSubmit}
             disabled={submitting}
           >
@@ -232,7 +232,7 @@ export default function TeacherInviteJoinScreen() {
       {/* ── 완료 단계 ─────────────────────────────────────────── */}
       {step === "done" && (
         <View style={[styles.doneContainer, { paddingBottom: insets.bottom + 40 }]}>
-          <View style={[styles.doneIcon, { backgroundColor: "#DDF2EF" }]}>
+          <View style={[styles.doneIcon, { backgroundColor: "#E6FFFA" }]}>
             <Feather name="check-circle" size={48} color={C.success} />
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입이 완료됐어요!</Text>
@@ -248,7 +248,7 @@ export default function TeacherInviteJoinScreen() {
             승인 절차는 보통 1-2일 내에{"\n"}완료됩니다.
           </Text>
           <Pressable
-            style={[styles.primaryBtn, { backgroundColor: C.tint, width: "100%" }]}
+            style={[styles.primaryBtn, { backgroundColor: C.button, width: "100%" }]}
             onPress={() => router.replace("/login")}
           >
             <Feather name="log-in" size={18} color="#fff" />

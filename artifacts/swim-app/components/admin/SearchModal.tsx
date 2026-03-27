@@ -108,7 +108,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
                     <Text style={sm.sectionLabel}>선생님 ({result.teachers.length})</Text>
                     {result.teachers.map((t: any) => (
                       <View key={t.id} style={sm.row}>
-                        <View style={[sm.avatar, { backgroundColor: "#1F8F8620" }]}><Feather name="user" size={16} color="#1F8F86" /></View>
+                        <View style={[sm.avatar, { backgroundColor: "#1F8F8620" }]}><Feather name="user" size={16} color="#2EC4B6" /></View>
                         <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{t.name}</Text><Text style={sm.rowSub}>{t.phone || "연락처 없음"}</Text></View>
                       </View>
                     ))}
@@ -131,7 +131,7 @@ const sm = StyleSheet.create({
   searchBar:    { flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: C.border },
   input:        { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text },
   closeBtn:     { paddingHorizontal: 4 },
-  sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textMuted, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#FBF8F6" },
+  sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textMuted, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#F1F5F9" },
   row:          { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },
   avatar:       { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   avatarText:   { fontSize: 14, fontFamily: "Inter_700Bold" },

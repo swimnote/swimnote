@@ -126,10 +126,10 @@ export default function DiaryEditView({
             <View key={idx} style={[s.editNoteItem, { backgroundColor: "#DFF3EC", borderColor: "#6EE7B7" }]}>
               <View style={s.editNoteHeader}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <View style={[s.statusBadge, { backgroundColor: "#DDF2EF" }]}>
-                    <Text style={[s.statusBadgeText, { color: "#1F8F86" }]}>신규</Text>
+                  <View style={[s.statusBadge, { backgroundColor: "#E6FFFA" }]}>
+                    <Text style={[s.statusBadgeText, { color: "#2EC4B6" }]}>신규</Text>
                   </View>
-                  <Text style={[s.noteName, { color: "#1F8F86" }]}>{note.student_name}</Text>
+                  <Text style={[s.noteName, { color: "#2EC4B6" }]}>{note.student_name}</Text>
                 </View>
                 <Pressable onPress={() => onRemoveNewNote(idx)}>
                   <Feather name="x-circle" size={15} color={C.error} />
@@ -226,10 +226,10 @@ const s = StyleSheet.create({
   cardHeader:    { flexDirection: "row", alignItems: "center", gap: 8 },
   cardIcon:      { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   cardTitle:     { fontSize: 14, fontFamily: "Inter_700Bold", flex: 1 },
-  cardSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  cardSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   textarea:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: "#fff" },
   textareaFooter:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
-  charCount:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  charCount:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.tintLight, backgroundColor: "#F0F5FF" },
   sentencePickBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.light.tint },
   emptyStudents: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
@@ -240,13 +240,13 @@ const s = StyleSheet.create({
   editNoteItem:  { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   editNoteHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   noteName:      { fontSize: 12, fontFamily: "Inter_700Bold", color: "#7C3AED" },
-  noteContent:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 18 },
+  noteContent:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827", lineHeight: 18 },
   noteInput:     { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
   noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: "#fff" },
   noteBtn:       { flex: 1, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   statusBadge:   { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
   statusBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  footer:        { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E9E2DD" },
+  footer:        { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
   cancelBtnFt:   { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   cancelBtnFtText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   saveBtn:       { flexDirection: "row", height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 8 },

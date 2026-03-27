@@ -5,7 +5,7 @@ import Colors from "@/constants/colors";
 const C = Colors.light;
 
 const COLORS: Record<string, string> = {
-  present: "#1F8F86", absent: "#D96C6C", late: "#D97706", excused: "#7C3AED",
+  present: "#2EC4B6", absent: "#D96C6C", late: "#D97706", excused: "#7C3AED",
 };
 const LABELS: Record<string, string> = {
   present: "출", absent: "결", late: "지", excused: "공",

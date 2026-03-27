@@ -61,7 +61,7 @@ export function MemberInfoTab({
         <EditField label="보호자 연락처2" value={editParentPhone2} onChangeText={v => { setEditParentPhone2(v); setInfoChanged(true); }} keyboardType="phone-pad" placeholder="선택 입력" />
 
         <Pressable
-          style={[ms.saveBtn, { backgroundColor: infoChanged ? themeColor : "#9A948F" }]}
+          style={[ms.saveBtn, { backgroundColor: infoChanged ? themeColor : "#9CA3AF" }]}
           onPress={onSave}
           disabled={saving || !infoChanged}
         >

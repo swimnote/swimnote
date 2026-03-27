@@ -108,7 +108,7 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
                   </View>
                 )}
               </View>
-              <Text style={[s.sectionValue, { color: "#1F1F1F" }]}>{entry.student_note.note_content}</Text>
+              <Text style={[s.sectionValue, { color: "#111827" }]}>{entry.student_note.note_content}</Text>
             </View>
           )}
         </View>

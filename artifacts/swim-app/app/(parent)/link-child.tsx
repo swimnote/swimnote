@@ -105,7 +105,7 @@ export default function LinkChildScreen() {
             />
             {searching
               ? <ActivityIndicator size="small" color={C.tint} />
-              : <Pressable onPress={searchPools} style={[st.searchBtn, { backgroundColor: C.tint }]}>
+              : <Pressable onPress={searchPools} style={[st.searchBtn, { backgroundColor: C.button }]}>
                   <Text style={st.searchBtnTxt}>검색</Text>
                 </Pressable>
             }
@@ -199,7 +199,7 @@ export default function LinkChildScreen() {
           </View>
 
           <Pressable
-            style={[st.submitBtn, { backgroundColor: C.tint, opacity: submitting ? 0.7 : 1 }]}
+            style={[st.submitBtn, { backgroundColor: C.button, opacity: submitting ? 0.7 : 1 }]}
             onPress={handleLink}
             disabled={submitting}
           >
@@ -214,15 +214,15 @@ export default function LinkChildScreen() {
       {/* ── 완료: 자동 연결 ───────────────────────────────────── */}
       {step === "done" && (
         <View style={st.resultBox}>
-          <View style={[st.resultIcon, { backgroundColor: "#DDF2EF" }]}>
-            <Feather name="check-circle" size={44} color="#1F8F86" />
+          <View style={[st.resultIcon, { backgroundColor: "#E6FFFA" }]}>
+            <Feather name="check-circle" size={44} color="#2EC4B6" />
           </View>
           <Text style={[st.resultTitle, { color: C.text }]}>연결 완료!</Text>
           <Text style={[st.resultSub, { color: C.textSecondary }]}>
             {linkedName}이(가) {selectedPool?.name}과{"\n"}성공적으로 연결되었습니다.
           </Text>
           <Pressable
-            style={[st.submitBtn, { backgroundColor: C.tint, alignSelf: "stretch", marginHorizontal: 32 }]}
+            style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}
             onPress={() => router.replace("/(parent)/home" as any)}
           >
             <Text style={st.submitTxt}>홈으로 이동</Text>
@@ -241,7 +241,7 @@ export default function LinkChildScreen() {
             수영장에 등록된 학생을 찾지 못했습니다.{"\n"}관리자 확인 후 연결됩니다.
           </Text>
           <Pressable
-            style={[st.submitBtn, { backgroundColor: C.tint, alignSelf: "stretch", marginHorizontal: 32 }]}
+            style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}
             onPress={() => router.replace("/(parent)/home" as any)}
           >
             <Text style={st.submitTxt}>홈으로 이동</Text>

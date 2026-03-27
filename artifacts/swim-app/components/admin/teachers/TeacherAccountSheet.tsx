@@ -125,8 +125,8 @@ export function TeacherAccountSheet({
                       <Text style={[ts.teacherSub, { color: C.textMuted }]}>{t.email}</Text>
                       {t.position && <Text style={[ts.teacherSub, { color: C.tint }]}>{t.position}</Text>}
                     </View>
-                    <View style={[ts.statusBadge, { backgroundColor: t.is_activated ? "#DDF2EF" : "#FFF1BF" }]}>
-                      <Text style={[ts.statusText, { color: t.is_activated ? "#1F8F86" : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
+                    <View style={[ts.statusBadge, { backgroundColor: t.is_activated ? "#E6FFFA" : "#FFF1BF" }]}>
+                      <Text style={[ts.statusText, { color: t.is_activated ? "#2EC4B6" : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
                     </View>
                     <Feather name="edit-2" size={14} color={C.textMuted} />
                   </Pressable>
@@ -184,7 +184,7 @@ export function TeacherAccountSheet({
       <Modal visible={!!newTeacher} animationType="fade" transparent presentationStyle="overFullScreen">
         <View style={[ts.overlay, { justifyContent: "center" }]}>
           <View style={[ts.successCard, { backgroundColor: C.card }]}>
-            <View style={[ts.successIcon, { backgroundColor: "#DDF2EF" }]}><Feather name="check-circle" size={36} color="#1F8F86" /></View>
+            <View style={[ts.successIcon, { backgroundColor: "#E6FFFA" }]}><Feather name="check-circle" size={36} color="#2EC4B6" /></View>
             <Text style={[ts.sheetTitle, { color: C.text, textAlign: "center" }]}>계정 생성 완료</Text>
             <Text style={[ts.label, { color: C.textSecondary, textAlign: "center" }]}>
               {newTeacher?.teacher.name} 선생님 계정이 생성되었습니다.{"\n"}아래 인증코드를 전달해 주세요.

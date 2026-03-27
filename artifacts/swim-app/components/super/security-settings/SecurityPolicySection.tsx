@@ -60,7 +60,7 @@ export function SecurityPolicySection({
         {REAUTH_ACTIONS.map(act => (
           <View key={act} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 }}>
             <Feather name="check-circle" size={12} color={P} />
-            <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F" }}>{act}</Text>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827" }}>{act}</Text>
           </View>
         ))}
       </View>
@@ -70,17 +70,17 @@ export function SecurityPolicySection({
 
 const s = StyleSheet.create({
   section:          { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 10,
-                      borderWidth: 1, borderColor: "#E9E2DD" },
+                      borderWidth: 1, borderColor: "#E5E7EB" },
   policyRow:        { flexDirection: "row", alignItems: "center", paddingVertical: 8,
-                      borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  policyBtn:        { width: 30, height: 30, borderRadius: 8, backgroundColor: "#F6F3F1",
+                      borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827" },
+  policyBtn:        { width: 30, height: 30, borderRadius: 8, backgroundColor: "#F8FAFC",
                       alignItems: "center", justifyContent: "center" },
-  policyBtnTxt:     { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F", lineHeight: 22 },
-  policyVal:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F",
+  policyBtnTxt:     { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827", lineHeight: 22 },
+  policyVal:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827",
                       minWidth: 32, textAlign: "center" },
-  policyChip:       { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F6F3F1" },
+  policyChip:       { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F8FAFC" },
   policyChipActive: { backgroundColor: P },
-  policyChipTxt:    { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  policyChipTxt:    { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
   policyChipTxtActive: { color: "#fff" },
 });

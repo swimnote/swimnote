@@ -86,7 +86,7 @@ export default function AdminGrantScreen() {
 
       {/* 안내 배너 */}
       <View style={s.infoBanner}>
-        <Feather name="info" size={14} color="#1F8F86" />
+        <Feather name="info" size={14} color="#2EC4B6" />
         <Text style={s.infoTxt}>
           승인된 선생님에게 관리자 권한을 부여할 수 있습니다.{"\n"}
           관리자 권한을 받은 선생님은 선생님↔관리자 역할 전환이 가능합니다.
@@ -110,8 +110,8 @@ export default function AdminGrantScreen() {
           }
           renderItem={({ item }) => (
             <View style={[s.card, item.is_admin_granted && s.cardAdmin]}>
-              <View style={[s.avatar, { backgroundColor: item.is_admin_granted ? themeColor + "20" : "#DDF2EF" }]}>
-                <Text style={[s.avatarTxt, { color: item.is_admin_granted ? themeColor : "#1F8F86" }]}>
+              <View style={[s.avatar, { backgroundColor: item.is_admin_granted ? themeColor + "20" : "#E6FFFA" }]}>
+                <Text style={[s.avatarTxt, { color: item.is_admin_granted ? themeColor : "#2EC4B6" }]}>
                   {item.name[0]}
                 </Text>
               </View>
@@ -211,7 +211,7 @@ export default function AdminGrantScreen() {
         <Modal animationType="fade" transparent visible onRequestClose={() => setResultMsg(null)}>
           <View style={s.overlay}>
             <View style={s.dialog}>
-              <Feather name="check-circle" size={28} color="#1F8F86" style={{ alignSelf: "center", marginBottom: 8 }} />
+              <Feather name="check-circle" size={28} color="#2EC4B6" style={{ alignSelf: "center", marginBottom: 8 }} />
               <Text style={[s.dialogTitle, { textAlign: "center" }]}>완료</Text>
               <Text style={[s.dialogBody, { textAlign: "center" }]}>{resultMsg}</Text>
               <Pressable
@@ -229,8 +229,8 @@ export default function AdminGrantScreen() {
 }
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: "#F6F3F1" },
-  infoBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 8, margin: 16, marginBottom: 4, padding: 12, backgroundColor: "#DDF2EF", borderRadius: 10, borderWidth: 1, borderColor: "#BFDBFE" },
+  root:          { flex: 1, backgroundColor: "#F8FAFC" },
+  infoBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 8, margin: 16, marginBottom: 4, padding: 12, backgroundColor: "#E6FFFA", borderRadius: 10, borderWidth: 1, borderColor: "#BFDBFE" },
   infoTxt:       { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#1E3A5F", lineHeight: 18 },
   empty:         { alignItems: "center", paddingVertical: 48, gap: 8 },
   emptyTxt:      { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
@@ -255,7 +255,7 @@ const s = StyleSheet.create({
   dialogBody:    { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, lineHeight: 22, textAlign: "center" },
   dialogBtns:    { flexDirection: "row", gap: 8, marginTop: 4 },
   dialogBtn:     { flex: 1, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  dialogBtnCancel:   { backgroundColor: "#F6F3F1" },
+  dialogBtnCancel:   { backgroundColor: "#F8FAFC" },
   dialogBtnCancelTxt:{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
   dialogBtnRevoke:   { backgroundColor: "#D96C6C" },
   dialogBtnTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },

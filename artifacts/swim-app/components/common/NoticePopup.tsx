@@ -52,7 +52,7 @@ interface ApiNotice {
 
 // 공지 scope 뱃지 설정
 const SCOPE_CFG = {
-  global: { label: "전체 공지",    color: "#1F8F86", bg: "#DDF2EF" },
+  global: { label: "전체 공지",    color: "#2EC4B6", bg: "#E6FFFA" },
   pool:   { label: "수영장 공지",  color: P,         bg: "#EEDDF5" },
 } as const;
 
@@ -249,22 +249,22 @@ const s = StyleSheet.create({
   scopeBadge:   { flexDirection: "row", alignItems: "center", gap: 5,
                   paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   scopeTxt:     { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  counter:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  counter:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   typeBadge:    { flexDirection: "row", alignItems: "center", gap: 5,
                   alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4,
                   borderRadius: 8, marginBottom: 12 },
   typeTxt:      { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   title:        { fontSize: 18, fontFamily: "Inter_700Bold",
-                  color: "#1F1F1F", marginBottom: 12 },
+                  color: "#111827", marginBottom: 12 },
   contentScroll:{ maxHeight: 200, marginBottom: 12 },
   content:      { fontSize: 14, fontFamily: "Inter_400Regular",
-                  color: "#1F1F1F", lineHeight: 22 },
+                  color: "#111827", lineHeight: 22 },
   date:         { fontSize: 11, fontFamily: "Inter_400Regular",
-                  color: "#9A948F", marginBottom: 14 },
+                  color: "#9CA3AF", marginBottom: 14 },
   btnRow:       { flexDirection: "row", gap: 8 },
   dismissBtn:   { flex: 1, padding: 13, borderRadius: 12,
-                  backgroundColor: "#F6F3F1", alignItems: "center" },
-  dismissTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+                  backgroundColor: "#F8FAFC", alignItems: "center" },
+  dismissTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   confirmBtn:   { flex: 1, padding: 13, borderRadius: 12,
                   backgroundColor: P, alignItems: "center" },
   confirmTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },

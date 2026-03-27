@@ -155,7 +155,7 @@ export default function LoginScreen() {
           )}
 
           <Pressable
-            style={({ pressed }) => [styles.loginBtn, { backgroundColor: C.tint, opacity: pressed || loading ? 0.85 : 1 }]}
+            style={({ pressed }) => [styles.loginBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
             onPress={() => handleLogin()}
             disabled={loading}
           >
@@ -215,7 +215,7 @@ export default function LoginScreen() {
                 <Text style={[styles.modalBtnText, { color: C.textSecondary }]}>다시 입력</Text>
               </Pressable>
               <Pressable
-                style={({ pressed }) => [styles.modalBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+                style={({ pressed }) => [styles.modalBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
                 onPress={() => { setShowNotFoundModal(false); router.push("/signup-role" as any); }}
               >
                 <Text style={[styles.modalBtnText, { color: "#fff" }]}>회원가입하기</Text>

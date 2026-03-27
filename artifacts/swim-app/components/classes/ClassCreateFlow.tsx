@@ -459,7 +459,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                       <Pressable
                         style={[tr.row, {
                           borderColor: C.border,
-                          backgroundColor: selectedTeacher === null ? "#F6F3F1" : C.background,
+                          backgroundColor: selectedTeacher === null ? "#F8FAFC" : C.background,
                         }]}
                         onPress={() => setSelectedTeacher(null)}
                       >
@@ -579,14 +579,14 @@ const ir = StyleSheet.create({
 const fl = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingTop: 16, paddingHorizontal: 24 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 6 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 6 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
   title: { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 6 },
   stepTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 4 },
   stepSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginBottom: 16 },
   errorRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9DEDA", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginBottom: 8 },
   errorText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.error },
-  btnRow: { flexDirection: "row", gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F6F3F1" },
+  btnRow: { flexDirection: "row", gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   backBtn: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
   nextBtn: { height: 50, borderRadius: 14, paddingHorizontal: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   nextText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
@@ -611,7 +611,7 @@ const s3 = StyleSheet.create({
 const s4 = StyleSheet.create({
   wrap: { gap: 12 },
   card: { borderRadius: 18, borderWidth: 1.5, overflow: "hidden" },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   name: { fontSize: 18, fontFamily: "Inter_700Bold" },
   rows: { paddingHorizontal: 16 },
 });

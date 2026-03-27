@@ -202,7 +202,7 @@ export default function ParentPhotosScreen() {
           <Text style={st.toolbarCount}>{selected.size}장 선택</Text>
           <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
             <Pressable onPress={bulkDownload} disabled={selected.size === 0 || bulkSaving}
-              style={[st.toolbarAction, { backgroundColor: C.tint, opacity: selected.size === 0 ? 0.4 : 1 }]}>
+              style={[st.toolbarAction, { backgroundColor: C.button, opacity: selected.size === 0 ? 0.4 : 1 }]}>
               {bulkSaving
                 ? <ActivityIndicator color="#fff" size="small" />
                 : <><Feather name="download" size={14} color="#fff" /><Text style={st.toolbarActionText}>받기</Text></>}
@@ -308,7 +308,7 @@ export default function ParentPhotosScreen() {
             <Pressable
               onPress={() => lightbox && saveSingle(lightbox)}
               disabled={lbSaving}
-              style={[st.lbBtn, { backgroundColor: C.tint }]}
+              style={[st.lbBtn, { backgroundColor: C.button }]}
             >
               {lbSaving
                 ? <ActivityIndicator color="#fff" size="small" />
@@ -317,7 +317,7 @@ export default function ParentPhotosScreen() {
             <Pressable
               onPress={saveAll}
               disabled={allSaving}
-              style={[st.lbBtn, { backgroundColor: "#1F1F1F" }]}
+              style={[st.lbBtn, { backgroundColor: "#111827" }]}
             >
               {allSaving
                 ? <ActivityIndicator color="#fff" size="small" />
@@ -338,20 +338,20 @@ export default function ParentPhotosScreen() {
 const st = StyleSheet.create({
   root: { flex: 1 },
 
-  toolbar: { flexDirection: "row", alignItems: "center", backgroundColor: "#FBF8F6", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#E9E2DD", gap: 4 },
+  toolbar: { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F5F9", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", gap: 4 },
   toolbarLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
   toolbarToggleText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  toolbarCount: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center" },
+  toolbarCount: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center" },
   toolbarAction: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
   toolbarActionText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
   toolbarCancel: { paddingHorizontal: 8, paddingVertical: 7 },
-  toolbarCancelText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  toolbarCancelText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280" },
 
   selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-end", paddingHorizontal: 12, paddingVertical: 6, marginBottom: 4 },
   selectBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
-  photoCell: { borderRadius: 4, overflow: "hidden", backgroundColor: "#F6F3F1" },
-  photoCellSelected: { borderWidth: 3, borderColor: "#1F8F86" },
+  photoCell: { borderRadius: 4, overflow: "hidden", backgroundColor: "#F8FAFC" },
+  photoCellSelected: { borderWidth: 3, borderColor: "#2EC4B6" },
   thumbnail: { width: "100%", height: "100%" },
   dateOverlay: { position: "absolute", top: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.28)", paddingHorizontal: 5, paddingVertical: 2 },
   dateText: { color: "#fff", fontSize: 9, fontFamily: "Inter_400Regular" },
@@ -368,7 +368,7 @@ const st = StyleSheet.create({
   lbHeader: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, flexDirection: "row", justifyContent: "flex-start", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
   lbClose: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   fullImage: { width: "100%", height: "55%" },
-  lbSource: { color: "#DDF2EF", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 14, fontFamily: "Inter_600SemiBold" },
+  lbSource: { color: "#E6FFFA", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 14, fontFamily: "Inter_600SemiBold" },
   lbMeta: { color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center", paddingTop: 4, fontFamily: "Inter_400Regular" },
   lbBtnRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingTop: 18, justifyContent: "center" },
   lbBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 14 },

@@ -31,7 +31,7 @@ const C = Colors.light;
 
 const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "all",               label: "전체",       icon: "list" },
-  { key: "normal",            label: "정상",       icon: "check-circle",  activeColor: "#1F8F86", activeBg: "#DDF2EF" },
+  { key: "normal",            label: "정상",       icon: "check-circle",  activeColor: "#2EC4B6", activeBg: "#E6FFFA" },
   { key: "unassigned",        label: "미배정",     icon: "alert-circle",  activeColor: "#D96C6C", activeBg: "#F9DEDA" },
   { key: "weekly_1",          label: "주1회",      icon: "sun",           activeColor: WEEKLY_BADGE[1].color, activeBg: WEEKLY_BADGE[1].bg },
   { key: "weekly_2",          label: "주2회",      icon: "wind",          activeColor: WEEKLY_BADGE[2].color, activeBg: WEEKLY_BADGE[2].bg },
@@ -40,7 +40,7 @@ const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "pending_suspended", label: "연기예정",   icon: "clock",         activeColor: "#B45309", activeBg: "#FFFBEB" },
   { key: "pending_withdrawn", label: "퇴원예정",   icon: "clock",         activeColor: "#DC2626", activeBg: "#FFF1F2" },
   { key: "suspended",         label: "연기",       icon: "pause-circle",  activeColor: "#B45309", activeBg: "#FFF1BF" },
-  { key: "withdrawn",         label: "퇴원",       icon: "log-out",       activeColor: "#6F6B68", activeBg: "#F6F3F1" },
+  { key: "withdrawn",         label: "퇴원",       icon: "log-out",       activeColor: "#6B7280", activeBg: "#F8FAFC" },
 ];
 
 export default function MembersScreen() {
@@ -328,13 +328,13 @@ export default function MembersScreen() {
                   }
                 </Pressable>
                 <Pressable
-                  style={[ms.pendingBtn, { backgroundColor: "#DDF2EF" }]}
+                  style={[ms.pendingBtn, { backgroundColor: "#E6FFFA" }]}
                   onPress={() => handleApprove(req.id, req.name)}
                   disabled={approvingId === req.id || rejectingId === req.id}
                 >
                   {approvingId === req.id
-                    ? <ActivityIndicator size="small" color="#1F8F86" />
-                    : <Text style={[ms.pendingBtnTxt, { color: "#1F8F86" }]}>승인</Text>
+                    ? <ActivityIndicator size="small" color="#2EC4B6" />
+                    : <Text style={[ms.pendingBtnTxt, { color: "#2EC4B6" }]}>승인</Text>
                   }
                 </Pressable>
               </View>
@@ -347,12 +347,12 @@ export default function MembersScreen() {
       <View style={ms.actionRow}>
         {!sel.selectionMode ? (
           <>
-            <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? "#9A948F" : themeColor }]} onPress={handleAddMember}>
+            <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? "#9CA3AF" : themeColor }]} onPress={handleAddMember}>
               <Feather name={isMemberLimitReached ? "lock" : "user-plus"} size={14} color="#fff" />
               <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
             </Pressable>
             <Pressable
-              style={[ms.actionBtn, { backgroundColor: "#6F6B68" }]}
+              style={[ms.actionBtn, { backgroundColor: "#6B7280" }]}
               onPress={() => router.push("/(admin)/approvals" as any)}
             >
               <Feather name="check-circle" size={14} color="#fff" />

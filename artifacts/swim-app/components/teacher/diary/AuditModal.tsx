@@ -40,7 +40,7 @@ export default function AuditModal({
               {logs.map(log => (
                 <View key={log.id} style={[a.logCard, { backgroundColor: C.background }]}>
                   <View style={a.logHeader}>
-                    <View style={[a.logBadge, { backgroundColor: log.action_type === "delete" ? "#F9DEDA" : log.action_type === "update" ? "#FFF1BF" : "#DDF2EF" }]}>
+                    <View style={[a.logBadge, { backgroundColor: log.action_type === "delete" ? "#F9DEDA" : log.action_type === "update" ? "#FFF1BF" : "#E6FFFA" }]}>
                       <Text style={[a.logBadgeText, { color: log.action_type === "delete" ? C.error : log.action_type === "update" ? C.warning : C.success }]}>
                         {actionLabel[log.action_type]}
                       </Text>
@@ -73,15 +73,15 @@ export default function AuditModal({
 const a = StyleSheet.create({
   overlay:         { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet:           { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "85%", minHeight: "50%" },
-  sheetHeader:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  sheetHeader:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   sheetTitle:      { fontSize: 16, fontFamily: "Inter_700Bold" },
   logCard:         { borderRadius: 12, padding: 12, gap: 8 },
   logHeader:       { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   logBadge:        { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   logBadgeText:    { fontSize: 11, fontFamily: "Inter_700Bold" },
-  logTarget:       { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
-  logMeta:         { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", textAlign: "right" },
+  logTarget:       { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  logMeta:         { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "right" },
   logContent:      { borderRadius: 8, borderWidth: 1, padding: 10, gap: 4 },
-  logContentLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  logContentLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   logContentText:  { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
 });

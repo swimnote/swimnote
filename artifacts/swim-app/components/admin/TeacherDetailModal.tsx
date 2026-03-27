@@ -96,8 +96,8 @@ export function TeacherDetailModal({
           <View style={dm.handle} />
           <View style={dm.header}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={[dm.headerAvatar, { backgroundColor: "#DDF2EF" }]}>
-                <Text style={[dm.headerAvatarText, { color: "#1F8F86" }]}>{detail.name[0]}</Text>
+              <View style={[dm.headerAvatar, { backgroundColor: "#E6FFFA" }]}>
+                <Text style={[dm.headerAvatarText, { color: "#2EC4B6" }]}>{detail.name[0]}</Text>
               </View>
               <View>
                 <Text style={dm.headerName}>{detail.name}</Text>
@@ -183,7 +183,7 @@ export function TeacherDetailModal({
 const dm = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 16, maxHeight: "85%" },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerAvatar: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   headerAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },

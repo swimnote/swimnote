@@ -102,7 +102,7 @@ export default function PendingScreen() {
             </Text>
             <View style={[styles.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
               <InfoRow icon="check-circle" color="#2E9B6F" text="자녀 정보 일치 시 즉시 자동 승인" />
-              <InfoRow icon="user-check"  color="#1F8F86" text="관리자 수동 승인 시 SMS 알림 발송" />
+              <InfoRow icon="user-check"  color="#2EC4B6" text="관리자 수동 승인 시 SMS 알림 발송" />
               <InfoRow icon="clock"       color="#E4A93A" text="일반적으로 1~2 영업일 이내 처리" />
             </View>
           </>
@@ -120,7 +120,7 @@ export default function PendingScreen() {
             {!isRejected && (
               <View style={[styles.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
                 <InfoRow icon="check-circle" color="#2E9B6F" text="신청 내용 검토 완료 시 즉시 이용 가능" />
-                <InfoRow icon="mail"         color="#1F8F86" text="승인 후 이메일/앱 알림 발송" />
+                <InfoRow icon="mail"         color="#2EC4B6" text="승인 후 이메일/앱 알림 발송" />
                 <InfoRow icon="clock"        color="#E4A93A" text="일반적으로 1~2 영업일 이내 처리" />
               </View>
             )}

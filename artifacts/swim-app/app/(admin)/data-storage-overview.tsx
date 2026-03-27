@@ -78,8 +78,8 @@ export default function DataStorageOverviewScreen() {
           {/* 수치 카드 3개 */}
           {[
             { label: "사용량",    bytes: used,  icon: "hard-drive" as const, color: gaugeColor },
-            { label: "제공 용량", bytes: quota, icon: "server"     as const, color: "#6F6B68" },
-            { label: "남은 용량", bytes: free,  icon: "check-circle" as const, color: "#1F8F86" },
+            { label: "제공 용량", bytes: quota, icon: "server"     as const, color: "#6B7280" },
+            { label: "남은 용량", bytes: free,  icon: "check-circle" as const, color: "#2EC4B6" },
           ].map(item => (
             <View key={item.label} style={[s.statCard, { backgroundColor: C.card }]}>
               <View style={[s.statIcon, { backgroundColor: item.color + "15" }]}>
@@ -99,13 +99,13 @@ export default function DataStorageOverviewScreen() {
 
 const s = StyleSheet.create({
   card:       { borderRadius: 18, padding: 20, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
-  cardTitle:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68", marginBottom: 4 },
+  cardTitle:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280", marginBottom: 4 },
   bigNum:     { fontSize: 40, fontFamily: "Inter_700Bold" },
-  sub:        { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F", marginBottom: 6 },
-  gaugeWrap:  { height: 12, backgroundColor: "#E9E2DD", borderRadius: 6, overflow: "hidden" },
+  sub:        { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginBottom: 6 },
+  gaugeWrap:  { height: 12, backgroundColor: "#E5E7EB", borderRadius: 6, overflow: "hidden" },
   gaugeBar:   { height: 12, borderRadius: 6 },
   statCard:   { flexDirection: "row", alignItems: "center", gap: 16, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   statIcon:   { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  statLabel:  { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68", marginBottom: 2 },
+  statLabel:  { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280", marginBottom: 2 },
   statValue:  { fontSize: 22, fontFamily: "Inter_700Bold" },
 });

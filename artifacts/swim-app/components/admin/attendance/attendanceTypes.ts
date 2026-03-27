@@ -33,7 +33,7 @@ export type AttStatus = "present" | "absent" | "late";
 export type ViewMode  = "daily" | "weekly" | "monthly" | "search" | "makeup";
 
 export const STATUS_CONFIG = {
-  present: { label: "출석", color: Colors.light.present, bg: "#DDF2EF", icon: "check-circle" as const },
+  present: { label: "출석", color: Colors.light.present, bg: "#E6FFFA", icon: "check-circle" as const },
   absent:  { label: "결석", color: Colors.light.absent,  bg: "#F9DEDA", icon: "x-circle"    as const },
   late:    { label: "지각", color: Colors.light.late,    bg: "#FFF1BF", icon: "clock"        as const },
 };

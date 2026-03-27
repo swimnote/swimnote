@@ -35,10 +35,10 @@ interface AdminStorage { quota_bytes: number; staff: StaffStorage[]; [k: string]
 const CAT_ITEMS = [
   { key: "photo_bytes",     icon: "image"          as const, bg: "#FFF1BF", color: "#E4A93A", label: "사진"    },
   { key: "video_bytes",     icon: "video"          as const, bg: "#EEDDF5", color: "#7C3AED", label: "영상"    },
-  { key: "messenger_bytes", icon: "message-square" as const, bg: "#DDF2EF", color: "#1F8F86", label: "메신저"  },
-  { key: "diary_bytes",     icon: "book-open"      as const, bg: "#DDF2EF", color: "#1F8F86", label: "수업기록" },
+  { key: "messenger_bytes", icon: "message-square" as const, bg: "#E6FFFA", color: "#2EC4B6", label: "메신저"  },
+  { key: "diary_bytes",     icon: "book-open"      as const, bg: "#E6FFFA", color: "#2EC4B6", label: "수업기록" },
   { key: "notice_bytes",    icon: "bell"           as const, bg: "#F6D8E1", color: "#EC4899", label: "공지"    },
-  { key: "system_bytes",    icon: "cpu"            as const, bg: "#F6F3F1", color: "#6F6B68", label: "시스템"  },
+  { key: "system_bytes",    icon: "cpu"            as const, bg: "#F8FAFC", color: "#6B7280", label: "시스템"  },
 ];
 
 export default function DataStorageByAccountScreen() {
@@ -156,23 +156,23 @@ export default function DataStorageByAccountScreen() {
 const sm = StyleSheet.create({
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:       { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:       { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  sub:         { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68", marginBottom: 4 },
+  title:       { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
+  sub:         { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 4 },
   catIcon:     { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   total:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderRadius: 14, borderWidth: 1, marginTop: 4 },
-  closeBtn:    { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F6F3F1" },
-  closeBtnText:{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  closeBtn:    { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" },
+  closeBtnText:{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
 });
 
 const s = StyleSheet.create({
   card:         { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   row:          { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
-  rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   avatar:       { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText:   { fontSize: 16, fontFamily: "Inter_700Bold" },
-  name:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  bytes:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  miniGaugeWrap:{ height: 5, backgroundColor: "#E9E2DD", borderRadius: 3, overflow: "hidden" },
+  name:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  bytes:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  miniGaugeWrap:{ height: 5, backgroundColor: "#E5E7EB", borderRadius: 3, overflow: "hidden" },
   miniGaugeBar: { height: 5, borderRadius: 3 },
-  pctText:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  pctText:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 });

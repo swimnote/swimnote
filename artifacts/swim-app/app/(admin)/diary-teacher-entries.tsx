@@ -270,10 +270,10 @@ export default function DiaryTeacherEntriesScreen() {
 
       {/* 삭제 완료 메시지 */}
       {deleteMsg && (
-        <View style={[de.msg, { backgroundColor: deleteMsg.includes("실패") ? "#F9DEDA" : "#DDF2EF" }]}>
+        <View style={[de.msg, { backgroundColor: deleteMsg.includes("실패") ? "#F9DEDA" : "#E6FFFA" }]}>
           <Feather name={deleteMsg.includes("실패") ? "alert-circle" : "check-circle"} size={13}
-            color={deleteMsg.includes("실패") ? C.error : "#1F8F86"} />
-          <Text style={[de.msgText, { color: deleteMsg.includes("실패") ? C.error : "#1F8F86" }]}>{deleteMsg}</Text>
+            color={deleteMsg.includes("실패") ? C.error : "#2EC4B6"} />
+          <Text style={[de.msgText, { color: deleteMsg.includes("실패") ? C.error : "#2EC4B6" }]}>{deleteMsg}</Text>
         </View>
       )}
 

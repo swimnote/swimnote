@@ -9,10 +9,10 @@ const C = Colors.light;
 
 const MAKEUP_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   waiting:     { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
-  assigned:    { label: "배정",   color: "#1F8F86", bg: "#DDF2EF" },
+  assigned:    { label: "배정",   color: "#2EC4B6", bg: "#E6FFFA" },
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
-  completed:   { label: "완료",   color: "#1F8F86", bg: "#DDF2EF" },
-  cancelled:   { label: "취소",   color: "#6F6B68", bg: "#F6F3F1" },
+  completed:   { label: "완료",   color: "#2EC4B6", bg: "#E6FFFA" },
+  cancelled:   { label: "취소",   color: "#6B7280", bg: "#F8FAFC" },
 };
 
 interface MemberMakeupTabProps {
@@ -31,7 +31,7 @@ export function MemberMakeupTab({ makeups, themeColor }: MemberMakeupTabProps) {
             <Text style={{ fontSize: 14, color: C.textMuted, marginTop: 10 }}>보강 기록이 없습니다</Text>
           </View>
         ) : makeups.map((mk: any) => {
-          const st = MAKEUP_STATUS[mk.status] || { label: mk.status, color: "#6F6B68", bg: "#F6F3F1" };
+          const st = MAKEUP_STATUS[mk.status] || { label: mk.status, color: "#6B7280", bg: "#F8FAFC" };
           return (
             <View key={mk.id} style={{ flexDirection: "row", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border, gap: 12 }}>
               <View style={[{ borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" }, { backgroundColor: st.bg }]}>
@@ -46,7 +46,7 @@ export function MemberMakeupTab({ makeups, themeColor }: MemberMakeupTabProps) {
                   <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 1 }}>배정반: {mk.assigned_class_group_name}</Text>
                 )}
                 {mk.is_substitute && mk.substitute_teacher_name && (
-                  <Text style={{ fontSize: 12, color: "#1F8F86", marginTop: 2, fontWeight: "600" }}>대리보강: {mk.substitute_teacher_name}</Text>
+                  <Text style={{ fontSize: 12, color: "#2EC4B6", marginTop: 2, fontWeight: "600" }}>대리보강: {mk.substitute_teacher_name}</Text>
                 )}
                 {mk.transferred_to_teacher_name && (
                   <Text style={{ fontSize: 12, color: "#7C3AED", marginTop: 1 }}>이동→ {mk.transferred_to_teacher_name}</Text>

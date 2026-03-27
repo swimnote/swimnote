@@ -53,8 +53,8 @@ function pctStr(cur: number, prev: number): string {
 }
 
 function pctColor(cur: number, prev: number): string {
-  if (prev === 0) return cur > 0 ? "#1F8F86" : "#6F6B68";
-  return cur >= prev ? "#1F8F86" : "#D96C6C";
+  if (prev === 0) return cur > 0 ? "#2EC4B6" : "#6B7280";
+  return cur >= prev ? "#2EC4B6" : "#D96C6C";
 }
 
 // ─── 지출 항목 단가 (추정치) ─────────────────────────────────────────────
@@ -223,12 +223,12 @@ export default function BillingAnalyticsScreen() {
           </View>
 
           <View style={s.kpiGrid}>
-            <KpiCard label="결제 성공" value={`${revenue.successCount}건`} color="#1F8F86" />
-            <KpiCard label="결제 실패" value={`${revenue.failedCount}건`} color={revenue.failedCount > 0 ? "#D96C6C" : "#6F6B68"} />
+            <KpiCard label="결제 성공" value={`${revenue.successCount}건`} color="#2EC4B6" />
+            <KpiCard label="결제 실패" value={`${revenue.failedCount}건`} color={revenue.failedCount > 0 ? "#D96C6C" : "#6B7280"} />
             <KpiCard label="신규 결제" value={`${revenue.newCount}건`} />
             <KpiCard label="구독 갱신" value={`${revenue.renewalCount}건`} />
-            <KpiCard label="환불 건수" value={`${revenue.refundCount}건`} color={revenue.refundCount > 0 ? "#D97706" : "#6F6B68"} />
-            <KpiCard label="환불 금액" value={fmtKRW(revenue.refundAmt)} small color={revenue.refundAmt > 0 ? "#D97706" : "#6F6B68"} />
+            <KpiCard label="환불 건수" value={`${revenue.refundCount}건`} color={revenue.refundCount > 0 ? "#D97706" : "#6B7280"} />
+            <KpiCard label="환불 금액" value={fmtKRW(revenue.refundAmt)} small color={revenue.refundAmt > 0 ? "#D97706" : "#6B7280"} />
           </View>
         </View>
 
@@ -287,17 +287,17 @@ export default function BillingAnalyticsScreen() {
           <View style={s.profitCard}>
             <View style={s.profitRow}>
               <Text style={s.profitLabel}>총 매출</Text>
-              <Text style={[s.profitVal, { color: "#1F8F86" }]}>{fmtKRW(revenue.total)}</Text>
+              <Text style={[s.profitVal, { color: "#2EC4B6" }]}>{fmtKRW(revenue.total)}</Text>
             </View>
             <View style={s.profitDivider} />
             <View style={s.profitRow}>
               <Text style={s.profitLabel}>총 지출 (추정)</Text>
               <Text style={[s.profitVal, { color: "#D96C6C" }]}>- {fmtKRW(totalCost)}</Text>
             </View>
-            <View style={[s.profitDivider, { borderStyle: "solid", borderColor: "#1F1F1F" }]} />
+            <View style={[s.profitDivider, { borderStyle: "solid", borderColor: "#111827" }]} />
             <View style={s.profitRow}>
               <Text style={[s.profitLabel, { fontFamily: "Inter_700Bold", fontSize: 15 }]}>순이익</Text>
-              <Text style={[s.profitVal, { fontSize: 20, color: netProfit >= 0 ? "#1F8F86" : "#D96C6C" }]}>
+              <Text style={[s.profitVal, { fontSize: 20, color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
                 {fmtKRW(netProfit)}
               </Text>
             </View>
@@ -317,66 +317,66 @@ const s = StyleSheet.create({
   safe:             { flex: 1, backgroundColor: "#EEDDF5" },
   periodRow:        { flexDirection: "row", gap: 8 },
   periodTab:        { flex: 1, padding: 10, borderRadius: 10, backgroundColor: "#fff",
-                      borderWidth: 1.5, borderColor: "#E9E2DD", alignItems: "center" },
+                      borderWidth: 1.5, borderColor: "#E5E7EB", alignItems: "center" },
   periodTabActive:  { backgroundColor: P, borderColor: P },
-  periodTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  periodTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   periodTxtActive:  { color: "#fff" },
-  periodLabel:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", textAlign: "center", marginTop: -8 },
+  periodLabel:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center", marginTop: -8 },
 
   section:          { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 12,
-                      borderWidth: 1, borderColor: "#E9E2DD" },
+                      borderWidth: 1, borderColor: "#E5E7EB" },
   sectionHdr:       { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   sectionIconBox:   { width: 28, height: 28, borderRadius: 8, backgroundColor: "#EEDDF5",
                       alignItems: "center", justifyContent: "center" },
-  sectionTitle:     { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  estimateNote:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
-  emptyTxt:         { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F", textAlign: "center", paddingVertical: 20 },
+  sectionTitle:     { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
+  estimateNote:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:         { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center", paddingVertical: 20 },
 
   heroCard:         { backgroundColor: "#EEDDF5", borderRadius: 14, padding: 18, gap: 6,
                       borderWidth: 1, borderColor: "#DDD6FE" },
   heroLabel:        { fontSize: 12, fontFamily: "Inter_500Medium", color: "#7C3AED" },
-  heroValue:        { fontSize: 30, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  heroValue:        { fontSize: 30, fontFamily: "Inter_700Bold", color: "#111827" },
   heroCompareRow:   { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
   heroCompare:      { fontSize: 13, fontFamily: "Inter_700Bold" },
-  heroPrev:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  heroPrev:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 
   kpiGrid:          { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  kpiCard:          { width: "30%", minWidth: 95, backgroundColor: "#FBF8F6", borderRadius: 10,
-                      padding: 10, gap: 3, borderWidth: 1, borderColor: "#F6F3F1" },
-  kpiLabel:         { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68" },
-  kpiValue:         { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  kpiSub:           { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  kpiCard:          { width: "30%", minWidth: 95, backgroundColor: "#F1F5F9", borderRadius: 10,
+                      padding: 10, gap: 3, borderWidth: 1, borderColor: "#F8FAFC" },
+  kpiLabel:         { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  kpiValue:         { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
+  kpiSub:           { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 
   planRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 10,
-                      borderBottomWidth: 1, borderColor: "#F6F3F1" },
+                      borderBottomWidth: 1, borderColor: "#F8FAFC" },
   planLeft:         { flex: 1, gap: 2 },
-  planName:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  planSub:          { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  planName:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  planSub:          { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   planRight:        { alignItems: "flex-end", gap: 2 },
-  planAmount:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  planCount:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  planAmount:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
+  planCount:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
   planRowExtra:     { paddingTop: 6 },
-  planSubNote:      { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  planSubNote:      { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 
   estimateNoteBanner: { flexDirection: "row", gap: 6, backgroundColor: "#FFF1BF",
                         borderRadius: 8, padding: 10, alignItems: "flex-start" },
   estimateNoteTxt:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#92400E", flex: 1, lineHeight: 16 },
 
   costRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 8,
-                      borderBottomWidth: 1, borderColor: "#F6F3F1" },
-  costLabel:        { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  costNote:         { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+                      borderBottomWidth: 1, borderColor: "#F8FAFC" },
+  costLabel:        { fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827" },
+  costNote:         { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
   costAmount:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
   costTotalRow:     { flexDirection: "row", alignItems: "center", paddingTop: 10,
                       borderTopWidth: 2, borderColor: "#D96C6C" },
-  costTotalLabel:   { flex: 1, fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  costTotalLabel:   { flex: 1, fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
   costTotalAmount:  { fontSize: 16, fontFamily: "Inter_700Bold", color: "#D96C6C" },
 
-  profitCard:       { backgroundColor: "#FBF8F6", borderRadius: 14, padding: 16, gap: 10 },
+  profitCard:       { backgroundColor: "#F1F5F9", borderRadius: 14, padding: 16, gap: 10 },
   profitRow:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  profitLabel:      { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  profitVal:        { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  profitLabel:      { fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827" },
+  profitVal:        { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
   profitDivider:    { borderBottomWidth: 1, borderStyle: "dashed", borderColor: "#D1D5DB" },
-  marginTxt:        { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68", textAlign: "right" },
-  profitNote:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", lineHeight: 16 },
+  marginTxt:        { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280", textAlign: "right" },
+  profitNote:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", lineHeight: 16 },
 });

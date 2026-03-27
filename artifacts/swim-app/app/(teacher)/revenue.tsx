@@ -37,9 +37,9 @@ interface SettlementSummary {
 type SubmitStatus = "미정산" | "저장됨" | "제출완료" | "관리자확인";
 
 const STATUS_COLOR: Record<SubmitStatus, { bg: string; text: string }> = {
-  "미정산":    { bg: "#F6F3F1", text: "#6F6B68" },
-  "저장됨":    { bg: "#DDF2EF", text: "#1F8F86" },
-  "제출완료":  { bg: "#DDF2EF", text: "#1F8F86" },
+  "미정산":    { bg: "#F8FAFC", text: "#6B7280" },
+  "저장됨":    { bg: "#E6FFFA", text: "#2EC4B6" },
+  "제출완료":  { bg: "#E6FFFA", text: "#2EC4B6" },
   "관리자확인": { bg: "#EEDDF5", text: "#7C3AED" },
 };
 
@@ -236,8 +236,8 @@ export default function RevenueScreen() {
                   { label: "수업인원", val: students.length, color: C.text },
                   { label: "수업시간", val: summary?.total_sessions ?? 0, color: C.text },
                   { label: "보강", val: summary?.total_makeup_sessions ?? 0, color: "#7C3AED" },
-                  { label: "체험수업", val: summary?.total_trial_sessions ?? 0, color: "#1F8F86" },
-                  { label: "이동", val: summary?.total_temp_transfer_sessions ?? 0, color: "#1F8F86" },
+                  { label: "체험수업", val: summary?.total_trial_sessions ?? 0, color: "#2EC4B6" },
+                  { label: "이동", val: summary?.total_temp_transfer_sessions ?? 0, color: "#2EC4B6" },
                   { label: "연기", val: summary?.postpone_count ?? 0, color: "#D97706" },
                   { label: "탈퇴", val: summary?.withdrawn_count ?? students.filter(s => s.is_unregistered).length, color: "#D96C6C" },
                 ].map(item => (
@@ -260,7 +260,7 @@ export default function RevenueScreen() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={[rv.studentName, { color: C.text }]}>{s.student_name}</Text>
                       {s.is_trial && <View style={[rv.tag, { backgroundColor: "#FFF1BF" }]}><Text style={[rv.tagText, { color: "#D97706" }]}>체험</Text></View>}
-                      {s.is_unregistered && <View style={[rv.tag, { backgroundColor: "#F6F3F1" }]}><Text style={[rv.tagText, { color: "#6F6B68" }]}>미등록</Text></View>}
+                      {s.is_unregistered && <View style={[rv.tag, { backgroundColor: "#F8FAFC" }]}><Text style={[rv.tagText, { color: "#6B7280" }]}>미등록</Text></View>}
                       {s.temp_transfer_sessions > 0 && <View style={[rv.tag, { backgroundColor: "#EEDDF5" }]}><Text style={[rv.tagText, { color: "#7C3AED" }]}>임시이동</Text></View>}
                     </View>
                     <Text style={[rv.studentSub, { color: C.textSecondary }]}>
@@ -320,15 +320,15 @@ export default function RevenueScreen() {
 
             {/* ─── 저장 메시지 ─────────────────────────── */}
             {savedMsg ? (
-              <View style={[rv.msg, { backgroundColor: savedMsg.includes("실패") ? "#F9DEDA" : "#DDF2EF" }]}>
-                <Feather name={savedMsg.includes("실패") ? "alert-circle" : "check-circle"} size={14} color={savedMsg.includes("실패") ? "#D96C6C" : "#1F8F86"} />
+              <View style={[rv.msg, { backgroundColor: savedMsg.includes("실패") ? "#F9DEDA" : "#E6FFFA" }]}>
+                <Feather name={savedMsg.includes("실패") ? "alert-circle" : "check-circle"} size={14} color={savedMsg.includes("실패") ? "#D96C6C" : "#2EC4B6"} />
                 <Text style={[rv.msgText, { color: savedMsg.includes("실패") ? "#D96C6C" : "#065F46" }]}>{savedMsg}</Text>
               </View>
             ) : null}
 
             {/* ─── 버튼 ─────────────────────────────────── */}
             <Pressable
-              style={[rv.saveBtn, { backgroundColor: "#6F6B68", opacity: saving ? 0.6 : 1 }]}
+              style={[rv.saveBtn, { backgroundColor: "#6B7280", opacity: saving ? 0.6 : 1 }]}
               onPress={handleSave} disabled={saving || submitting}
             >
               {saving ? <ActivityIndicator color="#fff" /> : <>
@@ -338,17 +338,17 @@ export default function RevenueScreen() {
             </Pressable>
 
             <Pressable
-              style={[rv.submitBtn, { backgroundColor: submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#DDF2EF" : themeColor, opacity: submitting ? 0.6 : 1 }]}
+              style={[rv.submitBtn, { backgroundColor: submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#E6FFFA" : themeColor, opacity: submitting ? 0.6 : 1 }]}
               onPress={handleSubmit}
               disabled={submitting || saving || submitStatus === "관리자확인"}
             >
-              {submitting ? <ActivityIndicator color={submitStatus === "제출완료" ? "#1F8F86" : "#fff"} /> : <>
+              {submitting ? <ActivityIndicator color={submitStatus === "제출완료" ? "#2EC4B6" : "#fff"} /> : <>
                 <Feather
                   name={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "check-circle" : "send"}
                   size={16}
-                  color={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#1F8F86" : "#fff"}
+                  color={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#2EC4B6" : "#fff"}
                 />
-                <Text style={[rv.submitBtnText, { color: submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#1F8F86" : "#fff" }]}>
+                <Text style={[rv.submitBtnText, { color: submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#2EC4B6" : "#fff" }]}>
                   {submitStatus === "제출완료" ? "제출완료 (재제출 가능)" :
                    submitStatus === "관리자확인" ? "관리자 확인 완료" :
                    "이번 달 정산 제출"}
@@ -395,7 +395,7 @@ export default function RevenueScreen() {
             >
               <Text style={rv.confirmBtnText}>확정 후 다음 달 시작</Text>
             </Pressable>
-            <Pressable style={[rv.confirmBtn, { backgroundColor: "#F6F3F1" }]} onPress={() => setNextMonthModal(false)}>
+            <Pressable style={[rv.confirmBtn, { backgroundColor: "#F8FAFC" }]} onPress={() => setNextMonthModal(false)}>
               <Text style={[rv.confirmBtnText, { color: C.text }]}>취소</Text>
             </Pressable>
           </View>
@@ -406,7 +406,7 @@ export default function RevenueScreen() {
 }
 
 const rv = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F6F3F1" },
+  safe:             { flex: 1, backgroundColor: "#F8FAFC" },
   monthRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 12 },
   navBtn:           { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   monthText:        { fontSize: 17, fontFamily: "Inter_700Bold" },
@@ -445,7 +445,7 @@ const rv = StyleSheet.create({
   statusTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   statusDesc:       { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
   summaryGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  summaryGridBox:   { minWidth: "28%", flex: 1, backgroundColor: "#FBF8F6", borderRadius: 12, padding: 10, alignItems: "center", gap: 2 },
+  summaryGridBox:   { minWidth: "28%", flex: 1, backgroundColor: "#F1F5F9", borderRadius: 12, padding: 10, alignItems: "center", gap: 2 },
   summaryGridVal:   { fontSize: 18, fontFamily: "Inter_700Bold" },
   summaryGridLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
   saveBtn:          { height: 52, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
@@ -456,7 +456,7 @@ const rv = StyleSheet.create({
   nextBtnText:      { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   overlay:          { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   confirmSheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 },
-  confirmHandle:    { width: 36, height: 4, backgroundColor: "#E9E2DD", borderRadius: 2, alignSelf: "center" },
+  confirmHandle:    { width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center" },
   confirmTitle:     { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
   confirmSub:       { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
   confirmBtn:       { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },

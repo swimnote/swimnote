@@ -477,7 +477,7 @@ export default function TeacherAttendanceScreen() {
                   ) : (
                     <>
                       <Pressable
-                        style={[s.attBtn, isPresent && { backgroundColor: "#1F8F86", borderColor: "#1F8F86" }]}
+                        style={[s.attBtn, isPresent && { backgroundColor: "#2EC4B6", borderColor: "#2EC4B6" }]}
                         onPress={() => saveOne(item.id, "present")}
                       >
                         <Text style={[s.attBtnText, isPresent && { color: "#fff" }]}>출석</Text>
@@ -564,8 +564,8 @@ export default function TeacherAttendanceScreen() {
                         </View>
                         <Text style={s.eligSub}>{ec.schedule_days} {ec.schedule_time} · {ec.instructor}</Text>
                       </View>
-                      <View style={[s.slotBadge, { backgroundColor: ec.available_slots > 0 ? "#DDF2EF" : "#F9DEDA" }]}>
-                        <Text style={[s.slotText, { color: ec.available_slots > 0 ? "#1F8F86" : "#D96C6C" }]}>
+                      <View style={[s.slotBadge, { backgroundColor: ec.available_slots > 0 ? "#E6FFFA" : "#F9DEDA" }]}>
+                        <Text style={[s.slotText, { color: ec.available_slots > 0 ? "#2EC4B6" : "#D96C6C" }]}>
                           {ec.current_members}/{ec.capacity}
                         </Text>
                       </View>
@@ -703,7 +703,7 @@ export default function TeacherAttendanceScreen() {
               refreshControl={<RefreshControl refreshing={makeupRefresh} onRefresh={() => { setMakeupRefresh(true); loadMakeups(); }} />}
               ListEmptyComponent={
                 <View style={s.emptyBox}>
-                  <Feather name="check-circle" size={40} color="#DDF2EF" />
+                  <Feather name="check-circle" size={40} color="#E6FFFA" />
                   <Text style={[s.emptyText, { marginTop: 8 }]}>보강 대기 중인 학생이 없습니다</Text>
                 </View>
               }
@@ -728,10 +728,10 @@ export default function TeacherAttendanceScreen() {
                         <Text style={s.mkActionBtnText}>보강 지정</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[s.mkActionBtn, { backgroundColor: "#F6F3F1" }]}
+                        style={[s.mkActionBtn, { backgroundColor: "#F8FAFC" }]}
                         onPress={() => openExtinguish(mk)}
                       >
-                        <Text style={[s.mkActionBtnText, { color: "#6F6B68" }]}>소멸</Text>
+                        <Text style={[s.mkActionBtnText, { color: "#6B7280" }]}>소멸</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -763,7 +763,7 @@ const s = StyleSheet.create({
   // 출결 요약
   attSummary:     { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
   attSummaryText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  attSummaryPresent: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F8F86" },
+  attSummaryPresent: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#2EC4B6" },
   attSummaryAbsent:  { fontSize: 13, fontFamily: "Inter_500Medium", color: "#D96C6C" },
   summaryDot:     { width: 3, height: 3, borderRadius: 2, backgroundColor: C.border },
 
@@ -808,8 +808,8 @@ const s = StyleSheet.create({
   eligRow:        { flexDirection: "row", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 12, marginBottom: 8 },
   eligName:       { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   eligSub:        { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
-  sameTeacherBadge: { backgroundColor: "#DDF2EF", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  sameTeacherText:  { fontSize: 11, fontFamily: "Inter_500Medium", color: "#1F8F86" },
+  sameTeacherBadge: { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  sameTeacherText:  { fontSize: 11, fontFamily: "Inter_500Medium", color: "#2EC4B6" },
   slotBadge:      { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, minWidth: 44, alignItems: "center" },
   slotText:       { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   confirmBtn:     { paddingVertical: 14, borderRadius: 12, alignItems: "center" },

@@ -43,7 +43,7 @@ const INITIAL_SERVICES: ServiceItem[] = [
 ];
 
 const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
-  normal:  { label: "정상",  color: "#1F8F86", bg: "#DDF2EF", icon: "check-circle" },
+  normal:  { label: "정상",  color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
   warning: { label: "주의",  color: "#D97706", bg: "#FFF1BF", icon: "alert-circle" },
   error:   { label: "장애",  color: "#D96C6C", bg: "#F9DEDA", icon: "alert-triangle" },
 };
@@ -83,7 +83,7 @@ function ServiceCard({ item, onToggle }: { item: ServiceItem; onToggle: (id: str
         </View>
         <View style={sc.metricItem}>
           <Text style={sc.metricLabel}>가동률</Text>
-          <Text style={[sc.metricVal, { color: item.uptimePct < 99 ? "#D96C6C" : "#1F8F86" }]}>
+          <Text style={[sc.metricVal, { color: item.uptimePct < 99 ? "#D96C6C" : "#2EC4B6" }]}>
             {item.uptimePct.toFixed(2)}%
           </Text>
         </View>
@@ -99,18 +99,18 @@ function ServiceCard({ item, onToggle }: { item: ServiceItem; onToggle: (id: str
   );
 }
 const sc = StyleSheet.create({
-  card:       { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E9E2DD" },
+  card:       { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   top:        { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   iconWrap:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  name:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  category:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  name:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  category:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   metrics:    { flexDirection: "row", gap: 16, marginBottom: 6 },
   metricItem: { gap: 2 },
-  metricLabel:{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
-  metricVal:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  note:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 4 },
+  metricLabel:{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  metricVal:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  note:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 4 },
   fixBtn:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, padding: 6,
-                borderRadius: 6, backgroundColor: "#FBF8F6" },
+                borderRadius: 6, backgroundColor: "#F1F5F9" },
   fixTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });
 
@@ -195,7 +195,7 @@ export default function SystemStatusScreen() {
         ))}
 
         <View style={s.noteBox}>
-          <Feather name="info" size={12} color="#6F6B68" />
+          <Feather name="info" size={12} color="#6B7280" />
           <Text style={s.noteTxt}>
             서비스 상태는 1분 단위로 자동 점검됩니다. 이상 감지 시 슈퍼관리자에게 푸시 알림이 발송됩니다.
           </Text>
@@ -206,15 +206,15 @@ export default function SystemStatusScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#FBF8F6" },
+  safe:           { flex: 1, backgroundColor: "#F1F5F9" },
   overallBanner:  { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, margin: 16,
                     borderRadius: 14 },
   overallTitle:   { fontSize: 15, fontFamily: "Inter_700Bold" },
   overallSub:     { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   refreshBtn:     { padding: 6 },
-  categoryTitle:  { fontSize: 12, fontFamily: "Inter_700Bold", color: "#6F6B68", textTransform: "uppercase",
+  categoryTitle:  { fontSize: 12, fontFamily: "Inter_700Bold", color: "#6B7280", textTransform: "uppercase",
                     letterSpacing: 0.5, marginTop: 4 },
-  noteBox:        { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#F6F3F1",
+  noteBox:        { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#F8FAFC",
                     borderRadius: 8, padding: 10 },
-  noteTxt:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", flex: 1 },
+  noteTxt:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", flex: 1 },
 });

@@ -92,7 +92,7 @@ export function MemberClassTab({
         </Pressable>
 
         <Pressable
-          style={[ms.saveBtn, { backgroundColor: classChanged ? themeColor : "#9A948F", marginTop: 12 }]}
+          style={[ms.saveBtn, { backgroundColor: classChanged ? themeColor : "#9CA3AF", marginTop: 12 }]}
           onPress={onSaveAssignment}
           disabled={saving || !classChanged}
         >
@@ -106,7 +106,7 @@ export function MemberClassTab({
         <Text style={ms.sectionTitle}>최근 출결 현황</Text>
         <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
           {[
-            { label: "출석", color: "#1F8F86", key: "present" },
+            { label: "출석", color: "#2EC4B6", key: "present" },
             { label: "결석", color: "#D96C6C", key: "absent" },
             { label: "지각", color: "#D97706", key: "late" },
             { label: "공결", color: "#7C3AED", key: "excused" },
@@ -130,7 +130,7 @@ export function MemberClassTab({
         ) : (
           <View style={{ gap: 10 }}>
             {(data.recent_diaries || []).map(d => (
-              <View key={d.id} style={{ backgroundColor: "#FBF8F6", borderRadius: 12, padding: 12, gap: 6 }}>
+              <View key={d.id} style={{ backgroundColor: "#F1F5F9", borderRadius: 12, padding: 12, gap: 6 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text }}>{d.lesson_date}</Text>
                   <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted }}>{d.teacher_name}</Text>

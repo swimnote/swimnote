@@ -32,8 +32,8 @@ function TypeBadge({ type, scope }: { type?: string; scope?: string }) {
   const isClass   = type === "class";
   const isGlobal  = scope === "global";
   const label     = isGlobal ? "플랫폼 전체" : isClass ? "우리반 공지" : "수영장 공지";
-  const bg        = isGlobal ? "#EEDDF5" : isClass ? "#F3EDFE" : "#DDF2EF";
-  const color     = isGlobal ? "#7C3AED" : isClass ? "#6D28D9" : "#1F8F86";
+  const bg        = isGlobal ? "#EEDDF5" : isClass ? "#F3EDFE" : "#E6FFFA";
+  const color     = isGlobal ? "#7C3AED" : isClass ? "#6D28D9" : "#2EC4B6";
   return (
     <View style={[tb.badge, { backgroundColor: bg }]}>
       <Text style={[tb.txt, { color }]}>{label}</Text>
@@ -151,11 +151,11 @@ const s = StyleSheet.create({
   root: { flex: 1 },
   filterRow: {
     flexDirection: "row", gap: 8, paddingHorizontal: 20,
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F6F3F1",
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F8FAFC",
   },
   chip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    borderWidth: 1, borderColor: "#E9E2DD", backgroundColor: "#fff",
+    borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff",
   },
   chipTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
   card: {

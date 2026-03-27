@@ -115,7 +115,7 @@ export default function AdminMyInfoScreen() {
               <Text style={s.profileName}>{profile?.name || "-"}</Text>
               <Text style={[s.profileSub, { color: C.textSecondary }]}>수영장 관리자</Text>
               <Text style={[s.profileSub, { color: C.textSecondary }]}>{profile?.phone || "-"}</Text>
-              {profile?.email ? <Text style={[s.profileSub, { color: "#9A948F" }]}>{profile.email}</Text> : null}
+              {profile?.email ? <Text style={[s.profileSub, { color: "#9CA3AF" }]}>{profile.email}</Text> : null}
             </View>
             <Pressable style={[s.editBtn, { borderColor: themeColor }]} onPress={() => {
               setEditName(profile?.name || ""); setEditPhone(profile?.phone || ""); setEditMsg(""); setEditVisible(true);
@@ -195,8 +195,8 @@ export default function AdminMyInfoScreen() {
             <Text style={s.inputLabel}>연락처</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={editPhone} onChangeText={setEditPhone} placeholder="010-0000-0000" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
             {editMsg ? (
-              <View style={[s.msgBox, { backgroundColor: editMsg.includes("저장") ? "#DDF2EF" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: editMsg.includes("저장") ? "#1F8F86" : "#D96C6C" }}>{editMsg}</Text>
+              <View style={[s.msgBox, { backgroundColor: editMsg.includes("저장") ? "#E6FFFA" : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: editMsg.includes("저장") ? "#2EC4B6" : "#D96C6C" }}>{editMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: themeColor, opacity: editSaving ? 0.7 : 1, marginTop: 16 }]} onPress={saveProfile} disabled={editSaving}>
@@ -221,8 +221,8 @@ export default function AdminMyInfoScreen() {
             <Text style={s.inputLabel}>새 비밀번호 확인</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwConfirm} onChangeText={setPwConfirm} placeholder="새 비밀번호 재입력" placeholderTextColor={C.textMuted} secureTextEntry />
             {pwMsg ? (
-              <View style={[s.msgBox, { backgroundColor: pwMsg.includes("변경") ? "#DDF2EF" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: pwMsg.includes("변경") ? "#1F8F86" : "#D96C6C" }}>{pwMsg}</Text>
+              <View style={[s.msgBox, { backgroundColor: pwMsg.includes("변경") ? "#E6FFFA" : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: pwMsg.includes("변경") ? "#2EC4B6" : "#D96C6C" }}>{pwMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: themeColor, opacity: pwSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitPasswordChange} disabled={pwSaving}>

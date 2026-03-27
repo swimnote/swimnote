@@ -168,7 +168,7 @@ export default function PoolApplyScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.btn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [styles.btn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
             onPress={handleApply} disabled={loading}
           >
             {loading ? <ActivityIndicator color="#fff" size="small" /> : (

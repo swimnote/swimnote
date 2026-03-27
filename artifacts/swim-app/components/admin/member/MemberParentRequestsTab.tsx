@@ -37,8 +37,8 @@ export function MemberParentRequestsTab({ parentRequests }: MemberParentRequests
               <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 4 }}>{req.content}</Text>
             )}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
-              <View style={[{ borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }, { backgroundColor: req.status === "pending" ? "#FFF1BF" : "#DDF2EF" }]}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: req.status === "pending" ? "#D97706" : "#1F8F86" }}>
+              <View style={[{ borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }, { backgroundColor: req.status === "pending" ? "#FFF1BF" : "#E6FFFA" }]}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: req.status === "pending" ? "#D97706" : "#2EC4B6" }}>
                   {req.status === "pending" ? "처리 대기" : "처리 완료"}
                 </Text>
               </View>

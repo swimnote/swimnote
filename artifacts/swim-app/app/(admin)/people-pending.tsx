@@ -49,9 +49,9 @@ interface UnregItem {
 type ParseRow = { name: string; parent_phone: string; result: "ok" | "duplicate" | "error"; reason?: string };
 
 const INVITE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  none:    { label: "초대 전",   color: "#6F6B68", bg: "#F6F3F1" },
-  invited: { label: "초대 완료", color: "#1F8F86", bg: "#DDF2EF" },
-  joined:  { label: "가입 완료", color: "#1F8F86", bg: "#DDF2EF" },
+  none:    { label: "초대 전",   color: "#6B7280", bg: "#F8FAFC" },
+  invited: { label: "초대 완료", color: "#2EC4B6", bg: "#E6FFFA" },
+  joined:  { label: "가입 완료", color: "#2EC4B6", bg: "#E6FFFA" },
 };
 
 async function readFileText(uri: string): Promise<string> {
@@ -313,8 +313,8 @@ export default function PeoplePendingScreen() {
                             <Text style={[s.pillTxt, { color: inv.color }]}>{inv.label}</Text>
                           </View>
                           {isAssigned && (
-                            <View style={[s.pill, { backgroundColor: "#DDF2EF" }]}>
-                              <Text style={[s.pillTxt, { color: "#1F8F86" }]}>정상회원 전환</Text>
+                            <View style={[s.pill, { backgroundColor: "#E6FFFA" }]}>
+                              <Text style={[s.pillTxt, { color: "#2EC4B6" }]}>정상회원 전환</Text>
                             </View>
                           )}
                         </View>
@@ -356,7 +356,7 @@ export default function PeoplePendingScreen() {
               <Pressable onPress={() => setShowValidate(false)}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
             </View>
             <View style={s.validateSummary}>
-              <SummaryChip label="정상" count={okCount} color="#1F8F86" bg="#DDF2EF" />
+              <SummaryChip label="정상" count={okCount} color="#2EC4B6" bg="#E6FFFA" />
               <SummaryChip label="중복" count={dupCount} color="#D97706" bg="#FFF1BF" />
               <SummaryChip label="오류" count={errCount} color="#D96C6C" bg="#F9DEDA" />
             </View>
@@ -374,7 +374,7 @@ export default function PeoplePendingScreen() {
                     {row.reason && <Text style={s.validateReason}>{row.reason}</Text>}
                   </View>
                   <Text style={[s.validateBadge,
-                    row.result === "ok" ? { color: "#1F8F86" } :
+                    row.result === "ok" ? { color: "#2EC4B6" } :
                     row.result === "duplicate" ? { color: "#D97706" } : { color: "#D96C6C" }
                   ]}>
                     {row.result === "ok" ? "정상" : row.result === "duplicate" ? "중복" : "오류"}
@@ -446,12 +446,12 @@ const s = StyleSheet.create({
   tabBadgeTxt:    { color: "#fff", fontSize: 10, fontWeight: "700" },
 
   uploadRow:      { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 },
-  tplBtn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: "#4338CA", backgroundColor: "#DDF2EF" },
+  tplBtn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: "#4338CA", backgroundColor: "#E6FFFA" },
   tplBtnTxt:      { fontSize: 12, fontWeight: "700", color: "#4338CA" },
 
-  searchBar:      { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#F6F3F1", borderRadius: 10 },
+  searchBar:      { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#F8FAFC", borderRadius: 10 },
   searchInput:    { flex: 1, fontSize: 14, color: C.text },
-  allSelectRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  allSelectRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   allSelectTxt:   { fontSize: 13, color: C.textSecondary },
   checkbox:       { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: "#D1D5DB", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
 
@@ -467,7 +467,7 @@ const s = StyleSheet.create({
   empty:          { paddingVertical: 40, alignItems: "center" },
   emptyTxt:       { color: C.textSecondary, fontSize: 14 },
 
-  inviteBar:      { position: "absolute", left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E9E2DD" },
+  inviteBar:      { position: "absolute", left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
   inviteCount:    { fontSize: 14, fontWeight: "600", color: C.text },
   inviteBtn:      { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
   inviteBtnTxt:   { fontSize: 14, fontWeight: "700", color: "#fff" },
@@ -480,7 +480,7 @@ const s = StyleSheet.create({
   summaryChip:    { flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: "center" },
   summaryLabel:   { fontSize: 13, fontWeight: "700" },
   validateNote:   { fontSize: 12, color: "#4338CA", paddingHorizontal: 16, marginBottom: 8, fontWeight: "600" },
-  validateRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F6F3F1" },
+  validateRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   rowOk:          { backgroundColor: "#DFF3EC" },
   rowDup:         { backgroundColor: "#FFFBEB" },
   rowErr:         { backgroundColor: "#FFF1F2" },

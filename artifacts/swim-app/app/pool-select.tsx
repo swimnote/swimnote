@@ -10,7 +10,7 @@ import Colors from "@/constants/colors";
 import { useAuth, type OwnedPool } from "@/context/AuthContext";
 
 const C = Colors.light;
-const TINT = "#1F8F86";
+const TINT = "#2EC4B6";
 
 export default function PoolSelectScreen() {
   const insets = useSafeAreaInsets();

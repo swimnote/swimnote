@@ -27,7 +27,7 @@ interface Props {
 }
 
 const OPTIONS = [
-  { key: "active" as ActionStatus,    label: "정상",  sub: "active 상태로 복귀 (반 배정 유지)",    color: "#1F8F86", bg: "#DDF2EF", emoji: "✅", hasTiming: false },
+  { key: "active" as ActionStatus,    label: "정상",  sub: "active 상태로 복귀 (반 배정 유지)",    color: "#2EC4B6", bg: "#E6FFFA", emoji: "✅", hasTiming: false },
   { key: "unassigned" as ActionStatus, label: "미배정", sub: "반 배정 해제, 미배정 대기 상태",      color: "#D96C6C", bg: "#F9DEDA", emoji: "📋", hasTiming: false },
   { key: "suspended" as ActionStatus,  label: "연기",  sub: "연기 처리, 이동 시점 선택 가능",       color: "#B45309", bg: "#FFF1BF", emoji: "⏸️", hasTiming: true  },
   { key: "withdrawn" as ActionStatus,  label: "퇴원",  sub: "수강 종료, 이동 시점 선택 가능",       color: "#991B1B", bg: "#FEF2F2", emoji: "🚪", hasTiming: true  },
@@ -106,8 +106,8 @@ export function MemberStatusChangeModal({
             {/* 현재 상태 + 예약 배지 */}
             <View style={{ flexDirection: "row", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
               {currentStatus === "active" && (
-                <View style={[m.badge, { backgroundColor: "#DDF2EF" }]}>
-                  <Text style={[m.badgeText, { color: "#1F8F86" }]}>현재: 정상</Text>
+                <View style={[m.badge, { backgroundColor: "#E6FFFA" }]}>
+                  <Text style={[m.badgeText, { color: "#2EC4B6" }]}>현재: 정상</Text>
                 </View>
               )}
               {currentStatus === "suspended" && (
@@ -116,8 +116,8 @@ export function MemberStatusChangeModal({
                 </View>
               )}
               {currentStatus === "withdrawn" && (
-                <View style={[m.badge, { backgroundColor: "#F6F3F1" }]}>
-                  <Text style={[m.badgeText, { color: "#6F6B68" }]}>현재: 퇴원</Text>
+                <View style={[m.badge, { backgroundColor: "#F8FAFC" }]}>
+                  <Text style={[m.badgeText, { color: "#6B7280" }]}>현재: 퇴원</Text>
                 </View>
               )}
               {pendingStatusChange === "suspended" && pendingEffectiveMode === "next_month" && (

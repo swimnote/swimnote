@@ -10,7 +10,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
-const TINT = "#1F8F86";
+const TINT = "#2EC4B6";
 
 interface WhiteLabelSettings {
   white_label_enabled: boolean;
@@ -217,9 +217,9 @@ function ToggleRow({
         value={value}
         onValueChange={onToggle}
         disabled={disabled}
-        trackColor={{ false: "#E9E2DD", true: tint + "88" }}
+        trackColor={{ false: "#E5E7EB", true: tint + "88" }}
         thumbColor={value ? tint : "#fff"}
-        ios_backgroundColor="#E9E2DD"
+        ios_backgroundColor="#E5E7EB"
       />
     </View>
   );
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   preview: { margin: 16, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   previewHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   previewIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  previewPoolName: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  previewPoolName: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
   previewPowered: {},
   previewPoweredTxt: { fontSize: 11, fontFamily: "Inter_400Regular" },
   previewNote: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },

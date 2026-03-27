@@ -125,7 +125,7 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 피드백 기본 설정 ── */}
         <Pressable
-          style={[s.actionBtn, { backgroundColor: "#DDF2EF", borderColor: "#DDF2EF" }]}
+          style={[s.actionBtn, { backgroundColor: "#E6FFFA", borderColor: "#E6FFFA" }]}
           onPress={() => router.push("/(teacher)/feedback-custom" as any)}
         >
           <Feather name="edit-3" size={18} color="#4EA7D8" />
@@ -219,10 +219,10 @@ export default function TeacherSettingsScreen() {
             {([
               { icon: "image"          as const, bg: "#FFF1BF", color: "#E4A93A", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
               { icon: "video"          as const, bg: "#EEDDF5", color: "#7C3AED", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
-              { icon: "message-square" as const, bg: "#DDF2EF", color: "#1F8F86", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
-              { icon: "book-open"      as const, bg: "#DDF2EF", color: "#1F8F86", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
+              { icon: "message-square" as const, bg: "#E6FFFA", color: "#2EC4B6", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
+              { icon: "book-open"      as const, bg: "#E6FFFA", color: "#2EC4B6", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
               { icon: "bell"           as const, bg: "#F6D8E1", color: "#EC4899", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
-              { icon: "cpu"            as const, bg: "#F6F3F1", color: "#6F6B68", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
+              { icon: "cpu"            as const, bg: "#F8FAFC", color: "#6B7280", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
             ]).map(item => (
               <View key={item.label} style={s.usageRow}>
                 <View style={[s.usageIcon, { backgroundColor: item.bg }]}>
@@ -269,19 +269,19 @@ export default function TeacherSettingsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F6F3F1" },
+  safe:             { flex: 1, backgroundColor: "#F8FAFC" },
   card:             { backgroundColor: C.card, borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   cardTitle:        { fontSize: 15, fontFamily: "Inter_700Bold", color: C.text },
   storageSummary:   { padding: 14, borderRadius: 14, borderWidth: 1 },
   storageUsedLabel: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 2 },
   storageUsedBytes: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  storageQuotaLabel:{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", marginBottom: 2 },
+  storageQuotaLabel:{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginBottom: 2 },
   storageQuotaBytes:{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  gaugeWrap:        { height: 10, backgroundColor: "#E9E2DD", borderRadius: 5, overflow: "hidden" },
+  gaugeWrap:        { height: 10, backgroundColor: "#E5E7EB", borderRadius: 5, overflow: "hidden" },
   gaugeBar:         { height: 10, borderRadius: 5 },
   gaugePct:         { fontSize: 12, fontFamily: "Inter_700Bold" },
-  gaugeRemain:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  gaugeRemain:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   usageRow:         { flexDirection: "row", alignItems: "center", gap: 12 },
   usageIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   usageLabel:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },

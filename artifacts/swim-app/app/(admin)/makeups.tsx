@@ -25,10 +25,10 @@ type MkTab = typeof TABS[number];
 
 const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   waiting:     { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
-  assigned:    { label: "배정",   color: "#1F8F86", bg: "#DDF2EF" },
+  assigned:    { label: "배정",   color: "#2EC4B6", bg: "#E6FFFA" },
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
-  completed:   { label: "완료",   color: "#1F8F86", bg: "#DDF2EF" },
-  cancelled:   { label: "취소",   color: "#6F6B68", bg: "#F6F3F1" },
+  completed:   { label: "완료",   color: "#2EC4B6", bg: "#E6FFFA" },
+  cancelled:   { label: "취소",   color: "#6B7280", bg: "#F8FAFC" },
   expired:     { label: "만료",   color: "#9CA3AF", bg: "#F3F4F6" },
 };
 
@@ -234,7 +234,7 @@ export default function MakeupsScreen() {
       >
         <Text style={s.modalSub}>이동하면 해당 선생님의 보강 리스트에 추가됩니다.</Text>
         {teachers.filter(t => t.id !== transferModal?.mk?.original_teacher_id).map(item => (
-          <Pressable key={item.id} style={[s.classCard, { borderColor: "#6F6B68" }]}
+          <Pressable key={item.id} style={[s.classCard, { borderColor: "#6B7280" }]}
             onPress={() => handleTransfer(transferModal!.mk, item)}>
             <Text style={s.className}>{item.name}</Text>
             <Text style={s.classSub}>담당반: {item.class_count}개  회원: {item.student_count}명</Text>
@@ -285,7 +285,7 @@ function formatExpireAt(expireAt: string | null): { text: string; color: string 
   if (diffDays < 0) return { text: `만료됨 (${dateStr})`, color: "#9CA3AF" };
   if (diffDays <= 7) return { text: `만료 D-${diffDays} (${dateStr})`, color: "#D96C6C" };
   if (diffDays <= 14) return { text: `만료 D-${diffDays} (${dateStr})`, color: "#D97706" };
-  return { text: `만료일: ${dateStr}`, color: "#6F6B68" };
+  return { text: `만료일: ${dateStr}`, color: "#6B7280" };
 }
 
 function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, onRevert, onCancel, onMemberPress }: {
@@ -294,7 +294,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
   onComplete: () => void; onRevert: () => void; onCancel: () => void;
   onMemberPress: () => void;
 }) {
-  const st = MK_STATUS[item.status] || { label: item.status, color: "#6F6B68", bg: "#F6F3F1" };
+  const st = MK_STATUS[item.status] || { label: item.status, color: "#6B7280", bg: "#F8FAFC" };
   const expireInfo = formatExpireAt(item.expire_at);
   return (
     <View style={s.card}>
@@ -310,7 +310,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
             <Text style={[s.sub, { color: "#7C3AED" }]}>이동선생님: {item.transferred_to_teacher_name}</Text>
           )}
           {item.is_substitute && item.substitute_teacher_name && (
-            <Text style={[s.sub, { color: "#1F8F86", fontWeight: "600" }]}>대리보강: {item.substitute_teacher_name}</Text>
+            <Text style={[s.sub, { color: "#2EC4B6", fontWeight: "600" }]}>대리보강: {item.substitute_teacher_name}</Text>
           )}
           {expireInfo && (
             <Text style={[s.sub, { color: expireInfo.color, fontWeight: "600" }]}>{expireInfo.text}</Text>
@@ -331,8 +331,8 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
           <Pressable style={[s.actBtn, { backgroundColor: "#EEDDF5" }]} onPress={onTransfer}>
             <Text style={[s.actBtnTxt, { color: "#7C3AED" }]}>다른선생님</Text>
           </Pressable>
-          <Pressable style={[s.actBtn, { backgroundColor: "#F6F3F1" }]} onPress={onCancel}>
-            <Text style={[s.actBtnTxt, { color: "#6F6B68" }]}>취소</Text>
+          <Pressable style={[s.actBtn, { backgroundColor: "#F8FAFC" }]} onPress={onCancel}>
+            <Text style={[s.actBtnTxt, { color: "#6B7280" }]}>취소</Text>
           </Pressable>
         </View>
       )}
@@ -341,12 +341,12 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {tab === "담당 보강" && (
         <View style={{ gap: 8, marginTop: 10 }}>
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable style={[s.actBtn, { backgroundColor: "#DDF2EF", flex: 1 }]} onPress={onComplete}>
-              <Feather name="check-circle" size={14} color="#1F8F86" />
-              <Text style={[s.actBtnTxt, { color: "#1F8F86" }]}>보강 완료 처리</Text>
+            <Pressable style={[s.actBtn, { backgroundColor: "#E6FFFA", flex: 1 }]} onPress={onComplete}>
+              <Feather name="check-circle" size={14} color="#2EC4B6" />
+              <Text style={[s.actBtnTxt, { color: "#2EC4B6" }]}>보강 완료 처리</Text>
             </Pressable>
-            <Pressable style={[s.actBtn, { backgroundColor: "#F6F3F1" }]} onPress={onCancel}>
-              <Text style={[s.actBtnTxt, { color: "#6F6B68" }]}>취소</Text>
+            <Pressable style={[s.actBtn, { backgroundColor: "#F8FAFC" }]} onPress={onCancel}>
+              <Text style={[s.actBtnTxt, { color: "#6B7280" }]}>취소</Text>
             </Pressable>
           </View>
           <Pressable style={[s.revertBtn]} onPress={onRevert}>
@@ -359,9 +359,9 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {/* 다른선생님 탭 액션 */}
       {tab === "다른선생님" && (
         <View style={{ gap: 8, marginTop: 10 }}>
-          <Pressable style={[s.actBtn, { backgroundColor: "#DDF2EF", flexDirection: "row", gap: 6 }]} onPress={onComplete}>
-            <Feather name="check-circle" size={14} color="#1F8F86" />
-            <Text style={[s.actBtnTxt, { color: "#1F8F86" }]}>대리보강 완료</Text>
+          <Pressable style={[s.actBtn, { backgroundColor: "#E6FFFA", flexDirection: "row", gap: 6 }]} onPress={onComplete}>
+            <Feather name="check-circle" size={14} color="#2EC4B6" />
+            <Text style={[s.actBtnTxt, { color: "#2EC4B6" }]}>대리보강 완료</Text>
           </Pressable>
           <Pressable style={s.revertBtn} onPress={onRevert}>
             <Feather name="rotate-ccw" size={13} color="#D97706" />
@@ -373,7 +373,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {/* 완료 기록 탭 — 읽기 전용 */}
       {tab === "완료 기록" && item.substitute_teacher_name && (
         <View style={[s.completedBanner]}>
-          <Feather name="user-check" size={12} color="#1F8F86" />
+          <Feather name="user-check" size={12} color="#2EC4B6" />
           <Text style={s.completedTxt}>
             대리 진행: {item.substitute_teacher_name} 선생님
           </Text>
@@ -408,8 +408,8 @@ const s = StyleSheet.create({
   actBtnTxt:     { fontSize: 13, fontWeight: "700", color: "#fff" },
   revertBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: "#D97706", backgroundColor: "#FFF8EE" },
   revertTxt:     { fontSize: 13, fontWeight: "600", color: "#D97706" },
-  completedBanner:{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: "#DDF2EF", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 },
-  completedTxt:  { fontSize: 12, fontWeight: "600", color: "#1F8F86" },
+  completedBanner:{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: "#E6FFFA", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 },
+  completedTxt:  { fontSize: 12, fontWeight: "600", color: "#2EC4B6" },
   empty:         { paddingVertical: 50, alignItems: "center", gap: 10 },
   emptyTxt:      { color: C.textSecondary, fontSize: 14 },
   modalSub:      { paddingHorizontal: 16, fontSize: 12, color: C.textSecondary, marginBottom: 4 },

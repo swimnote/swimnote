@@ -12,7 +12,7 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const APP_PLATFORM_NAME = "스윔노트";
-export const DEFAULT_THEME_COLOR = "#1F8F86";
+export const DEFAULT_THEME_COLOR = "#2EC4B6";
 export const SUPER_ADMIN_COLOR   = "#7C3AED";
 
 export interface BrandState {

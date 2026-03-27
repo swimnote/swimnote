@@ -19,7 +19,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
-const CHILD_COLORS = [C.tint, "#1F8F86", "#7C3AED", "#D97706", "#0EA5E9"];
+const CHILD_COLORS = [C.tint, "#2EC4B6", "#7C3AED", "#D97706", "#0EA5E9"];
 
 const DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
 function parseScheduleText(days: string, time: string): string {
@@ -85,7 +85,7 @@ export default function ChildrenScreen() {
     return { pending: "검토 중", approved: "승인됨", rejected: "거절됨" }[s] ?? s;
   }
   function statusColor(s: string) {
-    return { pending: "#D97706", approved: "#1F8F86", rejected: "#D96C6C" }[s] ?? C.textMuted;
+    return { pending: "#D97706", approved: "#2EC4B6", rejected: "#D96C6C" }[s] ?? C.textMuted;
   }
 
   return (
@@ -161,7 +161,7 @@ export default function ChildrenScreen() {
         <View style={[s.formCard, { backgroundColor: C.card }]}>
           <Text style={[s.formLabel, { color: C.textSecondary }]}>자녀 이름 *</Text>
           <TextInput
-            style={[s.input, { backgroundColor: "#F6F3F1", color: C.text }]}
+            style={[s.input, { backgroundColor: "#F8FAFC", color: C.text }]}
             placeholder="자녀 이름을 입력하세요"
             placeholderTextColor={C.textMuted}
             value={childName}
@@ -169,7 +169,7 @@ export default function ChildrenScreen() {
           />
           <Text style={[s.formLabel, { color: C.textSecondary }]}>생년월일 (YYYY-MM-DD)</Text>
           <TextInput
-            style={[s.input, { backgroundColor: "#F6F3F1", color: C.text }]}
+            style={[s.input, { backgroundColor: "#F8FAFC", color: C.text }]}
             placeholder="예: 2017-03-20"
             placeholderTextColor={C.textMuted}
             value={childBirth}
@@ -179,7 +179,7 @@ export default function ChildrenScreen() {
           />
           <Text style={[s.formLabel, { color: C.textSecondary }]}>전달 메모 (선택)</Text>
           <TextInput
-            style={[s.input, s.inputMulti, { backgroundColor: "#F6F3F1", color: C.text }]}
+            style={[s.input, s.inputMulti, { backgroundColor: "#F8FAFC", color: C.text }]}
             placeholder="관리자에게 전달할 내용이 있으면 입력하세요"
             placeholderTextColor={C.textMuted}
             value={memo}
@@ -191,7 +191,7 @@ export default function ChildrenScreen() {
             * 요청 후 수영장 관리자가 확인하면 연결됩니다
           </Text>
           <Pressable
-            style={[s.submitBtn, { backgroundColor: C.tint, opacity: !childName.trim() || submitting ? 0.5 : 1 }]}
+            style={[s.submitBtn, { backgroundColor: C.button, opacity: !childName.trim() || submitting ? 0.5 : 1 }]}
             disabled={!childName.trim() || submitting}
             onPress={() => setSubmitConfirm(true)}
           >

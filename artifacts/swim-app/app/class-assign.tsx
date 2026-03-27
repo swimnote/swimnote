@@ -449,7 +449,7 @@ export default function ClassAssignScreen() {
             <Text style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>다른 선생님이 먼저 배정을 완료했습니다.{"\n"}목록을 새로고침하여 최신 상태를 확인하세요.</Text>
             <Pressable
               onPress={handleConflict}
-              style={{ backgroundColor: C.tint, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6 }}
+              style={{ backgroundColor: C.button, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6 }}
             >
               <Feather name="refresh-cw" size={15} color="#fff" />
               <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>목록 새로고침</Text>

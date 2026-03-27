@@ -89,7 +89,7 @@ export default function ForgotPasswordScreen() {
               새 비밀번호로 로그인해주세요.
             </Text>
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
               onPress={() => router.replace("/" as any)}
             >
               <Text style={styles.submitBtnText}>로그인 화면으로</Text>
@@ -134,7 +134,7 @@ export default function ForgotPasswordScreen() {
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.tint, opacity: pressed || loading ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
               onPress={checkAccount}
               disabled={loading}
             >
@@ -205,7 +205,7 @@ export default function ForgotPasswordScreen() {
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.tint, opacity: pressed || loading ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
               onPress={resetPassword}
               disabled={loading}
             >
@@ -252,5 +252,5 @@ const styles = StyleSheet.create({
   doneWrap: { alignItems: "center", gap: 16, paddingTop: 40 },
   doneIcon: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   doneTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  doneDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22, color: "#6F6B68" },
+  doneDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22, color: "#6B7280" },
 });

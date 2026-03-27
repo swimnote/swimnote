@@ -189,7 +189,7 @@ export default function PeopleTeachersScreen() {
                       )}
                       {status === "approved" && (
                         <View style={s.activeBadge}>
-                          <Feather name="check" size={10} color="#1F8F86" />
+                          <Feather name="check" size={10} color="#2EC4B6" />
                           <Text style={s.activeBadgeTxt}>승인됨</Text>
                         </View>
                       )}
@@ -250,7 +250,7 @@ function StatChip({ label, warn }: { label: string; warn?: boolean }) {
 
 const s = StyleSheet.create({
   root:             { flex: 1, backgroundColor: C.background },
-  searchBar:        { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#F6F3F1", borderRadius: 10 },
+  searchBar:        { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#F8FAFC", borderRadius: 10 },
   searchInput:      { flex: 1, fontSize: 14, color: C.text },
   filterRow:        { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 8, flexWrap: "wrap" },
   chip:             { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
@@ -262,7 +262,7 @@ const s = StyleSheet.create({
   sub:              { fontSize: 12, color: C.textSecondary, marginTop: 2 },
   sub2:             { fontSize: 11, color: C.textMuted, marginTop: 1 },
   statsRow:         { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
-  statChip:         { backgroundColor: "#F6F3F1", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  statChip:         { backgroundColor: "#F8FAFC", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   statChipTxt:      { fontSize: 11, color: C.textSecondary },
   warnChip:         { backgroundColor: "#F9DEDA" },
   warnChipTxt:      { color: "#D96C6C" },
@@ -270,8 +270,8 @@ const s = StyleSheet.create({
   pendingBadgeTxt:  { fontSize: 11, fontWeight: "600", color: "#D97706" },
   rejectedBadge:    { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F9DEDA", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   rejectedBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#D96C6C" },
-  activeBadge:      { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#DDF2EF", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  activeBadgeTxt:   { fontSize: 11, fontWeight: "600", color: "#1F8F86" },
+  activeBadge:      { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#E6FFFA", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  activeBadgeTxt:   { fontSize: 11, fontWeight: "600", color: "#2EC4B6" },
   subAdminBadge:    { backgroundColor: "#EEDDF5", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   subAdminBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#7C3AED" },
   hintRow:          { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },

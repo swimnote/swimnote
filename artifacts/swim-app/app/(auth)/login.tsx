@@ -122,7 +122,7 @@ export default function LoginPasswordScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.btn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [styles.btn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
             onPress={() => handleLogin()}
             disabled={loading}
           >
@@ -163,7 +163,7 @@ export default function LoginPasswordScreen() {
                 />
               </View>
               <Pressable
-                style={({ pressed }) => [styles.inviteBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+                style={({ pressed }) => [styles.inviteBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
               >
                 <Text style={styles.inviteBtnText}>{LOGIN_LABELS.inviteCode.btn}</Text>
               </Pressable>
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   idChip: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#DDF2EF", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
+    backgroundColor: "#E6FFFA", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
   },
   idChipText: { fontSize: 14, fontFamily: "Inter_600SemiBold", flex: 1 },
   changeIdText: { fontSize: 12, fontFamily: "Inter_400Regular" },

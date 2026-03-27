@@ -51,7 +51,7 @@ const ADMIN_CONFIGS: Record<NonNullable<BannerKind>, BannerConfig> = {
   },
   deleted: {
     bg: "#F1F0EF", border: "#9B9591",
-    icon: "x-circle", iconColor: "#6F6B68",
+    icon: "x-circle", iconColor: "#6B7280",
     title: "계정이 삭제되었습니다",
     desc: () => "모든 데이터가 영구 삭제되었습니다. 새로 시작하려면 고객센터에 문의해주세요.",
   },

@@ -292,13 +292,13 @@ export default function TeachersScreen() {
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
                         <Text style={[s.className, { color: C.text }]}>{g.name}</Text>
-                        <View style={[s.diaryBadge, { backgroundColor: hasDiary ? "#DDF2EF" : "#FFF1BF" }]}>
-                          <Text style={[s.diaryBadgeTxt, { color: hasDiary ? "#1F8F86" : "#D97706" }]}>{hasDiary ? "일지 완료" : "일지 미작성"}</Text>
+                        <View style={[s.diaryBadge, { backgroundColor: hasDiary ? "#E6FFFA" : "#FFF1BF" }]}>
+                          <Text style={[s.diaryBadgeTxt, { color: hasDiary ? "#2EC4B6" : "#D97706" }]}>{hasDiary ? "일지 완료" : "일지 미작성"}</Text>
                         </View>
                       </View>
                       <View style={{ flexDirection: "row", gap: 12 }}>
                         <Text style={[s.classStat, { color: C.textSecondary }]}>학생 {g.student_count}명</Text>
-                        <Text style={[s.classStat, { color: "#1F8F86" }]}>출석 {present}</Text>
+                        <Text style={[s.classStat, { color: "#2EC4B6" }]}>출석 {present}</Text>
                         <Text style={[s.classStat, { color: "#D96C6C" }]}>결석 {absent}</Text>
                       </View>
                     </View>

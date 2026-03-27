@@ -25,15 +25,15 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
       <View style={ms.section}>
         <Text style={ms.sectionTitle}>학부모 앱 연결</Text>
         <View style={[ms.connCard, {
-          backgroundColor: connStatus === "linked" ? "#DDF2EF" : connStatus === "pending" ? "#FFF1BF" : "#F6F3F1",
+          backgroundColor: connStatus === "linked" ? "#E6FFFA" : connStatus === "pending" ? "#FFF1BF" : "#F8FAFC",
         }]}>
           <Feather
             name={connStatus === "linked" ? "check-circle" : connStatus === "pending" ? "clock" : "x-circle"}
             size={24}
-            color={connStatus === "linked" ? "#1F8F86" : connStatus === "pending" ? "#D97706" : C.textMuted}
+            color={connStatus === "linked" ? "#2EC4B6" : connStatus === "pending" ? "#D97706" : C.textMuted}
           />
           <View style={{ flex: 1 }}>
-            <Text style={[ms.connStatus, { color: connStatus === "linked" ? "#1F8F86" : connStatus === "pending" ? "#D97706" : C.textMuted }]}>
+            <Text style={[ms.connStatus, { color: connStatus === "linked" ? "#2EC4B6" : connStatus === "pending" ? "#D97706" : C.textMuted }]}>
               {connStatus === "linked" ? "학부모 앱 연결 완료" : connStatus === "pending" ? "연결 요청 대기 중" : "학부모미연결"}
             </Text>
             {data.parent_account_name && (
@@ -61,14 +61,14 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
                 <Text style={[ms.outlineBtnText, { color: themeColor }]}>복사</Text>
               </Pressable>
               <Pressable
-                style={[ms.outlineBtn, { borderColor: "#1F8F86", paddingHorizontal: 12 }]}
+                style={[ms.outlineBtn, { borderColor: "#2EC4B6", paddingHorizontal: 12 }]}
                 onPress={async () => {
                   const msg = buildInviteMessage({ poolName, studentName: data.name, inviteCode: data.invite_code!, appUrl: "https://swimnote.kr" });
                   await Share.share({ message: msg });
                 }}
               >
-                <Feather name="share-2" size={14} color="#1F8F86" />
-                <Text style={[ms.outlineBtnText, { color: "#1F8F86" }]}>공유</Text>
+                <Feather name="share-2" size={14} color="#2EC4B6" />
+                <Text style={[ms.outlineBtnText, { color: "#2EC4B6" }]}>공유</Text>
               </Pressable>
             </View>
           </View>

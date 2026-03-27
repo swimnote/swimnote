@@ -56,7 +56,7 @@ type HandoverStep = "menu" | "teacher_select" | "done";
 
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
   pending:   { bg: "#FFF1BF", text: "#D97706" },
-  approved:  { bg: "#DDF2EF", text: "#1F8F86" },
+  approved:  { bg: "#E6FFFA", text: "#2EC4B6" },
   rejected:  { bg: "#F9DEDA", text: "#D96C6C" },
   completed: { bg: "#EEDDF5", text: "#7C3AED" },
 };
@@ -81,7 +81,7 @@ function formatExpireAt(expire_at: string | null) {
   const d = new Date(expire_at);
   const diffDays = Math.ceil((d.getTime() - Date.now()) / 86400000);
   const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  const col = diffDays <= 7 ? "#D96C6C" : diffDays <= 14 ? "#D97706" : "#6F6B68";
+  const col = diffDays <= 7 ? "#D96C6C" : diffDays <= 14 ? "#D97706" : "#6B7280";
   const label = diffDays < 0 ? `만료됨(${ds})` : diffDays <= 14 ? `만료 D-${diffDays}(${ds})` : `만료일: ${ds}`;
   return { text: label, color: col };
 }
@@ -306,8 +306,8 @@ export default function MakeupsScreen() {
         </View>
         {item.makeup_date ? (
           <View style={s.infoRow}>
-            <Feather name="check-circle" size={13} color="#1F8F86" />
-            <Text style={[s.infoTxt, { color: "#1F8F86" }]}>
+            <Feather name="check-circle" size={13} color="#2EC4B6" />
+            <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>
               보강일: {fmtDate(item.makeup_date)}{item.makeup_class_name ? ` · ${item.makeup_class_name}` : ""}
             </Text>
           </View>
@@ -406,8 +406,8 @@ export default function MakeupsScreen() {
                   )}
                   {mk.assigned_class_group_name && (
                     <View style={s.infoRow}>
-                      <Feather name="check-circle" size={13} color="#1F8F86" />
-                      <Text style={[s.infoTxt, { color: "#1F8F86" }]}>배정반: {mk.assigned_class_group_name}</Text>
+                      <Feather name="check-circle" size={13} color="#2EC4B6" />
+                      <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
                     </View>
                   )}
                   <View style={s.btnRow}>
@@ -476,8 +476,8 @@ export default function MakeupsScreen() {
                           )}
                           {mk.assigned_class_group_name && (
                             <View style={s.infoRow}>
-                              <Feather name="check-circle" size={12} color="#1F8F86" />
-                              <Text style={[s.infoTxt, { color: "#1F8F86" }]}>배정반: {mk.assigned_class_group_name}</Text>
+                              <Feather name="check-circle" size={12} color="#2EC4B6" />
+                              <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
                             </View>
                           )}
                           {expireInfo && (
@@ -661,8 +661,8 @@ export default function MakeupsScreen() {
               {/* ── 완료 단계 ── */}
               {handoverStep === "done" && (
                 <View style={{ alignItems: "center", padding: 32, gap: 16 }}>
-                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#DDF2EF", alignItems: "center", justifyContent: "center" }}>
-                    <Feather name="check" size={28} color="#1F8F86" />
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#E6FFFA", alignItems: "center", justifyContent: "center" }}>
+                    <Feather name="check" size={28} color="#2EC4B6" />
                   </View>
                   <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: C.text }}>인계 완료</Text>
                   <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 }}>
@@ -671,7 +671,7 @@ export default function MakeupsScreen() {
                   <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" }}>
                     메신저 대화방에 자동 알림이 전송되었습니다.
                   </Text>
-                  <Pressable style={[s.confirmBtn, { backgroundColor: "#1F8F86", alignSelf: "stretch" }]} onPress={closeHandover}>
+                  <Pressable style={[s.confirmBtn, { backgroundColor: "#2EC4B6", alignSelf: "stretch" }]} onPress={closeHandover}>
                     <Text style={s.confirmTxt}>확인</Text>
                   </Pressable>
                 </View>
@@ -717,7 +717,7 @@ export default function MakeupsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:            { flex: 1, backgroundColor: "#F6F3F1" },
+  safe:            { flex: 1, backgroundColor: "#F8FAFC" },
   tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
   tabTxt:          { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
   tabBadge:        { width: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },

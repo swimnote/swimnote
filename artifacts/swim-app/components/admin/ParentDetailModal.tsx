@@ -10,9 +10,9 @@ import type { ParentJoinRequest, JoinStatus, MatchStatus } from "@/store/parentJ
 const C = Colors.light;
 
 const MATCH_CFG: Record<MatchStatus, { label: string; color: string; bg: string; icon: string }> = {
-  full_match:  { label: "자동 일치",  color: "#1F8F86", bg: "#DDF2EF", icon: "zap"          },
+  full_match:  { label: "자동 일치",  color: "#2EC4B6", bg: "#E6FFFA", icon: "zap"          },
   phone_only:  { label: "번호만 일치", color: "#D97706", bg: "#FFF1BF", icon: "phone"        },
-  no_match:    { label: "미일치",     color: "#6F6B68", bg: "#F6F3F1", icon: "alert-circle"  },
+  no_match:    { label: "미일치",     color: "#6B7280", bg: "#F8FAFC", icon: "alert-circle"  },
 };
 
 const JOIN_STATUS_CFG: Record<JoinStatus, { label: string }> = {
@@ -173,7 +173,7 @@ export function ParentDetailModal({
 const pd = StyleSheet.create({
   overlay:    { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet:      { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 22, gap: 14, maxHeight: "88%" },
-  handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
+  handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
   header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   avatar:     { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarTxt:  { fontSize: 18, fontFamily: "Inter_700Bold" },

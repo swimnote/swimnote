@@ -50,7 +50,7 @@ const PERM_LABELS: { key: keyof Permissions; label: string; desc: string; icon: 
 
 const ROLES: Record<string, { label: string; color: string; bg: string }> = {
   super_admin:    { label: "슈퍼관리자",  color: "#7C3AED", bg: "#F3E8FF" },
-  platform_admin: { label: "플랫폼관리자",color: "#4EA7D8", bg: "#DDF2EF" },
+  platform_admin: { label: "플랫폼관리자",color: "#4EA7D8", bg: "#E6FFFA" },
 };
 
 const SEED_USERS: PlatformUser[] = [
@@ -153,8 +153,8 @@ export default function UsersScreen() {
       <View style={{ gap: 8 }}>
         {PERM_LABELS.map(({ key, label, desc, icon }) => (
           <View key={key} style={[ps.row, { opacity: disabled ? 0.5 : 1 }]}>
-            <View style={[ps.icon, { backgroundColor: perms[key] ? "#DDF2EF" : "#F6F3F1" }]}>
-              <Feather name={icon as any} size={15} color={perms[key] ? "#4EA7D8" : "#9A948F"} />
+            <View style={[ps.icon, { backgroundColor: perms[key] ? "#E6FFFA" : "#F8FAFC" }]}>
+              <Feather name={icon as any} size={15} color={perms[key] ? "#4EA7D8" : "#9CA3AF"} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[ps.permLabel, { color: C.text }]}>{label}</Text>
@@ -312,8 +312,8 @@ const ps = StyleSheet.create({
   icon:         { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   permLabel:    { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   permDesc:     { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
-  badge:        { backgroundColor: "#DDF2EF", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeText:    { fontSize: 10, fontFamily: "Inter_500Medium", color: "#18766F" },
+  badge:        { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  badgeText:    { fontSize: 10, fontFamily: "Inter_500Medium", color: "#1B4965" },
   noPerm:       { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 6, fontStyle: "italic" },
   superTag:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   superTagText: { fontSize: 11, fontFamily: "Inter_500Medium" },
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   userEmail:       { fontSize: 12, fontFamily: "Inter_400Regular" },
   roleBadge:       { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   roleText:        { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  editBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#DDF2EF",
+  editBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#E6FFFA",
                      alignItems: "center", justifyContent: "center" },
   empty:           { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText:       { fontSize: 15, fontFamily: "Inter_400Regular" },

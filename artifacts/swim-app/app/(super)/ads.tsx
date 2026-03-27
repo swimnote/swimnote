@@ -16,9 +16,9 @@ import { useAuth } from "@/context/AuthContext";
 const P = "#7C3AED";
 
 const STATUS_CFG: Record<AdStatus, { label: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
-  active:    { label: "노출 중",   color: "#1F8F86", bg: "#DDF2EF", icon: "eye" },
+  active:    { label: "노출 중",   color: "#2EC4B6", bg: "#E6FFFA", icon: "eye" },
   scheduled: { label: "예약됨",   color: "#D97706", bg: "#FFF1BF", icon: "clock" },
-  inactive:  { label: "비활성",   color: "#6F6B68", bg: "#F6F3F1", icon: "eye-off" },
+  inactive:  { label: "비활성",   color: "#6B7280", bg: "#F8FAFC", icon: "eye-off" },
 };
 
 const TARGET_LABELS: Record<string, string> = {
@@ -49,20 +49,20 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
       </View>
       {ad.description ? <Text style={ac.desc} numberOfLines={2}>{ad.description}</Text> : null}
       <View style={ac.dateRow}>
-        <Feather name="calendar" size={11} color="#9A948F" />
+        <Feather name="calendar" size={11} color="#9CA3AF" />
         <Text style={ac.dateTxt}>
           {new Date(ad.displayStart).toLocaleDateString("ko-KR")} ~ {new Date(ad.displayEnd).toLocaleDateString("ko-KR")}
         </Text>
       </View>
       <View style={ac.actions}>
         {ad.status !== "active" && (
-          <Pressable style={[ac.btn, { backgroundColor: "#DDF2EF" }]} onPress={() => onStatusChange(ad.id, "active")}>
-            <Text style={[ac.btnTxt, { color: "#1F8F86" }]}>활성화</Text>
+          <Pressable style={[ac.btn, { backgroundColor: "#E6FFFA" }]} onPress={() => onStatusChange(ad.id, "active")}>
+            <Text style={[ac.btnTxt, { color: "#2EC4B6" }]}>활성화</Text>
           </Pressable>
         )}
         {ad.status !== "inactive" && (
-          <Pressable style={[ac.btn, { backgroundColor: "#F6F3F1" }]} onPress={() => onStatusChange(ad.id, "inactive")}>
-            <Text style={[ac.btnTxt, { color: "#6F6B68" }]}>비활성</Text>
+          <Pressable style={[ac.btn, { backgroundColor: "#F8FAFC" }]} onPress={() => onStatusChange(ad.id, "inactive")}>
+            <Text style={[ac.btnTxt, { color: "#6B7280" }]}>비활성</Text>
           </Pressable>
         )}
         <Pressable style={[ac.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => onEdit(ad)}>
@@ -77,16 +77,16 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
 }
 
 const ac = StyleSheet.create({
-  card:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E9E2DD" },
+  card:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   top:        { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },
   statusDot:  { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-  title:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  target:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+  title:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  target:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
   badge:      { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   badgeTxt:   { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  desc:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", marginBottom: 6, lineHeight: 18 },
+  desc:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 6, lineHeight: 18 },
   dateRow:    { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 10 },
-  dateTxt:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  dateTxt:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   actions:    { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   btn:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   btnTxt:     { fontSize: 12, fontFamily: "Inter_600SemiBold" },
@@ -186,16 +186,16 @@ export default function AdsScreen() {
 
       {/* 요약 */}
       <View style={s.summaryRow}>
-        <View style={[s.summaryCard, { borderColor: "#DDF2EF" }]}>
-          <Text style={[s.sumNum, { color: "#1F8F86" }]}>{counts.active}</Text>
+        <View style={[s.summaryCard, { borderColor: "#E6FFFA" }]}>
+          <Text style={[s.sumNum, { color: "#2EC4B6" }]}>{counts.active}</Text>
           <Text style={s.sumLabel}>노출 중</Text>
         </View>
         <View style={[s.summaryCard, { borderColor: "#FFF1BF" }]}>
           <Text style={[s.sumNum, { color: "#D97706" }]}>{counts.scheduled}</Text>
           <Text style={s.sumLabel}>예약됨</Text>
         </View>
-        <View style={[s.summaryCard, { borderColor: "#F6F3F1" }]}>
-          <Text style={[s.sumNum, { color: "#6F6B68" }]}>{counts.inactive}</Text>
+        <View style={[s.summaryCard, { borderColor: "#F8FAFC" }]}>
+          <Text style={[s.sumNum, { color: "#6B7280" }]}>{counts.inactive}</Text>
           <Text style={s.sumLabel}>비활성</Text>
         </View>
       </View>
@@ -242,7 +242,7 @@ export default function AdsScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "광고 수정" : "광고 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <Feather name="x" size={20} color="#6F6B68" />
+                <Feather name="x" size={20} color="#6B7280" />
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -292,7 +292,7 @@ export default function AdsScreen() {
         <View style={m.overlay}>
           <View style={[m.sheet, { maxHeight: 220 }]}>
             <Text style={[m.title, { marginBottom: 12 }]}>광고 삭제</Text>
-            <Text style={{ fontSize: 14, color: "#1F1F1F", marginBottom: 20 }}>이 광고를 삭제하시겠습니까? 복구되지 않습니다.</Text>
+            <Text style={{ fontSize: 14, color: "#111827", marginBottom: 20 }}>이 광고를 삭제하시겠습니까? 복구되지 않습니다.</Text>
             <View style={m.footer}>
               <Pressable style={m.cancelBtn} onPress={() => setDeleteConfirm(null)}>
                 <Text style={m.cancelTxt}>취소</Text>
@@ -309,43 +309,43 @@ export default function AdsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#FBF8F6" },
+  safe:           { flex: 1, backgroundColor: "#F1F5F9" },
   noticeBanner:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFF1BF",
                     padding: 10, paddingHorizontal: 16 },
   noticeTxt:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#D97706", flex: 1 },
   summaryRow:     { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
-                    borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   summaryCard:    { flex: 1, borderRadius: 10, padding: 10, borderWidth: 1, alignItems: "center" },
   sumNum:         { fontSize: 20, fontFamily: "Inter_700Bold" },
-  sumLabel:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  sumLabel:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
   filterRow:      { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  filterBtn:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F6F3F1" },
+  filterBtn:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F8FAFC" },
   filterBtnActive:{ backgroundColor: P },
-  filterTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  filterTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   filterTxtActive:{ color: "#fff" },
   addBtn:         { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: P,
                     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   addTxt:         { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
   empty:          { alignItems: "center", paddingVertical: 48, gap: 10 },
-  emptyTxt:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  emptyTxt:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 });
 
 const m = StyleSheet.create({
   overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:      { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "85%" },
   header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  label:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 4, marginTop: 10 },
+  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
+  label:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 4, marginTop: 10 },
   input:      { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 10, fontSize: 14,
-                fontFamily: "Inter_400Regular", color: "#1F1F1F", backgroundColor: "#FBF8F6" },
+                fontFamily: "Inter_400Regular", color: "#111827", backgroundColor: "#F1F5F9" },
   segRow:     { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  segBtn:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F6F3F1" },
+  segBtn:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F8FAFC" },
   segActive:  { backgroundColor: P },
-  segTxt:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  segTxt:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   segActiveTxt: { color: "#fff" },
   footer:     { flexDirection: "row", gap: 8, marginTop: 20 },
-  cancelBtn:  { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center" },
-  cancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  cancelBtn:  { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center" },
+  cancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
   saveBtn:    { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

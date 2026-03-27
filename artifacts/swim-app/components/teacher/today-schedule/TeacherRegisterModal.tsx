@@ -145,7 +145,7 @@ export default function TeacherRegisterModal({
 const treg = StyleSheet.create({
   overlay:     { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet:       { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 14, maxHeight: "90%" },
-  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
+  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
   header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title:       { fontSize: 20, fontFamily: "Inter_700Bold", color: C.text },
   errorRow:    { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#F9DEDA", padding: 10, borderRadius: 10 },

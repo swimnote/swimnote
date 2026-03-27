@@ -25,12 +25,12 @@ type FilterKey = "all" | InviteTargetType;
 
 const FILTER_CHIPS: FilterChipItem<FilterKey>[] = [
   { key: "all",      label: "전체",   icon: "list"   },
-  { key: "guardian", label: "학부모", icon: "users",      activeColor: "#1F8F86", activeBg: "#DDF2EF" },
+  { key: "guardian", label: "학부모", icon: "users",      activeColor: "#2EC4B6", activeBg: "#E6FFFA" },
   { key: "teacher",  label: "선생님", icon: "user-check", activeColor: "#7C3AED", activeBg: "#EEDDF5" },
 ];
 
 const TARGET_CFG: Record<InviteTargetType, { label: string; color: string; bg: string; icon: string }> = {
-  guardian: { label: "학부모", color: "#1F8F86", bg: "#DDF2EF", icon: "users"      },
+  guardian: { label: "학부모", color: "#2EC4B6", bg: "#E6FFFA", icon: "users"      },
   teacher:  { label: "선생님", color: "#7C3AED", bg: "#EEDDF5", icon: "user-check" },
 };
 
@@ -114,13 +114,13 @@ function InviteCard({ record }: { record: InviteRecord }) {
 
           {/* 발송자 정보 */}
           <View style={s.senderRow}>
-            <View style={[s.roleBadge, { backgroundColor: record.senderRole === "teacher" ? "#EEDDF5" : "#DDF2EF" }]}>
+            <View style={[s.roleBadge, { backgroundColor: record.senderRole === "teacher" ? "#EEDDF5" : "#E6FFFA" }]}>
               <Feather
                 name={record.senderRole === "teacher" ? "user-check" : "shield"}
                 size={11}
-                color={record.senderRole === "teacher" ? "#7C3AED" : "#1F8F86"}
+                color={record.senderRole === "teacher" ? "#7C3AED" : "#2EC4B6"}
               />
-              <Text style={[s.roleLabel, { color: record.senderRole === "teacher" ? "#7C3AED" : "#1F8F86" }]}>
+              <Text style={[s.roleLabel, { color: record.senderRole === "teacher" ? "#7C3AED" : "#2EC4B6" }]}>
                 {record.senderRole === "teacher" ? "선생님" : "관리자"} · {record.senderName}
               </Text>
             </View>
@@ -171,7 +171,7 @@ export default function InviteRecordsScreen() {
 
       {/* 안내 배너 */}
       <View style={[s.infoBanner, { backgroundColor: "#DFF3EC" }]}>
-        <Feather name="info" size={13} color="#1F8F86" />
+        <Feather name="info" size={13} color="#2EC4B6" />
         <Text style={s.infoTxt}>
           플랫폼은 문자 전송 성공·실패를 추적하지 않습니다. "재안내" 버튼으로 문자 앱을 다시 열 수 있습니다.
         </Text>
@@ -183,17 +183,17 @@ export default function InviteRecordsScreen() {
           <Text style={[s.summaryNum, { color: C.text }]}>{operatorRecords.length}</Text>
           <Text style={[s.summaryLbl, { color: C.textSecondary }]}>전체 안내 건</Text>
         </View>
-        <View style={[s.summaryCard, { backgroundColor: "#DDF2EF", flex: 1 }]}>
-          <Text style={[s.summaryNum, { color: "#1F8F86" }]}>{guardianCount}</Text>
-          <Text style={[s.summaryLbl, { color: "#1F8F86" }]}>학부모</Text>
+        <View style={[s.summaryCard, { backgroundColor: "#E6FFFA", flex: 1 }]}>
+          <Text style={[s.summaryNum, { color: "#2EC4B6" }]}>{guardianCount}</Text>
+          <Text style={[s.summaryLbl, { color: "#2EC4B6" }]}>학부모</Text>
         </View>
         <View style={[s.summaryCard, { backgroundColor: "#EEDDF5", flex: 1 }]}>
           <Text style={[s.summaryNum, { color: "#7C3AED" }]}>{teacherCount}</Text>
           <Text style={[s.summaryLbl, { color: "#7C3AED" }]}>선생님</Text>
         </View>
-        <View style={[s.summaryCard, { backgroundColor: "#DDF2EF", flex: 1 }]}>
-          <Text style={[s.summaryNum, { color: "#1F8F86" }]}>{totalCalls}</Text>
-          <Text style={[s.summaryLbl, { color: "#1F8F86" }]}>총 호출</Text>
+        <View style={[s.summaryCard, { backgroundColor: "#E6FFFA", flex: 1 }]}>
+          <Text style={[s.summaryNum, { color: "#2EC4B6" }]}>{totalCalls}</Text>
+          <Text style={[s.summaryLbl, { color: "#2EC4B6" }]}>총 호출</Text>
         </View>
       </View>
 
@@ -231,7 +231,7 @@ export default function InviteRecordsScreen() {
 const s = StyleSheet.create({
   infoBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 8, marginHorizontal: 16, marginBottom: 12,
                    marginTop: 8, padding: 10, borderRadius: 10 },
-  infoTxt:       { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F8F86", lineHeight: 17 },
+  infoTxt:       { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#2EC4B6", lineHeight: 17 },
 
   summaryRow:    { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 12 },
   summaryCard:   { borderRadius: 12, paddingVertical: 10, alignItems: "center" },

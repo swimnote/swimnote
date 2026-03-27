@@ -145,7 +145,7 @@ export default function PoolSettingsScreen() {
         onBack={undefined}
         rightSlot={
           <Pressable
-            style={[styles.saveBtn, { backgroundColor: C.tint, opacity: saving ? 0.6 : 1 }]}
+            style={[styles.saveBtn, { backgroundColor: C.button, opacity: saving ? 0.6 : 1 }]}
             onPress={handleSave}
             disabled={saving}
           >
@@ -240,14 +240,14 @@ export default function PoolSettingsScreen() {
             </View>
           </View>
           {capacityMsg ? (
-            <View style={[styles.msgBox, { backgroundColor: capacityMsg === "저장되었습니다." ? "#DDF2EF" : "#F9DEDA" }]}>
+            <View style={[styles.msgBox, { backgroundColor: capacityMsg === "저장되었습니다." ? "#E6FFFA" : "#F9DEDA" }]}>
               <Feather name={capacityMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
-                color={capacityMsg === "저장되었습니다." ? "#1F8F86" : C.error} />
-              <Text style={[styles.errText, { color: capacityMsg === "저장되었습니다." ? "#1F8F86" : C.error }]}>{capacityMsg}</Text>
+                color={capacityMsg === "저장되었습니다." ? "#2EC4B6" : C.error} />
+              <Text style={[styles.errText, { color: capacityMsg === "저장되었습니다." ? "#2EC4B6" : C.error }]}>{capacityMsg}</Text>
             </View>
           ) : null}
           <Pressable
-            style={[styles.saveBtn, { backgroundColor: C.tint, opacity: savingCapacity ? 0.6 : 1, alignSelf: "flex-start", marginTop: 4 }]}
+            style={[styles.saveBtn, { backgroundColor: C.button, opacity: savingCapacity ? 0.6 : 1, alignSelf: "flex-start", marginTop: 4 }]}
             onPress={handleSaveCapacity}
             disabled={savingCapacity}
           >
@@ -309,10 +309,10 @@ export default function PoolSettingsScreen() {
               </View>
             ))}
             {pricingMsg ? (
-              <View style={[styles.msgBox, { backgroundColor: pricingMsg === "저장되었습니다." ? "#DDF2EF" : "#F9DEDA" }]}>
+              <View style={[styles.msgBox, { backgroundColor: pricingMsg === "저장되었습니다." ? "#E6FFFA" : "#F9DEDA" }]}>
                 <Feather name={pricingMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
-                  color={pricingMsg === "저장되었습니다." ? "#1F8F86" : C.error} />
-                <Text style={[styles.errText, { color: pricingMsg === "저장되었습니다." ? "#1F8F86" : C.error }]}>{pricingMsg}</Text>
+                  color={pricingMsg === "저장되었습니다." ? "#2EC4B6" : C.error} />
+                <Text style={[styles.errText, { color: pricingMsg === "저장되었습니다." ? "#2EC4B6" : C.error }]}>{pricingMsg}</Text>
               </View>
             ) : null}
             <Pressable
@@ -330,10 +330,10 @@ export default function PoolSettingsScreen() {
             <View style={styles.statusRow}>
               <Text style={[styles.statusLabel, { color: C.textSecondary }]}>승인 상태</Text>
               <View style={[styles.badge, {
-                backgroundColor: settings.approval_status === "approved" ? "#DDF2EF" : "#FFF1BF"
+                backgroundColor: settings.approval_status === "approved" ? "#E6FFFA" : "#FFF1BF"
               }]}>
                 <Text style={[styles.badgeText, {
-                  color: settings.approval_status === "approved" ? "#1F8F86" : "#D97706"
+                  color: settings.approval_status === "approved" ? "#2EC4B6" : "#D97706"
                 }]}>
                   {settings.approval_status === "approved" ? "승인됨" : settings.approval_status === "pending" ? "심사 중" : "반려"}
                 </Text>

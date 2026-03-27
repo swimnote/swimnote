@@ -79,9 +79,9 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
               <Feather name="copy" size={14} color={C.tint} />
               <Text style={[inv.btnText, { color: C.tint }]}>복사하기</Text>
             </Pressable>
-            <Pressable style={[inv.btn, { backgroundColor: "#DDF2EF" }]} onPress={() => Share.share({ message: msg })}>
-              <Feather name="share-2" size={14} color="#1F8F86" />
-              <Text style={[inv.btnText, { color: "#1F8F86" }]}>공유하기</Text>
+            <Pressable style={[inv.btn, { backgroundColor: "#E6FFFA" }]} onPress={() => Share.share({ message: msg })}>
+              <Feather name="share-2" size={14} color="#2EC4B6" />
+              <Text style={[inv.btnText, { color: "#2EC4B6" }]}>공유하기</Text>
             </Pressable>
           </View>
         </View>

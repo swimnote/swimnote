@@ -45,7 +45,7 @@ export default function ParentLoginScreen() {
         </Pressable>
 
         <View style={styles.header}>
-          <View style={[styles.iconBox, { backgroundColor: "#DDF2EF" }]}>
+          <View style={[styles.iconBox, { backgroundColor: "#E6FFFA" }]}>
             <Feather name="user" size={30} color={C.success} />
           </View>
           <Text style={[styles.title, { color: C.text }]}>학부모 로그인</Text>

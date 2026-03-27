@@ -211,7 +211,7 @@ export default function RiskCenterScreen() {
               { label: "SLA 초과",   count: support.overdue_count,   color: "#F87171" },
             ].map(item => (
               <View key={item.label} style={s.riskTile}>
-                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#6F6B68" }]}>{item.count}</Text>
+                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#6B7280" }]}>{item.count}</Text>
                 <Text style={s.riskLbl}>{item.label}</Text>
               </View>
             ))}
@@ -289,7 +289,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 자동삭제 예정 ── */}
-        <RiskGroup title="자동삭제 예정 (48h)" icon="trash-2" color="#1F8F86" bg="#ECFEFF"
+        <RiskGroup title="자동삭제 예정 (48h)" icon="trash-2" color="#2EC4B6" bg="#ECFEFF"
           count={deletionPending.length} onViewAll={() => router.push("/(super)/kill-switch" as any)}>
           {deletionPending.slice(0, 5).map((op: any) => (
             <View key={op.id} style={g.item}>
@@ -301,8 +301,8 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => deferDeletion(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>유예</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#DDF2EF" }]} disabled={processing === op.id} onPress={() => cancelDeletion(op)}>
-                  <Text style={[g.btnTxt, { color: "#1F8F86" }]}>해제</Text>
+                <Pressable style={[g.btn, { backgroundColor: "#E6FFFA" }]} disabled={processing === op.id} onPress={() => cancelDeletion(op)}>
+                  <Text style={[g.btnTxt, { color: "#2EC4B6" }]}>해제</Text>
                 </Pressable>
                 <Pressable style={[g.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
@@ -334,7 +334,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 정책 미확인 ── */}
-        <RiskGroup title="정책 미확인 운영자" icon="file-text" color="#1F8F86" bg="#DDF2EF"
+        <RiskGroup title="정책 미확인 운영자" icon="file-text" color="#2EC4B6" bg="#E6FFFA"
           count={policyUnsigned.length} onViewAll={() => router.push("/(super)/policy" as any)}>
           {policyUnsigned.slice(0, 5).map((op: any) => (
             <View key={op.id} style={g.item}>
@@ -346,8 +346,8 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => sendPolicyReminder(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>재알림</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#DDF2EF" }]} onPress={() => router.push("/(super)/policy" as any)}>
-                  <Text style={[g.btnTxt, { color: "#1F8F86" }]}>상세</Text>
+                <Pressable style={[g.btn, { backgroundColor: "#E6FFFA" }]} onPress={() => router.push("/(super)/policy" as any)}>
+                  <Text style={[g.btnTxt, { color: "#2EC4B6" }]}>상세</Text>
                 </Pressable>
               </View>
             </View>
@@ -373,7 +373,7 @@ export default function RiskCenterScreen() {
             </View>
           ))}
           <View style={s.backupRow}>
-            <Feather name="database" size={13} color="#6F6B68" />
+            <Feather name="database" size={13} color="#6B7280" />
             <Text style={s.backupTxt}>마지막 백업 이벤트: {fmtAgo(backup.last_at)}</Text>
           </View>
         </View>
@@ -393,27 +393,27 @@ const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#EEDDF5" },
   summaryCard:   { backgroundColor: "#1F1235", borderRadius: 14, padding: 16, gap: 12 },
   summaryRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
-  summaryTitle:  { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FBF8F6" },
+  summaryTitle:  { fontSize: 16, fontFamily: "Inter_700Bold", color: "#F1F5F9" },
   riskGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   riskTile:      { flex: 1, minWidth: "28%", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 10, padding: 10, alignItems: "center" },
-  riskNum:       { fontSize: 20, fontFamily: "Inter_700Bold", color: "#6F6B68" },
-  riskLbl:       { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9A948F", marginTop: 2, textAlign: "center" },
+  riskNum:       { fontSize: 20, fontFamily: "Inter_700Bold", color: "#6B7280" },
+  riskLbl:       { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9CA3AF", marginTop: 2, textAlign: "center" },
   supportRow:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(2,132,199,0.12)", borderRadius: 8, padding: 8 },
   supportTxt:    { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#38BDF8" },
   supportLink:   { backgroundColor: "#0284C7", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   supportLinkTxt:{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
   serviceCard:   { backgroundColor: "#fff", borderRadius: 14, padding: 14,
-                   borderWidth: 1, borderColor: "#E9E2DD", gap: 4 },
-  serviceTitle:  { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 8 },
+                   borderWidth: 1, borderColor: "#E5E7EB", gap: 4 },
+  serviceTitle:  { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 8 },
   serviceRow:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
-                   borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+                   borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   serviceDot:    { width: 8, height: 8, borderRadius: 4 },
-  serviceName:   { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
+  serviceName:   { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827" },
   serviceStatus: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   serviceActions:{ flexDirection: "row", gap: 4 },
   backupRow:     { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
-  backupTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  backupTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
 
   allClear:      { alignItems: "center", paddingVertical: 40, gap: 12 },
   allClearTxt:   { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#2E9B6F" },
@@ -421,23 +421,23 @@ const s = StyleSheet.create({
 
 const g = StyleSheet.create({
   group:       { backgroundColor: "#fff", borderRadius: 14, padding: 12,
-                 borderWidth: 1, borderColor: "#E9E2DD" },
+                 borderWidth: 1, borderColor: "#E5E7EB" },
   groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   groupIcon:   { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  groupTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  groupTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
   countBadge:  { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   countTxt:    { fontSize: 12, fontFamily: "Inter_700Bold" },
   viewAll:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
   item:        { flexDirection: "row", alignItems: "center", gap: 8,
-                 paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+                 paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   itemLeft:    { flex: 1 },
-  itemName:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  itemSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
+  itemName:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  itemSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
   itemActions: { flexDirection: "row", gap: 4 },
 
   barRow:      { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  barBg:       { flex: 1, height: 6, borderRadius: 3, backgroundColor: "#E9E2DD", overflow: "hidden" },
+  barBg:       { flex: 1, height: 6, borderRadius: 3, backgroundColor: "#E5E7EB", overflow: "hidden" },
   barFill:     { height: 6, borderRadius: 3 },
   pctTxt:      { fontSize: 11, fontFamily: "Inter_700Bold", minWidth: 30 },
 

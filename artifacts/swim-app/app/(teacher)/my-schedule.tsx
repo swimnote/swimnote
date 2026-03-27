@@ -316,15 +316,15 @@ export default function MyScheduleScreen() {
             </Pressable>
           } />
         <View style={s.subHeader}>
-          <Pressable style={[s.subActionBtn, { backgroundColor: "#DDF2EF", flex: 1 }]}
+          <Pressable style={[s.subActionBtn, { backgroundColor: "#E6FFFA", flex: 1 }]}
             onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
             <Feather name="users" size={13} color="#4338CA" />
             <Text style={[s.subActionText, { color: "#4338CA" }]}>반배정</Text>
           </Pressable>
-          <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#DDF2EF" : "#FFF1BF", flex: 1 }]}
+          <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
             onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name} } as any)}>
-            <Feather name="edit-3" size={13} color={diarDone ? "#1F8F86" : "#D97706"} />
-            <Text style={[s.subActionText, { color: diarDone ? "#1F8F86" : "#D97706" }]}>수업일지</Text>
+            <Feather name="edit-3" size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
+            <Text style={[s.subActionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
           </Pressable>
         </View>
 
@@ -378,11 +378,11 @@ export default function MyScheduleScreen() {
                 <View style={{ flexDirection: "row", gap: 4 }}>
                   <Pressable
                     disabled={saving}
-                    style={[s.stBtn, isPresent && { backgroundColor: "#DDF2EF", borderColor: "#1F8F86" }]}
+                    style={[s.stBtn, isPresent && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]}
                     onPress={() => markDayAtt(item.id, "present")}>
                     {saving && !isPresent
-                      ? <ActivityIndicator size="small" color="#1F8F86" style={{ width: 20 }} />
-                      : <Text style={[s.stBtnTxt, { color: isPresent ? "#1F8F86" : C.textMuted }]}>출석</Text>}
+                      ? <ActivityIndicator size="small" color="#2EC4B6" style={{ width: 20 }} />
+                      : <Text style={[s.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>}
                   </Pressable>
                   <Pressable
                     disabled={saving}
@@ -458,21 +458,21 @@ export default function MyScheduleScreen() {
           <View style={s.rightBtns}>
             {selectionMode ? (
               <>
-                <Pressable style={[s.selBtn, { backgroundColor: selectedDates.size > 0 ? "#D96C6C" : "#9A948F" }]}
+                <Pressable style={[s.selBtn, { backgroundColor: selectedDates.size > 0 ? "#D96C6C" : "#9CA3AF" }]}
                   onPress={() => { if (selectedDates.size > 0) setShowDeleteConfirm(true); }}
                   disabled={deleting || selectedDates.size === 0}>
                   {deleting
                     ? <ActivityIndicator size="small" color="#fff" />
                     : <><Feather name="trash-2" size={13} color="#fff" /><Text style={s.selBtnText}>메모삭제{selectedDates.size > 0 ? ` (${selectedDates.size})` : ""}</Text></>}
                 </Pressable>
-                <Pressable style={[s.selBtn, { backgroundColor: "#6F6B68" }]}
+                <Pressable style={[s.selBtn, { backgroundColor: "#6B7280" }]}
                   onPress={() => { setSelectionMode(false); setSelectedIds(new Set()); setSelectedDates(new Set()); }}>
                   <Text style={s.selBtnText}>취소</Text>
                 </Pressable>
               </>
             ) : (
               <>
-                <Pressable style={[s.selBtn, { backgroundColor: "#F6F3F1" }]} onPress={() => setSelectionMode(true)}>
+                <Pressable style={[s.selBtn, { backgroundColor: "#F8FAFC" }]} onPress={() => setSelectionMode(true)}>
                   <Feather name="check-square" size={13} color={C.textSecondary} />
                   <Text style={[s.selBtnText, { color: C.textSecondary }]}>선택</Text>
                 </Pressable>
@@ -693,10 +693,10 @@ const s = StyleSheet.create({
   studentName:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
   studentSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   stBtn:        { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8,
-                  backgroundColor: "#F6F3F1", borderWidth: 1, borderColor: "#E2DDD9" },
+                  backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2DDD9" },
   stBtnTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   emptyBox:     { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
-  emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: "#FBF8F6", borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
+  emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
   emptyHintText:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
 });

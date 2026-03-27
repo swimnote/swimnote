@@ -373,7 +373,7 @@ export default function MemberDetailScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F6F3F1" },
+  safe: { flex: 1, backgroundColor: "#F8FAFC" },
   tabScroll: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
   tabBtn: { paddingHorizontal: 14, paddingVertical: 13 },
   tabText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },

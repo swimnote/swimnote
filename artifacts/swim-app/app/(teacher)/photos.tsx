@@ -138,8 +138,8 @@ const MEDIA_CONFIG: Record<`${MediaType}_${AlbumScope}`, {
   title: string; sub: string; color: string; bg: string;
 }> = {
   photo_group:   { icon: "image",  title: "사진", sub: "반 전체 앨범", color: "#E4A93A", bg: "#FFF1BF" },
-  photo_private: { icon: "user",   title: "사진", sub: "개인 앨범",   color: "#1F8F86", bg: "#DDF2EF" },
-  video_group:   { icon: "video",  title: "영상", sub: "반 전체 앨범", color: "#1F8F86", bg: "#DDF2EF" },
+  photo_private: { icon: "user",   title: "사진", sub: "개인 앨범",   color: "#2EC4B6", bg: "#E6FFFA" },
+  video_group:   { icon: "video",  title: "영상", sub: "반 전체 앨범", color: "#2EC4B6", bg: "#E6FFFA" },
   video_private: { icon: "film",   title: "영상", sub: "개인 앨범",   color: "#7C3AED", bg: "#EEDDF5" },
 };
 
@@ -657,7 +657,7 @@ export default function TeacherPhotosScreen() {
                       {isSel && <Feather name="check" size={12} color="#fff" />}
                     </View>
                   ) : (
-                    <Feather name="chevron-right" size={18} color="#9A948F" />
+                    <Feather name="chevron-right" size={18} color="#9CA3AF" />
                   )}
                 </Pressable>
               );
@@ -724,12 +724,12 @@ export default function TeacherPhotosScreen() {
               <View style={{ flexDirection: "row", justifyContent: "center", marginTop: 8, gap: 10 }}>
                 <Pressable
                   onPress={() => { setLightbox(null); toggleSelect(lightbox?.id ?? ""); if (!selectMode) setSelectMode(true); }}
-                  style={[s.lbActionBtn, { backgroundColor: "#1F1F1F" }]}
+                  style={[s.lbActionBtn, { backgroundColor: "#111827" }]}
                 >
                   <Feather name="trash-2" size={15} color="#fff" />
                   <Text style={s.lbActionBtnText}>삭제</Text>
                 </Pressable>
-                <Pressable onPress={() => setLightbox(null)} style={[s.lbActionBtn, { backgroundColor: "#6F6B68" }]}>
+                <Pressable onPress={() => setLightbox(null)} style={[s.lbActionBtn, { backgroundColor: "#6B7280" }]}>
                   <Feather name="x" size={15} color="#fff" />
                   <Text style={s.lbActionBtnText}>닫기</Text>
                 </Pressable>
@@ -886,9 +886,9 @@ export default function TeacherPhotosScreen() {
 
 // ── 스타일 ────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F6F3F1" },
+  safe: { flex: 1, backgroundColor: "#F8FAFC" },
   titleRow: { paddingHorizontal: 16, paddingVertical: 10 },
-  title: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  title: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#111827" },
 
   grid: { flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 12 },
   gridBtn: { width: "47%", aspectRatio: 1, borderRadius: 20, borderWidth: 1.5, alignItems: "center", justifyContent: "center", gap: 10 },
@@ -897,36 +897,36 @@ const s = StyleSheet.create({
   gridSub: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
   usageCard: { marginHorizontal: 12, marginTop: 4, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden" },
-  usageCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  usageCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   usageCardTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
   usageCardBody: { padding: 12, gap: 2 },
   usageItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 10 },
-  usageItemLabel: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  usageItemBytes: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  usageDivider: { height: 1, backgroundColor: "#F6F3F1", marginHorizontal: 8 },
-  usageMonthText: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", textAlign: "center", paddingTop: 6 },
+  usageItemLabel: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827" },
+  usageItemBytes: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  usageDivider: { height: 1, backgroundColor: "#F8FAFC", marginHorizontal: 8 },
+  usageMonthText: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center", paddingTop: 6 },
 
   listToolbar: { height: 36, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingHorizontal: 14 },
   listSelectBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
   listSelectBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
-  selectBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#FBF8F6", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#E9E2DD", gap: 4 },
+  selectBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F5F9", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", gap: 4 },
   selectBarLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
   selectBarAllText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  selectBarCount: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center" },
+  selectBarCount: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center" },
   selectBarDel: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#D96C6C", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
   selectBarDelText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
   selectBarCancel: { paddingHorizontal: 8, paddingVertical: 7 },
-  selectBarCancelText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  selectBarCancelText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280" },
 
   centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 28 },
-  centerText: { fontSize: 14, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center" },
+  centerText: { fontSize: 14, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center" },
   retryBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#4EA7D8", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
   retryBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", textAlign: "center" },
-  emptySubText: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F", textAlign: "center" },
+  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#111827", textAlign: "center" },
+  emptySubText: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center" },
 
-  photoCell: { overflow: "hidden", backgroundColor: "#F6F3F1", margin: 1 },
+  photoCell: { overflow: "hidden", backgroundColor: "#F8FAFC", margin: 1 },
   photoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
   photoDateOverlay: { position: "absolute", top: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.28)", paddingHorizontal: 5, paddingVertical: 3 },
   photoDateText: { color: "#fff", fontSize: 9, fontFamily: "Inter_400Regular" },
@@ -936,9 +936,9 @@ const s = StyleSheet.create({
 
   videoRow: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 12, gap: 12 },
   videoThumb: { width: 52, height: 52, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  videoLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  videoMeta: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68" },
-  videoUploader: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  videoLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  videoMeta: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  videoUploader: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 
   fab: { position: "absolute", right: 20, width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 8 },
 
@@ -946,15 +946,15 @@ const s = StyleSheet.create({
   lbClose: { position: "absolute", left: 16, width: 44, height: 44, alignItems: "center", justifyContent: "center", zIndex: 10 },
   lbImage: { width: W, height: W * 1.1 },
   lbImagePlaceholder: { width: W, height: W * 0.8, alignItems: "center", justifyContent: "center" },
-  lbLabel: { color: "#DDF2EF", fontSize: 13, fontFamily: "Inter_600SemiBold", paddingHorizontal: 24, paddingTop: 14, textAlign: "center" },
+  lbLabel: { color: "#E6FFFA", fontSize: 13, fontFamily: "Inter_600SemiBold", paddingHorizontal: 24, paddingTop: 14, textAlign: "center" },
   lbMeta: { color: "rgba(255,255,255,0.45)", fontSize: 12, fontFamily: "Inter_400Regular", paddingTop: 4, textAlign: "center" },
   lbActionBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
   lbActionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
   uploadCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 40 },
   uploadIcon: { width: 100, height: 100, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  uploadTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F", textAlign: "center" },
-  uploadSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center", lineHeight: 20 },
+  uploadTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827", textAlign: "center" },
+  uploadSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center", lineHeight: 20 },
   uploadBtn: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 28, paddingVertical: 16, borderRadius: 16 },
   uploadBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
 
@@ -962,5 +962,5 @@ const s = StyleSheet.create({
   studentRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
   avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  studentName: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  studentName: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#111827" },
 });

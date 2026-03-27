@@ -185,7 +185,7 @@ export default function DaySheet({
                           <Text style={[dy.classSub, done && { color: C.textMuted }]}>{capLabel}</Text>
                           {attCnt > 0 && (
                             <View style={dy.attBadge}>
-                              <Feather name="check" size={9} color="#1F8F86" />
+                              <Feather name="check" size={9} color="#2EC4B6" />
                               <Text style={dy.attBadgeTxt}>출결 {attCnt}</Text>
                             </View>
                           )}
@@ -282,8 +282,8 @@ export default function DaySheet({
                             style={[dy.audioPlayBtn, isThis && { backgroundColor: themeColor + "30" }]}
                             onPress={() => playAudio(item.uri)}>
                             <Feather name={isThis ? "volume-2" : "play"} size={14}
-                              color={isThis ? themeColor : "#1F8F86"} />
-                            <Text style={[dy.audioBtnTxt, { color: isThis ? themeColor : "#1F8F86" }]}>
+                              color={isThis ? themeColor : "#2EC4B6"} />
+                            <Text style={[dy.audioBtnTxt, { color: isThis ? themeColor : "#2EC4B6" }]}>
                               {isThis ? "재생중" : "재생"}
                             </Text>
                           </Pressable>
@@ -328,7 +328,7 @@ const dy = StyleSheet.create({
                       paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
   emptyActionTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   classCard:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 12,
-                      backgroundColor: "#F6F3F1", borderRadius: 12 },
+                      backgroundColor: "#F8FAFC", borderRadius: 12 },
   classCardDone:    { opacity: 0.65 },
   colorBar:         { width: 4, height: "100%" as any, borderRadius: 2, alignSelf: "stretch" },
   classTime:        { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
@@ -336,8 +336,8 @@ const dy = StyleSheet.create({
   classSub:         { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary },
   strikeText:       { textDecorationLine: "line-through" },
   attBadge:         { flexDirection: "row", alignItems: "center", gap: 3,
-                      backgroundColor: "#DDF2EF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  attBadgeTxt:      { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#1F8F86" },
+                      backgroundColor: "#E6FFFA", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  attBadgeTxt:      { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#2EC4B6" },
   diaryBadge:       { flexDirection: "row", alignItems: "center", gap: 3,
                       backgroundColor: "#EDE9FE", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   diaryBadgeTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#7C3AED" },
@@ -370,6 +370,6 @@ const dy = StyleSheet.create({
                       backgroundColor: "#fff", padding: 8, borderRadius: 8 },
   audioListLabel:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#92400E" },
   audioListTime:    { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
-  audioPlayBtn:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#DDF2EF" },
+  audioPlayBtn:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#E6FFFA" },
   audioDelBtn:      { padding: 4 },
 });

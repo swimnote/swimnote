@@ -83,8 +83,8 @@ export default function UnregisteredPickerModal({
                     <Text style={um.name}>{item.name}</Text>
                     <Text style={um.phone}>{item.parent_phone || "-"}</Text>
                     <Text style={[um.invTag,
-                      item.invite_status === "invited" ? { color: "#1F8F86" } :
-                      item.invite_status === "joined"  ? { color: "#1F8F86" } : { color: "#6F6B68" }
+                      item.invite_status === "invited" ? { color: "#2EC4B6" } :
+                      item.invite_status === "joined"  ? { color: "#2EC4B6" } : { color: "#6B7280" }
                     ]}>{INVITE_LABEL[item.invite_status || "none"]}</Text>
                   </View>
                   <Pressable style={[um.assignBtn, { backgroundColor: themeColor }]}
@@ -119,10 +119,10 @@ const um = StyleSheet.create({
   title:       { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
   sub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
   searchBar:   { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16,
-                 marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#F6F3F1", borderRadius: 10 },
+                 marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#F8FAFC", borderRadius: 10 },
   searchInput: { flex: 1, fontSize: 14, color: C.text, fontFamily: "Inter_400Regular" },
   list:        { flexShrink: 1 },
-  row:         { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#F6F3F1" },
+  row:         { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   name:        { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
   phone:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   invTag:      { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 2 },

@@ -138,10 +138,10 @@ export default function CommunityScreen() {
   }
 
   const NOTICE_TYPE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-    general:    { label: "일반",     color: "#1F1F1F", bg: "#F6F3F1" },
+    general:    { label: "일반",     color: "#111827", bg: "#F8FAFC" },
     important:  { label: "중요",     color: "#D96C6C", bg: "#F9DEDA" },
     event:      { label: "이벤트",   color: "#7C3AED", bg: "#F3E8FF" },
-    class_info: { label: "수업 안내", color: "#1F8F86", bg: "#DDF2EF" },
+    class_info: { label: "수업 안내", color: "#2EC4B6", bg: "#E6FFFA" },
     fee:        { label: "요금 안내", color: "#D97706", bg: "#FFF1BF" },
   };
 
@@ -207,9 +207,9 @@ export default function CommunityScreen() {
                     <Text style={[s.typeBadgeText, { color: type.color }]}>{type.label}</Text>
                   </View>
                   {n.is_pinned && (
-                    <View style={[s.typeBadge, { backgroundColor: "#DDF2EF" }]}>
-                      <Feather name="thumbtack" size={11} color="#1F8F86" />
-                      <Text style={[s.typeBadgeText, { color: "#1F8F86" }]}>고정</Text>
+                    <View style={[s.typeBadge, { backgroundColor: "#E6FFFA" }]}>
+                      <Feather name="thumbtack" size={11} color="#2EC4B6" />
+                      <Text style={[s.typeBadgeText, { color: "#2EC4B6" }]}>고정</Text>
                     </View>
                   )}
                   <Text style={s.noticeDate}>
@@ -286,16 +286,16 @@ export default function CommunityScreen() {
                   <Text style={[s.reqBtnText, { color: "#D96C6C" }]}>거절</Text>
                 </Pressable>
                 <Pressable
-                  style={[s.reqBtn, { backgroundColor: "#DDF2EF", flex: 1.5, opacity: processingId === r.id ? 0.5 : 1 }]}
+                  style={[s.reqBtn, { backgroundColor: "#E6FFFA", flex: 1.5, opacity: processingId === r.id ? 0.5 : 1 }]}
                   onPress={() => handleApprove(r)}
                   disabled={processingId === r.id}
                 >
                   {processingId === r.id ? (
-                    <ActivityIndicator color="#1F8F86" size="small" />
+                    <ActivityIndicator color="#2EC4B6" size="small" />
                   ) : (
                     <>
-                      <Feather name="check" size={15} color="#1F8F86" />
-                      <Text style={[s.reqBtnText, { color: "#1F8F86" }]}>승인</Text>
+                      <Feather name="check" size={15} color="#2EC4B6" />
+                      <Text style={[s.reqBtnText, { color: "#2EC4B6" }]}>승인</Text>
                     </>
                   )}
                 </Pressable>
@@ -336,7 +336,7 @@ const s = StyleSheet.create({
   reqParent: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
   reqPhone: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
   reqDate: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
-  childRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F6F3F1", padding: 10, borderRadius: 10 },
+  childRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F8FAFC", padding: 10, borderRadius: 10 },
   childLabel: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary },
   childNames: { fontSize: 13, fontFamily: "Inter_700Bold", color: C.text, flex: 1 },
   memoRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, paddingHorizontal: 4 },

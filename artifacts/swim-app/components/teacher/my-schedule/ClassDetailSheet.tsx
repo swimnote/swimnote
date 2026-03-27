@@ -198,15 +198,15 @@ export default function ClassDetailSheet({
               </Pressable>
             </View>
             <View style={cds.actionRow}>
-              <Pressable style={[cds.actionBtn, { backgroundColor: "#DDF2EF", flex: 1 }]}
+              <Pressable style={[cds.actionBtn, { backgroundColor: "#E6FFFA", flex: 1 }]}
                 onPress={() => onNavigateTo?.(() => router.push(`/class-assign?classId=${group.id}` as any))}>
                 <Feather name="users" size={13} color="#4338CA" />
                 <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
               </Pressable>
-              <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#DDF2EF" : "#FFF1BF", flex: 1 }]}
+              <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
                 onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any))}>
-                <Feather name="edit-3" size={13} color={diarDone ? "#1F8F86" : "#D97706"} />
-                <Text style={[cds.actionText, { color: diarDone ? "#1F8F86" : "#D97706" }]}>수업일지</Text>
+                <Feather name="edit-3" size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
+                <Text style={[cds.actionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
               </Pressable>
             </View>
             {/* 반 색상 */}
@@ -238,10 +238,10 @@ export default function ClassDetailSheet({
                       <View style={{ flexDirection: "row", gap: 4 }}>
                         {/* 출석: 직접 present 설정, 페이지 이동 없음 */}
                         <Pressable
-                          style={[cds.stBtn, isPresent && { backgroundColor: "#DDF2EF", borderColor: "#1F8F86" }]}
+                          style={[cds.stBtn, isPresent && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]}
                           onPress={() => markAtt(st.id, "present")}
                         >
-                          <Text style={[cds.stBtnTxt, { color: isPresent ? "#1F8F86" : C.textMuted }]}>출석</Text>
+                          <Text style={[cds.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>
                         </Pressable>
                         {/* 결석: 직접 absent 설정 → API가 makeup_session 자동 생성, 페이지 이동 없음 */}
                         <Pressable
@@ -432,19 +432,19 @@ const cds = StyleSheet.create({
   studentScroll:   { flexShrink: 1 },
   studentRow:      { flexDirection: "row", alignItems: "center", gap: 8,
                      paddingHorizontal: 16, paddingVertical: 10,
-                     borderTopWidth: 1, borderTopColor: "#F6F3F1" },
+                     borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   absentDot:       { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#D96C6C" },
   absentStrike:    { color: "#D96C6C", textDecorationLine: "line-through" },
   studentName:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
   studentSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
   stBtn:           { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8,
-                     backgroundColor: "#F6F3F1", borderWidth: 1, borderColor: "#E2DDD9" },
+                     backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2DDD9" },
   stBtnTxt:        { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   empty:           { alignItems: "center", paddingVertical: 32, gap: 8 },
   emptyText:       { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular" },
   moveClassRow:    { flexDirection: "row", alignItems: "center", gap: 10,
                      paddingHorizontal: 16, paddingVertical: 12,
-                     borderTopWidth: 1, borderTopColor: "#F6F3F1",
+                     borderTopWidth: 1, borderTopColor: "#F8FAFC",
                      borderWidth: 1, borderColor: "transparent", marginHorizontal: 12,
                      marginBottom: 4, borderRadius: 10 },
   moveClassName:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
@@ -459,7 +459,7 @@ const cds = StyleSheet.create({
   unassignBtnTxt:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#D97706" },
   timingRow:       { flexDirection: "row", alignItems: "center", gap: 10,
                      paddingHorizontal: 16, paddingVertical: 14,
-                     borderTopWidth: 1, borderTopColor: "#F6F3F1" },
+                     borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   timingLabel:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
   timingSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
 });

@@ -102,7 +102,7 @@ export function MonthlyCalendar({ classGroups, onSelectDate }: MonthlyCalendarPr
 }
 
 const mc = StyleSheet.create({
-  navBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
+  navBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
   monthTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   weekHeader: { height: 28, alignItems: "center", justifyContent: "center" },
   weekHeaderText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary },

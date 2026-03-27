@@ -20,8 +20,8 @@ const DANGER = "#D96C6C";
 
 const ROLE_CFG: Record<SuperAdminRole, { label: string; color: string; bg: string }> = {
   super_admin:     { label: '슈퍼관리자', color: '#7C3AED', bg: '#EEDDF5' },
-  senior_admin:    { label: '시니어관리자', color: '#1F8F86', bg: '#ECFEFF' },
-  read_only_admin: { label: '읽기전용', color: '#6F6B68', bg: '#F6F3F1' },
+  senior_admin:    { label: '시니어관리자', color: '#2EC4B6', bg: '#ECFEFF' },
+  read_only_admin: { label: '읽기전용', color: '#6B7280', bg: '#F8FAFC' },
 };
 
 function fmtDate(iso: string | null | undefined) {
@@ -136,7 +136,7 @@ export default function SecurityScreen() {
         <View style={s.cardMeta}>
           <MetaItem icon="clock" label={`마지막 로그인: ${fmtDate(acc.lastLoginAt)}`} />
           <MetaItem icon="wifi" label={acc.lastLoginIp ?? '—'} />
-          <MetaItem icon="shield" label={acc.twoFactorEnabled ? '2FA 활성' : '2FA 없음'} color={acc.twoFactorEnabled ? '#1F8F86' : '#D96C6C'} />
+          <MetaItem icon="shield" label={acc.twoFactorEnabled ? '2FA 활성' : '2FA 없음'} color={acc.twoFactorEnabled ? '#2EC4B6' : '#D96C6C'} />
           {acc.loginFailCount > 0 && <MetaItem icon="alert-triangle" label={`실패 ${acc.loginFailCount}회`} color={acc.loginFailCount >= 3 ? '#D96C6C' : '#D97706'} />}
         </View>
       </Pressable>
@@ -152,8 +152,8 @@ export default function SecurityScreen() {
         style={s.kpiBar} contentContainerStyle={{ paddingHorizontal: 14, paddingVertical: 10, gap: 8 }}>
         {[
           { label: '전체', val: stats.total, color: P },
-          { label: '활성', val: stats.active, color: '#1F8F86' },
-          { label: '2FA 활성', val: stats.twoFA, color: '#1F8F86' },
+          { label: '활성', val: stats.active, color: '#2EC4B6' },
+          { label: '2FA 활성', val: stats.twoFA, color: '#2EC4B6' },
           { label: '잠금', val: stats.locked, color: DANGER },
           { label: '실패 3+', val: stats.highFail, color: '#D97706' },
         ].map(k => (
@@ -192,10 +192,10 @@ export default function SecurityScreen() {
                   <Text style={m.sectionTitle}>보안 상태</Text>
                   <InfoRow label="마지막 로그인" val={fmtDate(selected.lastLoginAt)} />
                   <InfoRow label="최근 IP" val={selected.lastLoginIp ?? '—'} />
-                  <InfoRow label="2차 인증" val={selected.twoFactorEnabled ? '활성' : '비활성'} valColor={selected.twoFactorEnabled ? '#1F8F86' : DANGER} />
-                  <InfoRow label="로그인 실패" val={`${selected.loginFailCount}회`} valColor={selected.loginFailCount >= 3 ? DANGER : '#1F1F1F'} />
-                  <InfoRow label="잠금 상태" val={isLocked(selected) ? `잠금 (${new Date(selected.lockedUntil!).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} 해제)` : '정상'} valColor={isLocked(selected) ? DANGER : '#1F8F86'} />
-                  <InfoRow label="계정 상태" val={selected.isActive ? '활성' : '비활성'} valColor={selected.isActive ? '#1F8F86' : '#9A948F'} />
+                  <InfoRow label="2차 인증" val={selected.twoFactorEnabled ? '활성' : '비활성'} valColor={selected.twoFactorEnabled ? '#2EC4B6' : DANGER} />
+                  <InfoRow label="로그인 실패" val={`${selected.loginFailCount}회`} valColor={selected.loginFailCount >= 3 ? DANGER : '#111827'} />
+                  <InfoRow label="잠금 상태" val={isLocked(selected) ? `잠금 (${new Date(selected.lockedUntil!).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} 해제)` : '정상'} valColor={isLocked(selected) ? DANGER : '#2EC4B6'} />
+                  <InfoRow label="계정 상태" val={selected.isActive ? '활성' : '비활성'} valColor={selected.isActive ? '#2EC4B6' : '#9CA3AF'} />
                 </View>
 
                 {/* 세션 */}
@@ -226,7 +226,7 @@ export default function SecurityScreen() {
                     <Text style={m.sectionTitle}>디바이스 기록</Text>
                     {selected.devices.map(d => (
                       <View key={d.id} style={m.devRow}>
-                        <Feather name="monitor" size={14} color="#6F6B68" />
+                        <Feather name="monitor" size={14} color="#6B7280" />
                         <View style={{ flex: 1 }}>
                           <Text style={m.devLabel}>{d.label} {d.isCurrent && <Text style={m.devCurrent}>(현재)</Text>}</Text>
                           <Text style={m.devMeta}>{d.os} · {d.browser} · {fmtDate(d.lastUsedAt)}</Text>
@@ -241,25 +241,25 @@ export default function SecurityScreen() {
                   <Text style={m.sectionTitle}>관리 액션</Text>
                   <View style={m.actions}>
                     {!selected.twoFactorEnabled && (
-                      <ActionBtn label="2FA 강제 활성" icon="shield" color="#1F8F86" bg="#DDF2EF"
+                      <ActionBtn label="2FA 강제 활성" icon="shield" color="#2EC4B6" bg="#E6FFFA"
                         loading={actionLoading === `2fa-${selected.id}`}
                         onPress={() => doForceTwoFactor(selected)} />
                     )}
                     <ActionBtn label="권한 변경" icon="user-check" color={P} bg="#EEDDF5"
                       onPress={() => setRoleModal(true)} />
                     {isLocked(selected)
-                      ? <ActionBtn label="잠금 해제" icon="unlock" color="#1F8F86" bg="#DDF2EF"
+                      ? <ActionBtn label="잠금 해제" icon="unlock" color="#2EC4B6" bg="#E6FFFA"
                           onPress={() => doUnlock(selected)} />
                       : <ActionBtn label="계정 잠금" icon="lock" color={DANGER} bg="#F9DEDA"
                           onPress={() => setLockModal(true)} />
                     }
                     <ActionBtn label={selected.isActive ? '계정 비활성화' : '계정 활성화'}
                       icon={selected.isActive ? 'user-x' : 'user-check'}
-                      color={selected.isActive ? '#D97706' : '#1F8F86'}
-                      bg={selected.isActive ? '#FFF1BF' : '#DDF2EF'}
+                      color={selected.isActive ? '#D97706' : '#2EC4B6'}
+                      bg={selected.isActive ? '#FFF1BF' : '#E6FFFA'}
                       onPress={() => { doToggleActive(selected); setSelected(null); }} />
                     {selected.loginFailCount > 0 && (
-                      <ActionBtn label="실패 횟수 초기화" icon="refresh-cw" color="#6F6B68" bg="#F6F3F1"
+                      <ActionBtn label="실패 횟수 초기화" icon="refresh-cw" color="#6B7280" bg="#F8FAFC"
                         onPress={() => { resetFailCount(selected.id); setSelected(a => a ? { ...a, loginFailCount: 0 } : null); }} />
                     )}
                   </View>
@@ -313,7 +313,7 @@ export default function SecurityScreen() {
                 ))}
               </View>
               <TextInput style={m.reasonInput} value={reason} onChangeText={setReason}
-                placeholder="잠금 사유 입력" placeholderTextColor="#9A948F" />
+                placeholder="잠금 사유 입력" placeholderTextColor="#9CA3AF" />
               <View style={m.lockBtns}>
                 <Pressable style={m.cancelBtn} onPress={() => setLockModal(false)}>
                   <Text style={m.cancelTxt}>취소</Text>
@@ -331,7 +331,7 @@ export default function SecurityScreen() {
   );
 }
 
-function MetaItem({ icon, label, color = "#6F6B68" }: { icon: any; label: string; color?: string }) {
+function MetaItem({ icon, label, color = "#6B7280" }: { icon: any; label: string; color?: string }) {
   return (
     <View style={s.metaItem}>
       <Feather name={icon} size={10} color={color} />
@@ -340,7 +340,7 @@ function MetaItem({ icon, label, color = "#6F6B68" }: { icon: any; label: string
   );
 }
 
-function InfoRow({ label, val, valColor = "#1F1F1F" }: { label: string; val: string; valColor?: string }) {
+function InfoRow({ label, val, valColor = "#111827" }: { label: string; val: string; valColor?: string }) {
   return (
     <View style={m.infoRow}>
       <Text style={m.infoLabel}>{label}</Text>
@@ -362,11 +362,11 @@ function ActionBtn({ label, icon, color, bg, onPress, loading }: {
 
 const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: "#EEDDF5" },
-  kpiBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
-  kpiCard:      { width: 80, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: "#FBF8F6",
+  kpiBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  kpiCard:      { width: 80, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: "#F1F5F9",
                   borderRadius: 10, borderTopWidth: 2, alignItems: "center", gap: 2 },
   kpiVal:       { fontSize: 18, fontFamily: "Inter_700Bold" },
-  kpiLabel:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  kpiLabel:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280" },
   card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 10,
                   shadowColor: "#0000001A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 3, elevation: 1 },
   cardInactive: { opacity: 0.5 },
@@ -375,19 +375,19 @@ const s = StyleSheet.create({
   avatar:       { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarTxt:    { fontSize: 18, fontFamily: "Inter_700Bold" },
   cardNameRow:  { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  cardName:     { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  cardEmail:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  cardName:     { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
+  cardEmail:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
   roleBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   roleTxt:      { fontSize: 10, fontFamily: "Inter_700Bold" },
   lockBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "#F9DEDA" },
   lockTxt:      { fontSize: 10, fontFamily: "Inter_700Bold", color: "#D96C6C" },
-  inactiveBadge:{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "#F6F3F1" },
-  inactiveTxt:  { fontSize: 10, fontFamily: "Inter_700Bold", color: "#9A948F" },
+  inactiveBadge:{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "#F8FAFC" },
+  inactiveTxt:  { fontSize: 10, fontFamily: "Inter_700Bold", color: "#9CA3AF" },
   cardMeta:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   metaItem:     { flexDirection: "row", alignItems: "center", gap: 4 },
   metaTxt:      { fontSize: 11, fontFamily: "Inter_400Regular" },
   empty:        { alignItems: "center", paddingTop: 60 },
-  emptyTxt:     { fontSize: 14, color: "#9A948F", fontFamily: "Inter_400Regular" },
+  emptyTxt:     { fontSize: 14, color: "#9CA3AF", fontFamily: "Inter_400Regular" },
 });
 
 const m = StyleSheet.create({
@@ -396,28 +396,28 @@ const m = StyleSheet.create({
                   borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "85%", gap: 10 },
   handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
   titleRow:     { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  title:        { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  sub:          { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  title:        { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
+  sub:          { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   roleBadge:    { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   roleTxt:      { fontSize: 11, fontFamily: "Inter_700Bold" },
   section:      { gap: 8, paddingTop: 6 },
-  sectionTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F", borderBottomWidth: 1,
-                  borderBottomColor: "#F6F3F1", paddingBottom: 6, marginBottom: 2 },
+  sectionTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827", borderBottomWidth: 1,
+                  borderBottomColor: "#F8FAFC", paddingBottom: 6, marginBottom: 2 },
   infoRow:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
-  infoLabel:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  infoLabel:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280" },
   infoVal:      { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   sessRow:      { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8,
-                  borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  sessDevice:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  sessMeta:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+                  borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  sessDevice:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  sessMeta:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   sessKill:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F9DEDA" },
   sessKillTxt:  { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
-  sessDone:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  sessDone:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   devRow:       { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 6,
-                  borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  devLabel:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  devCurrent:   { color: "#1F8F86", fontFamily: "Inter_400Regular" },
-  devMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+                  borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  devLabel:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  devCurrent:   { color: "#2EC4B6", fontFamily: "Inter_400Regular" },
+  devMeta:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   actions:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   actionBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12,
                   paddingVertical: 9, borderRadius: 10 },
@@ -425,17 +425,17 @@ const m = StyleSheet.create({
   roleRow:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10, marginBottom: 4 },
   roleDot:      { width: 10, height: 10, borderRadius: 5 },
   roleRowLabel: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  roleDesc:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
+  roleDesc:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
   lockHours:    { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
   hourBtn:      { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#E9E2DD", backgroundColor: "#FBF8F6" },
+                  borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F1F5F9" },
   hourBtnActive:{ backgroundColor: "#D96C6C", borderColor: "#D96C6C" },
-  hourTxt:      { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  reasonInput:  { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12,
-                  fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", marginBottom: 4 },
+  hourTxt:      { fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827" },
+  reasonInput:  { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
+                  fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827", marginBottom: 4 },
   lockBtns:     { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn:    { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  cancelBtn:    { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
   dangerBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16,
                   paddingVertical: 10, borderRadius: 10, backgroundColor: "#D96C6C" },
   dangerTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },

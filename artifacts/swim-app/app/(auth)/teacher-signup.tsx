@@ -81,7 +81,7 @@ export default function TeacherSignupScreen() {
             {" "}관리자가 요청을 확인 후 승인하면{"\n"}로그인할 수 있습니다.
           </Text>
           <Pressable
-            style={({ pressed }) => [styles.doneBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [styles.doneBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
             onPress={() => router.replace("/" as any)}
           >
             <Text style={styles.doneBtnText}>로그인 화면으로</Text>
@@ -142,7 +142,7 @@ export default function TeacherSignupScreen() {
                   returnKeyType="search"
                   onSubmitEditing={searchPools}
                 />
-                <Pressable style={({ pressed }) => [styles.searchBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]} onPress={searchPools} disabled={searching}>
+                <Pressable style={({ pressed }) => [styles.searchBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]} onPress={searchPools} disabled={searching}>
                   {searching ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="search" size={16} color="#fff" />}
                 </Pressable>
               </View>
@@ -294,7 +294,7 @@ export default function TeacherSignupScreen() {
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.tint, opacity: pressed || loading ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
               onPress={handleSubmit}
               disabled={loading}
             >

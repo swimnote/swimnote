@@ -33,13 +33,13 @@ function formatWon(n: number) {
 
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
   trial:           { label: "체험 중",   color: "#7C3AED", bg: "#F3E8FF" },
-  active:          { label: "구독 중",   color: "#1F8F86", bg: "#DDF2EF" },
-  expired:         { label: "만료됨",    color: "#6F6B68", bg: "#F6F3F1" },
+  active:          { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
+  expired:         { label: "만료됨",    color: "#6B7280", bg: "#F8FAFC" },
   suspended:       { label: "정지됨",    color: "#D97706", bg: "#FFF1BF" },
   cancelled:       { label: "해지됨",    color: "#D96C6C", bg: "#F9DEDA" },
   payment_failed:  { label: "결제 실패", color: "#DC2626", bg: "#FEE2E2" },
   pending_deletion:{ label: "삭제 예약", color: "#9B1C1C", bg: "#FEE2E2" },
-  deleted:         { label: "삭제됨",    color: "#6F6B68", bg: "#E5E7EB" },
+  deleted:         { label: "삭제됨",    color: "#6B7280", bg: "#E5E7EB" },
 };
 
 // ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
@@ -53,56 +53,56 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   switch (key) {
     // ─ 운영 관리: 인원 + 구독/결제 통합 ─
     case "운영관리": return [
-      { icon: "users",       label: "회원 명부",   color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(admin)/members") },
-      { icon: "user",        label: "학부모 계정",  color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/parents") },
+      { icon: "users",       label: "회원 명부",   color: "#2EC4B6", bg: "#E6FFFA", onPress: () => router.push("/(admin)/members") },
+      { icon: "user",        label: "학부모 계정",  color: "#2EC4B6", bg: "#DFF3EC", onPress: () => router.push("/(admin)/parents") },
       { icon: "user-check",  label: "선생님 관리",  color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/people-teachers") },
       { icon: "check-circle",label: "승인 관리",   color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/approvals"), badge: pending },
-      { icon: "send",        label: "초대 안내 기록", color: "#1F8F86", bg: "#ECFEFF", onPress: () => router.push("/(admin)/invite-records") },
+      { icon: "send",        label: "초대 안내 기록", color: "#2EC4B6", bg: "#ECFEFF", onPress: () => router.push("/(admin)/invite-records") },
       { icon: "trending-up", label: "매출 관리",   color: "#EA580C", bg: "#FFF1BF", onPress: () => router.push("/(admin)/admin-revenue") },
     ];
     // ─ 수업 관리 ─
     case "수업관리": return [
-      { icon: "calendar",    label: "수업 스케줄",  color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(admin)/classes") },
+      { icon: "calendar",    label: "수업 스케줄",  color: "#2EC4B6", bg: "#E6FFFA", onPress: () => router.push("/(admin)/classes") },
       { icon: "layers",      label: "반 관리",     color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/class-management") },
-      { icon: "clipboard",   label: "출결 관리",   color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/attendance") },
+      { icon: "clipboard",   label: "출결 관리",   color: "#2EC4B6", bg: "#DFF3EC", onPress: () => router.push("/(admin)/attendance") },
       { icon: "book",        label: "수업 일지",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/diary-teacher-entries") },
-      { icon: "users",       label: "수강생 관리",  color: "#1F8F86", bg: "#ECFEFF", onPress: () => router.push("/(admin)/members") },
+      { icon: "users",       label: "수강생 관리",  color: "#2EC4B6", bg: "#ECFEFF", onPress: () => router.push("/(admin)/members") },
       { icon: "shuffle",     label: "반 이동",     color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/class-management") },
     ];
     // ─ 보강 관리 ─
     case "보강관리": return [
       { icon: "clock",       label: "보강 대기",   color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/makeups"), badge: makeups },
-      { icon: "plus-circle", label: "보강 배정",   color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(admin)/makeups") },
-      { icon: "bar-chart-2", label: "보강 현황",   color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/makeups") },
+      { icon: "plus-circle", label: "보강 배정",   color: "#2EC4B6", bg: "#E6FFFA", onPress: () => router.push("/(admin)/makeups") },
+      { icon: "bar-chart-2", label: "보강 현황",   color: "#2EC4B6", bg: "#DFF3EC", onPress: () => router.push("/(admin)/makeups") },
     ];
     // ─ 매출 관리 ─
     case "매출관리": return [
-      { icon: "trending-up", label: "월별 매출",   color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "trending-up", label: "월별 매출",   color: "#2EC4B6", bg: "#DFF3EC", onPress: () => router.push("/(admin)/admin-revenue") },
       { icon: "check-square",label: "정산 확인",   color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/settlement") },
-      { icon: "calendar",    label: "휴무일 관리",  color: "#1F8F86", bg: "#ECFEFF", onPress: () => router.push("/(admin)/holidays") },
+      { icon: "calendar",    label: "휴무일 관리",  color: "#2EC4B6", bg: "#ECFEFF", onPress: () => router.push("/(admin)/holidays") },
     ];
     // ─ 데이터 관리: 백업·복구 + 저장공간 + 삭제·보존 통합 ─
     case "데이터관리": return [
       { icon: "rotate-ccw",  label: "백업·복구",   color: "#D96C6C", bg: "#F9DEDA", onPress: () => router.push("/(admin)/recovery") },
       { icon: "list",        label: "이벤트 기록",  color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/data-event-logs") },
-      { icon: "pie-chart",   label: "저장공간 현황", color: "#1F8F86", bg: "#ECFEFF", onPress: () => router.push("/(admin)/data-storage-overview") },
-      { icon: "users",       label: "계정별 사용량", color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(admin)/data-storage-by-account") },
+      { icon: "pie-chart",   label: "저장공간 현황", color: "#2EC4B6", bg: "#ECFEFF", onPress: () => router.push("/(admin)/data-storage-overview") },
+      { icon: "users",       label: "계정별 사용량", color: "#2EC4B6", bg: "#E6FFFA", onPress: () => router.push("/(admin)/data-storage-by-account") },
       { icon: "bar-chart-2", label: "카테고리별\n사용량", color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/data-storage-by-category") },
-      { icon: "archive",     label: "삭제·보존\n정책", color: "#6F6B68", bg: "#F6F3F1", onPress: () => router.push("/(admin)/data-delete") },
+      { icon: "archive",     label: "삭제·보존\n정책", color: "#6B7280", bg: "#F8FAFC", onPress: () => router.push("/(admin)/data-delete") },
     ];
     // ─ 수업 설정 ─
     case "수업설정": return [
       { icon: "refresh-cw",  label: "보강정책\n설정",  color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/makeup-policy") },
       { icon: "shield",      label: "권한 설정",    color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/admin-grant") },
-      { icon: "bell",        label: "알림 설정",    color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/push-notification-settings") },
-      { icon: "award",       label: "레벨/테스트\n설정", color: "#1F8F86", bg: "#ECFEFF", onPress: () => router.push("/(admin)/level-settings" as any) },
+      { icon: "bell",        label: "알림 설정",    color: "#2EC4B6", bg: "#DFF3EC", onPress: () => router.push("/(admin)/push-notification-settings") },
+      { icon: "award",       label: "레벨/테스트\n설정", color: "#2EC4B6", bg: "#ECFEFF", onPress: () => router.push("/(admin)/level-settings" as any) },
       { icon: "message-circle", label: "피드백\n기본설정", color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/feedback-settings" as any) },
     ];
     // ─ 운영 설정 ─
     case "운영설정": return [
       { icon: "sliders",     label: "브랜드 설정",  color: "#EC4899", bg: "#F6D8E1", onPress: () => router.push("/(admin)/branding") },
       { icon: "tag",         label: "화이트라벨",   color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/white-label" as any) },
-      { icon: "settings",    label: "수영장 설정",  color: "#6F6B68", bg: "#F6F3F1", onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "settings",    label: "수영장 설정",  color: "#6B7280", bg: "#F8FAFC", onPress: () => router.push("/(admin)/pool-settings") },
       { icon: "file-text",   label: "공지사항",     color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/notices") },
     ];
     default: return [];
@@ -117,14 +117,14 @@ const MAIN_ICONS: Array<{
   color: string;
   bg: string;
 }> = [
-  { key: "운영관리",  label: "운영 관리",  icon: "briefcase",    color: "#1F8F86", bg: "#DDF2EF" },
+  { key: "운영관리",  label: "운영 관리",  icon: "briefcase",    color: "#2EC4B6", bg: "#E6FFFA" },
   { key: "수업관리",  label: "수업 관리",  icon: "calendar",     color: "#7C3AED", bg: "#EEDDF5" },
   { key: "보강관리",  label: "보강 관리",  icon: "rotate-ccw",   color: "#D96C6C", bg: "#FEF2F2" },
-  { key: "메신저",    label: "메신저",     icon: "message-circle",color: "#1F8F86", bg: "#DFF3EC" },
+  { key: "메신저",    label: "메신저",     icon: "message-circle",color: "#2EC4B6", bg: "#DFF3EC" },
   { key: "매출관리",  label: "매출 관리",  icon: "trending-up",  color: "#D97706", bg: "#FFFBEB" },
-  { key: "데이터관리",label: "데이터 관리",icon: "hard-drive",   color: "#1F8F86", bg: "#ECFEFF" },
+  { key: "데이터관리",label: "데이터 관리",icon: "hard-drive",   color: "#2EC4B6", bg: "#ECFEFF" },
   { key: "수업설정",  label: "수업 설정",  icon: "settings",     color: "#EA580C", bg: "#FFF1BF" },
-  { key: "운영설정",  label: "운영 설정",  icon: "sliders",      color: "#6F6B68", bg: "#FBF8F6" },
+  { key: "운영설정",  label: "운영 설정",  icon: "sliders",      color: "#6B7280", bg: "#F1F5F9" },
 ];
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
@@ -198,7 +198,7 @@ export default function DashboardScreen() {
       value: storagePct !== null ? `${storagePct}%` : "—",
       sub: "전체 저장공간",
       icon: "hard-drive" as const,
-      color: "#1F8F86",
+      color: "#2EC4B6",
       bg: "#ECFEFF",
       onPress: () => router.push("/(admin)/data-storage-overview"),
     },
@@ -207,7 +207,7 @@ export default function DashboardScreen() {
       value: stats ? formatWon(stats.monthly_revenue ?? 0) : "—",
       sub: "월 누적 매출",
       icon: "trending-up" as const,
-      color: "#1F8F86",
+      color: "#2EC4B6",
       bg: "#DFF3EC",
       onPress: () => router.push("/(admin)/admin-revenue"),
     },
@@ -252,16 +252,16 @@ export default function DashboardScreen() {
               <Pressable
                 style={({ pressed }) => [
                   s.switchChip,
-                  { borderColor: "#1F8F86" + "50", backgroundColor: "#DDF2EF", opacity: pressed || switching ? 0.7 : 1 },
+                  { borderColor: "#2EC4B6" + "50", backgroundColor: "#E6FFFA", opacity: pressed || switching ? 0.7 : 1 },
                 ]}
                 onPress={handleSwitchToTeacher}
                 disabled={switching}
               >
                 {switching
-                  ? <ActivityIndicator size="small" color="#1F8F86" />
+                  ? <ActivityIndicator size="small" color="#2EC4B6" />
                   : <>
-                      <Feather name="repeat" size={10} color="#1F8F86" />
-                      <Text style={[s.switchChipTxt, { color: "#1F8F86" }]}>선생님으로 전환</Text>
+                      <Feather name="repeat" size={10} color="#2EC4B6" />
+                      <Text style={[s.switchChipTxt, { color: "#2EC4B6" }]}>선생님으로 전환</Text>
                     </>
                 }
               </Pressable>
@@ -459,7 +459,7 @@ const s = StyleSheet.create({
   switchChipTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   subBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   subBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  headerBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
+  headerBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
 
   sectionLabel:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 10 },
 
@@ -518,7 +518,7 @@ const s = StyleSheet.create({
   splitStatLabel:  { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
   splitStatDivider: { width: 1, height: 32, backgroundColor: C.border },
 
-  addMemberBtn:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#1F8F86", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
+  addMemberBtn:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#2EC4B6", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   addMemberIconWrap: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   addMemberLabel:    { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
   addMemberSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },

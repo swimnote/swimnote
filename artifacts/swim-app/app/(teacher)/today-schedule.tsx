@@ -139,17 +139,17 @@ export default function TodayScheduleScreen() {
 
   const icons: HubIcon[] = [
     { key: "my-schedule", label: "수업관리", icon: "layers", color: themeColor, bg: themeColor + "18", onPress: () => router.push("/(teacher)/my-schedule" as any) },
-    { key: "students",    label: "회원관리", icon: "users",   color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(teacher)/students" as any) },
+    { key: "students",    label: "회원관리", icon: "users",   color: "#2EC4B6", bg: "#E6FFFA", onPress: () => router.push("/(teacher)/students" as any) },
     { key: "makeups",     label: "보강관리", icon: "refresh-cw", color: "#7C3AED", bg: "#EEDDF5",
       badge: (overview?.makeup_count ?? 0) > 0 ? overview!.makeup_count : null,
       onPress: () => router.push("/(teacher)/makeups" as any) },
     { key: "note",        label: "쪽지",  icon: "mail", color: "#D97706", bg: "#FFF1BF",
       badge: (overview?.unread_messages ?? 0) > 0 ? overview!.unread_messages : null,
       onPress: () => setNotePopupVisible(true) },
-    { key: "messenger",   label: "메신저", icon: "message-circle", color: "#1F8F86", bg: "#DDF2EF", onPress: () => router.push("/(teacher)/messenger" as any) },
-    { key: "revenue",     label: "정산",  icon: "dollar-sign", color: "#1F8F86", bg: "#CFFAFE", onPress: () => router.push("/(teacher)/revenue" as any) },
+    { key: "messenger",   label: "메신저", icon: "message-circle", color: "#2EC4B6", bg: "#E6FFFA", onPress: () => router.push("/(teacher)/messenger" as any) },
+    { key: "revenue",     label: "정산",  icon: "dollar-sign", color: "#2EC4B6", bg: "#CFFAFE", onPress: () => router.push("/(teacher)/revenue" as any) },
     { key: "my-info",     label: "내정보", icon: "user", color: "#DB2777", bg: "#F6D8E1", onPress: () => router.push("/(teacher)/my-info" as any) },
-    { key: "settings",    label: "설정",  icon: "settings", color: "#6F6B68", bg: "#F6F3F1", onPress: () => router.push("/(teacher)/settings" as any) },
+    { key: "settings",    label: "설정",  icon: "settings", color: "#6B7280", bg: "#F8FAFC", onPress: () => router.push("/(teacher)/settings" as any) },
   ];
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
@@ -174,7 +174,7 @@ export default function TodayScheduleScreen() {
           <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
         </View>
         <Pressable onPress={logout} style={h.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Feather name="log-out" size={18} color="#6F6B68" />
+          <Feather name="log-out" size={18} color="#6B7280" />
         </Pressable>
       </View>
 
@@ -343,11 +343,11 @@ export default function TodayScheduleScreen() {
 }
 
 const h = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#F6F3F1" },
+  safe:           { flex: 1, backgroundColor: "#F8FAFC" },
   header:         { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 14, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   poolName:       { fontSize: 18, fontFamily: "Inter_700Bold" },
   greeting:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
-  logoutBtn:      { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
+  logoutBtn:      { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
   switchChip:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   switchChipTxt:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   scroll:         { padding: 12, gap: 8 },
@@ -380,13 +380,13 @@ const h = StyleSheet.create({
   schedHeroBtnTxt:  { fontSize: 12, fontFamily: "Inter_700Bold" },
   miniWeek:         { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 6 },
   miniCell:         { flex: 1, alignItems: "center", gap: 5 },
-  miniDayName:      { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9A948F", letterSpacing: 0.3 },
+  miniDayName:      { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9CA3AF", letterSpacing: 0.3 },
   miniCircle:       { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   miniCircleToday:  { backgroundColor: "#1C1C1E" },
-  miniDate:         { fontSize: 14, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
+  miniDate:         { fontSize: 14, fontFamily: "Inter_500Medium", color: "#111827" },
   miniDateToday:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
   miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
-  addMemberBtn:     { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#1F8F86", borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#1F8F86", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
+  addMemberBtn:     { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#2EC4B6", borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#2EC4B6", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   addMemberIconWrap:{ width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   addMemberLabel:   { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
   addMemberSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },

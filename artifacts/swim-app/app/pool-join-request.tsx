@@ -249,7 +249,7 @@ export default function ParentRegisterScreen() {
 
         {/* 가입 버튼 */}
         <Pressable
-          style={[styles.submitBtn, { backgroundColor: C.tint, opacity: submitting ? 0.7 : 1 }]}
+          style={[styles.submitBtn, { backgroundColor: C.button, opacity: submitting ? 0.7 : 1 }]}
           onPress={handleRegister}
           disabled={submitting}
         >

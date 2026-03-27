@@ -211,7 +211,7 @@ export default function HolidaysScreen() {
             placeholderTextColor={C.textMuted}
           />
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable style={[s.modalBtn, { backgroundColor: "#F6F3F1", flex: 1 }]} onPress={() => setReasonModal(false)}>
+            <Pressable style={[s.modalBtn, { backgroundColor: "#F8FAFC", flex: 1 }]} onPress={() => setReasonModal(false)}>
               <Text style={[s.modalBtnText, { color: C.text }]}>취소</Text>
             </Pressable>
             <Pressable style={[s.modalBtn, { backgroundColor: "#D96C6C", flex: 1 }]} onPress={handleAddHoliday}>
@@ -225,14 +225,14 @@ export default function HolidaysScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#F6F3F1" },
+  safe:        { flex: 1, backgroundColor: "#F8FAFC" },
   monthRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 12 },
   navBtn:      { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   monthText:   { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
   infoBox:     { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderRadius: 14 },
   infoText:    { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, color: "#92400E" },
   calCard:     { borderRadius: 18, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  weekRow:     { flexDirection: "row", justifyContent: "space-around", paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  weekRow:     { flexDirection: "row", justifyContent: "space-around", paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   weekLabel:   { width: "14.28%" as any, textAlign: "center", fontSize: 12, fontFamily: "Inter_600SemiBold" },
   grid:        { flexDirection: "row", flexWrap: "wrap" },
   cell:        { width: "14.28%" as any, alignItems: "center", paddingVertical: 5 },

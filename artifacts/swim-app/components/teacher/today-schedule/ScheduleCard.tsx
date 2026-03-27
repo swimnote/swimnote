@@ -34,28 +34,28 @@ export default function ScheduleCard({
         )}
       </View>
       <View style={card.statusRow}>
-        <View style={[card.badge, { backgroundColor: attDone ? "#DDF2EF" : attPartial ? "#FFF1BF" : "#F6F3F1" }]}>
+        <View style={[card.badge, { backgroundColor: attDone ? "#E6FFFA" : attPartial ? "#FFF1BF" : "#F8FAFC" }]}>
           <Feather name={attDone ? "check-circle" : "circle"} size={11}
-            color={attDone ? "#1F8F86" : attPartial ? "#D97706" : "#9A948F"} />
-          <Text style={[card.badgeText, { color: attDone ? "#1F8F86" : attPartial ? "#D97706" : "#6F6B68" }]}>
+            color={attDone ? "#2EC4B6" : attPartial ? "#D97706" : "#9CA3AF"} />
+          <Text style={[card.badgeText, { color: attDone ? "#2EC4B6" : attPartial ? "#D97706" : "#6B7280" }]}>
             {noAtt ? "출결 미시작" : `출결 ${item.att_present}/${item.att_total}`}
           </Text>
         </View>
-        <View style={[card.badge, { backgroundColor: item.diary_done ? "#DDF2EF" : "#FFF1BF" }]}>
-          <Feather name={item.diary_done ? "check-circle" : "edit"} size={11} color={item.diary_done ? "#1F8F86" : "#D97706"} />
-          <Text style={[card.badgeText, { color: item.diary_done ? "#1F8F86" : "#D97706" }]}>
+        <View style={[card.badge, { backgroundColor: item.diary_done ? "#E6FFFA" : "#FFF1BF" }]}>
+          <Feather name={item.diary_done ? "check-circle" : "edit"} size={11} color={item.diary_done ? "#2EC4B6" : "#D97706"} />
+          <Text style={[card.badgeText, { color: item.diary_done ? "#2EC4B6" : "#D97706" }]}>
             {item.diary_done ? "일지 완료" : "일지 미작성"}
           </Text>
         </View>
       </View>
       <View style={card.btnRow}>
-        <Pressable style={[card.actionBtn, { borderColor: attDone ? "#1F8F86" : C.border }]} onPress={onAttendance}>
-          <Feather name="check-square" size={14} color={attDone ? "#1F8F86" : C.textSecondary} />
-          <Text style={[card.actionText, { color: attDone ? "#1F8F86" : C.textSecondary }]}>출결</Text>
+        <Pressable style={[card.actionBtn, { borderColor: attDone ? "#2EC4B6" : C.border }]} onPress={onAttendance}>
+          <Feather name="check-square" size={14} color={attDone ? "#2EC4B6" : C.textSecondary} />
+          <Text style={[card.actionText, { color: attDone ? "#2EC4B6" : C.textSecondary }]}>출결</Text>
         </Pressable>
-        <Pressable style={[card.actionBtn, { borderColor: item.diary_done ? "#1F8F86" : C.border }]} onPress={onDiary}>
-          <Feather name="book" size={14} color={item.diary_done ? "#1F8F86" : C.textSecondary} />
-          <Text style={[card.actionText, { color: item.diary_done ? "#1F8F86" : C.textSecondary }]}>일지</Text>
+        <Pressable style={[card.actionBtn, { borderColor: item.diary_done ? "#2EC4B6" : C.border }]} onPress={onDiary}>
+          <Feather name="book" size={14} color={item.diary_done ? "#2EC4B6" : C.textSecondary} />
+          <Text style={[card.actionText, { color: item.diary_done ? "#2EC4B6" : C.textSecondary }]}>일지</Text>
         </Pressable>
         <Pressable style={[card.actionBtn, { borderColor: item.has_note ? "#D97706" : C.border }]} onPress={onMemo}>
           <Feather name="edit-3" size={14} color={item.has_note ? "#D97706" : C.textSecondary} />

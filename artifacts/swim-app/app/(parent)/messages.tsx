@@ -139,7 +139,7 @@ export default function MessagesScreen() {
               <Text style={[s.noDiaryTitle, { color: C.text }]}>쪽지를 보내려면</Text>
               <Text style={[s.noDiarySub, { color: C.textSecondary }]}>수업일지에서 쪽지달기 버튼을 눌러 선생님께 쪽지를 보내세요</Text>
               <Pressable
-                style={[s.noDiaryBtn, { backgroundColor: C.tint }]}
+                style={[s.noDiaryBtn, { backgroundColor: C.button }]}
                 onPress={() => router.push("/(parent)/diary" as any)}
               >
                 <Text style={s.noDiaryBtnTxt}>수업일지 보러 가기</Text>
@@ -205,7 +205,7 @@ export default function MessagesScreen() {
         {diaryId ? (
           <View style={[s.inputRow, { borderTopColor: C.border, paddingBottom: insets.bottom + 8 }]}>
             <TextInput
-              style={[s.input, { backgroundColor: "#F6F3F1", color: C.text }]}
+              style={[s.input, { backgroundColor: "#F8FAFC", color: C.text }]}
               placeholder="쪽지 내용을 입력하세요"
               placeholderTextColor={C.textMuted}
               value={input}
@@ -216,7 +216,7 @@ export default function MessagesScreen() {
             <Pressable
               onPress={send}
               disabled={!input.trim() || sending}
-              style={[s.sendBtn, { backgroundColor: C.tint, opacity: !input.trim() || sending ? 0.5 : 1 }]}
+              style={[s.sendBtn, { backgroundColor: C.button, opacity: !input.trim() || sending ? 0.5 : 1 }]}
             >
               {sending
                 ? <ActivityIndicator color="#fff" size="small" />

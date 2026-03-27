@@ -15,7 +15,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { billingEnabled } from "@/config/billing";
 
-const P = "#1F8F86";
+const P = "#2EC4B6";
 
 const TABS = [
   { key: "all",        label: "전체" },
@@ -39,11 +39,11 @@ const TIER_NAME: Record<string, string> = {
 };
 
 const SUB_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  active:      { label: "구독 중",   color: "#1F8F86", bg: "#DDF2EF" },
-  trial:       { label: "무료 체험", color: "#1F8F86", bg: "#ECFEFF" },
+  active:      { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
+  trial:       { label: "무료 체험", color: "#2EC4B6", bg: "#ECFEFF" },
   expired:     { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
   suspended:   { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
-  cancelled:   { label: "해지",      color: "#6F6B68", bg: "#F6F3F1" },
+  cancelled:   { label: "해지",      color: "#6B7280", bg: "#F8FAFC" },
   readonly:    { label: "읽기전용",  color: "#0284C7", bg: "#E0F2FE" },
   deletion:    { label: "삭제 예정", color: "#D96C6C", bg: "#F9DEDA" },
 };
@@ -242,7 +242,7 @@ export default function SubscriptionsScreen() {
 
   const renderItem = ({ item }: { item: PoolRow }) => {
     const status = displayStatus(item);
-    const cfg = SUB_STATUS_CFG[status] ?? { label: status, color: "#6F6B68", bg: "#F6F3F1" };
+    const cfg = SUB_STATUS_CFG[status] ?? { label: status, color: "#6B7280", bg: "#F8FAFC" };
     const failed = isFailed(item);
 
     return (
@@ -277,7 +277,7 @@ export default function SubscriptionsScreen() {
         </View>
         <View style={s.rowActions}>
           {failed && (
-            <Pressable style={[s.actionBtn, { backgroundColor: "#DDF2EF" }]}
+            <Pressable style={[s.actionBtn, { backgroundColor: "#E6FFFA" }]}
               onPress={() => triggerAction("retry", item)}>
               <Text style={[s.actionTxt, { color: P }]}>재시도</Text>
             </Pressable>
@@ -354,7 +354,7 @@ export default function SubscriptionsScreen() {
         renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: 80 }}
-        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F6F3F1" }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F8FAFC" }} />}
         ListEmptyComponent={
           <View style={s.empty}>
             <Feather name="credit-card" size={30} color="#D1D5DB" />
@@ -392,7 +392,7 @@ export default function SubscriptionsScreen() {
               <View style={m.section}>
                 <Text style={m.label}>크레딧 지급 (원)</Text>
                 <TextInput style={m.input} value={newCredit} onChangeText={setNewCredit}
-                  keyboardType="numeric" placeholder="0" placeholderTextColor="#9A948F" />
+                  keyboardType="numeric" placeholder="0" placeholderTextColor="#9CA3AF" />
               </View>
 
               <View style={m.linkRow}>
@@ -433,50 +433,50 @@ export default function SubscriptionsScreen() {
 
 const s = StyleSheet.create({
   safe:             { flex: 1, backgroundColor: "#F0FDFE" },
-  summaryBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
+  summaryBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   summaryContent:   { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
-  summaryChip:      { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: "#F6F3F1", position: "relative" },
+  summaryChip:      { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: "#F8FAFC", position: "relative" },
   summaryChipActive:{ backgroundColor: P },
   alertDot:         { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: "#D96C6C" },
-  summaryNum:       { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  summaryLabel:     { fontSize: 9, fontFamily: "Inter_500Medium", color: "#9A948F", marginTop: 1 },
+  summaryNum:       { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
+  summaryLabel:     { fontSize: 9, fontFamily: "Inter_500Medium", color: "#9CA3AF", marginTop: 1 },
   bannerRow:        { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA", paddingHorizontal: 14, paddingVertical: 9 },
   bannerTxt:        { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#7F1D1D", lineHeight: 16 },
   row:              { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
   rowAlert:         { borderLeftWidth: 3, borderLeftColor: "#D96C6C" },
   rowMain:          { flex: 1, gap: 3 },
   rowTop:           { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  opName:           { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  opName:           { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
   badge:            { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   badgeTxt:         { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   rowMeta:          { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
-  metaTxt:          { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  metaTxt:          { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   metaDot:          { fontSize: 10, color: "#D1D5DB" },
   deletionWarn:     { fontSize: 11, fontFamily: "Inter_700Bold", color: "#D96C6C" },
   rowActions:       { flexDirection: "row", gap: 6 },
   actionBtn:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minWidth: 36, alignItems: "center" },
   actionTxt:        { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   empty:            { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  emptyTxt:         { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 });
 
 const m = StyleSheet.create({
   backdrop:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
   sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "85%", gap: 12 },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  sub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: -6 },
+  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
+  sub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: -6 },
   section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  chip:      { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#E9E2DD" },
-  chipTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  input:     { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  label:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  chip:      { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB" },
+  chipTxt:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#111827" },
+  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
   linkRow:   { flexDirection: "row" },
   linkBtn:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E0F2FE", borderRadius: 10, padding: 12, flex: 1 },
   linkTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: P },
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
-  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
+  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
   saveBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   saveTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

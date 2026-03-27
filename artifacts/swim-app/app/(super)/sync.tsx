@@ -181,7 +181,7 @@ export default function SuperSyncScreen() {
           <Text style={[s.sectionTitle, { color: C.text }]}>동기화 현황</Text>
           <View style={s.statRow}>
             <StatCard label="대기중"  value={stats.pending}  icon="clock"         color="#D97706" sub="sync_status=pending" />
-            <StatCard label="완료"    value={stats.synced}   icon="check-circle"  color="#1F8F86" sub="sync_status=synced" />
+            <StatCard label="완료"    value={stats.synced}   icon="check-circle"  color="#2EC4B6" sub="sync_status=synced" />
           </View>
           <View style={s.statRow}>
             <StatCard label="총 변경분" value={stats.total}    icon="database"  color={ACCENT}   sub="누적 기록" />
@@ -245,8 +245,8 @@ export default function SuperSyncScreen() {
                       <Feather name="table" size={13} color="#D97706" />
                     </View>
                     <Text style={[s.tableName, { color: C.text }]}>{row.table_name}</Text>
-                    <View style={[s.pendingBadge, { backgroundColor: row.pending > 0 ? "#FFF1BF" : "#DDF2EF" }]}>
-                      <Text style={[s.pendingBadgeTxt, { color: row.pending > 0 ? "#D97706" : "#1F8F86" }]}>
+                    <View style={[s.pendingBadge, { backgroundColor: row.pending > 0 ? "#FFF1BF" : "#E6FFFA" }]}>
+                      <Text style={[s.pendingBadgeTxt, { color: row.pending > 0 ? "#D97706" : "#2EC4B6" }]}>
                         {fmtNum(row.pending)}건
                       </Text>
                     </View>
@@ -299,9 +299,9 @@ export default function SuperSyncScreen() {
                   <View key={snap.id}>
                     {idx > 0 && <View style={[s.divider, { backgroundColor: C.border }]} />}
                     <View style={s.snapRow}>
-                      <View style={[s.snapIcon, { backgroundColor: isFull ? "#DDF2EF" : "#DFF3EC" }]}>
+                      <View style={[s.snapIcon, { backgroundColor: isFull ? "#E6FFFA" : "#DFF3EC" }]}>
                         <Feather name={isFull ? "archive" : "git-commit"} size={13}
-                          color={isFull ? "#1F8F86" : "#1F8F86"} />
+                          color={isFull ? "#2EC4B6" : "#2EC4B6"} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[s.snapType, { color: C.text }]}>

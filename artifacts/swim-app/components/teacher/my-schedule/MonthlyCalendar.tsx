@@ -175,7 +175,7 @@ export default function MonthlyCalendar({
 const mc = StyleSheet.create({
   root:           { paddingHorizontal: 16, paddingBottom: 8 },
   monthNav:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
-  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
+  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
   monthTitle:     { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
   weekRow:        { flexDirection: "row" },
   weekHeader:     { height: 28, alignItems: "center", justifyContent: "center" },

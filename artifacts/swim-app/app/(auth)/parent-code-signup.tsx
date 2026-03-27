@@ -81,7 +81,7 @@ export default function ParentCodeSignupScreen() {
             {"\n"}로 로그인해주세요.
           </Text>
           <Pressable
-            style={({ pressed }) => [styles.doneBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [styles.doneBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
             onPress={() => router.replace("/parent-login" as any)}
           >
             <Text style={styles.doneBtnText}>학부모 로그인으로</Text>
@@ -283,7 +283,7 @@ export default function ParentCodeSignupScreen() {
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.tint, opacity: pressed || loading ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
               onPress={joinWithCode}
               disabled={loading}
             >

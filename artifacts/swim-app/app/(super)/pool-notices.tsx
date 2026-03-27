@@ -21,7 +21,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const P    = "#7C3AED";
-const TEAL = "#1F8F86";
+const TEAL = "#2EC4B6";
 const RED  = "#D96C6C";
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ function NoticeRow({
   const isGlobal  = notice.audience_scope === "global";
   const scopeLabel = isGlobal ? "전체" : (poolNameMap[notice.swimming_pool_id ?? ""] || "수영장별");
   const scopeColor = isGlobal ? P : TEAL;
-  const scopeBg    = isGlobal ? "#EEDDF5" : "#DDF2EF";
+  const scopeBg    = isGlobal ? "#EEDDF5" : "#E6FFFA";
 
   return (
     <Pressable style={r.row} onPress={() => onEdit(notice)}>
@@ -91,8 +91,8 @@ function NoticeRow({
         </View>
         <View style={r.pushRow}>
           <View style={[r.pushBadge, pushed ? r.pushSent : r.pushNot]}>
-            <Feather name={pushed ? "send" : "minus-circle"} size={9} color={pushed ? TEAL : "#9A948F"} />
-            <Text style={[r.pushTxt, { color: pushed ? TEAL : "#9A948F" }]}>
+            <Feather name={pushed ? "send" : "minus-circle"} size={9} color={pushed ? TEAL : "#9CA3AF"} />
+            <Text style={[r.pushTxt, { color: pushed ? TEAL : "#9CA3AF" }]}>
               {pushed ? `발송완료 (${pushCount}회)` : "미발송"}
             </Text>
           </View>
@@ -115,17 +115,17 @@ const r = StyleSheet.create({
   row:       { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
   main:      { flex: 1, gap: 4 },
   top:       { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  title:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", flex: 1 },
+  title:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827", flex: 1 },
   meta:      { flexDirection: "row", alignItems: "center", gap: 4 },
-  author:    { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  author:    { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   dot:       { fontSize: 10, color: "#D1D5DB" },
-  date:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  date:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   pushRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
   pushBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  pushSent:  { backgroundColor: "#DDF2EF" },
-  pushNot:   { backgroundColor: "#F6F3F1" },
+  pushSent:  { backgroundColor: "#E6FFFA" },
+  pushNot:   { backgroundColor: "#F8FAFC" },
   pushTxt:   { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  pushDate:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  pushDate:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   pinBadge:  { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#EEDDF5", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
   pinTxt:    { fontSize: 9, fontFamily: "Inter_600SemiBold", color: P },
   scopeBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
@@ -292,14 +292,14 @@ export default function PoolNoticesScreen() {
           style={[s.tab, activeScope === "global" && s.tabActive]}
           onPress={() => setActiveScope("global")}
         >
-          <Feather name="globe" size={14} color={activeScope === "global" ? "#fff" : "#6F6B68"} />
+          <Feather name="globe" size={14} color={activeScope === "global" ? "#fff" : "#6B7280"} />
           <Text style={[s.tabTxt, activeScope === "global" && s.tabTxtActive]}>전체 공지</Text>
         </Pressable>
         <Pressable
           style={[s.tab, activeScope === "pool" && s.tabActive]}
           onPress={() => setActiveScope("pool")}
         >
-          <Feather name="home" size={14} color={activeScope === "pool" ? "#fff" : "#6F6B68"} />
+          <Feather name="home" size={14} color={activeScope === "pool" ? "#fff" : "#6B7280"} />
           <Text style={[s.tabTxt, activeScope === "pool" && s.tabTxtActive]}>수영장별 공지</Text>
         </Pressable>
       </View>
@@ -314,7 +314,7 @@ export default function PoolNoticesScreen() {
           </Text>
         </View>
       ) : (
-        <View style={[s.banner, { backgroundColor: "#DDF2EF", borderBottomColor: "#A7F3D0" }]}>
+        <View style={[s.banner, { backgroundColor: "#E6FFFA", borderBottomColor: "#A7F3D0" }]}>
           <Feather name="home" size={12} color={TEAL} />
           <Text style={[s.bannerTxt, { color: TEAL }]}>
             수영장별 공지는 선택한 수영장 구성원에게만 발송됩니다.{"\n"}
@@ -331,7 +331,7 @@ export default function PoolNoticesScreen() {
             <Text style={s.poolSelectTxt} numberOfLines={1}>
               {poolsLoading ? "수영장 로딩 중…" : (selectedPool?.name ?? "수영장 선택")}
             </Text>
-            <Feather name="chevron-down" size={14} color="#9A948F" />
+            <Feather name="chevron-down" size={14} color="#9CA3AF" />
           </Pressable>
           <Pressable style={[s.addBtn, { backgroundColor: TEAL }]} onPress={openCreate}>
             <Feather name="plus" size={16} color="#fff" />
@@ -394,13 +394,13 @@ export default function PoolNoticesScreen() {
             <View style={pm.handle} />
             <Text style={pm.title}>수영장 선택</Text>
             <TextInput style={pm.search} value={poolSearch} onChangeText={setPoolSearch}
-              placeholder="수영장 이름 검색" placeholderTextColor="#9A948F" />
+              placeholder="수영장 이름 검색" placeholderTextColor="#9CA3AF" />
             <ScrollView showsVerticalScrollIndicator={false}>
               {filteredPools.map(p => (
                 <Pressable key={p.id}
                   style={[pm.item, selectedPool?.id === p.id && pm.itemActive]}
                   onPress={() => { setSelectedPool(p); setShowPoolPicker(false); setPoolSearch(""); }}>
-                  <Feather name="home" size={14} color={selectedPool?.id === p.id ? TEAL : "#9A948F"} />
+                  <Feather name="home" size={14} color={selectedPool?.id === p.id ? TEAL : "#9CA3AF"} />
                   <View style={{ flex: 1 }}>
                     <Text style={[pm.itemName, selectedPool?.id === p.id && { color: TEAL }]}>{p.name}</Text>
                     {p.address ? <Text style={pm.itemAddr} numberOfLines={1}>{p.address}</Text> : null}
@@ -424,7 +424,7 @@ export default function PoolNoticesScreen() {
 
             {/* 공지 범위 표시 */}
             {!editNotice && (
-              <View style={[fm.scopeTag, { backgroundColor: activeScope === "global" ? "#EEDDF5" : "#DDF2EF" }]}>
+              <View style={[fm.scopeTag, { backgroundColor: activeScope === "global" ? "#EEDDF5" : "#E6FFFA" }]}>
                 <Feather name={activeScope === "global" ? "globe" : "home"} size={11}
                   color={activeScope === "global" ? P : TEAL} />
                 <Text style={[fm.scopeTagTxt, { color: activeScope === "global" ? P : TEAL }]}>
@@ -436,7 +436,7 @@ export default function PoolNoticesScreen() {
             {/* 수정 시 공지 범위 표시 */}
             {editNotice && (
               <View style={[fm.scopeTag, {
-                backgroundColor: editNotice.audience_scope === "global" ? "#EEDDF5" : "#DDF2EF",
+                backgroundColor: editNotice.audience_scope === "global" ? "#EEDDF5" : "#E6FFFA",
               }]}>
                 <Feather name={editNotice.audience_scope === "global" ? "globe" : "home"} size={11}
                   color={editNotice.audience_scope === "global" ? P : TEAL} />
@@ -453,13 +453,13 @@ export default function PoolNoticesScreen() {
                 <Text style={fm.label}>제목 *</Text>
                 <TextInput style={fm.input} value={form.title}
                   onChangeText={v => setForm(f => ({ ...f, title: v }))}
-                  placeholder="공지 제목" placeholderTextColor="#9A948F" />
+                  placeholder="공지 제목" placeholderTextColor="#9CA3AF" />
               </View>
               <View>
                 <Text style={fm.label}>내용 *</Text>
                 <TextInput style={[fm.input, { minHeight: 100 }]} value={form.content}
                   onChangeText={v => setForm(f => ({ ...f, content: v }))}
-                  multiline placeholder="공지 내용" placeholderTextColor="#9A948F"
+                  multiline placeholder="공지 내용" placeholderTextColor="#9CA3AF"
                   textAlignVertical="top" />
               </View>
 
@@ -476,7 +476,7 @@ export default function PoolNoticesScreen() {
               {/* 등록 시 푸시 안내 */}
               {!editNotice && (
                 <View style={[fm.infoBanner, {
-                  backgroundColor: activeScope === "global" ? "#EEDDF5" : "#DDF2EF",
+                  backgroundColor: activeScope === "global" ? "#EEDDF5" : "#E6FFFA",
                 }]}>
                   <Feather name="send" size={12} color={activeScope === "global" ? P : TEAL} />
                   <Text style={[fm.infoBannerTxt, { color: activeScope === "global" ? P : TEAL }]}>
@@ -553,11 +553,11 @@ export default function PoolNoticesScreen() {
 const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#EEDDF5" },
   tabBar:        { flexDirection: "row", padding: 12, gap: 8, backgroundColor: "#fff",
-                   borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+                   borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:           { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                   gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
+                   gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  tabTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   tabTxtActive:  { color: "#fff" },
   banner:        { flexDirection: "row", gap: 8, alignItems: "flex-start",
                    paddingHorizontal: 16, paddingVertical: 10,
@@ -565,21 +565,21 @@ const s = StyleSheet.create({
   bannerTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 17 },
   globalBar:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                    paddingHorizontal: 16, paddingVertical: 10,
-                   backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
-  globalBarLabel:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+                   backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  globalBarLabel:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
   poolBar:       { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10,
-                   backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+                   backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   poolSelect:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
-                   backgroundColor: "#F6F3F1", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  poolSelectTxt: { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+                   backgroundColor: "#F8FAFC", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  poolSelectTxt: { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
   addBtn:        { flexDirection: "row", alignItems: "center", gap: 5,
                    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   addBtnTxt:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  list:          { flex: 1, backgroundColor: "#F6F3F1" },
-  sep:           { height: 1, backgroundColor: "#F6F3F1" },
+  list:          { flex: 1, backgroundColor: "#F8FAFC" },
+  sep:           { height: 1, backgroundColor: "#F8FAFC" },
   center:        { flex: 1, alignItems: "center", justifyContent: "center" },
   empty:         { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  emptyTxt:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 });
 
 const pm = StyleSheet.create({
@@ -587,14 +587,14 @@ const pm = StyleSheet.create({
   sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "70%" },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 16 },
-  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 12 },
-  search:    { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 10, marginBottom: 12,
-               fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 12 },
+  search:    { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 10, marginBottom: 12,
+               fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
   item:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10 },
-  itemActive:{ backgroundColor: "#DDF2EF" },
-  itemName:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  itemAddr:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
-  empty:     { textAlign: "center", fontSize: 13, color: "#9A948F", padding: 20 },
+  itemActive:{ backgroundColor: "#E6FFFA" },
+  itemName:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  itemAddr:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  empty:     { textAlign: "center", fontSize: 13, color: "#9CA3AF", padding: 20 },
 });
 
 const fm = StyleSheet.create({
@@ -602,22 +602,22 @@ const fm = StyleSheet.create({
   sheet:        { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                   borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "90%" },
   handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 12 },
-  title:        { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 8 },
+  title:        { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 8 },
   scopeTag:     { flexDirection: "row", alignItems: "center", gap: 6,
                   paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, alignSelf: "flex-start", marginBottom: 12 },
   scopeTagTxt:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  label:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 4 },
-  hint:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
-  input:        { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12,
-                  fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  label:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 4 },
+  hint:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  input:        { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
+                  fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
   switchRow:    { flexDirection: "row", alignItems: "center", gap: 12 },
   infoBanner:   { flexDirection: "row", gap: 8, alignItems: "flex-start",
                   borderRadius: 10, padding: 10 },
   infoBannerTxt:{ fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
   error:        { fontSize: 13, fontFamily: "Inter_400Regular", color: RED, textAlign: "center" },
   btnRow:       { flexDirection: "row", gap: 10, marginTop: 4 },
-  cancelBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#F6F3F1", alignItems: "center" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  cancelBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#F8FAFC", alignItems: "center" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   saveBtn:      { flex: 1, padding: 13, borderRadius: 12, alignItems: "center" },
   saveTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });
@@ -625,11 +625,11 @@ const fm = StyleSheet.create({
 const dm = StyleSheet.create({
   overlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 24 },
   card:      { backgroundColor: "#fff", borderRadius: 20, padding: 24, width: "100%", maxWidth: 360 },
-  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 8 },
-  body:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#6F6B68", lineHeight: 22, marginBottom: 20 },
+  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 8 },
+  body:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#6B7280", lineHeight: 22, marginBottom: 20 },
   btnRow:    { flexDirection: "row", gap: 10 },
-  cancelBtn: { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#F6F3F1", alignItems: "center" },
-  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  cancelBtn: { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#F8FAFC", alignItems: "center" },
+  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   delBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: RED, alignItems: "center" },
   delTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

@@ -65,7 +65,7 @@ export default function DiaryHistoryList({
                     </View>
                   )}
                   {isMine && (
-                    <View style={[s.statusBadge, { backgroundColor: "#DDF2EF", marginLeft: "auto" }]}>
+                    <View style={[s.statusBadge, { backgroundColor: "#E6FFFA", marginLeft: "auto" }]}>
                       <Feather name="edit-2" size={10} color="#4EA7D8" />
                       <Text style={[s.statusBadgeText, { color: "#4EA7D8" }]}>탭하여 수정</Text>
                     </View>
@@ -130,7 +130,7 @@ export default function DiaryHistoryList({
 const s = StyleSheet.create({
   diaryList:     { padding: 12, gap: 10, paddingBottom: 120 },
   diaryCard:     { borderRadius: 14, padding: 14, gap: 8 },
-  diaryCardEditable: { borderWidth: 1.5, borderColor: "#DDF2EF" },
+  diaryCardEditable: { borderWidth: 1.5, borderColor: "#E6FFFA" },
   badgeRow:      { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   statusBadge:   { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
   statusBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
@@ -140,7 +140,7 @@ const s = StyleSheet.create({
   diaryContent:  { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
   iconBtn:       { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   emptyBox:      { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyText:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  emptyText:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   delOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 },
   delSheet:      { width: "100%", borderRadius: 22, padding: 24, alignItems: "center", gap: 14 },
   delIconWrap:   { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center" },

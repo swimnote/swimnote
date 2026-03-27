@@ -12,12 +12,12 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 
 const C = {
-  background: "#F6F3F1",
+  background: "#F8FAFC",
   card: "#FFFFFF",
-  border: "#E9E2DD",
+  border: "#E5E7EB",
   text: "#1A1A1A",
   textMuted: "#8A8A8A",
-  primary: "#1F8F86",
+  primary: "#2EC4B6",
 };
 
 interface PushSettings {

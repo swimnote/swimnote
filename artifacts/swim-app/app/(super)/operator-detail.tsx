@@ -61,26 +61,26 @@ function InfoRow({ label, value, alert }: { label: string; value: string; alert?
 
 const BILLING_CFG: Record<string, { label: string; color: string; bg: string }> = {
   trial:     { label: "체험 중",   color: P,         bg: "#EEDDF5" },
-  active:    { label: "구독 중",   color: "#1F8F86", bg: "#DDF2EF" },
+  active:    { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
   expired:   { label: "만료됨",    color: "#D96C6C", bg: "#F9DEDA" },
   suspended: { label: "일시 정지", color: "#D97706", bg: "#FFF1BF" },
-  cancelled: { label: "해지됨",    color: "#6F6B68", bg: "#F6F3F1" },
+  cancelled: { label: "해지됨",    color: "#6B7280", bg: "#F8FAFC" },
 };
 
 const APPROVAL_CFG: Record<string, { label: string; color: string; bg: string }> = {
   pending:  { label: "대기",    color: "#D97706", bg: "#FFF1BF" },
-  approved: { label: "운영",    color: "#1F8F86", bg: "#DDF2EF" },
+  approved: { label: "운영",    color: "#2EC4B6", bg: "#E6FFFA" },
   rejected: { label: "반려",    color: "#D96C6C", bg: "#F9DEDA" },
 };
 
 const CAT_CFG: Record<string, { color: string; bg: string }> = {
   권한:         { color: "#D97706", bg: "#FFF1BF" },
   구독:         { color: P,         bg: "#EEDDF5" },
-  저장공간:     { color: "#1F8F86", bg: "#DDF2EF" },
+  저장공간:     { color: "#2EC4B6", bg: "#E6FFFA" },
   삭제:         { color: "#D96C6C", bg: "#F9DEDA" },
-  정책:         { color: "#1F8F86", bg: "#DDF2EF" },
-  결제:         { color: "#1F8F86", bg: "#ECFEFF" },
-  "읽기전용 전환": { color: "#6F6B68", bg: "#F6F3F1" },
+  정책:         { color: "#2EC4B6", bg: "#E6FFFA" },
+  결제:         { color: "#2EC4B6", bg: "#ECFEFF" },
+  "읽기전용 전환": { color: "#6B7280", bg: "#F8FAFC" },
 };
 
 export default function OperatorDetailScreen() {
@@ -166,7 +166,7 @@ export default function OperatorDetailScreen() {
       <SafeAreaView style={d.safe} edges={[]}>
         <SubScreenHeader title="운영자 상세" homePath="/(super)/pools" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: "#6F6B68", fontFamily: "Inter_400Regular" }}>운영자 정보를 불러올 수 없습니다.</Text>
+          <Text style={{ color: "#6B7280", fontFamily: "Inter_400Regular" }}>운영자 정보를 불러올 수 없습니다.</Text>
         </View>
       </SafeAreaView>
     );
@@ -203,7 +203,7 @@ export default function OperatorDetailScreen() {
 
       {!!feedback && (
         <View style={d.feedbackBanner}>
-          <Feather name="check-circle" size={14} color="#1F8F86" />
+          <Feather name="check-circle" size={14} color="#2EC4B6" />
           <Text style={d.feedbackTxt}>{feedback}</Text>
         </View>
       )}
@@ -302,7 +302,7 @@ export default function OperatorDetailScreen() {
               onPress={() => router.push(`/(super)/storage?operatorId=${id}` as any)}>
               <Feather name="hard-drive" size={18} color={P} />
               <Text style={d.actionCardTxt}>추가 용량 부여</Text>
-              <Feather name="chevron-right" size={16} color="#9A948F" style={{ marginLeft: "auto" }} />
+              <Feather name="chevron-right" size={16} color="#9CA3AF" style={{ marginLeft: "auto" }} />
             </Pressable>
           </>
         )}
@@ -319,7 +319,7 @@ export default function OperatorDetailScreen() {
             <Pressable style={[d.actionCard, { marginTop: 12 }]} onPress={() => router.push("/(super)/policy" as any)}>
               <Feather name="file-text" size={18} color={P} />
               <Text style={d.actionCardTxt}>정책 편집 (슈퍼관리자)</Text>
-              <Feather name="chevron-right" size={16} color="#9A948F" style={{ marginLeft: "auto" }} />
+              <Feather name="chevron-right" size={16} color="#9CA3AF" style={{ marginLeft: "auto" }} />
             </Pressable>
           </View>
         )}
@@ -329,7 +329,7 @@ export default function OperatorDetailScreen() {
             <Text style={d.cardTitle}>운영 이벤트 로그 ({logs.length})</Text>
             {logs.length === 0 && <Text style={d.empty}>이벤트 로그가 없습니다</Text>}
             {logs.map((log: any) => {
-              const catCfg = CAT_CFG[log.category] ?? { color: "#6F6B68", bg: "#F6F3F1" };
+              const catCfg = CAT_CFG[log.category] ?? { color: "#6B7280", bg: "#F8FAFC" };
               return (
                 <View key={log.id} style={d.logItem}>
                   <View style={[d.logCat, { backgroundColor: catCfg.bg }]}>
@@ -349,7 +349,7 @@ export default function OperatorDetailScreen() {
           <>
             {[
               ...(isSuspended || pool.approval_status === "rejected" ? [
-                { act: "approve", icon: "check-circle" as const, label: "운영 재승인", sub: "운영 정지·반려 → 운영 상태로 복구", color: "#1F8F86", bg: "#DDF2EF" },
+                { act: "approve", icon: "check-circle" as const, label: "운영 재승인", sub: "운영 정지·반려 → 운영 상태로 복구", color: "#2EC4B6", bg: "#E6FFFA" },
               ] : []),
               { act: "reject",   icon: "x-circle" as const,     label: "반려",       sub: "운영 자격 박탈 · 사유 기록",   color: "#D96C6C", bg: "#F9DEDA" },
               { act: "restrict", icon: "pause-circle" as const,  label: "일시 제한",  sub: "구독 일시 정지 처리",           color: "#D97706", bg: "#FFF1BF" },
@@ -371,7 +371,7 @@ export default function OperatorDetailScreen() {
               <Pressable style={d.quickLink} onPress={() => router.push("/(super)/kill-switch" as any)}>
                 <Feather name="alert-triangle" size={15} color="#D96C6C" />
                 <Text style={[d.quickLinkTxt, { color: "#D96C6C" }]}>킬스위치 (데이터 삭제)</Text>
-                <Feather name="chevron-right" size={14} color="#9A948F" style={{ marginLeft: "auto" }} />
+                <Feather name="chevron-right" size={14} color="#9CA3AF" style={{ marginLeft: "auto" }} />
               </Pressable>
             </View>
           </>
@@ -390,7 +390,7 @@ export default function OperatorDetailScreen() {
               </Text>
               {(action === "reject" || action === "restrict") && (
                 <TextInput style={m.input} value={reason} onChangeText={setReason}
-                  placeholder="사유 (선택)" placeholderTextColor="#9A948F" />
+                  placeholder="사유 (선택)" placeholderTextColor="#9CA3AF" />
               )}
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setAction(null)}>
@@ -439,29 +439,29 @@ const d = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: "#EEDDF5" },
   banner:         { flexDirection: "row", alignItems: "center", gap: 8,
                     paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
-                    borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   bannerLeft:     { flex: 1 },
-  bannerName:     { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  bannerOwner:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  bannerName:     { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
+  bannerOwner:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   badge:          { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeTxt:       { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   feedbackBanner: { flexDirection: "row", alignItems: "center", gap: 8,
-                    backgroundColor: "#DDF2EF", paddingHorizontal: 16, paddingVertical: 8 },
+                    backgroundColor: "#E6FFFA", paddingHorizontal: 16, paddingVertical: 8 },
   feedbackTxt:    { fontSize: 13, fontFamily: "Inter_500Medium", color: "#065F46" },
-  tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
+  tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   tabContent:     { paddingHorizontal: 12, paddingVertical: 6, gap: 4, flexDirection: "row" },
   tab:            { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-                    borderWidth: 1.5, borderColor: "#E9E2DD" },
+                    borderWidth: 1.5, borderColor: "#E5E7EB" },
   tabActive:      { backgroundColor: P, borderColor: P },
-  tabTxt:         { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  tabTxt:         { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
   tabActiveTxt:   { color: "#fff" },
   card:           { backgroundColor: "#fff", borderRadius: 14, padding: 16,
-                    borderWidth: 1, borderColor: "#E9E2DD", gap: 8 },
-  cardTitle:      { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 4 },
-  infoRow:        { flexDirection: "row", paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: "#FBF8F6" },
-  infoLabel:      { width: 90, fontSize: 12, fontFamily: "Inter_500Medium", color: "#9A948F" },
-  infoVal:        { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  empty:          { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F", textAlign: "center", paddingVertical: 12 },
+                    borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },
+  cardTitle:      { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 4 },
+  infoRow:        { flexDirection: "row", paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  infoLabel:      { width: 90, fontSize: 12, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
+  infoVal:        { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#111827" },
+  empty:          { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "center", paddingVertical: 12 },
   alertBox:       { flexDirection: "row", alignItems: "flex-start", gap: 8,
                     backgroundColor: "#FEF2F2", borderRadius: 8, padding: 10, marginTop: 4 },
   alertTxt:       { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#D96C6C" },
@@ -469,27 +469,27 @@ const d = StyleSheet.create({
   storageCircle:  { width: 80, height: 80, borderRadius: 40, borderWidth: 5, borderColor: P,
                     alignItems: "center", justifyContent: "center" },
   storageCircleNum:{ fontSize: 18, fontFamily: "Inter_700Bold", color: P },
-  storageCircleSub:{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  storageCircleSub:{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   storageDetails: { flex: 1, gap: 4 },
   actionCard:     { flexDirection: "row", alignItems: "center", gap: 12,
                     backgroundColor: "#fff", borderRadius: 14, padding: 16,
-                    borderWidth: 1, borderColor: "#E9E2DD" },
-  actionCardTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+                    borderWidth: 1, borderColor: "#E5E7EB" },
+  actionCardTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
   forceCard:      { flexDirection: "row", alignItems: "center", gap: 14,
                     backgroundColor: "#fff", borderRadius: 14, padding: 16,
-                    borderWidth: 1, borderColor: "#E9E2DD" },
+                    borderWidth: 1, borderColor: "#E5E7EB" },
   forceIcon:      { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  forceTxt:       { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  forceSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  forceTxt:       { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  forceSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
   quickLink:      { flexDirection: "row", alignItems: "center", gap: 10,
-                    paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F6F3F1" },
+                    paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   quickLinkTxt:   { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   logItem:        { flexDirection: "row", alignItems: "flex-start", gap: 8,
-                    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FBF8F6" },
+                    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   logCat:         { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 2 },
   logCatTxt:      { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  logDesc:        { fontSize: 12, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  logTime:        { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  logDesc:        { fontSize: 12, fontFamily: "Inter_500Medium", color: "#111827" },
+  logTime:        { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
 });
 
 const m = StyleSheet.create({
@@ -497,12 +497,12 @@ const m = StyleSheet.create({
   sheet:      { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                 borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, gap: 16 },
   handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:      { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  input:      { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12,
-                fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  title:      { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
+  input:      { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
+                fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
   btnRow:     { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn:  { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
-  cancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  cancelBtn:  { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
+  cancelTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
   confirmBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   confirmTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

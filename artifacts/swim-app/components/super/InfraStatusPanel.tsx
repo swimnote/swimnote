@@ -15,7 +15,7 @@ import { useAuth, apiRequest } from "@/context/AuthContext";
 
 // ── 색상 상수 ────────────────────────────────────────────────────────────────
 const P       = "#7C3AED";
-const GREEN   = "#1F8F86";
+const GREEN   = "#2EC4B6";
 const WARN    = "#D97706";
 const DANGER  = "#DC2626";
 const GRAY    = "#6B7280";
@@ -24,7 +24,7 @@ const GRAY    = "#6B7280";
 type InfraStatus = "normal" | "warning" | "danger" | "full" | "error" | "inactive" | "delay" | "critical_delay";
 
 const STATUS_CFG: Record<InfraStatus, { label: string; color: string; bg: string; border: string; icon: string }> = {
-  normal:         { label: "정상",     color: GREEN,   bg: "#DDF2EF", border: "#A7D9D4", icon: "check-circle"   },
+  normal:         { label: "정상",     color: GREEN,   bg: "#E6FFFA", border: "#A7D9D4", icon: "check-circle"   },
   warning:        { label: "임박",     color: WARN,    bg: "#FEF3C7", border: "#FCD34D", icon: "alert-triangle" },
   danger:         { label: "위험",     color: "#C05621", bg: "#FFEDD5", border: "#FB923C", icon: "alert-circle"  },
   full:           { label: "가득 참",  color: DANGER,  bg: "#FEE2E2", border: "#FCA5A5", icon: "x-circle"       },
@@ -85,7 +85,7 @@ function UsageBar({ pct, color }: { pct: number; color: string }) {
   );
 }
 const bar = StyleSheet.create({
-  track: { height: 5, borderRadius: 3, backgroundColor: "#E9E2DD", overflow: "hidden", marginTop: 4 },
+  track: { height: 5, borderRadius: 3, backgroundColor: "#E5E7EB", overflow: "hidden", marginTop: 4 },
   fill:  { height: 5, borderRadius: 3 },
 });
 
@@ -181,22 +181,22 @@ const cc = StyleSheet.create({
   card:       { borderRadius: 14, padding: 14, gap: 10, backgroundColor: "#fff" },
   header:     { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   iconBox:    { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  title:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  desc:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+  title:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  desc:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
   badge:      { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   badgeTxt:   { fontSize: 10, fontFamily: "Inter_700Bold" },
   usageBox:   { gap: 0 },
-  usageMain:  { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  usageSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  usageMain:  { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  usageSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   pctTxt:     { fontSize: 13, fontFamily: "Inter_700Bold" },
   latRow:     { flexDirection: "row", alignItems: "center", gap: 4 },
   latTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: GRAY },
   metricsGrid:{ flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  metricItem: { backgroundColor: "#F6F3F1", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: "30%" },
-  metricLabel:{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
-  metricVal:  { fontSize: 12, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginTop: 2 },
-  footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#F6F3F1", paddingTop: 8 },
-  checkedTxt: { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  metricItem: { backgroundColor: "#F8FAFC", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: "30%" },
+  metricLabel:{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  metricVal:  { fontSize: 12, fontFamily: "Inter_700Bold", color: "#111827", marginTop: 2 },
+  footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#F8FAFC", paddingTop: 8 },
+  checkedTxt: { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   footBtn:    { height: 28, minWidth: 28, borderRadius: 8, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
   detailTxt:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: P },
 });
@@ -209,7 +209,7 @@ function DetailPanel({ title, rows, onClose }: { title: string; rows: DetailRow[
       <View style={dp.header}>
         <Text style={dp.title}>{title} 상세</Text>
         <Pressable onPress={onClose}>
-          <Feather name="x" size={18} color="#1F1F1F" />
+          <Feather name="x" size={18} color="#111827" />
         </Pressable>
       </View>
       {rows.map((r, i) => (
@@ -229,12 +229,12 @@ function DetailPanel({ title, rows, onClose }: { title: string; rows: DetailRow[
 const dp = StyleSheet.create({
   container: { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 0 },
   header:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  title:     { fontSize: 15, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  row:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
-  key:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", flex: 1 },
-  val:       { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F", textAlign: "right", flex: 1 },
-  closeBtn:  { marginTop: 12, backgroundColor: "#F6F3F1", borderRadius: 10, paddingVertical: 12, alignItems: "center" },
-  closeTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  title:     { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
+  row:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  key:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", flex: 1 },
+  val:       { fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827", textAlign: "right", flex: 1 },
+  closeBtn:  { marginTop: 12, backgroundColor: "#F8FAFC", borderRadius: 10, paddingVertical: 12, alignItems: "center" },
+  closeTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
 });
 
 // ── 서비스 행 (그룹 리스트용) ─────────────────────────────────────────────────
@@ -290,15 +290,15 @@ function ServiceRow({ sv, refreshing, onRefresh }: {
 }
 
 const svc = StyleSheet.create({
-  card:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#FAFAFA", borderWidth: 1, borderColor: "#E9E2DD" },
+  card:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#FAFAFA", borderWidth: 1, borderColor: "#E5E7EB" },
   iconBox:     { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  name:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  name:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827" },
   badge:       { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
   badgeTxt:    { fontSize: 9, fontFamily: "Inter_700Bold" },
   placeholder: { backgroundColor: "#F3F4F6", borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 },
   placeholderTxt: { fontSize: 9, fontFamily: "Inter_600SemiBold", color: GRAY },
-  msg:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 1 },
-  checked:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+  msg:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 1 },
+  checked:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
   refreshBtn:  { width: 28, height: 28, borderRadius: 7, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
 });
 
@@ -318,7 +318,7 @@ const gh = StyleSheet.create({
   row:    { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   iconBox:{ width: 20, height: 20, borderRadius: 5, alignItems: "center", justifyContent: "center" },
   label:  { fontSize: 11, fontFamily: "Inter_700Bold" },
-  line:   { flex: 1, height: 1, backgroundColor: "#E9E2DD" },
+  line:   { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
 });
 
 // ── 이상 감지 아이템 ──────────────────────────────────────────────────────────
@@ -352,9 +352,9 @@ function HistoryRow({ item }: { item: HistoryItem }) {
   );
 }
 const hist = StyleSheet.create({
-  row:  { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+  row:  { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   time: { fontSize: 11, fontFamily: "Inter_500Medium", color: GRAY, minWidth: 42 },
-  msg:  { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  msg:  { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#111827" },
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -681,7 +681,7 @@ export default function InfraStatusPanel() {
       {/* 전체 상태 요약 배지 */}
       <View style={ps.summaryBadgeRow}>
         {[
-          { label: `정상 ${totals.ok_count}개`,     color: GREEN,   bg: "#DDF2EF" },
+          { label: `정상 ${totals.ok_count}개`,     color: GREEN,   bg: "#E6FFFA" },
           { label: `주의 ${totals.warning_count}개`, color: WARN,    bg: "#FEF3C7" },
           { label: `오류 ${totals.error_count}개`,   color: DANGER,  bg: "#FEE2E2" },
         ].map((b, i) => (
@@ -839,15 +839,15 @@ export default function InfraStatusPanel() {
 const ps = StyleSheet.create({
   container:       { gap: 12 },
   topHeader:       { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  mainTitle:       { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  mainSub:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+  mainTitle:       { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
+  mainSub:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
   refreshAll:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, backgroundColor: "#EEDDF5" },
   refreshAllTxt:   { fontSize: 11, fontFamily: "Inter_600SemiBold", color: P },
   summaryBadgeRow: { flexDirection: "row", gap: 6 },
   summaryBadge:    { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   summaryBadgeTxt: { fontSize: 12, fontFamily: "Inter_700Bold" },
-  groupTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  groupTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
   groupSection:    { gap: 6 },
-  subSection:      { gap: 6, backgroundColor: "#FAFAFA", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E9E2DD" },
-  subTitle:        { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 2 },
+  subSection:      { gap: 6, backgroundColor: "#FAFAFA", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  subTitle:        { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 2 },
 });

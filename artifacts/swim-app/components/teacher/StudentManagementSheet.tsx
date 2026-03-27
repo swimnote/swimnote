@@ -296,7 +296,7 @@ export default function StudentManagementSheet({
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={readOnly ? (
           <View style={[st.readOnlyBanner, { marginTop: 8 }]}>
-            <Feather name="eye" size={12} color="#6F6B68" />
+            <Feather name="eye" size={12} color="#6B7280" />
             <Text style={st.readOnlyText}>조회 전용 — 배정 기능은 선생님 계정에서 사용하세요</Text>
           </View>
         ) : null}
@@ -373,7 +373,7 @@ export default function StudentManagementSheet({
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={readOnly ? (
           <View style={[st.readOnlyBanner, { marginTop: 8 }]}>
-            <Feather name="eye" size={12} color="#6F6B68" />
+            <Feather name="eye" size={12} color="#6B7280" />
             <Text style={st.readOnlyText}>조회 전용 — 배정 기능은 선생님 계정에서 사용하세요</Text>
           </View>
         ) : null}
@@ -556,7 +556,7 @@ export default function StudentManagementSheet({
                       <Feather name="check" size={14} color="#fff" />
                     </View>
                   ) : (
-                    <View style={[st.pickBadge, { backgroundColor: "#F6F3F1" }]}>
+                    <View style={[st.pickBadge, { backgroundColor: "#F8FAFC" }]}>
                       <Text style={[st.pickBadgeText, { color: C.textSecondary }]}>선택</Text>
                     </View>
                   )}
@@ -610,7 +610,7 @@ export default function StudentManagementSheet({
                   >
                     <Text style={[st.tabBtnText, active && { color: themeColor }]}>{label}</Text>
                     {count > 0 && (
-                      <View style={[st.tabBadge, { backgroundColor: active ? themeColor : "#9A948F" }]}>
+                      <View style={[st.tabBadge, { backgroundColor: active ? themeColor : "#9CA3AF" }]}>
                         <Text style={st.tabBadgeText}>{count}</Text>
                       </View>
                     )}
@@ -695,7 +695,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2,
   },
   badgeText: { fontSize: 11, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  remaining: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#1F8F86" },
+  remaining: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#2EC4B6" },
   actionBtn: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
     alignItems: "center", justifyContent: "center",
@@ -747,8 +747,8 @@ const st = StyleSheet.create({
 
   readOnlyBanner: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#F6F3F1", borderRadius: 8,
+    backgroundColor: "#F8FAFC", borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 6, marginBottom: 4,
   },
-  readOnlyText: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", flex: 1 },
+  readOnlyText: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", flex: 1 },
 });

@@ -78,8 +78,8 @@ function pct(current: number, prev: number): string {
 }
 
 function pctColor(current: number, prev: number): string {
-  if (prev === 0) return current > 0 ? "#1F8F86" : "#6F6B68";
-  return current >= prev ? "#1F8F86" : "#D96C6C";
+  if (prev === 0) return current > 0 ? "#2EC4B6" : "#6B7280";
+  return current >= prev ? "#2EC4B6" : "#D96C6C";
 }
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
@@ -194,7 +194,7 @@ export default function RevenueAnalyticsScreen() {
           onRefresh={async () => { setRefreshing(true); await fetchLogs(period); setRefreshing(false); }} />}
       >
         <View style={st.noticeBox}>
-          <Feather name="info" size={12} color="#1F8F86" />
+          <Feather name="info" size={12} color="#2EC4B6" />
           <Text style={st.noticeTxt}>revenue_logs DB 실측 기반. 추정·미결제 금액 제외.</Text>
         </View>
 
@@ -203,7 +203,7 @@ export default function RevenueAnalyticsScreen() {
         <View style={st.cardGrid}>
           <StatCard label="기간 내 청구액" value={fmtKRW(totalRevenue)} sub="결제 기준" color={P} />
           <StatCard label="순 매출" value={fmtKRW(netRevenue)} sub="청구 - 환불"
-            color={netRevenue >= 0 ? "#1F8F86" : "#D96C6C"} />
+            color={netRevenue >= 0 ? "#2EC4B6" : "#D96C6C"} />
           <StatCard label="전기 대비" value={growth} color={growthColor} sub="이전 기간" />
           <StatCard label="추정 기간 합산" value={fmtKRW(projected)} sub="현재 속도 기준" color="#D97706" />
         </View>
@@ -212,15 +212,15 @@ export default function RevenueAnalyticsScreen() {
         <SectionHeader title="할인 및 수수료" icon="percent" />
         <View style={st.cardGrid}>
           <StatCard label="첫 달 50% 할인액" value={fmtKRW(totalDiscount)} sub="할인 합계" color="#DC2626" />
-          <StatCard label="스토어 수수료 (30%)" value={fmtKRW(totalStoreFee)} sub="앱스토어/구글플레이" color="#9A948F" />
-          <StatCard label="순이익 (수수료 후)" value={fmtKRW(netRevenue - totalStoreFee)} color="#1F8F86" />
+          <StatCard label="스토어 수수료 (30%)" value={fmtKRW(totalStoreFee)} sub="앱스토어/구글플레이" color="#9CA3AF" />
+          <StatCard label="순이익 (수수료 후)" value={fmtKRW(netRevenue - totalStoreFee)} color="#2EC4B6" />
         </View>
 
         {/* 결제 현황 */}
         <SectionHeader title="결제 현황" icon="credit-card" />
         <View style={st.cardGrid}>
           <StatCard label="전체 건수" value={`${logs.length}건`} color={P} />
-          <StatCard label="신규 구독" value={`${newSubs}건`} color="#1F8F86" />
+          <StatCard label="신규 구독" value={`${newSubs}건`} color="#2EC4B6" />
           <StatCard label="갱신" value={`${renewals}건`} color="#6366F1" />
           <StatCard label="업그레이드" value={`${upgrades}건`} color="#D97706" />
         </View>
@@ -262,7 +262,7 @@ export default function RevenueAnalyticsScreen() {
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={[st.recordAmt, { color: P }]}>{fmtKRW(r.charged_amount)}</Text>
                 {r.store_fee > 0 && (
-                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" }}>
+                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" }}>
                     수수료 -{fmtKRW(r.store_fee)}
                   </Text>
                 )}
@@ -282,30 +282,30 @@ export default function RevenueAnalyticsScreen() {
 }
 
 const st = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#FBF8F6" },
+  safe:          { flex: 1, backgroundColor: "#F1F5F9" },
   tabRow:        { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, backgroundColor: "#fff",
-                   borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
-  tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#F6F3F1" },
+                   borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#F8FAFC" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  tabTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   tabTxtActive:  { color: "#fff" },
-  noticeBox:     { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#DDF2EF",
+  noticeBox:     { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E6FFFA",
                    borderRadius: 8, padding: 10, marginTop: 4 },
-  noticeTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#1F8F86", flex: 1 },
+  noticeTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#2EC4B6", flex: 1 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  sectionTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  sectionTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
   cardGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card:          { backgroundColor: "#fff", borderRadius: 12, padding: 14, flex: 1, minWidth: "45%",
-                   borderWidth: 1, borderColor: "#E9E2DD" },
-  cardLabel:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginBottom: 4 },
-  cardValue:     { fontSize: 18, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  cardSub:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+                   borderWidth: 1, borderColor: "#E5E7EB" },
+  cardLabel:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 4 },
+  cardValue:     { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
+  cardSub:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
   empty:         { alignItems: "center", paddingVertical: 32, gap: 8 },
-  emptyTxt:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  emptyTxt:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   recordRow:     { backgroundColor: "#fff", borderRadius: 10, padding: 12, flexDirection: "row",
-                   alignItems: "flex-start", borderWidth: 1, borderColor: "#E9E2DD" },
-  recordName:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  recordSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
+                   alignItems: "flex-start", borderWidth: 1, borderColor: "#E5E7EB" },
+  recordName:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  recordSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
   recordAmt:     { fontSize: 15, fontFamily: "Inter_700Bold" },
   linkBtn:       { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center",
                    backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12 },

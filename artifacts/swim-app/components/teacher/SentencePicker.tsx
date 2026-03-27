@@ -346,7 +346,7 @@ const s = StyleSheet.create({
   previewBox: {
     marginHorizontal: 16, marginTop: 10,
     borderWidth: 1.5, borderColor: C.tintLight, borderRadius: 12,
-    backgroundColor: "#F6F3F1", overflow: "hidden",
+    backgroundColor: "#F8FAFC", overflow: "hidden",
   },
   previewHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

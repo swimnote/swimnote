@@ -13,7 +13,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 
 const P      = "#7C3AED";
-const GREEN  = "#1F8F86";
+const GREEN  = "#2EC4B6";
 const ORANGE = "#D97706";
 const RED    = "#D96C6C";
 const GRAY   = "#6B7280";
@@ -92,7 +92,7 @@ function SectionTitle({ icon, title }: { icon: React.ComponentProps<typeof Feath
 
 function StatusPill({ ok, label, latency }: { ok: boolean; label: string; latency?: number }) {
   return (
-    <View style={[s.pill, { backgroundColor: ok ? "#DDF2EF" : "#FDE8E8" }]}>
+    <View style={[s.pill, { backgroundColor: ok ? "#E6FFFA" : "#FDE8E8" }]}>
       <View style={[s.pillDot, { backgroundColor: ok ? GREEN : RED }]} />
       <Text style={[s.pillTxt, { color: ok ? GREEN : RED }]}>{label}</Text>
       {latency !== undefined && <Text style={s.pillLatency}>{latency}ms</Text>}
@@ -333,7 +333,7 @@ export default function DbStatusScreen() {
           {tab === "overview" && status && (
             <>
               {/* DB 분리 상태 배너 */}
-              <View style={[s.separationBanner, { backgroundColor: status.is_separated ? "#DDF2EF" : "#FFF8E6" }]}>
+              <View style={[s.separationBanner, { backgroundColor: status.is_separated ? "#E6FFFA" : "#FFF8E6" }]}>
                 <Feather name={status.is_separated ? "check-circle" : "alert-circle"} size={16} color={status.is_separated ? GREEN : ORANGE} />
                 <Text style={[s.separationTxt, { color: status.is_separated ? GREEN : ORANGE }]}>
                   {status.is_separated
@@ -460,7 +460,7 @@ export default function DbStatusScreen() {
                 <>
                   <SectionTitle icon="shield" title="시스템 진단 요약" />
                   <View style={[s.diagBanner, {
-                    backgroundColor: diag.status === "healthy" ? "#DDF2EF" : diag.status === "degraded" ? "#FFF8E6" : "#FDE8E8",
+                    backgroundColor: diag.status === "healthy" ? "#E6FFFA" : diag.status === "degraded" ? "#FFF8E6" : "#FDE8E8",
                   }]}>
                     <Feather
                       name={diag.status === "healthy" ? "check-circle" : diag.status === "degraded" ? "alert-triangle" : "x-circle"}
@@ -557,7 +557,7 @@ export default function DbStatusScreen() {
               {/* Dead-letter Queue */}
               <SectionTitle icon="inbox" title={`Dead-letter Queue (${dlq.length}건 미처리)`} />
               {dlq.length === 0 ? (
-                <View style={[s.emptyWrap, { backgroundColor: "#DDF2EF", borderRadius: 12, paddingVertical: 20 }]}>
+                <View style={[s.emptyWrap, { backgroundColor: "#E6FFFA", borderRadius: 12, paddingVertical: 20 }]}>
                   <Feather name="check-circle" size={28} color={GREEN} />
                   <Text style={[s.emptyTxt, { color: GREEN }]}>미처리 이벤트 없음</Text>
                 </View>

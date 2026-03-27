@@ -135,11 +135,11 @@ export default function ClassManagementScreen() {
 
           {/* 이달 출결 */}
           <View style={s.sectionHeader}>
-            <Feather name="calendar" size={15} color="#1F8F86" />
+            <Feather name="calendar" size={15} color="#2EC4B6" />
             <Text style={[s.sectionTitle, { color: C.text }]}>{monthLabel} 출결</Text>
           </View>
           <View style={s.statsRow}>
-            <StatBox label="출석" value={data.attendance.month_present} color="#1F8F86" />
+            <StatBox label="출석" value={data.attendance.month_present} color="#2EC4B6" />
             <StatBox label="결석" value={data.attendance.month_absent} color="#D96C6C" />
             <StatBox label="오늘 총" value={data.attendance.today_total} />
             <StatBox label="오늘 출석" value={data.attendance.today_present} color={C.tint} />
@@ -153,8 +153,8 @@ export default function ClassManagementScreen() {
           <View style={s.statsRow}>
             <StatBox label="대기" value={data.makeups.pending} color={data.makeups.pending > 0 ? "#D96C6C" : C.textSecondary} />
             <StatBox label="배정됨" value={data.makeups.assigned} color="#D97706" />
-            <StatBox label="완료" value={data.makeups.completed} color="#1F8F86" />
-            <StatBox label="소멸" value={data.makeups.extinguished} color="#6F6B68" />
+            <StatBox label="완료" value={data.makeups.completed} color="#2EC4B6" />
+            <StatBox label="소멸" value={data.makeups.extinguished} color="#6B7280" />
           </View>
 
           {/* 반 목록 */}
@@ -208,7 +208,7 @@ export default function ClassManagementScreen() {
             </View>
           ) : sortedClasses.map(cls => {
             const fill = cls.capacity ? Math.min(1, cls.student_count / cls.capacity) : 0;
-            const fillColor = fill >= 1 ? "#D96C6C" : fill >= 0.8 ? "#D97706" : "#1F8F86";
+            const fillColor = fill >= 1 ? "#D96C6C" : fill >= 0.8 ? "#D97706" : "#2EC4B6";
             return (
               <View key={cls.id} style={[s.classCard, { backgroundColor: C.card }]}>
                 <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>

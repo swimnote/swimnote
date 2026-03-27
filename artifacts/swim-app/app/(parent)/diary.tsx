@@ -109,7 +109,7 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
               </View>
             )}
             {entry.is_edited && (
-              <View style={[ds.badge, { backgroundColor: "#F6F3F1" }]}>
+              <View style={[ds.badge, { backgroundColor: "#F8FAFC" }]}>
                 <Text style={[ds.badgeTxt, { color: C.textMuted }]}>수정됨</Text>
               </View>
             )}
@@ -134,7 +134,7 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
                 <Feather name="user" size={12} color="#7C3AED" />
                 <Text style={ds.noteTitle}>우리 아이 개별 일지</Text>
               </View>
-              <Text style={[ds.content, { color: "#1F1F1F" }]}>{entry.student_note.note_content}</Text>
+              <Text style={[ds.content, { color: "#111827" }]}>{entry.student_note.note_content}</Text>
             </View>
           ) : null}
         </View>
@@ -144,10 +144,10 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
       <View style={[ds.reactions, { borderTopColor: C.border }]}>
         <Pressable
           onPress={() => toggleReaction("like")}
-          style={[ds.reactionBtn, myReactions.has("like") && { backgroundColor: "#DDF2EF" }]}
+          style={[ds.reactionBtn, myReactions.has("like") && { backgroundColor: "#E6FFFA" }]}
         >
           <Text style={[ds.reactionEmoji, myReactions.has("like") && { transform: [{ scale: 1.2 }] }]}>👍</Text>
-          <Text style={[ds.reactionLabel, { color: myReactions.has("like") ? "#1F8F86" : C.textSecondary }]}>좋아요</Text>
+          <Text style={[ds.reactionLabel, { color: myReactions.has("like") ? "#2EC4B6" : C.textSecondary }]}>좋아요</Text>
         </Pressable>
         <Pressable
           onPress={() => toggleReaction("thank")}

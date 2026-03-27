@@ -31,15 +31,15 @@ export function LevelBadge({ level, size = "md", showName = false }: Props) {
   if (!level) {
     const s = SIZES[size];
     return (
-      <View style={[styles.badge, { width: s.badge, height: s.badge, borderRadius: s.radius, backgroundColor: "#E9E2DD" }]}>
-        <Text style={[styles.label, { fontSize: s.font, color: "#9A948F" }]}>-</Text>
+      <View style={[styles.badge, { width: s.badge, height: s.badge, borderRadius: s.radius, backgroundColor: "#E5E7EB" }]}>
+        <Text style={[styles.label, { fontSize: s.font, color: "#9CA3AF" }]}>-</Text>
       </View>
     );
   }
 
   const s = SIZES[size];
   const badgeType = level.badge_type ?? "text";
-  const badgeColor = level.badge_color ?? "#1F8F86";
+  const badgeColor = level.badge_color ?? "#2EC4B6";
   const textColor = level.badge_text_color ?? "#FFFFFF";
   const badgeLabel = level.badge_label ?? level.level_name ?? String(level.level_order);
 

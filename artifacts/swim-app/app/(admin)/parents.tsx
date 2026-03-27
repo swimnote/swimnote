@@ -193,7 +193,7 @@ function StudentLinkSheet({
 
       {/* 신청 시 입력한 자녀 */}
       {(parent?.requested_children ?? []).length > 0 && (
-        <View style={[s.childRefBox, { backgroundColor: "#DDF2EF" }]}>
+        <View style={[s.childRefBox, { backgroundColor: "#E6FFFA" }]}>
           <View style={s.childRefHeader}>
             <Feather name="user-check" size={13} color="#4338CA" />
             <Text style={[s.childRefLabel, { color: "#4338CA" }]}>가입 신청 시 입력한 자녀</Text>
@@ -346,8 +346,8 @@ function AddParentSheet({
     return (
       <DraggableSheet visible={visible} onClose={onClose} paddingBottom={insets.bottom + 16}>
         <View style={{ alignItems: "center", gap: 12, paddingVertical: 8 }}>
-          <View style={[s.smsIcon, { backgroundColor: "#DDF2EF" }]}>
-            <Feather name="message-square" size={26} color="#1F8F86" />
+          <View style={[s.smsIcon, { backgroundColor: "#E6FFFA" }]}>
+            <Feather name="message-square" size={26} color="#2EC4B6" />
           </View>
           <Text style={[s.sheetTitle, { textAlign: "center" }]}>앱 안내 문자 발송</Text>
           <Text style={[s.smsDesc, { color: C.textSecondary }]}>
@@ -359,7 +359,7 @@ function AddParentSheet({
           <Pressable style={[s.cancelBtn, { borderColor: C.border }]} onPress={() => { setShowSmsConfirm(false); onClose(); }}>
             <Text style={[s.cancelText, { color: C.textSecondary }]}>나중에</Text>
           </Pressable>
-          <Pressable style={[s.submitBtn, { backgroundColor: C.tint, flexDirection: "row", gap: 6 }]} onPress={openSmsApp}>
+          <Pressable style={[s.submitBtn, { backgroundColor: C.button, flexDirection: "row", gap: 6 }]} onPress={openSmsApp}>
             <Feather name="send" size={15} color="#fff" />
             <Text style={s.submitText}>문자 앱 열기</Text>
           </Pressable>
@@ -384,7 +384,7 @@ function AddParentSheet({
         <Pressable style={[s.cancelBtn, { borderColor: C.border }]} onPress={onClose}>
           <Text style={[s.cancelText, { color: C.textSecondary }]}>취소</Text>
         </Pressable>
-        <Pressable style={[s.submitBtn, { backgroundColor: C.tint }]} onPress={handleSubmit} disabled={submitting}>
+        <Pressable style={[s.submitBtn, { backgroundColor: C.button }]} onPress={handleSubmit} disabled={submitting}>
           {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.submitText}>추가</Text>}
         </Pressable>
       </View>
@@ -529,7 +529,7 @@ export default function ParentsScreen() {
   const statusBadge = (status: string) => {
     const map: Record<string, { color: string; bg: string; label: string }> = {
       pending:  { color: C.warning,  bg: "#FFF1BF", label: "승인 대기" },
-      approved: { color: C.success,  bg: "#DDF2EF", label: "승인됨" },
+      approved: { color: C.success,  bg: "#E6FFFA", label: "승인됨" },
       rejected: { color: C.error,    bg: "#F9DEDA", label: "거부됨" },
     };
     const st = map[status] || map["pending"];
@@ -557,7 +557,7 @@ export default function ParentsScreen() {
               </Text>
             </Pressable>
             {!sel.selectionMode && (
-              <Pressable style={[s.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowAddParent(true)}>
+              <Pressable style={[s.addBtn, { backgroundColor: C.button }]} onPress={() => setShowAddParent(true)}>
                 <Feather name="plus" size={16} color="#fff" />
                 <Text style={s.addBtnText}>추가</Text>
               </Pressable>

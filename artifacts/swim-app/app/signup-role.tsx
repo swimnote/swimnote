@@ -15,7 +15,7 @@ const ROLES = [
     icon: "briefcase" as const,
     label: "수영장 운영자",
     desc: "수영장을 등록하고 회원·선생님·수업을 관리합니다",
-    color: "#1F8F86",
+    color: "#2EC4B6",
     bg: "#EFF4FF",
     onPress: () => router.push("/register" as any),
   },
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   logoBox: {
     width: 64, height: 64, borderRadius: 20,
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#1F8F86", shadowOffset: { width: 0, height: 4 },
+    shadowColor: "#2EC4B6", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2, shadowRadius: 10, elevation: 5,
   },
   title: { fontSize: 24, fontFamily: "Inter_700Bold" },

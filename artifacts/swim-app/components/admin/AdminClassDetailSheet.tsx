@@ -474,7 +474,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               style={[sh.teacherRow, { borderBottomWidth: 1, borderBottomColor: C.border }]}
               onPress={() => handleAssignTeacher({ id: "", name: "" } as any)}
             >
-              <View style={[sh.teacherAvatar, { backgroundColor: "#F6F3F1" }]}>
+              <View style={[sh.teacherAvatar, { backgroundColor: "#F8FAFC" }]}>
                 <Feather name="user-x" size={16} color={C.textMuted} />
               </View>
               <View style={{ flex: 1 }}>
@@ -569,7 +569,7 @@ const sh = StyleSheet.create({
   sectionCount: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
 
   studentRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10,
-                borderBottomWidth: 1, borderBottomColor: "#F6F3F1", gap: 10 },
+                borderBottomWidth: 1, borderBottomColor: "#F8FAFC", gap: 10 },
   studentAvatar:{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.tint + "20",
                   alignItems: "center", justifyContent: "center" },
   studentAvatarText:{ fontSize: 14, fontFamily: "Inter_700Bold", color: C.tint },
@@ -579,12 +579,12 @@ const sh = StyleSheet.create({
   emptyBox:   { alignItems: "center", paddingVertical: 40, gap: 8 },
   emptyText:  { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
 
-  searchBox:  { flexDirection: "row", alignItems: "center", backgroundColor: "#F6F3F1",
+  searchBox:  { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC",
                 borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, margin: 12, gap: 8 },
   searchInput:{ flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.text },
 
   listRow:    { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10,
-                borderBottomWidth: 1, borderBottomColor: "#F6F3F1" },
+                borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   listRowRight:{ flexDirection: "row", alignItems: "center", gap: 6 },
   unregBadge: { backgroundColor: "#FFF1BF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   unregBadgeText:{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#D97706" },

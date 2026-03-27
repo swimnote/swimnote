@@ -78,10 +78,10 @@ function toStudentMember(m: TeacherMember): StudentMember {
 type TabKey = "all" | "unassigned" | "suspend_pending" | "withdraw_pending" | "suspended" | "withdrawn";
 
 const TAB_CONFIG: { key: TabKey; label: string; color: string }[] = [
-  { key: "all",              label: "전체",    color: "#1F1F1F" },
+  { key: "all",              label: "전체",    color: "#111827" },
   { key: "unassigned",       label: "미배정",  color: "#D96C6C" },
   { key: "suspend_pending",  label: "연기예정", color: "#B45309" },
-  { key: "withdraw_pending", label: "퇴원예정", color: "#6F6B68" },
+  { key: "withdraw_pending", label: "퇴원예정", color: "#6B7280" },
   { key: "suspended",        label: "연기",    color: "#7C3AED" },
   { key: "withdrawn",        label: "퇴원",    color: "#374151" },
 ];
@@ -342,7 +342,7 @@ function WaitingActionSheet({
               <Feather name="user-check" size={20} color="#2EC4B6" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[sh.optLabel, { color: "#1F8F86" }]}>반 배정</Text>
+              <Text style={[sh.optLabel, { color: "#2EC4B6" }]}>반 배정</Text>
               <Text style={sh.optSub}>학생 상세 페이지에서 반을 변경합니다</Text>
             </View>
             <Feather name="chevron-right" size={16} color="#9CA3AF" />

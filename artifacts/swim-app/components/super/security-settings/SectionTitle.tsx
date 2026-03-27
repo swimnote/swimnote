@@ -19,6 +19,6 @@ export function SectionTitle({ title, sub }: Props) {
 }
 
 const st = StyleSheet.create({
-  title: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  sub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  title: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
+  sub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 });

@@ -76,9 +76,9 @@ function formatWon(n: number) { return n.toLocaleString("ko-KR") + "원"; }
    AdminRevenueScreen
 ──────────────────────────────────────────────── */
 const STATUS_COLOR: Record<SettlementStatus, { bg: string; text: string }> = {
-  "미정산":    { bg: "#F6F3F1", text: "#6F6B68" },
-  "저장됨":    { bg: "#DDF2EF", text: "#1F8F86" },
-  "제출완료":  { bg: "#DDF2EF", text: "#1F8F86" },
+  "미정산":    { bg: "#F8FAFC", text: "#6B7280" },
+  "저장됨":    { bg: "#E6FFFA", text: "#2EC4B6" },
+  "제출완료":  { bg: "#E6FFFA", text: "#2EC4B6" },
   "관리자확인": { bg: "#EEDDF5", text: "#7C3AED" },
 };
 
@@ -204,15 +204,15 @@ export default function AdminRevenueScreen() {
               <Feather name="rotate-ccw" size={16} color="#7C3AED" />
               <Text style={[s.quickLabel, { color: "#7C3AED" }]}>보강 이월</Text>
             </Pressable>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#DDF2EF" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FFFA" }]}
               onPress={() => router.push("/(admin)/pool-settings" as any)}>
-              <Feather name="dollar-sign" size={16} color="#1F8F86" />
-              <Text style={[s.quickLabel, { color: "#1F8F86" }]}>단가표</Text>
+              <Feather name="dollar-sign" size={16} color="#2EC4B6" />
+              <Text style={[s.quickLabel, { color: "#2EC4B6" }]}>단가표</Text>
             </Pressable>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#DDF2EF" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FFFA" }]}
               onPress={() => router.push("/(admin)/holidays" as any)}>
-              <Feather name="list" size={16} color="#1F8F86" />
-              <Text style={[s.quickLabel, { color: "#1F8F86" }]}>휴무 목록</Text>
+              <Feather name="list" size={16} color="#2EC4B6" />
+              <Text style={[s.quickLabel, { color: "#2EC4B6" }]}>휴무 목록</Text>
             </Pressable>
           </View>
 
@@ -295,13 +295,13 @@ export default function AdminRevenueScreen() {
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>보강</Text>
                     </View>
                     <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#1F8F86" }]}>
+                      <Text style={[s.statBoxVal, { color: "#2EC4B6" }]}>
                         {report?.trial_count ?? "—"}
                       </Text>
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>체험</Text>
                     </View>
                     <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#1F8F86" }]}>
+                      <Text style={[s.statBoxVal, { color: "#2EC4B6" }]}>
                         {report?.transfer_count ?? "—"}
                       </Text>
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>이동</Text>
@@ -379,7 +379,7 @@ export default function AdminRevenueScreen() {
               현재 월 정산을 마무리하고{"\n"}다음 달 수업 일정을 새로 생성합니다.{"\n"}보강 이월도 함께 처리됩니다.
             </Text>
             <View style={s.modalBtns}>
-              <Pressable style={[s.modalBtn, { backgroundColor: "#F6F3F1" }]} onPress={() => setNextMonthModal(false)}>
+              <Pressable style={[s.modalBtn, { backgroundColor: "#F8FAFC" }]} onPress={() => setNextMonthModal(false)}>
                 <Text style={[s.modalBtnTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable
@@ -454,7 +454,7 @@ const s = StyleSheet.create({
   statusBadge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   statsGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  statBox:        { minWidth: "20%", flex: 1, backgroundColor: "#FBF8F6", borderRadius: 10, padding: 8, alignItems: "center", gap: 2 },
+  statBox:        { minWidth: "20%", flex: 1, backgroundColor: "#F1F5F9", borderRadius: 10, padding: 8, alignItems: "center", gap: 2 },
   statBoxVal:     { fontSize: 16, fontFamily: "Inter_700Bold" },
   statBoxLabel:   { fontSize: 10, fontFamily: "Inter_400Regular" },
 

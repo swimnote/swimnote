@@ -56,7 +56,7 @@ export function ClassTransferModal({
                   style={[tm.teacherRow, selected === t.userId && { borderColor: C.tint, backgroundColor: C.tintLight }]}
                   onPress={() => setSelected(t.userId)}
                 >
-                  <View style={[tm.avatar, { backgroundColor: selected === t.userId ? C.tint : "#E9E2DD" }]}>
+                  <View style={[tm.avatar, { backgroundColor: selected === t.userId ? C.tint : "#E5E7EB" }]}>
                     <Text style={[tm.avatarText, { color: selected === t.userId ? "#fff" : C.textSecondary }]}>
                       {t.name[0]}
                     </Text>
@@ -72,7 +72,7 @@ export function ClassTransferModal({
           )}
 
           <View style={tm.btnRow}>
-            <Pressable style={[tm.btn, { backgroundColor: "#F6F3F1" }]} onPress={onClose}>
+            <Pressable style={[tm.btn, { backgroundColor: "#F8FAFC" }]} onPress={onClose}>
               <Text style={[tm.btnText, { color: C.textSecondary }]}>취소</Text>
             </Pressable>
             <Pressable
@@ -94,7 +94,7 @@ export function ClassTransferModal({
 const tm = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 16, maxHeight: "80%" },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 4 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   title: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
   sub: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 4, maxWidth: "90%", lineHeight: 18 },

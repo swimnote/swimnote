@@ -90,7 +90,7 @@ export default function ParentStudentDetailScreen() {
             </Pressable>
 
             <Pressable
-              style={({ pressed }) => [styles.bigCard, { backgroundColor: C.tint, opacity: pressed ? 0.9 : 1 }]}
+              style={({ pressed }) => [styles.bigCard, { backgroundColor: C.button, opacity: pressed ? 0.9 : 1 }]}
               onPress={() => router.push({ pathname: "/(parent)/swim-diary", params: { id, name } })}
             >
               <Text style={styles.bigCardEmoji}>📒</Text>

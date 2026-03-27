@@ -23,7 +23,7 @@ import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const P = "#7C3AED";
-const GREEN = "#1F8F86";
+const GREEN = "#2EC4B6";
 const DANGER = "#D96C6C";
 const WARN = "#D97706";
 
@@ -97,7 +97,7 @@ function fmtSize(bytes: number | string | null | undefined): string {
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: "대기 중", color: WARN,    bg: "#FFF1BF" },
   running: { label: "진행 중", color: GREEN,   bg: "#ECFEFF" },
-  done:    { label: "완료",    color: GREEN,   bg: "#DDF2EF" },
+  done:    { label: "완료",    color: GREEN,   bg: "#E6FFFA" },
   failed:  { label: "실패",    color: DANGER,  bg: "#F9DEDA" },
 };
 
@@ -163,10 +163,10 @@ interface BackupStatusData {
 }
 
 const DB_STATUS_CFG: Record<CardStatus, { color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {
-  normal:         { color: "#1F8F86", bg: "#DDF2EF", icon: "check-circle" },
+  normal:         { color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
   warning:        { color: "#D97706", bg: "#FFF1BF", icon: "alert-circle" },
   error:          { color: "#D96C6C", bg: "#F9DEDA", icon: "alert-triangle" },
-  not_configured: { color: "#9A948F", bg: "#F6F3F1", icon: "minus-circle" },
+  not_configured: { color: "#9CA3AF", bg: "#F8FAFC", icon: "minus-circle" },
 };
 
 // ── 4개 DB 상태 카드 ──────────────────────────────────────────────────────────
@@ -349,21 +349,21 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
 }
 
 const dc = StyleSheet.create({
-  wrap:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E9E2DD", marginBottom: 4 },
+  wrap:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 4 },
   header:     { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
   refreshBtn: { padding: 4 },
-  loadingBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#E9E2DD" },
-  loadingTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  loadingBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB" },
+  loadingTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   errorBox:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, backgroundColor: "#FDE8E8", borderRadius: 12 },
   errorTxt:   { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: DANGER },
   retryTxt:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: DANGER },
   card:       { backgroundColor: "#FAFAF9", borderRadius: 10, padding: 10, gap: 2 },
   cardTop:    { flexDirection: "row", alignItems: "center", gap: 8 },
   iconWrap:   { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  cardLabel:  { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  cardSub:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 1 },
-  cardSub2:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", marginLeft: 40 },
+  cardLabel:  { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  cardSub:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 1 },
+  cardSub2:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginLeft: 40 },
   statusBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
   statusTxt:  { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   errorLine:  { fontSize: 10, fontFamily: "Inter_400Regular", color: DANGER, marginLeft: 40, marginTop: 2 },
@@ -374,7 +374,7 @@ const dc = StyleSheet.create({
   poolBtn:    { flexDirection: "row", alignItems: "center", gap: 5,
                 backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   poolBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: P },
-  checkedAt:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F", textAlign: "right" },
+  checkedAt:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "right" },
 });
 
 // ── 백업 카드 ─────────────────────────────────────────────────────────────────
@@ -412,27 +412,27 @@ function BackupCard({
       <View style={bc.meta}>
         {item.total_tables != null && (
           <View style={bc.metaItem}>
-            <Feather name="layers" size={11} color="#6F6B68" />
+            <Feather name="layers" size={11} color="#6B7280" />
             <Text style={bc.metaVal}>{item.total_tables}개 테이블</Text>
           </View>
         )}
         <View style={bc.metaItem}>
-          <Feather name="hard-drive" size={11} color="#6F6B68" />
+          <Feather name="hard-drive" size={11} color="#6B7280" />
           <Text style={bc.metaVal}>{fmtSize(item.size_bytes)}</Text>
         </View>
         <View style={bc.metaItem}>
-          <Feather name="clock" size={11} color="#6F6B68" />
+          <Feather name="clock" size={11} color="#6B7280" />
           <Text style={bc.metaVal}>{fmtDateTime(item.created_at)}</Text>
         </View>
         {item.created_by && (
           <View style={bc.metaItem}>
-            <Feather name="user" size={11} color="#6F6B68" />
+            <Feather name="user" size={11} color="#6B7280" />
             <Text style={bc.metaVal}>{item.created_by}</Text>
           </View>
         )}
         {item.note && (
           <View style={bc.metaItem}>
-            <Feather name="file-text" size={11} color="#6F6B68" />
+            <Feather name="file-text" size={11} color="#6B7280" />
             <Text style={bc.metaVal} numberOfLines={1}>{item.note}</Text>
           </View>
         )}
@@ -455,15 +455,15 @@ function BackupCard({
 }
 
 const bc = StyleSheet.create({
-  card:     { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E9E2DD" },
+  card:     { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E5E7EB" },
   top:      { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   badge:    { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
   badgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold" },
-  time:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginLeft: "auto" },
-  name:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 8 },
+  time:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginLeft: "auto" },
+  name:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 8 },
   meta:     { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaVal:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68" },
+  metaVal:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
   actions:  { flexDirection: "row", gap: 8 },
   btn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7 },
   btnTxt:   { fontSize: 12, fontFamily: "Inter_600SemiBold" },
@@ -482,9 +482,9 @@ function CreateModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={cr.header}>
-          <Pressable onPress={onClose} disabled={busy}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
+          <Pressable onPress={onClose} disabled={busy}><Feather name="x" size={20} color="#6B7280" /></Pressable>
           <Text style={cr.title}>수동 백업 생성</Text>
           <View style={{ width: 24 }} />
         </View>
@@ -499,7 +499,7 @@ function CreateModal({
           <View>
             <Text style={cr.label}>메모 (선택)</Text>
             <TextInput style={cr.input} value={note} onChangeText={setNote} editable={!busy}
-              placeholder="이 백업에 대한 메모를 입력하세요" placeholderTextColor="#9A948F"
+              placeholder="이 백업에 대한 메모를 입력하세요" placeholderTextColor="#9CA3AF"
               multiline numberOfLines={2} />
           </View>
           <Pressable style={[cr.confirmBtn, busy && { opacity: 0.5 }]} onPress={() => onCreate(note)} disabled={busy}>
@@ -516,10 +516,10 @@ function CreateModal({
 }
 
 const cr = StyleSheet.create({
-  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
-  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  label:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 8 },
-  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
+  label:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 8 },
+  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
   confirmBtn: { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   confirmTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
   infoBox:    { flexDirection: "row", gap: 8, backgroundColor: "#EFF6FF", borderRadius: 8, padding: 12, alignItems: "flex-start" },
@@ -537,9 +537,9 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
   if (!target) return null;
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={rm.header}>
-          <Pressable onPress={onClose} disabled={busy}><Feather name="x" size={20} color="#6F6B68" /></Pressable>
+          <Pressable onPress={onClose} disabled={busy}><Feather name="x" size={20} color="#6B7280" /></Pressable>
           <Text style={rm.title}>데이터 복구</Text>
           <View style={{ width: 24 }} />
         </View>
@@ -565,7 +565,7 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
           <View>
             <Text style={rm.inputLabel}>복구 사유 (필수)</Text>
             <TextInput style={rm.input} value={reason} onChangeText={setReason} editable={!busy}
-              placeholder="복구 사유를 입력하세요" placeholderTextColor="#9A948F"
+              placeholder="복구 사유를 입력하세요" placeholderTextColor="#9CA3AF"
               multiline numberOfLines={3} textAlignVertical="top" />
           </View>
           <Pressable style={[rm.confirmBtn, (!reason.trim() || busy) && { opacity: 0.4 }]}
@@ -581,15 +581,15 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
 }
 
 const rm = StyleSheet.create({
-  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
-  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
   warningBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14 },
   warningTxt: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#92400E", lineHeight: 20 },
-  infoBox:    { backgroundColor: "#FBF8F6", borderRadius: 10, padding: 14, gap: 4 },
-  infoLabel:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
-  infoVal:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", marginBottom: 6 },
-  inputLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 6 },
-  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F", height: 90 },
+  infoBox:    { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 14, gap: 4 },
+  infoLabel:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  infoVal:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 6 },
+  inputLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 6 },
+  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827", height: 90 },
   confirmBtn: { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   confirmTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
@@ -641,7 +641,7 @@ function AutoBackupPanel({ token }: { token: string | null }) {
           <Text style={ap.sub}>{draft.auto_enabled ? "매 스케줄마다 자동 실행" : "수동 백업만 가능"}</Text>
         </View>
         <Switch value={draft.auto_enabled} onValueChange={v => setDraft({ ...draft, auto_enabled: v })}
-          trackColor={{ true: P, false: "#E9E2DD" }} thumbColor="#fff" />
+          trackColor={{ true: P, false: "#E5E7EB" }} thumbColor="#fff" />
       </View>
 
       {draft.auto_enabled && (
@@ -662,11 +662,11 @@ function AutoBackupPanel({ token }: { token: string | null }) {
             <Text style={ap.label}>실행 시간</Text>
             <View style={ap.hourPicker}>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, run_hour: (draft.run_hour - 1 + 24) % 24 })}>
-                <Feather name="chevron-left" size={16} color="#1F1F1F" />
+                <Feather name="chevron-left" size={16} color="#111827" />
               </Pressable>
               <Text style={ap.hourVal}>{p2(draft.run_hour)}:00</Text>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, run_hour: (draft.run_hour + 1) % 24 })}>
-                <Feather name="chevron-right" size={16} color="#1F1F1F" />
+                <Feather name="chevron-right" size={16} color="#111827" />
               </Pressable>
             </View>
           </View>
@@ -676,11 +676,11 @@ function AutoBackupPanel({ token }: { token: string | null }) {
             <Text style={ap.label}>보관 기간</Text>
             <View style={ap.hourPicker}>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, retention_days: Math.max(1, draft.retention_days - 1) })}>
-                <Feather name="chevron-left" size={16} color="#1F1F1F" />
+                <Feather name="chevron-left" size={16} color="#111827" />
               </Pressable>
               <Text style={ap.hourVal}>{draft.retention_days}일</Text>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, retention_days: Math.min(90, draft.retention_days + 1) })}>
-                <Feather name="chevron-right" size={16} color="#1F1F1F" />
+                <Feather name="chevron-right" size={16} color="#111827" />
               </Pressable>
             </View>
           </View>
@@ -698,19 +698,19 @@ function AutoBackupPanel({ token }: { token: string | null }) {
 }
 
 const ap = StyleSheet.create({
-  wrap:        { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 10, borderWidth: 1, borderColor: "#E9E2DD", marginBottom: 10 },
+  wrap:        { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 10, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 10 },
   row:         { flexDirection: "row", alignItems: "center", gap: 10 },
-  label:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", flex: 1 },
-  sub:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
-  divider:     { height: 1, backgroundColor: "#F6F3F1" },
+  label:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827", flex: 1 },
+  sub:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  divider:     { height: 1, backgroundColor: "#F8FAFC" },
   segRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
-  seg:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: "#F6F3F1" },
+  seg:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: "#F8FAFC" },
   segActive:   { backgroundColor: P },
-  segTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  segTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   segActiveTxt:{ color: "#fff" },
   hourPicker:  { flexDirection: "row", alignItems: "center", gap: 8 },
-  hourBtn:     { width: 30, height: 30, borderRadius: 8, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
-  hourVal:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F", minWidth: 50, textAlign: "center" },
+  hourBtn:     { width: 30, height: 30, borderRadius: 8, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
+  hourVal:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", minWidth: 50, textAlign: "center" },
   saveBtn:     { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12, marginTop: 4 },
   saveTxt:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
 });
@@ -773,10 +773,10 @@ function FullRestoreModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fr.header}>
           <Pressable onPress={handleClose} disabled={busy}>
-            <Feather name="x" size={20} color="#6F6B68" />
+            <Feather name="x" size={20} color="#6B7280" />
           </Pressable>
           <Text style={fr.title}>전체 복구</Text>
           <View style={{ width: 24 }} />
@@ -786,7 +786,7 @@ function FullRestoreModal({
           /* 결과 화면 */
           <View style={fr.resultWrap}>
             <View style={[fr.resultIcon, {
-              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#DDF2EF" : "#F9DEDA",
+              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#E6FFFA" : "#F9DEDA",
             }]}>
               <Feather
                 name={result.empty ? "info" : result.ok ? "check-circle" : "x-circle"}
@@ -864,7 +864,7 @@ function FullRestoreModal({
               </Text>
               <TextInput style={[fr.input, confirmText === "전체 복구" && { borderColor: DANGER }]}
                 value={confirmText} onChangeText={setConfirmText}
-                placeholder="전체 복구" placeholderTextColor="#9A948F"
+                placeholder="전체 복구" placeholderTextColor="#9CA3AF"
                 editable={!busy} autoCapitalize="none" />
             </View>
 
@@ -885,30 +885,30 @@ function FullRestoreModal({
 }
 
 const fr = StyleSheet.create({
-  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
-  title:          { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  stepTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  backupList:     { maxHeight: 220, borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 10 },
-  backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F6F3F1", flexDirection: "row", alignItems: "center", gap: 10 },
+  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  title:          { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
+  stepTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  backupList:     { maxHeight: 220, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10 },
+  backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F8FAFC", flexDirection: "row", alignItems: "center", gap: 10 },
   backupItemSel:  { backgroundColor: "#F3EEFF" },
-  backupItemDate: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  backupItemMeta: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6F6B68", marginTop: 2 },
-  backupItemNote: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+  backupItemDate: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  backupItemMeta: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  backupItemNote: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
   selectedBox:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
   selectedTxt:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: P, flex: 1 },
   warnBox:        { flexDirection: "row", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14, alignItems: "flex-start" },
   warnTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#92400E", marginBottom: 2 },
   warnTxt:        { fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
-  emptyBox:       { backgroundColor: "#F6F3F1", borderRadius: 8, padding: 16, alignItems: "center" },
-  emptyTxt:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
-  inputLabel:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 8 },
-  input:          { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
+  emptyBox:       { backgroundColor: "#F8FAFC", borderRadius: 8, padding: 16, alignItems: "center" },
+  emptyTxt:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  inputLabel:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 8 },
+  input:          { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
   execBtn:        { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   execTxt:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
   resultWrap:     { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 16 },
   resultIcon:     { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
   resultTitle:    { fontSize: 20, fontFamily: "Inter_700Bold" },
-  resultMsg:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#6F6B68", textAlign: "center", lineHeight: 22 },
+  resultMsg:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center", lineHeight: 22 },
 });
 
 // ── 수영장별 복구 모달 ─────────────────────────────────────────────────────────
@@ -1001,10 +1001,10 @@ function PoolRestoreModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F6" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={pr.header}>
           <Pressable onPress={handleClose} disabled={busy}>
-            <Feather name="x" size={20} color="#6F6B68" />
+            <Feather name="x" size={20} color="#6B7280" />
           </Pressable>
           <Text style={pr.title}>수영장별 복구</Text>
           <View style={{ width: 24 }} />
@@ -1013,7 +1013,7 @@ function PoolRestoreModal({
         {result ? (
           <View style={fr.resultWrap}>
             <View style={[fr.resultIcon, {
-              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#DDF2EF" : "#F9DEDA",
+              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#E6FFFA" : "#F9DEDA",
             }]}>
               <Feather
                 name={result.empty ? "info" : result.ok ? "check-circle" : "x-circle"}
@@ -1040,11 +1040,11 @@ function PoolRestoreModal({
             {/* Step 1: 수영장 검색 */}
             <Text style={pr.stepTitle}>1단계 — 수영장 검색 및 선택</Text>
             <View style={pr.searchBox}>
-              <Feather name="search" size={16} color="#9A948F" />
+              <Feather name="search" size={16} color="#9CA3AF" />
               <TextInput style={pr.searchInput} value={searchQ}
                 onChangeText={setSearchQ}
                 placeholder="수영장명 검색 (예: 토이키즈)"
-                placeholderTextColor="#9A948F"
+                placeholderTextColor="#9CA3AF"
                 autoCapitalize="none" editable={!busy} />
               {searching && <ActivityIndicator size="small" color={P} />}
             </View>
@@ -1142,7 +1142,7 @@ function PoolRestoreModal({
                 <TextInput style={[fr.input, confirmName === selectedPool.name && { borderColor: DANGER }]}
                   value={confirmName} onChangeText={setConfirmName}
                   placeholder={selectedPool.name}
-                  placeholderTextColor="#9A948F"
+                  placeholderTextColor="#9CA3AF"
                   editable={!busy} autoCapitalize="none" />
               </View>
             )}
@@ -1164,24 +1164,24 @@ function PoolRestoreModal({
 }
 
 const pr = StyleSheet.create({
-  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
-  title:          { fontSize: 16, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  stepTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
+  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  title:          { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
+  stepTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
   searchBox:      { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  searchInput:    { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
-  resultList:     { borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 10, overflow: "hidden", maxHeight: 200 },
+  searchInput:    { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  resultList:     { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, overflow: "hidden", maxHeight: 200 },
   noResult:       { padding: 16, alignItems: "center" },
-  noResultTxt:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
-  poolItem:       { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F6F3F1", flexDirection: "row", alignItems: "center", gap: 8 },
+  noResultTxt:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  poolItem:       { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F8FAFC", flexDirection: "row", alignItems: "center", gap: 8 },
   poolItemSel:    { backgroundColor: "#F3EEFF" },
-  poolName:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
-  poolSub:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 1 },
+  poolName:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  poolSub:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
   selectedPoolBox:{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
   selectedPoolTxt:{ fontSize: 13, fontFamily: "Inter_400Regular", color: P, flex: 1 },
-  backupList:     { maxHeight: 200, borderWidth: 1, borderColor: "#E9E2DD", borderRadius: 10 },
-  backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F6F3F1", flexDirection: "row", alignItems: "center", gap: 10 },
+  backupList:     { maxHeight: 200, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10 },
+  backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F8FAFC", flexDirection: "row", alignItems: "center", gap: 10 },
   backupItemSel:  { backgroundColor: "#F3EEFF" },
-  inputLabel:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1F1F1F", marginBottom: 8 },
+  inputLabel:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 8 },
 });
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
@@ -1455,21 +1455,21 @@ export default function BackupScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#FBF8F6" },
+  safe:          { flex: 1, backgroundColor: "#F1F5F9" },
   summaryRow:    { flexDirection: "row", gap: 8 },
-  summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 4, borderWidth: 1, borderColor: "#E9E2DD" },
-  summaryVal:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  summaryKey:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 4, borderWidth: 1, borderColor: "#E5E7EB" },
+  summaryVal:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  summaryKey:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   btnRow:        { flexDirection: "row", gap: 8 },
   actionBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: P, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },
   actionBtnTxt:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
   outlineBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
   outlineBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: P },
-  tab:           { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#F6F3F1" },
+  tab:           { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#F8FAFC" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6F6B68" },
+  tabTxt:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
   tabActiveTxt:  { color: "#fff" },
   empty:         { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#9A948F" },
-  emptySubTxt:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  emptyTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#9CA3AF" },
+  emptySubTxt:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 });

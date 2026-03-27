@@ -8,7 +8,7 @@ import type { SuperAdminAccount, SuperAdminSession } from "@/domain/types";
 export const P      = "#7C3AED";
 export const DANGER = "#D96C6C";
 export const WARN   = "#D97706";
-export const GREEN  = "#1F8F86";
+export const GREEN  = "#2EC4B6";
 
 // ─── 2차 인증 ───────────────────────────────────────────────────────────────
 export type TwoFAMode = "disabled" | "otp" | "sms" | "email" | "otp_sms_backup";
@@ -58,18 +58,18 @@ export interface ExtService {
 }
 
 export const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string; icon: string }> = {
-  normal:       { label: "정상",       color: GREEN,    bg: "#DDF2EF", icon: "check-circle" },
+  normal:       { label: "정상",       color: GREEN,    bg: "#E6FFFA", icon: "check-circle" },
   caution:      { label: "주의",       color: "#D97706", bg: "#FEF3C7", icon: "alert-circle" },
   warning:      { label: "경고",       color: "#DC6803", bg: "#FFF1BF", icon: "alert-triangle" },
   error:        { label: "작동 안 됨", color: DANGER,   bg: "#FEE2E2", icon: "x-circle" },
   disconnected: { label: "끊김",       color: "#DC2626", bg: "#FEE2E2", icon: "wifi-off" },
   unconnected:  { label: "미연결",     color: "#6B7280", bg: "#F3F4F6", icon: "minus-circle" },
   checking:     { label: "점검중",     color: "#8B5CF6", bg: "#EDE9FE", icon: "loader" },
-  planned:      { label: "예정",       color: "#9A948F", bg: "#F6F3F1", icon: "clock" },
+  planned:      { label: "예정",       color: "#9CA3AF", bg: "#F8FAFC", icon: "clock" },
 };
 
 export const CATEGORY_CFG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-  data:      { label: "데이터/인프라",  icon: "database",    color: GREEN,    bg: "#DDF2EF" },
+  data:      { label: "데이터/인프라",  icon: "database",    color: GREEN,    bg: "#E6FFFA" },
   payment:   { label: "결제/정산",      icon: "credit-card", color: P,        bg: "#EEDDF5" },
   messaging: { label: "알림/메시징",    icon: "bell",        color: "#D97706", bg: "#FEF3C7" },
   appstore:  { label: "앱스토어/배포",  icon: "package",     color: "#0284C7", bg: "#E0F2FE" },

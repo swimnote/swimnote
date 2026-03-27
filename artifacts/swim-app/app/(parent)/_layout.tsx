@@ -46,7 +46,7 @@ function ApprovalPendingScreen({ status }: { status: string }) {
         {!isRejected && (
           <View style={[g.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
             <InfoRow icon="check-circle" color="#2E9B6F" text="자녀 정보 일치 시 즉시 자동 승인" />
-            <InfoRow icon="user-check"  color="#1F8F86" text="관리자 수동 승인 시 알림 발송" />
+            <InfoRow icon="user-check"  color="#2EC4B6" text="관리자 수동 승인 시 알림 발송" />
             <InfoRow icon="clock"       color="#E4A93A" text="일반적으로 1~2 영업일 이내 처리" />
           </View>
         )}

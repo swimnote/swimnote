@@ -231,7 +231,7 @@ export function HolidayModal({ visible, onClose, poolId, token, themeColor }: Ho
                       const isSat   = di === 6;
                       return (
                         <Pressable key={dateStr} style={[hm.calCell, { width: CELL }]} onPress={() => toggleDay(dateStr)}>
-                          <View style={[hm.dayCircle, isHoli && { backgroundColor: isSun || isPubH ? "#D96C6C" : "#1F1F1F" }]}>
+                          <View style={[hm.dayCircle, isHoli && { backgroundColor: isSun || isPubH ? "#D96C6C" : "#111827" }]}>
                             <Text style={[hm.dayNum, isHoli ? { color: "#fff" } : isSun || isPubH ? { color: "#D96C6C" } : isSat ? { color: themeColor } : { color: C.text }]}>{dayNum}</Text>
                           </View>
                           {isHoli && <Text style={hm.holiLabel}>휴</Text>}
@@ -242,7 +242,7 @@ export function HolidayModal({ visible, onClose, poolId, token, themeColor }: Ho
                 ))}
                 <View style={hm.legend}>
                   <View style={hm.legendItem}><View style={[hm.legendDot, { backgroundColor: "#D96C6C" }]} /><Text style={[hm.legendTxt, { color: C.textMuted }]}>공휴일·일요일</Text></View>
-                  <View style={hm.legendItem}><View style={[hm.legendDot, { backgroundColor: "#1F1F1F" }]} /><Text style={[hm.legendTxt, { color: C.textMuted }]}>지정 휴무일</Text></View>
+                  <View style={hm.legendItem}><View style={[hm.legendDot, { backgroundColor: "#111827" }]} /><Text style={[hm.legendTxt, { color: C.textMuted }]}>지정 휴무일</Text></View>
                 </View>
               </View>
             )}

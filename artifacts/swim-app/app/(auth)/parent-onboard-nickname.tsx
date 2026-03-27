@@ -144,7 +144,7 @@ export default function ParentOnboardNicknameScreen() {
             <Text style={[styles.skipBtnText, { color: C.textSecondary }]}>나중에 설정</Text>
           </Pressable>
           <Pressable
-            style={({ pressed }) => [styles.confirmBtn, { backgroundColor: C.tint, opacity: pressed || loading ? 0.85 : 1, flex: 1 }]}
+            style={({ pressed }) => [styles.confirmBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1, flex: 1 }]}
             onPress={handleConfirm}
             disabled={loading}
           >

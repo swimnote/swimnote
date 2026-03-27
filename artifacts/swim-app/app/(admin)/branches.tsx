@@ -12,7 +12,7 @@ import { ModalSheet } from "@/components/common/ModalSheet";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
-const TINT = "#1F8F86";
+const TINT = "#2EC4B6";
 
 type CopyOption = "levels" | "pricing";
 

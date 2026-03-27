@@ -141,7 +141,7 @@ export default function OrgRoleSelectScreen() {
               현재 승인된 역할이 없습니다.{"\n"}관리자에게 문의하거나 새로 가입해주세요.
             </Text>
             <Pressable
-              style={({ pressed }) => [styles.signupBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.signupBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
               onPress={() => router.push("/signup-role" as any)}
             >
               <Text style={styles.signupBtnText}>회원가입하기</Text>

@@ -51,15 +51,15 @@ const SECTIONS: Section[] = [
     key: "introduction",
     icon: "map-pin",
     label: "수영장 소개",
-    color: "#1F8F86",
-    bg: "#DDF2EF",
+    color: "#2EC4B6",
+    bg: "#E6FFFA",
     placeholder: "수영장 소개 정보가 등록되면 여기에 표시됩니다.",
   },
   {
     key: "tuition_info",
     icon: "credit-card",
     label: "수업료 안내",
-    color: "#1F8F86",
+    color: "#2EC4B6",
     bg: "#DFF3EC",
     placeholder: "수업료 안내 정보가 등록되면 여기에 표시됩니다.",
   },
@@ -264,7 +264,7 @@ const sl = StyleSheet.create({
   levelCard: {
     borderRadius: 16, padding: 14,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
-    borderWidth: 1, borderColor: "#E9E2DD",
+    borderWidth: 1, borderColor: "#E5E7EB",
   },
 });
 

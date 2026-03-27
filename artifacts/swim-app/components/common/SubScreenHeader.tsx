@@ -126,7 +126,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
-    backgroundColor: "#F6F3F1",
+    backgroundColor: "#F8FAFC",
   },
   placeholder: {
     width: 38,

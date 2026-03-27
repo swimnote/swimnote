@@ -18,7 +18,7 @@ import { useOperatorsStore } from "@/store/operatorsStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { StoragePolicy } from "@/domain/types";
 
-const GREEN = "#1F8F86";
+const GREEN = "#2EC4B6";
 const WARN  = "#D97706";
 const DANGER= "#D96C6C";
 
@@ -202,11 +202,11 @@ export default function StorageScreen() {
             <Pressable style={[s.actionBtn, { backgroundColor: "#ECFEFF" }]}
               onPress={() => doEmergencyOverride(p)} disabled={overrideLoading === p.operatorId}>
               {overrideLoading === p.operatorId
-                ? <ActivityIndicator size="small" color="#1F8F86" />
-                : <Text style={[s.actionTxt, { color: "#1F8F86" }]}>24h허용</Text>}
+                ? <ActivityIndicator size="small" color="#2EC4B6" />
+                : <Text style={[s.actionTxt, { color: "#2EC4B6" }]}>24h허용</Text>}
             </Pressable>
           ) : null}
-          <Pressable style={[s.actionBtn, { backgroundColor: "#DDF2EF" }]}
+          <Pressable style={[s.actionBtn, { backgroundColor: "#E6FFFA" }]}
             onPress={() => { setEditOp(p); setNewStorageMb("0"); }}>
             <Text style={[s.actionTxt, { color: GREEN }]}>용량↑</Text>
           </Pressable>
@@ -220,8 +220,8 @@ export default function StorageScreen() {
       <SubScreenHeader title="저장공간 관리" homePath="/(super)/dashboard"
         rightSlot={
           <Pressable onPress={() => router.push("/(super)/storage-policy" as any)}
-            style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" }}>
-            <Feather name="settings" size={18} color="#6F6B68" />
+            style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" }}>
+            <Feather name="settings" size={18} color="#6B7280" />
           </Pressable>
         }
       />
@@ -273,7 +273,7 @@ export default function StorageScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={GREEN}
           onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
         contentContainerStyle={{ paddingBottom: 80 }}
-        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F6F3F1" }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F8FAFC" }} />}
         ListEmptyComponent={
           <View style={s.empty}>
             <Feather name="hard-drive" size={30} color="#D1D5DB" />
@@ -308,7 +308,7 @@ export default function StorageScreen() {
                   ))}
                 </View>
                 <TextInput style={m.input} value={newStorageMb} onChangeText={setNewStorageMb}
-                  keyboardType="decimal-pad" placeholder="직접 입력 (GB)" placeholderTextColor="#9A948F" />
+                  keyboardType="decimal-pad" placeholder="직접 입력 (GB)" placeholderTextColor="#9CA3AF" />
                 {parseFloat(newStorageMb) > 0 && (
                   <View style={m.costEstimate}>
                     <Feather name="dollar-sign" size={13} color={GREEN} />
@@ -379,12 +379,12 @@ export default function StorageScreen() {
               </View>
 
               <View style={m.ctaOption}>
-                <Feather name="clock" size={20} color="#1F8F86" />
+                <Feather name="clock" size={20} color="#2EC4B6" />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>긴급 업로드 허용 24h</Text>
                   <Text style={m.ctaOptionDesc}>임시 1GB 추가 · 관리자 override</Text>
                 </View>
-                <Pressable style={[m.ctaBtn, { backgroundColor: "#1F8F86" }]}
+                <Pressable style={[m.ctaBtn, { backgroundColor: "#2EC4B6" }]}
                   onPress={() => { doEmergencyOverride(ctaModal); setCtaModal(null); }}>
                   <Text style={m.ctaBtnTxt}>허용</Text>
                 </Pressable>
@@ -405,11 +405,11 @@ const s = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: "#DFF3EC" },
   policyBanner:   { flexDirection: "row", backgroundColor: "#F0F9FF", paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#BAE6FD" },
   policyBannerTxt:{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#0369A1" },
-  tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD", flexGrow: 0 },
+  tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   tabContent:     { paddingHorizontal: 12, paddingVertical: 6, gap: 4 },
   tab:            { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  tabActive:      { backgroundColor: "#DDF2EF" },
-  tabTxt:         { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6F6B68" },
+  tabActive:      { backgroundColor: "#E6FFFA" },
+  tabTxt:         { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280" },
   tabTxtActive:   { color: GREEN, fontFamily: "Inter_700Bold" },
   tabBadge:       { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 7 },
   tabBadgeTxt:    { fontSize: 10, fontFamily: "Inter_700Bold", color: DANGER },
@@ -421,7 +421,7 @@ const s = StyleSheet.create({
   rowWarn:        { borderLeftWidth: 3, borderLeftColor: "#FCD34D" },
   rowMain:        { flex: 1, gap: 4 },
   rowTop:         { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  opName:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  opName:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
   blockedTag:     { backgroundColor: "#F9DEDA", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   blockedTagTxt:  { fontSize: 9, fontFamily: "Inter_700Bold", color: DANGER },
   dangerTag:      { backgroundColor: "#FFF1BF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
@@ -431,12 +431,12 @@ const s = StyleSheet.create({
   spikeTag:       { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FFF1BF", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
   spikeTxt:       { fontSize: 9, fontFamily: "Inter_700Bold", color: WARN },
   barRow:         { flexDirection: "row", alignItems: "center", gap: 6 },
-  barBg:          { flex: 1, height: 7, borderRadius: 3.5, backgroundColor: "#F6F3F1", overflow: "hidden", position: "relative" },
+  barBg:          { flex: 1, height: 7, borderRadius: 3.5, backgroundColor: "#F8FAFC", overflow: "hidden", position: "relative" },
   barFill:        { height: 7, borderRadius: 3.5 },
   barMark:        { position: "absolute", top: 0, bottom: 0, width: 1.5, backgroundColor: WARN, opacity: 0.5 },
   pctTxt:         { fontSize: 12, fontFamily: "Inter_700Bold", width: 34, textAlign: "right" },
   rowMeta:        { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaTxt:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  metaTxt:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   metaDot:        { fontSize: 10, color: "#D1D5DB" },
   ctaBar:         { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF1BF",
                     paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: "#FED7AA" },
@@ -447,7 +447,7 @@ const s = StyleSheet.create({
   actionBtn:      { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, minWidth: 44, alignItems: "center" },
   actionTxt:      { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   empty:          { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:       { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  emptyTxt:       { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 });
 
 const m = StyleSheet.create({
@@ -455,31 +455,31 @@ const m = StyleSheet.create({
   sheet:          { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                     borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "80%", gap: 14 },
   handle:         { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:          { fontSize: 17, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  sub:            { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: -8 },
-  infoBar:        { backgroundColor: "#F6F3F1", borderRadius: 8, padding: 8 },
-  barBg:          { height: 8, borderRadius: 4, backgroundColor: "#E9E2DD", overflow: "hidden" },
+  title:          { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
+  sub:            { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: -8 },
+  infoBar:        { backgroundColor: "#F8FAFC", borderRadius: 8, padding: 8 },
+  barBg:          { height: 8, borderRadius: 4, backgroundColor: "#E5E7EB", overflow: "hidden" },
   barFill:        { height: 8, borderRadius: 4 },
   section:        { gap: 8 },
-  label:          { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  label:          { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
   qtyRow:         { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  qtyBtn:         { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: "#E9E2DD", backgroundColor: "#FBF8F6" },
+  qtyBtn:         { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F1F5F9" },
   qtyBtnActive:   { backgroundColor: GREEN, borderColor: GREEN },
-  qtyTxt:         { fontSize: 13, fontFamily: "Inter_500Medium", color: "#1F1F1F" },
-  input:          { borderWidth: 1.5, borderColor: "#E9E2DD", borderRadius: 10, padding: 12,
-                    fontSize: 14, fontFamily: "Inter_400Regular", color: "#1F1F1F" },
-  costEstimate:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#DDF2EF", padding: 10, borderRadius: 10 },
+  qtyTxt:         { fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827" },
+  input:          { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
+                    fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  costEstimate:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#E6FFFA", padding: 10, borderRadius: 10 },
   costTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#065F46" },
   btnRow:         { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn:      { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F6F3F1" },
-  cancelBtnFull:  { paddingVertical: 12, borderRadius: 10, backgroundColor: "#F6F3F1", alignItems: "center" },
-  cancelTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1F1F1F" },
+  cancelBtn:      { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
+  cancelBtnFull:  { paddingVertical: 12, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center" },
+  cancelTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
   saveBtn:        { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: GREEN },
   saveTxt:        { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
   ctaOption:      { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12,
-                    backgroundColor: "#FBF8F6", borderWidth: 1, borderColor: "#E9E2DD" },
-  ctaOptionTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1F1F1F" },
-  ctaOptionDesc:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F", marginTop: 2 },
+                    backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#E5E7EB" },
+  ctaOptionTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  ctaOptionDesc:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
   ctaBtn:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   ctaBtnTxt:      { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
 });

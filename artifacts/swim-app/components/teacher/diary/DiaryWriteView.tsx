@@ -113,8 +113,8 @@ export default function DiaryWriteView({
             <Pressable style={[s.mediaBtn, { backgroundColor: "#FFF1BF" }]} onPress={() => onUploadGroupMedia("photo")} disabled={mediaUploading === "group"}>
               {mediaUploading === "group" ? <ActivityIndicator size="small" color="#E4A93A" /> : <><Feather name="image" size={14} color="#E4A93A" /><Text style={[s.mediaBtnText, { color: "#E4A93A" }]}>반 사진 추가</Text></>}
             </Pressable>
-            <Pressable style={[s.mediaBtn, { backgroundColor: "#DDF2EF" }]} onPress={() => onUploadGroupMedia("video")} disabled={mediaUploading === "group"}>
-              <Feather name="video" size={14} color="#1F8F86" /><Text style={[s.mediaBtnText, { color: "#1F8F86" }]}>반 영상 추가</Text>
+            <Pressable style={[s.mediaBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => onUploadGroupMedia("video")} disabled={mediaUploading === "group"}>
+              <Feather name="video" size={14} color="#2EC4B6" /><Text style={[s.mediaBtnText, { color: "#2EC4B6" }]}>반 영상 추가</Text>
             </Pressable>
           </View>
           {groupMedia.length > 0 && (
@@ -122,8 +122,8 @@ export default function DiaryWriteView({
               {groupMedia.map((m, i) => (
                 <View key={i} style={s.mediaThumb}>
                   {m.kind === "photo"
-                    ? <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={20} color={m.uploaded ? "#1F8F86" : m.error ? "#D96C6C" : "#E4A93A"} />
-                    : <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={20} color={m.uploaded ? "#1F8F86" : m.error ? "#D96C6C" : "#1F8F86"} />}
+                    ? <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={20} color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#E4A93A"} />
+                    : <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={20} color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#2EC4B6"} />}
                   {m.uploading && <ActivityIndicator size="small" color={C.tint} style={{ position: "absolute" }} />}
                 </View>
               ))}
@@ -166,7 +166,7 @@ export default function DiaryWriteView({
                       {stMedia.map((m, i) => (
                         <View key={i} style={s.mediaThumb}>
                           <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : (m.kind === "photo" ? "image" : "video")} size={16}
-                            color={m.uploaded ? "#1F8F86" : m.error ? "#D96C6C" : "#7C3AED"} />
+                            color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#7C3AED"} />
                         </View>
                       ))}
                     </View>
@@ -230,10 +230,10 @@ export default function DiaryWriteView({
           </View>
         )}
         {saveMsg && (
-          <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#DDF2EF" : "#F9DEDA" }]}>
+          <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#E6FFFA" : "#F9DEDA" }]}>
             <Feather name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
-              color={saveMsg.type === "success" ? "#1F8F86" : C.error} />
-            <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? "#1F8F86" : C.error }]}>{saveMsg.text}</Text>
+              color={saveMsg.type === "success" ? "#2EC4B6" : C.error} />
+            <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? "#2EC4B6" : C.error }]}>{saveMsg.text}</Text>
           </View>
         )}
         <View style={{ flexDirection: "row", gap: 10 }}>
@@ -273,7 +273,7 @@ export const s = StyleSheet.create({
   cardHeader:    { flexDirection: "row", alignItems: "center", gap: 8 },
   cardIcon:      { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   cardTitle:     { fontSize: 14, fontFamily: "Inter_700Bold", flex: 1 },
-  cardSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  cardSub:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   templateBtn:   { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, alignSelf: "flex-start" },
   templateBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   templateList:  { gap: 6 },
@@ -282,7 +282,7 @@ export const s = StyleSheet.create({
   templateCategory: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   textarea:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: "#fff" },
   textareaFooter:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
-  charCount:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  charCount:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.tintLight, backgroundColor: "#F0F5FF" },
   sentencePickBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: Colors.light.tint },
   emptyStudents: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
@@ -294,7 +294,7 @@ export const s = StyleSheet.create({
   editNoteItem:  { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   editNoteHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   noteName:      { fontSize: 12, fontFamily: "Inter_700Bold", color: "#7C3AED" },
-  noteContent:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#1F1F1F", lineHeight: 18 },
+  noteContent:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827", lineHeight: 18 },
   noteInput:     { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
   noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: "#fff" },
   noteBtn:       { flex: 1, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
@@ -302,8 +302,8 @@ export const s = StyleSheet.create({
   mediaBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
   mediaBtnText:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   mediaPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
-  mediaThumb:    { width: 36, height: 36, borderRadius: 8, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" },
-  footer:        { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E9E2DD" },
+  mediaThumb:    { width: 36, height: 36, borderRadius: 8, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
+  footer:        { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
   cancelBtnFt:   { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   cancelBtnFtText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   saveBtn:       { flexDirection: "row", height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 8 },
@@ -315,12 +315,12 @@ export const s = StyleSheet.create({
   infoCard:      { borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 8 },
   infoCardRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
   infoCardText:  { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  subHeader:     { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E9E2DD" },
+  subHeader:     { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tabBtn:        { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   tabBtnText:    { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   diaryList:     { padding: 12, gap: 10, paddingBottom: 120 },
   diaryCard:     { borderRadius: 14, padding: 14, gap: 8 },
-  diaryCardEditable: { borderWidth: 1.5, borderColor: "#DDF2EF" },
+  diaryCardEditable: { borderWidth: 1.5, borderColor: "#E6FFFA" },
   badgeRow:      { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   diaryCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   diaryCardDate: { fontSize: 15, fontFamily: "Inter_700Bold" },
@@ -328,12 +328,12 @@ export const s = StyleSheet.create({
   diaryContent:  { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
   iconBtn:       { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   emptyBox:      { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyText:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9A948F" },
+  emptyText:     { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   delOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 },
   delSheet:      { width: "100%", borderRadius: 22, padding: 24, alignItems: "center", gap: 14 },
   delIconWrap:   { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   delTitle:      { fontSize: 18, fontFamily: "Inter_700Bold" },
   delDesc:       { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
   delBtn:        { height: 48, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  safe:          { flex: 1, backgroundColor: "#F6F3F1" },
+  safe:          { flex: 1, backgroundColor: "#F8FAFC" },
 });

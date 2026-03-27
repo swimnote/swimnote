@@ -31,9 +31,9 @@ const C = Colors.light;
 
 // 매칭 상태 설정
 const MATCH_CFG: Record<MatchStatus, { label: string; color: string; bg: string; icon: string }> = {
-  full_match:  { label: "자동 일치", color: "#1F8F86", bg: "#DDF2EF", icon: "zap"         },
+  full_match:  { label: "자동 일치", color: "#2EC4B6", bg: "#E6FFFA", icon: "zap"         },
   phone_only:  { label: "번호만 일치", color: "#D97706", bg: "#FFF1BF", icon: "phone"     },
-  no_match:    { label: "미일치",    color: "#6F6B68", bg: "#F6F3F1", icon: "alert-circle" },
+  no_match:    { label: "미일치",    color: "#6B7280", bg: "#F8FAFC", icon: "alert-circle" },
 };
 
 const JOIN_STATUS_CFG: Record<JoinStatus, { label: string }> = {
@@ -395,7 +395,7 @@ export default function ApprovalsScreen() {
         ))}
         {lastInvite && (
           <View style={x.inviteHint}>
-            <Feather name="send" size={11} color="#1F8F86" />
+            <Feather name="send" size={11} color="#2EC4B6" />
             <Text style={x.inviteHintTxt}>
               초대 이력 있음 · {lastInvite.senderName} ·{" "}
               {new Date(lastInvite.createdAt).toLocaleDateString("ko-KR")}
@@ -635,15 +635,15 @@ const x = StyleSheet.create({
   childBox:    { gap: 6 },
   matchRow:    { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
   matchTxt:    { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  autoChip:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "#DDF2EF" },
-  autoChipTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#1F8F86" },
+  autoChip:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "#E6FFFA" },
+  autoChipTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#2EC4B6" },
   childTitle:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 2 },
   childRow:    { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
   childName:    { fontSize: 13, fontFamily: "Inter_500Medium", color: C.text },
   childYear:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
   inviteHint:   { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2,
                   backgroundColor: "#ECFEFF", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  inviteHintTxt:{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#1F8F86", flex: 1 },
+  inviteHintTxt:{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#2EC4B6", flex: 1 },
 });
 
 const s = StyleSheet.create({
@@ -653,6 +653,6 @@ const s = StyleSheet.create({
   unlinkAvatarTxt:{ fontSize: 17, fontFamily: "Inter_700Bold" },
   unlinkName:    { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   unlinkSub:     { fontSize: 12, fontFamily: "Inter_400Regular" },
-  smsBtn:        { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#1F8F86", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  smsBtn:        { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#2EC4B6", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   smsBtnTxt:     { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });

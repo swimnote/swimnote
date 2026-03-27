@@ -8,8 +8,8 @@ import type { ActivityLog } from "./memberDetailTypes";
 const C = Colors.light;
 
 const ACTION_META: Record<string, { label: string; color: string }> = {
-  update:  { label: "수정",  color: "#1F8F86" },
-  create:  { label: "등록",  color: "#1F8F86" },
+  update:  { label: "수정",  color: "#2EC4B6" },
+  create:  { label: "등록",  color: "#2EC4B6" },
   delete:  { label: "삭제",  color: "#D96C6C" },
   restore: { label: "복구",  color: "#7C3AED" },
   assign:  { label: "반배정", color: "#D97706" },
@@ -63,7 +63,7 @@ export function MemberLogTab({ logs }: MemberLogTabProps) {
                   {(log.before_value || log.after_value) && (
                     <View style={{ marginTop: 6, gap: 3 }}>
                       {log.before_value && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C" }}>이전: {log.before_value}</Text>}
-                      {log.after_value  && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#1F8F86" }}>변경: {log.after_value}</Text>}
+                      {log.after_value  && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#2EC4B6" }}>변경: {log.after_value}</Text>}
                     </View>
                   )}
                   {log.note && (

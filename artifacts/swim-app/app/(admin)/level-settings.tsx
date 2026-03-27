@@ -14,7 +14,7 @@ import { ConfirmModal } from "@/components/common/ConfirmModal";
 const C = Colors.light;
 
 const BADGE_COLORS = [
-  { label: "청록",  value: "#1F8F86" },
+  { label: "청록",  value: "#2EC4B6" },
   { label: "파랑",  value: "#3B82F6" },
   { label: "빨강",  value: "#EF4444" },
   { label: "초록",  value: "#22C55E" },
@@ -51,7 +51,7 @@ const DEFAULT: LevelSetting[] = Array.from({ length: 10 }, (_, i) => ({
   promotion_test_rule: "",
   badge_type: "text",
   badge_label: String(i + 1),
-  badge_color: "#1F8F86",
+  badge_color: "#2EC4B6",
   badge_text_color: "#FFFFFF",
   is_active: true,
 }));
@@ -165,7 +165,7 @@ export default function LevelSettingsScreen() {
           ))}
 
           {changed && (
-            <Pressable style={[s.bottomSave, { backgroundColor: C.tint }]} onPress={save} disabled={saving}>
+            <Pressable style={[s.bottomSave, { backgroundColor: C.button }]} onPress={save} disabled={saving}>
               {saving
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <Text style={s.bottomSaveTxt}>변경사항 저장</Text>
@@ -254,7 +254,7 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onTog
           )}
         </View>
         <Pressable
-          style={[s.activeToggle, { backgroundColor: inactive ? "#F3F4F6" : "#DDF2EF", borderColor: inactive ? C.border : "#A7D9D6" }]}
+          style={[s.activeToggle, { backgroundColor: inactive ? "#F3F4F6" : "#E6FFFA", borderColor: inactive ? C.border : "#A7D9D6" }]}
           onPress={(e) => { e.stopPropagation(); onToggleActive(); }}
           hitSlop={8}
         >

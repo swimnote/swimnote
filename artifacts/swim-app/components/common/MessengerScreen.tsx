@@ -443,7 +443,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               )}
               {isDirected && (
                 <View style={[s.directedTag, isMine ? s.directedTagRight : s.directedTagLeft]}>
-                  <Feather name="at-sign" size={10} color="#6F6B68" />
+                  <Feather name="at-sign" size={10} color="#6B7280" />
                   <Text style={s.directedTagText}>
                     {isMine
                       ? `${extra.target_user_name}에게만`
@@ -672,7 +672,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <View style={s.sheetHandle} />
             <Text style={s.sheetTitle}>첨부</Text>
             <TouchableOpacity style={s.sheetItem} onPress={handleFileAttach} activeOpacity={0.7}>
-              <View style={[s.sheetIcon, { backgroundColor: "#DDF2EF" }]}>
+              <View style={[s.sheetIcon, { backgroundColor: "#E6FFFA" }]}>
                 <Feather name="paperclip" size={22} color="#4EA7D8" />
               </View>
               <View style={s.sheetItemText}>
@@ -920,7 +920,7 @@ function AttachFileBubble({
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
           <View style={s.fileCard}>
-            <View style={[s.fileIconBox, { backgroundColor: isImage ? "#DDF2EF" : "#FBF8F6" }]}>
+            <View style={[s.fileIconBox, { backgroundColor: isImage ? "#E6FFFA" : "#F1F5F9" }]}>
               <Feather name={isImage ? "image" : "file"} size={20} color={isImage ? "#4EA7D8" : C.textSecondary} />
             </View>
             <View style={s.fileInfo}>
@@ -1013,7 +1013,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: "#F6F3F1",
+    backgroundColor: "#F8FAFC",
     borderRadius: 8,
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -1093,7 +1093,7 @@ const s = StyleSheet.create({
   targetBadgeText: { flex: 1, fontSize: 12, color: PRIMARY, fontFamily: "Inter_500Medium" },
 
   /* 입력창 */
-  inputArea: { backgroundColor: "#FBF8F6", borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8, paddingHorizontal: 8 },
+  inputArea: { backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8, paddingHorizontal: 8 },
   noticeInputArea: { backgroundColor: NOTICE_YELLOW_BG, borderTopColor: NOTICE_YELLOW_BORDER },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
   sideBtn: { width: 36, height: 38, justifyContent: "center", alignItems: "center" },

@@ -224,7 +224,7 @@ export default function NoticesScreen() {
               </Text>
             </Pressable>
             {!sel.selectionMode && (
-              <Pressable style={[styles.addBtn, { backgroundColor: C.tint }]} onPress={() => setShowModal(true)}>
+              <Pressable style={[styles.addBtn, { backgroundColor: C.button }]} onPress={() => setShowModal(true)}>
                 <Feather name="edit-3" size={16} color="#fff" />
                 <Text style={styles.addBtnText}>작성</Text>
               </Pressable>
@@ -345,7 +345,7 @@ export default function NoticesScreen() {
               </Pressable>
 
               <Pressable
-                style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.tint, opacity: pressed || saving || uploading ? 0.75 : 1, marginTop: 4 }]}
+                style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.button, opacity: pressed || saving || uploading ? 0.75 : 1, marginTop: 4 }]}
                 onPress={handleCreate}
                 disabled={saving || uploading}
               >
@@ -468,14 +468,14 @@ const styles = StyleSheet.create({
   statText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   statDivider: { width: 1, height: 14 },
   deleteBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  selCheckbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB", backgroundColor: "#FBF8F6", alignItems: "center", justifyContent: "center" },
+  selCheckbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB", backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
   cardMeta: { flexDirection: "row", justifyContent: "space-between" },
   metaText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14, maxHeight: "90%" },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E9E2DD", alignSelf: "center", marginBottom: 8 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 8 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
   modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
   errorText: { fontSize: 13, fontFamily: "Inter_400Regular" },

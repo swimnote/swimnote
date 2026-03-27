@@ -47,7 +47,7 @@ type AttStatus = "present" | "absent" | "late";
 type ViewMode  = "daily" | "weekly" | "monthly" | "search" | "makeup";
 
 const STATUS_CONFIG = {
-  present: { label: "출석", color: Colors.light.present, bg: "#DDF2EF", icon: "check-circle" as const },
+  present: { label: "출석", color: Colors.light.present, bg: "#E6FFFA", icon: "check-circle" as const },
   absent:  { label: "결석", color: Colors.light.absent,  bg: "#F9DEDA", icon: "x-circle"    as const },
   late:    { label: "지각", color: Colors.light.late,    bg: "#FFF1BF", icon: "clock"        as const },
 };
@@ -459,8 +459,8 @@ export default function AttendanceScreen() {
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                             <Text style={[a.eligibleName, { color: C.text }]}>{ec.name}</Text>
                             {isSame && (
-                              <View style={[a.sameTag, { backgroundColor: "#DDF2EF" }]}>
-                                <Text style={{ fontSize: 10, color: "#1F8F86", fontFamily: "Inter_600SemiBold" }}>담당</Text>
+                              <View style={[a.sameTag, { backgroundColor: "#E6FFFA" }]}>
+                                <Text style={{ fontSize: 10, color: "#2EC4B6", fontFamily: "Inter_600SemiBold" }}>담당</Text>
                               </View>
                             )}
                           </View>
@@ -598,7 +598,7 @@ export default function AttendanceScreen() {
                         {item.original_class_group_name} · {item.original_teacher_name}
                       </Text>
                     </View>
-                    <View style={[a.daysTag, { backgroundColor: days >= 14 ? "#F9DEDA" : "#F6F3F1" }]}>
+                    <View style={[a.daysTag, { backgroundColor: days >= 14 ? "#F9DEDA" : "#F8FAFC" }]}>
                       <Text style={[a.daysTagText, { color: days >= 14 ? "#D96C6C" : C.textSecondary }]}>
                         {days}일 경과
                       </Text>
@@ -607,7 +607,7 @@ export default function AttendanceScreen() {
                   <Text style={[a.absDate, { color: C.textMuted }]}>결석일: {item.absence_date}</Text>
                   <View style={a.mkActions}>
                     <Pressable
-                      style={[a.mkBtn, { backgroundColor: C.tint }]}
+                      style={[a.mkBtn, { backgroundColor: C.button }]}
                       onPress={() => openAssign(item)}
                     >
                       <Feather name="calendar" size={14} color="#fff" />
@@ -666,7 +666,7 @@ export default function AttendanceScreen() {
               <Text style={[a.chipText, { color: searchDays === opt.value ? C.tint : C.textSecondary }]}>{opt.label}</Text>
             </Pressable>
           ))}
-          <Pressable style={[a.chip, { backgroundColor: C.tint, borderColor: C.tint }]} onPress={runSearch}>
+          <Pressable style={[a.chip, { backgroundColor: C.button, borderColor: C.button }]} onPress={runSearch}>
             <Text style={[a.chipText, { color: "#fff" }]}>검색</Text>
           </Pressable>
         </ScrollView>
@@ -740,7 +740,7 @@ export default function AttendanceScreen() {
             }
             ListHeaderComponent={
               <View style={a.readonlyBanner}>
-                <Feather name="info" size={13} color="#6F6B68" />
+                <Feather name="info" size={13} color="#6B7280" />
                 <Text style={a.readonlyBannerTxt}>출결 체크는 선생님 모드에서만 처리 가능합니다 (관리자: 읽기 전용)</Text>
               </View>
             }
@@ -763,7 +763,7 @@ export default function AttendanceScreen() {
                     )}
                   </View>
                   <View style={a.readonlyTag}>
-                    <Feather name="lock" size={11} color="#9A948F" />
+                    <Feather name="lock" size={11} color="#9CA3AF" />
                     <Text style={a.readonlyTagTxt}>선생님 전용</Text>
                   </View>
                 </View>
@@ -906,10 +906,10 @@ const a = StyleSheet.create({
   noStatus:   { fontSize: 12, fontFamily: "Inter_400Regular" },
   attBtns:    { flexDirection: "row", gap: 8 },
   attBtn:     { width: 36, height: 36, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  readonlyTag:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F6F3F1", borderWidth: 1, borderColor: "#E9E2DD" },
-  readonlyTagTxt:  { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9A948F" },
+  readonlyTag:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB" },
+  readonlyTagTxt:  { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
   readonlyBanner:  { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF9E6", borderRadius: 10, padding: 10, marginHorizontal: 0, marginBottom: 8 },
-  readonlyBannerTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6F6B68", flex: 1 },
+  readonlyBannerTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", flex: 1 },
 
   empty:     { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
