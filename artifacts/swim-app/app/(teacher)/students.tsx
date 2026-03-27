@@ -1,7 +1,7 @@
 /**
- * (teacher)/students.tsx — 대기자 명단
+ * (teacher)/students.tsx — 회원관리
  *
- * 탭: 전체 / 미배정 / 연기예정 / 퇴원예정
+ * 탭: 전체 / 미배정 / 연기예정 / 퇴원예정 / 연기 / 퇴원
  *
  * 카드 클릭 → WaitingActionSheet (반 배정 / 연기 / 퇴원)
  * 연기/퇴원 → MemberStatusChangeModal (기존 API 재사용)
@@ -75,13 +75,15 @@ function toStudentMember(m: TeacherMember): StudentMember {
   };
 }
 
-type TabKey = "all" | "unassigned" | "suspend_pending" | "withdraw_pending";
+type TabKey = "all" | "unassigned" | "suspend_pending" | "withdraw_pending" | "suspended" | "withdrawn";
 
 const TAB_CONFIG: { key: TabKey; label: string; color: string }[] = [
-  { key: "all",              label: "전체",   color: "#1F1F1F" },
-  { key: "unassigned",       label: "미배정", color: "#D96C6C" },
+  { key: "all",              label: "전체",    color: "#1F1F1F" },
+  { key: "unassigned",       label: "미배정",  color: "#D96C6C" },
   { key: "suspend_pending",  label: "연기예정", color: "#B45309" },
   { key: "withdraw_pending", label: "퇴원예정", color: "#6F6B68" },
+  { key: "suspended",        label: "연기",    color: "#7C3AED" },
+  { key: "withdrawn",        label: "퇴원",    color: "#374151" },
 ];
 
 export default function WaitingListScreen() {
@@ -150,12 +152,14 @@ export default function WaitingListScreen() {
     if (tab === "unassigned") return "미배정 회원이 없습니다";
     if (tab === "suspend_pending") return "연기예정 회원이 없습니다";
     if (tab === "withdraw_pending") return "퇴원예정 회원이 없습니다";
+    if (tab === "suspended") return "연기 중인 회원이 없습니다";
+    if (tab === "withdrawn") return "퇴원한 회원이 없습니다";
     return "회원이 없습니다";
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.background }} edges={[]}>
-      <SubScreenHeader title="대기자 명단" homePath="/(teacher)/today-schedule" />
+      <SubScreenHeader title="회원관리" homePath="/(teacher)/today-schedule" />
 
       {/* 탭 */}
       <View style={s.tabRow}>

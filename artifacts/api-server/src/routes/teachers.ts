@@ -666,6 +666,28 @@ router.get("/teacher/me/members", requireAuth,
             AND s.deleted_at IS NULL
           ORDER BY s.name ASC
         `);
+      } else if (tab === "suspended") {
+        // 연기: status = 'suspended' (현재 연기 중인 회원)
+        rows = await db.execute(sql`
+          SELECT ${COLS}
+          FROM students s
+          LEFT JOIN class_groups cg ON s.class_group_id = cg.id
+          WHERE s.swimming_pool_id = ${poolId}
+            AND s.status = 'suspended'
+            AND s.deleted_at IS NULL
+          ORDER BY s.name ASC
+        `);
+      } else if (tab === "withdrawn") {
+        // 퇴원: status = 'withdrawn' (퇴원 완료된 회원)
+        rows = await db.execute(sql`
+          SELECT ${COLS}
+          FROM students s
+          LEFT JOIN class_groups cg ON s.class_group_id = cg.id
+          WHERE s.swimming_pool_id = ${poolId}
+            AND s.status = 'withdrawn'
+            AND s.deleted_at IS NULL
+          ORDER BY s.name ASC
+        `);
       } else {
         // 전체: active/pending_parent_link 상태이거나 pending_status_change 있는 회원
         rows = await db.execute(sql`
@@ -675,7 +697,7 @@ router.get("/teacher/me/members", requireAuth,
           WHERE s.swimming_pool_id = ${poolId}
             AND s.deleted_at IS NULL
             AND (
-              s.status IN ('active', 'pending_parent_link')
+              s.status IN ('active', 'suspended', 'withdrawn', 'pending_parent_link')
               OR s.pending_status_change IS NOT NULL
             )
           ORDER BY s.name ASC
