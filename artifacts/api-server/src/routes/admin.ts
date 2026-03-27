@@ -387,11 +387,21 @@ router.post("/parents", requireAuth, requireRole("super_admin", "pool_admin"), a
 });
 
 router.delete("/parents/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  const parentId = req.params.id;
   try {
-    await db.delete(parentStudentsTable).where(eq(parentStudentsTable.parent_id, req.params.id));
-    await db.delete(parentAccountsTable).where(eq(parentAccountsTable.id, req.params.id));
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+    // 1. 학생 parent_user_id 초기화 (자녀 기록은 보존, 연결만 해제)
+    await db.execute(sql`UPDATE students SET parent_user_id = NULL, updated_at = NOW() WHERE parent_user_id = ${parentId}`);
+    // 2. parent_students 링크 삭제
+    await db.delete(parentStudentsTable).where(eq(parentStudentsTable.parent_id, parentId));
+    // 3. parent_pool_requests 상태 취소 처리 (superAdminDb)
+    await superAdminDb.execute(sql`
+      UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW()
+      WHERE parent_account_id = ${parentId} AND request_status IN ('pending', 'approved', 'auto_approved')
+    `).catch(() => {});
+    // 4. 학부모 계정 삭제 (강제탈퇴)
+    await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${parentId}`);
+    res.json({ success: true, message: "학부모 계정이 삭제되었습니다." });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
 router.post("/parents/:id/students", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
