@@ -91,6 +91,8 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.spacer} />
+
         <View style={styles.logoArea}>
           <Image
             source={require("../assets/images/swimnote-logo.png")}
@@ -102,8 +104,6 @@ export default function LoginScreen() {
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
           </Text>
         </View>
-
-        <View style={styles.spacer} />
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <Text style={[styles.cardTitle, { color: C.text }]}>로그인</Text>
@@ -233,7 +233,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "center" },
-  logoArea: { alignItems: "center", gap: 12, paddingBottom: 10 },
+  logoArea: { alignItems: "center", gap: 12, paddingBottom: 28 },
   logoImage: { width: 230, height: 230, borderRadius: 52, shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
   appSub: { fontSize: 18, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   appDesc: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
