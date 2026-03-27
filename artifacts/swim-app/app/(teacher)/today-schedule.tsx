@@ -176,7 +176,7 @@ export default function TodayScheduleScreen() {
           <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
         </View>
         <Pressable onPress={logout} style={h.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Feather name="log-out" size={18} color="#6B7280" />
+          <Feather name="log-out" size={18} color={C.textMuted} />
         </Pressable>
       </View>
 
@@ -382,10 +382,10 @@ const h = StyleSheet.create({
   schedHeroBtnTxt:  { fontSize: 12, fontFamily: "Pretendard-Bold" },
   miniWeek:         { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 6 },
   miniCell:         { flex: 1, alignItems: "center", gap: 5 },
-  miniDayName:      { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#9CA3AF", letterSpacing: 0.3 },
+  miniDayName:      { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#64748B", letterSpacing: 0.3 },
   miniCircle:       { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
-  miniCircleToday:  { backgroundColor: "#1C1C1E" },
-  miniDate:         { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#111827" },
+  miniCircleToday:  { backgroundColor: "#0F172A" },
+  miniDate:         { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#0F172A" },
   miniDateToday:    { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#fff" },
   miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
   addMemberBtn:     { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
