@@ -282,6 +282,13 @@ export default function WeeklyTimetableV2({
         </Pressable>
       </View>
 
+      {/* ── 디버그 배너 (확인 후 제거) ── */}
+      <View style={{ backgroundColor: "#2EC4B6", paddingVertical: 4, alignItems: "center" }}>
+        <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#fff", letterSpacing: 1 }}>
+          REAL_WEEKLY_V2
+        </Text>
+      </View>
+
       {/* 그리드 */}
       <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
         {renderSection(
