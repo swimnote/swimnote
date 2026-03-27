@@ -106,8 +106,6 @@ export default function LoginScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
-          <Text style={[styles.cardTitle, { color: C.text }]}>로그인</Text>
-
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디</Text>
             <View style={[styles.inputRow, { borderColor: identifier ? C.tint : C.border, backgroundColor: C.background }]}>
