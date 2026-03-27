@@ -96,6 +96,9 @@ export default function WaitingListScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search,     setSearch]     = useState("");
+  const [tabCounts,  setTabCounts]  = useState<Record<TabKey, number>>({
+    all: 0, unassigned: 0, suspend_pending: 0, withdraw_pending: 0, suspended: 0, withdrawn: 0,
+  });
 
   // 하단 시트 (카드 클릭)
   const [sheetTarget,  setSheetTarget]  = useState<TeacherMember | null>(null);
@@ -118,14 +121,34 @@ export default function WaitingListScreen() {
     toastTimer.current = setTimeout(() => setToastMsg(""), 2600);
   }
 
+  const loadCounts = useCallback(async () => {
+    try {
+      const res = await apiRequest(token, "/teacher/me/members/counts");
+      if (res.ok) {
+        const data = await res.json();
+        setTabCounts({
+          all:              data.all              ?? 0,
+          unassigned:       data.unassigned       ?? 0,
+          suspend_pending:  data.suspend_pending  ?? 0,
+          withdraw_pending: data.withdraw_pending ?? 0,
+          suspended:        data.suspended        ?? 0,
+          withdrawn:        data.withdrawn        ?? 0,
+        });
+      }
+    } catch (e) { console.error(e); }
+  }, [token]);
+
   const load = useCallback(async (activeTab: TabKey) => {
     try {
-      const res = await apiRequest(token, `/teacher/me/members?tab=${activeTab}`);
+      const [res] = await Promise.all([
+        apiRequest(token, `/teacher/me/members?tab=${activeTab}`),
+        loadCounts(),
+      ]);
       if (res.ok) setList(await res.json());
       else setList([]);
     } catch (e) { console.error(e); setList([]); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [token]);
+  }, [token, loadCounts]);
 
   useEffect(() => {
     setLoading(true);
@@ -165,7 +188,7 @@ export default function WaitingListScreen() {
       <View style={s.tabRow}>
         {TAB_CONFIG.map(t => {
           const active = tab === t.key;
-          const cnt = tab === t.key ? displayed.length : 0;
+          const cnt = tabCounts[t.key] ?? 0;
           return (
             <Pressable
               key={t.key}
@@ -173,7 +196,10 @@ export default function WaitingListScreen() {
               onPress={() => setTab(t.key)}
             >
               <Text style={[s.tabTxt, active && { color: "#fff" }]}>
-                {t.label}{active && cnt > 0 ? ` ${cnt}` : ""}
+                {t.label}
+                {cnt > 0 ? (
+                  <Text style={[s.tabCount, active && { color: "#fff" }]}> {cnt}</Text>
+                ) : null}
               </Text>
             </Pressable>
           );
@@ -359,6 +385,7 @@ const s = StyleSheet.create({
   tabRow:      { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   tabBtn:      { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
   tabTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  tabCount:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textMuted },
   searchRow:   { flexDirection: "row", alignItems: "center", backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   searchInput: { flex: 1, height: 42, paddingHorizontal: 8, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text },
   emptyBox:    { alignItems: "center", gap: 10, paddingVertical: 60 },

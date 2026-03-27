@@ -604,6 +604,46 @@ router.post("/teacher/makeups/:id/extinguish", requireAuth,
   }
 );
 
+// ── 탭별 카운트 (전체 탭 동시 표시용) ──────────────────────────
+router.get("/teacher/me/members/counts", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const [userRow] = await superAdminDb.execute(sql`
+        SELECT swimming_pool_id FROM users WHERE id = ${userId}
+      `).then(r => r.rows as any[]);
+      const poolId = userRow?.swimming_pool_id;
+      if (!poolId) return res.json({ all: 0, unassigned: 0, suspend_pending: 0, withdraw_pending: 0, suspended: 0, withdrawn: 0 });
+
+      const [row] = (await db.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE deleted_at IS NULL AND (
+            status IN ('active','suspended','withdrawn','pending_parent_link') OR pending_status_change IS NOT NULL
+          ))::int AS all,
+          COUNT(*) FILTER (WHERE deleted_at IS NULL AND status IN ('active','pending_parent_link')
+            AND class_group_id IS NULL
+            AND (assigned_class_ids IS NULL OR jsonb_array_length(assigned_class_ids) = 0)
+          )::int AS unassigned,
+          COUNT(*) FILTER (WHERE deleted_at IS NULL AND pending_status_change = 'suspended')::int AS suspend_pending,
+          COUNT(*) FILTER (WHERE deleted_at IS NULL AND pending_status_change = 'withdrawn')::int AS withdraw_pending,
+          COUNT(*) FILTER (WHERE deleted_at IS NULL AND status = 'suspended')::int AS suspended,
+          COUNT(*) FILTER (WHERE deleted_at IS NULL AND status = 'withdrawn')::int AS withdrawn
+        FROM students
+        WHERE swimming_pool_id = ${poolId}
+      `)).rows as any[];
+
+      res.json({
+        all:             Number(row?.all             ?? 0),
+        unassigned:      Number(row?.unassigned      ?? 0),
+        suspend_pending: Number(row?.suspend_pending ?? 0),
+        withdraw_pending:Number(row?.withdraw_pending?? 0),
+        suspended:       Number(row?.suspended       ?? 0),
+        withdrawn:       Number(row?.withdrawn       ?? 0),
+      });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // ── 내 회원 목록 ──────────────────────────────────────────────
 // tab: all | unassigned | suspend_pending | withdraw_pending
 // 전체 탭에는 내 풀의 모든 활성 회원 + 예정 회원 표시
