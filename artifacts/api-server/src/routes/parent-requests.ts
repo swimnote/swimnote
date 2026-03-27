@@ -323,8 +323,38 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
 
         let linkedStudentId: string | null = null;
 
+        // ── 3-auto. child_name으로 자동 매칭 (link_student_id 미제공 시) ──
+        if (!link_student_id && !create_student && request.child_name) {
+          const normalName = request.child_name.trim().replace(/\s+/g, "").toLowerCase();
+          const autoMatch = await db.execute(sql`
+            SELECT id FROM students
+            WHERE swimming_pool_id = ${me.swimming_pool_id}
+              AND LOWER(REPLACE(name, ' ', '')) = ${normalName}
+              AND status NOT IN ('deleted', 'withdrawn', 'archived')
+              AND (parent_user_id IS NULL OR parent_user_id = ${parentAccountId})
+            LIMIT 1
+          `);
+          if (autoMatch.rows.length > 0) {
+            const studentId = (autoMatch.rows[0] as any).id;
+            const existLink = await db.execute(sql`
+              SELECT id FROM parent_students WHERE parent_id = ${parentAccountId} AND student_id = ${studentId} LIMIT 1
+            `);
+            if (!existLink.rows.length) {
+              const psId = genId("ps");
+              await db.execute(sql`
+                INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_by, approved_at, created_at)
+                VALUES (${psId}, ${parentAccountId}, ${studentId}, ${me.swimming_pool_id}, 'approved', ${req.user!.userId}, NOW(), NOW())
+              `);
+            } else {
+              await db.execute(sql`UPDATE parent_students SET status='approved', approved_by=${req.user!.userId}, approved_at=NOW() WHERE id=${(existLink.rows[0] as any).id}`);
+            }
+            await db.execute(sql`UPDATE students SET parent_user_id=${parentAccountId}, updated_at=NOW() WHERE id=${studentId}`);
+            linkedStudentId = studentId;
+          }
+        }
+
         // ── 3a. 기존 학생과 연결 ────────────────────────────────────
-        if (link_student_id) {
+        if (!linkedStudentId && link_student_id) {
           const [existStudent] = await db.select({ id: studentsTable.id, swimming_pool_id: studentsTable.swimming_pool_id })
             .from(studentsTable).where(eq(studentsTable.id, link_student_id)).limit(1);
 

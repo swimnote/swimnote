@@ -881,6 +881,7 @@ export async function initPoolDb(): Promise<void> {
     }
   }
 
-  // ── 학부모 간편가입: swimming_pool_id nullable 허용 ────────────────────
+  // ── 학부모 간편가입: swimming_pool_id nullable 허용 + is_active 컬럼 추가 ──
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ALTER COLUMN swimming_pool_id DROP NOT NULL`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});
 }
