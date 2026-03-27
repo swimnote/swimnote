@@ -32,10 +32,10 @@ const ROLES = [
     key: "parent",
     icon: "heart" as const,
     label: "학부모",
-    desc: "휴대폰 인증 후 수영장을 찾아 자녀 정보를 등록합니다",
+    desc: "간편하게 가입 후 홈에서 자녀를 연결합니다",
     color: "#E4A93A",
     bg: "#FFFBEB",
-    onPress: () => router.push("/parent-signup" as any),
+    onPress: () => router.push("/pool-join-request" as any),
   },
 ];
 
