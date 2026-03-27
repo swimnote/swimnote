@@ -5,11 +5,15 @@
  * 로그인 후 수영장별 테마 색상·로고·표시명을 앱 전체에 제공한다.
  * 앱스토어 이름: "스윔노트" (고정)
  * 앱 내 표시:    "수영장명" + "Powered by 스윔노트"
+ *
+ * ※ themeColor는 디자인 시스템 토큰(민트)으로 고정됩니다.
+ *   풀별 커스텀 색상은 poolBrandColor에 보존되며 브랜딩 설정에서만 사용합니다.
  */
 import React, {
   createContext, useContext, useState, useEffect, useCallback, ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Colors from "@/constants/colors";
 
 export const APP_PLATFORM_NAME = "스윔노트";
 export const DEFAULT_THEME_COLOR = "#2EC4B6";
@@ -91,12 +95,12 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** headerTitle / headerSubtitle 자동 계산 */
+/** headerTitle / headerSubtitle 자동 계산 + themeColor 디자인 시스템 고정 */
 function computeState(s: BrandState): BrandState {
   const poolName    = s.poolName?.trim() || null;
   const headerTitle = poolName ?? APP_PLATFORM_NAME;
   const headerSubtitle = poolName ? `Powered by ${APP_PLATFORM_NAME}` : "";
-  return { ...s, headerTitle, headerSubtitle };
+  return { ...s, headerTitle, headerSubtitle, themeColor: Colors.light.tint };
 }
 
 export function useBrand(): BrandContextType {
