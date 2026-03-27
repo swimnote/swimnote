@@ -215,35 +215,55 @@ export default function ParentHomeScreen() {
     );
   }
 
-  // ─── 자녀 미연결 상태 ────────────────────────────────────────────────────
+  // ─── 자녀 미연결 상태: 정상 홈 구조 안에서 인라인 안내 ──────────────────
   if (!ctxLoading && students.length === 0) {
     return (
       <View style={[s.root, { backgroundColor: C.background }]}>
+        {/* 정상 헤더 (설정·알림 접근 가능) */}
         <View style={[s.topHeader, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
           <View style={{ flex: 1 }}>
             <Text style={[s.poolName, { color: C.textMuted }]}>SwimNote</Text>
           </View>
-          <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/more" as any)}>
-            <Feather name="settings" size={19} color={C.textSecondary} />
-          </Pressable>
-        </View>
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32, gap: 24 }}>
-          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center" }}>
-            <Feather name="link" size={36} color={C.tint} />
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/notifications" as any)}>
+              <Feather name="bell" size={19} color={C.textSecondary} />
+            </Pressable>
+            <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/more" as any)}>
+              <Feather name="settings" size={19} color={C.textSecondary} />
+            </Pressable>
           </View>
-          <View style={{ alignItems: "center", gap: 8 }}>
-            <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: C.text }}>자녀를 연결해주세요</Text>
-            <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
-              수영장과 자녀 이름을 입력하면{"\n"}자동으로 연결됩니다.
-            </Text>
-          </View>
-          <Pressable
-            style={{ backgroundColor: C.tint, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40, alignItems: "center" }}
-            onPress={() => router.push("/(parent)/link-child" as any)}
-          >
-            <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" }}>자녀 연결하기</Text>
-          </Pressable>
         </View>
+
+        <ScrollView
+          contentContainerStyle={{ flex: 1, paddingHorizontal: 20, paddingBottom: insets.bottom + 40 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 자녀 연결 안내 카드 */}
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 24, paddingVertical: 40 }}>
+            <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center" }}>
+              <Feather name="link" size={38} color={C.tint} />
+            </View>
+            <View style={{ alignItems: "center", gap: 10 }}>
+              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: C.text }}>자녀를 연결해주세요</Text>
+              <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
+                수영장과 자녀 이름을 입력하면{"\n"}자동으로 연결됩니다.
+              </Text>
+            </View>
+            <Pressable
+              style={{ backgroundColor: C.tint, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40 }}
+              onPress={() => router.push("/(parent)/link-child" as any)}
+            >
+              <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" }}>자녀 연결하기</Text>
+            </Pressable>
+
+            {/* 설정으로 이동 안내 */}
+            <Pressable onPress={() => router.push("/(parent)/more" as any)}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted }}>
+                설정에서 약관 및 계정 정보를 확인할 수 있습니다
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
       </View>
     );
   }

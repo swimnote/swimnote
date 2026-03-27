@@ -343,10 +343,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   async function setParentSession(token: string, parent: ParentAccount) {
     await AsyncStorage.multiSet([
       ["auth_token", token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(parent)],
+      ["parent_join_status", "approved"],
     ]);
     setToken(token);
     setParentAccount(parent);
     setKind("parent");
+    setParentJoinStatus("approved");
   }
 
   async function logout() {
