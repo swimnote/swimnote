@@ -116,21 +116,9 @@ export default function OrgRoleSelectScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingHorizontal: 24, paddingBottom: 40 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.titleArea}>
-          <Text style={[styles.titleLabel, { color: C.textMuted }]}>
-            {ROLE_SELECT_LABELS.title}
-          </Text>
-          <Text style={[styles.titleSub, { color: C.textSecondary }]}>
-            어떤 역할로 진입하시겠어요?
-          </Text>
-        </View>
-
+      <View style={styles.content}>
         {loading ? (
-          <ActivityIndicator color={C.tint} size="large" style={{ marginTop: 40 }} />
+          <ActivityIndicator color={C.tint} size="large" />
         ) : availableRoles.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={[styles.emptyIconBox, { backgroundColor: "#FFF1BF" }]}>
@@ -149,33 +137,29 @@ export default function OrgRoleSelectScreen() {
           </View>
         ) : (
           <View style={styles.rolesGrid}>
-            {availableRoles.map(item => (
-              <Pressable
-                key={item.roleKey}
-                style={({ pressed }) => [
-                  styles.roleCard,
-                  { backgroundColor: C.card, borderColor: item.cfg.color + "40", opacity: pressed ? 0.88 : 1 },
-                ]}
-                onPress={() => handleSelectRole(item)}
-              >
-                <View style={[styles.roleIconBox, { backgroundColor: item.cfg.bgColor }]}>
-                  <Feather name={item.cfg.icon as any} size={30} color={item.cfg.color} />
-                </View>
-                <Text style={[styles.roleTitle, { color: C.text }]}>{item.cfg.title}</Text>
-                <Text style={[styles.roleSub, { color: C.textSecondary }]}>{item.cfg.subtitle}</Text>
-                <View style={[styles.enterBtn, { backgroundColor: item.cfg.color }]}>
-                  <Text style={styles.enterBtnText}>{ROLE_SELECT_LABELS.enterModeBtn(item.cfg.title)}</Text>
-                </View>
-              </Pressable>
-            ))}
+            {availableRoles.map(item => {
+              const isAdmin = ["pool_admin", "sub_admin", "super_admin", "platform_admin", "super_manager"].includes(item.roleKey);
+              const icon = isAdmin ? "briefcase" : "edit-3";
+              const label = isAdmin ? "운영자" : "선생님";
+              return (
+                <Pressable
+                  key={item.roleKey}
+                  style={({ pressed }) => [styles.roleCard, { backgroundColor: C.card, opacity: pressed ? 0.82 : 1 }]}
+                  onPress={() => handleSelectRole(item)}
+                >
+                  <View style={styles.roleIconBox}>
+                    <Feather name={icon as any} size={36} color="#1B4965" />
+                  </View>
+                  <Text style={[styles.roleTitle, { color: C.text }]}>{label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         )}
-      </ScrollView>
+      </View>
     </View>
   );
 }
-
-const CARD_SIZE = 158;
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
@@ -185,21 +169,23 @@ const styles = StyleSheet.create({
   orgAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
   orgName: { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold" },
   logoutBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10 },
-  content: { gap: 24, paddingTop: 12 },
-  titleArea: { alignItems: "center", gap: 6 },
-  titleLabel: { fontSize: 13, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 1 },
-  titleSub: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingVertical: 60 },
+  content: { flex: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 40 },
+  emptyState: { alignItems: "center", gap: 14, paddingVertical: 60 },
   emptyIconBox: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
   signupBtn: { marginTop: 4, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 },
   signupBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  rolesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14, justifyContent: "center" },
-  roleCard: { width: CARD_SIZE, borderRadius: 20, padding: 20, gap: 10, alignItems: "center", borderWidth: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
-  roleIconBox: { width: 68, height: 68, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  roleTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
-  roleSub: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 16 },
-  enterBtn: { width: "100%", height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 4 },
-  enterBtnText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  rolesGrid: { flexDirection: "row", gap: 16, justifyContent: "center" },
+  roleCard: {
+    flex: 1, maxWidth: 160, borderRadius: 24, paddingVertical: 36, paddingHorizontal: 16,
+    alignItems: "center", gap: 16,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4,
+  },
+  roleIconBox: {
+    width: 84, height: 84, borderRadius: 26,
+    backgroundColor: "#DFF6F4",
+    alignItems: "center", justifyContent: "center",
+  },
+  roleTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
 });
