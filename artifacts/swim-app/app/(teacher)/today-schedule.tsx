@@ -23,7 +23,7 @@ import TeacherRegisterModal from "@/components/teacher/today-schedule/TeacherReg
 import { ScheduleItem, formatDate, todayStr } from "@/components/teacher/today-schedule/types";
 import ClassDetailSheet from "@/components/teacher/my-schedule/ClassDetailSheet";
 import { StudentItem } from "@/components/teacher/my-schedule/utils";
-import { TeacherClassGroup } from "@/components/teacher/WeeklySchedule";
+import { TeacherClassGroup } from "@/components/teacher/types";
 
 const C = Colors.light;
 

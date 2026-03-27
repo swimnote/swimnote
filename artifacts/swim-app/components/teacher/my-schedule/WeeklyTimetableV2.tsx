@@ -12,7 +12,7 @@ import {
   Dimensions, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
-import { SlotStatus, TeacherClassGroup } from "@/components/teacher/WeeklySchedule";
+import { SlotStatus, TeacherClassGroup } from "@/components/teacher/types";
 import {
   ChangeLogItem, StudentItem, WT_ROW_H,
   addDaysStr, classColor, getWeekDates, parseHour, todayDateStr,

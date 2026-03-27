@@ -7,7 +7,7 @@ import {
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
 import { DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
-import { TeacherClassGroup } from "@/components/teacher/WeeklySchedule";
+import { TeacherClassGroup } from "@/components/teacher/types";
 
 const C = Colors.light;
 

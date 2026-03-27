@@ -1,0 +1,173 @@
+[스윔노트 — 경로 안정화 / 구조 정리 (기능 변경 금지)]
+
+이번 작업은 리팩토링이 아니라
+“경로 안정화 및 의존성 정리” 작업이다.
+
+목표:
+- 기능은 100% 유지
+- 렌더 흐름 유지
+- DB/API 로직 유지
+- 파일 위치와 의존성만 정리
+
+━━━━━━━━━━━━━━━━━━
+1. 절대 금지 (중요)
+━━━━━━━━━━━━━━━━━━
+
+- UI 변경 금지
+- 로직 변경 금지
+- API 수정 금지
+- state 구조 변경 금지
+- props 구조 변경 금지
+- 라우터(app/) 구조 변경 금지
+
+위반 시 작업 무효
+
+━━━━━━━━━━━━━━━━━━
+2. 작업 범위
+━━━━━━━━━━━━━━━━━━
+
+이번 작업은 아래 4개만 수행한다:
+
+1) 타입 분리
+2) 미사용 파일 제거
+3) import 경로 정리
+4) my-schedule 로직 분리 (UI 건드리지 않음)
+
+━━━━━━━━━━━━━━━━━━
+3. 1순위 — 타입 분리 (필수)
+━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+WeeklySchedule.tsx가 UI + 타입 허브 역할을 동시에 수행
+
+작업:
+
+1. 새 파일 생성
+경로:
+components/teacher/types.ts
+
+2. 아래 타입 이동:
+
+- TeacherClassGroup
+- SlotStatus
+- DayBarProps (있다면)
+- 기타 WeeklySchedule에서 export되는 타입
+
+3. 기존 파일 수정:
+
+WeeklySchedule.tsx:
+- 타입 export 제거
+- import로 변경
+
+4. 영향 파일 수정:
+
+아래 파일들에서
+WeeklySchedule.tsx import → types.ts로 변경
+
+- WeeklyTimetableV2.tsx
+- MonthlyCalendar.tsx
+- DaySheet.tsx
+- ClassDetailSheet.tsx
+- my-schedule.tsx
+
+━━━━━━━━━━━━━━━━━━
+4. 2순위 — 미사용 파일 제거
+━━━━━━━━━━━━━━━━━━
+
+대상:
+
+components/teacher/my-schedule/WeeklyTimetable.tsx (V1)
+
+조건:
+
+- import 사용 여부 재확인
+- 사용 없으면 삭제
+
+금지:
+- 이름만 변경
+- 다른 폴더 이동
+
+→ 완전 삭제
+
+━━━━━━━━━━━━━━━━━━
+5. 3순위 — import 경로 정리
+━━━━━━━━━━━━━━━━━━
+
+목표:
+
+- 상대경로 최소화
+- 경로 일관성 유지
+
+작업:
+
+- "@/components/..." 형태로 통일
+- ../../../../ 형태 제거
+
+검증:
+
+- 모든 import 정상 작동
+- 빌드 에러 0
+
+━━━━━━━━━━━━━━━━━━
+6. 4순위 — my-schedule 로직 분리 (UI 유지)
+━━━━━━━━━━━━━━━━━━
+
+대상 파일:
+app/(teacher)/my-schedule.tsx
+
+금지:
+- JSX 구조 변경
+- 렌더 흐름 변경
+
+작업:
+
+1. hooks 폴더 생성
+
+components/teacher/my-schedule/hooks/
+
+2. 아래 로직 분리:
+
+useMyScheduleData.ts
+- load()
+- API 호출 (class-groups, students, attendance, diary)
+- state 관리
+
+useMyScheduleActions.ts
+- 카드 클릭
+- 시트 오픈
+- 반 이동 / 생성 / 삭제 관련 이벤트
+
+3. my-schedule.tsx에서는
+
+- hook 호출만 하고
+- 기존 JSX 그대로 유지
+
+━━━━━━━━━━━━━━━━━━
+7. 검증 (필수)
+━━━━━━━━━━━━━━━━━━
+
+아래 전부 테스트:
+
+1. 주간 스케줄 정상 렌더
+2. 일간 스케줄 정상 작동
+3. 월간 → DaySheet 정상 오픈
+4. 수업 카드 클릭 → ClassDetailSheet 정상
+5. 반 이동 / 생성 정상 작동
+6. 데이터 load() 정상 호출
+
+━━━━━━━━━━━━━━━━━━
+8. 제출 (필수)
+━━━━━━━━━━━━━━━━━━
+
+1. 변경 파일 목록
+2. 타입 이동 전/후 비교
+3. 삭제된 파일 목록
+4. import 변경 내역
+5. 기능 테스트 결과
+
+━━━━━━━━━━━━━━━━━━
+핵심 한 줄
+━━━━━━━━━━━━━━━━━━
+
+기능은 건드리지 말고,
+“구조만 정리해서 흔들리지 않게 만든다”

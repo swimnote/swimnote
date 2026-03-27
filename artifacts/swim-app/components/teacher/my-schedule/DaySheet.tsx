@@ -7,7 +7,7 @@ import {
   Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
-import { TeacherClassGroup } from "@/components/teacher/WeeklySchedule";
+import { TeacherClassGroup } from "@/components/teacher/types";
 import {
   classColor, dateLabelFull, getKoDay, parseHour,
 } from "./utils";

@@ -23,7 +23,8 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
+import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
+import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
 
 const C = Colors.light;
 

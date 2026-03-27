@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
-import { TeacherClassGroup } from "@/components/teacher/WeeklySchedule";
+import { TeacherClassGroup } from "@/components/teacher/types";
 import {
   SCREEN_W, WEEKDAY_NAMES, classesForDate, fmtHour,
   parseHour, todayDateStr,

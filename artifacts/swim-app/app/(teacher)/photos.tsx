@@ -19,7 +19,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
+import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
+import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
 import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 

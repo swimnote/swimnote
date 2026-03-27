@@ -6,7 +6,7 @@ import {
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
-import { TeacherClassGroup } from "@/components/teacher/WeeklySchedule";
+import { TeacherClassGroup } from "@/components/teacher/types";
 import { StudentItem } from "./utils";
 
 const C = Colors.light;

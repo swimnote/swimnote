@@ -10,26 +10,9 @@ import {
   Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { TeacherClassGroup, SlotStatus, DayBarProps } from "@/components/teacher/types";
 
 const C = Colors.light;
-
-export interface TeacherClassGroup {
-  id: string;
-  name: string;
-  schedule_days: string;
-  schedule_time: string;
-  student_count: number;
-  capacity?: number | null;
-  level?: string | null;
-  instructor?: string | null;
-  color?: string | null;
-}
-
-export interface SlotStatus {
-  attChecked: number;
-  diaryDone:  boolean;
-  hasPhotos:  boolean;
-}
 
 interface WeeklyScheduleProps {
   classGroups: TeacherClassGroup[];
@@ -232,13 +215,6 @@ export function WeeklySchedule({
 }
 
 // ── 독립형 요일 탭 (스크롤 밖 고정용) ─────────────────────────────
-export interface DayBarProps {
-  classGroups: TeacherClassGroup[];
-  selectedDay: string;
-  onDayChange: (day: string) => void;
-  themeColor: string;
-}
-
 export function DayBar({ classGroups, selectedDay, onDayChange, themeColor }: DayBarProps) {
   const today = todayKo();
   const dayCount = WEEK_DAYS.reduce<Record<string, number>>((acc, d) => {

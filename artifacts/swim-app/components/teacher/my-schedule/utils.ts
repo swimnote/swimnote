@@ -1,5 +1,5 @@
 import { Dimensions } from "react-native";
-import { TeacherClassGroup } from "@/components/teacher/WeeklySchedule";
+import { TeacherClassGroup } from "@/components/teacher/types";
 
 export const SCREEN_W = Dimensions.get("window").width;
 export const KO_DAY_ARR = ["일", "월", "화", "수", "목", "금", "토"];

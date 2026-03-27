@@ -18,11 +18,10 @@ import { addTabResetListener } from "@/utils/tabReset";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
-import { WeeklySchedule, TeacherClassGroup, SlotStatus } from "@/components/teacher/WeeklySchedule";
+import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
+import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
 import StudentManagementSheet from "@/components/teacher/StudentManagementSheet";
 
-// WeeklyTimetable V1 보존 (롤백용)
-// import WeeklyTimetable from "@/components/teacher/my-schedule/WeeklyTimetable";
 import WeeklyTimetable from "@/components/teacher/my-schedule/WeeklyTimetableV2";
 import MonthlyCalendar from "@/components/teacher/my-schedule/MonthlyCalendar";
 import DaySheet from "@/components/teacher/my-schedule/DaySheet";
@@ -33,16 +32,12 @@ import {
   ChangeLogItem, StudentItem,
   addDaysStr, classesForDate, getKoDay, getMondayStr, todayDateStr,
 } from "@/components/teacher/my-schedule/utils";
+import { useMyScheduleData } from "@/components/teacher/my-schedule/hooks/useMyScheduleData";
+import { useMyScheduleActions } from "@/components/teacher/my-schedule/hooks/useMyScheduleActions";
 
 const C = Colors.light;
 
 type ViewMode = "monthly" | "weekly" | "daily";
-
-interface DayMakeup {
-  id: string; student_id: string; student_name: string;
-  absence_date: string; status: string;
-  original_class_group_id: string | null;
-}
 
 export default function MyScheduleScreen() {
   const { token, adminUser } = useAuth();
@@ -56,10 +51,6 @@ export default function MyScheduleScreen() {
   const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
 
-  const [groups,    setGroups]    = useState<TeacherClassGroup[]>([]);
-  const [students,  setStudents]  = useState<StudentItem[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [createInitialDays, setCreateInitialDays] = useState<string[]>([]);
   const [createInitialStep, setCreateInitialStep] = useState<1|2|3|4>(1);
@@ -74,9 +65,6 @@ export default function MyScheduleScreen() {
   const [dayMemo, setDayMemo] = useState("");
   const [memoDateSet, setMemoDateSet] = useState<Set<string>>(new Set());
 
-  const [todayAttMap, setTodayAttMap] = useState<Record<string, number>>({});
-  const [todayDiarySet, setTodayDiarySet] = useState<Set<string>>(new Set());
-
   const [detailGroup,       setDetailGroup]       = useState<TeacherClassGroup | null>(null);
   const [showDeleteClassConfirm, setShowDeleteClassConfirm] = useState(false);
   const [deletingClass,         setDeletingClass]          = useState<TeacherClassGroup | null>(null);
@@ -84,16 +72,6 @@ export default function MyScheduleScreen() {
   const [removeClassGroup,  setRemoveClassGroup]  = useState<TeacherClassGroup | null>(null);
 
   const [selectedGroup, setSelectedGroup] = useState<TeacherClassGroup | null>(null);
-
-  const [dayViewAttState,  setDayViewAttState]  = useState<Record<string, "present" | "absent">>({});
-  const [dayViewAttSaving, setDayViewAttSaving] = useState<Set<string>>(new Set());
-
-  const [showMoveSheet,   setShowMoveSheet]   = useState(false);
-  const [moveStudent,     setMoveStudent]     = useState<StudentItem | null>(null);
-  const [moveSheetSaving, setMoveSheetSaving] = useState(false);
-
-  const [dayMakeups,        setDayMakeups]        = useState<DayMakeup[]>([]);
-  const [dayMakeupsLoading, setDayMakeupsLoading] = useState(false);
 
   const [weeklyViewStart, setWeeklyViewStart] = useState<string>(() => getMondayStr(todayDateStr()));
   const [weekChangeLogs, setWeekChangeLogs] = useState<ChangeLogItem[]>([]);
@@ -104,104 +82,28 @@ export default function MyScheduleScreen() {
   const selectedDateRef = useRef<string | null>(null);
   selectedDateRef.current = selectedDate;
 
-  const load = useCallback(async () => {
-    const today = todayDateStr();
-    try {
-      const [cgRes, stRes, attRes, dRes] = await Promise.all([
-        apiRequest(token, "/class-groups"),
-        apiRequest(token, "/students"),
-        apiRequest(token, `/attendance?date=${today}`),
-        apiRequest(token, `/diary?date=${today}`),
-      ]);
-      if (cgRes.ok)  setGroups(await cgRes.json());
-      if (stRes.ok)  setStudents(await stRes.json());
-      if (attRes.ok) {
-        const arr: any[] = await attRes.json();
-        const map: Record<string,number> = {};
-        arr.forEach(a => { const cid = a.class_group_id||a.class_id; if (cid) map[cid]=(map[cid]||0)+1; });
-        setTodayAttMap(map);
-      }
-      if (dRes.ok) {
-        const arr: any[] = await dRes.json();
-        setTodayDiarySet(new Set(arr.map((d:any) => d.class_group_id).filter(Boolean)));
-      }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); setRefreshing(false); }
-  }, [token]);
+  const {
+    groups, setGroups,
+    students, setStudents,
+    loading, setLoading,
+    refreshing, setRefreshing,
+    todayAttMap, todayDiarySet,
+    load,
+  } = useMyScheduleData(token);
+
+  const {
+    dayViewAttState, setDayViewAttState,
+    dayViewAttSaving,
+    showMoveSheet, setShowMoveSheet,
+    moveStudent, setMoveStudent,
+    moveSheetSaving,
+    dayMakeups, dayMakeupsLoading,
+    loadDayMakeups,
+    markDayAtt,
+    handleMoveToClass,
+  } = useMyScheduleActions({ token, selectedGroup, load });
 
   useEffect(() => { load(); }, [load]);
-
-  const loadDayMakeups = useCallback(async (classGroupId: string) => {
-    setDayMakeupsLoading(true);
-    try {
-      const res = await apiRequest(token, "/teacher/makeups?status=pending");
-      if (res.ok) {
-        const all: DayMakeup[] = await res.json();
-        setDayMakeups(all.filter(m => m.original_class_group_id === classGroupId));
-      }
-    } catch (e) { console.error(e); }
-    finally { setDayMakeupsLoading(false); }
-  }, [token]);
-
-  useEffect(() => {
-    if (!selectedGroup || !token) { setDayViewAttState({}); setDayMakeups([]); return; }
-    const date = todayDateStr();
-    apiRequest(token, `/class-groups/${selectedGroup.id}/attendance?date=${date}`)
-      .then(r => r.ok ? r.json() : [])
-      .then((arr: { student_id: string; status: string | null }[]) => {
-        const map: Record<string, "present" | "absent"> = {};
-        arr.forEach(a => { if (a.status === "present" || a.status === "absent") map[a.student_id] = a.status; });
-        setDayViewAttState(map);
-      })
-      .catch(() => {});
-    loadDayMakeups(selectedGroup.id);
-  }, [selectedGroup, token, loadDayMakeups]);
-
-  const markDayAtt = useCallback(async (studentId: string, requestedStatus: "present" | "absent") => {
-    if (!selectedGroup) return;
-    const currentStatus = dayViewAttState[studentId];
-    const newStatus: "present" | "absent" =
-      currentStatus === requestedStatus
-        ? (requestedStatus === "absent" ? "present" : "absent")
-        : requestedStatus;
-
-    setDayViewAttSaving(prev => { const n = new Set(prev); n.add(studentId); return n; });
-    const date = todayDateStr();
-    try {
-      const res = await apiRequest(token, "/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_id: studentId, class_group_id: selectedGroup.id, date, status: newStatus }),
-      });
-      if (res.ok) {
-        setDayViewAttState(prev => ({ ...prev, [studentId]: newStatus }));
-        if (newStatus === "absent") {
-          await loadDayMakeups(selectedGroup.id);
-        } else {
-          setDayMakeups(prev => prev.filter(m => !(m.student_id === studentId && m.absence_date === date)));
-        }
-      }
-    } catch (e) { console.error(e); }
-    finally { setDayViewAttSaving(prev => { const n = new Set(prev); n.delete(studentId); return n; }); }
-  }, [token, selectedGroup, dayViewAttState, loadDayMakeups]);
-
-  const handleMoveToClass = useCallback(async (toClassId: string) => {
-    if (!moveStudent || !selectedGroup) return;
-    setMoveSheetSaving(true);
-    try {
-      const res = await apiRequest(token, `/students/${moveStudent.id}/move-class`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ from_class_id: selectedGroup.id, to_class_id: toClassId }),
-      });
-      if (res.ok) {
-        setShowMoveSheet(false);
-        setMoveStudent(null);
-        load();
-      }
-    } catch (e) { console.error(e); }
-    finally { setMoveSheetSaving(false); }
-  }, [token, moveStudent, selectedGroup, load]);
 
   const handleDeleteClass = useCallback(async () => {
     if (!deletingClass) return;
