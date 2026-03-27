@@ -10,7 +10,8 @@
  * POST /super/backups/:id/restore — 복구 기록
  * GET  /super/backups/:id/download — 다운로드
  */
-import { Feather } from "@expo/vector-icons";
+import { Anchor, Calendar, Check, ChevronLeft, ChevronRight, CircleAlert, CircleCheck, Clock, Download, FileText, HardDrive, Info, Layers, RefreshCw, RotateCcw, Save, Search, Server, Settings, Shield, TriangleAlert, User, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import * as FileSystem from "expo-file-system";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -218,7 +219,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
   if (error || !status) {
     return (
       <View style={dc.errorBox}>
-        <Feather name="alert-circle" size={16} color={DANGER} />
+        <CircleAlert size={16} color={DANGER} />
         <Text style={dc.errorTxt}>{error ?? "상태 조회 실패"}</Text>
         <Pressable onPress={handleRefresh}>
           <Text style={dc.retryTxt}>다시 시도</Text>
@@ -243,14 +244,14 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
       <View style={[dc.card, { borderLeftColor: cfg.color, borderLeftWidth: 3 }]}>
         <View style={dc.cardTop}>
           <View style={[dc.iconWrap, { backgroundColor: cfg.bg }]}>
-            <Feather name={icon} size={16} color={cfg.color} />
+            <LucideIcon name={icon} size={16} color={cfg.color} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={dc.cardLabel}>{label}</Text>
             {sub1 ? <Text style={dc.cardSub}>{sub1}</Text> : null}
           </View>
           <View style={[dc.statusBadge, { backgroundColor: cfg.bg }]}>
-            <Feather name={cfg.icon} size={10} color={cfg.color} />
+            <LucideIcon name={cfg.icon} size={10} color={cfg.color} />
             <Text style={[dc.statusTxt, { color: cfg.color }]}>{statusLabel}</Text>
           </View>
         </View>
@@ -266,10 +267,10 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
     <View style={dc.wrap}>
       {/* 헤더 + 갱신 버튼 */}
       <View style={dc.header}>
-        <Feather name="shield" size={14} color={P} />
+        <Shield size={14} color={P} />
         <Text style={dc.headerTxt}>DB 백업 상태</Text>
         <Pressable onPress={handleRefresh} disabled={refreshing} style={dc.refreshBtn}>
-          <Feather name="refresh-cw" size={13} color={refreshing ? "#D1D5DB" : P} />
+          <RefreshCw size={13} color={refreshing ? "#D1D5DB" : P} />
         </Pressable>
       </View>
 
@@ -330,7 +331,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
         >
           {backingUp
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Feather name="save" size={13} color="#fff" />}
+            : <Save size={13} color="#fff" />}
           <Text style={dc.manualBtnTxt}>{backingUp ? "백업 중..." : "전체 백업 실행"}</Text>
         </Pressable>
         <Pressable
@@ -338,7 +339,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
           onPress={() => onManualBackup("pool_only")}
           disabled={backingUp}
         >
-          <Feather name="server" size={13} color={P} />
+          <Server size={13} color={P} />
           <Text style={dc.poolBtnTxt}>pool만</Text>
         </Pressable>
       </View>
@@ -412,27 +413,27 @@ function BackupCard({
       <View style={bc.meta}>
         {item.total_tables != null && (
           <View style={bc.metaItem}>
-            <Feather name="layers" size={11} color="#64748B" />
+            <Layers size={11} color="#64748B" />
             <Text style={bc.metaVal}>{item.total_tables}개 테이블</Text>
           </View>
         )}
         <View style={bc.metaItem}>
-          <Feather name="hard-drive" size={11} color="#64748B" />
+          <HardDrive size={11} color="#64748B" />
           <Text style={bc.metaVal}>{fmtSize(item.size_bytes)}</Text>
         </View>
         <View style={bc.metaItem}>
-          <Feather name="clock" size={11} color="#64748B" />
+          <Clock size={11} color="#64748B" />
           <Text style={bc.metaVal}>{fmtDateTime(item.created_at)}</Text>
         </View>
         {item.created_by && (
           <View style={bc.metaItem}>
-            <Feather name="user" size={11} color="#64748B" />
+            <User size={11} color="#64748B" />
             <Text style={bc.metaVal}>{item.created_by}</Text>
           </View>
         )}
         {item.note && (
           <View style={bc.metaItem}>
-            <Feather name="file-text" size={11} color="#64748B" />
+            <FileText size={11} color="#64748B" />
             <Text style={bc.metaVal} numberOfLines={1}>{item.note}</Text>
           </View>
         )}
@@ -441,11 +442,11 @@ function BackupCard({
       {item.status === "done" && (
         <View style={bc.actions}>
           <Pressable style={[bc.btn, { backgroundColor: "#E6FAF8" }]} onPress={() => onDownload(item)}>
-            <Feather name="download" size={12} color="#0284C7" />
+            <Download size={12} color="#0284C7" />
             <Text style={[bc.btnTxt, { color: "#0284C7" }]}>다운로드</Text>
           </Pressable>
           <Pressable style={[bc.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => onRestore(item)}>
-            <Feather name="rotate-ccw" size={12} color={DANGER} />
+            <RotateCcw size={12} color={DANGER} />
             <Text style={[bc.btnTxt, { color: DANGER }]}>복구</Text>
           </Pressable>
         </View>
@@ -484,13 +485,13 @@ function CreateModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={cr.header}>
-          <Pressable onPress={onClose} disabled={busy}><Feather name="x" size={20} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} disabled={busy}><X size={20} color="#64748B" /></Pressable>
           <Text style={cr.title}>수동 백업 생성</Text>
           <View style={{ width: 24 }} />
         </View>
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={cr.infoBox}>
-            <Feather name="info" size={14} color="#0284C7" />
+            <Info size={14} color="#0284C7" />
             <Text style={cr.infoTxt}>
               슈퍼관리자 DB와 수영장 운영 DB 전체를 백업합니다.{"\n"}
               소요 시간: 약 10~30초 (DB 크기에 따라 다름)
@@ -505,7 +506,7 @@ function CreateModal({
           <Pressable style={[cr.confirmBtn, busy && { opacity: 0.5 }]} onPress={() => onCreate(note)} disabled={busy}>
             {busy
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Feather name="save" size={16} color="#fff" />
+              : <Save size={16} color="#fff" />
             }
             <Text style={cr.confirmTxt}>{busy ? "백업 생성 중..." : "백업 생성"}</Text>
           </Pressable>
@@ -539,13 +540,13 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={rm.header}>
-          <Pressable onPress={onClose} disabled={busy}><Feather name="x" size={20} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} disabled={busy}><X size={20} color="#64748B" /></Pressable>
           <Text style={rm.title}>데이터 복구</Text>
           <View style={{ width: 24 }} />
         </View>
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={rm.warningBox}>
-            <Feather name="alert-triangle" size={20} color={WARN} />
+            <TriangleAlert size={20} color={WARN} />
             <Text style={rm.warningTxt}>
               사진 및 영상 원본은 복구되지 않습니다.{"\n"}메타데이터 및 텍스트 데이터만 복구됩니다.
             </Text>
@@ -571,7 +572,7 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
           <Pressable style={[rm.confirmBtn, (!reason.trim() || busy) && { opacity: 0.4 }]}
             onPress={() => { if (reason.trim()) onConfirm(reason); }}
             disabled={!reason.trim() || busy}>
-            {busy ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="rotate-ccw" size={16} color="#fff" />}
+            {busy ? <ActivityIndicator color="#fff" size="small" /> : <RotateCcw size={16} color="#fff" />}
             <Text style={rm.confirmTxt}>{busy ? "처리 중..." : "복구 실행"}</Text>
           </Pressable>
         </ScrollView>
@@ -662,11 +663,11 @@ function AutoBackupPanel({ token }: { token: string | null }) {
             <Text style={ap.label}>실행 시간</Text>
             <View style={ap.hourPicker}>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, run_hour: (draft.run_hour - 1 + 24) % 24 })}>
-                <Feather name="chevron-left" size={16} color="#0F172A" />
+                <ChevronLeft size={16} color="#0F172A" />
               </Pressable>
               <Text style={ap.hourVal}>{p2(draft.run_hour)}:00</Text>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, run_hour: (draft.run_hour + 1) % 24 })}>
-                <Feather name="chevron-right" size={16} color="#0F172A" />
+                <ChevronRight size={16} color="#0F172A" />
               </Pressable>
             </View>
           </View>
@@ -676,11 +677,11 @@ function AutoBackupPanel({ token }: { token: string | null }) {
             <Text style={ap.label}>보관 기간</Text>
             <View style={ap.hourPicker}>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, retention_days: Math.max(1, draft.retention_days - 1) })}>
-                <Feather name="chevron-left" size={16} color="#0F172A" />
+                <ChevronLeft size={16} color="#0F172A" />
               </Pressable>
               <Text style={ap.hourVal}>{draft.retention_days}일</Text>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, retention_days: Math.min(90, draft.retention_days + 1) })}>
-                <Feather name="chevron-right" size={16} color="#0F172A" />
+                <ChevronRight size={16} color="#0F172A" />
               </Pressable>
             </View>
           </View>
@@ -689,7 +690,7 @@ function AutoBackupPanel({ token }: { token: string | null }) {
 
       {isDirty && (
         <Pressable style={[ap.saveBtn, saving && { opacity: 0.5 }]} onPress={saveSettings} disabled={saving}>
-          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="check" size={14} color="#fff" />}
+          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Check size={14} color="#fff" />}
           <Text style={ap.saveTxt}>{saving ? "저장 중..." : "설정 저장"}</Text>
         </Pressable>
       )}
@@ -776,7 +777,7 @@ function FullRestoreModal({
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fr.header}>
           <Pressable onPress={handleClose} disabled={busy}>
-            <Feather name="x" size={20} color="#64748B" />
+            <X size={20} color="#64748B" />
           </Pressable>
           <Text style={fr.title}>전체 복구</Text>
           <View style={{ width: 24 }} />
@@ -788,7 +789,7 @@ function FullRestoreModal({
             <View style={[fr.resultIcon, {
               backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#E6FFFA" : "#F9DEDA",
             }]}>
-              <Feather
+              <LucideIcon
                 name={result.empty ? "info" : result.ok ? "check-circle" : "x-circle"}
                 size={40}
                 color={result.empty ? "#D97706" : result.ok ? GREEN : DANGER}
@@ -829,7 +830,7 @@ function FullRestoreModal({
                       {bk.note ? <Text style={fr.backupItemNote} numberOfLines={1}>{bk.note}</Text> : null}
                     </View>
                     {selectedBackup?.id === bk.id && (
-                      <Feather name="check-circle" size={18} color={P} />
+                      <CircleCheck size={18} color={P} />
                     )}
                   </Pressable>
                 ))}
@@ -839,7 +840,7 @@ function FullRestoreModal({
             {/* 선택된 백업 요약 */}
             {selectedBackup && (
               <View style={fr.selectedBox}>
-                <Feather name="calendar" size={14} color={P} />
+                <Calendar size={14} color={P} />
                 <Text style={fr.selectedTxt}>
                   선택: {fmtDateTime(selectedBackup.created_at)} · {fmtSize(selectedBackup.size_bytes)}
                 </Text>
@@ -848,7 +849,7 @@ function FullRestoreModal({
 
             {/* 경고 문구 */}
             <View style={fr.warnBox}>
-              <Feather name="alert-triangle" size={18} color={DANGER} />
+              <TriangleAlert size={18} color={DANGER} />
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={fr.warnTitle}>⚠️ 전체 플랫폼 데이터 복구</Text>
                 <Text style={fr.warnTxt}>선택한 시점으로 전체 DB가 되돌아갑니다.</Text>
@@ -873,7 +874,7 @@ function FullRestoreModal({
               onPress={handleExecute} disabled={!canExecute}>
               {busy
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Feather name="rotate-ccw" size={16} color="#fff" />
+                : <RotateCcw size={16} color="#fff" />
               }
               <Text style={fr.execTxt}>{busy ? "복구 실행 중..." : "전체 복구 실행"}</Text>
             </Pressable>
@@ -1004,7 +1005,7 @@ function PoolRestoreModal({
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={pr.header}>
           <Pressable onPress={handleClose} disabled={busy}>
-            <Feather name="x" size={20} color="#64748B" />
+            <X size={20} color="#64748B" />
           </Pressable>
           <Text style={pr.title}>수영장별 복구</Text>
           <View style={{ width: 24 }} />
@@ -1015,7 +1016,7 @@ function PoolRestoreModal({
             <View style={[fr.resultIcon, {
               backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#E6FFFA" : "#F9DEDA",
             }]}>
-              <Feather
+              <LucideIcon
                 name={result.empty ? "info" : result.ok ? "check-circle" : "x-circle"}
                 size={40}
                 color={result.empty ? "#D97706" : result.ok ? GREEN : DANGER}
@@ -1040,7 +1041,7 @@ function PoolRestoreModal({
             {/* Step 1: 수영장 검색 */}
             <Text style={pr.stepTitle}>1단계 — 수영장 검색 및 선택</Text>
             <View style={pr.searchBox}>
-              <Feather name="search" size={16} color="#64748B" />
+              <Search size={16} color="#64748B" />
               <TextInput style={pr.searchInput} value={searchQ}
                 onChangeText={setSearchQ}
                 placeholder="수영장명 검색 (예: 토이키즈)"
@@ -1068,7 +1069,7 @@ function PoolRestoreModal({
                         ) : null}
                       </View>
                       {selectedPool?.id === pool.id && (
-                        <Feather name="check-circle" size={18} color={P} />
+                        <CircleCheck size={18} color={P} />
                       )}
                     </Pressable>
                   ))
@@ -1079,7 +1080,7 @@ function PoolRestoreModal({
             {/* 선택된 수영장 */}
             {selectedPool && (
               <View style={pr.selectedPoolBox}>
-                <Feather name="anchor" size={14} color={P} />
+                <Anchor size={14} color={P} />
                 <Text style={pr.selectedPoolTxt}>선택된 수영장: <Text style={{ fontFamily: "Pretendard-Bold" }}>{selectedPool.name}</Text></Text>
               </View>
             )}
@@ -1105,7 +1106,7 @@ function PoolRestoreModal({
                       </Text>
                     </View>
                     {selectedBackup?.id === bk.id && (
-                      <Feather name="check-circle" size={18} color={P} />
+                      <CircleCheck size={18} color={P} />
                     )}
                   </Pressable>
                 ))}
@@ -1114,7 +1115,7 @@ function PoolRestoreModal({
 
             {selectedBackup && (
               <View style={fr.selectedBox}>
-                <Feather name="calendar" size={14} color={P} />
+                <Calendar size={14} color={P} />
                 <Text style={fr.selectedTxt}>
                   시점: {fmtDateTime(selectedBackup.created_at)} · {fmtSize(selectedBackup.size_bytes)}
                 </Text>
@@ -1123,7 +1124,7 @@ function PoolRestoreModal({
 
             {/* 경고 */}
             <View style={fr.warnBox}>
-              <Feather name="alert-triangle" size={18} color={WARN} />
+              <TriangleAlert size={18} color={WARN} />
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={fr.warnTitle}>⚠️ 수영장별 부분 복구</Text>
                 <Text style={fr.warnTxt}>선택한 수영장 데이터만 복구됩니다.</Text>
@@ -1152,7 +1153,7 @@ function PoolRestoreModal({
               onPress={handleExecute} disabled={!canExecute}>
               {busy
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Feather name="refresh-cw" size={16} color="#fff" />
+                : <RefreshCw size={16} color="#fff" />
               }
               <Text style={fr.execTxt}>{busy ? "복구 중..." : "수영장별 복구 실행"}</Text>
             </Pressable>
@@ -1347,17 +1348,17 @@ export default function BackupScreen() {
             {/* 요약 카드 */}
             <View style={s.summaryRow}>
               <View style={s.summaryCard}>
-                <Feather name="clock" size={16} color={P} />
+                <Clock size={16} color={P} />
                 <Text style={s.summaryVal}>{latestBackup ? fmtRelative(latestBackup.created_at) : "없음"}</Text>
                 <Text style={s.summaryKey}>최근 백업</Text>
               </View>
               <View style={s.summaryCard}>
-                <Feather name="layers" size={16} color={GREEN} />
+                <Layers size={16} color={GREEN} />
                 <Text style={s.summaryVal}>{backups.length}개</Text>
                 <Text style={s.summaryKey}>총 백업 수</Text>
               </View>
               <View style={s.summaryCard}>
-                <Feather name="hard-drive" size={16} color={WARN} />
+                <HardDrive size={16} color={WARN} />
                 <Text style={s.summaryVal}>{fmtSize(totalSize)}</Text>
                 <Text style={s.summaryKey}>총 용량</Text>
               </View>
@@ -1369,13 +1370,13 @@ export default function BackupScreen() {
                 {/* 전체 백업 */}
                 <Pressable style={[s.actionBtn, { flex: 1 }]}
                   onPress={() => setCreateVisible(true)} disabled={createBusy}>
-                  <Feather name="save" size={14} color="#fff" />
+                  <Save size={14} color="#fff" />
                   <Text style={s.actionBtnTxt}>전체 백업</Text>
                 </Pressable>
                 {/* 자동 백업 설정 */}
                 <Pressable style={[s.outlineBtn, { flex: 1 }]}
                   onPress={() => setShowSettings(v => !v)}>
-                  <Feather name="settings" size={14} color={P} />
+                  <Settings size={14} color={P} />
                   <Text style={s.outlineBtnTxt}>{showSettings ? "설정 닫기" : "자동백업 설정"}</Text>
                 </Pressable>
               </View>
@@ -1383,13 +1384,13 @@ export default function BackupScreen() {
                 {/* 전체 복구 */}
                 <Pressable style={[s.actionBtn, { flex: 1, backgroundColor: DANGER }]}
                   onPress={() => setFullRestoreVisible(true)} disabled={backups.length === 0}>
-                  <Feather name="rotate-ccw" size={14} color="#fff" />
+                  <RotateCcw size={14} color="#fff" />
                   <Text style={s.actionBtnTxt}>전체 복구</Text>
                 </Pressable>
                 {/* 수영장별 복구 */}
                 <Pressable style={[s.outlineBtn, { flex: 1, borderColor: WARN }]}
                   onPress={() => setPoolRestoreVisible(true)} disabled={backups.length === 0}>
-                  <Feather name="refresh-cw" size={14} color={WARN} />
+                  <RefreshCw size={14} color={WARN} />
                   <Text style={[s.outlineBtnTxt, { color: WARN }]}>수영장별 복구</Text>
                 </Pressable>
               </View>
@@ -1415,7 +1416,7 @@ export default function BackupScreen() {
             ? <ActivityIndicator color={P} style={{ paddingTop: 60 }} />
             : (
               <View style={s.empty}>
-                <Feather name="save" size={36} color="#D1D5DB" />
+                <Save size={36} color="#D1D5DB" />
                 <Text style={s.emptyTxt}>백업 기록이 없습니다</Text>
                 <Text style={s.emptySubTxt}>지금 백업 버튼을 눌러 첫 백업을 생성하세요</Text>
               </View>

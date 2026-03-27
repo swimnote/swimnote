@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, CirclePlus, CircleX, Save } from "lucide-react-native";
 import React from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -63,7 +63,7 @@ export function MemberClassTab({
         <Text style={ms.fieldLabel}>배정된 반 ({assignedIds.length}/{weeklyCount})</Text>
         {assignedClasses.length === 0 ? (
           <View style={ms.warnBox}>
-            <Feather name="alert-circle" size={14} color="#D96C6C" />
+            <CircleAlert size={14} color="#D96C6C" />
             <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>아직 배정된 반이 없습니다</Text>
           </View>
         ) : (
@@ -78,7 +78,7 @@ export function MemberClassTab({
                     {g.instructor && <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 }}>선생님: {g.instructor}</Text>}
                   </View>
                   <Pressable onPress={() => { setAssignedIds(p => p.filter(x => x !== g.id)); setClassChanged(true); }}>
-                    <Feather name="x-circle" size={18} color={C.error} />
+                    <CircleX size={18} color={C.error} />
                   </Pressable>
                 </View>
               );
@@ -87,7 +87,7 @@ export function MemberClassTab({
         )}
 
         <Pressable style={[ms.outlineBtn, { borderColor: themeColor }]} onPress={onOpenPicker}>
-          <Feather name="plus-circle" size={15} color={themeColor} />
+          <CirclePlus size={15} color={themeColor} />
           <Text style={[ms.outlineBtnText, { color: themeColor }]}>반 선택하기</Text>
         </Pressable>
 
@@ -97,7 +97,7 @@ export function MemberClassTab({
           disabled={saving || !classChanged}
         >
           {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-            <><Feather name="save" size={16} color="#fff" /><Text style={ms.saveBtnText}>배정 저장</Text></>
+            <><Save size={16} color="#fff" /><Text style={ms.saveBtnText}>배정 저장</Text></>
           )}
         </Pressable>
       </View>

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Home, Layers, Menu, Send, TrendingUp, Users } from "lucide-react-native";
 import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
 import Colors from "@/constants/colors";
@@ -57,32 +57,32 @@ export default function AdminLayout() {
       <Tabs.Screen
         name="dashboard"
         listeners={makeTabListener("dashboard")}
-        options={{ title: "홈", tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} /> }}
+        options={{ title: "홈", tabBarIcon: ({ color }) => <Home size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="people"
         listeners={makeTabListener("people")}
-        options={{ title: "인원관리", tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} /> }}
+        options={{ title: "인원관리", tabBarIcon: ({ color }) => <Users size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="classes"
         listeners={makeTabListener("classes")}
-        options={{ title: "수업", tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }}
+        options={{ title: "수업", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="messenger"
         listeners={makeTabListener("messenger")}
-        options={{ title: "메신저", tabBarIcon: ({ color }) => <Feather name="send" size={22} color={color} /> }}
+        options={{ title: "메신저", tabBarIcon: ({ color }) => <Send size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="admin-revenue"
         listeners={makeTabListener("admin-revenue")}
-        options={{ title: "매출관리", tabBarIcon: ({ color }) => <Feather name="trending-up" size={22} color={color} /> }}
+        options={{ title: "매출관리", tabBarIcon: ({ color }) => <TrendingUp size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="more"
         listeners={makeTabListener("more")}
-        options={{ title: "더보기", tabBarIcon: ({ color }) => <Feather name="menu" size={22} color={color} /> }}
+        options={{ title: "더보기", tabBarIcon: ({ color }) => <Menu size={22} color={color} /> }}
       />
 
       {/* ─── 숨김 화면들 (탭 없이 push/navigate로 접근) ─── */}

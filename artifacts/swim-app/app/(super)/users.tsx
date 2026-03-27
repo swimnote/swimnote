@@ -2,7 +2,8 @@
  * (super)/users.tsx — 플랫폼 관리자 계정 관리
  * 로컬 시드 데이터 — API 호출 없음
  */
-import { Feather } from "@expo/vector-icons";
+import { Shield, SlidersHorizontal, UserPlus, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState } from "react";
 import {
   FlatList, Platform, Pressable, RefreshControl,
@@ -154,7 +155,7 @@ export default function UsersScreen() {
         {PERM_LABELS.map(({ key, label, desc, icon }) => (
           <View key={key} style={[ps.row, { opacity: disabled ? 0.5 : 1 }]}>
             <View style={[ps.icon, { backgroundColor: perms[key] ? "#E6FFFA" : "#FFFFFF" }]}>
-              <Feather name={icon as any} size={15} color={perms[key] ? "#4EA7D8" : "#64748B"} />
+              <LucideIcon name={icon as any} size={15} color={perms[key] ? "#4EA7D8" : "#64748B"} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[ps.permLabel, { color: C.text }]}>{label}</Text>
@@ -199,7 +200,7 @@ export default function UsersScreen() {
         {isSuperAdmin && (
           <Pressable style={[styles.addBtn, { backgroundColor: C.button }]}
             onPress={() => { setShowCreate(true); setError(""); }}>
-            <Feather name="user-plus" size={16} color="#fff" />
+            <UserPlus size={16} color="#fff" />
             <Text style={styles.addBtnText}>추가</Text>
           </Pressable>
         )}
@@ -214,7 +215,7 @@ export default function UsersScreen() {
           onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Feather name="users" size={40} color={C.textMuted} />
+            <Users size={40} color={C.textMuted} />
             <Text style={[styles.emptyText, { color: C.textMuted }]}>등록된 관리자가 없습니다</Text>
           </View>
         }
@@ -240,13 +241,13 @@ export default function UsersScreen() {
                   <Pressable
                     style={({ pressed }) => [styles.editBtn, { opacity: pressed ? 0.6 : 1 }]}
                     onPress={() => openEdit(item)}>
-                    <Feather name="sliders" size={16} color="#4EA7D8" />
+                    <SlidersHorizontal size={16} color="#4EA7D8" />
                   </Pressable>
                 )}
               </View>
               {isSelf ? (
                 <View style={ps.superTag}>
-                  <Feather name="shield" size={12} color="#7C3AED" />
+                  <Shield size={12} color="#7C3AED" />
                   <Text style={[ps.superTagText, { color: "#7C3AED" }]}>모든 권한 보유</Text>
                 </View>
               ) : (

@@ -7,7 +7,7 @@
  */
 import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 
@@ -77,7 +77,7 @@ export function PaymentBanner() {
   return (
     <View style={[s.wrap, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
       <View style={s.row}>
-        <Feather name={cfg.icon} size={18} color={cfg.iconColor} style={{ marginTop: 1 }} />
+        <LucideIcon name={cfg.icon} size={18} color={cfg.iconColor} style={{ marginTop: 1 }} />
         <View style={s.texts}>
           <Text style={[s.title, { color: cfg.iconColor }]}>{cfg.title}</Text>
           <Text style={s.desc}>{cfg.desc(days)}</Text>

@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { Calendar, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Info, Lock, RefreshCw, Search, TriangleAlert, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView,
@@ -347,7 +348,7 @@ export default function AttendanceScreen() {
   const DateNav = (
     <View style={[a.dateNav, { backgroundColor: C.card, borderColor: C.border }]}>
       <Pressable style={a.navArrow} onPress={() => navigateDate(-1)}>
-        <Feather name="chevron-left" size={20} color={C.textSecondary} />
+        <ChevronLeft size={20} color={C.textSecondary} />
       </Pressable>
       <Text style={[a.dateLabel, { color: C.text }]}>
         {viewMode === "daily"   && formatDateLabel(baseDate)}
@@ -355,7 +356,7 @@ export default function AttendanceScreen() {
         {viewMode === "monthly" && formatMonthLabel(baseDate)}
       </Text>
       <Pressable style={a.navArrow} onPress={() => navigateDate(1)}>
-        <Feather name="chevron-right" size={20} color={C.textSecondary} />
+        <ChevronRight size={20} color={C.textSecondary} />
       </Pressable>
     </View>
   );
@@ -413,7 +414,7 @@ export default function AttendanceScreen() {
               <View style={a.modalHeader}>
                 <Text style={[a.modalTitle, { color: C.text }]}>보강 반 지정</Text>
                 <Pressable onPress={() => setAssignTarget(null)}>
-                  <Feather name="x" size={22} color={C.textSecondary} />
+                  <X size={22} color={C.textSecondary} />
                 </Pressable>
               </View>
               {assignTarget && (
@@ -424,7 +425,7 @@ export default function AttendanceScreen() {
               {/* 날짜 선택 */}
               <Text style={[a.fieldLabel, { color: C.textSecondary }]}>보강 날짜</Text>
               <View style={[a.dateInput, { borderColor: C.border, backgroundColor: C.background }]}>
-                <Feather name="calendar" size={16} color={C.textSecondary} style={{ marginRight: 8 }} />
+                <Calendar size={16} color={C.textSecondary} style={{ marginRight: 8 }} />
                 <TextInput
                   style={[{ flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}
                   value={assignDate}
@@ -476,7 +477,7 @@ export default function AttendanceScreen() {
                             {ec.current_members}/{ec.capacity ?? "∞"}명
                           </Text>
                         </View>
-                        {selected && <Feather name="check-circle" size={20} color={C.tint} style={{ marginLeft: 8 }} />}
+                        {selected && <CircleCheck size={20} color={C.tint} style={{ marginLeft: 8 }} />}
                       </TouchableOpacity>
                     );
                   })}
@@ -503,7 +504,7 @@ export default function AttendanceScreen() {
               <View style={a.modalHeader}>
                 <Text style={[a.modalTitle, { color: C.text }]}>결석 소멸</Text>
                 <Pressable onPress={() => setExtinguishTarget(null)}>
-                  <Feather name="x" size={22} color={C.textSecondary} />
+                  <X size={22} color={C.textSecondary} />
                 </Pressable>
               </View>
               {extinguishTarget && (
@@ -539,7 +540,7 @@ export default function AttendanceScreen() {
                 />
               )}
               <View style={[a.warnBox, { backgroundColor: "#FFF1BF" }]}>
-                <Feather name="alert-triangle" size={14} color="#D97706" />
+                <TriangleAlert size={14} color="#D97706" />
                 <Text style={[{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", flex: 1 }]}>
                   소멸 처리 후 보강 기회가 사라집니다. 신중히 처리하세요.
                 </Text>
@@ -569,18 +570,18 @@ export default function AttendanceScreen() {
             showsVerticalScrollIndicator={false}
             ListHeaderComponent={
               <View style={[a.makeupSummary, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-                <Feather name="clock" size={16} color={C.tint} />
+                <Clock size={16} color={C.tint} />
                 <Text style={[{ fontFamily: "Pretendard-SemiBold", fontSize: 14, color: C.tint }]}>
                   보강 대기 {makeupList.length}명
                 </Text>
                 <Pressable style={[a.refreshBtn]} onPress={fetchMakeup}>
-                  <Feather name="refresh-cw" size={14} color={C.tint} />
+                  <RefreshCw size={14} color={C.tint} />
                 </Pressable>
               </View>
             }
             ListEmptyComponent={
               <View style={a.empty}>
-                <Feather name="check-circle" size={40} color={C.textMuted} />
+                <CircleCheck size={40} color={C.textMuted} />
                 <Text style={[a.emptyText, { color: C.textMuted }]}>보강 대기 중인 회원이 없습니다</Text>
               </View>
             }
@@ -610,14 +611,14 @@ export default function AttendanceScreen() {
                       style={[a.mkBtn, { backgroundColor: C.button }]}
                       onPress={() => openAssign(item)}
                     >
-                      <Feather name="calendar" size={14} color="#fff" />
+                      <Calendar size={14} color="#fff" />
                       <Text style={a.mkBtnText}>보강 지정</Text>
                     </Pressable>
                     <Pressable
                       style={[a.mkBtn, { backgroundColor: "#F9DEDA", borderWidth: 1, borderColor: "#FCA5A5" }]}
                       onPress={() => openExtinguish(item)}
                     >
-                      <Feather name="x-circle" size={14} color="#D96C6C" />
+                      <CircleX size={14} color="#D96C6C" />
                       <Text style={[a.mkBtnText, { color: "#D96C6C" }]}>결석 소멸</Text>
                     </Pressable>
                   </View>
@@ -636,7 +637,7 @@ export default function AttendanceScreen() {
       <ScreenLayout header={header}>
         {/* 검색창 */}
         <View style={[a.searchBox, { backgroundColor: C.card, borderColor: C.border, marginTop: 10 }]}>
-          <Feather name="search" size={16} color={C.textMuted} style={{ marginLeft: 12 }} />
+          <Search size={16} color={C.textMuted} style={{ marginLeft: 12 }} />
           <TextInput
             ref={searchInputRef}
             style={[a.searchInput, { color: C.text }]}
@@ -649,7 +650,7 @@ export default function AttendanceScreen() {
           />
           {searchName.length > 0 && (
             <Pressable onPress={() => { setSearchName(""); setSearchResults([]); setSearchTriggered(false); }} style={{ padding: 8 }}>
-              <Feather name="x" size={16} color={C.textMuted} />
+              <X size={16} color={C.textMuted} />
             </Pressable>
           )}
         </View>
@@ -675,7 +676,7 @@ export default function AttendanceScreen() {
           <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
         ) : searchTriggered && searchResults.length === 0 ? (
           <View style={a.empty}>
-            <Feather name="search" size={36} color={C.textMuted} />
+            <Search size={36} color={C.textMuted} />
             <Text style={[a.emptyText, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
           </View>
         ) : (
@@ -698,7 +699,7 @@ export default function AttendanceScreen() {
                     </Text>
                   </View>
                   <View style={[a.badge, { backgroundColor: cfg.bg }]}>
-                    <Feather name={cfg.icon} size={12} color={cfg.color} />
+                    <LucideIcon name={cfg.icon} size={12} color={cfg.color} />
                     <Text style={[a.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
                   </View>
                 </View>
@@ -732,7 +733,7 @@ export default function AttendanceScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={a.empty}>
-                <Feather name="users" size={40} color={C.textMuted} />
+                <Users size={40} color={C.textMuted} />
                 <Text style={[a.emptyText, { color: C.textMuted }]}>
                   {classGroups.length === 0 ? "등록된 반이 없습니다" : "반에 배정된 회원이 없습니다"}
                 </Text>
@@ -740,7 +741,7 @@ export default function AttendanceScreen() {
             }
             ListHeaderComponent={
               <View style={a.readonlyBanner}>
-                <Feather name="info" size={13} color="#64748B" />
+                <Info size={13} color="#64748B" />
                 <Text style={a.readonlyBannerTxt}>출결 체크는 선생님 모드에서만 처리 가능합니다 (관리자: 읽기 전용)</Text>
               </View>
             }
@@ -755,7 +756,7 @@ export default function AttendanceScreen() {
                     <Text style={[a.memberName, { color: C.text }]}>{item.name}</Text>
                     {status ? (
                       <View style={[a.badge, { backgroundColor: STATUS_CONFIG[status].bg }]}>
-                        <Feather name={STATUS_CONFIG[status].icon} size={12} color={STATUS_CONFIG[status].color} />
+                        <LucideIcon name={STATUS_CONFIG[status].icon} size={12} color={STATUS_CONFIG[status].color} />
                         <Text style={[a.badgeText, { color: STATUS_CONFIG[status].color }]}>{STATUS_CONFIG[status].label}</Text>
                       </View>
                     ) : (
@@ -763,7 +764,7 @@ export default function AttendanceScreen() {
                     )}
                   </View>
                   <View style={a.readonlyTag}>
-                    <Feather name="lock" size={11} color="#64748B" />
+                    <Lock size={11} color="#64748B" />
                     <Text style={a.readonlyTagTxt}>선생님 전용</Text>
                   </View>
                 </View>
@@ -849,7 +850,7 @@ export default function AttendanceScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={a.empty}>
-              <Feather name="calendar" size={40} color={C.textMuted} />
+              <Calendar size={40} color={C.textMuted} />
               <Text style={[a.emptyText, { color: C.textMuted }]}>이 달의 출결 데이터가 없습니다</Text>
             </View>
           }

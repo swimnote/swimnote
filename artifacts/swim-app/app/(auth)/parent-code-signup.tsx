@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, AtSign, CircleAlert, CircleCheck, Hash, Lock, UserCheck } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -70,7 +71,7 @@ export default function ParentCodeSignupScreen() {
       <View style={[styles.root, { backgroundColor: C.background }]}>
         <View style={[styles.doneWrap, { paddingTop: insets.top + 60 }]}>
           <View style={[styles.doneIcon, { backgroundColor: "#DFF3EC" }]}>
-            <Feather name="check-circle" size={40} color="#2E9B6F" />
+            <CircleCheck size={40} color="#2E9B6F" />
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입 완료!</Text>
           <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
@@ -111,7 +112,7 @@ export default function ParentCodeSignupScreen() {
               else router.back();
             }}
           >
-            <Feather name="arrow-left" size={20} color={C.text} />
+            <ArrowLeft size={20} color={C.text} />
           </Pressable>
           <Text style={[styles.screenTitle, { color: C.text }]}>초대코드로 가입</Text>
           <View style={{ width: 28 }} />
@@ -121,7 +122,7 @@ export default function ParentCodeSignupScreen() {
         {step === "code" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#DFF3EC" }]}>
-              <Feather name="hash" size={24} color="#2E9B6F" />
+              <Hash size={24} color="#2E9B6F" />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>초대코드 입력</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -130,7 +131,7 @@ export default function ParentCodeSignupScreen() {
 
             <View style={styles.field}>
               <View style={[styles.inputRow, { borderColor: code ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="hash" size={15} color={code ? C.tint : C.textMuted} />
+                <Hash size={15} color={code ? C.tint : C.textMuted} />
                 <TextInput
                   style={[styles.codeInput, { color: C.text }]}
                   value={code}
@@ -148,7 +149,7 @@ export default function ParentCodeSignupScreen() {
 
             {!!error && (
               <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-                <Feather name="alert-circle" size={14} color={C.error} />
+                <CircleAlert size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>
             )}
@@ -170,7 +171,7 @@ export default function ParentCodeSignupScreen() {
         {step === "confirm" && invite && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#DFF3EC" }]}>
-              <Feather name="user-check" size={24} color="#2E9B6F" />
+              <UserCheck size={24} color="#2E9B6F" />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>정보 확인</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -208,7 +209,7 @@ export default function ParentCodeSignupScreen() {
         {step === "account" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
-              <Feather name="lock" size={24} color={C.tint} />
+              <Lock size={24} color={C.tint} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>계정 설정</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -218,7 +219,7 @@ export default function ParentCodeSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디 (3자 이상)</Text>
               <View style={[styles.inputRow, { borderColor: loginId ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="at-sign" size={15} color={loginId ? C.tint : C.textMuted} />
+                <AtSign size={15} color={loginId ? C.tint : C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={loginId}
@@ -236,7 +237,7 @@ export default function ParentCodeSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 (4자리 이상)</Text>
               <View style={[styles.inputRow, { borderColor: password ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="lock" size={15} color={password ? C.tint : C.textMuted} />
+                <Lock size={15} color={password ? C.tint : C.textMuted} />
                 <TextInput
                   ref={pwRef}
                   style={[styles.input, { color: C.text }]}
@@ -249,7 +250,7 @@ export default function ParentCodeSignupScreen() {
                   onSubmitEditing={() => pw2Ref.current?.focus()}
                 />
                 <Pressable onPress={() => setShowPw(v => !v)} hitSlop={10}>
-                  <Feather name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
+                  <LucideIcon name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
                 </Pressable>
               </View>
             </View>
@@ -257,7 +258,7 @@ export default function ParentCodeSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 확인</Text>
               <View style={[styles.inputRow, { borderColor: passwordConfirm && password !== passwordConfirm ? C.error : (passwordConfirm ? C.tint : C.border), backgroundColor: C.background }]}>
-                <Feather name="lock" size={15} color={passwordConfirm ? C.tint : C.textMuted} />
+                <Lock size={15} color={passwordConfirm ? C.tint : C.textMuted} />
                 <TextInput
                   ref={pw2Ref}
                   style={[styles.input, { color: C.text }]}
@@ -277,7 +278,7 @@ export default function ParentCodeSignupScreen() {
 
             {!!error && (
               <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-                <Feather name="alert-circle" size={14} color={C.error} />
+                <CircleAlert size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>
             )}

@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -23,10 +24,10 @@ export function AuthEntryLinks({ links }: Props) {
         <React.Fragment key={idx}>
           {idx > 0 && <View style={styles.divider} />}
           <Pressable style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]} onPress={item.onPress}>
-            <Feather name={item.icon as any} size={12} color={C.textMuted} />
+            <LucideIcon name={item.icon as any} size={12} color={C.textMuted} />
             <Text style={styles.label}>{item.label}</Text>
             <Text style={styles.action}>{item.action}</Text>
-            <Feather name="chevron-right" size={12} color={C.tint} />
+            <ChevronRight size={12} color={C.tint} />
           </Pressable>
         </React.Fragment>
       ))}

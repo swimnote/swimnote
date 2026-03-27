@@ -1,7 +1,8 @@
 /**
  * 계정별 사용량 — 선생님 리스트 + 사용량
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -76,7 +77,7 @@ export default function DataStorageByAccountScreen() {
         >
           {staff.length === 0 ? (
             <View style={{ alignItems: "center", paddingTop: 60, gap: 12 }}>
-              <Feather name="users" size={40} color={C.textMuted} />
+              <Users size={40} color={C.textMuted} />
               <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textMuted }}>계정 정보가 없습니다</Text>
             </View>
           ) : (
@@ -106,7 +107,7 @@ export default function DataStorageByAccountScreen() {
                       </View>
                       <Text style={s.pctText}>전체 대비 {pct.toFixed(1)}%</Text>
                     </View>
-                    <Feather name="chevron-right" size={14} color={C.textMuted} style={{ marginLeft: 8 }} />
+                    <ChevronRight size={14} color={C.textMuted} style={{ marginLeft: 8 }} />
                   </Pressable>
                 );
               })}
@@ -125,14 +126,14 @@ export default function DataStorageByAccountScreen() {
                 <Text style={sm.sub}>{selected?.role === "pool_admin" ? "관리자" : "선생님"} · 저장공간 상세</Text>
               </View>
               <Pressable onPress={() => setSelected(null)} hitSlop={8}>
-                <Feather name="x" size={22} color={C.text} />
+                <X size={22} color={C.text} />
               </Pressable>
             </View>
             <View style={{ gap: 10 }}>
               {CAT_ITEMS.map(cat => (
                 <View key={cat.label} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <View style={[sm.catIcon, { backgroundColor: cat.bg }]}>
-                    <Feather name={cat.icon} size={14} color={cat.color} />
+                    <LucideIcon name={cat.icon} size={14} color={cat.color} />
                   </View>
                   <Text style={{ flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text }}>{cat.label}</Text>
                   <Text style={{ fontSize: 14, fontFamily: "Pretendard-Bold", color: cat.color }}>{fmtBytes((selected as any)?.[cat.key] ?? 0)}</Text>

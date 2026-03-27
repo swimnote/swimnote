@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleCheck, Users, X } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
@@ -39,13 +39,13 @@ export function ClassTransferModal({
               <Text style={tm.sub}>{sourceName} 선생님의 담당 반·회원을 인수할 선생님을 선택하세요</Text>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <Feather name="x" size={20} color={C.textSecondary} />
+              <X size={20} color={C.textSecondary} />
             </Pressable>
           </View>
 
           {availableTeachers.length === 0 ? (
             <View style={tm.emptyBox}>
-              <Feather name="users" size={32} color={C.textMuted} />
+              <Users size={32} color={C.textMuted} />
               <Text style={tm.emptyText}>인수 가능한 선생님이 없습니다</Text>
             </View>
           ) : (
@@ -65,7 +65,7 @@ export function ClassTransferModal({
                     <Text style={[tm.teacherName, selected === t.userId && { color: C.tint }]}>{t.name}</Text>
                     <Text style={tm.teacherPhone}>{t.phone}</Text>
                   </View>
-                  {selected === t.userId && <Feather name="check-circle" size={20} color={C.tint} />}
+                  {selected === t.userId && <CircleCheck size={20} color={C.tint} />}
                 </Pressable>
               ))}
             </ScrollView>

@@ -4,7 +4,8 @@
  * 메신저 외 7개 아이콘은 3열 그리드 팝업을 거쳐 페이지 이동
  * SearchModal, AdminQuickRegisterModal → components/admin/ 로 이동됨
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowRight, ChevronRight, CircleAlert, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -262,7 +263,7 @@ export default function DashboardScreen() {
                 {switching
                   ? <ActivityIndicator size="small" color="#0F172A" />
                   : <>
-                      <Feather name="repeat" size={10} color="#0F172A" />
+                      <Repeat size={10} color="#0F172A" />
                       <Text style={[s.switchChipTxt, { color: C.text }]}>선생님으로 전환</Text>
                     </>
                 }
@@ -274,10 +275,10 @@ export default function DashboardScreen() {
           </View>
         </View>
         <Pressable onPress={() => setShowSearch(true)} style={s.headerBtn} hitSlop={8}>
-          <Feather name="search" size={20} color={C.textSecondary} />
+          <Search size={20} color={C.textSecondary} />
         </Pressable>
         <Pressable onPress={logout} style={s.headerBtn} hitSlop={8}>
-          <Feather name="log-out" size={18} color={C.textSecondary} />
+          <LogOut size={18} color={C.textSecondary} />
         </Pressable>
       </View>
 
@@ -306,7 +307,7 @@ export default function DashboardScreen() {
                     onPress={b.onPress}
                   >
                     <View style={[s.bannerIcon, { backgroundColor: b.bg }]}>
-                      <Feather name={b.icon} size={18} color={b.color} />
+                      <LucideIcon name={b.icon} size={18} color={b.color} />
                     </View>
                     <Text style={[s.bannerValue, { color: b.color }]}>{b.value}</Text>
                     <Text style={s.bannerLabel}>{b.label}</Text>
@@ -321,7 +322,7 @@ export default function DashboardScreen() {
               <Pressable style={s.splitStatRow} onPress={() => router.push("/(admin)/members")}>
                 <View style={s.splitStatItem}>
                   <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
-                    <Feather name="alert-circle" size={14} color="#0F172A" />
+                    <CircleAlert size={14} color="#0F172A" />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unassigned ?? 0}명</Text>
@@ -331,21 +332,21 @@ export default function DashboardScreen() {
                 <View style={s.splitStatDivider} />
                 <View style={s.splitStatItem}>
                   <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
-                    <Feather name="user-x" size={14} color="#0F172A" />
+                    <UserX size={14} color="#0F172A" />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unlinked_members ?? 0}명</Text>
                     <Text style={s.splitStatLabel}>학부모미연결</Text>
                   </View>
                 </View>
-                <Feather name="chevron-right" size={14} color={C.textMuted} style={{ marginLeft: "auto" }} />
+                <ChevronRight size={14} color={C.textMuted} style={{ marginLeft: "auto" }} />
               </Pressable>
             )}
 
             {/* ── 처리 필요 알림 ── */}
             {stats && (stats.pending_requests > 0 || (stats.pending_makeups ?? 0) > 0) && (
               <View style={s.alertCard}>
-                <Feather name="alert-triangle" size={15} color="#D97706" />
+                <TriangleAlert size={15} color="#D97706" />
                 <View style={{ flex: 1, gap: 4 }}>
                   {stats.pending_requests > 0 && (
                     <Pressable onPress={() => router.push("/(admin)/approvals")}>
@@ -371,13 +372,13 @@ export default function DashboardScreen() {
               onPress={() => setShowRegister(true)}
             >
               <View style={[s.addMemberIconWrap, { backgroundColor: "#E6FAF8" }]}>
-                <Feather name="user-plus" size={20} color="#0F172A" />
+                <UserPlus size={20} color="#0F172A" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.addMemberLabel}>회원추가</Text>
                 <Text style={s.addMemberSub}>어린이 즉시 등록 → 바로 반영</Text>
               </View>
-              <Feather name="chevron-right" size={18} color={C.textMuted} />
+              <ChevronRight size={18} color={C.textMuted} />
             </Pressable>
 
             {/* ── 메인 아이콘 8개 (4×2 그리드) ── */}
@@ -391,10 +392,10 @@ export default function DashboardScreen() {
                     onPress={() => handleIconPress(item.key)}
                   >
                     <View style={[s.iconBox, { backgroundColor: item.bg }]}>
-                      <Feather name={item.icon} size={26} color={item.color} />
+                      <LucideIcon name={item.icon} size={26} color={item.color} />
                       {item.key === "메신저" && (
                         <View style={[s.directBadge, { backgroundColor: item.color }]}>
-                          <Feather name="arrow-right" size={8} color="#fff" />
+                          <ArrowRight size={8} color="#fff" />
                         </View>
                       )}
                       {item.key === "보강관리" && (stats?.pending_makeups ?? 0) > 0 && (

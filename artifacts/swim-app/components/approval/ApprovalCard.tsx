@@ -4,7 +4,8 @@
  * 학부모 승인 · 선생님 승인 · 수영장 승인 모두 이 컴포넌트로 통일.
  * 버튼 구조: [보기] 항상 표시 + [승인] 대기 상태에만 표시
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, CircleAlert, Eye } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import {
   ActivityIndicator, Pressable, StyleSheet, Text, View,
@@ -51,7 +52,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
           {meta.avatarInitial ? (
             <Text style={[s.avatarText, { color: cfg.color }]}>{meta.avatarInitial}</Text>
           ) : (
-            <Feather name={meta.avatarIcon ?? "user"} size={18} color={cfg.color} />
+            <LucideIcon name={meta.avatarIcon ?? "user"} size={18} color={cfg.color} />
           )}
         </View>
 
@@ -67,7 +68,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
         </View>
 
         <View style={[s.badge, { backgroundColor: cfg.bg }]}>
-          <Feather name={cfg.icon} size={11} color={cfg.color} />
+          <LucideIcon name={cfg.icon} size={11} color={cfg.color} />
           <Text style={[s.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
         </View>
       </View>
@@ -78,7 +79,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
       {/* 거절/비활성 사유 */}
       {meta.rejectionReason ? (
         <View style={[s.rejectNote, { backgroundColor: "#F9DEDA", borderTopColor: C.border }]}>
-          <Feather name="alert-circle" size={12} color={C.error} />
+          <CircleAlert size={12} color={C.error} />
           <Text style={[s.rejectNoteText, { color: C.error }]} numberOfLines={2}>
             거절 사유: {meta.rejectionReason}
           </Text>
@@ -94,7 +95,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
               onPress={onView}
               disabled={meta.processing}
             >
-              <Feather name="eye" size={14} color={C.textSecondary} />
+              <Eye size={14} color={C.textSecondary} />
               <Text style={[s.viewText, { color: C.textSecondary }]}>보기</Text>
             </Pressable>
           ) : null}
@@ -109,7 +110,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
-                  <Feather name="check" size={14} color="#fff" />
+                  <Check size={14} color="#fff" />
                   <Text style={s.approveText}>승인</Text>
                 </>
               )}

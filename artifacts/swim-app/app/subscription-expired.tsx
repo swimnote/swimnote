@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleCheck } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -19,7 +19,7 @@ export default function SubscriptionExpiredScreen() {
     <View style={[styles.container, { backgroundColor: C.background, paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0), paddingBottom: insets.bottom + 34 }]}>
       <View style={styles.content}>
         <View style={[styles.iconBox, { backgroundColor: "#E6FFFA" }]}>
-          <Feather name="check-circle" size={40} color="#2EC4B6" />
+          <CircleCheck size={40} color="#2EC4B6" />
         </View>
         <Text style={[styles.title, { color: C.text }]}>서비스 이용 중</Text>
         <Text style={[styles.message, { color: C.textSecondary }]}>

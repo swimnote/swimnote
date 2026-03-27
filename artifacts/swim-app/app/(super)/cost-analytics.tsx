@@ -5,7 +5,8 @@
  * - 인프라 비용(DB·스토리지·트래픽·기타): 단가 기반 추정
  * 탭: 주간 / 월간 / 연간
  */
-import { Feather } from "@expo/vector-icons";
+import { ChartBar, CircleAlert, PieChart } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -139,7 +140,7 @@ export default function CostAnalyticsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 14 }}>
 
         <View style={s.mockBanner}>
-          <Feather name="alert-circle" size={12} color="#D97706" />
+          <CircleAlert size={12} color="#D97706" />
           <Text style={s.mockTxt}>인프라 비용·세금은 단가 기반 추정값입니다. 스토어 수수료는 실결제 기준으로 계산됩니다.</Text>
         </View>
 
@@ -161,13 +162,13 @@ export default function CostAnalyticsScreen() {
         </View>
 
         <View style={s.sectionHdr}>
-          <Feather name="pie-chart" size={14} color={P} />
+          <PieChart size={14} color={P} />
           <Text style={s.sectionTitle}>항목별 비용</Text>
         </View>
         {costs.map(c => (
           <View key={c.label} style={s.costRow}>
             <View style={[s.costIcon, { backgroundColor: c.color + "20" }]}>
-              <Feather name={c.icon} size={16} color={c.color} />
+              <LucideIcon name={c.icon} size={16} color={c.color} />
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
@@ -188,7 +189,7 @@ export default function CostAnalyticsScreen() {
         ))}
 
         <View style={s.sectionHdr}>
-          <Feather name="bar-chart-2" size={14} color={P} />
+          <ChartBar size={14} color={P} />
           <Text style={s.sectionTitle}>비용 구성비</Text>
         </View>
         <View style={s.barWrap}>

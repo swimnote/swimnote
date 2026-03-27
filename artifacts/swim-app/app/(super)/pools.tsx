@@ -2,7 +2,7 @@
  * (super)/pools.tsx — 운영자 관리 (대규모 운영 콘솔)
  * 14개 실데이터 · 13개 필터칩 · 다중선택 · 일괄처리
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, Inbox, Search, SquareCheck, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import {
@@ -215,7 +215,7 @@ export default function SuperPoolsScreen() {
         {/* 체크박스 */}
         {multiSelect && (
           <View style={[s.checkbox, isSelected && s.checkboxChecked]}>
-            {isSelected && <Feather name="check" size={12} color="#fff" />}
+            {isSelected && <Check size={12} color="#fff" />}
           </View>
         )}
 
@@ -322,12 +322,12 @@ export default function SuperPoolsScreen() {
       {/* 검색 + 정렬 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
-          <Feather name="search" size={14} color="#64748B" />
+          <Search size={14} color="#64748B" />
           <TextInput style={s.searchInput} value={search} onChangeText={setSearch}
             placeholder="운영자명, 코드, 담당자 검색" placeholderTextColor="#64748B" />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch("")}>
-              <Feather name="x" size={14} color="#64748B" />
+              <X size={14} color="#64748B" />
             </Pressable>
           )}
         </View>
@@ -371,7 +371,7 @@ export default function SuperPoolsScreen() {
           )}
           <Pressable style={[s.multiBtn, multiSelect && s.multiBtnActive]}
             onPress={() => { setMultiSelect(!multiSelect); setSelected(new Set()); }}>
-            <Feather name="check-square" size={14} color={multiSelect ? P : "#64748B"} />
+            <SquareCheck size={14} color={multiSelect ? P : "#64748B"} />
             <Text style={[s.multiBtnTxt, multiSelect && { color: P }]}>
               {multiSelect ? "완료" : "다중선택"}
             </Text>
@@ -389,7 +389,7 @@ export default function SuperPoolsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={s.empty}>
-            <Feather name="inbox" size={40} color="#D1D5DB" />
+            <Inbox size={40} color="#D1D5DB" />
             <Text style={s.emptyTxt}>해당 조건의 운영자가 없습니다</Text>
           </View>
         }

@@ -2,7 +2,7 @@
  * (super)/storage.tsx — 저장공간 관리
  * 80%경고 / 95%차단예정(CTA) / 100%차단 — 과금 유도형 흐름
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, CircleArrowUp, CirclePlus, Clock, DollarSign, HardDrive, Lock, Settings, TrendingUp } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -156,7 +156,7 @@ export default function StorageScreen() {
             {stage === 'danger95'   && <View style={s.dangerTag}><Text style={s.dangerTagTxt}>차단 예정</Text></View>}
             {stage === 'warn80'     && <View style={s.warnTag}><Text style={s.warnTagTxt}>80% 경고</Text></View>}
             {p.uploadSpikeFlag && (
-              <View style={s.spikeTag}><Feather name="trending-up" size={9} color={WARN} /><Text style={s.spikeTxt}>급증</Text></View>
+              <View style={s.spikeTag}><TrendingUp size={9} color={WARN} /><Text style={s.spikeTxt}>급증</Text></View>
             )}
           </View>
 
@@ -180,7 +180,7 @@ export default function StorageScreen() {
           {/* 과금 유도 CTA — 95% 이상 */}
           {stage === 'danger95' && (
             <View style={s.ctaBar}>
-              <Feather name="alert-circle" size={11} color={DANGER} />
+              <CircleAlert size={11} color={DANGER} />
               <Text style={s.ctaBarTxt}>
                 {extraNeededGb > 0 ? `약 ${extraNeededGb}GB 추가 필요 · 예상 비용 ${estimateCost(extraNeededGb)}` : '추가 용량 구매 또는 상위 플랜 업그레이드'}
               </Text>
@@ -223,7 +223,7 @@ export default function StorageScreen() {
         rightSlot={
           <Pressable onPress={() => router.push("/(super)/storage-policy" as any)}
             style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
-            <Feather name="settings" size={18} color="#64748B" />
+            <Settings size={18} color="#64748B" />
           </Pressable>
         }
       />
@@ -257,13 +257,13 @@ export default function StorageScreen() {
       {/* 탭별 안내 배너 */}
       {tab === "spike" && (
         <View style={s.spikeBanner}>
-          <Feather name="trending-up" size={13} color={WARN} />
+          <TrendingUp size={13} color={WARN} />
           <Text style={s.spikeBannerTxt}>7일 내 업로드 급증 운영자입니다. 비정상 사용 여부를 확인하세요.</Text>
         </View>
       )}
       {tab === "blocked95" && (
         <View style={[s.spikeBanner, { backgroundColor: "#FFF3CD" }]}>
-          <Feather name="alert-circle" size={13} color={WARN} />
+          <CircleAlert size={13} color={WARN} />
           <Text style={[s.spikeBannerTxt, { color: "#7C2D12" }]}>95% 초과 — 추가 용량 구매 또는 플랜 업그레이드를 유도하세요. 차단 예정 상태입니다.</Text>
         </View>
       )}
@@ -278,7 +278,7 @@ export default function StorageScreen() {
         ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#FFFFFF" }} />}
         ListEmptyComponent={
           <View style={s.empty}>
-            <Feather name="hard-drive" size={30} color="#D1D5DB" />
+            <HardDrive size={30} color="#D1D5DB" />
             <Text style={s.emptyTxt}>{TABS.find(t => t.key === tab)?.label} 운영자 없음</Text>
           </View>
         }
@@ -313,7 +313,7 @@ export default function StorageScreen() {
                   keyboardType="decimal-pad" placeholder="직접 입력 (GB)" placeholderTextColor="#64748B" />
                 {parseFloat(newStorageMb) > 0 && (
                   <View style={m.costEstimate}>
-                    <Feather name="dollar-sign" size={13} color={GREEN} />
+                    <DollarSign size={13} color={GREEN} />
                     <Text style={m.costTxt}>예상 추가 비용: {estimateCost(parseFloat(newStorageMb))}</Text>
                   </View>
                 )}
@@ -326,7 +326,7 @@ export default function StorageScreen() {
                 <Pressable style={[m.saveBtn, { opacity: saving ? 0.6 : 1 }]} onPress={() => setOtpVisible(true)} disabled={saving}>
                   {saving ? <ActivityIndicator color="#fff" size="small" /> : (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Feather name="lock" size={13} color="#fff" />
+                      <Lock size={13} color="#fff" />
                       <Text style={m.saveTxt}>용량 추가</Text>
                     </View>
                   )}
@@ -357,7 +357,7 @@ export default function StorageScreen() {
               <Text style={m.sub}>{ctaModal.usedPercent.toFixed(0)}% 사용 — 차단 예정 상태</Text>
 
               <View style={m.ctaOption}>
-                <Feather name="plus-circle" size={20} color={GREEN} />
+                <CirclePlus size={20} color={GREEN} />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>추가 용량 구매</Text>
                   <Text style={m.ctaOptionDesc}>10GB 단위 추가 · 예상 ₩9,900/월 ~</Text>
@@ -369,7 +369,7 @@ export default function StorageScreen() {
               </View>
 
               <View style={m.ctaOption}>
-                <Feather name="arrow-up-circle" size={20} color="#7C3AED" />
+                <CircleArrowUp size={20} color="#7C3AED" />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>상위 플랜 업그레이드</Text>
                   <Text style={m.ctaOptionDesc}>더 많은 저장공간 · 추가 기능 포함</Text>
@@ -381,7 +381,7 @@ export default function StorageScreen() {
               </View>
 
               <View style={m.ctaOption}>
-                <Feather name="clock" size={20} color="#2EC4B6" />
+                <Clock size={20} color="#2EC4B6" />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>긴급 업로드 허용 24h</Text>
                   <Text style={m.ctaOptionDesc}>임시 1GB 추가 · 관리자 override</Text>

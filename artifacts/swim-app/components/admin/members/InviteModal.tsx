@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Copy, MessageCircle, Share2, X } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import React from "react";
 import {
@@ -61,7 +61,7 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
         <View style={inv.sheet}>
           <View style={inv.header}>
             <Text style={inv.title}>학부모 초대 문자</Text>
-            <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
+            <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
           </View>
           <View style={inv.codeRow}>
             <Text style={inv.codeLabel}>초대코드</Text>
@@ -71,16 +71,16 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
             <Text style={inv.msgText}>{msg}</Text>
           </View>
           <Pressable style={[inv.smsBtn, { backgroundColor: C.tint }]} onPress={openSms}>
-            <Feather name="message-circle" size={15} color="#fff" />
+            <MessageCircle size={15} color="#fff" />
             <Text style={inv.smsBtnTxt}>문자 앱으로 발송</Text>
           </Pressable>
           <View style={inv.btnRow}>
             <Pressable style={[inv.btn, { backgroundColor: C.tintLight }]} onPress={copyMessage}>
-              <Feather name="copy" size={14} color={C.tint} />
+              <Copy size={14} color={C.tint} />
               <Text style={[inv.btnText, { color: C.tint }]}>복사하기</Text>
             </Pressable>
             <Pressable style={[inv.btn, { backgroundColor: "#E6FFFA" }]} onPress={() => Share.share({ message: msg })}>
-              <Feather name="share-2" size={14} color="#2EC4B6" />
+              <Share2 size={14} color="#2EC4B6" />
               <Text style={[inv.btnText, { color: "#2EC4B6" }]}>공유하기</Text>
             </Pressable>
           </View>

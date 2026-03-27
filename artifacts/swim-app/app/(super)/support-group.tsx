@@ -2,7 +2,8 @@
  * (super)/support-group.tsx — 지원 센터 그룹
  * 스펙 섹션 9: 고객센터 / 정책·컴플라이언스
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -64,13 +65,13 @@ export default function SupportGroupScreen() {
         {MENUS.map((m, idx) => (
           <Pressable key={idx} style={s.card} onPress={() => router.push(m.path as any)}>
             <View style={[s.iconBox, { backgroundColor: m.bg }]}>
-              <Feather name={m.icon} size={22} color={m.color} />
+              <LucideIcon name={m.icon} size={22} color={m.color} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.cardTitle}>{m.title}</Text>
               <Text style={s.cardSub}>{m.sub}</Text>
             </View>
-            <Feather name="chevron-right" size={16} color="#D1D5DB" />
+            <ChevronRight size={16} color="#D1D5DB" />
           </Pressable>
         ))}
       </ScrollView>

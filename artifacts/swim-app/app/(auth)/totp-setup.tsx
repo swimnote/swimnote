@@ -2,7 +2,8 @@
  * totp-setup.tsx — Google OTP 등록/설정 화면
  * Google Authenticator 앱 연동, 활성화/비활성화
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowRight, CircleAlert, CircleCheck, CirclePlus, Info, Key, ShieldOff, Smartphone, SquareCheck } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -179,7 +180,7 @@ export default function TotpSetupScreen() {
 
         {/* 상태 배지 */}
         <View style={[styles.statusBadge, { backgroundColor: totpEnabled ? "#DCFCE7" : "#FEF3C7" }]}>
-          <Feather name={totpEnabled ? "shield" : "alert-circle"} size={15} color={totpEnabled ? "#16A34A" : "#D97706"} />
+          <LucideIcon name={totpEnabled ? "shield" : "alert-circle"} size={15} color={totpEnabled ? "#16A34A" : "#D97706"} />
           <Text style={[styles.statusText, { color: totpEnabled ? "#16A34A" : "#D97706" }]}>
             {totpEnabled ? "OTP 등록 완료 — 2단계 인증 활성화됨" : "OTP 미등록 — 지금 등록하면 보안이 강화됩니다"}
           </Text>
@@ -188,7 +189,7 @@ export default function TotpSetupScreen() {
         {/* 성공 메시지 */}
         {!!success && (
           <View style={[styles.alertBox, { backgroundColor: "#DCFCE7", borderColor: "#BBF7D0" }]}>
-            <Feather name="check-circle" size={15} color="#16A34A" />
+            <CircleCheck size={15} color="#16A34A" />
             <Text style={[styles.alertText, { color: "#15803D" }]}>{success}</Text>
           </View>
         )}
@@ -199,7 +200,7 @@ export default function TotpSetupScreen() {
             <View style={[styles.card, { backgroundColor: C.card }]}>
               <View style={styles.iconRow}>
                 <View style={[styles.iconBg, { backgroundColor: totpEnabled ? "#DCFCE7" : "#E6FAF8" }]}>
-                  <Feather name="smartphone" size={32} color={totpEnabled ? "#16A34A" : PURPLE} />
+                  <Smartphone size={32} color={totpEnabled ? "#16A34A" : PURPLE} />
                 </View>
               </View>
 
@@ -220,7 +221,7 @@ export default function TotpSetupScreen() {
                 >
                   {loading
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <><Feather name="plus-circle" size={16} color="#fff" /><Text style={styles.btnText}>OTP 등록 시작</Text></>
+                    : <><CirclePlus size={16} color="#fff" /><Text style={styles.btnText}>OTP 등록 시작</Text></>
                   }
                 </Pressable>
               ) : (
@@ -228,7 +229,7 @@ export default function TotpSetupScreen() {
                   style={({ pressed }) => [styles.btn, { backgroundColor: "#DC2626", opacity: pressed ? 0.85 : 1 }]}
                   onPress={goToDisable}
                 >
-                  <Feather name="shield-off" size={16} color="#fff" />
+                  <ShieldOff size={16} color="#fff" />
                   <Text style={styles.btnText}>OTP 등록 해제</Text>
                 </Pressable>
               )}
@@ -290,9 +291,9 @@ export default function TotpSetupScreen() {
               style={[styles.secretToggle, { borderColor: C.border }]}
               onPress={() => setShowSecret(v => !v)}
             >
-              <Feather name="key" size={14} color={C.textMuted} />
+              <Key size={14} color={C.textMuted} />
               <Text style={[styles.secretToggleTxt, { color: C.textSecondary }]}>QR 스캔이 안 되면 키 직접 입력</Text>
-              <Feather name={showSecret ? "chevron-up" : "chevron-down"} size={14} color={C.textMuted} />
+              <LucideIcon name={showSecret ? "chevron-up" : "chevron-down"} size={14} color={C.textMuted} />
             </Pressable>
 
             {showSecret && (
@@ -310,7 +311,7 @@ export default function TotpSetupScreen() {
               onPress={goToVerify}
             >
               <Text style={styles.btnText}>스캔 완료 — 코드 입력하기</Text>
-              <Feather name="arrow-right" size={16} color="#fff" />
+              <ArrowRight size={16} color="#fff" />
             </Pressable>
 
             <Pressable style={styles.cancelRow} onPress={() => { setStep("check"); setSecret(""); setOtpauthUrl(""); setQrCode(""); }}>
@@ -324,7 +325,7 @@ export default function TotpSetupScreen() {
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={styles.iconRow}>
               <View style={[styles.iconBg, { backgroundColor: "#E6FAF8" }]}>
-                <Feather name="check-square" size={28} color={PURPLE} />
+                <SquareCheck size={28} color={PURPLE} />
               </View>
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>2단계 — 코드 확인</Text>
@@ -334,7 +335,7 @@ export default function TotpSetupScreen() {
 
             {!!error && (
               <View style={[styles.alertBox, { backgroundColor: "#F9DEDA", borderColor: "#FCA5A5" }]}>
-                <Feather name="alert-circle" size={14} color={C.error} />
+                <CircleAlert size={14} color={C.error} />
                 <Text style={[styles.alertText, { color: C.error }]}>{error}</Text>
               </View>
             )}
@@ -363,12 +364,12 @@ export default function TotpSetupScreen() {
             >
               {loading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><Feather name="check-circle" size={16} color="#fff" /><Text style={styles.btnText}>OTP 등록 완료</Text></>
+                : <><CircleCheck size={16} color="#fff" /><Text style={styles.btnText}>OTP 등록 완료</Text></>
               }
             </Pressable>
 
             <View style={[styles.tipBox, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
-              <Feather name="info" size={13} color="#16A34A" />
+              <Info size={13} color="#16A34A" />
               <Text style={[styles.tipText, { color: "#15803D" }]}>
                 코드는 30초마다 갱신됩니다. 시간이 지났다면 새 코드로 입력해주세요.
               </Text>
@@ -385,7 +386,7 @@ export default function TotpSetupScreen() {
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={styles.iconRow}>
               <View style={[styles.iconBg, { backgroundColor: "#FEE2E2" }]}>
-                <Feather name="shield-off" size={28} color="#DC2626" />
+                <ShieldOff size={28} color="#DC2626" />
               </View>
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>OTP 등록 해제</Text>
@@ -395,7 +396,7 @@ export default function TotpSetupScreen() {
 
             {!!error && (
               <View style={[styles.alertBox, { backgroundColor: "#F9DEDA", borderColor: "#FCA5A5" }]}>
-                <Feather name="alert-circle" size={14} color={C.error} />
+                <CircleAlert size={14} color={C.error} />
                 <Text style={[styles.alertText, { color: C.error }]}>{error}</Text>
               </View>
             )}
@@ -424,7 +425,7 @@ export default function TotpSetupScreen() {
             >
               {loading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><Feather name="shield-off" size={16} color="#fff" /><Text style={styles.btnText}>등록 해제 확인</Text></>
+                : <><ShieldOff size={16} color="#fff" /><Text style={styles.btnText}>등록 해제 확인</Text></>
               }
             </Pressable>
 

@@ -3,7 +3,7 @@
  * - 이름, 전화번호, 비밀번호 변경
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -111,7 +111,7 @@ export default function ParentProfileScreen() {
 
           {error ? (
             <View style={[s.errorBox, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="alert-circle" size={14} color="#D96C6C" />
+              <CircleAlert size={14} color="#D96C6C" />
               <Text style={s.errorTxt}>{error}</Text>
             </View>
           ) : null}

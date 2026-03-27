@@ -1,7 +1,8 @@
 /**
  * (teacher)/makeups.tsx — 결석자 리스트 / 배정된 보강 / 보강 현황
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Calendar, Check, CircleAlert, CircleCheck, CircleX, Clock, UserCheck, UserPlus, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView,
@@ -301,12 +302,12 @@ export default function MakeupsScreen() {
           </View>
         </View>
         <View style={s.infoRow}>
-          <Feather name="calendar" size={13} color={C.textSecondary} />
+          <Calendar size={13} color={C.textSecondary} />
           <Text style={s.infoTxt}>결석일: {fmtDate(item.original_date)}</Text>
         </View>
         {item.makeup_date ? (
           <View style={s.infoRow}>
-            <Feather name="check-circle" size={13} color="#2EC4B6" />
+            <CircleCheck size={13} color="#2EC4B6" />
             <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>
               보강일: {fmtDate(item.makeup_date)}{item.makeup_class_name ? ` · ${item.makeup_class_name}` : ""}
             </Text>
@@ -378,7 +379,7 @@ export default function MakeupsScreen() {
           >
             {waitingList.length === 0 ? (
               <View style={s.empty}>
-                <Feather name="check-circle" size={36} color={C.textMuted} />
+                <CircleCheck size={36} color={C.textMuted} />
                 <Text style={s.emptyTxt}>처리할 결석자가 없습니다</Text>
               </View>
             ) : waitingList.map(mk => {
@@ -395,18 +396,18 @@ export default function MakeupsScreen() {
                     </View>
                   </View>
                   <View style={s.infoRow}>
-                    <Feather name="calendar" size={13} color={C.textSecondary} />
+                    <Calendar size={13} color={C.textSecondary} />
                     <Text style={s.infoTxt}>결석일: {fmtDate(mk.absence_date)}</Text>
                   </View>
                   {expireInfo && (
                     <View style={s.infoRow}>
-                      <Feather name="clock" size={13} color={expireInfo.color} />
+                      <Clock size={13} color={expireInfo.color} />
                       <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-SemiBold" }]}>{expireInfo.text}</Text>
                     </View>
                   )}
                   {mk.assigned_class_group_name && (
                     <View style={s.infoRow}>
-                      <Feather name="check-circle" size={13} color="#2EC4B6" />
+                      <CircleCheck size={13} color="#2EC4B6" />
                       <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
                     </View>
                   )}
@@ -415,21 +416,21 @@ export default function MakeupsScreen() {
                       style={[s.actionBtn, { backgroundColor: C.button }]}
                       onPress={() => openAssignModal(mk)}
                     >
-                      <Feather name="calendar" size={14} color="#fff" />
+                      <Calendar size={14} color="#fff" />
                       <Text style={[s.actionTxt, { color: "#fff" }]}>보강반 배정</Text>
                     </Pressable>
                     <Pressable
                       style={[s.actionBtn, { backgroundColor: "#EEF2FF", flex: undefined, paddingHorizontal: 12 }]}
                       onPress={() => openHandoverDirect(mk)}
                     >
-                      <Feather name="user-plus" size={14} color="#4F46E5" />
+                      <UserPlus size={14} color="#4F46E5" />
                       <Text style={[s.actionTxt, { color: "#4F46E5" }]}>인계</Text>
                     </Pressable>
                     <Pressable
                       style={[s.actionBtn, { backgroundColor: "#FEF2F2", flex: undefined, paddingHorizontal: 12 }]}
                       onPress={() => setSelfExtTarget(mk)}
                     >
-                      <Feather name="x-circle" size={14} color="#DC2626" />
+                      <CircleX size={14} color="#DC2626" />
                       <Text style={[s.actionTxt, { color: "#DC2626" }]}>소멸</Text>
                     </Pressable>
                   </View>
@@ -452,7 +453,7 @@ export default function MakeupsScreen() {
           >
             {assignedList.length === 0 ? (
               <View style={s.empty}>
-                <Feather name="user-check" size={36} color={C.textMuted} />
+                <UserCheck size={36} color={C.textMuted} />
                 <Text style={s.emptyTxt}>배정된 대리 보강이 없습니다</Text>
               </View>
             ) : (
@@ -465,24 +466,24 @@ export default function MakeupsScreen() {
                         <View style={{ flex: 1, gap: 3 }}>
                           <Text style={[s.studentName, { color: "#7C3AED" }]}>{mk.student_name}</Text>
                           <View style={s.infoRow}>
-                            <Feather name="calendar" size={12} color={C.textSecondary} />
+                            <Calendar size={12} color={C.textSecondary} />
                             <Text style={s.infoTxt}>결석일: {mk.absence_date}</Text>
                           </View>
                           {mk.original_class_group_name && (
                             <View style={s.infoRow}>
-                              <Feather name="users" size={12} color={C.textSecondary} />
+                              <Users size={12} color={C.textSecondary} />
                               <Text style={s.infoTxt}>원반: {mk.original_class_group_name}  담당: {mk.original_teacher_name || "미배정"}</Text>
                             </View>
                           )}
                           {mk.assigned_class_group_name && (
                             <View style={s.infoRow}>
-                              <Feather name="check-circle" size={12} color="#2EC4B6" />
+                              <CircleCheck size={12} color="#2EC4B6" />
                               <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
                             </View>
                           )}
                           {expireInfo && (
                             <View style={s.infoRow}>
-                              <Feather name="clock" size={12} color={expireInfo.color} />
+                              <Clock size={12} color={expireInfo.color} />
                               <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-SemiBold" }]}>{expireInfo.text}</Text>
                             </View>
                           )}
@@ -495,7 +496,7 @@ export default function MakeupsScreen() {
                         style={[s.actionBtn, { backgroundColor: "#EEDDF5", marginTop: 10, flex: undefined, paddingHorizontal: 16 }]}
                         onPress={() => setCompleteTarget(mk)}
                       >
-                        <Feather name="check-circle" size={15} color="#7C3AED" />
+                        <CircleCheck size={15} color="#7C3AED" />
                         <Text style={[s.actionTxt, { color: "#7C3AED", fontFamily: "Pretendard-Bold" }]}>보강 완료 확인</Text>
                       </Pressable>
                     </View>
@@ -519,7 +520,7 @@ export default function MakeupsScreen() {
           >
             {pendingHistory.length === 0 ? (
               <View style={s.empty}>
-                <Feather name="calendar" size={36} color={C.textMuted} />
+                <Calendar size={36} color={C.textMuted} />
                 <Text style={s.emptyTxt}>보강 현황 내역이 없습니다</Text>
               </View>
             ) : (
@@ -545,7 +546,7 @@ export default function MakeupsScreen() {
                   <Text style={s.sheetSub}>{assignTarget.student_name} · 결석일: {fmtDate(assignTarget.absence_date)}</Text>
                 </View>
                 <Pressable onPress={() => { setAssignTarget(null); setSelectedClassId(null); }} style={{ padding: 4 }}>
-                  <Feather name="x" size={20} color={C.textSecondary} />
+                  <X size={20} color={C.textSecondary} />
                 </Pressable>
               </View>
               <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
@@ -553,7 +554,7 @@ export default function MakeupsScreen() {
                   <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
                 ) : eligibleClasses.length === 0 ? (
                   <View style={s.empty}>
-                    <Feather name="alert-circle" size={24} color={C.textMuted} />
+                    <CircleAlert size={24} color={C.textMuted} />
                     <Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text>
                   </View>
                 ) : eligibleClasses.map(cg => {
@@ -564,7 +565,7 @@ export default function MakeupsScreen() {
                       style={[s.classRow, isSelected && { backgroundColor: themeColor + "15", borderColor: themeColor }]}
                       onPress={() => setSelectedClassId(cg.id)}
                     >
-                      <Feather name={isSelected ? "check-circle" : "circle"} size={16} color={isSelected ? themeColor : C.textMuted} />
+                      <LucideIcon name={isSelected ? "check-circle" : "circle"} size={16} color={isSelected ? themeColor : C.textMuted} />
                       <View style={{ flex: 1 }}>
                         <Text style={[s.className, { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: isSelected ? themeColor : C.text }]}>{cg.name}</Text>
                         <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
@@ -603,14 +604,14 @@ export default function MakeupsScreen() {
                 <>
                   <View style={s.sheetHeader}>
                     <Pressable onPress={closeHandover} style={{ padding: 4, marginRight: 8 }}>
-                      <Feather name="arrow-left" size={20} color={C.text} />
+                      <ArrowLeft size={20} color={C.text} />
                     </Pressable>
                     <View style={{ flex: 1 }}>
                       <Text style={s.sheetTitle}>다른 선생님한테 보내기</Text>
                       <Text style={s.sheetSub}>선택한 선생님 정산에 기타 1시수가 반영됩니다.</Text>
                     </View>
                     <Pressable onPress={closeHandover} style={{ padding: 4 }}>
-                      <Feather name="x" size={20} color={C.textSecondary} />
+                      <X size={20} color={C.textSecondary} />
                     </Pressable>
                   </View>
                   <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
@@ -618,7 +619,7 @@ export default function MakeupsScreen() {
                       <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
                     ) : teachers.length === 0 ? (
                       <View style={s.empty}>
-                        <Feather name="alert-circle" size={24} color={C.textMuted} />
+                        <CircleAlert size={24} color={C.textMuted} />
                         <Text style={s.emptyTxt}>등록된 선생님이 없습니다</Text>
                       </View>
                     ) : teachers.map(t => {
@@ -630,7 +631,7 @@ export default function MakeupsScreen() {
                           style={[s.classRow, isSelected && { backgroundColor: "#4F46E5" + "12", borderColor: "#4F46E5" }]}
                           onPress={() => setSelectedTeacher(t)}
                         >
-                          <Feather name={isSelected ? "check-circle" : "circle"} size={16} color={isSelected ? "#4F46E5" : C.textMuted} />
+                          <LucideIcon name={isSelected ? "check-circle" : "circle"} size={16} color={isSelected ? "#4F46E5" : C.textMuted} />
                           <View style={{ flex: 1 }}>
                             <Text style={[s.className, { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: isSelected ? "#4F46E5" : C.text }]}>
                               {t.name}{isMe ? " (나)" : ""}
@@ -662,7 +663,7 @@ export default function MakeupsScreen() {
               {handoverStep === "done" && (
                 <View style={{ alignItems: "center", padding: 32, gap: 16 }}>
                   <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#E6FFFA", alignItems: "center", justifyContent: "center" }}>
-                    <Feather name="check" size={28} color="#2EC4B6" />
+                    <Check size={28} color="#2EC4B6" />
                   </View>
                   <Text style={{ fontSize: 16, fontFamily: "Pretendard-Bold", color: C.text }}>인계 완료</Text>
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 }}>

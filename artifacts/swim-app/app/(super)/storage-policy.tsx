@@ -2,7 +2,7 @@
  * (super)/storage-policy.tsx — 저장공간 정책 설정
  * 로컬 정적 시드 데이터 — API 호출 없음
  */
-import { Feather } from "@expo/vector-icons";
+import { CirclePlus, HardDrive, Info, Lock, PenLine, TriangleAlert, User, X } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
@@ -99,7 +99,7 @@ export default function StoragePolicyScreen() {
       <SubScreenHeader title="저장공간 정책 설정" homePath="/(super)/dashboard" />
 
       <View style={[styles.infoBanner, { marginHorizontal: 20 }]}>
-        <Feather name="info" size={14} color={PURPLE} />
+        <Info size={14} color={PURPLE} />
         <Text style={styles.infoText}>
           구독 단계별 기본 제공 용량을 설정합니다. 용량 초과 시 수영장 관리자에게 경고 알림이 발송됩니다.
         </Text>
@@ -117,7 +117,7 @@ export default function StoragePolicyScreen() {
                   <Text style={[styles.tierRange, { color: meta.color + "AA" }]}>{meta.memberRange}</Text>
                 </View>
                 <Pressable style={[styles.editBtn, { backgroundColor: meta.color }]} onPress={() => openEdit(p)}>
-                  <Feather name="edit-2" size={13} color="#fff" />
+                  <PenLine size={13} color="#fff" />
                   <Text style={styles.editBtnText}>수정</Text>
                 </Pressable>
               </View>
@@ -125,19 +125,19 @@ export default function StoragePolicyScreen() {
               <View style={styles.cardBody}>
                 <View style={styles.policyRow}>
                   <View style={styles.policyItem}>
-                    <Feather name="hard-drive" size={14} color="#64748B" />
+                    <HardDrive size={14} color="#64748B" />
                     <Text style={styles.policyKey}>기본 용량</Text>
                     <Text style={[styles.policyVal, { color: meta.color }]}>{fmtGB(p.quota_gb)}</Text>
                   </View>
                   <View style={styles.dividerV} />
                   <View style={styles.policyItem}>
-                    <Feather name="user" size={14} color="#64748B" />
+                    <User size={14} color="#64748B" />
                     <Text style={styles.policyKey}>회원당 평균</Text>
                     <Text style={[styles.policyVal, { color: meta.color }]}>{p.per_member_mb} MB</Text>
                   </View>
                 </View>
                 <View style={[styles.extraRow, { borderColor: "#E5E7EB" }]}>
-                  <Feather name="plus-circle" size={13} color="#64748B" />
+                  <CirclePlus size={13} color="#64748B" />
                   <Text style={styles.extraText}>추가 용량 단가</Text>
                   <Text style={[styles.extraPrice, { color: meta.color }]}>{fmtPrice(p.extra_price_per_gb)}</Text>
                 </View>
@@ -148,7 +148,7 @@ export default function StoragePolicyScreen() {
         })}
 
         <View style={[styles.thresholdNote, { borderColor: "#FCD34D" }]}>
-          <Feather name="alert-triangle" size={14} color="#D97706" />
+          <TriangleAlert size={14} color="#D97706" />
           <Text style={styles.thresholdText}>
             사용량이 <Text style={{ fontFamily: "Pretendard-Bold", color: "#D97706" }}>80%</Text> 이상이 되면 수영장 관리자에게 자동으로 경고 알림이 발송됩니다.
           </Text>
@@ -164,7 +164,7 @@ export default function StoragePolicyScreen() {
                 {editTarget ? (TIER_META[editTarget.tier]?.label ?? editTarget.tier) : ""} 용량 수정
               </Text>
               <Pressable onPress={() => setEditTarget(null)}>
-                <Feather name="x" size={22} color="#64748B" />
+                <X size={22} color="#64748B" />
               </Pressable>
             </View>
 
@@ -193,7 +193,7 @@ export default function StoragePolicyScreen() {
               onPress={() => setOtpVisible(true)} disabled={saving}>
               {saving ? <ActivityIndicator color="#fff" size="small" /> : (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Feather name="lock" size={14} color="#fff" />
+                  <Lock size={14} color="#fff" />
                   <Text style={styles.saveBtnText}>모든 변경항목 저장하기</Text>
                 </View>
               )}

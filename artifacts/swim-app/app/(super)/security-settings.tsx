@@ -8,7 +8,8 @@
  * F. 세션·접속 관리 (SessionsSection)
  * G. 보안 정책 (SecurityPolicySection) + 로그인 이력 (LoginHistorySection)
  */
-import { Feather } from "@expo/vector-icons";
+import { AtSign, ChevronRight, CircleAlert, CircleCheck, Eye, Info, Key, Lock, PenLine, RefreshCw, Save, Shield, ShieldOff, Trash2, TriangleAlert, Unlock, UserPlus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useMemo, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet,
@@ -300,13 +301,13 @@ export default function SecuritySettingsScreen() {
                       </View>
                       {isSuperManager && (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F0FDF4", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }}>
-                          <Feather name="eye" size={9} color="#16A34A" />
+                          <Eye size={9} color="#16A34A" />
                           <Text style={{ fontSize: 9, fontFamily: "Pretendard-Bold", color: "#16A34A" }}>읽기전용</Text>
                         </View>
                       )}
                       {!isSuperManager && (acc.twoFactorEnabled
-                        ? <View style={s.twoFaBadgeOn}><Feather name="shield" size={9} color={GREEN} /><Text style={s.twoFaTxtOn}>2FA</Text></View>
-                        : <View style={s.twoFaBadgeOff}><Feather name="shield-off" size={9} color="#64748B" /><Text style={s.twoFaTxtOff}>2FA 없음</Text></View>)}
+                        ? <View style={s.twoFaBadgeOn}><Shield size={9} color={GREEN} /><Text style={s.twoFaTxtOn}>2FA</Text></View>
+                        : <View style={s.twoFaBadgeOff}><ShieldOff size={9} color="#64748B" /><Text style={s.twoFaTxtOff}>2FA 없음</Text></View>)}
                       {acc.loginFailCount > 0 && (
                         <View style={s.failBadge}><Text style={s.failTxt}>실패 {acc.loginFailCount}회</Text></View>
                       )}
@@ -314,9 +315,9 @@ export default function SecuritySettingsScreen() {
                   </View>
                   {acc.role !== "super_admin"
                     ? <Pressable style={s.smDeleteBtn} onPress={() => setSmDeleteId(acc.id)}>
-                        <Feather name="trash-2" size={14} color={DANGER} />
+                        <Trash2 size={14} color={DANGER} />
                       </Pressable>
-                    : <Feather name="chevron-right" size={14} color="#D1D5DB" />}
+                    : <ChevronRight size={14} color="#D1D5DB" />}
                 </Pressable>
               </View>
             );
@@ -324,11 +325,11 @@ export default function SecuritySettingsScreen() {
 
           {/* 슈퍼매니저 추가 버튼 */}
           <Pressable style={s.smAddBtn} onPress={() => setSmAddModal(true)}>
-            <Feather name="user-plus" size={15} color="#0284C7" />
+            <UserPlus size={15} color="#0284C7" />
             <Text style={s.smAddBtnTxt}>슈퍼매니저 추가</Text>
           </Pressable>
           <View style={s.smInfoBox}>
-            <Feather name="info" size={12} color="#0284C7" />
+            <Info size={12} color="#0284C7" />
             <Text style={s.smInfoTxt}>슈퍼매니저는 운영콘솔 전체를 읽기 전용으로 열람할 수 있습니다. 수정·삭제·승인 등 쓰기 작업은 불가합니다. 회원가입 화면에서 직접 가입할 수 없습니다.</Text>
           </View>
         </View>
@@ -337,19 +338,19 @@ export default function SecuritySettingsScreen() {
         <View style={s.section}>
           <SectionTitle title="B. 1차 인증 — 비밀번호" />
           <View style={s.infoRow}>
-            <Feather name="lock" size={14} color={P} />
+            <Lock size={14} color={P} />
             <Text style={s.infoLabel}>마지막 비밀번호 변경</Text>
             <Text style={s.infoValue}>{lastPwChange}</Text>
           </View>
           <View style={s.infoRow}>
-            <Feather name="info" size={14} color="#64748B" />
+            <Info size={14} color="#64748B" />
             <Text style={s.infoLabel}>비밀번호 정책</Text>
             <Text style={s.infoValue}>8자 이상 · 영문+숫자+특수문자</Text>
           </View>
           <Pressable style={s.actionBtn} onPress={() => setPwModal(true)}>
-            <Feather name="key" size={15} color={P} />
+            <Key size={15} color={P} />
             <Text style={s.actionBtnTxt}>비밀번호 변경</Text>
-            <Feather name="chevron-right" size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
+            <ChevronRight size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
           </Pressable>
         </View>
 
@@ -357,14 +358,14 @@ export default function SecuritySettingsScreen() {
         <View style={s.section}>
           <SectionTitle title="B-2. 관리자 ID 변경" sub="이메일 형식의 로그인 ID" />
           <View style={s.infoRow}>
-            <Feather name="at-sign" size={14} color={P} />
+            <AtSign size={14} color={P} />
             <Text style={s.infoLabel}>현재 ID</Text>
             <Text style={s.infoValue}>{currentId}</Text>
           </View>
           <Pressable style={s.actionBtn} onPress={() => setIdModal(true)}>
-            <Feather name="edit-2" size={15} color={P} />
+            <PenLine size={15} color={P} />
             <Text style={s.actionBtnTxt}>ID 변경</Text>
-            <Feather name="chevron-right" size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
+            <ChevronRight size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
           </Pressable>
         </View>
 
@@ -394,7 +395,7 @@ export default function SecuritySettingsScreen() {
           <View style={s.currentTwoFa}>
             <Text style={s.currentTwoFaLabel}>현재 방식</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <Feather name="shield" size={14} color={twoFAMode === "disabled" ? DANGER : GREEN} />
+              <Shield size={14} color={twoFAMode === "disabled" ? DANGER : GREEN} />
               <Text style={[s.currentTwoFaTxt, { color: twoFAMode === "disabled" ? DANGER : GREEN }]}>
                 {TWO_FA_OPTIONS.find(o => o.key === twoFAMode)?.label}
               </Text>
@@ -411,7 +412,7 @@ export default function SecuritySettingsScreen() {
                 <Text style={[s.twoFaOptLabel, twoFAMode === opt.key && { color: P }]}>{opt.label}</Text>
                 <Text style={s.twoFaOptDesc}>{opt.desc}</Text>
               </View>
-              {opt.key === "disabled" && <Feather name="alert-triangle" size={14} color={WARN} />}
+              {opt.key === "disabled" && <TriangleAlert size={14} color={WARN} />}
             </Pressable>
           ))}
           <View style={s.triggerSection}>
@@ -429,7 +430,7 @@ export default function SecuritySettingsScreen() {
           {/* OTP 연결/재등록 */}
           {(twoFAMode === "otp" || twoFAMode === "otp_sms_backup") && (
             <Pressable style={s.actionBtn} onPress={openOtpModal}>
-              <Feather name={totpEnabled ? "refresh-cw" : "smartphone"} size={15} color={totpEnabled ? "#2EC4B6" : P} />
+              <LucideIcon name={totpEnabled ? "refresh-cw" : "smartphone"} size={15} color={totpEnabled ? "#2EC4B6" : P} />
               <View style={{ flex: 1 }}>
                 <Text style={[s.actionBtnTxt, { color: totpEnabled ? "#2EC4B6" : P }]}>
                   {totpEnabled ? "OTP 재등록 (QR 갱신)" : "Google OTP 연결하기"}
@@ -440,7 +441,7 @@ export default function SecuritySettingsScreen() {
                   </Text>
                 )}
               </View>
-              <Feather name="chevron-right" size={14} color="#D1D5DB" />
+              <ChevronRight size={14} color="#D1D5DB" />
             </Pressable>
           )}
 
@@ -449,9 +450,9 @@ export default function SecuritySettingsScreen() {
             setShowRecoveryCodes(v => !v);
             if (!showRecoveryCodes) createLog({ category: "보안", title: "복구 코드 조회", detail: "백업 코드 목록 열람", actorName, impact: "medium" });
           }}>
-            <Feather name="key" size={15} color={P} />
+            <Key size={15} color={P} />
             <Text style={s.actionBtnTxt}>{showRecoveryCodes ? "복구 코드 숨기기" : "복구 코드 보기"}</Text>
-            <Feather name={showRecoveryCodes ? "chevron-up" : "chevron-down"} size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
+            <LucideIcon name={showRecoveryCodes ? "chevron-up" : "chevron-down"} size={14} color="#D1D5DB" style={{ marginLeft: "auto" }} />
           </Pressable>
           {showRecoveryCodes && (
             <View style={s.recoveryCodesBox}>
@@ -465,7 +466,7 @@ export default function SecuritySettingsScreen() {
               </View>
               <Text style={s.recoveryCodesHint}>안전한 곳에 보관하세요. 코드당 1회만 사용 가능합니다.</Text>
               <Pressable style={s.regenBtn} onPress={() => createLog({ category: "보안", title: "복구 코드 재생성", detail: "백업 코드 재발급", actorName, impact: "high" })}>
-                <Feather name="refresh-cw" size={12} color={DANGER} />
+                <RefreshCw size={12} color={DANGER} />
                 <Text style={s.regenTxt}>코드 재생성 (기존 코드 무효화)</Text>
               </Pressable>
             </View>
@@ -480,7 +481,7 @@ export default function SecuritySettingsScreen() {
               { id: "f3", time: "2026-03-20T14:55:00Z", ip: "175.211.33.xxx", device: "Chrome / Mac" },
             ].map(f => (
               <View key={f.id} style={s.failLogRow}>
-                <Feather name="alert-circle" size={12} color={DANGER} />
+                <CircleAlert size={12} color={DANGER} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.failLogDevice}>{f.device}</Text>
                   <Text style={s.failLogMeta}>{f.ip} · {relTime(f.time)}</Text>
@@ -506,12 +507,12 @@ export default function SecuritySettingsScreen() {
               style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
                 backgroundColor: "#EEDDF5", borderRadius: 10, padding: 14 }}
               onPress={() => router.push("/(super)/backup")}>
-              <Feather name="save" size={16} color={P} />
+              <Save size={16} color={P} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Bold", color: P }}>백업 관리</Text>
                 <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 }}>수동 백업 · 자동 설정 · 복구</Text>
               </View>
-              <Feather name="chevron-right" size={14} color={P} />
+              <ChevronRight size={14} color={P} />
             </Pressable>
           </View>
         </View>
@@ -568,18 +569,18 @@ export default function SecuritySettingsScreen() {
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 {isAccountLocked(detailAcc) ? (
                   <Pressable style={[m.actBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => doUnlock(detailAcc.id)}>
-                    <Feather name="unlock" size={14} color={GREEN} />
+                    <Unlock size={14} color={GREEN} />
                     <Text style={[m.actBtnTxt, { color: GREEN }]}>잠금 해제</Text>
                   </Pressable>
                 ) : (
                   <Pressable style={[m.actBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => doLock(detailAcc.id)}>
-                    <Feather name="lock" size={14} color={DANGER} />
+                    <Lock size={14} color={DANGER} />
                     <Text style={[m.actBtnTxt, { color: DANGER }]}>잠금 ({lockMinutes}분)</Text>
                   </Pressable>
                 )}
                 {detailAcc.loginFailCount > 0 && (
                   <Pressable style={[m.actBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => doResetFail(detailAcc.id)}>
-                    <Feather name="refresh-cw" size={14} color="#2EC4B6" />
+                    <RefreshCw size={14} color="#2EC4B6" />
                     <Text style={[m.actBtnTxt, { color: "#2EC4B6" }]}>실패 초기화</Text>
                   </Pressable>
                 )}
@@ -602,7 +603,7 @@ export default function SecuritySettingsScreen() {
             <Text style={m.modalTitle}>비밀번호 변경</Text>
             {pwSuccess ? (
               <View style={{ alignItems: "center", gap: 8, paddingVertical: 20 }}>
-                <Feather name="check-circle" size={36} color={GREEN} />
+                <CircleCheck size={36} color={GREEN} />
                 <Text style={{ fontSize: 16, fontFamily: "Pretendard-Bold", color: GREEN }}>변경 완료!</Text>
               </View>
             ) : (
@@ -641,7 +642,7 @@ export default function SecuritySettingsScreen() {
             <Text style={m.sheetSub}>현재 ID: {currentId}</Text>
             {idSuccess ? (
               <View style={{ alignItems: "center", paddingVertical: 20 }}>
-                <Feather name="check-circle" size={40} color="#16A34A" />
+                <CircleCheck size={40} color="#16A34A" />
                 <Text style={{ marginTop: 10, fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#16A34A" }}>ID가 변경되었습니다</Text>
               </View>
             ) : (
@@ -674,7 +675,7 @@ export default function SecuritySettingsScreen() {
               <>
                 <View style={{ alignItems: "center", gap: 12, paddingVertical: 12 }}>
                   <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#DCFCE7", alignItems: "center", justifyContent: "center" }}>
-                    <Feather name="check-circle" size={32} color="#16A34A" />
+                    <CircleCheck size={32} color="#16A34A" />
                   </View>
                   <Text style={{ fontSize: 18, fontFamily: "Pretendard-Bold", color: "#0F172A" }}>OTP 등록 완료</Text>
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 20 }}>
@@ -722,9 +723,9 @@ export default function SecuritySettingsScreen() {
                     onPress={() => setOtpShowSecret(v => !v)}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Feather name="key" size={13} color={P} />
+                      <Key size={13} color={P} />
                       <Text style={{ fontSize: 12, fontFamily: "Pretendard-Medium", color: P, flex: 1 }}>QR이 안 되면 키 직접 입력</Text>
-                      <Feather name={otpShowSecret ? "chevron-up" : "chevron-down"} size={13} color={P} />
+                      <LucideIcon name={otpShowSecret ? "chevron-up" : "chevron-down"} size={13} color={P} />
                     </View>
                     {otpShowSecret && (
                       <>
@@ -741,7 +742,7 @@ export default function SecuritySettingsScreen() {
 
                 {/* 안내 배너 */}
                 <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFF7ED", padding: 10, borderRadius: 8 }}>
-                  <Feather name="alert-triangle" size={14} color={WARN} />
+                  <TriangleAlert size={14} color={WARN} />
                   <Text style={{ flex: 1, fontSize: 12, color: "#92400E", fontFamily: "Pretendard-Regular", lineHeight: 18 }}>
                     Google Authenticator 앱 열기 → + → QR 코드 스캔
                   </Text>
@@ -800,12 +801,12 @@ export default function SecuritySettingsScreen() {
           <Pressable style={m.sheet} onPress={e => e.stopPropagation()}>
             <Text style={m.sheetTitle}>슈퍼매니저 계정 추가</Text>
             <View style={m.infoBox}>
-              <Feather name="eye" size={13} color="#0284C7" />
+              <Eye size={13} color="#0284C7" />
               <Text style={m.infoTxt}>읽기 전용 계정입니다. 회원가입으로 직접 가입 불가 — 이 화면에서만 등록됩니다.</Text>
             </View>
             {smSuccess ? (
               <View style={m.successRow}>
-                <Feather name="check-circle" size={18} color={GREEN} />
+                <CircleCheck size={18} color={GREEN} />
                 <Text style={m.successTxt}>슈퍼매니저 계정이 추가되었습니다.</Text>
               </View>
             ) : (
@@ -820,7 +821,7 @@ export default function SecuritySettingsScreen() {
                   </Pressable>
                   <Pressable style={[m.confirmBtn, { backgroundColor: "#0284C7" }]} onPress={() => setOtpAction("sm_add")}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                      <Feather name="lock" size={12} color="#fff" />
+                      <Lock size={12} color="#fff" />
                       <Text style={m.confirmTxt}>OTP 인증 후 추가</Text>
                     </View>
                   </Pressable>
@@ -849,7 +850,7 @@ export default function SecuritySettingsScreen() {
               </Pressable>
               <Pressable style={[m.confirmBtn, { backgroundColor: DANGER }]} onPress={() => setOtpAction("sm_delete")}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                  <Feather name="lock" size={12} color="#fff" />
+                  <Lock size={12} color="#fff" />
                   <Text style={m.confirmTxt}>OTP 인증 후 삭제</Text>
                 </View>
               </Pressable>
@@ -897,7 +898,7 @@ export default function SecuritySettingsScreen() {
             </Text>
             {pendingMode === "disabled" && (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA", padding: 10, borderRadius: 8 }}>
-                <Feather name="alert-triangle" size={14} color={DANGER} />
+                <TriangleAlert size={14} color={DANGER} />
                 <Text style={{ flex: 1, fontSize: 12, color: DANGER, fontFamily: "Pretendard-Regular" }}>2차 인증 비활성화는 보안 위험을 높입니다.</Text>
               </View>
             )}

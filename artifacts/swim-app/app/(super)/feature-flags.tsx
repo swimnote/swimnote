@@ -2,7 +2,7 @@
  * (super)/feature-flags.tsx — 기능 플래그 관리
  * 롤백 지원 · 위험 플래그 경고 모달 · 변경 사유 필수 · 영향 범위 표시
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, Info, RotateCcw, Target, TriangleAlert, Users } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
   FlatList, Modal, Pressable, RefreshControl,
@@ -178,7 +178,7 @@ export default function FeatureFlagsScreen() {
       >
         {/* 안내 배너 */}
         <View style={s.infoBanner}>
-          <Feather name="info" size={13} color="#2EC4B6" />
+          <Info size={13} color="#2EC4B6" />
           <Text style={s.infoBannerTxt}>위험 플래그(🔴)는 변경 시 경고 확인 필수. 모든 변경은 사유 입력 후 감사 로그 기록됩니다. 롤백 버튼으로 이전 상태 복원 가능.</Text>
         </View>
 
@@ -226,7 +226,7 @@ export default function FeatureFlagsScreen() {
                     {/* 영향 범위 */}
                     {impact && (
                       <View style={s.impactRow}>
-                        <Feather name="target" size={10} color={impact.riskColor} />
+                        <Target size={10} color={impact.riskColor} />
                         <Text style={[s.impactScope, { color: impact.riskColor }]}>{impact.scope}</Text>
                         <View style={[s.riskBadge, { backgroundColor: impact.riskColor + "20" }]}>
                           <Text style={[s.riskBadgeTxt, { color: impact.riskColor }]}>위험도 {impact.risk}</Text>
@@ -246,7 +246,7 @@ export default function FeatureFlagsScreen() {
                           이전 상태: {flag.lastEnabledState ? '활성' : '비활성'} → 현재: {flag.enabled ? '활성' : '비활성'}
                         </Text>
                         <Pressable style={s.rollbackBtn} onPress={() => { setRollbackModal(flag); setReason(""); }}>
-                          <Feather name="rotate-ccw" size={11} color={P} />
+                          <RotateCcw size={11} color={P} />
                           <Text style={s.rollbackBtnTxt}>롤백</Text>
                         </Pressable>
                       </View>
@@ -254,7 +254,7 @@ export default function FeatureFlagsScreen() {
 
                     {/* 운영자 예외 */}
                     <Pressable style={s.overrideBtn} onPress={() => { setOverridePanel(flag); setSelOp(null); setOpReason(""); setOpOverrideEnabled(flag.enabled); }}>
-                      <Feather name="users" size={11} color="#64748B" />
+                      <Users size={11} color="#64748B" />
                       <Text style={s.overrideBtnTxt}>운영자별 예외 설정</Text>
                     </Pressable>
                   </View>
@@ -317,7 +317,7 @@ export default function FeatureFlagsScreen() {
                 </Pressable>
                 <Pressable style={[m.dangerBtn, { opacity: reason.trim() ? 1 : 0.4 }]}
                   disabled={!reason.trim()} onPress={() => confirmToggle(dangerModal.flag, dangerModal.newEnabled)}>
-                  <Feather name="alert-triangle" size={14} color="#fff" />
+                  <TriangleAlert size={14} color="#fff" />
                   <Text style={m.dangerBtnTxt}>{dangerModal.newEnabled ? '활성화' : '비활성화'} 확인</Text>
                 </Pressable>
               </View>
@@ -350,7 +350,7 @@ export default function FeatureFlagsScreen() {
                 </Pressable>
                 <Pressable style={[m.rollbackExecBtn, { opacity: reason.trim() ? 1 : 0.4 }]}
                   disabled={!reason.trim()} onPress={doRollback}>
-                  <Feather name="rotate-ccw" size={14} color="#fff" />
+                  <RotateCcw size={14} color="#fff" />
                   <Text style={m.confirmTxt}>롤백 실행</Text>
                 </Pressable>
               </View>
@@ -377,7 +377,7 @@ export default function FeatureFlagsScreen() {
                     onPress={() => setSelOp({ id: op.id, name: op.name })}>
                     <Text style={[m.opRowTxt, selOp?.id === op.id && { color: P }]}>{op.name}</Text>
                     <Text style={m.opRowCode}>{op.code}</Text>
-                    {selOp?.id === op.id && <Feather name="check" size={14} color={P} />}
+                    {selOp?.id === op.id && <Check size={14} color={P} />}
                   </Pressable>
                 ))}
               </ScrollView>

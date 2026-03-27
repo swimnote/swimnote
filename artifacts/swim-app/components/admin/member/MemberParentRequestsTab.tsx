@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Inbox } from "lucide-react-native";
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -24,7 +24,7 @@ export function MemberParentRequestsTab({ parentRequests }: MemberParentRequests
         <Text style={ms.sectionTitle}>학부모 요청 ({parentRequests.length}건)</Text>
         {parentRequests.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 30 }}>
-            <Feather name="inbox" size={36} color={C.textMuted} />
+            <Inbox size={36} color={C.textMuted} />
             <Text style={{ fontSize: 14, color: C.textMuted, marginTop: 10 }}>요청 기록이 없습니다</Text>
           </View>
         ) : parentRequests.map((req: any, i: number) => (

@@ -2,7 +2,7 @@
  * 선생님 계정 활성화 화면
  * 로그인 시 needs_activation=true이면 이 화면으로 이동
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, CircleCheck, Shield, Unlock } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -79,7 +79,7 @@ export default function TeacherActivateScreen() {
     return (
       <View style={[styles.root, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}>
         <View style={[styles.successIcon, { backgroundColor: "#E6FFFA" }]}>
-          <Feather name="check-circle" size={48} color="#2EC4B6" />
+          <CircleCheck size={48} color="#2EC4B6" />
         </View>
         <Text style={[styles.successTitle, { color: C.text }]}>계정 활성화 완료!</Text>
         <Text style={[styles.successSub, { color: C.textSecondary }]}>잠시 후 이동합니다...</Text>
@@ -91,7 +91,7 @@ export default function TeacherActivateScreen() {
     <KeyboardAvoidingView style={[styles.root, { backgroundColor: C.background }]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 48) }]}>
         <View style={[styles.iconBox, { backgroundColor: C.tintLight }]}>
-          <Feather name="shield" size={32} color={C.tint} />
+          <Shield size={32} color={C.tint} />
         </View>
         <Text style={[styles.title, { color: C.text }]}>계정 활성화</Text>
         <Text style={[styles.subtitle, { color: C.textSecondary }]}>
@@ -100,7 +100,7 @@ export default function TeacherActivateScreen() {
 
         {error ? (
           <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-            <Feather name="alert-circle" size={14} color={C.error} />
+            <CircleAlert size={14} color={C.error} />
             <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
           </View>
         ) : null}
@@ -135,7 +135,7 @@ export default function TeacherActivateScreen() {
         >
           {loading ? <ActivityIndicator color="#fff" size="small" /> : (
             <>
-              <Feather name="unlock" size={18} color="#fff" />
+              <Unlock size={18} color="#fff" />
               <Text style={styles.btnText}>계정 활성화</Text>
             </>
           )}

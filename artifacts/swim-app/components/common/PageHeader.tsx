@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,7 +37,7 @@ export function PageHeader({ title, subtitle, action, rightSlot }: PageHeaderPro
           style={({ pressed }) => [s.btn, { backgroundColor: action.color ?? C.tint, opacity: pressed ? 0.85 : 1 }]}
           onPress={action.onPress}
         >
-          <Feather name={action.icon} size={16} color="#fff" />
+          <LucideIcon name={action.icon} size={16} color="#fff" />
           <Text style={s.btnText}>{action.label}</Text>
         </Pressable>
       ) : null}

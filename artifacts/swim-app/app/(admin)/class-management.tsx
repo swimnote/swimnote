@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { Calendar, CircleAlert, Grid2x2, Inbox, List, RefreshCw, RotateCcw } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View,
@@ -102,7 +103,7 @@ export default function ClassManagementScreen() {
         title="수업 관리"
         rightSlot={
           <Pressable onPress={load} style={s.refreshBtn} hitSlop={8}>
-            <Feather name="refresh-cw" size={18} color={C.textSecondary} />
+            <RefreshCw size={18} color={C.textSecondary} />
           </Pressable>
         }
       />
@@ -114,7 +115,7 @@ export default function ClassManagementScreen() {
 
       {error ? (
         <View style={[s.errBox, { backgroundColor: "#F9DEDA", marginHorizontal: 16 }]}>
-          <Feather name="alert-circle" size={14} color={C.error} />
+          <CircleAlert size={14} color={C.error} />
           <Text style={[s.errText, { color: C.error }]}>{error}</Text>
         </View>
       ) : null}
@@ -123,7 +124,7 @@ export default function ClassManagementScreen() {
         <>
           {/* 반 현황 */}
           <View style={s.sectionHeader}>
-            <Feather name="grid" size={15} color={C.tint} />
+            <Grid2x2 size={15} color={C.tint} />
             <Text style={[s.sectionTitle, { color: C.text }]}>반 현황</Text>
           </View>
           <View style={s.statsRow}>
@@ -135,7 +136,7 @@ export default function ClassManagementScreen() {
 
           {/* 이달 출결 */}
           <View style={s.sectionHeader}>
-            <Feather name="calendar" size={15} color="#2EC4B6" />
+            <Calendar size={15} color="#2EC4B6" />
             <Text style={[s.sectionTitle, { color: C.text }]}>{monthLabel} 출결</Text>
           </View>
           <View style={s.statsRow}>
@@ -147,7 +148,7 @@ export default function ClassManagementScreen() {
 
           {/* 보강 현황 */}
           <View style={s.sectionHeader}>
-            <Feather name="rotate-ccw" size={15} color="#D97706" />
+            <RotateCcw size={15} color="#D97706" />
             <Text style={[s.sectionTitle, { color: C.text }]}>{monthLabel} 보강</Text>
           </View>
           <View style={s.statsRow}>
@@ -159,7 +160,7 @@ export default function ClassManagementScreen() {
 
           {/* 반 목록 */}
           <View style={[s.sectionHeader, { marginTop: 4 }]}>
-            <Feather name="list" size={15} color={C.tint} />
+            <List size={15} color={C.tint} />
             <Text style={[s.sectionTitle, { color: C.text }]}>반별 현황</Text>
           </View>
 
@@ -190,7 +191,7 @@ export default function ClassManagementScreen() {
               >
                 <Text style={[s.chipText, { color: active ? C.tint : C.textSecondary }]}>{opt.label}</Text>
                 {active && (
-                  <Feather
+                  <LucideIcon
                     name={sortAsc ? "chevron-up" : "chevron-down"}
                     size={13}
                     color={C.tint}
@@ -203,7 +204,7 @@ export default function ClassManagementScreen() {
 
           {sortedClasses.length === 0 ? (
             <View style={s.empty}>
-              <Feather name="inbox" size={36} color={C.textMuted} />
+              <Inbox size={36} color={C.textMuted} />
               <Text style={[s.emptyText, { color: C.textMuted }]}>등록된 반이 없습니다</Text>
             </View>
           ) : sortedClasses.map(cls => {

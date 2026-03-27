@@ -3,7 +3,7 @@
  * - 전체공지 / 우리반공지 태그 분리
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { Feather } from "@expo/vector-icons";
+import { Bookmark } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Pressable, RefreshControl,
@@ -126,7 +126,7 @@ export default function ParentNoticesScreen() {
                   <TypeBadge type={n.notice_type} scope={n.audience_scope} />
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     {!n.is_read && <View style={[s.dot, { backgroundColor: C.tint }]} />}
-                    {n.is_pinned && <Feather name="bookmark" size={13} color={C.tint} />}
+                    {n.is_pinned && <Bookmark size={13} color={C.tint} />}
                   </View>
                 </View>
                 <Text style={[s.title, { color: C.text }]}>{n.title}</Text>

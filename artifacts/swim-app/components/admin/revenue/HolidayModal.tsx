@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { ChevronLeft, ChevronRight, Save, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, Dimensions, Modal, Pressable, ScrollView,
@@ -150,7 +151,7 @@ export function HolidayModal({ visible, onClose, poolId, token, themeColor }: Ho
           <View style={[hm.header, { borderBottomColor: C.border }]}>
             <Text style={[hm.headerTitle, { color: C.text }]}>휴무일 지정</Text>
             <Pressable onPress={onClose} hitSlop={10}>
-              <Feather name="x" size={22} color={C.textMuted} />
+              <X size={22} color={C.textMuted} />
             </Pressable>
           </View>
 
@@ -160,14 +161,14 @@ export function HolidayModal({ visible, onClose, poolId, token, themeColor }: Ho
               <Text style={[hm.optTitle, { color: C.textMuted }]}>기본 자동 옵션</Text>
               <View style={hm.optRow}>
                 <Pressable style={[hm.optBtn, autoPublic && { backgroundColor: "#FFF1BF", borderColor: "#E4A93A" }]} onPress={toggleAutoPublic}>
-                  <Feather name={autoPublic ? "check-square" : "square"} size={18} color={autoPublic ? "#D97706" : C.textMuted} />
+                  <LucideIcon name={autoPublic ? "check-square" : "square"} size={18} color={autoPublic ? "#D97706" : C.textMuted} />
                   <View>
                     <Text style={[hm.optBtnLabel, { color: autoPublic ? "#D97706" : C.text }]}>공휴일 자동</Text>
                     <Text style={[hm.optBtnSub, { color: C.textMuted }]}>삼일절·광복절·추석 등</Text>
                   </View>
                 </Pressable>
                 <Pressable style={[hm.optBtn, autoSunday && { backgroundColor: "#F9DEDA", borderColor: "#D96C6C" }]} onPress={toggleAutoSunday}>
-                  <Feather name={autoSunday ? "check-square" : "square"} size={18} color={autoSunday ? "#D96C6C" : C.textMuted} />
+                  <LucideIcon name={autoSunday ? "check-square" : "square"} size={18} color={autoSunday ? "#D96C6C" : C.textMuted} />
                   <View>
                     <Text style={[hm.optBtnLabel, { color: autoSunday ? "#D96C6C" : C.text }]}>일요일 자동</Text>
                     <Text style={[hm.optBtnSub, { color: C.textMuted }]}>매주 일요일 전체</Text>
@@ -179,11 +180,11 @@ export function HolidayModal({ visible, onClose, poolId, token, themeColor }: Ho
             {/* ── 월 네비게이션 ── */}
             <View style={[hm.monthNav, { backgroundColor: C.card }]}>
               <Pressable style={hm.navBtn} onPress={() => changeHoliMonth(-1)} hitSlop={8}>
-                <Feather name="chevron-left" size={20} color={themeColor} />
+                <ChevronLeft size={20} color={themeColor} />
               </Pressable>
               <Text style={[hm.monthTitle, { color: C.text }]}>{year}년 {month}월</Text>
               <Pressable style={hm.navBtn} onPress={() => changeHoliMonth(1)} hitSlop={8}>
-                <Feather name="chevron-right" size={20} color={themeColor} />
+                <ChevronRight size={20} color={themeColor} />
               </Pressable>
             </View>
 
@@ -249,7 +250,7 @@ export function HolidayModal({ visible, onClose, poolId, token, themeColor }: Ho
 
             {savedMsg ? <Text style={[hm.savedMsg, { color: themeColor }]}>{savedMsg}</Text> : null}
             <Pressable style={[hm.saveBtn, { backgroundColor: themeColor, opacity: saving ? 0.7 : 1 }]} onPress={handleSave} disabled={saving}>
-              {saving ? <ActivityIndicator size={18} color="#fff" /> : <Feather name="save" size={18} color="#fff" />}
+              {saving ? <ActivityIndicator size={18} color="#fff" /> : <Save size={18} color="#fff" />}
               <Text style={hm.saveBtnTxt}>{month}월 휴무일 저장</Text>
             </Pressable>
           </ScrollView>

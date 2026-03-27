@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, CircleAlert, CircleCheck, Hash, Lock, Phone, Smartphone, Terminal, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState, useEffect } from "react";
 import {
@@ -154,7 +155,7 @@ export default function ForgotPasswordScreen() {
       >
         <View style={styles.headerRow}>
           <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={goBack}>
-            <Feather name="arrow-left" size={20} color={C.text} />
+            <ArrowLeft size={20} color={C.text} />
           </Pressable>
           <Text style={[styles.screenTitle, { color: C.text }]}>비밀번호 찾기</Text>
           <View style={{ width: 28 }} />
@@ -164,7 +165,7 @@ export default function ForgotPasswordScreen() {
         {step === "done" && (
           <View style={styles.doneWrap}>
             <View style={[styles.doneIcon, { backgroundColor: "#E6FAF8" }]}>
-              <Feather name="check-circle" size={36} color={C.tint} />
+              <CircleCheck size={36} color={C.tint} />
             </View>
             <Text style={[styles.doneTitle, { color: C.text }]}>비밀번호 변경 완료</Text>
             <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
@@ -183,7 +184,7 @@ export default function ForgotPasswordScreen() {
         {step === "id" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#E6FAF8" }]}>
-              <Feather name="user" size={24} color={C.tint} />
+              <User size={24} color={C.tint} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>아이디 확인</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -193,7 +194,7 @@ export default function ForgotPasswordScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디</Text>
               <View style={[styles.inputRow, { borderColor: identifier ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="user" size={15} color={identifier ? C.tint : C.textMuted} />
+                <User size={15} color={identifier ? C.tint : C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={identifier}
@@ -210,7 +211,7 @@ export default function ForgotPasswordScreen() {
 
             {!!error && (
               <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-                <Feather name="alert-circle" size={14} color={C.error} />
+                <CircleAlert size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>
             )}
@@ -232,7 +233,7 @@ export default function ForgotPasswordScreen() {
         {step === "sms" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#E6FAF8" }]}>
-              <Feather name="smartphone" size={24} color={C.tint} />
+              <Smartphone size={24} color={C.tint} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>휴대폰 인증</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -243,7 +244,7 @@ export default function ForgotPasswordScreen() {
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>휴대폰 번호</Text>
               <View style={styles.phoneRow}>
                 <View style={[styles.inputRow, { flex: 1, borderColor: phone ? C.tint : C.border, backgroundColor: C.background }]}>
-                  <Feather name="phone" size={15} color={phone ? C.tint : C.textMuted} />
+                  <Phone size={15} color={phone ? C.tint : C.textMuted} />
                   <TextInput
                     style={[styles.input, { color: C.text }]}
                     value={phone}
@@ -272,7 +273,7 @@ export default function ForgotPasswordScreen() {
               <View style={styles.field}>
                 <View style={styles.phoneRow}>
                   <View style={[styles.inputRow, { flex: 1, borderColor: smsCode ? C.tint : C.border, backgroundColor: C.background }]}>
-                    <Feather name="hash" size={15} color={smsCode ? C.tint : C.textMuted} />
+                    <Hash size={15} color={smsCode ? C.tint : C.textMuted} />
                     <TextInput
                       style={[styles.input, { color: C.text }]}
                       value={smsCode}
@@ -301,7 +302,7 @@ export default function ForgotPasswordScreen() {
 
             {devCode && (
               <View style={styles.devCodeBox}>
-                <Feather name="terminal" size={13} color="#856404" />
+                <Terminal size={13} color="#856404" />
                 <Text style={styles.devCodeLabel}>개발용 인증번호:</Text>
                 <Text style={styles.devCodeNum}>{devCode}</Text>
               </View>
@@ -313,18 +314,18 @@ export default function ForgotPasswordScreen() {
         {step === "pw" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#E6FAF8" }]}>
-              <Feather name="lock" size={24} color={C.tint} />
+              <Lock size={24} color={C.tint} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>새 비밀번호 설정</Text>
             <View style={[styles.idBadge, { backgroundColor: C.background, borderColor: C.border }]}>
-              <Feather name="user" size={13} color={C.textMuted} />
+              <User size={13} color={C.textMuted} />
               <Text style={[styles.idBadgeText, { color: C.textSecondary }]}>{identifier}</Text>
             </View>
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>새 비밀번호 (4자 이상)</Text>
               <View style={[styles.inputRow, { borderColor: newPw ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="lock" size={15} color={newPw ? C.tint : C.textMuted} />
+                <Lock size={15} color={newPw ? C.tint : C.textMuted} />
                 <TextInput
                   ref={pwRef}
                   style={[styles.input, { color: C.text }]}
@@ -337,7 +338,7 @@ export default function ForgotPasswordScreen() {
                   onSubmitEditing={() => pw2Ref.current?.focus()}
                 />
                 <Pressable onPress={() => setShowPw(v => !v)} hitSlop={10}>
-                  <Feather name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
+                  <LucideIcon name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
                 </Pressable>
               </View>
             </View>
@@ -345,7 +346,7 @@ export default function ForgotPasswordScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 확인</Text>
               <View style={[styles.inputRow, { borderColor: newPw2 ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="lock" size={15} color={newPw2 ? C.tint : C.textMuted} />
+                <Lock size={15} color={newPw2 ? C.tint : C.textMuted} />
                 <TextInput
                   ref={pw2Ref}
                   style={[styles.input, { color: C.text }]}
@@ -362,7 +363,7 @@ export default function ForgotPasswordScreen() {
 
             {!!error && (
               <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-                <Feather name="alert-circle" size={14} color={C.error} />
+                <CircleAlert size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>
             )}

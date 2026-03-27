@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { PenLine, RotateCcw, Save } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -39,7 +40,7 @@ export function MemberInfoTab({
     <ScrollView contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
       {isArchived && (
         <Pressable style={ms.restoreBanner} onPress={onRestoreMember}>
-          <Feather name="rotate-ccw" size={16} color="#7C3AED" />
+          <RotateCcw size={16} color="#7C3AED" />
           <Text style={ms.restoreText}>이 회원은 {statusMeta.label} 상태입니다. 탭하여 복구하기</Text>
         </Pressable>
       )}
@@ -66,7 +67,7 @@ export function MemberInfoTab({
           disabled={saving || !infoChanged}
         >
           {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-            <><Feather name="save" size={16} color="#fff" /><Text style={ms.saveBtnText}>정보 저장</Text></>
+            <><Save size={16} color="#fff" /><Text style={ms.saveBtnText}>정보 저장</Text></>
           )}
         </Pressable>
       </View>
@@ -92,12 +93,12 @@ export function MemberInfoTab({
           </View>
           {!isArchived ? (
             <Pressable style={ms.changeStatusBtn} onPress={onShowStatusModal} disabled={saving}>
-              <Feather name="edit-2" size={14} color={themeColor} />
+              <PenLine size={14} color={themeColor} />
               <Text style={[ms.changeStatusText, { color: themeColor }]}>상태 변경</Text>
             </Pressable>
           ) : (
             <Pressable style={[ms.changeStatusBtn, { borderColor: "#7C3AED" }]} onPress={onRestoreMember} disabled={saving}>
-              <Feather name="rotate-ccw" size={14} color="#7C3AED" />
+              <RotateCcw size={14} color="#7C3AED" />
               <Text style={[ms.changeStatusText, { color: "#7C3AED" }]}>복구</Text>
             </Pressable>
           )}
@@ -108,7 +109,7 @@ export function MemberInfoTab({
           { icon: "map-pin" as const, label: "등록 경로", value: data.registration_path === "admin_created" ? "관리자 직접" : "학부모 요청" },
         ].map(({ icon, label, value }) => (
           <View key={label} style={ms.infoRow}>
-            <Feather name={icon} size={13} color={C.textMuted} />
+            <LucideIcon name={icon} size={13} color={C.textMuted} />
             <Text style={ms.infoLabel}>{label}</Text>
             <Text style={ms.infoValue}>{value}</Text>
           </View>

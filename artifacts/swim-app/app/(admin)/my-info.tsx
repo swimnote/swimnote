@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, Key, Lock, PenLine, Smartphone, User, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -120,7 +120,7 @@ export default function AdminMyInfoScreen() {
             <Pressable style={[s.editBtn, { borderColor: themeColor }]} onPress={() => {
               setEditName(profile?.name || ""); setEditPhone(profile?.phone || ""); setEditMsg(""); setEditVisible(true);
             }}>
-              <Feather name="edit-2" size={14} color={themeColor} />
+              <PenLine size={14} color={themeColor} />
               <Text style={[s.editBtnText, { color: themeColor }]}>편집</Text>
             </Pressable>
           </View>
@@ -129,7 +129,7 @@ export default function AdminMyInfoScreen() {
         {/* ── 계정 정보 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Feather name="user" size={15} color={themeColor} />
+            <User size={15} color={themeColor} />
             <Text style={s.cardTitle}>계정 정보</Text>
           </View>
           <View style={{ padding: 16, gap: 10 }}>
@@ -150,7 +150,7 @@ export default function AdminMyInfoScreen() {
         {/* ── 보안 설정 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Feather name="lock" size={15} color={themeColor} />
+            <Lock size={15} color={themeColor} />
             <Text style={s.cardTitle}>보안 설정</Text>
           </View>
           <Pressable
@@ -158,22 +158,22 @@ export default function AdminMyInfoScreen() {
             onPress={() => { setPwCurrent(""); setPwNew(""); setPwConfirm(""); setPwMsg(""); setPwVisible(true); }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Feather name="key" size={14} color={C.textSecondary} />
+              <Key size={14} color={C.textSecondary} />
               <Text style={[s.secItemLabel, { color: C.text }]}>비밀번호 변경</Text>
             </View>
-            <Feather name="chevron-right" size={16} color={C.textMuted} />
+            <ChevronRight size={16} color={C.textMuted} />
           </Pressable>
           <Pressable
             style={({ pressed }) => [s.secItem, { opacity: pressed ? 0.7 : 1 }]}
             onPress={() => router.push("/totp-setup" as any)}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Feather name="smartphone" size={14} color={C.textSecondary} />
+              <Smartphone size={14} color={C.textSecondary} />
               <Text style={[s.secItemLabel, { color: C.text }]}>Google OTP 설정</Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={[s.secItemLabel, { color: C.textMuted, fontSize: 12 }]}>2단계 인증</Text>
-              <Feather name="chevron-right" size={16} color={C.textMuted} />
+              <ChevronRight size={16} color={C.textMuted} />
             </View>
           </Pressable>
         </View>
@@ -187,7 +187,7 @@ export default function AdminMyInfoScreen() {
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>내 정보 수정</Text>
               <Pressable onPress={() => setEditVisible(false)} hitSlop={8}>
-                <Feather name="x" size={22} color={C.text} />
+                <X size={22} color={C.text} />
               </Pressable>
             </View>
             <Text style={s.inputLabel}>이름</Text>
@@ -212,7 +212,7 @@ export default function AdminMyInfoScreen() {
           <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>비밀번호 변경</Text>
-              <Pressable onPress={() => setPwVisible(false)} hitSlop={8}><Feather name="x" size={22} color={C.text} /></Pressable>
+              <Pressable onPress={() => setPwVisible(false)} hitSlop={8}><X size={22} color={C.text} /></Pressable>
             </View>
             <Text style={s.inputLabel}>현재 비밀번호</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwCurrent} onChangeText={setPwCurrent} placeholder="현재 비밀번호" placeholderTextColor={C.textMuted} secureTextEntry />

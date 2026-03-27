@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { DollarSign, Home, Layers, Menu, Send, Settings } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
@@ -86,27 +86,27 @@ export default function TeacherLayout() {
       <Tabs.Screen
         name="today-schedule"
         listeners={makeTabListener("today-schedule")}
-        options={{ title: "홈", tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} /> }}
+        options={{ title: "홈", tabBarIcon: ({ color }) => <Home size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="my-schedule"
         listeners={makeTabListener("my-schedule")}
-        options={{ title: "수업", tabBarIcon: ({ color }) => <Feather name="layers" size={22} color={color} /> }}
+        options={{ title: "수업", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="messenger"
         listeners={makeTabListener("messenger")}
-        options={{ title: "메신저", tabBarIcon: ({ color }) => <Feather name="send" size={22} color={color} /> }}
+        options={{ title: "메신저", tabBarIcon: ({ color }) => <Send size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="revenue"
         listeners={makeTabListener("revenue")}
-        options={{ title: "정산", tabBarIcon: ({ color }) => <Feather name="dollar-sign" size={22} color={color} /> }}
+        options={{ title: "정산", tabBarIcon: ({ color }) => <DollarSign size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="settings"
         listeners={makeTabListener("settings")}
-        options={{ title: "더보기", tabBarIcon: ({ color }) => <Feather name="menu" size={22} color={color} /> }}
+        options={{ title: "더보기", tabBarIcon: ({ color }) => <Menu size={22} color={color} /> }}
       />
 
       {/* ─── 숨김 화면들 (수업 탭 내에서 router.push로 접근) ─── */}

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, ChevronRight, Search, Users, X } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -85,16 +85,16 @@ export default function MoveToClassModal({
                   <Text style={rm.title}>반이동 — {clsLabel(classGroup)}</Text>
                   <Text style={rm.sub}>선택한 학생을 현재 반으로 이동합니다</Text>
                 </View>
-                <Pressable onPress={onClose} style={{ padding: 4 }}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={onClose} style={{ padding: 4 }}><X size={20} color={C.textSecondary} /></Pressable>
               </View>
               <View style={rm.searchBar}>
-                <Feather name="search" size={14} color={C.textMuted} />
+                <Search size={14} color={C.textMuted} />
                 <TextInput style={rm.searchInput} value={q} onChangeText={setQ} placeholder="이름 검색" placeholderTextColor={C.textMuted} />
-                {!!q && <Pressable onPress={() => setQ("")}><Feather name="x" size={14} color={C.textMuted} /></Pressable>}
+                {!!q && <Pressable onPress={() => setQ("")}><X size={14} color={C.textMuted} /></Pressable>}
               </View>
               <ScrollView style={rm.list} showsVerticalScrollIndicator={false}>
                 {filtered.length === 0 ? (
-                  <View style={rm.empty}><Feather name="users" size={28} color={C.textMuted} /><Text style={rm.emptyTxt}>이동 가능한 학생이 없습니다</Text></View>
+                  <View style={rm.empty}><Users size={28} color={C.textMuted} /><Text style={rm.emptyTxt}>이동 가능한 학생이 없습니다</Text></View>
                 ) : filtered.map(item => {
                   const fromClses = teacherClassesOf(item);
                   return (
@@ -118,7 +118,7 @@ export default function MoveToClassModal({
             <>
               <View style={rm.header}>
                 <Pressable onPress={() => { setStep("list"); setSelected(null); }} style={{ padding: 4, marginRight: 8 }}>
-                  <Feather name="arrow-left" size={20} color={C.textSecondary} />
+                  <ArrowLeft size={20} color={C.textSecondary} />
                 </Pressable>
                 <View style={{ flex: 1 }}>
                   <Text style={rm.title}>어떤 반에서 제거할까요?</Text>
@@ -132,7 +132,7 @@ export default function MoveToClassModal({
                       <Text style={rm.pickName}>{clsLabel(g)}</Text>
                       <Text style={rm.pickSub}>이 반에서 {selected.name} 회원만 제거됩니다</Text>
                     </View>
-                    <Feather name="chevron-right" size={18} color={C.textMuted} />
+                    <ChevronRight size={18} color={C.textMuted} />
                   </Pressable>
                 ))}
                 <View style={{ height: 40 }} />

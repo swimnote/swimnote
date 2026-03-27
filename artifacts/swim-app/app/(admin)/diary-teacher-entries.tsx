@@ -7,7 +7,8 @@
  * - 삭제 방식 선택 팝업 + 최종 확인 팝업
  * - 삭제 후 목록 갱신
  */
-import { Feather } from "@expo/vector-icons";
+import { BookOpen, Check, Clock, Image, Info, Layers, SquareCheck, Trash2 } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -177,7 +178,7 @@ export default function DiaryTeacherEntriesScreen() {
           {selectMode && (
             <Pressable onPress={() => toggleSelect(item.id)} style={{ marginRight: 10 }}>
               <View style={[de.checkbox, isSelected && { backgroundColor: themeColor, borderColor: themeColor }]}>
-                {isSelected && <Feather name="check" size={12} color="#fff" />}
+                {isSelected && <Check size={12} color="#fff" />}
               </View>
             </Pressable>
           )}
@@ -198,14 +199,14 @@ export default function DiaryTeacherEntriesScreen() {
               </View>
             </View>
             <View style={de.cardMeta}>
-              <Feather name="layers" size={11} color={C.textSecondary} />
+              <Layers size={11} color={C.textSecondary} />
               <Text style={de.cardMetaText}>{item.class_name}</Text>
-              <Feather name="clock" size={11} color={C.textSecondary} style={{ marginLeft: 6 }} />
+              <Clock size={11} color={C.textSecondary} style={{ marginLeft: 6 }} />
               <Text style={de.cardMetaText}>{(item.schedule_time || "").slice(0, 5)}</Text>
             </View>
           </View>
           {!selectMode && (
-            <Feather
+            <LucideIcon
               name={isExpanded ? "chevron-up" : "chevron-down"}
               size={15} color={C.textMuted}
             />
@@ -244,7 +245,7 @@ export default function DiaryTeacherEntriesScreen() {
       {selectMode ? (
         <View style={[de.toolbar, { borderBottomColor: C.border }]}>
           <Pressable style={de.toolbarBtn} onPress={toggleSelectAll}>
-            <Feather name="check-square" size={15} color={themeColor} />
+            <SquareCheck size={15} color={themeColor} />
             <Text style={[de.toolbarBtnText, { color: themeColor }]}>
               {selected.size === entries.length ? "전체 해제" : "전체 선택"}
             </Text>
@@ -256,14 +257,14 @@ export default function DiaryTeacherEntriesScreen() {
           >
             {deleting
               ? <ActivityIndicator color={C.error} size="small" />
-              : <><Feather name="trash-2" size={14} color={C.error} /><Text style={de.toolbarDeleteText}>선택 삭제 ({selected.size})</Text></>
+              : <><Trash2 size={14} color={C.error} /><Text style={de.toolbarDeleteText}>선택 삭제 ({selected.size})</Text></>
             }
           </Pressable>
         </View>
       ) : (
         /* 일반 모드 안내 */
         <View style={de.infoBar}>
-          <Feather name="info" size={12} color={C.textMuted} />
+          <Info size={12} color={C.textMuted} />
           <Text style={de.infoText}>항목을 길게 눌러 선택 모드로 전환합니다</Text>
         </View>
       )}
@@ -271,7 +272,7 @@ export default function DiaryTeacherEntriesScreen() {
       {/* 삭제 완료 메시지 */}
       {deleteMsg && (
         <View style={[de.msg, { backgroundColor: deleteMsg.includes("실패") ? "#F9DEDA" : "#E6FFFA" }]}>
-          <Feather name={deleteMsg.includes("실패") ? "alert-circle" : "check-circle"} size={13}
+          <LucideIcon name={deleteMsg.includes("실패") ? "alert-circle" : "check-circle"} size={13}
             color={deleteMsg.includes("실패") ? C.error : "#2EC4B6"} />
           <Text style={[de.msgText, { color: deleteMsg.includes("실패") ? C.error : "#2EC4B6" }]}>{deleteMsg}</Text>
         </View>
@@ -290,7 +291,7 @@ export default function DiaryTeacherEntriesScreen() {
           refreshing={refreshing}
           ListEmptyComponent={
             <View style={de.empty}>
-              <Feather name="book-open" size={40} color={C.textMuted} />
+              <BookOpen size={40} color={C.textMuted} />
               <Text style={de.emptyTitle}>작성된 일지가 없습니다</Text>
             </View>
           }
@@ -313,7 +314,7 @@ export default function DiaryTeacherEntriesScreen() {
               style={[de.modeBtn, { backgroundColor: "#FFF1BF", borderColor: "#FDE68A" }]}
               onPress={() => handleModeSelect("photo_only")}
             >
-              <Feather name="image" size={18} color="#B45309" />
+              <Image size={18} color="#B45309" />
               <View style={{ flex: 1 }}>
                 <Text style={[de.modeBtnTitle, { color: "#B45309" }]}>사진만 삭제</Text>
                 <Text style={[de.modeBtnDesc, { color: "#78350F" }]}>글 내용은 유지, 첨부 사진만 제거</Text>
@@ -324,7 +325,7 @@ export default function DiaryTeacherEntriesScreen() {
               style={[de.modeBtn, { backgroundColor: "#F9DEDA", borderColor: "#FCA5A5" }]}
               onPress={() => handleModeSelect("full")}
             >
-              <Feather name="trash-2" size={18} color={C.error} />
+              <Trash2 size={18} color={C.error} />
               <View style={{ flex: 1 }}>
                 <Text style={[de.modeBtnTitle, { color: C.error }]}>글 전체 삭제</Text>
                 <Text style={[de.modeBtnDesc, { color: "#7F1D1D" }]}>일지 전체를 삭제 (복구 불가)</Text>

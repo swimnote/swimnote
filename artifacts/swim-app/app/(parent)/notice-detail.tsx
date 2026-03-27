@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, Pin, User } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -52,20 +52,20 @@ export default function NoticeDetailScreen() {
 
       {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : !notice ? (
         <View style={styles.empty}>
-          <Feather name="alert-circle" size={40} color={C.textMuted} />
+          <CircleAlert size={40} color={C.textMuted} />
           <Text style={[styles.emptyText, { color: C.textMuted }]}>공지를 불러올 수 없습니다</Text>
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 16 }}>
           {notice.is_pinned && (
             <View style={[styles.pinnedTag, { backgroundColor: C.tintLight }]}>
-              <Feather name="pin" size={13} color={C.tint} />
+              <Pin size={13} color={C.tint} />
               <Text style={[styles.pinnedText, { color: C.tint }]}>고정 공지</Text>
             </View>
           )}
           {notice.student_name && (
             <View style={[styles.individualTag, { backgroundColor: C.tint + "18" }]}>
-              <Feather name="user" size={13} color={C.tint} />
+              <User size={13} color={C.tint} />
               <Text style={[styles.individualText, { color: C.tint }]}>{notice.student_name} 학생 개별 공지</Text>
             </View>
           )}

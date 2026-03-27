@@ -9,7 +9,8 @@
  *      수업일지 / 출결 / 앨범 / 공지 / 쪽지 / 수영정보
  *   E. 최신소식 피드 (공지 + 수업일지)
  */
-import { Feather } from "@expo/vector-icons";
+import { Bell, ChevronRight, Link, Settings, User, UserPlus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -69,7 +70,7 @@ function IconCell({
     >
       <View style={s.iconWrap}>
         <View style={[s.iconBg, { backgroundColor: bg }]}>
-          <Feather name={icon} size={26} color={color} />
+          <LucideIcon name={icon} size={26} color={color} />
         </View>
         {badge !== null && badge !== undefined && badge > 0 && (
           <View style={s.badge}>
@@ -95,7 +96,7 @@ function NewsCard({ item, onPress }: { item: NewsItem; onPress: () => void }) {
     >
       <View style={s.newsTop}>
         <View style={[s.newsTag, { backgroundColor: accentBg }]}>
-          <Feather name={isNotice ? "bell" : "book-open"} size={11} color={accentColor} />
+          <LucideIcon name={isNotice ? "bell" : "book-open"} size={11} color={accentColor} />
           <Text style={[s.newsTagTxt, { color: accentColor }]}>
             {isNotice
               ? (item.notice_type === "class" ? "우리반 공지" : "전체 공지")
@@ -119,7 +120,7 @@ function NewsCard({ item, onPress }: { item: NewsItem; onPress: () => void }) {
 
       {!isNotice && item.student_note ? (
         <View style={s.noteBox}>
-          <Feather name="user" size={11} color="#7C3AED" />
+          <User size={11} color="#7C3AED" />
           <Text style={[s.noteTxt, { color: "#5B21B6" }]} numberOfLines={1}>{item.student_note}</Text>
         </View>
       ) : null}
@@ -227,10 +228,10 @@ export default function ParentHomeScreen() {
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/notifications" as any)}>
-              <Feather name="bell" size={19} color={C.textSecondary} />
+              <Bell size={19} color={C.textSecondary} />
             </Pressable>
             <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/more" as any)}>
-              <Feather name="settings" size={19} color={C.textSecondary} />
+              <Settings size={19} color={C.textSecondary} />
             </Pressable>
           </View>
         </View>
@@ -242,7 +243,7 @@ export default function ParentHomeScreen() {
           {/* 자녀 연결 안내 카드 */}
           <View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 24, paddingVertical: 40 }}>
             <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center" }}>
-              <Feather name="link" size={38} color={C.tint} />
+              <Link size={38} color={C.tint} />
             </View>
             <View style={{ alignItems: "center", gap: 10 }}>
               <Text style={{ fontSize: 20, fontFamily: "Pretendard-Bold", color: C.text }}>연결된 자녀가 없습니다</Text>
@@ -285,14 +286,14 @@ export default function ParentHomeScreen() {
             style={[s.headerBtn, { backgroundColor: C.card }]}
             onPress={() => router.push("/(parent)/notifications" as any)}
           >
-            <Feather name="bell" size={19} color={C.textSecondary} />
+            <Bell size={19} color={C.textSecondary} />
           </Pressable>
           {/* 설정 (톱니바퀴) */}
           <Pressable
             style={[s.headerBtn, { backgroundColor: C.card }]}
             onPress={() => router.push("/(parent)/more" as any)}
           >
-            <Feather name="settings" size={19} color={C.textSecondary} />
+            <Settings size={19} color={C.textSecondary} />
           </Pressable>
         </View>
       </View>
@@ -352,16 +353,16 @@ export default function ParentHomeScreen() {
                 {scheduleText && <Text style={s.infoSchedule}>{scheduleText}</Text>}
               </View>
             </View>
-            <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
+            <ChevronRight size={18} color="rgba(255,255,255,0.7)" />
           </Pressable>
         ) : (
           <Pressable
             style={[s.noChildCard, { backgroundColor: C.card }]}
             onPress={() => router.push("/(parent)/children" as any)}
           >
-            <Feather name="user-plus" size={22} color={C.tint} />
+            <UserPlus size={22} color={C.tint} />
             <Text style={[s.noChildTxt, { color: C.text }]}>자녀를 연결해주세요</Text>
-            <Feather name="chevron-right" size={18} color={C.textMuted} />
+            <ChevronRight size={18} color={C.textMuted} />
           </Pressable>
         )}
 

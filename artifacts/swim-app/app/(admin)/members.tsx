@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleCheck, CircleX, Info, Search, SquareCheck } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -349,18 +350,18 @@ export default function MembersScreen() {
         {!sel.selectionMode ? (
           <>
             <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? "#64748B" : "#2EC4B6" }]} onPress={handleAddMember}>
-              <Feather name={isMemberLimitReached ? "lock" : "user-plus"} size={14} color="#fff" />
+              <LucideIcon name={isMemberLimitReached ? "lock" : "user-plus"} size={14} color="#fff" />
               <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
             </Pressable>
             <Pressable
               style={[ms.actionBtn, { backgroundColor: "#64748B" }]}
               onPress={() => router.push("/(admin)/approvals" as any)}
             >
-              <Feather name="check-circle" size={14} color="#fff" />
+              <CircleCheck size={14} color="#fff" />
               <Text style={ms.actionBtnText}>학부모 요청 승인</Text>
             </Pressable>
             <Pressable style={[ms.selBtn]} onPress={sel.enterSelectionMode}>
-              <Feather name="check-square" size={16} color={C.textSecondary} />
+              <SquareCheck size={16} color={C.textSecondary} />
             </Pressable>
           </>
         ) : (
@@ -373,7 +374,7 @@ export default function MembersScreen() {
       </View>
       {/* 검색 */}
       <View style={[ms.searchRow, { borderColor: C.border, backgroundColor: C.card }]}>
-        <Feather name="search" size={16} color={C.textMuted} />
+        <Search size={16} color={C.textMuted} />
         <TextInput
           style={[ms.searchInput, { color: C.text }]}
           value={search} onChangeText={setSearch}
@@ -382,7 +383,7 @@ export default function MembersScreen() {
         />
         {search.length > 0 && (
           <Pressable onPress={() => setSearch("")}>
-            <Feather name="x-circle" size={16} color={C.textMuted} />
+            <CircleX size={16} color={C.textMuted} />
           </Pressable>
         )}
       </View>
@@ -410,7 +411,7 @@ export default function MembersScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           ListHeaderComponent={filter === "suspended" ? (
             <View style={ms.suspendedBanner}>
-              <Feather name="info" size={14} color="#B45309" />
+              <Info size={14} color="#B45309" />
               <Text style={ms.suspendedBannerTitle}>연기 회원도 정상 요금 100% 과금</Text>
             </View>
           ) : null}

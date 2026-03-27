@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, Mail, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -50,14 +50,14 @@ export default function UnreadMessagesModal({
             </View>
           )}
           <Pressable onPress={onClose} style={um.closeBtn}>
-            <Feather name="x" size={18} color={C.textSecondary} />
+            <X size={18} color={C.textSecondary} />
           </Pressable>
         </View>
         {loading ? (
           <ActivityIndicator color={themeColor} style={{ marginTop: 30 }} />
         ) : messages.length === 0 ? (
           <View style={um.empty}>
-            <Feather name="mail" size={36} color={C.textMuted} />
+            <Mail size={36} color={C.textMuted} />
             <Text style={[um.emptyTxt, { color: C.textMuted }]}>읽지 않은 쪽지가 없습니다</Text>
           </View>
         ) : (
@@ -71,7 +71,7 @@ export default function UnreadMessagesModal({
                   <Text style={[um.itemContent, { color: C.textSecondary }]} numberOfLines={1}>{msg.content}</Text>
                   <Text style={[um.itemMeta, { color: C.textMuted }]}>{msg.class_name} · {fmtDate(msg.created_at)}</Text>
                 </View>
-                <Feather name="chevron-right" size={16} color={C.textMuted} />
+                <ChevronRight size={16} color={C.textMuted} />
               </Pressable>
             ))}
           </ScrollView>

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Bell, Calendar, ChevronRight } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -105,13 +105,13 @@ export default function ParentStudentDetailScreen() {
             onPress={() => router.push({ pathname: "/(parent)/attendance-history", params: { id, name } })}
           >
             <View style={[styles.midIcon, { backgroundColor: C.success + "20" }]}>
-              <Feather name="calendar" size={22} color={C.success} />
+              <Calendar size={22} color={C.success} />
             </View>
             <View style={styles.midText}>
               <Text style={[styles.midLabel, { color: C.text }]}>출결기록 보기</Text>
               <Text style={[styles.midSub, { color: C.textMuted }]}>월별 출결 현황 확인</Text>
             </View>
-            <Feather name="chevron-right" size={18} color={C.textMuted} />
+            <ChevronRight size={18} color={C.textMuted} />
           </Pressable>
 
           {/* 공지사항 - 작은 카드 */}
@@ -119,9 +119,9 @@ export default function ParentStudentDetailScreen() {
             style={({ pressed }) => [styles.smallCard, { backgroundColor: C.card, borderColor: C.border, opacity: pressed ? 0.9 : 1 }]}
             onPress={() => router.push({ pathname: "/(parent)/notices" })}
           >
-            <Feather name="bell" size={16} color={C.textSecondary} />
+            <Bell size={16} color={C.textSecondary} />
             <Text style={[styles.smallLabel, { color: C.textSecondary }]}>공지사항</Text>
-            <Feather name="chevron-right" size={14} color={C.textMuted} />
+            <ChevronRight size={14} color={C.textMuted} />
           </Pressable>
         </ScrollView>
       )}

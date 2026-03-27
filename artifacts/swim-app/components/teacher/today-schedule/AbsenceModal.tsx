@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleX, TriangleAlert, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
@@ -104,7 +105,7 @@ export default function AbsenceModal({
         {result ? (
           <View style={{ gap: 16, padding: 4 }}>
             <View style={[ab.resultBox, { backgroundColor: result.startsWith("오류") ? "#F9DEDA" : "#E6FFFA" }]}>
-              <Feather name={result.startsWith("오류") ? "alert-circle" : "check-circle"} size={20}
+              <LucideIcon name={result.startsWith("오류") ? "alert-circle" : "check-circle"} size={20}
                 color={result.startsWith("오류") ? "#D96C6C" : "#2EC4B6"} />
               <Text style={[ab.resultText, { color: result.startsWith("오류") ? "#D96C6C" : "#065F46" }]}>{result}</Text>
             </View>
@@ -116,7 +117,7 @@ export default function AbsenceModal({
           <View style={{ gap: 16 }}>
             <Text style={ab.title}>결근 처리</Text>
             <View style={[ab.warnBox, { backgroundColor: "#FFF1BF" }]}>
-              <Feather name="alert-triangle" size={16} color="#D97706" />
+              <TriangleAlert size={16} color="#D97706" />
               <Text style={[ab.warnText, { color: "#92400E" }]}>
                 {item?.name} 수업을 결근 처리합니다.{"\n"}옆 반 이동 수업하는 학생이 있습니까?
               </Text>
@@ -124,14 +125,14 @@ export default function AbsenceModal({
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Pressable style={[ab.choiceBtn, { backgroundColor: "#FFFFFF", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
                 {loading ? <ActivityIndicator size="small" color="#64748B" /> : <>
-                  <Feather name="x-circle" size={18} color="#64748B" />
+                  <CircleX size={18} color="#64748B" />
                   <Text style={[ab.choiceBtnText, { color: "#0F172A" }]}>없음</Text>
                   <Text style={ab.choiceSub}>전원 미실시(선생님)</Text>
                 </>}
               </Pressable>
               <Pressable style={[ab.choiceBtn, { backgroundColor: themeColor + "15", borderColor: themeColor, borderWidth: 1.5, flex: 1 }]} onPress={handleHasTransfer} disabled={loading}>
                 {loading ? <ActivityIndicator size="small" color={themeColor} /> : <>
-                  <Feather name="users" size={18} color={themeColor} />
+                  <Users size={18} color={themeColor} />
                   <Text style={[ab.choiceBtnText, { color: themeColor }]}>있음</Text>
                   <Text style={ab.choiceSub}>학생 선택 → 옆 반 이동</Text>
                 </>}
@@ -146,7 +147,7 @@ export default function AbsenceModal({
               <Pressable key={s.id}
                 style={[ab.studentRow, { backgroundColor: s.selected ? themeColor+"15" : C.background, borderColor: s.selected ? themeColor : C.border }]}
                 onPress={() => toggleStudent(s.id)}>
-                <Feather name={s.selected ? "check-square" : "square"} size={18} color={s.selected ? themeColor : C.textMuted} />
+                <LucideIcon name={s.selected ? "check-square" : "square"} size={18} color={s.selected ? themeColor : C.textMuted} />
                 <Text style={[ab.studentName, { color: C.text }]}>{s.name}</Text>
                 <Text style={[ab.studentTag, { color: s.selected ? themeColor : C.textMuted }]}>{s.selected ? "이동" : "미실시"}</Text>
               </Pressable>
@@ -158,7 +159,7 @@ export default function AbsenceModal({
                   <Pressable key={nc.id}
                     style={[ab.studentRow, { backgroundColor: selectedClass===nc.id ? themeColor+"15" : C.background, borderColor: selectedClass===nc.id ? themeColor : C.border }]}
                     onPress={() => setSelectedClass(nc.id)}>
-                    <Feather name={selectedClass===nc.id ? "check-circle" : "circle"} size={18} color={selectedClass===nc.id ? themeColor : C.textMuted} />
+                    <LucideIcon name={selectedClass===nc.id ? "check-circle" : "circle"} size={18} color={selectedClass===nc.id ? themeColor : C.textMuted} />
                     <View style={{ flex: 1 }}>
                       <Text style={[ab.studentName, { color: C.text }]}>{nc.name}</Text>
                       <Text style={[ab.studentTag, { color: C.textSecondary }]}>{nc.schedule_time} · {nc.teacher_name} · {nc.student_count}명</Text>

@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { Lock, Mic, Square, Trash2, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Audio } from "expo-av";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -126,21 +127,21 @@ export default function MemoSheet({
               <Text style={ms.sheetTitle}>개인 메모</Text>
               <Text style={ms.sheetSub}>{item.name} · {item.schedule_time}</Text>
             </View>
-            <Pressable onPress={onClose} style={ms.closeBtn}><Feather name="x" size={20} color={C.text} /></Pressable>
+            <Pressable onPress={onClose} style={ms.closeBtn}><X size={20} color={C.text} /></Pressable>
           </View>
           <TextInput style={[ms.textArea, { borderColor: C.border }]}
             value={text} onChangeText={setText}
             placeholder="수업 준비 메모, 특이사항 등 자유롭게 작성하세요..."
             placeholderTextColor={C.textMuted} multiline numberOfLines={5} textAlignVertical="top" />
           <View style={[ms.audioBox, { borderColor: C.border }]}>
-            <Feather name="mic" size={16} color={themeColor} />
+            <Mic size={16} color={themeColor} />
             <Text style={[ms.audioLabel, { color: C.textSecondary }]}>음성 메모</Text>
             {isRecording ? (
               <View style={ms.recRow}>
                 <View style={ms.recDot} />
                 <Text style={[ms.recTime, { color: "#D96C6C" }]}>{recDisplay}</Text>
                 <Pressable style={[ms.recBtn, { backgroundColor: "#D96C6C" }]} onPress={stopRecording}>
-                  <Feather name="square" size={14} color="#fff" />
+                  <Square size={14} color="#fff" />
                   <Text style={ms.recBtnText}>중지</Text>
                 </Pressable>
               </View>
@@ -149,20 +150,20 @@ export default function MemoSheet({
                 {(audioUri || audioKey) ? (
                   <>
                     <Pressable style={[ms.recBtn, { backgroundColor: themeColor }]} onPress={playAudio}>
-                      <Feather name={playing ? "pause" : "play"} size={14} color="#fff" />
+                      <LucideIcon name={playing ? "pause" : "play"} size={14} color="#fff" />
                       <Text style={ms.recBtnText}>{playing ? "일시정지" : "재생"}</Text>
                     </Pressable>
                     <Pressable style={[ms.recBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => {
                       if (sound) { sound.unloadAsync(); setSound(null); }
                       setPlaying(false); setAudioUri(null); setAudioKey(null);
                     }}>
-                      <Feather name="trash-2" size={14} color={C.error} />
+                      <Trash2 size={14} color={C.error} />
                       <Text style={[ms.recBtnText, { color: C.error }]}>삭제</Text>
                     </Pressable>
                   </>
                 ) : (
                   <Pressable style={[ms.recBtn, { backgroundColor: "#F9DEDA" }]} onPress={startRecording}>
-                    <Feather name="mic" size={14} color="#D96C6C" />
+                    <Mic size={14} color="#D96C6C" />
                     <Text style={[ms.recBtnText, { color: "#D96C6C" }]}>녹음 시작</Text>
                   </Pressable>
                 )}
@@ -170,7 +171,7 @@ export default function MemoSheet({
             )}
           </View>
           <Text style={ms.privateNote}>
-            <Feather name="lock" size={11} color={C.textMuted} /> 개인 메모는 선생님 본인만 볼 수 있습니다.
+            <Lock size={11} color={C.textMuted} /> 개인 메모는 선생님 본인만 볼 수 있습니다.
           </Text>
           <Pressable style={[ms.saveBtn, { backgroundColor: themeColor, opacity: saving || uploadingAudio ? 0.7 : 1 }]}
             onPress={handleSave} disabled={saving || uploadingAudio}>

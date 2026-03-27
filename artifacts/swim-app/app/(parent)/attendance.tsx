@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { Calendar } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View,
@@ -109,7 +110,7 @@ export default function ParentAttendanceScreen() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Feather name="calendar" size={40} color={C.textMuted} />
+              <Calendar size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>출결 기록이 없습니다</Text>
             </View>
           }
@@ -128,7 +129,7 @@ export default function ParentAttendanceScreen() {
             return (
               <View style={[styles.recordRow, { backgroundColor: C.card }]}>
                 <View style={[styles.recordIcon, { backgroundColor: sc.bg }]}>
-                  <Feather name={sc.icon as any} size={18} color={sc.color} />
+                  <LucideIcon name={sc.icon as any} size={18} color={sc.color} />
                 </View>
                 <View style={styles.recordInfo}>
                   <Text style={[styles.recordDate, { color: C.text }]}>{dateStr}</Text>

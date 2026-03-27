@@ -5,7 +5,7 @@
  * - 홈 버튼: router.replace("/(parent)/home") — 사용자가 명시적으로 눌렀을 때만
  * - 관리자/선생님 라우트와 절대 연결되지 않음
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Home } from "lucide-react-native";
 import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -47,7 +47,7 @@ export function ParentScreenHeader({
     <View style={[s.root, { paddingTop: topPad }]}>
       {showBack ? (
         <Pressable onPress={handleBack} style={s.btn} hitSlop={10}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <ArrowLeft size={22} color={C.text} />
         </Pressable>
       ) : (
         <View style={s.placeholder} />
@@ -62,7 +62,7 @@ export function ParentScreenHeader({
         {rightSlot ?? null}
         {showHome ? (
           <Pressable onPress={handleHome} style={s.btn} hitSlop={10}>
-            <Feather name="home" size={20} color={C.textSecondary} />
+            <Home size={20} color={C.textSecondary} />
           </Pressable>
         ) : (
           !rightSlot ? <View style={s.placeholder} /> : null

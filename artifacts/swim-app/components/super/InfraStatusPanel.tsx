@@ -6,7 +6,8 @@
  * - 최근 이상 감지 섹션
  * - 최근 24시간 상태 이력 섹션
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, RefreshCw, X, Zap } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState, useCallback } from "react";
 import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
@@ -117,14 +118,14 @@ function CoreCard({
       {/* 헤더 */}
       <View style={cc.header}>
         <View style={[cc.iconBox, { backgroundColor: cfg.bg }]}>
-          <Feather name={icon as any} size={16} color={cfg.color} />
+          <LucideIcon name={icon as any} size={16} color={cfg.color} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={cc.title}>{title}</Text>
           <Text style={cc.desc} numberOfLines={1}>{desc}</Text>
         </View>
         <View style={[cc.badge, { backgroundColor: cfg.bg }]}>
-          <Feather name={cfg.icon as any} size={9} color={cfg.color} />
+          <LucideIcon name={cfg.icon as any} size={9} color={cfg.color} />
           <Text style={[cc.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
         </View>
       </View>
@@ -143,7 +144,7 @@ function CoreCard({
       {/* 응답속도 */}
       {latencyMs !== null && latencyMs !== undefined && (
         <View style={cc.latRow}>
-          <Feather name="zap" size={11} color={GRAY} />
+          <Zap size={11} color={GRAY} />
           <Text style={cc.latTxt}>응답속도 {fmtLatency(latencyMs)}</Text>
         </View>
       )}
@@ -165,7 +166,7 @@ function CoreCard({
           <Pressable style={cc.footBtn} onPress={onRefresh} disabled={refreshing}>
             {refreshing
               ? <ActivityIndicator size="small" color={P} />
-              : <Feather name="refresh-cw" size={12} color={P} />
+              : <RefreshCw size={12} color={P} />
             }
           </Pressable>
           <Pressable style={[cc.footBtn, { paddingHorizontal: 10 }]} onPress={onDetail}>
@@ -209,7 +210,7 @@ function DetailPanel({ title, rows, onClose }: { title: string; rows: DetailRow[
       <View style={dp.header}>
         <Text style={dp.title}>{title} 상세</Text>
         <Pressable onPress={onClose}>
-          <Feather name="x" size={18} color="#0F172A" />
+          <X size={18} color="#0F172A" />
         </Pressable>
       </View>
       {rows.map((r, i) => (
@@ -259,13 +260,13 @@ function ServiceRow({ sv, refreshing, onRefresh }: {
       sv.status === "error" || sv.status === "full" ? { borderColor: cfg.color, borderWidth: 1.5 } : {}
     ]}>
       <View style={[svc.iconBox, { backgroundColor: cfg.bg }]}>
-        <Feather name={sv.icon as any} size={14} color={cfg.color} />
+        <LucideIcon name={sv.icon as any} size={14} color={cfg.color} />
       </View>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <Text style={svc.name}>{sv.name}</Text>
           <View style={[svc.badge, { backgroundColor: cfg.bg }]}>
-            <Feather name={cfg.icon as any} size={8} color={cfg.color} />
+            <LucideIcon name={cfg.icon as any} size={8} color={cfg.color} />
             <Text style={[svc.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
           </View>
           {sv.isPlaceholder && (
@@ -281,7 +282,7 @@ function ServiceRow({ sv, refreshing, onRefresh }: {
         <Pressable style={[svc.refreshBtn, refreshing && { opacity: 0.5 }]} disabled={refreshing} onPress={onRefresh}>
           {refreshing
             ? <ActivityIndicator size="small" color={P} />
-            : <Feather name="refresh-cw" size={12} color={P} />
+            : <RefreshCw size={12} color={P} />
           }
         </Pressable>
       )}
@@ -307,7 +308,7 @@ function GroupHeader({ label, icon, color, bg }: { label: string; icon: string; 
   return (
     <View style={gh.row}>
       <View style={[gh.iconBox, { backgroundColor: bg }]}>
-        <Feather name={icon as any} size={11} color={color} />
+        <LucideIcon name={icon as any} size={11} color={color} />
       </View>
       <Text style={[gh.label, { color }]}>{label}</Text>
       <View style={gh.line} />
@@ -329,7 +330,7 @@ function AnomalyRow({ item }: { item: AnomalyItem }) {
   const icon  = item.level === "error" ? "x-circle" : item.level === "warning" ? "alert-triangle" : "info";
   return (
     <View style={[anom.row, { backgroundColor: bg }]}>
-      <Feather name={icon as any} size={12} color={color} />
+      <LucideIcon name={icon as any} size={12} color={color} />
       <Text style={[anom.msg, { color }]}>{item.message}</Text>
     </View>
   );
@@ -344,7 +345,7 @@ interface HistoryItem { time: string; message: string; ok: boolean }
 function HistoryRow({ item }: { item: HistoryItem }) {
   return (
     <View style={hist.row}>
-      <Feather name={item.ok ? "check-circle" : "alert-circle"} size={12}
+      <LucideIcon name={item.ok ? "check-circle" : "alert-circle"} size={12}
         color={item.ok ? GREEN : DANGER} />
       <Text style={hist.time}>{item.time}</Text>
       <Text style={hist.msg}>{item.message}</Text>
@@ -646,7 +647,7 @@ export default function InfraStatusPanel() {
   if (error && !summary) {
     return (
       <View style={{ alignItems: "center", paddingVertical: 30, gap: 10 }}>
-        <Feather name="alert-circle" size={24} color={DANGER} />
+        <CircleAlert size={24} color={DANGER} />
         <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: DANGER }}>{error}</Text>
         <Pressable style={{ backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 }} onPress={loadAll}>
           <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: P }}>다시 시도</Text>
@@ -672,7 +673,7 @@ export default function InfraStatusPanel() {
         <Pressable style={ps.refreshAll} onPress={loadAll} disabled={loading}>
           {loading
             ? <ActivityIndicator size="small" color={P} />
-            : <Feather name="refresh-cw" size={14} color={P} />
+            : <RefreshCw size={14} color={P} />
           }
           <Text style={ps.refreshAllTxt}>전체 새로고침</Text>
         </Pressable>

@@ -8,7 +8,8 @@
  *  - item.file_url 이 없을 때 → photoUri("") → "" 처리
  *  - Mock 데이터로 UI 테스트 가능
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -420,7 +421,7 @@ export default function TeacherPhotosScreen() {
                   accessibilityLabel={`${c.title} ${c.sub}`}
                 >
                   <View style={[s.gridIcon, { backgroundColor: c.color + "25" }]}>
-                    <Feather name={c.icon} size={28} color={c.color} />
+                    <LucideIcon name={c.icon} size={28} color={c.color} />
                   </View>
                   <Text style={[s.gridTitle, { color: c.color }]}>{c.title}</Text>
                   <Text style={[s.gridSub, { color: c.color + "CC" }]}>{c.sub}</Text>
@@ -431,7 +432,7 @@ export default function TeacherPhotosScreen() {
 
           <View style={s.usageCard}>
             <View style={s.usageCardHeader}>
-              <Feather name="hard-drive" size={15} color={themeColor} />
+              <HardDrive size={15} color={themeColor} />
               <Text style={[s.usageCardTitle, { color: themeColor }]}>내 업로드 사용량</Text>
             </View>
             <View style={s.usageCardBody}>
@@ -440,14 +441,14 @@ export default function TeacherPhotosScreen() {
                 { icon: "video" as const, color: "#7C3AED", label: `영상 ${usage?.video_count ?? 0}개`, bytes: usage?.video_bytes ?? 0 },
               ]).map(row => (
                 <View key={row.label} style={s.usageItem}>
-                  <Feather name={row.icon} size={14} color={row.color} />
+                  <LucideIcon name={row.icon} size={14} color={row.color} />
                   <Text style={s.usageItemLabel}>{row.label}</Text>
                   <Text style={s.usageItemBytes}>{fmtBytes(row.bytes)}</Text>
                 </View>
               ))}
               <View style={s.usageDivider} />
               <View style={[s.usageItem, { backgroundColor: themeColor + "08" }]}>
-                <Feather name="database" size={14} color={themeColor} />
+                <Database size={14} color={themeColor} />
                 <Text style={[s.usageItemLabel, { color: themeColor, fontFamily: "Pretendard-Bold" }]}>총 사용량</Text>
                 <Text style={[s.usageItemBytes, { color: themeColor, fontFamily: "Pretendard-Bold" }]}>{fmtBytes(usage?.total_bytes ?? 0)}</Text>
               </View>
@@ -477,7 +478,7 @@ export default function TeacherPhotosScreen() {
         {selectMode ? (
           <View style={s.selectBar}>
             <Pressable onPress={toggleAll} style={s.selectBarLeft}>
-              <Feather
+              <LucideIcon
                 name={selected.size === safeItems.length && safeItems.length > 0 ? "check-square" : "square"}
                 size={18} color={cfg.color}
               />
@@ -496,7 +497,7 @@ export default function TeacherPhotosScreen() {
                   ? <ActivityIndicator color="#fff" size="small" />
                   : (
                     <>
-                      <Feather name="trash-2" size={14} color="#fff" />
+                      <Trash2 size={14} color="#fff" />
                       <Text style={s.selectBarDelText}>삭제</Text>
                     </>
                   )
@@ -511,7 +512,7 @@ export default function TeacherPhotosScreen() {
           <View style={s.listToolbar}>
             {safeItems.length > 0 && (
               <Pressable onPress={() => setSelectMode(true)} style={s.listSelectBtn}>
-                <Feather name="check-square" size={15} color={cfg.color} />
+                <SquareCheck size={15} color={cfg.color} />
                 <Text style={[s.listSelectBtnText, { color: cfg.color }]}>선택</Text>
               </Pressable>
             )}
@@ -526,16 +527,16 @@ export default function TeacherPhotosScreen() {
           </View>
         ) : listError ? (
           <View style={s.centerBox}>
-            <Feather name="alert-circle" size={36} color="#D96C6C" />
+            <CircleAlert size={36} color="#D96C6C" />
             <Text style={[s.centerText, { color: "#D96C6C" }]}>{listError}</Text>
             <Pressable onPress={loadList} style={s.retryBtn}>
-              <Feather name="refresh-cw" size={14} color="#fff" />
+              <RefreshCw size={14} color="#fff" />
               <Text style={s.retryBtnText}>다시 시도</Text>
             </Pressable>
           </View>
         ) : safeItems.length === 0 ? (
           <View style={s.centerBox}>
-            <Feather name={cfg.icon} size={44} color="#D1D5DB" />
+            <LucideIcon name={cfg.icon} size={44} color="#D1D5DB" />
             <Text style={s.emptyTitle}>아직 업로드된 {cfg.title}이 없습니다</Text>
             <Text style={s.emptySubText}>아래 + 버튼으로 {cfg.title}을 업로드하세요</Text>
           </View>
@@ -577,7 +578,7 @@ export default function TeacherPhotosScreen() {
                     />
                   ) : (
                     <View style={s.photoPlaceholder}>
-                      <Feather name="image" size={22} color="#D1D5DB" />
+                      <ImageIcon size={22} color="#D1D5DB" />
                     </View>
                   )}
                   {!!item.created_at && (
@@ -597,7 +598,7 @@ export default function TeacherPhotosScreen() {
                       s.checkCircle,
                       isSel && { backgroundColor: cfg.color, borderColor: cfg.color },
                     ]}>
-                      {isSel && <Feather name="check" size={12} color="#fff" />}
+                      {isSel && <Check size={12} color="#fff" />}
                     </View>
                   )}
                 </Pressable>
@@ -637,7 +638,7 @@ export default function TeacherPhotosScreen() {
                   ]}
                 >
                   <View style={[s.videoThumb, { backgroundColor: cfg.bg }]}>
-                    <Feather name="video" size={22} color={cfg.color} />
+                    <Video size={22} color={cfg.color} />
                   </View>
                   <View style={{ flex: 1, gap: 3 }}>
                     <Text style={s.videoLabel} numberOfLines={1}>{label || "영상"}</Text>
@@ -654,10 +655,10 @@ export default function TeacherPhotosScreen() {
                       s.checkCircle,
                       isSel && { backgroundColor: cfg.color, borderColor: cfg.color },
                     ]}>
-                      {isSel && <Feather name="check" size={12} color="#fff" />}
+                      {isSel && <Check size={12} color="#fff" />}
                     </View>
                   ) : (
-                    <Feather name="chevron-right" size={18} color="#64748B" />
+                    <ChevronRight size={18} color="#64748B" />
                   )}
                 </Pressable>
               );
@@ -673,7 +674,7 @@ export default function TeacherPhotosScreen() {
             accessibilityRole="button"
             accessibilityLabel={`${cfg.title} 업로드`}
           >
-            <Feather name="plus" size={26} color="#fff" />
+            <Plus size={26} color="#fff" />
           </Pressable>
         )}
 
@@ -693,7 +694,7 @@ export default function TeacherPhotosScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="닫기"
               >
-                <Feather name="x" size={26} color="#fff" />
+                <X size={26} color="#fff" />
               </Pressable>
 
               {!!lightbox.file_url ? (
@@ -707,7 +708,7 @@ export default function TeacherPhotosScreen() {
                 />
               ) : (
                 <View style={s.lbImagePlaceholder}>
-                  <Feather name="image" size={60} color="rgba(255,255,255,0.3)" />
+                  <ImageIcon size={60} color="rgba(255,255,255,0.3)" />
                   <Text style={{ color: "rgba(255,255,255,0.4)", marginTop: 12 }}>이미지를 불러올 수 없습니다</Text>
                 </View>
               )}
@@ -726,11 +727,11 @@ export default function TeacherPhotosScreen() {
                   onPress={() => { setLightbox(null); toggleSelect(lightbox?.id ?? ""); if (!selectMode) setSelectMode(true); }}
                   style={[s.lbActionBtn, { backgroundColor: "#0F172A" }]}
                 >
-                  <Feather name="trash-2" size={15} color="#fff" />
+                  <Trash2 size={15} color="#fff" />
                   <Text style={s.lbActionBtnText}>삭제</Text>
                 </Pressable>
                 <Pressable onPress={() => setLightbox(null)} style={[s.lbActionBtn, { backgroundColor: "#64748B" }]}>
-                  <Feather name="x" size={15} color="#fff" />
+                  <X size={15} color="#fff" />
                   <Text style={s.lbActionBtnText}>닫기</Text>
                 </Pressable>
               </View>
@@ -805,7 +806,7 @@ export default function TeacherPhotosScreen() {
         <ScrollView contentContainerStyle={s.studentList} showsVerticalScrollIndicator={false}>
           {groupStudents.length === 0 ? (
             <View style={s.centerBox}>
-              <Feather name="users" size={32} color={C.textMuted} />
+              <Users size={32} color={C.textMuted} />
               <Text style={s.emptyTitle}>이 반에 배정된 학생이 없습니다</Text>
             </View>
           ) : groupStudents.map(st => (
@@ -818,7 +819,7 @@ export default function TeacherPhotosScreen() {
                 <Text style={[s.avatarText, { color: cfg.color }]}>{(st.name ?? "?")[0]}</Text>
               </View>
               <Text style={s.studentName}>{st.name}</Text>
-              <Feather name="chevron-right" size={18} color={C.textMuted} />
+              <ChevronRight size={18} color={C.textMuted} />
             </Pressable>
           ))}
         </ScrollView>
@@ -837,7 +838,7 @@ export default function TeacherPhotosScreen() {
       />
       <View style={s.uploadCenter}>
         <View style={[s.uploadIcon, { backgroundColor: cfg.bg }]}>
-          <Feather name={cfg.icon} size={48} color={cfg.color} />
+          <LucideIcon name={cfg.icon} size={48} color={cfg.color} />
         </View>
         <Text style={s.uploadTitle}>
           {scope === "group"
@@ -858,7 +859,7 @@ export default function TeacherPhotosScreen() {
             ? <ActivityIndicator color="#fff" />
             : (
               <>
-                <Feather name="upload-cloud" size={20} color="#fff" />
+                <CloudUpload size={20} color="#fff" />
                 <Text style={s.uploadBtnText}>{cfg.title} 선택 및 업로드</Text>
               </>
             )

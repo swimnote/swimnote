@@ -7,7 +7,7 @@
  * - 최신순 정렬
  * - 항목 클릭 → diary.tsx 로 이동 (해당 반)
  */
-import { Feather } from "@expo/vector-icons";
+import { BookOpen, Calendar, Check, ChevronDown, ChevronRight, CircleX, Clock, Layers, Pencil, Search, User, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -140,17 +140,17 @@ export default function DiaryIndexScreen() {
           <Text style={di.cardDate}>{formatDate(item.lesson_date)}</Text>
           <View style={[di.typeBadge, { backgroundColor: "#E6FAF8" }]}>
             {isNote
-              ? <><Feather name="user" size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>{item.student_name} 추가</Text></>
-              : <><Feather name="users" size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>반 공통</Text></>
+              ? <><User size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>{item.student_name} 추가</Text></>
+              : <><Users size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>반 공통</Text></>
             }
           </View>
         </View>
 
         {/* 반/시간 */}
         <View style={di.cardMeta}>
-          <Feather name="layers" size={11} color={C.textSecondary} />
+          <Layers size={11} color={C.textSecondary} />
           <Text style={di.cardMetaText}>{item.class_name}</Text>
-          <Feather name="clock" size={11} color={C.textSecondary} style={{ marginLeft: 8 }} />
+          <Clock size={11} color={C.textSecondary} style={{ marginLeft: 8 }} />
           <Text style={di.cardMetaText}>{(item.schedule_time || "").slice(0, 5)}</Text>
           {item.schedule_days && (
             <Text style={di.cardMetaText}> · {item.schedule_days}</Text>
@@ -160,7 +160,7 @@ export default function DiaryIndexScreen() {
         {/* 내용 미리보기 */}
         <Text style={di.cardContent} numberOfLines={2}>{item.content}</Text>
 
-        <Feather name="chevron-right" size={15} color={C.textMuted} style={di.chevron} />
+        <ChevronRight size={15} color={C.textMuted} style={di.chevron} />
       </Pressable>
     );
   }, [handlePress]);
@@ -178,16 +178,16 @@ export default function DiaryIndexScreen() {
         style={[di.writeBtn, { backgroundColor: C.button }]}
         onPress={() => router.push("/(teacher)/diary-unwritten" as any)}
       >
-        <Feather name="edit-3" size={15} color="#fff" />
+        <Pencil size={15} color="#fff" />
         <Text style={di.writeBtnText}>일지 작성</Text>
         <View style={di.writeBtnBadgeWrap}>
-          <Feather name="chevron-right" size={15} color="rgba(255,255,255,0.7)" />
+          <ChevronRight size={15} color="rgba(255,255,255,0.7)" />
         </View>
       </Pressable>
 
       {/* 검색창 */}
       <View style={di.searchRow}>
-        <Feather name="search" size={15} color={C.textSecondary} />
+        <Search size={15} color={C.textSecondary} />
         <TextInput
           style={di.searchInput}
           value={searchText}
@@ -198,7 +198,7 @@ export default function DiaryIndexScreen() {
         />
         {searchText.length > 0 && (
           <Pressable onPress={() => handleSearchChange("")}>
-            <Feather name="x-circle" size={15} color={C.textSecondary} />
+            <CircleX size={15} color={C.textSecondary} />
           </Pressable>
         )}
       </View>
@@ -210,11 +210,11 @@ export default function DiaryIndexScreen() {
           style={[di.filterBtn, activeDay && { backgroundColor: themeColor + "18", borderColor: themeColor }]}
           onPress={() => { setShowDayPicker(v => !v); setShowTimePicker(false); }}
         >
-          <Feather name="calendar" size={12} color={activeDay ? themeColor : C.textSecondary} />
+          <Calendar size={12} color={activeDay ? themeColor : C.textSecondary} />
           <Text style={[di.filterBtnText, activeDay && { color: themeColor }]}>
             {activeDay ? `${activeDay}요일` : "요일"}
           </Text>
-          <Feather name="chevron-down" size={11} color={activeDay ? themeColor : C.textSecondary} />
+          <ChevronDown size={11} color={activeDay ? themeColor : C.textSecondary} />
         </Pressable>
 
         {/* 시간 필터 버튼 */}
@@ -222,11 +222,11 @@ export default function DiaryIndexScreen() {
           style={[di.filterBtn, activeTime && { backgroundColor: themeColor + "18", borderColor: themeColor }]}
           onPress={() => { setShowTimePicker(v => !v); setShowDayPicker(false); }}
         >
-          <Feather name="clock" size={12} color={activeTime ? themeColor : C.textSecondary} />
+          <Clock size={12} color={activeTime ? themeColor : C.textSecondary} />
           <Text style={[di.filterBtnText, activeTime && { color: themeColor }]}>
             {activeTime || "시간"}
           </Text>
-          <Feather name="chevron-down" size={11} color={activeTime ? themeColor : C.textSecondary} />
+          <ChevronDown size={11} color={activeTime ? themeColor : C.textSecondary} />
         </Pressable>
 
         {/* 필터 초기화 */}
@@ -235,7 +235,7 @@ export default function DiaryIndexScreen() {
             style={di.resetBtn}
             onPress={() => { setActiveDay(null); setActiveTime(null); load(searchText, null, null); }}
           >
-            <Feather name="x" size={12} color="#D96C6C" />
+            <X size={12} color="#D96C6C" />
             <Text style={di.resetBtnText}>초기화</Text>
           </Pressable>
         )}
@@ -252,7 +252,7 @@ export default function DiaryIndexScreen() {
           {KO_DAYS.map(d => (
             <Pressable key={d} style={di.pickerItem} onPress={() => handleDaySelect(d)}>
               <Text style={[di.pickerItemText, activeDay === d && { color: themeColor, fontFamily: "Pretendard-Bold" }]}>{d}요일</Text>
-              {activeDay === d && <Feather name="check" size={14} color={themeColor} />}
+              {activeDay === d && <Check size={14} color={themeColor} />}
             </Pressable>
           ))}
         </View>
@@ -269,7 +269,7 @@ export default function DiaryIndexScreen() {
           ) : availableTimes.map(t => (
             <Pressable key={t} style={di.pickerItem} onPress={() => handleTimeSelect(t)}>
               <Text style={[di.pickerItemText, activeTime === t && { color: themeColor, fontFamily: "Pretendard-Bold" }]}>{t}</Text>
-              {activeTime === t && <Feather name="check" size={14} color={themeColor} />}
+              {activeTime === t && <Check size={14} color={themeColor} />}
             </Pressable>
           ))}
         </View>
@@ -289,7 +289,7 @@ export default function DiaryIndexScreen() {
           refreshing={refreshing}
           ListEmptyComponent={
             <View style={di.empty}>
-              <Feather name="book-open" size={36} color={C.textMuted} />
+              <BookOpen size={36} color={C.textMuted} />
               <Text style={di.emptyTitle}>일지가 없습니다</Text>
               <Text style={di.emptyDesc}>
                 {searchText || activeDay || activeTime

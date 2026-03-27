@@ -79,6 +79,18 @@ API design follows RESTful principles with consistent JSON formats and strong au
 - **보강 생성 방식**: 출결 absent 처리 시 자동 생성, `PATCH /api/admin/makeups/:id/assign` → complete
 - **tier 버그**: growth → advance 수정 완료
 
+## 아이콘 시스템 (2026-03-27 완성)
+**Feather → Lucide React Native 전환 완료** (216개 파일)
+- `@expo/vector-icons` Feather 전부 제거, `lucide-react-native`로 교체
+- 동적 name={변수} 파일용 래퍼: `components/common/LucideIcon.tsx`
+- `Image` 충돌 해결: Lucide `Image as ImageIcon` 알리아스 처리
+
+**3색 아이콘 색상 시스템** (`constants/colors.ts` 추가)
+- `iconBlue #007AFF` (앱스토어 파랑) — 탐색·기본행동
+- `iconGreen #00704A` (스타벅스 녹색) — 완료·긍정
+- `iconOrange #FF6F0F` (당근마켓 주황) — 경고·알림
+- 배경색: `iconBlueBg`, `iconGreenBg`, `iconOrangeBg`
+
 ## External Dependencies
 - **PostgreSQL**: Primary database for all application data.
 - **Drizzle ORM**: Object-relational mapper for interacting with PostgreSQL.

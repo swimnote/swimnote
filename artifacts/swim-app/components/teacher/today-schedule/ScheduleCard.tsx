@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { Book, Pencil, SquareCheck, UserX } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -28,21 +29,21 @@ export default function ScheduleCard({
         </View>
         {item.has_note && (
           <View style={[card.noteBadge, { backgroundColor: "#FFF1BF" }]}>
-            <Feather name="edit-3" size={10} color="#D97706" />
+            <Pencil size={10} color="#D97706" />
             <Text style={card.noteBadgeText}>메모</Text>
           </View>
         )}
       </View>
       <View style={card.statusRow}>
         <View style={[card.badge, { backgroundColor: attDone ? "#E6FFFA" : attPartial ? "#FFF1BF" : "#FFFFFF" }]}>
-          <Feather name={attDone ? "check-circle" : "circle"} size={11}
+          <LucideIcon name={attDone ? "check-circle" : "circle"} size={11}
             color={attDone ? "#2EC4B6" : attPartial ? "#D97706" : "#64748B"} />
           <Text style={[card.badgeText, { color: attDone ? "#2EC4B6" : attPartial ? "#D97706" : "#64748B" }]}>
             {noAtt ? "출결 미시작" : `출결 ${item.att_present}/${item.att_total}`}
           </Text>
         </View>
         <View style={[card.badge, { backgroundColor: item.diary_done ? "#E6FFFA" : "#FFF1BF" }]}>
-          <Feather name={item.diary_done ? "check-circle" : "edit"} size={11} color={item.diary_done ? "#2EC4B6" : "#D97706"} />
+          <LucideIcon name={item.diary_done ? "check-circle" : "edit"} size={11} color={item.diary_done ? "#2EC4B6" : "#D97706"} />
           <Text style={[card.badgeText, { color: item.diary_done ? "#2EC4B6" : "#D97706" }]}>
             {item.diary_done ? "일지 완료" : "일지 미작성"}
           </Text>
@@ -50,21 +51,21 @@ export default function ScheduleCard({
       </View>
       <View style={card.btnRow}>
         <Pressable style={[card.actionBtn, { borderColor: attDone ? "#2EC4B6" : C.border }]} onPress={onAttendance}>
-          <Feather name="check-square" size={14} color={attDone ? "#2EC4B6" : C.textSecondary} />
+          <SquareCheck size={14} color={attDone ? "#2EC4B6" : C.textSecondary} />
           <Text style={[card.actionText, { color: attDone ? "#2EC4B6" : C.textSecondary }]}>출결</Text>
         </Pressable>
         <Pressable style={[card.actionBtn, { borderColor: item.diary_done ? "#2EC4B6" : C.border }]} onPress={onDiary}>
-          <Feather name="book" size={14} color={item.diary_done ? "#2EC4B6" : C.textSecondary} />
+          <Book size={14} color={item.diary_done ? "#2EC4B6" : C.textSecondary} />
           <Text style={[card.actionText, { color: item.diary_done ? "#2EC4B6" : C.textSecondary }]}>일지</Text>
         </Pressable>
         <Pressable style={[card.actionBtn, { borderColor: item.has_note ? "#D97706" : C.border }]} onPress={onMemo}>
-          <Feather name="edit-3" size={14} color={item.has_note ? "#D97706" : C.textSecondary} />
+          <Pencil size={14} color={item.has_note ? "#D97706" : C.textSecondary} />
           <Text style={[card.actionText, { color: item.has_note ? "#D97706" : C.textSecondary }]}>
             {item.has_note ? "메모 수정" : "개인메모"}
           </Text>
         </Pressable>
         <Pressable style={[card.actionBtn, { borderColor: "#D96C6C", backgroundColor: "#FEF2F2" }]} onPress={onAbsence}>
-          <Feather name="user-x" size={14} color="#D96C6C" />
+          <UserX size={14} color="#D96C6C" />
           <Text style={[card.actionText, { color: "#D96C6C" }]}>결근</Text>
         </Pressable>
       </View>

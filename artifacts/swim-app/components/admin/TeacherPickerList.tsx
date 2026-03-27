@@ -3,7 +3,7 @@
  * 수업탭(주간), 선생님관리(일간/월간) 세 흐름에서 재사용
  * 항상 표시 (선생님 1명이어도 자동 진입 금지)
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronLeft, ChevronRight, CircleAlert, Clock, Pencil, UserX } from "lucide-react-native";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -38,7 +38,7 @@ export default function TeacherPickerList({
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 뒤로가기 */}
       <Pressable onPress={onBack} style={[t.backRow, { borderBottomColor: C.border }]}>
-        <Feather name="chevron-left" size={20} color={C.tint} />
+        <ChevronLeft size={20} color={C.tint} />
         <Text style={[t.backText, { color: C.tint }]}>
           {day ? `${day}요일` : date ? dateLabel(date) : "시간표"}으로
         </Text>
@@ -49,7 +49,7 @@ export default function TeacherPickerList({
         {date && <Text style={[t.contextText, { color: C.tint }]}>{dateLabel(date)}</Text>}
         {day && !date && <Text style={[t.contextText, { color: C.tint }]}>{day}요일</Text>}
         <View style={[t.timePill, { backgroundColor: C.tint }]}>
-          <Feather name="clock" size={12} color="#fff" />
+          <Clock size={12} color="#fff" />
           <Text style={t.timePillText}>{time}</Text>
         </View>
         <Text style={[t.contextText, { color: C.tint }]}>선생님 선택</Text>
@@ -58,7 +58,7 @@ export default function TeacherPickerList({
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: bottomInset, gap: 1 }} showsVerticalScrollIndicator={false}>
         {sorted.length === 0 ? (
           <View style={t.emptyBox}>
-            <Feather name="user-x" size={40} color={C.textMuted} />
+            <UserX size={40} color={C.textMuted} />
             <Text style={[t.emptyText, { color: C.textMuted }]}>해당 시간에 배정된 선생님이 없습니다</Text>
           </View>
         ) : sorted.map((teacher, idx) => (
@@ -85,17 +85,17 @@ export default function TeacherPickerList({
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               {teacher.uncheckedAtt > 0 && (
                 <View style={[t.badge, { backgroundColor: "#FFF1BF" }]}>
-                  <Feather name="alert-circle" size={10} color="#D97706" />
+                  <CircleAlert size={10} color="#D97706" />
                   <Text style={[t.badgeText, { color: "#D97706" }]}>출결 {teacher.uncheckedAtt}</Text>
                 </View>
               )}
               {teacher.unwrittenDiary > 0 && (
                 <View style={[t.badge, { backgroundColor: "#F9DEDA" }]}>
-                  <Feather name="edit-3" size={10} color="#D96C6C" />
+                  <Pencil size={10} color="#D96C6C" />
                   <Text style={[t.badgeText, { color: "#D96C6C" }]}>일지 {teacher.unwrittenDiary}</Text>
                 </View>
               )}
-              <Feather name="chevron-right" size={18} color={C.textMuted} />
+              <ChevronRight size={18} color={C.textMuted} />
             </View>
           </Pressable>
         ))}

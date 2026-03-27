@@ -2,7 +2,7 @@
  * components/super/security-settings/LoginHistorySection.tsx
  * G. 로그인 이력 (최근 7건)
  */
-import { Feather } from "@expo/vector-icons";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SectionTitle } from "./SectionTitle";
@@ -26,7 +26,7 @@ export function LoginHistorySection() {
             ]}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, width: "100%" }}>
-              <Feather
+              <LucideIcon
                 name={isSuccess ? "check-circle" : isBlock ? "slash" : "alert-circle"}
                 size={13}
                 color={color}

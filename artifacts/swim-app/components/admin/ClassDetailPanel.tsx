@@ -2,7 +2,8 @@
  * ClassDetailPanel — 공통 반 현황판 컴포넌트
  * 관리자 수업탭 / 선생님관리 일간 / 월간 세 흐름에서 재사용
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronLeft, Pencil, User, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -42,7 +43,7 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 뒤로가기 */}
       <Pressable onPress={onBack} style={[p.backRow, { borderBottomColor: C.border }]}>
-        <Feather name="chevron-left" size={20} color={C.tint} />
+        <ChevronLeft size={20} color={C.tint} />
         <Text style={[p.backText, { color: C.tint }]}>반 목록으로</Text>
       </Pressable>
 
@@ -104,7 +105,7 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 : students.map(s => (
                   <View key={s.id} style={[p.listRow, { backgroundColor: C.card }]}>
                     <View style={[p.avatar, { backgroundColor: C.tintLight }]}>
-                      <Feather name="user" size={15} color={C.tint} />
+                      <User size={15} color={C.tint} />
                     </View>
                     <Text style={[p.listName, { color: C.text }]}>{s.name}</Text>
                     {s.has_makeup && <StatusBadge label="보강" bg="#EEDDF5" color="#7C3AED" />}
@@ -124,7 +125,7 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 : attendance.map(a => (
                   <View key={a.student_id} style={[p.listRow, { backgroundColor: C.card }]}>
                     <View style={[p.avatar, { backgroundColor: a.status === "present" ? "#E6FFFA" : "#F9DEDA" }]}>
-                      <Feather name={a.status === "present" ? "check" : "x"} size={13} color={a.status === "present" ? "#2EC4B6" : "#D96C6C"} />
+                      <LucideIcon name={a.status === "present" ? "check" : "x"} size={13} color={a.status === "present" ? "#2EC4B6" : "#D96C6C"} />
                     </View>
                     <Text style={[p.listName, { color: C.text }]}>{a.student_name}</Text>
                     {a.has_makeup && <StatusBadge label="보강" bg="#EEDDF5" color="#7C3AED" />}
@@ -152,7 +153,7 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 </View>
               ) : (
                 <View style={[p.diaryEmpty, { borderColor: C.border }]}>
-                  <Feather name="edit-3" size={32} color={C.textMuted} />
+                  <Pencil size={32} color={C.textMuted} />
                   <Text style={[p.empty, { color: C.textMuted }]}>아직 일지가 작성되지 않았습니다</Text>
                   <Text style={[{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" }]}>{date} 기준</Text>
                 </View>
@@ -167,7 +168,7 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 : absentList.map(a => (
                   <View key={a.student_id} style={[p.listRow, { backgroundColor: C.card }]}>
                     <View style={[p.avatar, { backgroundColor: "#F9DEDA" }]}>
-                      <Feather name="x" size={13} color="#D96C6C" />
+                      <X size={13} color="#D96C6C" />
                     </View>
                     <Text style={[p.listName, { color: C.text }]}>{a.student_name}</Text>
                     {a.has_makeup && <StatusBadge label="보강" bg="#EEDDF5" color="#7C3AED" />}

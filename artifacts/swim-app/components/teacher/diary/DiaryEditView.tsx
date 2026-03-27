@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { BookOpen, Calendar, CircleAlert, CirclePlus, CircleX, Layers, Save, Trash2, User, Users } from "lucide-react-native";
 import React, { MutableRefObject } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
@@ -61,15 +61,15 @@ export default function DiaryEditView({
 
         <View style={[s.infoCard, { backgroundColor: themeColor + "12", borderColor: themeColor + "30" }]}>
           <View style={s.infoCardRow}>
-            <Feather name="layers" size={14} color={themeColor} />
+            <Layers size={14} color={themeColor} />
             <Text style={[s.infoCardText, { color: themeColor }]}>{group.name}</Text>
           </View>
           <View style={s.infoCardRow}>
-            <Feather name="calendar" size={14} color={themeColor} />
+            <Calendar size={14} color={themeColor} />
             <Text style={[s.infoCardText, { color: themeColor }]}>{editDiary?.lesson_date} · {group.schedule_time}</Text>
           </View>
           <View style={s.infoCardRow}>
-            <Feather name="user" size={14} color={themeColor} />
+            <User size={14} color={themeColor} />
             <Text style={[s.infoCardText, { color: themeColor }]}>{editDiary?.teacher_name} 선생님</Text>
           </View>
         </View>
@@ -77,7 +77,7 @@ export default function DiaryEditView({
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: themeColor + "20" }]}>
-              <Feather name="book-open" size={15} color={themeColor} />
+              <BookOpen size={15} color={themeColor} />
             </View>
             <Text style={[s.cardTitle, { color: C.text }]}>반 공통 일지</Text>
             <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
@@ -91,7 +91,7 @@ export default function DiaryEditView({
           <View style={s.textareaFooter}>
             <Text style={s.charCount}>{editContent.length}자</Text>
             <TouchableOpacity style={s.sentencePickBtn} onPress={() => setEditPickerFor("common")} activeOpacity={0.7}>
-              <Feather name="book-open" size={13} color={C.tint} />
+              <BookOpen size={13} color={C.tint} />
               <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
             </TouchableOpacity>
           </View>
@@ -100,7 +100,7 @@ export default function DiaryEditView({
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: "#8B5CF620" }]}>
-              <Feather name="users" size={15} color="#8B5CF6" />
+              <Users size={15} color="#8B5CF6" />
             </View>
             <Text style={[s.cardTitle, { color: C.text }]}>학생별 추가 일지</Text>
             <Text style={s.cardSub}>개별 코멘트 수정</Text>
@@ -111,7 +111,7 @@ export default function DiaryEditView({
               <View style={s.editNoteHeader}>
                 <Text style={s.noteName}>{note.student_name}</Text>
                 <Pressable onPress={() => onMarkNoteDeleted(note.id)}>
-                  <Feather name="trash-2" size={15} color={C.error} />
+                  <Trash2 size={15} color={C.error} />
                 </Pressable>
               </View>
               <TextInput style={[s.noteTextarea, { borderColor: "#C4B5FD", color: C.text }]}
@@ -132,7 +132,7 @@ export default function DiaryEditView({
                   <Text style={[s.noteName, { color: "#2EC4B6" }]}>{note.student_name}</Text>
                 </View>
                 <Pressable onPress={() => onRemoveNewNote(idx)}>
-                  <Feather name="x-circle" size={15} color={C.error} />
+                  <CircleX size={15} color={C.error} />
                 </Pressable>
               </View>
               <Text style={[s.noteContent, { color: C.text }]}>{note.note_content}</Text>
@@ -141,7 +141,7 @@ export default function DiaryEditView({
 
           {classStudents.length === 0 ? (
             <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
-              <Feather name="users" size={16} color={C.textMuted} />
+              <Users size={16} color={C.textMuted} />
               <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>이 수업에 배정된 학생이 없습니다</Text>
             </View>
           ) : (
@@ -155,7 +155,7 @@ export default function DiaryEditView({
                         editAddStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#EEDDF5" }]}
                       onPress={() => { if (editAddStudent?.id === st.id) { setEditAddStudent(null); setEditAddInput(""); } else { setEditAddStudent(st); setEditAddInput(""); } }}>
                       <Text style={[s.studentChipText, { color: editAddStudent?.id === st.id ? "#8B5CF6" : C.text }]}>{st.name}</Text>
-                      <Feather name="plus-circle" size={15} color={editAddStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
+                      <CirclePlus size={15} color={editAddStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
                     </Pressable>
                   ))}
                 </View>
@@ -187,7 +187,7 @@ export default function DiaryEditView({
       <View style={s.footer}>
         {editError && (
           <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
-            <Feather name="alert-circle" size={13} color={C.error} />
+            <CircleAlert size={13} color={C.error} />
             <Text style={[s.inlineErrorText, { color: C.error }]}>{editError}</Text>
           </View>
         )}
@@ -197,7 +197,7 @@ export default function DiaryEditView({
           </Pressable>
           <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: editSaving ? 0.5 : 1, flex: 2 }]}
             onPress={onSave} disabled={editSaving}>
-            {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <><Feather name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
+            {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <><Save size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
           </Pressable>
         </View>
       </View>

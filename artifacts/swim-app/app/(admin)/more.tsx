@@ -2,7 +2,8 @@
  * 더보기 탭 — 프로필 + 활동 로그 (최소화 버전)
  * 대부분의 메뉴는 홈 대시보드 5대 카테고리 팝업으로 이동됨
  */
-import { Feather } from "@expo/vector-icons";
+import { Activity, ChevronRight, Info, Repeat, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -154,7 +155,7 @@ export default function MoreScreen() {
                 style={[s.switchBtn, { borderColor: themeColor }]}
                 onPress={() => setSwitchModalVisible(true)}
               >
-                <Feather name="repeat" size={14} color={themeColor} />
+                <Repeat size={14} color={themeColor} />
                 <Text style={[s.switchBtnText, { color: themeColor }]}>역할 전환</Text>
               </Pressable>
             )}
@@ -170,7 +171,7 @@ export default function MoreScreen() {
               onPress={() => router.push("/totp-setup" as any)}
             >
               <View style={[s.otpBannerIcon, { backgroundColor: totpEnabled ? "#DCFCE7" : "#FEF3C7" }]}>
-                <Feather name={totpEnabled ? "shield" : "smartphone"} size={18} color={totpEnabled ? "#16A34A" : "#D97706"} />
+                <LucideIcon name={totpEnabled ? "shield" : "smartphone"} size={18} color={totpEnabled ? "#16A34A" : "#D97706"} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.otpBannerTitle, { color: totpEnabled ? "#15803D" : "#92400E" }]}>
@@ -180,13 +181,13 @@ export default function MoreScreen() {
                   {totpEnabled ? "2단계 인증이 설정되어 있습니다" : "탭하여 2단계 인증을 등록하세요"}
                 </Text>
               </View>
-              <Feather name="chevron-right" size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
+              <ChevronRight size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
             </Pressable>
           )}
 
           {/* 안내 배너 */}
           <View style={s.infoBanner}>
-            <Feather name="info" size={14} color="#2EC4B6" />
+            <Info size={14} color="#2EC4B6" />
             <Text style={s.infoBannerText}>
               메뉴 대부분은 홈 화면 아이콘(운영 관리·데이터 관리·수업 설정·운영 설정)에서 바로 접근할 수 있습니다.
             </Text>
@@ -207,10 +208,10 @@ export default function MoreScreen() {
                   onPress={() => router.push(item.route as any)}
                 >
                   <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
-                    <Feather name={item.icon} size={18} color={item.color} />
+                    <LucideIcon name={item.icon} size={18} color={item.color} />
                   </View>
                   <Text style={s.menuLabel}>{item.label}</Text>
-                  <Feather name="chevron-right" size={16} color={C.textMuted} style={{ marginLeft: "auto" }} />
+                  <ChevronRight size={16} color={C.textMuted} style={{ marginLeft: "auto" }} />
                 </Pressable>
               ))}
             </View>
@@ -231,10 +232,10 @@ export default function MoreScreen() {
                   onPress={() => router.push(item.route as any)}
                 >
                   <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
-                    <Feather name={item.icon} size={18} color={item.color} />
+                    <LucideIcon name={item.icon} size={18} color={item.color} />
                   </View>
                   <Text style={s.menuLabel}>{item.label}</Text>
-                  <Feather name="chevron-right" size={16} color={C.textMuted} style={{ marginLeft: "auto" }} />
+                  <ChevronRight size={16} color={C.textMuted} style={{ marginLeft: "auto" }} />
                 </Pressable>
               ))}
             </View>
@@ -258,7 +259,7 @@ export default function MoreScreen() {
               <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />
             ) : (
               <View style={s.empty}>
-                <Feather name="activity" size={40} color={C.textMuted} />
+                <Activity size={40} color={C.textMuted} />
                 <Text style={s.emptyText}>활동 기록이 없습니다</Text>
               </View>
             )
@@ -278,7 +279,7 @@ export default function MoreScreen() {
               <View style={[s.logCard, { backgroundColor: C.card }]}>
                 <View style={s.logHeader}>
                   <View style={[s.logIcon, { backgroundColor: meta.color + "15" }]}>
-                    <Feather name={meta.icon as any} size={16} color={meta.color} />
+                    <LucideIcon name={meta.icon as any} size={16} color={meta.color} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.logName}>{log.target_name}</Text>
@@ -307,7 +308,7 @@ export default function MoreScreen() {
                 )}
                 {log.note && <Text style={s.logNote}>메모: {log.note}</Text>}
                 <View style={s.logFooter}>
-                  <Feather name="user" size={11} color={C.textMuted} />
+                  <User size={11} color={C.textMuted} />
                   <Text style={s.logActor}>{log.actor_name}</Text>
                   <Text style={s.logActorRole}>({log.actor_role === "pool_admin" ? "관리자" : "선생님"})</Text>
                 </View>
@@ -335,7 +336,7 @@ export default function MoreScreen() {
                   disabled={isActive || switching}
                 >
                   <View style={[sm.roleIcon, { backgroundColor: cfg.bgColor }]}>
-                    <Feather name={cfg.icon as any} size={20} color={cfg.color} />
+                    <LucideIcon name={cfg.icon as any} size={20} color={cfg.color} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[sm.roleLabel, { color: isActive ? cfg.color : C.text }]}>{cfg.title}</Text>
@@ -347,7 +348,7 @@ export default function MoreScreen() {
                       </View>
                     : switching
                       ? <ActivityIndicator color={cfg.color} size="small" />
-                      : <Feather name="chevron-right" size={16} color={C.textMuted} />
+                      : <ChevronRight size={16} color={C.textMuted} />
                   }
                 </Pressable>
               );

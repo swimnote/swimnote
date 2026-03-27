@@ -8,7 +8,8 @@
  * - 선택된 색상에 체크 + 굵은 테두리
  * - 흰색은 회색 테두리로 구분
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, Droplet } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState } from "react";
 import {
   Pressable, ScrollView, StyleSheet, Text, View,
@@ -45,7 +46,7 @@ export default function PastelColorPicker({ selected, onSelect, label = "반 색
     <View>
       <Pressable style={pc.row} onPress={() => setOpen(v => !v)}>
         <View style={pc.labelRow}>
-          <Feather name="droplet" size={14} color={C.textSecondary} />
+          <Droplet size={14} color={C.textSecondary} />
           <Text style={pc.label}>{label}</Text>
         </View>
         <View style={pc.previewRow}>
@@ -55,7 +56,7 @@ export default function PastelColorPicker({ selected, onSelect, label = "반 색
             isWhite && pc.circleWhite,
           ]} />
           <Text style={pc.previewText}>{isWhite ? "기본 (흰색)" : displayColor}</Text>
-          <Feather name={open ? "chevron-up" : "chevron-down"} size={14} color={C.textMuted} />
+          <LucideIcon name={open ? "chevron-up" : "chevron-down"} size={14} color={C.textMuted} />
         </View>
       </Pressable>
 
@@ -77,7 +78,7 @@ export default function PastelColorPicker({ selected, onSelect, label = "반 색
                   onPress={() => { onSelect(col); setOpen(false); }}
                 >
                   {isSelected && (
-                    <Feather name="check" size={13} color="#0F172A" />
+                    <Check size={13} color="#0F172A" />
                   )}
                 </Pressable>
               );

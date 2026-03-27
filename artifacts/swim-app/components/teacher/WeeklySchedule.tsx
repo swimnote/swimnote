@@ -4,7 +4,8 @@
  * 내반 / 출결 / 수영일지 / 사진 / 영상 5개 화면 모두 재사용
  * 클릭 핸들러만 다르게 주입
  */
-import { Feather } from "@expo/vector-icons";
+import { Calendar, Camera, Check } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Pressable, ScrollView, StyleSheet, Text, View,
@@ -129,7 +130,7 @@ export function WeeklySchedule({
       {/* ── 시간 슬롯 리스트 ── */}
       {currentClasses.length === 0 ? (
         <View style={ws.empty}>
-          <Feather name="calendar" size={22} color="#9CA3AF" />
+          <Calendar size={22} color="#9CA3AF" />
           <Text style={ws.emptyText}>{selectedDay}요일 수업이 없습니다</Text>
         </View>
       ) : (
@@ -164,7 +165,7 @@ export function WeeklySchedule({
                 {/* 선택 모드 체크박스 */}
                 {selectionMode && !inactive && (
                   <View style={[ws.checkBox, { borderColor: themeColor, backgroundColor: isSelected ? themeColor : "#fff" }]}>
-                    {isSelected && <Feather name="check" size={9} color="#fff" />}
+                    {isSelected && <Check size={9} color="#fff" />}
                   </View>
                 )}
 
@@ -192,14 +193,14 @@ export function WeeklySchedule({
                   {!inactive && (
                     <View style={ws.dots}>
                       <View style={[ws.dot, { backgroundColor: attDone ? "#E6FFFA" : "#F9DEDA" }]}>
-                        <Feather name={attDone ? "check" : "x"} size={7} color={attDone ? "#2EC4B6" : "#D96C6C"} />
+                        <LucideIcon name={attDone ? "check" : "x"} size={7} color={attDone ? "#2EC4B6" : "#D96C6C"} />
                       </View>
                       <View style={[ws.dot, { backgroundColor: diaryDone ? "#E6FFFA" : "#FFF1BF" }]}>
-                        <Feather name={diaryDone ? "check" : "edit-3"} size={7} color={diaryDone ? "#2EC4B6" : "#D97706"} />
+                        <LucideIcon name={diaryDone ? "check" : "edit-3"} size={7} color={diaryDone ? "#2EC4B6" : "#D97706"} />
                       </View>
                       {hasPhotos && (
                         <View style={[ws.dot, { backgroundColor: "#EEDDF5" }]}>
-                          <Feather name="camera" size={7} color="#7C3AED" />
+                          <Camera size={7} color="#7C3AED" />
                         </View>
                       )}
                     </View>

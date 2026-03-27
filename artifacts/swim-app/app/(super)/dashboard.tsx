@@ -2,7 +2,8 @@
  * (super)/dashboard.tsx — 슈퍼관리자 운영 콘솔
  * Zustand 완전 제거 → GET /super/dashboard-stats, /super/risk-summary, /super/recent-audit-logs 실 API 연동
  */
-import { Feather } from "@expo/vector-icons";
+import { Activity, ChevronRight, CircleAlert, Clipboard, LogOut, MessageCircle, Save, Shield, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -149,13 +150,13 @@ function TodoSection({
     <View style={ts.wrap}>
       <Pressable style={ts.header} onPress={() => setOpen(o => !o)}>
         <View style={[ts.iconWrap, { backgroundColor: bg }]}>
-          <Feather name={icon} size={14} color={color} />
+          <LucideIcon name={icon} size={14} color={color} />
         </View>
         <Text style={ts.title}>{title}</Text>
         <View style={[ts.badge, { backgroundColor: color }]}>
           <Text style={ts.badgeTxt}>{count}</Text>
         </View>
-        <Feather name={open ? "chevron-up" : "chevron-down"} size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+        <LucideIcon name={open ? "chevron-up" : "chevron-down"} size={14} color="#64748B" style={{ marginLeft: "auto" }} />
       </Pressable>
       {open && (
         <View style={ts.body}>
@@ -266,15 +267,15 @@ export default function SuperDashboard() {
         <View style={{ flexDirection: "row", gap: 8 }}>
           {totalAlerts > 0 && (
             <Pressable style={s.alertPill} onPress={() => router.push("/(super)/risk-center" as any)}>
-              <Feather name="alert-circle" size={13} color="#D96C6C" />
+              <CircleAlert size={13} color="#D96C6C" />
               <Text style={s.alertPillTxt}>{totalAlerts}건 처리 필요</Text>
             </Pressable>
           )}
           <Pressable style={s.avatarCircle} onPress={() => router.push("/(super)/backup" as any)}>
-            <Feather name="save" size={17} color="#fff" />
+            <Save size={17} color="#fff" />
           </Pressable>
           <Pressable style={s.logoutBtn} onPress={logout}>
-            <Feather name="log-out" size={15} color={P} />
+            <LogOut size={15} color={P} />
           </Pressable>
         </View>
       </View>
@@ -310,7 +311,7 @@ export default function SuperDashboard() {
             {todoCount > 0 && (
               <View style={s.todoSection}>
                 <View style={s.todoHeader}>
-                  <Feather name="clipboard" size={15} color="#0F172A" />
+                  <Clipboard size={15} color="#0F172A" />
                   <Text style={s.todoHeaderTxt}>오늘 처리할 일</Text>
                   <View style={s.todoBadge}>
                     <Text style={s.todoBadgeTxt}>{todoCount}</Text>
@@ -387,7 +388,7 @@ export default function SuperDashboard() {
                 {(todo?.support_open_count ?? 0) > 0 && (
                   <Pressable style={s.supportBanner} onPress={() => router.push("/(super)/support" as any)}>
                     <View style={[ts.iconWrap, { backgroundColor: "#E0F2FE" }]}>
-                      <Feather name="message-circle" size={14} color="#0284C7" />
+                      <MessageCircle size={14} color="#0284C7" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.supportTitle}>고객센터 미처리</Text>
@@ -401,7 +402,7 @@ export default function SuperDashboard() {
                         <Text style={ts.badgeTxt}>{todo?.support_overdue_count}</Text>
                       </View>
                     )}
-                    <Feather name="chevron-right" size={14} color="#0284C7" />
+                    <ChevronRight size={14} color="#0284C7" />
                   </Pressable>
                 )}
               </View>
@@ -411,9 +412,9 @@ export default function SuperDashboard() {
             {riskSummary && (
               <View style={s.riskSection}>
                 <Pressable style={s.riskHeader} onPress={() => router.push("/(super)/risk-center" as any)}>
-                  <Feather name="shield" size={15} color="#9333EA" />
+                  <Shield size={15} color="#9333EA" />
                   <Text style={s.riskHeaderTxt}>리스크 요약</Text>
-                  <Feather name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+                  <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />
                 </Pressable>
                 <View style={s.riskGrid}>
                   {[
@@ -437,9 +438,9 @@ export default function SuperDashboard() {
             {/* ── 최근 감사 로그 5개 ── */}
             <View style={s.auditSection}>
               <Pressable style={s.auditHeader} onPress={() => router.push("/(super)/op-logs" as any)}>
-                <Feather name="activity" size={15} color="#2EC4B6" />
+                <Activity size={15} color="#2EC4B6" />
                 <Text style={s.auditHeaderTxt}>최근 감사 로그</Text>
-                <Feather name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+                <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />
               </Pressable>
               {recentLogs.length === 0 ? (
                 <View style={s.auditEmpty}>
@@ -473,7 +474,7 @@ export default function SuperDashboard() {
             {MENUS.map(m => (
               <Pressable key={m.id} style={s.menuCard} onPress={() => router.push(m.path as any)}>
                 <View style={[s.menuIconBox, { backgroundColor: m.bg }]}>
-                  <Feather name={m.icon} size={24} color={m.color} />
+                  <LucideIcon name={m.icon} size={24} color={m.color} />
                 </View>
                 <Text style={s.menuTitle}>{m.title}</Text>
                 <Text style={s.menuSub} numberOfLines={2}>{m.sub}</Text>
@@ -483,7 +484,7 @@ export default function SuperDashboard() {
         </View>
 
         <View style={s.footer}>
-          <Feather name="user" size={13} color="#64748B" />
+          <User size={13} color="#64748B" />
           <Text style={s.footerTxt}>{adminUser?.name ?? "슈퍼관리자"} · 슈퍼관리자 계정</Text>
         </View>
       </ScrollView>

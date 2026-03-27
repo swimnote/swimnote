@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Check, Mic, Pencil, RefreshCw, Square, Trash2 } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Audio } from "expo-av";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -146,7 +147,7 @@ export default function DailyMemoPage({
       <View style={{ flex: 1, backgroundColor: C.background }}>
         <View style={[dm.header, { paddingTop: 20, borderBottomColor: C.border }]}>
           <Pressable style={dm.backBtn} onPress={onBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Feather name="arrow-left" size={24} color={C.text} />
+            <ArrowLeft size={24} color={C.text} />
           </Pressable>
           <Text style={[dm.headerTitle, { color: C.text }]}>{formatDate(date)}</Text>
           <View style={{ width: 48 }} />
@@ -155,7 +156,7 @@ export default function DailyMemoPage({
           showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={dm.section}>
             <View style={dm.sectionHeader}>
-              <Feather name="edit-3" size={16} color={themeColor} />
+              <Pencil size={16} color={themeColor} />
               <Text style={[dm.sectionTitle, { color: C.text }]}>텍스트 메모</Text>
             </View>
             <TextInput style={[dm.textArea, { borderColor: C.border, color: C.text }]}
@@ -165,7 +166,7 @@ export default function DailyMemoPage({
           </View>
           <View style={dm.section}>
             <View style={dm.sectionHeader}>
-              <Feather name="mic" size={16} color="#4EA7D8" />
+              <Mic size={16} color="#4EA7D8" />
               <Text style={[dm.sectionTitle, { color: C.text }]}>음성 메모</Text>
             </View>
             <View style={[dm.audioBox, { borderColor: C.border }]}>
@@ -175,7 +176,7 @@ export default function DailyMemoPage({
                   <Text style={[dm.recTime, { color: "#D96C6C" }]}>{recDisplay}</Text>
                   <Text style={[dm.recLabel, { color: C.textSecondary }]}>녹음 중...</Text>
                   <Pressable style={dm.stopBtn} onPress={stopRecording}>
-                    <Feather name="square" size={14} color="#fff" />
+                    <Square size={14} color="#fff" />
                     <Text style={dm.stopBtnText}>중지</Text>
                   </Pressable>
                 </View>
@@ -183,7 +184,7 @@ export default function DailyMemoPage({
                 <View style={{ gap: 12 }}>
                   <View style={dm.playerRow}>
                     <Pressable style={[dm.playerBtn, { backgroundColor: "#4EA7D8" }]} onPress={playAudio}>
-                      <Feather name={playing ? "pause" : "play"} size={18} color="#fff" />
+                      <LucideIcon name={playing ? "pause" : "play"} size={18} color="#fff" />
                     </Pressable>
                     <View style={{ flex: 1, gap: 4 }}>
                       <View style={[dm.progressTrack, { backgroundColor: C.border }]}>
@@ -197,18 +198,18 @@ export default function DailyMemoPage({
                       </View>
                     </View>
                     <Pressable style={dm.deleteAudioBtn} onPress={deleteAudio}>
-                      <Feather name="trash-2" size={16} color="#D96C6C" />
+                      <Trash2 size={16} color="#D96C6C" />
                     </Pressable>
                   </View>
                   <Pressable style={[dm.rerecordBtn, { borderColor: C.border }]} onPress={startRecording}>
-                    <Feather name="refresh-cw" size={13} color={C.textSecondary} />
+                    <RefreshCw size={13} color={C.textSecondary} />
                     <Text style={[dm.rerecordText, { color: C.textSecondary }]}>다시 녹음</Text>
                   </Pressable>
                 </View>
               ) : (
                 <Pressable style={dm.startRecBtn} onPress={startRecording}>
                   <View style={[dm.micCircle, { backgroundColor: "#E6FFFA" }]}>
-                    <Feather name="mic" size={22} color="#4EA7D8" />
+                    <Mic size={22} color="#4EA7D8" />
                   </View>
                   <Text style={[dm.startRecText, { color: C.text }]}>녹음 시작</Text>
                   <Text style={[dm.startRecSub, { color: C.textSecondary }]}>탭하면 녹음이 시작됩니다</Text>
@@ -222,7 +223,7 @@ export default function DailyMemoPage({
             onPress={handleSave} disabled={saving || uploadingAudio}>
             {saving || uploadingAudio
               ? <ActivityIndicator color="#fff" size="small" />
-              : <><Feather name="check" size={18} color="#fff" /><Text style={dm.saveBtnText}>저장</Text></>}
+              : <><Check size={18} color="#fff" /><Text style={dm.saveBtnText}>저장</Text></>}
           </Pressable>
         </View>
       </View>

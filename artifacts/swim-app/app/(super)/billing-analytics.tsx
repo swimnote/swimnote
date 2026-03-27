@@ -5,7 +5,8 @@
  * - 지출: 인프라 비용 (Supabase, R2, 스토어수수료 등) — 추정치 표시
  * - 순이익: 매출 - 총지출
  */
-import { Feather } from "@expo/vector-icons";
+import { Info } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -77,7 +78,7 @@ const KRW_RATE = 1350; // USD → KRW 환산 (참고값)
 function SectionHeader({ icon, title }: { icon: React.ComponentProps<typeof Feather>["name"]; title: string }) {
   return (
     <View style={s.sectionHdr}>
-      <View style={s.sectionIconBox}><Feather name={icon} size={14} color={P} /></View>
+      <View style={s.sectionIconBox}><LucideIcon name={icon} size={14} color={P} /></View>
       <Text style={s.sectionTitle}>{title}</Text>
     </View>
   );
@@ -262,7 +263,7 @@ export default function BillingAnalyticsScreen() {
         <View style={s.section}>
           <SectionHeader icon="minus-circle" title="지출 항목 (추정치)" />
           <View style={[s.estimateNoteBanner]}>
-            <Feather name="info" size={12} color="#D97706" />
+            <Info size={12} color="#D97706" />
             <Text style={s.estimateNoteTxt}>
               정확한 비용 API 미연동. 사용량 기반 추정치이며 실제 청구서와 차이가 있을 수 있습니다.
               슈퍼관리자 운영 DB·백업 비용도 포함됩니다.

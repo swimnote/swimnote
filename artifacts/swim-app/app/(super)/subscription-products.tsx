@@ -3,7 +3,8 @@
  * 탭 1: 구독 플랜 | 탭 2: 추가 용량 상품
  * subscriptionStore + extraStorageStore — API 호출 없음
  */
-import { Feather } from "@expo/vector-icons";
+import { CirclePlus, HardDrive, Info, Lock, Package, PenLine, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
@@ -96,13 +97,13 @@ function PlanCard({ plan, onEdit, onToggle }: {
       {plan.note ? <View style={pc.noteBox}><Text style={pc.noteTxt}>{plan.note}</Text></View> : null}
       <View style={pc.actions}>
         <Pressable style={[pc.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => onEdit(plan)}>
-          <Feather name="edit-2" size={13} color={P} />
+          <PenLine size={13} color={P} />
           <Text style={[pc.btnTxt, { color: P }]}>수정</Text>
         </Pressable>
         <Pressable
           style={[pc.btn, { backgroundColor: plan.isActive ? "#FFF1BF" : "#E6FFFA" }]}
           onPress={() => onToggle(plan)}>
-          <Feather name={plan.isActive ? "pause-circle" : "play-circle"} size={13}
+          <LucideIcon name={plan.isActive ? "pause-circle" : "play-circle"} size={13}
             color={plan.isActive ? "#D97706" : G} />
           <Text style={[pc.btnTxt, { color: plan.isActive ? "#D97706" : G }]}>
             {plan.isActive ? "비활성화" : "활성화"}
@@ -144,7 +145,7 @@ function StorageProductCard({ product, onEdit, onToggle }: {
     <View style={[ep.card, !product.isActive && ep.cardInactive]}>
       <View style={ep.top}>
         <View style={[ep.iconBox, { backgroundColor: product.isActive ? "#E6FFFA" : "#FFFFFF" }]}>
-          <Feather name="hard-drive" size={20} color={product.isActive ? G : "#64748B"} />
+          <HardDrive size={20} color={product.isActive ? G : "#64748B"} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={ep.name}>{product.name}</Text>
@@ -162,13 +163,13 @@ function StorageProductCard({ product, onEdit, onToggle }: {
       {product.note ? <Text style={ep.note}>{product.note}</Text> : null}
       <View style={ep.actions}>
         <Pressable style={[ep.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => onEdit(product)}>
-          <Feather name="edit-2" size={13} color={P} />
+          <PenLine size={13} color={P} />
           <Text style={[ep.btnTxt, { color: P }]}>수정</Text>
         </Pressable>
         <Pressable
           style={[ep.btn, { backgroundColor: product.isActive ? "#FFF1BF" : "#E6FFFA" }]}
           onPress={() => onToggle(product)}>
-          <Feather name={product.isActive ? "pause-circle" : "play-circle"} size={13}
+          <LucideIcon name={product.isActive ? "pause-circle" : "play-circle"} size={13}
             color={product.isActive ? "#D97706" : G} />
           <Text style={[ep.btnTxt, { color: product.isActive ? "#D97706" : G }]}>
             {product.isActive ? "비활성화" : "활성화"}
@@ -233,7 +234,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} style={fm.close}><X size={20} color="#64748B" /></Pressable>
           <Text style={fm.title}>{isEdit ? "구독 상품 수정" : "구독 상품 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
@@ -255,7 +256,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
           </ScrollView>
           <View style={fm.bottomBar}>
             <Pressable style={fm.bottomSaveBtn} onPress={() => setOtpVisible(true)}>
-              <Feather name="lock" size={14} color="#fff" />
+              <Lock size={14} color="#fff" />
               <Text style={fm.saveTxt}>수정 후 저장</Text>
             </Pressable>
           </View>
@@ -299,7 +300,7 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} style={fm.close}><X size={20} color="#64748B" /></Pressable>
           <Text style={fm.title}>{isEdit ? "추가 용량 상품 수정" : "추가 용량 상품 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
@@ -325,7 +326,7 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
           </ScrollView>
           <View style={fm.bottomBar}>
             <Pressable style={[fm.bottomSaveBtn, { backgroundColor: G }]} onPress={() => setOtpVisible(true)}>
-              <Feather name="lock" size={14} color="#fff" />
+              <Lock size={14} color="#fff" />
               <Text style={fm.saveTxt}>수정 후 저장</Text>
             </Pressable>
           </View>
@@ -504,7 +505,7 @@ export default function SubscriptionProductsScreen() {
       {tab === "구독 플랜" ? (
         <>
           <Pressable style={s.createBtn} onPress={() => { setEditPlan(null); setShowPlanForm(true); }}>
-            <Feather name="plus-circle" size={16} color="#fff" />
+            <CirclePlus size={16} color="#fff" />
             <Text style={s.createBtnTxt}>새 구독 플랜 생성</Text>
           </Pressable>
           <FlatList
@@ -518,19 +519,19 @@ export default function SubscriptionProductsScreen() {
               onRefresh={async () => { setRefreshing(true); await loadPlans(); setRefreshing(false); }} />}
             ListHeaderComponent={
               <View style={s.infoBox}>
-                <Feather name="info" size={13} color={P} />
+                <Info size={13} color={P} />
                 <Text style={s.infoTxt}>구독 플랜과 추가 용량 상품은 별개입니다. 추가 용량 탭에서 관리하세요.</Text>
               </View>
             }
             ListEmptyComponent={
-              <View style={s.empty}><Feather name="package" size={36} color="#D1D5DB" /><Text style={s.emptyTxt}>등록된 구독 상품이 없습니다</Text></View>
+              <View style={s.empty}><Package size={36} color="#D1D5DB" /><Text style={s.emptyTxt}>등록된 구독 상품이 없습니다</Text></View>
             }
           />
         </>
       ) : (
         <>
           <Pressable style={[s.createBtn, { backgroundColor: G }]} onPress={() => { setEditProduct(null); setShowStorageForm(true); }}>
-            <Feather name="plus-circle" size={16} color="#fff" />
+            <CirclePlus size={16} color="#fff" />
             <Text style={s.createBtnTxt}>새 추가 용량 상품 생성</Text>
           </Pressable>
 
@@ -574,7 +575,7 @@ export default function SubscriptionProductsScreen() {
             ))}
 
             {products.length === 0 && (
-              <View style={s.empty}><Feather name="hard-drive" size={36} color="#D1D5DB" /><Text style={s.emptyTxt}>등록된 추가 용량 상품이 없습니다</Text></View>
+              <View style={s.empty}><HardDrive size={36} color="#D1D5DB" /><Text style={s.emptyTxt}>등록된 추가 용량 상품이 없습니다</Text></View>
             )}
           </ScrollView>
         </>

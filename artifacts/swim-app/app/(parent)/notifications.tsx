@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { BellOff, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -108,7 +109,7 @@ export default function ParentNotificationsScreen() {
         >
           {notifications.length === 0 && (
             <View style={styles.empty}>
-              <Feather name="bell-off" size={40} color={C.textMuted} />
+              <BellOff size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>알림이 없습니다</Text>
               <Text style={[styles.emptySub, { color: C.textMuted }]}>수영 일지나 사진이 업로드되면{"\n"}여기에 알림이 옵니다</Text>
             </View>
@@ -126,7 +127,7 @@ export default function ParentNotificationsScreen() {
                 onPress={() => handlePress(n)}
               >
                 <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
-                  <Feather name={cfg.icon} size={18} color={cfg.color} />
+                  <LucideIcon name={cfg.icon} size={18} color={cfg.color} />
                 </View>
                 <View style={styles.cardContent}>
                   <Text style={[styles.cardTitle, { color: C.text }]}>{n.title}</Text>
@@ -136,7 +137,7 @@ export default function ParentNotificationsScreen() {
                 <View style={styles.cardRight}>
                   {!n.is_read && <View style={[styles.dot, { backgroundColor: "#2EC4B6" }]} />}
                   <Pressable onPress={() => deleteNotif(n.id)} hitSlop={8}>
-                    <Feather name="x" size={14} color={C.textMuted} />
+                    <X size={14} color={C.textMuted} />
                   </Pressable>
                 </View>
               </Pressable>

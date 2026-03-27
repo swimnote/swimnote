@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, AtSign, ChevronRight, CircleAlert, CircleCheck, Lock, MapPin, Phone, Search, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -74,7 +75,7 @@ export default function TeacherSignupScreen() {
       <View style={[styles.root, { backgroundColor: C.background }]}>
         <View style={[styles.doneWrap, { paddingTop: insets.top + 60 }]}>
           <View style={[styles.doneIcon, { backgroundColor: "#DFF3EC" }]}>
-            <Feather name="check-circle" size={40} color="#2E9B6F" />
+            <CircleCheck size={40} color="#2E9B6F" />
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입 요청 완료!</Text>
           <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
@@ -105,7 +106,7 @@ export default function TeacherSignupScreen() {
         {/* 헤더 */}
         <View style={styles.headerRow}>
           <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={() => (step === "info" ? setStep("pool") : router.back())}>
-            <Feather name="arrow-left" size={20} color={C.text} />
+            <ArrowLeft size={20} color={C.text} />
           </Pressable>
           <Text style={[styles.screenTitle, { color: C.text }]}>선생님 회원가입</Text>
           <View style={{ width: 28 }} />
@@ -144,7 +145,7 @@ export default function TeacherSignupScreen() {
                   onSubmitEditing={searchPools}
                 />
                 <Pressable style={({ pressed }) => [styles.searchBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]} onPress={searchPools} disabled={searching}>
-                  {searching ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="search" size={16} color="#fff" />}
+                  {searching ? <ActivityIndicator color="#fff" size="small" /> : <Search size={16} color="#fff" />}
                 </Pressable>
               </View>
             </View>
@@ -159,13 +160,13 @@ export default function TeacherSignupScreen() {
                       onPress={() => { setSelectedPool(p); setStep("info"); }}
                     >
                       <View style={[styles.poolIcon, { backgroundColor: "#EFF4FF" }]}>
-                        <Feather name="map-pin" size={14} color={C.tint} />
+                        <MapPin size={14} color={C.tint} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.poolName, { color: C.text }]}>{p.name}</Text>
                         {!!p.address && <Text style={[styles.poolAddr, { color: C.textMuted }]} numberOfLines={1}>{p.address}</Text>}
                       </View>
-                      <Feather name="chevron-right" size={16} color={C.textMuted} />
+                      <ChevronRight size={16} color={C.textMuted} />
                     </Pressable>
                   </React.Fragment>
                 ))}
@@ -182,7 +183,7 @@ export default function TeacherSignupScreen() {
         {step === "info" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.poolBadge, { backgroundColor: "#EFF4FF" }]}>
-              <Feather name="map-pin" size={13} color={C.tint} />
+              <MapPin size={13} color={C.tint} />
               <Text style={[styles.poolBadgeText, { color: C.tint }]}>{selectedPool?.name}</Text>
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>기본 정보 입력</Text>
@@ -191,7 +192,7 @@ export default function TeacherSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>이름 *</Text>
               <View style={[styles.inputRow, { borderColor: name ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="user" size={15} color={name ? C.tint : C.textMuted} />
+                <User size={15} color={name ? C.tint : C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={name}
@@ -208,7 +209,7 @@ export default function TeacherSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>사용할 아이디 * <Text style={{ color: C.textMuted }}>(4자 이상)</Text></Text>
               <View style={[styles.inputRow, { borderColor: loginId ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="at-sign" size={15} color={loginId ? C.tint : C.textMuted} />
+                <AtSign size={15} color={loginId ? C.tint : C.textMuted} />
                 <TextInput
                   ref={loginIdRef}
                   style={[styles.input, { color: C.text }]}
@@ -228,7 +229,7 @@ export default function TeacherSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 * <Text style={{ color: C.textMuted }}>(4자 이상)</Text></Text>
               <View style={[styles.inputRow, { borderColor: pw ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="lock" size={15} color={pw ? C.tint : C.textMuted} />
+                <Lock size={15} color={pw ? C.tint : C.textMuted} />
                 <TextInput
                   ref={pwRef}
                   style={[styles.input, { color: C.text }]}
@@ -241,7 +242,7 @@ export default function TeacherSignupScreen() {
                   onSubmitEditing={() => phoneRef.current?.focus()}
                 />
                 <Pressable onPress={() => setShowPw(v => !v)} hitSlop={10}>
-                  <Feather name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
+                  <LucideIcon name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
                 </Pressable>
               </View>
             </View>
@@ -250,7 +251,7 @@ export default function TeacherSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>전화번호 <Text style={{ color: C.textMuted }}>(선택)</Text></Text>
               <View style={[styles.inputRow, { borderColor: phone ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="phone" size={15} color={phone ? C.tint : C.textMuted} />
+                <Phone size={15} color={phone ? C.tint : C.textMuted} />
                 <TextInput
                   ref={phoneRef}
                   style={[styles.input, { color: C.text }]}
@@ -267,7 +268,7 @@ export default function TeacherSignupScreen() {
 
             {!!error && (
               <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-                <Feather name="alert-circle" size={14} color={C.error} />
+                <CircleAlert size={14} color={C.error} />
                 <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
               </View>
             )}

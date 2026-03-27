@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { Droplet, Lock, Tag } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Pressable, ScrollView,
@@ -85,7 +86,7 @@ export default function WhiteLabelScreen() {
         >
           {/* 설명 카드 */}
           <View style={[styles.descCard, { backgroundColor: "#E6FAF8", borderColor: "#E6FAF8" }]}>
-            <Feather name="tag" size={18} color="#1D4ED8" />
+            <Tag size={18} color="#1D4ED8" />
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={[styles.descTitle, { color: "#1D4ED8" }]}>화이트라벨이란?</Text>
               <Text style={[styles.descBody, { color: "#1E40AF" }]}>
@@ -96,7 +97,7 @@ export default function WhiteLabelScreen() {
 
           {/* 현재 수영장 */}
           <View style={[styles.poolChip, { backgroundColor: C.card, borderColor: C.border }]}>
-            <Feather name="droplet" size={14} color={TINT} />
+            <Droplet size={14} color={TINT} />
             <Text style={[styles.poolChipTxt, { color: C.textSecondary }]}>적용 수영장</Text>
             <Text style={[styles.poolChipName, { color: C.text }]}>{pool?.name ?? "—"}</Text>
           </View>
@@ -104,7 +105,7 @@ export default function WhiteLabelScreen() {
           {/* 구독 잠금 안내 */}
           {pool?.subscription_status === "trial" && (
             <View style={[styles.lockCard, { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }]}>
-              <Feather name="lock" size={16} color="#C2410C" />
+              <Lock size={16} color="#C2410C" />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.lockTitle, { color: "#C2410C" }]}>구독 전용 기능</Text>
                 <Text style={[styles.lockBody, { color: "#9A3412" }]}>
@@ -159,7 +160,7 @@ export default function WhiteLabelScreen() {
                 </View>
               </View>
               <View style={[styles.previewNote, { backgroundColor: settings.hide_platform_name ? "#FFF7ED" : "#F0FDF4", borderColor: settings.hide_platform_name ? "#FED7AA" : "#BBF7D0" }]}>
-                <Feather name={settings.hide_platform_name ? "eye-off" : "eye"} size={13} color={settings.hide_platform_name ? "#C2410C" : "#15803D"} />
+                <LucideIcon name={settings.hide_platform_name ? "eye-off" : "eye"} size={13} color={settings.hide_platform_name ? "#C2410C" : "#15803D"} />
                 <Text style={{ fontSize: 12, fontFamily: "Pretendard-Medium", color: settings.hide_platform_name ? "#C2410C" : "#15803D" }}>
                   {settings.hide_platform_name ? "스윔노트 표시 숨김" : "스윔노트 표시 중"}
                 </Text>
@@ -181,7 +182,7 @@ export default function WhiteLabelScreen() {
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <>
-                <Feather name={saved ? "check" : "save"} size={18} color="#fff" />
+                <LucideIcon name={saved ? "check" : "save"} size={18} color="#fff" />
                 <Text style={styles.saveBtnTxt}>{saved ? "저장되었습니다" : "설정 저장"}</Text>
               </>
             )}
@@ -207,7 +208,7 @@ function ToggleRow({
   return (
     <View style={[styles.toggleRow, disabled && styles.toggleDisabled]}>
       <View style={[styles.toggleIcon, { backgroundColor: value && !disabled ? tint + "20" : "#F3F0EE" }]}>
-        <Feather name={icon} size={17} color={value && !disabled ? tint : C.textMuted} />
+        <LucideIcon name={icon} size={17} color={value && !disabled ? tint : C.textMuted} />
       </View>
       <View style={{ flex: 1, gap: 3 }}>
         <Text style={[styles.toggleLabel, { color: disabled ? C.textMuted : C.text }]}>{label}</Text>

@@ -6,7 +6,8 @@
  * - 저장공간 80%/90%/100% 상태 표시
  * - MAX 플랜 사용자에게는 엔터프라이즈 플랜만 업그레이드 노출
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, CirclePlus, CircleX, CreditCard, TriangleAlert } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState, useCallback } from "react";
 import {
   ActivityIndicator, Pressable, RefreshControl,
@@ -202,7 +203,7 @@ export default function BillingScreen() {
           <View style={[s.failBanner,
             billingInfo?.subscription_status === "deleted" ? s.failBannerDeleted : s.failBannerActive]}>
             <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-              <Feather
+              <LucideIcon
                 name={billingInfo?.subscription_status === "deleted" ? "x-circle" : "alert-triangle"}
                 size={18}
                 color={billingInfo?.subscription_status === "deleted" ? "#64748B" : "#DC2626"}
@@ -294,7 +295,7 @@ export default function BillingScreen() {
             </View>
             {storagePct >= 100 && (
               <View style={[s.storageBanner, { backgroundColor: "#FEF2F2", borderColor: "#DC2626" }]}>
-                <Feather name="x-circle" size={14} color="#DC2626" />
+                <CircleX size={14} color="#DC2626" />
                 <View style={{ flex: 1 }}>
                   <Text style={[s.storageBannerTitle, { color: "#DC2626" }]}>저장공간이 가득 차 업로드가 제한됩니다</Text>
                   <Text style={s.storageBannerDesc}>파일을 삭제하거나 상위 플랜으로 업그레이드하세요.</Text>
@@ -309,7 +310,7 @@ export default function BillingScreen() {
             )}
             {storagePct >= 90 && storagePct < 100 && (
               <View style={[s.storageBanner, { backgroundColor: "#FFFBEB", borderColor: "#F59E0B" }]}>
-                <Feather name="alert-triangle" size={14} color="#D97706" />
+                <TriangleAlert size={14} color="#D97706" />
                 <Text style={[s.storageBannerTitle, { color: "#D97706", flex: 1 }]}>
                   곧 업로드가 차단됩니다. 저장공간을 정리하거나 업그레이드해주세요. ({storagePct}%)
                 </Text>
@@ -317,7 +318,7 @@ export default function BillingScreen() {
             )}
             {storagePct >= 80 && storagePct < 90 && (
               <View style={[s.storageBanner, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
-                <Feather name="alert-circle" size={14} color="#F59E0B" />
+                <CircleAlert size={14} color="#F59E0B" />
                 <Text style={[s.storageBannerTitle, { color: "#92400E", flex: 1 }]}>
                   저장공간이 거의 가득 찼습니다. ({storagePct}%)
                 </Text>
@@ -330,7 +331,7 @@ export default function BillingScreen() {
         <Section title="결제 카드">
           {card ? (
             <View style={s.cardBox}>
-              <Feather name="credit-card" size={20} color={themeColor} />
+              <CreditCard size={20} color={themeColor} />
               <View style={{ flex: 1 }}>
                 <Text style={s.cardBrand}>{card.card_brand}</Text>
                 <Text style={s.cardNum}>**** **** **** {card.card_last4}</Text>
@@ -342,7 +343,7 @@ export default function BillingScreen() {
             </View>
           ) : (
             <Pressable onPress={() => setShowCardForm(true)} style={[s.addCardBtn, { borderColor: themeColor }]}>
-              <Feather name="plus-circle" size={16} color={themeColor} />
+              <CirclePlus size={16} color={themeColor} />
               <Text style={[s.addCardText, { color: themeColor }]}>카드 등록</Text>
             </Pressable>
           )}

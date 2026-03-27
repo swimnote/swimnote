@@ -1,7 +1,7 @@
 /**
  * 저장공간 현황 — 총 사용량 · 제공 용량 · 남은 용량 · 게이지
  */
-import { Feather } from "@expo/vector-icons";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -83,7 +83,7 @@ export default function DataStorageOverviewScreen() {
           ].map(item => (
             <View key={item.label} style={[s.statCard, { backgroundColor: C.card }]}>
               <View style={[s.statIcon, { backgroundColor: item.color + "15" }]}>
-                <Feather name={item.icon} size={22} color={item.color} />
+                <LucideIcon name={item.icon} size={22} color={item.color} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.statLabel}>{item.label}</Text>

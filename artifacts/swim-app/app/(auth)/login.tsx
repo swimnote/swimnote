@@ -5,7 +5,8 @@
  * - TOTP 필요 시 /otp-verify?session=... 로 이동
  * - 역할 선택 → org-role-select.tsx로 분리
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, CircleAlert, Hash, Link, Lock, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -79,10 +80,10 @@ export default function LoginPasswordScreen() {
       >
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={22} color={C.text} />
+            <ArrowLeft size={22} color={C.text} />
           </Pressable>
           <View style={styles.idChip}>
-            <Feather name="user" size={13} color={C.tint} />
+            <User size={13} color={C.tint} />
             <Text style={[styles.idChipText, { color: C.tint }]} numberOfLines={1}>{identifier}</Text>
             <Pressable onPress={() => router.replace("/")} style={{ marginLeft: 2 }}>
               <Text style={[styles.changeIdText, { color: C.textMuted }]}>{LOGIN_LABELS.backToId}</Text>
@@ -95,7 +96,7 @@ export default function LoginPasswordScreen() {
 
           {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="alert-circle" size={14} color={C.error} />
+              <CircleAlert size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -103,7 +104,7 @@ export default function LoginPasswordScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>{LOGIN_LABELS.passwordInput.label}</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="lock" size={16} color={C.textMuted} />
+              <Lock size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={password}
@@ -116,7 +117,7 @@ export default function LoginPasswordScreen() {
                 autoFocus
               />
               <Pressable onPress={() => setShowPw(v => !v)} hitSlop={8}>
-                <Feather name={showPw ? "eye-off" : "eye"} size={16} color={C.textMuted} />
+                <LucideIcon name={showPw ? "eye-off" : "eye"} size={16} color={C.textMuted} />
               </Pressable>
             </View>
           </View>
@@ -141,9 +142,9 @@ export default function LoginPasswordScreen() {
           style={[styles.inviteToggle, { borderColor: C.border }]}
           onPress={() => setShowInvite(v => !v)}
         >
-          <Feather name="link" size={15} color={C.textSecondary} />
+          <Link size={15} color={C.textSecondary} />
           <Text style={[styles.inviteToggleText, { color: C.textSecondary }]}>{LOGIN_LABELS.inviteCode.sectionTitle}</Text>
-          <Feather name={showInvite ? "chevron-up" : "chevron-down"} size={15} color={C.textMuted} />
+          <LucideIcon name={showInvite ? "chevron-up" : "chevron-down"} size={15} color={C.textMuted} />
         </Pressable>
 
         {showInvite && (
@@ -151,7 +152,7 @@ export default function LoginPasswordScreen() {
             <Text style={[styles.inviteHelper, { color: C.textSecondary }]}>{LOGIN_LABELS.inviteCode.helper}</Text>
             <View style={styles.inviteRow}>
               <View style={[styles.inputRow, styles.inviteInput, { borderColor: C.border, backgroundColor: C.background }]}>
-                <Feather name="hash" size={15} color={C.textMuted} />
+                <Hash size={15} color={C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={inviteCode}

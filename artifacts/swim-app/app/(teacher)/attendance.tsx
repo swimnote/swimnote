@@ -10,7 +10,7 @@
  * - 지각/결석사유 없음
  * - 정렬: 결석 → 출석
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronLeft, ChevronRight, CircleCheck, Repeat, TriangleAlert, Users, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -85,13 +85,13 @@ function DatePicker({ value, onChange }: { value: string; onChange: (d: string) 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, marginVertical: 8 }}>
       <TouchableOpacity onPress={() => add(-1)} style={{ padding: 8 }}>
-        <Feather name="chevron-left" size={22} color={C.text} />
+        <ChevronLeft size={22} color={C.text} />
       </TouchableOpacity>
       <Text style={{ fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.text }}>
         {y}년 {m}월 {d}일 ({DOW})
       </Text>
       <TouchableOpacity onPress={() => add(1)} style={{ padding: 8 }}>
-        <Feather name="chevron-right" size={22} color={C.text} />
+        <ChevronRight size={22} color={C.text} />
       </TouchableOpacity>
     </View>
   );
@@ -437,7 +437,7 @@ export default function TeacherAttendanceScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={s.emptyBox}>
-              <Feather name="users" size={32} color={C.textMuted} />
+              <Users size={32} color={C.textMuted} />
               <Text style={s.emptyText}>이 반에 배정된 학생이 없습니다</Text>
             </View>
           }
@@ -493,7 +493,7 @@ export default function TeacherAttendanceScreen() {
                           style={[s.attBtn, s.moveBtn]}
                           onPress={() => handleMove(item)}
                         >
-                          <Feather name="repeat" size={13} color={themeColor} />
+                          <Repeat size={13} color={themeColor} />
                           <Text style={[s.attBtnText, { color: themeColor }]}>반이동</Text>
                         </Pressable>
                       )}
@@ -506,7 +506,7 @@ export default function TeacherAttendanceScreen() {
                   style={s.arrowBtn}
                   onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id } } as any)}
                 >
-                  <Feather name="chevron-right" size={18} color={C.textMuted} />
+                  <ChevronRight size={18} color={C.textMuted} />
                 </Pressable>
               </View>
             );
@@ -529,7 +529,7 @@ export default function TeacherAttendanceScreen() {
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>보강 지정</Text>
               <Pressable onPress={() => setAssignTarget(null)} hitSlop={8}>
-                <Feather name="x" size={22} color={C.text} />
+                <X size={22} color={C.text} />
               </Pressable>
             </View>
             {assignTarget && (
@@ -600,7 +600,7 @@ export default function TeacherAttendanceScreen() {
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>결석소멸</Text>
               <Pressable onPress={() => setExtTarget(null)} hitSlop={8}>
-                <Feather name="x" size={22} color={C.text} />
+                <X size={22} color={C.text} />
               </Pressable>
             </View>
             {extTarget && (
@@ -608,7 +608,7 @@ export default function TeacherAttendanceScreen() {
             )}
 
             <View style={[s.warnBox, { marginTop: 12 }]}>
-              <Feather name="alert-triangle" size={14} color="#92400E" />
+              <TriangleAlert size={14} color="#92400E" />
               <Text style={s.warnText}>결석소멸 처리 시 보강 권리가 사라집니다.</Text>
             </View>
 
@@ -703,7 +703,7 @@ export default function TeacherAttendanceScreen() {
               refreshControl={<RefreshControl refreshing={makeupRefresh} onRefresh={() => { setMakeupRefresh(true); loadMakeups(); }} />}
               ListEmptyComponent={
                 <View style={s.emptyBox}>
-                  <Feather name="check-circle" size={40} color="#E6FFFA" />
+                  <CircleCheck size={40} color="#E6FFFA" />
                   <Text style={[s.emptyText, { marginTop: 8 }]}>보강 대기 중인 학생이 없습니다</Text>
                 </View>
               }

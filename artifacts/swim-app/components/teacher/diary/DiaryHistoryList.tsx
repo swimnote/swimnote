@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { BookOpen, CircleAlert, PenLine, Trash2, User } from "lucide-react-native";
 import React from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
@@ -42,7 +42,7 @@ export default function DiaryHistoryList({
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
             <View style={s.emptyBox}>
-              <Feather name="book-open" size={32} color={C.textMuted} />
+              <BookOpen size={32} color={C.textMuted} />
               <Text style={s.emptyText}>작성된 일지가 없습니다</Text>
             </View>
           }
@@ -60,13 +60,13 @@ export default function DiaryHistoryList({
                   )}
                   {item.note_count && Number(item.note_count) > 0 && (
                     <View style={[s.statusBadge, { backgroundColor: "#EEDDF5" }]}>
-                      <Feather name="user" size={10} color="#7C3AED" />
+                      <User size={10} color="#7C3AED" />
                       <Text style={[s.statusBadgeText, { color: "#7C3AED" }]}>개별 {item.note_count}명</Text>
                     </View>
                   )}
                   {isMine && (
                     <View style={[s.statusBadge, { backgroundColor: "#E6FFFA", marginLeft: "auto" }]}>
-                      <Feather name="edit-2" size={10} color="#4EA7D8" />
+                      <PenLine size={10} color="#4EA7D8" />
                       <Text style={[s.statusBadgeText, { color: "#4EA7D8" }]}>탭하여 수정</Text>
                     </View>
                   )}
@@ -79,7 +79,7 @@ export default function DiaryHistoryList({
                   {isMine && (
                     <Pressable style={[s.iconBtn, { backgroundColor: "#FEF2F2" }]}
                       onPress={e => { e.stopPropagation?.(); onDelete(item); }}>
-                      <Feather name="trash-2" size={13} color={C.error} />
+                      <Trash2 size={13} color={C.error} />
                     </Pressable>
                   )}
                 </View>
@@ -96,7 +96,7 @@ export default function DiaryHistoryList({
         <View style={s.delOverlay}>
           <View style={[s.delSheet, { backgroundColor: C.card }]}>
             <View style={[s.delIconWrap, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="trash-2" size={26} color={C.error} />
+              <Trash2 size={26} color={C.error} />
             </View>
             <Text style={[s.delTitle, { color: C.text }]}>일지 삭제</Text>
             <Text style={[s.delDesc, { color: C.textSecondary }]}>
@@ -104,7 +104,7 @@ export default function DiaryHistoryList({
             </Text>
             {deleteError && (
               <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
-                <Feather name="alert-circle" size={13} color={C.error} />
+                <CircleAlert size={13} color={C.error} />
                 <Text style={[s.inlineErrorText, { color: C.error }]}>{deleteError}</Text>
               </View>
             )}

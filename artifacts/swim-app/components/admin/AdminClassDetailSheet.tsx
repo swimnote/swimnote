@@ -7,7 +7,7 @@
  * - 담당선생님 지정/변경
  * - 서브뷰: 미등록시트, 반이동시트, 선생님선택시트
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, ChevronLeft, CircleCheck, PenLine, Repeat, Search, User, UserPlus, UserX, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -262,7 +262,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
         <View style={sh.header}>
           {subView ? (
             <Pressable onPress={() => { setSubView(null); setSearch(""); }} style={sh.backBtn}>
-              <Feather name="chevron-left" size={22} color={themeColor} />
+              <ChevronLeft size={22} color={themeColor} />
             </Pressable>
           ) : (
             <View style={{ width: 36 }} />
@@ -281,7 +281,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           <Pressable onPress={handleClose} style={sh.closeBtn}>
             {colorSaving
               ? <ActivityIndicator size="small" color={C.textSecondary} />
-              : <Feather name="x" size={20} color={C.textSecondary} />}
+              : <X size={20} color={C.textSecondary} />}
           </Pressable>
         </View>
 
@@ -294,16 +294,16 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               {/* 반 요약 카드 */}
               <View style={sh.summaryCard}>
                 <View style={sh.summaryRow}>
-                  <Feather name="user" size={14} color={C.textMuted} />
+                  <User size={14} color={C.textMuted} />
                   <Pressable onPress={enterTeacher} style={sh.instructorBtn}>
                     <Text style={[sh.instructorText, !detail?.instructor && { color: C.textMuted, fontStyle: "italic" }]}>
                       {instructorLabel}
                     </Text>
-                    <Feather name="edit-2" size={12} color={themeColor} style={{ marginLeft: 4 }} />
+                    <PenLine size={12} color={themeColor} style={{ marginLeft: 4 }} />
                   </Pressable>
                 </View>
                 <View style={sh.summaryRow}>
-                  <Feather name="users" size={14} color={C.textMuted} />
+                  <Users size={14} color={C.textMuted} />
                   <Text style={sh.summaryVal}>{capacityLabel}</Text>
                   {capacityFull && <View style={sh.fullBadge}><Text style={sh.fullBadgeText}>정원 마감</Text></View>}
                 </View>
@@ -314,15 +314,15 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               {/* 액션 버튼 */}
               <View style={sh.actionRow}>
                 <Pressable style={[sh.actionBtn, { backgroundColor: themeColor }]} onPress={handleAssign}>
-                  <Feather name="user-plus" size={14} color="#fff" />
+                  <UserPlus size={14} color="#fff" />
                   <Text style={sh.actionBtnText}>반배정</Text>
                 </Pressable>
                 <Pressable style={[sh.actionBtn, { backgroundColor: "#2E9B6F" }]} onPress={enterUnregistered}>
-                  <Feather name="user-x" size={14} color="#fff" />
+                  <UserX size={14} color="#fff" />
                   <Text style={sh.actionBtnText}>미등록</Text>
                 </Pressable>
                 <Pressable style={[sh.actionBtn, { backgroundColor: "#E4A93A" }]} onPress={enterTransfer}>
-                  <Feather name="repeat" size={14} color="#fff" />
+                  <Repeat size={14} color="#fff" />
                   <Text style={sh.actionBtnText}>반이동</Text>
                 </Pressable>
               </View>
@@ -334,7 +334,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               </View>
               {students.length === 0 ? (
                 <View style={sh.emptyBox}>
-                  <Feather name="users" size={32} color={C.textMuted} />
+                  <Users size={32} color={C.textMuted} />
                   <Text style={sh.emptyText}>아직 배정된 학생이 없습니다</Text>
                 </View>
               ) : students.map(s => (
@@ -358,7 +358,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
         {subView === "unregistered" && (
           <View style={{ flex: 1 }}>
             <View style={sh.searchBox}>
-              <Feather name="search" size={14} color={C.textMuted} />
+              <Search size={14} color={C.textMuted} />
               <TextInput
                 style={sh.searchInput}
                 placeholder="이름 또는 연락처 검색"
@@ -369,7 +369,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
             </View>
             {unregistered.length === 0 ? (
               <View style={sh.emptyBox}>
-                <Feather name="check-circle" size={32} color={C.textMuted} />
+                <CircleCheck size={32} color={C.textMuted} />
                 <Text style={sh.emptyText}>미등록 회원이 없습니다</Text>
               </View>
             ) : (
@@ -412,7 +412,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
         {subView === "transfer" && (
           <View style={{ flex: 1 }}>
             <View style={sh.searchBox}>
-              <Feather name="search" size={14} color={C.textMuted} />
+              <Search size={14} color={C.textMuted} />
               <TextInput
                 style={sh.searchInput}
                 placeholder="이름 또는 연락처 검색"
@@ -423,7 +423,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
             </View>
             {transferable.length === 0 ? (
               <View style={sh.emptyBox}>
-                <Feather name="repeat" size={32} color={C.textMuted} />
+                <Repeat size={32} color={C.textMuted} />
                 <Text style={sh.emptyText}>이동 가능한 학생이 없습니다</Text>
               </View>
             ) : (
@@ -475,14 +475,14 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
               onPress={() => handleAssignTeacher({ id: "", name: "" } as any)}
             >
               <View style={[sh.teacherAvatar, { backgroundColor: "#F8FAFC" }]}>
-                <Feather name="user-x" size={16} color={C.textMuted} />
+                <UserX size={16} color={C.textMuted} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[sh.teacherName, { color: C.textMuted, fontStyle: "italic" }]}>미지정</Text>
                 <Text style={sh.teacherSub}>담당 선생님 없음</Text>
               </View>
               {!detail?.instructor && (
-                <Feather name="check" size={18} color={themeColor} />
+                <Check size={18} color={themeColor} />
               )}
             </Pressable>
             <FlatList
@@ -506,7 +506,7 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                     <Text style={sh.teacherSub}>{item.position || item.email || ""}</Text>
                   </View>
                   {detail?.instructor === item.name && (
-                    <Feather name="check" size={18} color={themeColor} />
+                    <Check size={18} color={themeColor} />
                   )}
                 </Pressable>
               )}

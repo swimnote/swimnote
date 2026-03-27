@@ -2,7 +2,7 @@
  * (super)/subscriptions.tsx — 구독·결제 관리
  * 실 API 기반: GET /super/operators, GET /billing/revenue-logs
  */
-import { Feather } from "@expo/vector-icons";
+import { Clock, CreditCard, Eye, Lock, OctagonAlert, TriangleAlert, User } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -290,7 +290,7 @@ export default function SubscriptionsScreen() {
           )}
           <Pressable style={[s.actionBtn, { backgroundColor: "#E0F2FE" }]}
             onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
-            <Feather name="eye" size={13} color="#0284C7" />
+            <Eye size={13} color="#0284C7" />
           </Pressable>
         </View>
       </Pressable>
@@ -331,19 +331,19 @@ export default function SubscriptionsScreen() {
 
       {tab === "failed" && (
         <View style={s.bannerRow}>
-          <Feather name="alert-triangle" size={13} color="#D96C6C" />
+          <TriangleAlert size={13} color="#D96C6C" />
           <Text style={s.bannerTxt}>결제 실패 운영자는 자동으로 읽기전용 전환 후 30일 내 삭제됩니다</Text>
         </View>
       )}
       {tab === "deletion" && (
         <View style={[s.bannerRow, { backgroundColor: "#FFF1BF" }]}>
-          <Feather name="clock" size={13} color="#D97706" />
+          <Clock size={13} color="#D97706" />
           <Text style={[s.bannerTxt, { color: "#92400E" }]}>자동삭제 예정 운영자입니다. 유예 버튼으로 48시간 연장 가능합니다</Text>
         </View>
       )}
       {tab === "chargeback" && (
         <View style={[s.bannerRow, { backgroundColor: "#F9DEDA" }]}>
-          <Feather name="alert-octagon" size={13} color="#D96C6C" />
+          <OctagonAlert size={13} color="#D96C6C" />
           <Text style={[s.bannerTxt, { color: "#7F1D1D" }]}>차지백·분쟁 발생 운영자입니다. 운영자 상세에서 제한 조치를 권고합니다</Text>
         </View>
       )}
@@ -357,7 +357,7 @@ export default function SubscriptionsScreen() {
         ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#FFFFFF" }} />}
         ListEmptyComponent={
           <View style={s.empty}>
-            <Feather name="credit-card" size={30} color="#D1D5DB" />
+            <CreditCard size={30} color="#D1D5DB" />
             <Text style={s.emptyTxt}>{TABS.find(t => t.key === tab)?.label} 운영자가 없습니다</Text>
           </View>
         }
@@ -398,7 +398,7 @@ export default function SubscriptionsScreen() {
               <View style={m.linkRow}>
                 <Pressable style={m.linkBtn}
                   onPress={() => { setEditOp(null); router.push(`/(super)/operator-detail?id=${editOp.id}` as any); }}>
-                  <Feather name="user" size={14} color={P} />
+                  <User size={14} color={P} />
                   <Text style={m.linkTxt}>운영자 상세 전체 보기</Text>
                 </Pressable>
               </View>
@@ -411,7 +411,7 @@ export default function SubscriptionsScreen() {
                   onPress={() => triggerAction("save", editOp)} disabled={saving}>
                   {saving
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <><Feather name="lock" size={13} color="#fff" /><Text style={m.saveTxt}>OTP 인증 후 저장</Text></>}
+                    : <><Lock size={13} color="#fff" /><Text style={m.saveTxt}>OTP 인증 후 저장</Text></>}
                 </Pressable>
               </View>
             </Pressable>

@@ -4,7 +4,7 @@
  */
 import React from "react";
 import { Modal, View, Text, Pressable, StyleSheet } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import type { WriteGuardModal } from "@/hooks/useWriteGuard";
@@ -64,7 +64,7 @@ export function ReadOnlyModal({ kind, onClose }: Props) {
       <Pressable style={s.backdrop} onPress={onClose}>
         <Pressable style={s.card} onPress={e => e.stopPropagation()}>
           <View style={[s.iconWrap, { backgroundColor: c.iconColor + "18" }]}>
-            <Feather name={c.icon} size={28} color={c.iconColor} />
+            <LucideIcon name={c.icon} size={28} color={c.iconColor} />
           </View>
           <Text style={s.title}>{c.title}</Text>
           <Text style={s.desc}>{c.desc}</Text>

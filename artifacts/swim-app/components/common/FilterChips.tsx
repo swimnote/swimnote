@@ -4,7 +4,7 @@
  * wrap=false(기본): 높이 고정 54px, 가로 스크롤 한 줄
  * wrap=true:        COLS 고정 개수로 나눈 2줄 그리드, 모든 칩 동일 너비
  */
-import { Feather } from "@expo/vector-icons";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import {
   Pressable, ScrollView, StyleSheet, Text,
@@ -56,7 +56,7 @@ function Chip<T extends string>({
       ]}
     >
       {showIcon && chip.icon ? (
-        <Feather name={chip.icon} size={11} color={isActive ? color : C.textMuted} />
+        <LucideIcon name={chip.icon} size={11} color={isActive ? color : C.textMuted} />
       ) : null}
       <Text
         style={[s.label, { color: isActive ? color : C.textSecondary }]}

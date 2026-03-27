@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, DollarSign, File, Tag, Type, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -157,7 +158,7 @@ export default function PoolSettingsScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
         {error ? (
           <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-            <Feather name="alert-circle" size={14} color={C.error} />
+            <CircleAlert size={14} color={C.error} />
             <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
           </View>
         ) : null}
@@ -175,7 +176,7 @@ export default function PoolSettingsScreen() {
             <View key={key} style={styles.field}>
               <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
               <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                <Feather name={icon as any} size={16} color={C.textMuted} style={styles.inputIcon} />
+                <LucideIcon name={icon as any} size={16} color={C.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={form[key as keyof typeof form]}
@@ -192,7 +193,7 @@ export default function PoolSettingsScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>영문표시명</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="type" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <Type size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.name_en}
@@ -206,7 +207,7 @@ export default function PoolSettingsScreen() {
 
           {form.name_en ? (
             <View style={[styles.previewBox, { backgroundColor: C.tintLight }]}>
-              <Feather name="file" size={14} color={C.tint} />
+              <File size={14} color={C.tint} />
               <Text style={[styles.previewText, { color: C.tint }]}>
                 파일명 예시: {form.name_en}_20260314_154530_a3f8.jpg
               </Text>
@@ -217,7 +218,7 @@ export default function PoolSettingsScreen() {
         {/* 반 기본 설정 */}
         <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Feather name="users" size={16} color={C.tint} />
+            <Users size={16} color={C.tint} />
             <Text style={[styles.sectionTitle, { color: C.text }]}>반 기본 설정</Text>
           </View>
           <Text style={[styles.hint, { color: C.textMuted }]}>
@@ -226,7 +227,7 @@ export default function PoolSettingsScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>기본 정원 (명)</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="users" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <Users size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={defaultCapacity}
@@ -241,7 +242,7 @@ export default function PoolSettingsScreen() {
           </View>
           {capacityMsg ? (
             <View style={[styles.msgBox, { backgroundColor: capacityMsg === "저장되었습니다." ? "#E6FFFA" : "#F9DEDA" }]}>
-              <Feather name={capacityMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
+              <LucideIcon name={capacityMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
                 color={capacityMsg === "저장되었습니다." ? "#2EC4B6" : C.error} />
               <Text style={[styles.errText, { color: capacityMsg === "저장되었습니다." ? "#2EC4B6" : C.error }]}>{capacityMsg}</Text>
             </View>
@@ -262,7 +263,7 @@ export default function PoolSettingsScreen() {
         {pricing.length > 0 && (
           <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Feather name="dollar-sign" size={16} color="#7C3AED" />
+              <DollarSign size={16} color="#7C3AED" />
               <Text style={[styles.sectionTitle, { color: C.text }]}>수업 단가표</Text>
             </View>
             <Text style={[styles.hint, { color: C.textMuted }]}>월 수업료 기준. 주1회=4회, 주2회=8회, 주3회=12회 기본.</Text>
@@ -274,7 +275,7 @@ export default function PoolSettingsScreen() {
                 </Text>
                 {p.type_key.startsWith("custom") && (
                   <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                    <Feather name="tag" size={16} color={C.textMuted} style={styles.inputIcon} />
+                    <Tag size={16} color={C.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: C.text }]}
                       value={getPricingVal(p, "type_name")}
@@ -285,7 +286,7 @@ export default function PoolSettingsScreen() {
                 )}
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background, flex: 1 }]}>
-                    <Feather name="dollar-sign" size={14} color={C.textMuted} style={styles.inputIcon} />
+                    <DollarSign size={14} color={C.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: C.text }]}
                       value={getPricingVal(p, "monthly_fee")}
@@ -310,7 +311,7 @@ export default function PoolSettingsScreen() {
             ))}
             {pricingMsg ? (
               <View style={[styles.msgBox, { backgroundColor: pricingMsg === "저장되었습니다." ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Feather name={pricingMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
+                <LucideIcon name={pricingMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
                   color={pricingMsg === "저장되었습니다." ? "#2EC4B6" : C.error} />
                 <Text style={[styles.errText, { color: pricingMsg === "저장되었습니다." ? "#2EC4B6" : C.error }]}>{pricingMsg}</Text>
               </View>

@@ -3,7 +3,7 @@
  * 실 DB: GET /admin/teacher-hub/:id
  * 탭: 담당회원 / 출결 / 수업일지 / 보강
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, Trash2 } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -120,7 +120,7 @@ export default function TeacherHubScreen() {
                   <Text style={s.name}>{item.name}</Text>
                   <Text style={s.sub}>{item.class_name || "반 미배정"}</Text>
                 </View>
-                <Feather name="chevron-right" size={16} color={C.textSecondary} />
+                <ChevronRight size={16} color={C.textSecondary} />
               </View>
             </Pressable>
           );
@@ -149,7 +149,7 @@ export default function TeacherHubScreen() {
                   {item.is_edited && <Text style={[s.sub, { color: "#D97706" }]}>수정됨</Text>}
                 </View>
                 <Pressable onPress={() => deleteDiary(item.id)} style={{ padding: 6 }}>
-                  <Feather name="trash-2" size={16} color="#D96C6C" />
+                  <Trash2 size={16} color="#D96C6C" />
                 </Pressable>
               </View>
             </View>

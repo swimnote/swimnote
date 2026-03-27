@@ -5,7 +5,7 @@
  *
  * 배정/보강배정 완료 후 → onAssignDone() 호출 → 주간뷰 복귀 + 데이터 갱신
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleCheck, Eye, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
@@ -94,13 +94,13 @@ function DatePicker({ value, onChange }: { value: string; onChange: (d: string) 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 8 }}>
       <TouchableOpacity onPress={() => add(-1)} style={{ padding: 8 }}>
-        <Feather name="chevron-left" size={20} color={C.text} />
+        <ChevronLeft size={20} color={C.text} />
       </TouchableOpacity>
       <Text style={{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text }}>
         {y}년 {m}월 {d}일 ({DOW})
       </Text>
       <TouchableOpacity onPress={() => add(1)} style={{ padding: 8 }}>
-        <Feather name="chevron-right" size={20} color={C.text} />
+        <ChevronRight size={20} color={C.text} />
       </TouchableOpacity>
     </View>
   );
@@ -264,12 +264,12 @@ export default function StudentManagementSheet({
       <View style={st.header}>
         {onBack ? (
           <Pressable onPress={onBack} style={{ padding: 4, marginRight: 8 }}>
-            <Feather name="arrow-left" size={20} color={C.textSecondary} />
+            <ArrowLeft size={20} color={C.textSecondary} />
           </Pressable>
         ) : null}
         <Text style={st.headerTitle}>{title}</Text>
         <Pressable onPress={onClose} style={{ padding: 4 }}>
-          <Feather name="x" size={20} color={C.textSecondary} />
+          <X size={20} color={C.textSecondary} />
         </Pressable>
       </View>
     );
@@ -284,7 +284,7 @@ export default function StudentManagementSheet({
     );
     if (unassigned.length === 0) return (
       <View style={st.emptyBox}>
-        <Feather name="check-circle" size={32} color={C.textMuted} />
+        <CircleCheck size={32} color={C.textMuted} />
         <Text style={st.emptyText}>현재 미배정 회원이 없습니다.</Text>
       </View>
     );
@@ -296,7 +296,7 @@ export default function StudentManagementSheet({
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={readOnly ? (
           <View style={[st.readOnlyBanner, { marginTop: 8 }]}>
-            <Feather name="eye" size={12} color="#64748B" />
+            <Eye size={12} color="#64748B" />
             <Text style={st.readOnlyText}>조회 전용 — 배정 기능은 선생님 계정에서 사용하세요</Text>
           </View>
         ) : null}
@@ -361,7 +361,7 @@ export default function StudentManagementSheet({
     );
     if (makeups.length === 0) return (
       <View style={st.emptyBox}>
-        <Feather name="check-circle" size={32} color={C.textMuted} />
+        <CircleCheck size={32} color={C.textMuted} />
         <Text style={st.emptyText}>현재 보강 대기 회원이 없습니다.</Text>
       </View>
     );
@@ -373,7 +373,7 @@ export default function StudentManagementSheet({
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={readOnly ? (
           <View style={[st.readOnlyBanner, { marginTop: 8 }]}>
-            <Feather name="eye" size={12} color="#64748B" />
+            <Eye size={12} color="#64748B" />
             <Text style={st.readOnlyText}>조회 전용 — 배정 기능은 선생님 계정에서 사용하세요</Text>
           </View>
         ) : null}
@@ -553,7 +553,7 @@ export default function StudentManagementSheet({
                     </View>
                   ) : selected ? (
                     <View style={[st.pickBadge, { backgroundColor: themeColor }]}>
-                      <Feather name="check" size={14} color="#fff" />
+                      <Check size={14} color="#fff" />
                     </View>
                   ) : (
                     <View style={[st.pickBadge, { backgroundColor: "#FFFFFF" }]}>

@@ -4,7 +4,8 @@
  * 월간(Monthly): 달력 → 날짜 클릭 → 해당 날 시간대 → 선생님 선택 → 반 목록 → 반 현황판
  * 계정 관리 모달 → TeacherAccountSheet
  */
-import { Feather } from "@expo/vector-icons";
+import { Calendar, ChevronRight, Clock, Info, Layers, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView,
@@ -197,7 +198,7 @@ export default function TeachersScreen() {
         onBack={nav.step !== "main" ? goBack : undefined}
         rightSlot={
           <Pressable style={[s.accountsBtn, { backgroundColor: C.tintLight }]} onPress={() => setShowAccounts(true)}>
-            <Feather name="users" size={15} color={C.tint} />
+            <Users size={15} color={C.tint} />
             <Text style={[s.accountsBtnText, { color: C.tint }]}>계정</Text>
           </Pressable>
         }
@@ -224,7 +225,7 @@ export default function TeachersScreen() {
           <Pressable onPress={() => setNav({ step: "main" })}><Text style={[s.crumb, { color: C.tint }]}>시간표</Text></Pressable>
           {(nav.step === "timeslots" || nav.step === "teachers" || nav.step === "classes" || nav.step === "detail") && crumbDate && (
             <>
-              <Feather name="chevron-right" size={12} color={C.textMuted} />
+              <ChevronRight size={12} color={C.textMuted} />
               <Pressable onPress={() => { if (nav.step !== "timeslots") setNav({ step: "timeslots", date: crumbDate }); }}>
                 <Text style={[s.crumb, { color: nav.step === "timeslots" ? C.text : C.tint, fontWeight: nav.step === "timeslots" ? "700" : "500" }]}>
                   {dateLabel(crumbDate)}
@@ -234,7 +235,7 @@ export default function TeachersScreen() {
           )}
           {(nav.step === "teachers" || nav.step === "classes" || nav.step === "detail") && (
             <>
-              <Feather name="chevron-right" size={12} color={C.textMuted} />
+              <ChevronRight size={12} color={C.textMuted} />
               <Pressable onPress={() => { if (nav.step !== "teachers") setNav({ step: "teachers", time: crumbTime, day: crumbDay, date: crumbDate }); }}>
                 <Text style={[s.crumb, { color: nav.step === "teachers" ? C.text : C.tint, fontWeight: nav.step === "teachers" ? "700" : "500" }]}>
                   {crumbDay ? `${crumbDay}요일 ` : ""}{crumbTime}
@@ -244,7 +245,7 @@ export default function TeachersScreen() {
           )}
           {(nav.step === "classes" || nav.step === "detail") && (
             <>
-              <Feather name="chevron-right" size={12} color={C.textMuted} />
+              <ChevronRight size={12} color={C.textMuted} />
               <Pressable onPress={() => nav.step !== "classes" && setNav({ step: "classes", time: crumbTime, day: crumbDay, date: crumbDate, teacherId: (nav as any).teacherId })}>
                 <Text style={[s.crumb, { color: nav.step === "classes" ? C.text : C.tint, fontWeight: nav.step === "classes" ? "700" : "500" }]}>{crumbTeacher}</Text>
               </Pressable>
@@ -252,7 +253,7 @@ export default function TeachersScreen() {
           )}
           {nav.step === "detail" && crumbClass && (
             <>
-              <Feather name="chevron-right" size={12} color={C.textMuted} />
+              <ChevronRight size={12} color={C.textMuted} />
               <Text style={[s.crumb, { color: C.text, fontWeight: "700" }]}>{crumbClass}</Text>
             </>
           )}
@@ -281,7 +282,7 @@ export default function TeachersScreen() {
                 {crumbDay ? `${crumbDay}요일 ` : crumbDate ? `${dateLabel(crumbDate)} ` : "오늘 "}{crumbTime}
               </Text>
               {classesForList.length === 0 ? (
-                <View style={s.emptyBox}><Feather name="layers" size={36} color={C.textMuted} /><Text style={[s.emptyText, { color: C.textMuted }]}>해당 시간 반이 없습니다</Text></View>
+                <View style={s.emptyBox}><Layers size={36} color={C.textMuted} /><Text style={[s.emptyText, { color: C.textMuted }]}>해당 시간 반이 없습니다</Text></View>
               ) : classesForList.map(g => {
                 const att = attendanceMap[g.id] || [];
                 const present = att.filter(a => a.status === "present").length;
@@ -302,7 +303,7 @@ export default function TeachersScreen() {
                         <Text style={[s.classStat, { color: "#D96C6C" }]}>결석 {absent}</Text>
                       </View>
                     </View>
-                    <Feather name="chevron-right" size={18} color={C.textMuted} />
+                    <ChevronRight size={18} color={C.textMuted} />
                   </Pressable>
                 );
               })}
@@ -327,7 +328,7 @@ export default function TeachersScreen() {
                         { icon: "edit-3", val: todayUnwritten, label: "일지 미작성", color: todayUnwritten > 0 ? "#E4A93A" : "#2E9B6F" },
                       ].map((st, i) => (
                         <View key={i} style={[s.statCard, { backgroundColor: C.card }]}>
-                          <Feather name={st.icon as any} size={18} color={st.color} />
+                          <LucideIcon name={st.icon as any} size={18} color={st.color} />
                           <Text style={[s.statNum, { color: st.color }]}>{st.val}</Text>
                           <Text style={[s.statLbl, { color: C.textMuted }]}>{st.label}</Text>
                         </View>
@@ -338,7 +339,7 @@ export default function TeachersScreen() {
                   <View style={{ paddingHorizontal: 20, gap: 8 }}>
                     <Text style={[s.sectionTitle, { color: C.text }]}>오늘({todayKo()}요일) 수업 일정</Text>
                     {todayTimeSlots.length === 0 ? (
-                      <View style={s.emptyBox}><Feather name="calendar" size={36} color={C.textMuted} /><Text style={[s.emptyText, { color: C.textMuted }]}>오늘 수업이 없습니다</Text></View>
+                      <View style={s.emptyBox}><Calendar size={36} color={C.textMuted} /><Text style={[s.emptyText, { color: C.textMuted }]}>오늘 수업이 없습니다</Text></View>
                     ) : todayTimeSlots.map(time => {
                       const count = todayGroups.filter(g => parseStartTime(g.schedule_time) === time).length;
                       const teacherCount = [...new Set(todayGroups.filter(g => parseStartTime(g.schedule_time) === time && g.teacher_user_id).map(g => g.teacher_user_id))].length;
@@ -348,7 +349,7 @@ export default function TeachersScreen() {
                         <Pressable key={time} style={[s.timeCard, { backgroundColor: C.card }]}
                           onPress={() => onSelectTime(time, todayKo())}>
                           <View style={[s.timeBox, { backgroundColor: C.tintLight }]}>
-                            <Feather name="clock" size={14} color={C.tint} />
+                            <Clock size={14} color={C.tint} />
                             <Text style={[s.timeText, { color: C.tint }]}>{time}</Text>
                           </View>
                           <View style={{ flex: 1 }}>
@@ -358,7 +359,7 @@ export default function TeachersScreen() {
                               <Text style={[s.timeCardSub, { color: diaryDone === count ? "#2E9B6F" : "#E4A93A" }]}>일지 {diaryDone}/{count}</Text>
                             </View>
                           </View>
-                          <Feather name="chevron-right" size={18} color={C.textMuted} />
+                          <ChevronRight size={18} color={C.textMuted} />
                         </Pressable>
                       );
                     })}
@@ -370,7 +371,7 @@ export default function TeachersScreen() {
               {scheduleTab === "monthly" && nav.step === "main" && (
                 <>
                   <View style={[s.hintRow, { backgroundColor: C.tintLight }]}>
-                    <Feather name="info" size={13} color={C.tint} />
+                    <Info size={13} color={C.tint} />
                     <Text style={[s.hintTxt, { color: C.tint }]}>수업이 있는 날짜를 눌러 탐색하세요</Text>
                   </View>
                   <MonthlyCalendar classGroups={classGroups} onSelectDate={onSelectDate} />
@@ -382,7 +383,7 @@ export default function TeachersScreen() {
                 <View style={{ paddingHorizontal: 20, paddingTop: 12, gap: 8 }}>
                   <Text style={[s.sectionTitle, { color: C.text }]}>{dateLabel((nav as any).date)} 수업</Text>
                   {timeslotsForDate.length === 0 ? (
-                    <View style={s.emptyBox}><Feather name="calendar" size={36} color={C.textMuted} /><Text style={[s.emptyText, { color: C.textMuted }]}>해당 날 수업이 없습니다</Text></View>
+                    <View style={s.emptyBox}><Calendar size={36} color={C.textMuted} /><Text style={[s.emptyText, { color: C.textMuted }]}>해당 날 수업이 없습니다</Text></View>
                   ) : timeslotsForDate.map(time => {
                     const koDay = dateToKo((nav as any).date);
                     const slotGroups = classGroups.filter(g => g.schedule_days.split(",").map(d => d.trim()).includes(koDay) && parseStartTime(g.schedule_time) === time);
@@ -391,13 +392,13 @@ export default function TeachersScreen() {
                       <Pressable key={time} style={[s.timeCard, { backgroundColor: C.card }]}
                         onPress={() => onSelectTime(time, koDay, (nav as any).date)}>
                         <View style={[s.timeBox, { backgroundColor: C.tintLight }]}>
-                          <Feather name="clock" size={14} color={C.tint} />
+                          <Clock size={14} color={C.tint} />
                           <Text style={[s.timeText, { color: C.tint }]}>{time}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[s.timeCardMain, { color: C.text }]}>{slotGroups.length}개 반 · {teacherCount}명 선생님</Text>
                         </View>
-                        <Feather name="chevron-right" size={18} color={C.textMuted} />
+                        <ChevronRight size={18} color={C.textMuted} />
                       </Pressable>
                     );
                   })}

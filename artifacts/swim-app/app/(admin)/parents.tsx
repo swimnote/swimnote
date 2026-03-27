@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Check, CircleCheck, CircleX, Info, Link, MessageSquare, Phone, Plus, Search, Send, SquareCheck, Trash2, UserCheck, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -187,7 +187,7 @@ function StudentLinkSheet({
       <Text style={s.sheetTitle}>학생 연결 요청</Text>
 
       <View style={[s.infoBox, { backgroundColor: "#E6FAF8" }]}>
-        <Feather name="info" size={13} color="#0F172A" />
+        <Info size={13} color="#0F172A" />
         <Text style={[s.infoText, { color: "#0F172A" }]}>연결 요청은 관리자 승인 후 학부모에게 노출됩니다.</Text>
       </View>
 
@@ -195,7 +195,7 @@ function StudentLinkSheet({
       {(parent?.requested_children ?? []).length > 0 && (
         <View style={[s.childRefBox, { backgroundColor: "#E6FAF8" }]}>
           <View style={s.childRefHeader}>
-            <Feather name="user-check" size={13} color="#64748B" />
+            <UserCheck size={13} color="#64748B" />
             <Text style={[s.childRefLabel, { color: "#64748B" }]}>가입 신청 시 입력한 자녀</Text>
           </View>
           {(parent?.requested_children ?? []).map((c, i) => (
@@ -215,7 +215,7 @@ function StudentLinkSheet({
 
       {/* 검색창 */}
       <View style={[s.searchRow, { borderColor: C.border, backgroundColor: C.background }]}>
-        <Feather name="search" size={15} color={C.textMuted} />
+        <Search size={15} color={C.textMuted} />
         <TextInput
           style={[s.searchInput, { color: C.text }]}
           value={search}
@@ -226,7 +226,7 @@ function StudentLinkSheet({
         />
         {search.length > 0 && (
           <Pressable onPress={() => { setSearch(""); setSelectedId(""); }}>
-            <Feather name="x-circle" size={15} color={C.textMuted} />
+            <CircleX size={15} color={C.textMuted} />
           </Pressable>
         )}
       </View>
@@ -247,7 +247,7 @@ function StudentLinkSheet({
       >
         {displayList.length === 0 ? (
           <View style={s.emptyHint}>
-            <Feather name="users" size={28} color={C.textMuted} />
+            <Users size={28} color={C.textMuted} />
             <Text style={[s.emptyHintText, { color: C.textMuted }]}>
               {search.trim() ? `"${search}" 검색 결과가 없습니다` : "학부모미연결 학생이 없습니다\n검색으로 전체 학생을 찾아보세요"}
             </Text>
@@ -272,7 +272,7 @@ function StudentLinkSheet({
                 </Text>
               </View>
               {isSelected
-                ? <Feather name="check-circle" size={20} color={C.tint} />
+                ? <CircleCheck size={20} color={C.tint} />
                 : <View style={s.sOptionCircle} />
               }
             </Pressable>
@@ -347,7 +347,7 @@ function AddParentSheet({
       <DraggableSheet visible={visible} onClose={onClose} paddingBottom={insets.bottom + 16}>
         <View style={{ alignItems: "center", gap: 12, paddingVertical: 8 }}>
           <View style={[s.smsIcon, { backgroundColor: "#E6FAF8" }]}>
-            <Feather name="message-square" size={26} color="#0F172A" />
+            <MessageSquare size={26} color="#0F172A" />
           </View>
           <Text style={[s.sheetTitle, { textAlign: "center" }]}>앱 안내 문자 발송</Text>
           <Text style={[s.smsDesc, { color: C.textSecondary }]}>
@@ -360,7 +360,7 @@ function AddParentSheet({
             <Text style={[s.cancelText, { color: C.textSecondary }]}>나중에</Text>
           </Pressable>
           <Pressable style={[s.submitBtn, { backgroundColor: C.button, flexDirection: "row", gap: 6 }]} onPress={openSmsApp}>
-            <Feather name="send" size={15} color="#fff" />
+            <Send size={15} color="#fff" />
             <Text style={s.submitText}>문자 앱 열기</Text>
           </Pressable>
         </View>
@@ -551,14 +551,14 @@ export default function ParentsScreen() {
               style={[s.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
               onPress={sel.toggleSelectionMode}
             >
-              <Feather name="check-square" size={16} color={sel.selectionMode ? C.tint : C.textSecondary} />
+              <SquareCheck size={16} color={sel.selectionMode ? C.tint : C.textSecondary} />
               <Text style={[s.selBtnText, sel.selectionMode && { color: C.tint }]}>
                 {sel.selectionMode ? "취소" : "선택"}
               </Text>
             </Pressable>
             {!sel.selectionMode && (
               <Pressable style={[s.addBtn, { backgroundColor: C.button }]} onPress={() => setShowAddParent(true)}>
-                <Feather name="plus" size={16} color="#fff" />
+                <Plus size={16} color="#fff" />
                 <Text style={s.addBtnText}>추가</Text>
               </Pressable>
             )}
@@ -576,7 +576,7 @@ export default function ParentsScreen() {
         >
           {parents.length === 0 ? (
             <View style={s.empty}>
-              <Feather name="users" size={48} color={C.textMuted} />
+              <Users size={48} color={C.textMuted} />
               <Text style={[s.emptyTitle, { color: C.text }]}>등록된 학부모가 없습니다</Text>
               <Text style={[s.emptySub, { color: C.textSecondary }]}>승인 메뉴에서 가입 요청을 승인하거나 직접 추가하세요</Text>
             </View>
@@ -593,7 +593,7 @@ export default function ParentsScreen() {
                   {sel.selectionMode && (
                     <Pressable onPress={() => sel.toggleItem(pa.id)} style={s.checkWrap}>
                       <View style={[s.checkbox, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
-                        {isSelected && <Feather name="check" size={12} color="#fff" />}
+                        {isSelected && <Check size={12} color="#fff" />}
                       </View>
                     </Pressable>
                   )}
@@ -608,7 +608,7 @@ export default function ParentsScreen() {
                         onPress={() => callPhone(pa.phone)}
                         hitSlop={6}
                       >
-                        <Feather name="phone" size={11} color={CALL_COLOR} />
+                        <Phone size={11} color={CALL_COLOR} />
                         <Text style={[s.accountPhone, { color: CALL_COLOR }]}>{formatPhone(pa.phone)}</Text>
                       </Pressable>
                     ) : (
@@ -621,7 +621,7 @@ export default function ParentsScreen() {
                         style={[s.linkBtn, { borderColor: C.tint }]}
                         onPress={() => setShowAddLink(pa)}
                       >
-                        <Feather name="link" size={13} color={C.tint} />
+                        <Link size={13} color={C.tint} />
                         <Text style={[s.linkBtnText, { color: C.tint }]}>학생 연결</Text>
                       </Pressable>
                       <Pressable
@@ -631,7 +631,7 @@ export default function ParentsScreen() {
                       >
                         {isThisDeleting
                           ? <ActivityIndicator size={14} color={C.error} />
-                          : <Feather name="trash-2" size={15} color={C.error} />
+                          : <Trash2 size={15} color={C.error} />
                         }
                       </Pressable>
                     </View>
@@ -649,16 +649,16 @@ export default function ParentsScreen() {
                           {!sel.selectionMode && st.status === "pending" && (
                             <>
                               <Pressable onPress={() => handleDecision(st.link_id, pa.id, "approve")} style={[s.miniBtn, { backgroundColor: C.success }]}>
-                                <Feather name="check" size={12} color="#fff" />
+                                <Check size={12} color="#fff" />
                               </Pressable>
                               <Pressable onPress={() => handleDecision(st.link_id, pa.id, "reject")} style={[s.miniBtn, { backgroundColor: C.error }]}>
-                                <Feather name="x" size={12} color="#fff" />
+                                <X size={12} color="#fff" />
                               </Pressable>
                             </>
                           )}
                           {!sel.selectionMode && (
                             <Pressable onPress={() => handleDeleteLink(pa.id, st.link_id)}>
-                              <Feather name="trash-2" size={14} color={C.textMuted} />
+                              <Trash2 size={14} color={C.textMuted} />
                             </Pressable>
                           )}
                         </View>

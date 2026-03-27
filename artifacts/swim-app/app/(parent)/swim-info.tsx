@@ -12,7 +12,8 @@
  * - 섹션별 접기/펼치기
  * - ParentScreenHeader (홈 → 학부모 홈)
  */
-import { Feather } from "@expo/vector-icons";
+import { Info, MapPin, Phone } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
@@ -97,10 +98,10 @@ function SectionCard({ section, content }: { section: Section; content?: string 
     <View style={[cs.card, { backgroundColor: C.card }]}>
       <Pressable style={cs.cardHeader} onPress={() => setOpen(o => !o)}>
         <View style={[cs.iconBox, { backgroundColor: section.bg }]}>
-          <Feather name={section.icon} size={20} color={section.color} />
+          <LucideIcon name={section.icon} size={20} color={section.color} />
         </View>
         <Text style={[cs.cardTitle, { color: C.text }]}>{section.label}</Text>
-        <Feather
+        <LucideIcon
           name={open ? "chevron-up" : "chevron-down"}
           size={18} color={C.textMuted}
         />
@@ -113,7 +114,7 @@ function SectionCard({ section, content }: { section: Section; content?: string 
             <Text style={[cs.content, { color: C.text }]}>{content}</Text>
           ) : (
             <View style={cs.placeholder}>
-              <Feather name="info" size={14} color={C.textMuted} />
+              <Info size={14} color={C.textMuted} />
               <Text style={[cs.placeholderTxt, { color: C.textMuted }]}>{section.placeholder}</Text>
             </View>
           )}
@@ -168,13 +169,13 @@ export default function SwimInfoScreen() {
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 4 }}>
                 {info.address && (
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                    <Feather name="map-pin" size={13} color="rgba(255,255,255,0.8)" />
+                    <MapPin size={13} color="rgba(255,255,255,0.8)" />
                     <Text style={s.poolMeta}>{info.address}</Text>
                   </View>
                 )}
                 {info.phone && (
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                    <Feather name="phone" size={13} color="rgba(255,255,255,0.8)" />
+                    <Phone size={13} color="rgba(255,255,255,0.8)" />
                     <Text style={s.poolMeta}>{info.phone}</Text>
                   </View>
                 )}
@@ -232,7 +233,7 @@ export default function SwimInfoScreen() {
 
           {/* 안내 문구 */}
           <View style={[s.notice, { backgroundColor: C.card }]}>
-            <Feather name="info" size={14} color={C.textMuted} />
+            <Info size={14} color={C.textMuted} />
             <Text style={[s.noticeTxt, { color: C.textMuted }]}>
               수영장 정보는 관리자가 업데이트합니다.{"\n"}
               문의사항은 수영장으로 직접 연락해 주세요.

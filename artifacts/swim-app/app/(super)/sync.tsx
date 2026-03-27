@@ -2,7 +2,8 @@
  * 슈퍼관리자 — 변경분 동기화 관리 화면
  * 로컬 시드 데이터 — API 호출 없음
  */
-import { Feather } from "@expo/vector-icons";
+import { Archive, Clock, RefreshCw, Table } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState } from "react";
 import {
   ActivityIndicator, Pressable, RefreshControl,
@@ -68,7 +69,7 @@ function StatCard({ label, value, icon, color, sub }: {
   return (
     <View style={[s.statCard, { backgroundColor: C.card }]}>
       <View style={[s.statIcon, { backgroundColor: color + "20" }]}>
-        <Feather name={icon} size={18} color={color} />
+        <LucideIcon name={icon} size={18} color={color} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[s.statLabel, { color: C.textMuted }]}>{label}</Text>
@@ -190,19 +191,19 @@ export default function SuperSyncScreen() {
 
           <View style={[s.infoBox, { backgroundColor: C.card }]}>
             <View style={s.infoRow}>
-              <Feather name="refresh-cw" size={13} color={C.textMuted} />
+              <RefreshCw size={13} color={C.textMuted} />
               <Text style={[s.infoLabel, { color: C.textMuted }]}>마지막 동기화</Text>
               <Text style={[s.infoVal, { color: C.text }]}>{fmtDate(stats.last_synced_at)}</Text>
             </View>
             <View style={[s.divider, { backgroundColor: C.border }]} />
             <View style={s.infoRow}>
-              <Feather name="archive" size={13} color={C.textMuted} />
+              <Archive size={13} color={C.textMuted} />
               <Text style={[s.infoLabel, { color: C.textMuted }]}>마지막 전체 스냅샷</Text>
               <Text style={[s.infoVal, { color: C.text }]}>{fmtDate(stats.last_snapshot_at)}</Text>
             </View>
             <View style={[s.divider, { backgroundColor: C.border }]} />
             <View style={s.infoRow}>
-              <Feather name="clock" size={13} color={C.textMuted} />
+              <Clock size={13} color={C.textMuted} />
               <Text style={[s.infoLabel, { color: C.textMuted }]}>자동 실행</Text>
               <Text style={[s.infoVal, { color: C.text }]}>증분 매일 03:00 · 전체 매주 일 02:00</Text>
             </View>
@@ -216,14 +217,14 @@ export default function SuperSyncScreen() {
               style={({ pressed }) => [s.runBtn, { backgroundColor: "#D97706", opacity: pressed || runningSync ? 0.8 : 1, flex: 1 }]}
               onPress={() => setConfirmSync(true)} disabled={runningSync}>
               {runningSync ? <ActivityIndicator color="#fff" size="small" />
-                : <Feather name="refresh-cw" size={16} color="#fff" />}
+                : <RefreshCw size={16} color="#fff" />}
               <Text style={s.runBtnTxt}>증분 동기화</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [s.runBtn, { backgroundColor: "#0EA5E9", opacity: pressed || runningSnapshot ? 0.8 : 1, flex: 1 }]}
               onPress={() => setConfirmSnapshot(true)} disabled={runningSnapshot}>
               {runningSnapshot ? <ActivityIndicator color="#fff" size="small" />
-                : <Feather name="archive" size={16} color="#fff" />}
+                : <Archive size={16} color="#fff" />}
               <Text style={s.runBtnTxt}>전체 스냅샷</Text>
             </Pressable>
           </View>
@@ -242,7 +243,7 @@ export default function SuperSyncScreen() {
                   {idx > 0 && <View style={[s.divider, { backgroundColor: C.border }]} />}
                   <View style={s.tableRow}>
                     <View style={[s.tableIcon, { backgroundColor: "#FFF1BF" }]}>
-                      <Feather name="table" size={13} color="#D97706" />
+                      <Table size={13} color="#D97706" />
                     </View>
                     <Text style={[s.tableName, { color: C.text }]}>{row.table_name}</Text>
                     <View style={[s.pendingBadge, { backgroundColor: row.pending > 0 ? "#FFF1BF" : "#E6FFFA" }]}>
@@ -288,7 +289,7 @@ export default function SuperSyncScreen() {
           <Text style={[s.sectionTitle, { color: C.text }]}>스냅샷 이력</Text>
           {snapshots.length === 0 ? (
             <View style={[s.emptyBox, { backgroundColor: C.card }]}>
-              <Feather name="archive" size={22} color={C.textMuted} />
+              <Archive size={22} color={C.textMuted} />
               <Text style={[s.emptyTxt, { color: C.textMuted }]}>생성된 스냅샷이 없습니다</Text>
             </View>
           ) : (
@@ -300,7 +301,7 @@ export default function SuperSyncScreen() {
                     {idx > 0 && <View style={[s.divider, { backgroundColor: C.border }]} />}
                     <View style={s.snapRow}>
                       <View style={[s.snapIcon, { backgroundColor: isFull ? "#E6FFFA" : "#DFF3EC" }]}>
-                        <Feather name={isFull ? "archive" : "git-commit"} size={13}
+                        <LucideIcon name={isFull ? "archive" : "git-commit"} size={13}
                           color={isFull ? "#2EC4B6" : "#2EC4B6"} />
                       </View>
                       <View style={{ flex: 1 }}>

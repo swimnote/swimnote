@@ -2,7 +2,8 @@
  * 데이터 관리 — 허브 화면
  * 데이터 보호(백업·복구) / 사용 현황 / 삭제·보존 / 기록 4개 섹션
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -129,7 +130,7 @@ export default function DataManagementScreen() {
                   onPress={() => router.push(item.route as any)}
                 >
                   <View style={[s.iconWrap, { backgroundColor: item.bg }]}>
-                    <Feather name={item.icon as any} size={20} color={item.color} />
+                    <LucideIcon name={item.icon as any} size={20} color={item.color} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -142,7 +143,7 @@ export default function DataManagementScreen() {
                     </View>
                     <Text style={s.desc}>{item.desc}</Text>
                   </View>
-                  <Feather name="chevron-right" size={16} color={C.textMuted} />
+                  <ChevronRight size={16} color={C.textMuted} />
                 </Pressable>
               ))}
             </View>

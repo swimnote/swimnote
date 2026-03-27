@@ -11,7 +11,8 @@
  * 필터 탭: 전체 | 긴급 | SLA초과 | 결제 | 보안 | 환불
  * — 상태 기반 8칩 + 유형 기반 10칩 두 줄 구조 제거
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, CircleAlert, CreditCard, MessageCircle, OctagonAlert, Plus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -273,13 +274,13 @@ export default function SupportScreen() {
         }}>
         {isEmergency && <View style={s.emergencyStripe} />}
         <View style={[s.typeIcon, { backgroundColor: tc.bg }]}>
-          <Feather name={tc.icon} size={15} color={tc.color} />
+          <LucideIcon name={tc.icon} size={15} color={tc.color} />
         </View>
         <View style={s.rowMain}>
           <View style={s.rowTop}>
             {isEmergency && (
               <View style={s.emergencyBadge}>
-                <Feather name="alert-octagon" size={9} color={RED} />
+                <OctagonAlert size={9} color={RED} />
                 <Text style={s.emergencyBadgeTxt}>긴급</Text>
               </View>
             )}
@@ -324,11 +325,11 @@ export default function SupportScreen() {
           style={s.slaBanner}
           onPress={() => setActiveFilter("sla")}
           hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
-          <Feather name="alert-circle" size={14} color="#991B1B" />
+          <CircleAlert size={14} color="#991B1B" />
           <Text style={s.slaBannerTxt}>
             SLA 초과 <Text style={{ fontFamily: "Pretendard-Bold" }}>{slaCount}건</Text> — 즉시 처리 필요
           </Text>
-          <Feather name="chevron-right" size={14} color="#991B1B" />
+          <ChevronRight size={14} color="#991B1B" />
         </Pressable>
       )}
 
@@ -372,7 +373,7 @@ export default function SupportScreen() {
                 style={[s.tabChip, isActive && { backgroundColor: tab.color, borderColor: tab.color }]}
                 onPress={() => setActiveFilter(tab.key)}
                 hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Feather name={tab.icon} size={11} color={isActive ? "#fff" : tab.color} />
+                <LucideIcon name={tab.icon} size={11} color={isActive ? "#fff" : tab.color} />
                 <Text style={[s.tabChipTxt, isActive && { color: "#fff" }]}>{tab.label}</Text>
                 {cnt > 0 && (
                   <View style={[s.tabCount, isActive && { backgroundColor: "rgba(255,255,255,0.3)" }]}>
@@ -402,7 +403,7 @@ export default function SupportScreen() {
         ItemSeparatorComponent={() => <View style={s.separator} />}
         ListEmptyComponent={
           <View style={s.empty}>
-            <Feather name="message-circle" size={32} color="#D1D5DB" />
+            <MessageCircle size={32} color="#D1D5DB" />
             <Text style={s.emptyTxt}>해당 조건의 문의가 없습니다</Text>
           </View>
         }
@@ -410,7 +411,7 @@ export default function SupportScreen() {
 
       {/* 등록 FAB */}
       <Pressable style={s.fab} onPress={() => setCreateModal(true)}>
-        <Feather name="plus" size={20} color="#fff" />
+        <Plus size={20} color="#fff" />
       </Pressable>
 
       {/* 처리 모달 */}
@@ -485,7 +486,7 @@ export default function SupportScreen() {
 
               {editTicket.type === "refund" && (
                 <Pressable style={m.linkBtn} onPress={() => { setEditTicket(null); router.push("/(super)/subscriptions" as any); }}>
-                  <Feather name="credit-card" size={14} color={P} />
+                  <CreditCard size={14} color={P} />
                   <Text style={m.linkBtnTxt}>구독·결제 관리로 이동</Text>
                 </Pressable>
               )}

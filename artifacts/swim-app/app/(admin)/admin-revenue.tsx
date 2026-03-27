@@ -11,7 +11,7 @@
  * API: /settlement/calculator, /settlement/save, /settlement/finalize
  *      /holidays (GET, POST, DELETE)
  */
-import { Feather } from "@expo/vector-icons";
+import { Calendar, ChevronLeft, ChevronRight, CircleAlert, CircleArrowRight, DollarSign, List, RotateCcw, Save, Users } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -169,13 +169,13 @@ export default function AdminRevenueScreen() {
       <View style={[s.topBar, { borderBottomColor: C.border }]}>
         <View style={s.monthNav}>
           <Pressable style={s.monthArrow} onPress={() => changeMonth(-1)} hitSlop={8}>
-            <Feather name="chevron-left" size={20} color={themeColor} />
+            <ChevronLeft size={20} color={themeColor} />
           </Pressable>
           <Text style={[s.monthLabel, { color: C.text }]}>
             {month.replace("-", "년 ")}월
           </Text>
           <Pressable style={s.monthArrow} onPress={() => changeMonth(1)} hitSlop={8}>
-            <Feather name="chevron-right" size={20} color={themeColor} />
+            <ChevronRight size={20} color={themeColor} />
           </Pressable>
         </View>
 
@@ -183,7 +183,7 @@ export default function AdminRevenueScreen() {
           style={[s.holiBtn, { backgroundColor: "#E6FAF8", borderColor: "#CBD5E1" }]}
           onPress={() => setHoliModal(true)}
         >
-          <Feather name="calendar" size={14} color="#0F172A" />
+          <Calendar size={14} color="#0F172A" />
           <Text style={s.holiBtnTxt}>휴무일 지정</Text>
         </Pressable>
       </View>
@@ -201,17 +201,17 @@ export default function AdminRevenueScreen() {
           <View style={s.quickRow}>
             <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
               onPress={() => router.push("/(admin)/makeups" as any)}>
-              <Feather name="rotate-ccw" size={16} color="#0F172A" />
+              <RotateCcw size={16} color="#0F172A" />
               <Text style={[s.quickLabel, { color: "#0F172A" }]}>보강 이월</Text>
             </Pressable>
             <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
               onPress={() => router.push("/(admin)/pool-settings" as any)}>
-              <Feather name="dollar-sign" size={16} color="#0F172A" />
+              <DollarSign size={16} color="#0F172A" />
               <Text style={[s.quickLabel, { color: "#0F172A" }]}>단가표</Text>
             </Pressable>
             <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
               onPress={() => router.push("/(admin)/holidays" as any)}>
-              <Feather name="list" size={16} color="#0F172A" />
+              <List size={16} color="#0F172A" />
               <Text style={[s.quickLabel, { color: "#0F172A" }]}>휴무 목록</Text>
             </Pressable>
           </View>
@@ -251,7 +251,7 @@ export default function AdminRevenueScreen() {
           </View>
           {teachers.length === 0 ? (
             <View style={s.emptyBox}>
-              <Feather name="users" size={40} color={C.textMuted} />
+              <Users size={40} color={C.textMuted} />
               <Text style={[s.emptyTxt, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text>
             </View>
           ) : (
@@ -353,14 +353,14 @@ export default function AdminRevenueScreen() {
               onPress={handleSave}
               disabled={saving}
             >
-              {saving ? <ActivityIndicator size={16} color="#fff" /> : <Feather name="save" size={16} color="#fff" />}
+              {saving ? <ActivityIndicator size={16} color="#fff" /> : <Save size={16} color="#fff" />}
               <Text style={s.actionBtnTxt}>이번 달 저장</Text>
             </Pressable>
             <Pressable
               style={[s.actionBtn, { backgroundColor: "#2EC4B6" }]}
               onPress={() => setNextMonthModal(true)}
             >
-              <Feather name="arrow-right-circle" size={16} color="#fff" />
+              <CircleArrowRight size={16} color="#fff" />
               <Text style={s.actionBtnTxt}>다음 달 시작</Text>
             </Pressable>
           </View>
@@ -373,7 +373,7 @@ export default function AdminRevenueScreen() {
         <Pressable style={s.overlay} onPress={() => setNextMonthModal(false)} />
         <View style={s.modalBox}>
           <View style={[s.modalCard, { backgroundColor: C.card }]}>
-            <Feather name="alert-circle" size={32} color="#0F172A" style={{ alignSelf: "center", marginBottom: 8 }} />
+            <CircleAlert size={32} color="#0F172A" style={{ alignSelf: "center", marginBottom: 8 }} />
             <Text style={[s.modalTitle, { color: C.text }]}>다음 달 수업 발생</Text>
             <Text style={[s.modalDesc, { color: C.textSecondary }]}>
               현재 월 정산을 마무리하고{"\n"}다음 달 수업 일정을 새로 생성합니다.{"\n"}보강 이월도 함께 처리됩니다.

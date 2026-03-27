@@ -4,7 +4,8 @@
  * - 선생님에게 관리자 권한 부여/회수 가능
  * - 관리자 수 제한 없음 (여러 명 가능)
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleCheck, Info, Shield, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -86,7 +87,7 @@ export default function AdminGrantScreen() {
 
       {/* 안내 배너 */}
       <View style={s.infoBanner}>
-        <Feather name="info" size={14} color="#2EC4B6" />
+        <Info size={14} color="#2EC4B6" />
         <Text style={s.infoTxt}>
           승인된 선생님에게 관리자 권한을 부여할 수 있습니다.{"\n"}
           관리자 권한을 받은 선생님은 선생님↔관리자 역할 전환이 가능합니다.
@@ -103,7 +104,7 @@ export default function AdminGrantScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: TAB_BAR_H + 16 }}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Feather name="users" size={32} color={C.textMuted} />
+              <Users size={32} color={C.textMuted} />
               <Text style={s.emptyTxt}>승인된 선생님이 없습니다</Text>
               <Text style={s.emptyDesc}>먼저 선생님 초대 후 승인해주세요.</Text>
             </View>
@@ -120,7 +121,7 @@ export default function AdminGrantScreen() {
                   <Text style={s.name}>{item.name}</Text>
                   {item.is_admin_granted && (
                     <View style={[s.adminBadge, { backgroundColor: themeColor + "20", borderColor: themeColor + "50" }]}>
-                      <Feather name="shield" size={10} color={themeColor} />
+                      <Shield size={10} color={themeColor} />
                       <Text style={[s.adminBadgeTxt, { color: themeColor }]}>관리자권한</Text>
                     </View>
                   )}
@@ -141,7 +142,7 @@ export default function AdminGrantScreen() {
                 ]}
                 onPress={() => setConfirmTarget(item)}
               >
-                <Feather
+                <LucideIcon
                   name={item.is_admin_granted ? "shield-off" : "shield"}
                   size={13}
                   color={item.is_admin_granted ? "#D96C6C" : "#fff"}
@@ -161,7 +162,7 @@ export default function AdminGrantScreen() {
           <View style={s.overlay}>
             <View style={s.dialog}>
               <View style={[s.dialogIcon, confirmTarget.is_admin_granted ? s.dialogIconRevoke : { backgroundColor: themeColor + "20" }]}>
-                <Feather
+                <LucideIcon
                   name={confirmTarget.is_admin_granted ? "shield-off" : "shield"}
                   size={24}
                   color={confirmTarget.is_admin_granted ? "#D96C6C" : themeColor}
@@ -211,7 +212,7 @@ export default function AdminGrantScreen() {
         <Modal animationType="fade" transparent visible onRequestClose={() => setResultMsg(null)}>
           <View style={s.overlay}>
             <View style={s.dialog}>
-              <Feather name="check-circle" size={28} color="#2EC4B6" style={{ alignSelf: "center", marginBottom: 8 }} />
+              <CircleCheck size={28} color="#2EC4B6" style={{ alignSelf: "center", marginBottom: 8 }} />
               <Text style={[s.dialogTitle, { textAlign: "center" }]}>완료</Text>
               <Text style={[s.dialogBody, { textAlign: "center" }]}>{resultMsg}</Text>
               <Pressable

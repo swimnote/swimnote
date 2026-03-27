@@ -4,7 +4,7 @@
  * 선생님이 아직 작성하지 않은 수업 슬롯을 날짜 오름차순으로 보여줌
  * 항목 클릭 → diary.tsx (classGroupId + lessonDate 파라미터 전달)
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, CircleCheck, Clock, Pencil, Users } from "lucide-react-native";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useState } from "react";
@@ -101,14 +101,14 @@ export default function DiaryUnwrittenScreen() {
             <View style={{ flex: 1 }}>
               <Text style={u.className} numberOfLines={1}>{item.className}</Text>
               <View style={u.metaRow}>
-                <Feather name="clock" size={11} color={C.textSecondary} />
+                <Clock size={11} color={C.textSecondary} />
                 <Text style={u.metaText}>{item.scheduleTime}</Text>
-                <Feather name="users" size={11} color={C.textSecondary} style={{ marginLeft: 8 }} />
+                <Users size={11} color={C.textSecondary} style={{ marginLeft: 8 }} />
                 <Text style={u.metaText}>{item.studentCount}명</Text>
               </View>
             </View>
           </View>
-          <Feather name="edit-3" size={16} color={themeColor} />
+          <Pencil size={16} color={themeColor} />
         </Pressable>
       </>
     );
@@ -129,7 +129,7 @@ export default function DiaryUnwrittenScreen() {
       {!loading && (
         <View style={u.summaryBar}>
           <View style={u.summaryLeft}>
-            <Feather name="alert-circle" size={13} color="#D97706" />
+            <CircleAlert size={13} color="#D97706" />
             <Text style={u.summaryText}>미작성 {slots.length}건</Text>
           </View>
           <Text style={u.sortLabel}>오래된 순</Text>
@@ -149,7 +149,7 @@ export default function DiaryUnwrittenScreen() {
           refreshing={refreshing}
           ListEmptyComponent={
             <View style={u.empty}>
-              <Feather name="check-circle" size={42} color="#2E9B6F" />
+              <CircleCheck size={42} color="#2E9B6F" />
               <Text style={u.emptyTitle}>모든 수업 일지를 작성했습니다!</Text>
               <Text style={u.emptyDesc}>최근 8주간 미작성 일지가 없습니다.</Text>
             </View>

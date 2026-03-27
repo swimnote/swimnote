@@ -3,7 +3,7 @@
  * 컴포넌트: components/teacher/my-schedule/
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Feather } from "@expo/vector-icons";
+import { BookOpen, ChevronRight, Pencil, Plus, SquareCheck, Trash2, Users } from "lucide-react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -312,18 +312,18 @@ export default function MyScheduleScreen() {
           onBack={() => setSelectedGroup(null)} homePath="/(teacher)/today-schedule"
           rightSlot={
             <Pressable style={{ padding: 8 }} onPress={() => { setDeletingClass(g); setShowDeleteClassConfirm(true); }}>
-              <Feather name="trash-2" size={18} color="#E11D48" />
+              <Trash2 size={18} color="#E11D48" />
             </Pressable>
           } />
         <View style={s.subHeader}>
           <Pressable style={[s.subActionBtn, { backgroundColor: C.tintLight, flex: 1 }]}
             onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
-            <Feather name="users" size={13} color={C.tint} />
+            <Users size={13} color={C.tint} />
             <Text style={[s.subActionText, { color: C.tint }]}>반배정</Text>
           </Pressable>
           <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
             onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name} } as any)}>
-            <Feather name="edit-3" size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
+            <Pencil size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
             <Text style={[s.subActionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
           </Pressable>
         </View>
@@ -331,7 +331,7 @@ export default function MyScheduleScreen() {
         <FlatList data={groupStudents} keyExtractor={i => i.id}
           contentContainerStyle={s.studentList} showsVerticalScrollIndicator={false}
           extraData={[dayViewAttState, dayMakeups]}
-          ListEmptyComponent={<View style={s.emptyBox}><Feather name="users" size={32} color={C.textMuted} /><Text style={s.emptyText}>배정된 학생이 없습니다</Text></View>}
+          ListEmptyComponent={<View style={s.emptyBox}><Users size={32} color={C.textMuted} /><Text style={s.emptyText}>배정된 학생이 없습니다</Text></View>}
           ListHeaderComponent={<Text style={s.listHeader}>학생 {groupStudents.length}명</Text>}
           ListFooterComponent={
             <View style={{ marginTop: 16 }}>
@@ -400,7 +400,7 @@ export default function MyScheduleScreen() {
 
                 <Pressable onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id} } as any)}
                   style={{ padding: 4 }}>
-                  <Feather name="chevron-right" size={16} color={C.textMuted} />
+                  <ChevronRight size={16} color={C.textMuted} />
                 </Pressable>
               </View>
             );
@@ -432,7 +432,7 @@ export default function MyScheduleScreen() {
                 </View>
                 {moveSheetSaving
                   ? <ActivityIndicator size="small" color={C.tint} />
-                  : <Feather name="chevron-right" size={16} color={C.textMuted} />}
+                  : <ChevronRight size={16} color={C.textMuted} />}
               </Pressable>
             ))}
           </View>
@@ -463,7 +463,7 @@ export default function MyScheduleScreen() {
                   disabled={deleting || selectedDates.size === 0}>
                   {deleting
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <><Feather name="trash-2" size={13} color="#fff" /><Text style={s.selBtnText}>메모삭제{selectedDates.size > 0 ? ` (${selectedDates.size})` : ""}</Text></>}
+                    : <><Trash2 size={13} color="#fff" /><Text style={s.selBtnText}>메모삭제{selectedDates.size > 0 ? ` (${selectedDates.size})` : ""}</Text></>}
                 </Pressable>
                 <Pressable style={[s.selBtn, { backgroundColor: "#6B7280" }]}
                   onPress={() => { setSelectionMode(false); setSelectedIds(new Set()); setSelectedDates(new Set()); }}>
@@ -473,15 +473,15 @@ export default function MyScheduleScreen() {
             ) : (
               <>
                 <Pressable style={[s.selBtn, { backgroundColor: C.card }]} onPress={() => setSelectionMode(true)}>
-                  <Feather name="check-square" size={13} color={C.textSecondary} />
+                  <SquareCheck size={13} color={C.textSecondary} />
                   <Text style={[s.selBtnText, { color: C.textSecondary }]}>선택</Text>
                 </Pressable>
                 <Pressable style={[s.mgmtBtn, { borderColor: C.tint }]} onPress={() => setShowManagement(true)}>
-                  <Feather name="users" size={13} color={C.tint} />
+                  <Users size={13} color={C.tint} />
                   <Text style={[s.mgmtBtnText, { color: C.tint }]}>수강생관리</Text>
                 </Pressable>
                 <Pressable style={[s.createBtn, { backgroundColor: C.button }]} onPress={() => { setCreateInitialDays([]); setCreateInitialStep(1); setShowCreate(true); }}>
-                  <Feather name="plus" size={14} color="#fff" />
+                  <Plus size={14} color="#fff" />
                   <Text style={s.createBtnText}>반 등록</Text>
                 </Pressable>
               </>
@@ -505,7 +505,7 @@ export default function MyScheduleScreen() {
           </View>
           <Pressable style={[s.diaryIndexBtn, { borderColor: C.tint, backgroundColor: C.tintLight }]}
             onPress={() => router.push("/(teacher)/diary-index" as any)}>
-            <Feather name="book-open" size={13} color={C.tint} />
+            <BookOpen size={13} color={C.tint} />
             <Text style={[s.diaryIndexBtnText, { color: C.tint }]}>수업 일지</Text>
           </Pressable>
         </View>

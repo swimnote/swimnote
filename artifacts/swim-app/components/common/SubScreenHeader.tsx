@@ -9,7 +9,7 @@
  *
  * ⚠️ useAuth() 사용 (AuthContext 직접 참조 금지 — Provider 미주입으로 null 반환됨)
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Home } from "lucide-react-native";
 import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -87,7 +87,7 @@ export function SubScreenHeader({
   return (
     <View style={[s.root, { paddingTop: topPad }]}>
       <Pressable onPress={handleBack} style={s.btn} hitSlop={10}>
-        <Feather name="arrow-left" size={22} color={C.text} />
+        <ArrowLeft size={22} color={C.text} />
       </Pressable>
 
       <View style={s.titleBlock}>
@@ -99,7 +99,7 @@ export function SubScreenHeader({
         {rightSlot ?? null}
         {showHome ? (
           <Pressable onPress={handleHome} style={s.btn} hitSlop={10}>
-            <Feather name="home" size={20} color={C.textSecondary} />
+            <Home size={20} color={C.textSecondary} />
           </Pressable>
         ) : (
           !rightSlot ? <View style={s.placeholder} /> : null

@@ -2,7 +2,7 @@
  * components/super/security-settings/SecurityPolicySection.tsx
  * G. 보안 정책 (로그인 실패 제한 / 계정 잠금 시간 / 재인증 필요 작업)
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleCheck } from "lucide-react-native";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SectionTitle } from "./SectionTitle";
@@ -59,7 +59,7 @@ export function SecurityPolicySection({
         <Text style={s.policyLabel}>재인증 필요 작업</Text>
         {REAUTH_ACTIONS.map(act => (
           <View key={act} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 }}>
-            <Feather name="check-circle" size={12} color={P} />
+            <CircleCheck size={12} color={P} />
             <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>{act}</Text>
           </View>
         ))}

@@ -2,7 +2,8 @@
  * (teacher)/today-schedule.tsx — 오늘 스케줄 탭 (thin shell)
  * 컴포넌트: components/teacher/today-schedule/
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, Layers, LogOut, Repeat, Sun, UserPlus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import { Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
@@ -169,14 +170,14 @@ export default function TodayScheduleScreen() {
                 onPress={handleSwitchToAdmin} disabled={switching}>
                 {switching
                   ? <ActivityIndicator size="small" color={C.textSecondary} />
-                  : <><Feather name="repeat" size={10} color={C.textSecondary} /><Text style={[h.switchChipTxt, { color: C.textSecondary }]}>관리자로 전환</Text></>}
+                  : <><Repeat size={10} color={C.textSecondary} /><Text style={[h.switchChipTxt, { color: C.textSecondary }]}>관리자로 전환</Text></>}
               </Pressable>
             )}
           </View>
           <Text style={h.greeting} numberOfLines={1}>{adminUser?.name ?? "선생님"}선생님</Text>
         </View>
         <Pressable onPress={logout} style={h.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Feather name="log-out" size={18} color={C.textMuted} />
+          <LogOut size={18} color={C.textMuted} />
         </Pressable>
       </View>
 
@@ -241,19 +242,19 @@ export default function TodayScheduleScreen() {
         <Pressable style={({ pressed }) => [h.addMemberBtn, { backgroundColor: C.card, opacity: pressed ? 0.82 : 1 }]}
           onPress={() => setShowTeacherRegister(true)}>
           <View style={[h.addMemberIconWrap, { backgroundColor: "#E6FAF8" }]}>
-            <Feather name="user-plus" size={20} color="#0F172A" />
+            <UserPlus size={20} color="#0F172A" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={h.addMemberLabel}>회원추가</Text>
             <Text style={h.addMemberSub}>등록 요청 → 관리자 승인 후 반영</Text>
           </View>
-          <Feather name="chevron-right" size={18} color={C.textMuted} />
+          <ChevronRight size={18} color={C.textMuted} />
         </Pressable>
 
         <View style={[h.sectionCard, { backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
             <View style={[h.sectionIconBox, { backgroundColor: C.tintLight }]}>
-              <Feather name="layers" size={13} color={C.iconSchedule} />
+              <Layers size={13} color={C.iconSchedule} />
             </View>
             <Text style={h.sectionTitle}>오늘 수업</Text>
             {!loading && sortedItems.length > 0 && (
@@ -265,7 +266,7 @@ export default function TodayScheduleScreen() {
               <ActivityIndicator color={themeColor} style={{ flex: 1 }} />
             ) : sortedItems.length === 0 ? (
               <View style={h.badgeEmpty}>
-                <Feather name="sun" size={20} color={C.textMuted} />
+                <Sun size={20} color={C.textMuted} />
                 <Text style={h.emptyTxt}>오늘 수업 없음</Text>
               </View>
             ) : sortedItems.slice(0, 12).map(item => {
@@ -291,7 +292,7 @@ export default function TodayScheduleScreen() {
             {icons.map(ic => (
               <Pressable key={ic.key} style={h.gridItem} onPress={ic.onPress}>
                 <View style={[h.gridIconWrap, { backgroundColor: ic.bg }]}>
-                  <Feather name={ic.icon as any} size={24} color={ic.color} />
+                  <LucideIcon name={ic.icon as any} size={24} color={ic.color} />
                   {ic.badge != null && ic.badge > 0 && (
                     <View style={h.gridBadge}>
                       <Text style={h.gridBadgeTxt}>{ic.badge > 99 ? "99+" : ic.badge}</Text>

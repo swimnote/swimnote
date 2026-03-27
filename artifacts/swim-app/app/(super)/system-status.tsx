@@ -4,7 +4,8 @@
  * 정상(normal) / 주의(warning) / 장애(error) 상태.
  * 오늘 처리할 일 · 리스크 요약과 연동 가능한 구조.
  */
-import { Feather } from "@expo/vector-icons";
+import { Info, RefreshCw } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -52,7 +53,7 @@ function StatusBadge({ status }: { status: ServiceStatus }) {
   const cfg = STATUS_CFG[status];
   return (
     <View style={[sb.badge, { backgroundColor: cfg.bg }]}>
-      <Feather name={cfg.icon} size={11} color={cfg.color} />
+      <LucideIcon name={cfg.icon} size={11} color={cfg.color} />
       <Text style={[sb.txt, { color: cfg.color }]}>{cfg.label}</Text>
     </View>
   );
@@ -68,7 +69,7 @@ function ServiceCard({ item, onToggle }: { item: ServiceItem; onToggle: (id: str
     <View style={[sc.card, { borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
       <View style={sc.top}>
         <View style={[sc.iconWrap, { backgroundColor: cfg.bg }]}>
-          <Feather name={item.icon} size={16} color={cfg.color} />
+          <LucideIcon name={item.icon} size={16} color={cfg.color} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={sc.name}>{item.name}</Text>
@@ -91,7 +92,7 @@ function ServiceCard({ item, onToggle }: { item: ServiceItem; onToggle: (id: str
       {item.note ? <Text style={sc.note}>{item.note}</Text> : null}
       {item.status !== "normal" && (
         <Pressable style={sc.fixBtn} onPress={() => onToggle(item.id)}>
-          <Feather name="refresh-cw" size={12} color={cfg.color} />
+          <RefreshCw size={12} color={cfg.color} />
           <Text style={[sc.fixTxt, { color: cfg.color }]}>정상으로 표시</Text>
         </Pressable>
       )}
@@ -166,7 +167,7 @@ export default function SystemStatusScreen() {
 
       {/* 전체 상태 배너 */}
       <View style={[s.overallBanner, { backgroundColor: overallCfg.bg }]}>
-        <Feather name={overallCfg.icon} size={20} color={overallCfg.color} />
+        <LucideIcon name={overallCfg.icon} size={20} color={overallCfg.color} />
         <View style={{ flex: 1 }}>
           <Text style={[s.overallTitle, { color: overallCfg.color }]}>
             {overallStatus === "normal" ? "모든 시스템 정상" : overallStatus === "warning" ? "일부 서비스 주의 필요" : "장애 감지됨"}
@@ -176,7 +177,7 @@ export default function SystemStatusScreen() {
           </Text>
         </View>
         <Pressable style={s.refreshBtn} onPress={handleRefresh}>
-          <Feather name="refresh-cw" size={14} color={overallCfg.color} />
+          <RefreshCw size={14} color={overallCfg.color} />
         </Pressable>
       </View>
 
@@ -195,7 +196,7 @@ export default function SystemStatusScreen() {
         ))}
 
         <View style={s.noteBox}>
-          <Feather name="info" size={12} color="#64748B" />
+          <Info size={12} color="#64748B" />
           <Text style={s.noteTxt}>
             서비스 상태는 1분 단위로 자동 점검됩니다. 이상 감지 시 슈퍼관리자에게 푸시 알림이 발송됩니다.
           </Text>

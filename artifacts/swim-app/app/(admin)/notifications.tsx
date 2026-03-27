@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { BellOff, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -101,7 +102,7 @@ export default function AdminNotificationsScreen() {
         >
           {notifications.length === 0 && (
             <View style={styles.empty}>
-              <Feather name="bell-off" size={40} color={C.textMuted} />
+              <BellOff size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>알림이 없습니다</Text>
             </View>
           )}
@@ -115,7 +116,7 @@ export default function AdminNotificationsScreen() {
                 onPress={() => !n.is_read && markRead(n.id)}
               >
                 <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
-                  <Feather name={cfg.icon} size={18} color={cfg.color} />
+                  <LucideIcon name={cfg.icon} size={18} color={cfg.color} />
                 </View>
                 <View style={styles.cardContent}>
                   <Text style={[styles.cardTitle, { color: C.text }]}>{n.title}</Text>
@@ -125,7 +126,7 @@ export default function AdminNotificationsScreen() {
                 <View style={styles.cardRight}>
                   {!n.is_read && <View style={[styles.dot, { backgroundColor: C.tint }]} />}
                   <Pressable onPress={() => deleteNotif(n.id)} hitSlop={8}>
-                    <Feather name="x" size={14} color={C.textMuted} />
+                    <X size={14} color={C.textMuted} />
                   </Pressable>
                 </View>
               </Pressable>

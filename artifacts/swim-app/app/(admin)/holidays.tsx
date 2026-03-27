@@ -4,7 +4,7 @@
  * 달력에서 휴무일 선택/취소
  * 선택된 날짜는 다음 달 수업 생성 시 제외
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronLeft, ChevronRight, Info, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -103,17 +103,17 @@ export default function HolidaysScreen() {
         {/* 월 선택 */}
         <View style={[s.monthRow, { backgroundColor: C.card }]}>
           <Pressable onPress={() => changeMonth(-1)} style={s.navBtn}>
-            <Feather name="chevron-left" size={22} color={themeColor} />
+            <ChevronLeft size={22} color={themeColor} />
           </Pressable>
           <Text style={[s.monthText, { color: C.text }]}>{year}년 {month}월 휴무일</Text>
           <Pressable onPress={() => changeMonth(1)} style={s.navBtn}>
-            <Feather name="chevron-right" size={22} color={themeColor} />
+            <ChevronRight size={22} color={themeColor} />
           </Pressable>
         </View>
 
         {/* 안내 */}
         <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
-          <Feather name="info" size={14} color="#D97706" />
+          <Info size={14} color="#D97706" />
           <Text style={s.infoText}>날짜를 누르면 휴무일로 등록됩니다. 다시 누르면 취소됩니다.{"\n"}휴무일에는 수업이 생성되지 않으며, 빠진 수업은 미실시(수영장) 보강으로 이월됩니다.</Text>
         </View>
 
@@ -157,7 +157,7 @@ export default function HolidaysScreen() {
                         fontFamily: isHol ? "Pretendard-Bold" : "Pretendard-Regular",
                       }]}>{d}</Text>
                     )}
-                    {isHol && <Feather name="x" size={8} color="#D96C6C" />}
+                    {isHol && <X size={8} color="#D96C6C" />}
                   </View>
                 </Pressable>
               );
@@ -189,7 +189,7 @@ export default function HolidaysScreen() {
                   style={s.deleteBtn}
                   disabled={!!saving}
                 >
-                  <Feather name="x" size={16} color="#D96C6C" />
+                  <X size={16} color="#D96C6C" />
                 </Pressable>
               </View>
             ))}

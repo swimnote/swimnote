@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { CreditCard, Info } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
@@ -27,7 +28,7 @@ export function MemberPaymentTab({ data, themeColor, weeklyCount, assignedClasse
           { icon: "layers" as const, label: "배정된 반", value: assignedClasses.length > 0 ? assignedClasses.map(c => c.name).join(", ") : "미배정" },
         ].map(({ icon, label, value }) => (
           <View key={label} style={ms.infoRow}>
-            <Feather name={icon} size={13} color={C.textMuted} />
+            <LucideIcon name={icon} size={13} color={C.textMuted} />
             <Text style={ms.infoLabel}>{label}</Text>
             <Text style={ms.infoValue}>{value}</Text>
           </View>
@@ -36,7 +37,7 @@ export function MemberPaymentTab({ data, themeColor, weeklyCount, assignedClasse
 
       <View style={[ms.section, { backgroundColor: "#FFF1BF" }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Feather name="info" size={16} color="#D97706" />
+          <Info size={16} color="#D97706" />
           <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D97706" }}>개인 결제 내역</Text>
         </View>
         <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", marginTop: 4, lineHeight: 18 }}>
@@ -44,7 +45,7 @@ export function MemberPaymentTab({ data, themeColor, weeklyCount, assignedClasse
           더보기 → 결제 관리에서 전체 현황을 확인하세요.
         </Text>
         <Pressable style={[ms.outlineBtn, { borderColor: "#D97706", marginTop: 8 }]} onPress={() => router.push("/(admin)/billing" as any)}>
-          <Feather name="credit-card" size={14} color="#D97706" />
+          <CreditCard size={14} color="#D97706" />
           <Text style={[ms.outlineBtnText, { color: "#D97706" }]}>결제 관리 바로가기</Text>
         </Pressable>
       </View>

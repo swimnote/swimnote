@@ -7,7 +7,7 @@
  * 연기/퇴원 → MemberStatusChangeModal (기존 API 재사용)
  * 반 배정 → student-detail 이동
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, CircleCheck, CirclePause, LogOut, Search, UserCheck, Users, X } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -208,7 +208,7 @@ export default function WaitingListScreen() {
 
       {/* 검색 */}
       <View style={s.searchRow}>
-        <Feather name="search" size={15} color={C.textMuted} style={{ marginLeft: 10 }} />
+        <Search size={15} color={C.textMuted} style={{ marginLeft: 10 }} />
         <TextInput
           style={s.searchInput}
           value={search}
@@ -218,7 +218,7 @@ export default function WaitingListScreen() {
         />
         {search.length > 0 && (
           <Pressable onPress={() => setSearch("")} style={{ paddingRight: 10 }}>
-            <Feather name="x" size={15} color={C.textMuted} />
+            <X size={15} color={C.textMuted} />
           </Pressable>
         )}
       </View>
@@ -240,7 +240,7 @@ export default function WaitingListScreen() {
           }
           ListEmptyComponent={
             <View style={s.emptyBox}>
-              <Feather name="users" size={36} color={C.textMuted} />
+              <Users size={36} color={C.textMuted} />
               <Text style={s.emptyText}>{getEmptyText()}</Text>
               {!search.trim() && tab === "all" && (
                 <Text style={[s.emptyHint, { color: C.textMuted }]}>
@@ -301,7 +301,7 @@ export default function WaitingListScreen() {
       {/* Toast */}
       {toastMsg.length > 0 && (
         <Animated.View style={[s.toast, { opacity: toastOpacity, bottom: insets.bottom + 28 }]}>
-          <Feather name="check-circle" size={14} color="#fff" />
+          <CircleCheck size={14} color="#fff" />
           <Text style={s.toastText}>{toastMsg}</Text>
         </Animated.View>
       )}
@@ -339,37 +339,37 @@ function WaitingActionSheet({
           {/* 반 배정 */}
           <Pressable style={[sh.option, { borderColor: "#2EC4B620" }]} onPress={onAssign}>
             <View style={[sh.optIcon, { backgroundColor: "#E6F9F7" }]}>
-              <Feather name="user-check" size={20} color="#2EC4B6" />
+              <UserCheck size={20} color="#2EC4B6" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[sh.optLabel, { color: "#2EC4B6" }]}>반 배정</Text>
               <Text style={sh.optSub}>학생 상세 페이지에서 반을 변경합니다</Text>
             </View>
-            <Feather name="chevron-right" size={16} color="#64748B" />
+            <ChevronRight size={16} color="#64748B" />
           </Pressable>
 
           {/* 연기 */}
           <Pressable style={[sh.option, { borderColor: "#B4530920" }]} onPress={onStatusChange}>
             <View style={[sh.optIcon, { backgroundColor: "#FFF1BF" }]}>
-              <Feather name="pause-circle" size={20} color="#B45309" />
+              <CirclePause size={20} color="#B45309" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[sh.optLabel, { color: "#B45309" }]}>연기</Text>
               <Text style={sh.optSub}>수강 연기 처리 — 이동 시점 선택 가능</Text>
             </View>
-            <Feather name="chevron-right" size={16} color="#64748B" />
+            <ChevronRight size={16} color="#64748B" />
           </Pressable>
 
           {/* 퇴원 */}
           <Pressable style={[sh.option, { borderColor: "#D96C6C20" }]} onPress={onStatusChange}>
             <View style={[sh.optIcon, { backgroundColor: "#FEF2F2" }]}>
-              <Feather name="log-out" size={20} color="#D96C6C" />
+              <LogOut size={20} color="#D96C6C" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[sh.optLabel, { color: "#D96C6C" }]}>퇴원</Text>
               <Text style={sh.optSub}>수강 종료 처리 — 이동 시점 선택 가능</Text>
             </View>
-            <Feather name="chevron-right" size={16} color="#64748B" />
+            <ChevronRight size={16} color="#64748B" />
           </Pressable>
         </View>
 

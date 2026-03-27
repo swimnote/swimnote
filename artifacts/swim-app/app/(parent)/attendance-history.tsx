@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { Calendar } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -118,7 +119,7 @@ export default function AttendanceHistoryScreen() {
             { label: "보강", count: makeup, color: "#7C3AED", icon: "refresh-cw" as const },
           ].map(s => (
             <View key={s.label} style={[styles.statBox, { backgroundColor: s.color + "18" }]}>
-              <Feather name={s.icon} size={18} color={s.color} />
+              <LucideIcon name={s.icon} size={18} color={s.color} />
               <Text style={[styles.statNum, { color: s.color }]}>{s.count}</Text>
               <Text style={[styles.statLabel, { color: s.color }]}>{s.label}</Text>
             </View>
@@ -130,7 +131,7 @@ export default function AttendanceHistoryScreen() {
             <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
           ) : records.length === 0 ? (
             <View style={styles.empty}>
-              <Feather name="calendar" size={40} color={C.textMuted} />
+              <Calendar size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>이달 출결 기록이 없습니다</Text>
             </View>
           ) : (

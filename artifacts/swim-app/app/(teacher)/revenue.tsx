@@ -4,7 +4,8 @@
  * 이번 달 총 매출 / 회원별 수업 횟수 / 보강/체험/임시이동 카운팅
  * 기타 수기 정산 / 이번 달 정산 저장 / 다음 달 정산 시작
  */
-import { Feather } from "@expo/vector-icons";
+import { ChartBar, ChevronLeft, ChevronRight, CircleArrowRight, CirclePlus, Pencil, Save } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, RefreshControl,
@@ -169,11 +170,11 @@ export default function RevenueScreen() {
         {/* 월 선택 */}
         <View style={[rv.monthRow, { backgroundColor: C.card }]}>
           <Pressable onPress={() => changeMonth(-1)} style={rv.navBtn}>
-            <Feather name="chevron-left" size={22} color={themeColor} />
+            <ChevronLeft size={22} color={themeColor} />
           </Pressable>
           <Text style={[rv.monthText, { color: C.text }]}>{month.replace("-", "년 ")}월 정산</Text>
           <Pressable onPress={() => changeMonth(1)} style={rv.navBtn}>
-            <Feather name="chevron-right" size={22} color={themeColor} />
+            <ChevronRight size={22} color={themeColor} />
           </Pressable>
         </View>
 
@@ -184,7 +185,7 @@ export default function RevenueScreen() {
             {/* ─── 정산 상태 배지 ──────────────────────── */}
             <View style={rv.statusRow}>
               <View style={[rv.statusBadge, { backgroundColor: STATUS_COLOR[submitStatus].bg }]}>
-                <Feather
+                <LucideIcon
                   name={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "check-circle" : submitStatus === "저장됨" ? "save" : "clock"}
                   size={13}
                   color={STATUS_COLOR[submitStatus].text}
@@ -228,7 +229,7 @@ export default function RevenueScreen() {
             {/* ─── 정산 요약 카드 (상세 통계) ─────────── */}
             <View style={[rv.card, { backgroundColor: C.card }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                <Feather name="bar-chart-2" size={15} color={themeColor} />
+                <ChartBar size={15} color={themeColor} />
                 <Text style={[rv.sectionTitle, { color: C.text }]}>이번 달 정산 요약</Text>
               </View>
               <View style={rv.summaryGrid}>
@@ -286,7 +287,7 @@ export default function RevenueScreen() {
             {/* ─── 기타 수기 정산 ─────────────────────── */}
             <View style={[rv.card, { backgroundColor: C.card }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Feather name="edit" size={15} color={themeColor} />
+                <Pencil size={15} color={themeColor} />
                 <Text style={[rv.sectionTitle, { color: C.text }]}>기타 수기 정산</Text>
               </View>
               <Text style={[rv.hint, { color: C.textMuted }]}>시간표에 없는 예외적인 항목에만 사용하세요.</Text>
@@ -310,7 +311,7 @@ export default function RevenueScreen() {
               />
               {extraAmount ? (
                 <View style={[rv.extraSummary, { backgroundColor: themeColor + "10" }]}>
-                  <Feather name="plus-circle" size={14} color={themeColor} />
+                  <CirclePlus size={14} color={themeColor} />
                   <Text style={[rv.extraSummaryText, { color: themeColor }]}>
                     기타 정산 포함 총액: {formatWon(totalRevenue)}
                   </Text>
@@ -321,7 +322,7 @@ export default function RevenueScreen() {
             {/* ─── 저장 메시지 ─────────────────────────── */}
             {savedMsg ? (
               <View style={[rv.msg, { backgroundColor: savedMsg.includes("실패") ? "#F9DEDA" : "#E6FFFA" }]}>
-                <Feather name={savedMsg.includes("실패") ? "alert-circle" : "check-circle"} size={14} color={savedMsg.includes("실패") ? "#D96C6C" : "#2EC4B6"} />
+                <LucideIcon name={savedMsg.includes("실패") ? "alert-circle" : "check-circle"} size={14} color={savedMsg.includes("실패") ? "#D96C6C" : "#2EC4B6"} />
                 <Text style={[rv.msgText, { color: savedMsg.includes("실패") ? "#D96C6C" : "#065F46" }]}>{savedMsg}</Text>
               </View>
             ) : null}
@@ -332,7 +333,7 @@ export default function RevenueScreen() {
               onPress={handleSave} disabled={saving || submitting}
             >
               {saving ? <ActivityIndicator color="#fff" /> : <>
-                <Feather name="save" size={16} color="#fff" />
+                <Save size={16} color="#fff" />
                 <Text style={rv.saveBtnText}>임시 저장</Text>
               </>}
             </Pressable>
@@ -343,7 +344,7 @@ export default function RevenueScreen() {
               disabled={submitting || saving || submitStatus === "관리자확인"}
             >
               {submitting ? <ActivityIndicator color={submitStatus === "제출완료" ? "#2EC4B6" : "#fff"} /> : <>
-                <Feather
+                <LucideIcon
                   name={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "check-circle" : "send"}
                   size={16}
                   color={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#2EC4B6" : "#fff"}
@@ -360,7 +361,7 @@ export default function RevenueScreen() {
               style={[rv.nextBtn, { borderColor: themeColor }]}
               onPress={() => setNextMonthModal(true)}
             >
-              <Feather name="arrow-right-circle" size={16} color={themeColor} />
+              <CircleArrowRight size={16} color={themeColor} />
               <Text style={[rv.nextBtnText, { color: themeColor }]}>다음 달 정산 시작</Text>
             </Pressable>
           </>
@@ -372,7 +373,7 @@ export default function RevenueScreen() {
         <Pressable style={rv.overlay} onPress={() => setNextMonthModal(false)} />
         <View style={rv.confirmSheet}>
           <View style={rv.confirmHandle} />
-          <Feather name="arrow-right-circle" size={32} color={themeColor} style={{ alignSelf: "center" }} />
+          <CircleArrowRight size={32} color={themeColor} style={{ alignSelf: "center" }} />
           <Text style={[rv.confirmTitle, { color: C.text }]}>다음 달 정산 시작</Text>
           <Text style={[rv.confirmSub, { color: C.textSecondary }]}>
             {month}월 정산을 확정하고{"\n"}{monthStr(1).replace("-", "년 ")}월 정산을 시작합니다.{"\n\n"}

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { TriangleAlert } from "lucide-react-native";
 import React from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -18,7 +18,7 @@ export function DuplicateModal({ candidates, onLinkExisting, onForceCreate, onCa
       <View style={dup.overlay}>
         <View style={dup.sheet}>
           <View style={dup.icon}>
-            <Feather name="alert-triangle" size={28} color="#D97706" />
+            <TriangleAlert size={28} color="#D97706" />
           </View>
           <Text style={dup.title}>유사한 회원이 있습니다</Text>
           <Text style={dup.sub}>아래 회원과 동일한 학생일 수 있습니다.</Text>

@@ -3,7 +3,8 @@
  * - 초대 코드 입력 → 검증
  * - 이메일/비밀번호/이름 입력 → 가입 완료 → 승인 대기 안내
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, CircleAlert, CircleCheck, Droplet, Info, Key, Lock, LogIn, Send, UserPlus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -80,7 +81,7 @@ export default function TeacherInviteJoinScreen() {
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <ArrowLeft size={22} color={C.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: C.text }]}>선생님 초대 가입</Text>
         <View style={{ width: 40 }} />
@@ -90,7 +91,7 @@ export default function TeacherInviteJoinScreen() {
       {step === "token" && (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
           <View style={[styles.illustBox, { backgroundColor: C.tintLight }]}>
-            <Feather name="send" size={40} color={C.tint} />
+            <Send size={40} color={C.tint} />
           </View>
           <Text style={[styles.sectionTitle, { color: C.text }]}>초대 코드를 입력하세요</Text>
           <Text style={[styles.sectionSub, { color: C.textSecondary }]}>
@@ -99,13 +100,13 @@ export default function TeacherInviteJoinScreen() {
 
           {tokenError ? (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="alert-circle" size={14} color={C.error} />
+              <CircleAlert size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{tokenError}</Text>
             </View>
           ) : null}
 
           <View style={[styles.tokenInputRow, { borderColor: token ? C.tint : C.border, backgroundColor: C.card }]}>
-            <Feather name="key" size={18} color={token ? C.tint : C.textMuted} />
+            <Key size={18} color={token ? C.tint : C.textMuted} />
             <TextInput
               style={[styles.tokenInput, { color: C.text }]}
               value={token}
@@ -123,13 +124,13 @@ export default function TeacherInviteJoinScreen() {
             disabled={verifying}
           >
             {verifying ? <ActivityIndicator color="#fff" /> : (
-              <><Feather name="check-circle" size={18} color="#fff" />
+              <><CircleCheck size={18} color="#fff" />
               <Text style={styles.primaryBtnText}>코드 확인</Text></>
             )}
           </Pressable>
 
           <View style={[styles.infoBox, { backgroundColor: "#F0F9FF", borderColor: "#BAE6FD" }]}>
-            <Feather name="info" size={14} color="#0284C7" />
+            <Info size={14} color="#0284C7" />
             <Text style={[styles.infoText, { color: "#0369A1" }]}>
               초대 코드는 관리자가 생성한 고유 코드입니다.{"\n"}
               코드를 분실한 경우 관리자에게 문의해주세요.
@@ -143,7 +144,7 @@ export default function TeacherInviteJoinScreen() {
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
           {/* 수영장/초대 정보 */}
           <View style={[styles.inviteInfoCard, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-            <Feather name="droplet" size={20} color={C.tint} />
+            <Droplet size={20} color={C.tint} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.invitePoolName, { color: C.tint }]}>{inviteInfo.pool_name}</Text>
               {inviteInfo.position && <Text style={[styles.invitePosition, { color: C.tint }]}>{inviteInfo.position}</Text>}
@@ -156,7 +157,7 @@ export default function TeacherInviteJoinScreen() {
 
           {formError ? (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="alert-circle" size={14} color={C.error} />
+              <CircleAlert size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{formError}</Text>
             </View>
           ) : null}
@@ -169,7 +170,7 @@ export default function TeacherInviteJoinScreen() {
               <View key={f.key} style={{ gap: 6 }}>
                 <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>{f.label}</Text>
                 <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-                  <Feather name={f.icon as any} size={16} color={C.textMuted} />
+                  <LucideIcon name={f.icon as any} size={16} color={C.textMuted} />
                   <TextInput
                     style={[styles.textInput, { color: C.text }]}
                     value={f.val} onChangeText={f.set}
@@ -184,7 +185,7 @@ export default function TeacherInviteJoinScreen() {
             <View style={{ gap: 6 }}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 * (6자 이상)</Text>
               <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-                <Feather name="lock" size={16} color={C.textMuted} />
+                <Lock size={16} color={C.textMuted} />
                 <TextInput
                   style={[styles.textInput, { color: C.text }]}
                   value={password} onChangeText={setPassword}
@@ -192,7 +193,7 @@ export default function TeacherInviteJoinScreen() {
                   secureTextEntry={!showPassword} autoCapitalize="none"
                 />
                 <Pressable onPress={() => setShowPassword(v => !v)}>
-                  <Feather name={showPassword ? "eye-off" : "eye"} size={16} color={C.textMuted} />
+                  <LucideIcon name={showPassword ? "eye-off" : "eye"} size={16} color={C.textMuted} />
                 </Pressable>
               </View>
             </View>
@@ -202,7 +203,7 @@ export default function TeacherInviteJoinScreen() {
                 borderColor: passwordConfirm && password !== passwordConfirm ? C.error : C.border,
                 backgroundColor: C.card,
               }]}>
-                <Feather name="lock" size={16} color={C.textMuted} />
+                <Lock size={16} color={C.textMuted} />
                 <TextInput
                   style={[styles.textInput, { color: C.text }]}
                   value={passwordConfirm} onChangeText={setPasswordConfirm}
@@ -222,7 +223,7 @@ export default function TeacherInviteJoinScreen() {
             disabled={submitting}
           >
             {submitting ? <ActivityIndicator color="#fff" /> : (
-              <><Feather name="user-plus" size={18} color="#fff" />
+              <><UserPlus size={18} color="#fff" />
               <Text style={styles.primaryBtnText}>가입 완료</Text></>
             )}
           </Pressable>
@@ -233,12 +234,12 @@ export default function TeacherInviteJoinScreen() {
       {step === "done" && (
         <View style={[styles.doneContainer, { paddingBottom: insets.bottom + 40 }]}>
           <View style={[styles.doneIcon, { backgroundColor: "#E6FFFA" }]}>
-            <Feather name="check-circle" size={48} color={C.success} />
+            <CircleCheck size={48} color={C.success} />
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입이 완료됐어요!</Text>
           {inviteInfo && (
             <View style={[styles.donePoolBadge, { backgroundColor: C.tintLight }]}>
-              <Feather name="droplet" size={16} color={C.tint} />
+              <Droplet size={16} color={C.tint} />
               <Text style={[styles.donePoolName, { color: C.tint }]}>{inviteInfo.pool_name}</Text>
             </View>
           )}
@@ -251,7 +252,7 @@ export default function TeacherInviteJoinScreen() {
             style={[styles.primaryBtn, { backgroundColor: C.button, width: "100%" }]}
             onPress={() => router.replace("/login")}
           >
-            <Feather name="log-in" size={18} color="#fff" />
+            <LogIn size={18} color="#fff" />
             <Text style={styles.primaryBtnText}>로그인 화면으로</Text>
           </Pressable>
         </View>

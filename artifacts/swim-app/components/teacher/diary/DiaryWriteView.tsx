@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { BookOpen, CircleAlert, CirclePlus, CircleX, Image, Save, User, Users, Video, Zap } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { MutableRefObject } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
@@ -61,7 +62,7 @@ export default function DiaryWriteView({
 
         {myDiaryExists && (
           <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
-            <Feather name="alert-circle" size={13} color="#D97706" />
+            <CircleAlert size={13} color="#D97706" />
             <Text style={s.infoText}>오늘 이미 일지가 작성되어 있습니다. 수정은 "지난 일지"에서 할 수 있습니다.</Text>
           </View>
         )}
@@ -69,7 +70,7 @@ export default function DiaryWriteView({
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: themeColor + "20" }]}>
-              <Feather name="book-open" size={15} color={themeColor} />
+              <BookOpen size={15} color={themeColor} />
             </View>
             <Text style={[s.cardTitle, { color: C.text }]}>반 공통 일지</Text>
             <Text style={s.cardSub}>모든 학생에게 공통으로 보이는 내용</Text>
@@ -77,9 +78,9 @@ export default function DiaryWriteView({
 
           {templates.length > 0 && (
             <Pressable style={[s.templateBtn, { borderColor: themeColor }]} onPress={() => setShowTemplates(!showTemplates)}>
-              <Feather name="zap" size={13} color={themeColor} />
+              <Zap size={13} color={themeColor} />
               <Text style={[s.templateBtnText, { color: themeColor }]}>템플릿 선택</Text>
-              <Feather name={showTemplates ? "chevron-up" : "chevron-down"} size={13} color={themeColor} />
+              <LucideIcon name={showTemplates ? "chevron-up" : "chevron-down"} size={13} color={themeColor} />
             </Pressable>
           )}
           {showTemplates && (
@@ -104,17 +105,17 @@ export default function DiaryWriteView({
           <View style={s.textareaFooter}>
             <Text style={s.charCount}>{commonContent.length}자</Text>
             <TouchableOpacity style={s.sentencePickBtn} onPress={() => setShowPickerFor("common")} activeOpacity={0.7}>
-              <Feather name="book-open" size={13} color={C.tint} />
+              <BookOpen size={13} color={C.tint} />
               <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
             </TouchableOpacity>
           </View>
 
           <View style={s.mediaRow}>
             <Pressable style={[s.mediaBtn, { backgroundColor: "#FFF1BF" }]} onPress={() => onUploadGroupMedia("photo")} disabled={mediaUploading === "group"}>
-              {mediaUploading === "group" ? <ActivityIndicator size="small" color="#E4A93A" /> : <><Feather name="image" size={14} color="#E4A93A" /><Text style={[s.mediaBtnText, { color: "#E4A93A" }]}>반 사진 추가</Text></>}
+              {mediaUploading === "group" ? <ActivityIndicator size="small" color="#E4A93A" /> : <><Image size={14} color="#E4A93A" /><Text style={[s.mediaBtnText, { color: "#E4A93A" }]}>반 사진 추가</Text></>}
             </Pressable>
             <Pressable style={[s.mediaBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => onUploadGroupMedia("video")} disabled={mediaUploading === "group"}>
-              <Feather name="video" size={14} color="#2EC4B6" /><Text style={[s.mediaBtnText, { color: "#2EC4B6" }]}>반 영상 추가</Text>
+              <Video size={14} color="#2EC4B6" /><Text style={[s.mediaBtnText, { color: "#2EC4B6" }]}>반 영상 추가</Text>
             </Pressable>
           </View>
           {groupMedia.length > 0 && (
@@ -122,8 +123,8 @@ export default function DiaryWriteView({
               {groupMedia.map((m, i) => (
                 <View key={i} style={s.mediaThumb}>
                   {m.kind === "photo"
-                    ? <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={20} color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#E4A93A"} />
-                    : <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={20} color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#2EC4B6"} />}
+                    ? <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={20} color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#E4A93A"} />
+                    : <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={20} color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#2EC4B6"} />}
                   {m.uploading && <ActivityIndicator size="small" color={C.tint} style={{ position: "absolute" }} />}
                 </View>
               ))}
@@ -134,7 +135,7 @@ export default function DiaryWriteView({
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: "#8B5CF620" }]}>
-              <Feather name="user" size={15} color="#8B5CF6" />
+              <User size={15} color="#8B5CF6" />
             </View>
             <Text style={[s.cardTitle, { color: C.text }]}>학생별 추가 일지</Text>
             <Text style={s.cardSub}>필요한 학생만 선택</Text>
@@ -149,23 +150,23 @@ export default function DiaryWriteView({
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                     <Text style={s.noteName}>{note.student_name}</Text>
                     <Pressable onPress={() => onRemoveNote(note.student_id)}>
-                      <Feather name="x-circle" size={18} color={C.textMuted} />
+                      <CircleX size={18} color={C.textMuted} />
                     </Pressable>
                   </View>
                   <Text style={s.noteContent} numberOfLines={2}>{note.note_content}</Text>
                   <View style={[s.mediaRow, { marginTop: 2 }]}>
                     <Pressable style={[s.mediaBtn, { backgroundColor: "#EEDDF5" }]} onPress={() => onUploadStudentMedia(st, "photo")} disabled={mediaUploading === note.student_id}>
-                      {mediaUploading === note.student_id ? <ActivityIndicator size="small" color="#7C3AED" /> : <><Feather name="image" size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개별 사진</Text></>}
+                      {mediaUploading === note.student_id ? <ActivityIndicator size="small" color="#7C3AED" /> : <><Image size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개별 사진</Text></>}
                     </Pressable>
                     <Pressable style={[s.mediaBtn, { backgroundColor: "#EEDDF5" }]} onPress={() => onUploadStudentMedia(st, "video")} disabled={mediaUploading === note.student_id}>
-                      <Feather name="video" size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개별 영상</Text>
+                      <Video size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개별 영상</Text>
                     </Pressable>
                   </View>
                   {stMedia.length > 0 && (
                     <View style={s.mediaPreviewRow}>
                       {stMedia.map((m, i) => (
                         <View key={i} style={s.mediaThumb}>
-                          <Feather name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : (m.kind === "photo" ? "image" : "video")} size={16}
+                          <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : (m.kind === "photo" ? "image" : "video")} size={16}
                             color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#7C3AED"} />
                         </View>
                       ))}
@@ -178,7 +179,7 @@ export default function DiaryWriteView({
 
           {classStudents.length === 0 ? (
             <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
-              <Feather name="users" size={16} color={C.textMuted} />
+              <Users size={16} color={C.textMuted} />
               <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>이 수업에 배정된 학생이 없습니다</Text>
             </View>
           ) : (
@@ -189,7 +190,7 @@ export default function DiaryWriteView({
                   style={[s.studentChip, { backgroundColor: C.background, borderColor: C.border }, addNoteStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#EEDDF5" }]}
                   onPress={() => { if (addNoteStudent?.id === st.id) { setAddNoteStudent(null); setNoteInput(""); } else { setAddNoteStudent(st); setNoteInput(""); } }}>
                   <Text style={[s.studentChipText, { color: addNoteStudent?.id === st.id ? "#8B5CF6" : C.text }]}>{st.name}</Text>
-                  <Feather name="plus-circle" size={15} color={addNoteStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
+                  <CirclePlus size={15} color={addNoteStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
                 </Pressable>
               ))}
             </View>
@@ -204,7 +205,7 @@ export default function DiaryWriteView({
                 placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
                 placeholderTextColor={C.textMuted} multiline numberOfLines={3} textAlignVertical="top" autoFocus />
               <TouchableOpacity style={[s.sentencePickBtn, { alignSelf: "flex-start", marginTop: 6 }]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
-                <Feather name="book-open" size={13} color="#8B5CF6" />
+                <BookOpen size={13} color="#8B5CF6" />
                 <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>문장 불러오기</Text>
               </TouchableOpacity>
               <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
@@ -225,13 +226,13 @@ export default function DiaryWriteView({
       <View style={s.footer}>
         {formError && (
           <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
-            <Feather name="alert-circle" size={13} color={C.error} />
+            <CircleAlert size={13} color={C.error} />
             <Text style={[s.inlineErrorText, { color: C.error }]}>{formError}</Text>
           </View>
         )}
         {saveMsg && (
           <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#E6FFFA" : "#F9DEDA" }]}>
-            <Feather name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
+            <LucideIcon name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
               color={saveMsg.type === "success" ? "#2EC4B6" : C.error} />
             <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? "#2EC4B6" : C.error }]}>{saveMsg.text}</Text>
           </View>
@@ -242,7 +243,7 @@ export default function DiaryWriteView({
           </Pressable>
           <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving || myDiaryExists ? 0.5 : 1, flex: 2 }]}
             onPress={onSave} disabled={saving || myDiaryExists}>
-            {saving ? <ActivityIndicator color="#fff" size="small" /> : <><Feather name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
+            {saving ? <ActivityIndicator color="#fff" size="small" /> : <><Save size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
           </Pressable>
         </View>
       </View>

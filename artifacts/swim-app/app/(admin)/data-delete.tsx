@@ -2,7 +2,8 @@
  * 삭제·보존 정책 허브
  * A. 복구 가능 데이터   B. 보존 기간 정책   C. 원본 데이터 삭제 (킬 스위치)
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, CircleCheck, Info, Search, Trash2, TriangleAlert, UserX } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -143,17 +144,17 @@ export default function DataDeleteScreen() {
               onPress={() => router.push("/(admin)/withdrawn-members")}
             >
               <View style={[s.menuIcon, { backgroundColor: "#E6FFFA" }]}>
-                <Feather name="user-x" size={20} color="#2EC4B6" />
+                <UserX size={20} color="#2EC4B6" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.menuLabel}>탈퇴·삭제 회원</Text>
                 <Text style={s.menuSub}>소프트 삭제 상태 — 원본 데이터 복구 가능</Text>
               </View>
-              <Feather name="chevron-right" size={16} color={C.textMuted} />
+              <ChevronRight size={16} color={C.textMuted} />
             </Pressable>
           </View>
           <View style={s.infoBox}>
-            <Feather name="info" size={13} color="#2EC4B6" />
+            <Info size={13} color="#2EC4B6" />
             <Text style={s.infoText}>탈퇴 후 보존 기간 안에는 관리자가 데이터를 복구할 수 있습니다. 보존 기간 초과 시 자동 파기됩니다.</Text>
           </View>
         </View>
@@ -174,7 +175,7 @@ export default function DataDeleteScreen() {
                 style={[s.retentionRow, idx < RETENTION_TYPES.length - 1 && s.rowBorder]}
               >
                 <View style={[s.menuIcon, { backgroundColor: rt.bg }]}>
-                  <Feather name={rt.icon} size={18} color={rt.color} />
+                  <LucideIcon name={rt.icon} size={18} color={rt.color} />
                 </View>
                 <Text style={[s.menuLabel, { flex: 1 }]}>{rt.label}</Text>
                 <View style={s.chipRow}>
@@ -200,7 +201,7 @@ export default function DataDeleteScreen() {
             style={[s.saveBtn, { backgroundColor: retentionSaved ? "#2EC4B6" : themeColor }]}
             onPress={() => setRetentionSaved(true)}
           >
-            <Feather name={retentionSaved ? "check" : "save"} size={15} color="#fff" />
+            <LucideIcon name={retentionSaved ? "check" : "save"} size={15} color="#fff" />
             <Text style={s.saveBtnText}>{retentionSaved ? "저장됨" : "보존 정책 저장"}</Text>
           </Pressable>
         </View>
@@ -216,7 +217,7 @@ export default function DataDeleteScreen() {
           </View>
 
           <View style={s.warnBanner}>
-            <Feather name="alert-triangle" size={16} color="#D96C6C" />
+            <TriangleAlert size={16} color="#D96C6C" />
             <Text style={s.warnText}>삭제된 원본 파일은 복구할 수 없습니다. 이벤트 로그는 보존됩니다.</Text>
           </View>
 
@@ -231,10 +232,10 @@ export default function DataDeleteScreen() {
                   style={[s.typeRow, { borderColor: ksType === kt.key ? kt.color : C.border, backgroundColor: ksType === kt.key ? kt.bg : C.card }]}
                 >
                   <View style={[s.menuIcon, { backgroundColor: kt.bg }]}>
-                    <Feather name={kt.icon} size={20} color={kt.color} />
+                    <LucideIcon name={kt.icon} size={20} color={kt.color} />
                   </View>
                   <Text style={[s.menuLabel, { color: ksType === kt.key ? kt.color : C.text }]}>{kt.label}</Text>
-                  {ksType === kt.key && <Feather name="check-circle" size={20} color={kt.color} style={{ marginLeft: "auto" }} />}
+                  {ksType === kt.key && <CircleCheck size={20} color={kt.color} style={{ marginLeft: "auto" }} />}
                 </Pressable>
               ))}
 
@@ -258,7 +259,7 @@ export default function DataDeleteScreen() {
               >
                 {previewLoading
                   ? <ActivityIndicator color="#fff" />
-                  : <><Feather name="search" size={16} color="#fff" /><Text style={s.primaryBtnText}>미리보기</Text></>
+                  : <><Search size={16} color="#fff" /><Text style={s.primaryBtnText}>미리보기</Text></>
                 }
               </Pressable>
             </View>
@@ -270,7 +271,7 @@ export default function DataDeleteScreen() {
               <View style={s.previewCard}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 }}>
                   <View style={[s.menuIcon, { backgroundColor: selectedType.bg }]}>
-                    <Feather name={selectedType.icon} size={18} color={selectedType.color} />
+                    <LucideIcon name={selectedType.icon} size={18} color={selectedType.color} />
                   </View>
                   <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" }}>
                     {selectedType.label} · {ksMonths}개월 이상 전
@@ -307,7 +308,7 @@ export default function DataDeleteScreen() {
                 >
                   {execLoading
                     ? <ActivityIndicator color="#fff" />
-                    : <><Feather name="trash-2" size={16} color="#fff" /><Text style={s.primaryBtnText}>영구 삭제</Text></>
+                    : <><Trash2 size={16} color="#fff" /><Text style={s.primaryBtnText}>영구 삭제</Text></>
                   }
                 </Pressable>
               </View>
@@ -319,7 +320,7 @@ export default function DataDeleteScreen() {
             <View style={{ gap: 12, marginTop: 12 }}>
               <View style={s.resultCard}>
                 <View style={[s.resultIcon, { backgroundColor: result.ok ? "#E6FFFA" : "#F9DEDA" }]}>
-                  <Feather name={result.ok ? "check-circle" : "alert-circle"} size={36} color={result.ok ? "#2EC4B6" : "#D96C6C"} />
+                  <LucideIcon name={result.ok ? "check-circle" : "alert-circle"} size={36} color={result.ok ? "#2EC4B6" : "#D96C6C"} />
                 </View>
                 <Text style={[s.resultMsg, { color: result.ok ? "#2EC4B6" : "#D96C6C" }]}>{result.message}</Text>
               </View>

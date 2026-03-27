@@ -1,7 +1,7 @@
 /**
  * 커뮤니티 탭 — 공지사항 + 학부모 가입 요청(student_registration_requests)
  */
-import { Feather } from "@expo/vector-icons";
+import { BellOff, Check, CircleCheck, Eye, MessageSquare, Pin, Plus, User, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -157,7 +157,7 @@ export default function CommunityScreen() {
               style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: C.button, alignItems: "center", justifyContent: "center" }}
               onPress={() => router.push("/(admin)/notices")}
             >
-              <Feather name="plus" size={18} color="#fff" />
+              <Plus size={18} color="#fff" />
             </Pressable>
           ) : undefined
         }
@@ -187,10 +187,10 @@ export default function CommunityScreen() {
           contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: insets.bottom + 100 }}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Feather name="bell-off" size={40} color={C.textMuted} />
+              <BellOff size={40} color={C.textMuted} />
               <Text style={s.emptyText}>공지사항이 없습니다</Text>
               <Pressable style={[s.emptyBtn, { backgroundColor: C.button }]} onPress={() => router.push("/(admin)/notices")}>
-                <Feather name="plus" size={16} color="#fff" />
+                <Plus size={16} color="#fff" />
                 <Text style={s.emptyBtnText}>첫 공지 작성</Text>
               </Pressable>
             </View>
@@ -208,7 +208,7 @@ export default function CommunityScreen() {
                   </View>
                   {n.is_pinned && (
                     <View style={[s.typeBadge, { backgroundColor: "#E6FFFA" }]}>
-                      <Feather name="thumbtack" size={11} color="#2EC4B6" />
+                      <Pin size={11} color="#2EC4B6" />
                       <Text style={[s.typeBadgeText, { color: "#2EC4B6" }]}>고정</Text>
                     </View>
                   )}
@@ -221,7 +221,7 @@ export default function CommunityScreen() {
                 <View style={s.noticeFooter}>
                   <Text style={s.noticeAuthor}>{n.author_name}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Feather name="eye" size={12} color={C.textMuted} />
+                    <Eye size={12} color={C.textMuted} />
                     <Text style={s.noticeView}>{n.view_count || 0}</Text>
                   </View>
                 </View>
@@ -238,7 +238,7 @@ export default function CommunityScreen() {
           contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: insets.bottom + 100 }}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Feather name="check-circle" size={40} color={C.textMuted} />
+              <CircleCheck size={40} color={C.textMuted} />
               <Text style={s.emptyText}>처리 대기 중인 가입 요청이 없습니다</Text>
             </View>
           }
@@ -247,7 +247,7 @@ export default function CommunityScreen() {
               {/* 학부모 정보 */}
               <View style={s.reqHeader}>
                 <View style={[s.reqAvatar, { backgroundColor: themeColor + "20" }]}>
-                  <Feather name="user" size={18} color={themeColor} />
+                  <User size={18} color={themeColor} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.reqParent}>{r.parent?.name || "알 수 없음"}</Text>
@@ -261,7 +261,7 @@ export default function CommunityScreen() {
               {/* 신청 자녀 */}
               {r.child_names && r.child_names.length > 0 && (
                 <View style={s.childRow}>
-                  <Feather name="users" size={13} color={C.textSecondary} />
+                  <Users size={13} color={C.textSecondary} />
                   <Text style={s.childLabel}>신청 자녀:</Text>
                   <Text style={s.childNames}>{r.child_names.join(", ")}</Text>
                 </View>
@@ -270,7 +270,7 @@ export default function CommunityScreen() {
               {/* 메모 */}
               {r.memo ? (
                 <View style={s.memoRow}>
-                  <Feather name="message-square" size={13} color={C.textSecondary} />
+                  <MessageSquare size={13} color={C.textSecondary} />
                   <Text style={s.memoText} numberOfLines={2}>{r.memo}</Text>
                 </View>
               ) : null}
@@ -282,7 +282,7 @@ export default function CommunityScreen() {
                   onPress={() => handleReject(r)}
                   disabled={processingId === r.id}
                 >
-                  <Feather name="x" size={15} color="#D96C6C" />
+                  <X size={15} color="#D96C6C" />
                   <Text style={[s.reqBtnText, { color: "#D96C6C" }]}>거절</Text>
                 </Pressable>
                 <Pressable
@@ -294,7 +294,7 @@ export default function CommunityScreen() {
                     <ActivityIndicator color="#2EC4B6" size="small" />
                   ) : (
                     <>
-                      <Feather name="check" size={15} color="#2EC4B6" />
+                      <Check size={15} color="#2EC4B6" />
                       <Text style={[s.reqBtnText, { color: "#2EC4B6" }]}>승인</Text>
                     </>
                   )}

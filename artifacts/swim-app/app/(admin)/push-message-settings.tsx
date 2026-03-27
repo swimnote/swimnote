@@ -5,7 +5,7 @@
  *  1. 수업 일정 알림 시간 (전날, 당일 X시간 전)
  *  2. 메시지 템플릿 (공지, 전날, 당일, 일지, 사진)
  */
-import { Feather } from "@expo/vector-icons";
+import { Clock, PenLine, Save } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet,
@@ -113,7 +113,7 @@ export default function AdminPushMessageSettingsScreen() {
         {/* ── 수업 일정 알림 시간 ── */}
         <View>
           <View style={s.sectionHeader}>
-            <Feather name="clock" size={14} color={themeColor} />
+            <Clock size={14} color={themeColor} />
             <Text style={[s.sectionTitle, { color: themeColor }]}>수업 일정 알림 시간</Text>
           </View>
           <View style={s.card}>
@@ -160,7 +160,7 @@ export default function AdminPushMessageSettingsScreen() {
         {/* ── 메시지 템플릿 ── */}
         <View>
           <View style={s.sectionHeader}>
-            <Feather name="edit-2" size={14} color={themeColor} />
+            <PenLine size={14} color={themeColor} />
             <Text style={[s.sectionTitle, { color: themeColor }]}>메시지 템플릿</Text>
           </View>
           <View style={s.card}>
@@ -192,7 +192,7 @@ export default function AdminPushMessageSettingsScreen() {
           style={[s.saveBtn, { backgroundColor: C.button }]}
           onPress={() => setConfirmVisible(true)}
         >
-          <Feather name="save" size={16} color="#fff" />
+          <Save size={16} color="#fff" />
           <Text style={s.saveBtnText}>설정 저장</Text>
         </Pressable>
       </ScrollView>

@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, ChevronRight, UserPlus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
 import {
@@ -50,13 +51,13 @@ export default function SignupRoleScreen() {
       {/* 헤더 */}
       <View style={styles.header}>
         <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color={C.text} />
+          <ArrowLeft size={20} color={C.text} />
         </Pressable>
       </View>
 
       <View style={styles.titleArea}>
         <View style={[styles.logoBox, { backgroundColor: C.tint }]}>
-          <Feather name="user-plus" size={28} color="#fff" />
+          <UserPlus size={28} color="#fff" />
         </View>
         <Text style={[styles.title, { color: C.text }]}>회원가입</Text>
         <Text style={[styles.subtitle, { color: C.textSecondary }]}>
@@ -72,13 +73,13 @@ export default function SignupRoleScreen() {
             onPress={r.onPress}
           >
             <View style={[styles.roleIconWrap, { backgroundColor: r.bg }]}>
-              <Feather name={r.icon} size={24} color={r.color} />
+              <LucideIcon name={r.icon} size={24} color={r.color} />
             </View>
             <View style={styles.roleInfo}>
               <Text style={[styles.roleLabel, { color: C.text }]}>{r.label}</Text>
               <Text style={[styles.roleDesc, { color: C.textSecondary }]}>{r.desc}</Text>
             </View>
-            <Feather name="chevron-right" size={18} color={C.textMuted} />
+            <ChevronRight size={18} color={C.textMuted} />
           </Pressable>
         ))}
       </View>

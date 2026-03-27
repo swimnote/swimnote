@@ -22,7 +22,8 @@
  * 자동팝업 숨김과 공지함 열람은 별개.
  * 다시보지않기 해도 공지함에서 계속 확인 가능.
  */
-import { Feather } from "@expo/vector-icons";
+import { Bell } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNoticeStore, NOTICE_TYPE_CFG, type NoticeType } from "@/store/noticeStore";
@@ -186,7 +187,7 @@ export function NoticePopup() {
           {/* 상단: 카운터 + scope 뱃지 */}
           <View style={s.headerRow}>
             <View style={[s.scopeBadge, { backgroundColor: scopeCfg.bg }]}>
-              <Feather name="bell" size={12} color={scopeCfg.color} />
+              <Bell size={12} color={scopeCfg.color} />
               <Text style={[s.scopeTxt, { color: scopeCfg.color }]}>{scopeCfg.label}</Text>
             </View>
             {showCounter && (
@@ -197,7 +198,7 @@ export function NoticePopup() {
           {/* 공지 유형 뱃지 */}
           {ntCfg && (
             <View style={[s.typeBadge, { backgroundColor: ntCfg.bg }]}>
-              <Feather name={ntCfg.icon as any} size={11} color={ntCfg.color} />
+              <LucideIcon name={ntCfg.icon as any} size={11} color={ntCfg.color} />
               <Text style={[s.typeTxt, { color: ntCfg.color }]}>{ntCfg.label}</Text>
             </View>
           )}

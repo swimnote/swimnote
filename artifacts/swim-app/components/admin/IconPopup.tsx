@@ -5,7 +5,8 @@
  * - X 버튼 닫기
  * - 드래그 아래로 닫기
  */
-import { Feather } from "@expo/vector-icons";
+import { X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useRef } from "react";
 import {
   Animated,
@@ -97,7 +98,7 @@ export function IconPopup({ visible, title, items, onClose }: IconPopupProps) {
           <View style={s.header}>
             <Text style={s.title}>{title}</Text>
             <Pressable onPress={onClose} style={s.closeBtn} hitSlop={10}>
-              <Feather name="x" size={20} color={C.textSecondary} />
+              <X size={20} color={C.textSecondary} />
             </Pressable>
           </View>
         </View>
@@ -116,7 +117,7 @@ export function IconPopup({ visible, title, items, onClose }: IconPopupProps) {
               disabled={item.disabled}
             >
               <View style={[s.iconBox, { backgroundColor: item.bg }]}>
-                <Feather name={item.icon} size={24} color={item.color} />
+                <LucideIcon name={item.icon} size={24} color={item.color} />
                 {item.badge !== undefined && item.badge > 0 && (
                   <View style={s.badge}>
                     <Text style={s.badgeTxt}>{item.badge > 99 ? "99+" : item.badge}</Text>

@@ -2,7 +2,8 @@
  * (super)/op-logs.tsx — 운영 로그 (감사 로그 뷰어)
  * auditLogStore에서 데이터 읽기 — API 호출 없음
  */
-import { Feather } from "@expo/vector-icons";
+import { Activity, List } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
@@ -109,7 +110,7 @@ export default function OpLogsScreen() {
 
       {/* 카운트 배너 */}
       <View style={s.countBanner}>
-        <Feather name="activity" size={13} color={P} />
+        <Activity size={13} color={P} />
         <Text style={s.countTxt}>
           총 <Text style={{ color: P, fontFamily: "Pretendard-Bold" }}>{allLogs.length}</Text>건 기록됨
           {activeTab !== "전체" && <Text> · 필터: {logs.length}건</Text>}
@@ -126,7 +127,7 @@ export default function OpLogsScreen() {
             <Pressable key={tab}
               style={[s.tab, isActive && (cfg ? { backgroundColor: cfg.color, borderColor: cfg.color } : s.tabAllActive)]}
               onPress={() => switchTab(tab)}>
-              {cfg && <Feather name={cfg.icon} size={12} color={isActive ? "#fff" : cfg.color} />}
+              {cfg && <LucideIcon name={cfg.icon} size={12} color={isActive ? "#fff" : cfg.color} />}
               <Text style={[s.tabTxt, isActive && { color: "#fff" }]}>{tab}</Text>
             </Pressable>
           );
@@ -140,7 +141,7 @@ export default function OpLogsScreen() {
 
         {logs.length === 0 && (
           <View style={s.empty}>
-            <Feather name="list" size={32} color="#D1D5DB" />
+            <List size={32} color="#D1D5DB" />
             <Text style={s.emptyTxt}>해당 카테고리의 로그가 없습니다</Text>
           </View>
         )}
@@ -169,7 +170,7 @@ export default function OpLogsScreen() {
               <Pressable style={s.logCard} onPress={() => toggleExpand(log.id)}>
                 {/* 아이콘 */}
                 <View style={[s.logIcon, { backgroundColor: cfg.bg }]}>
-                  <Feather name={cfg.icon as any} size={16} color={cfg.color} />
+                  <LucideIcon name={cfg.icon as any} size={16} color={cfg.color} />
                 </View>
 
                 {/* 내용 */}
@@ -198,7 +199,7 @@ export default function OpLogsScreen() {
                         <Text style={s.logMetaTxt} numberOfLines={1}>{log.operatorName}</Text>
                       </>
                     )}
-                    <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={13} color="#D1D5DB" style={{ marginLeft: "auto" }} />
+                    <LucideIcon name={isExpanded ? "chevron-up" : "chevron-down"} size={13} color="#D1D5DB" style={{ marginLeft: "auto" }} />
                   </View>
 
                   {isExpanded && (

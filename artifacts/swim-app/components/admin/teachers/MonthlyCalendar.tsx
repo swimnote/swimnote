@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -58,9 +58,9 @@ export function MonthlyCalendar({ classGroups, onSelectDate }: MonthlyCalendarPr
   return (
     <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 }}>
-        <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}><Feather name="chevron-left" size={20} color={C.text} /></Pressable>
+        <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}><ChevronLeft size={20} color={C.text} /></Pressable>
         <Text style={[mc.monthTitle, { color: C.text }]}>{year}년 {month}월</Text>
-        <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}><Feather name="chevron-right" size={20} color={C.text} /></Pressable>
+        <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}><ChevronRight size={20} color={C.text} /></Pressable>
       </View>
       <View style={{ flexDirection: "row" }}>
         {DAY_KO.map((wd, i) => (

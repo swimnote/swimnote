@@ -11,6 +11,7 @@
  * 키보드: 부모가 paddingBottom = TAB_BAR_H + insets.bottom 처리 → KAV 정상 동작
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import {
   ActivityIndicator,
   Alert,
@@ -27,7 +28,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { AtSign, Bell, BellOff, Calendar, CircleCheck, Layers, Lock, Paperclip, Phone, Plus, Send, Smile, User, Users, X } from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
@@ -443,7 +444,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               )}
               {isDirected && (
                 <View style={[s.directedTag, isMine ? s.directedTagRight : s.directedTagLeft]}>
-                  <Feather name="at-sign" size={10} color="#64748B" />
+                  <AtSign size={10} color="#64748B" />
                   <Text style={s.directedTagText}>
                     {isMine
                       ? `${extra.target_user_name}에게만`
@@ -484,7 +485,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
           {isSystem ? (
             <View style={s.systemWrap}>
               <View style={s.systemBadge}>
-                <Feather name={item.message_type === "system_move" ? "shuffle" : "calendar"} size={12} color={AMBER_TEXT} style={{ marginRight: 5 }} />
+                <LucideIcon name={item.message_type === "system_move" ? "shuffle" : "calendar"} size={12} color={AMBER_TEXT} style={{ marginRight: 5 }} />
                 <Text style={s.systemText}>{item.content}</Text>
               </View>
               <Text style={s.systemTime}>{fmtTime(item.created_at)}</Text>
@@ -493,7 +494,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <View style={s.noticeCardWrap}>
               <View style={s.noticeCard}>
                 <View style={s.noticeCardHeader}>
-                  <Feather name="bell" size={13} color={AMBER_TEXT} />
+                  <Bell size={13} color={AMBER_TEXT} />
                   <Text style={s.noticeCardSender}>{item.sender_name || "관리자"}</Text>
                   <Text style={s.noticeCardTime}>{fmtTime(item.created_at)}</Text>
                 </View>
@@ -540,7 +541,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
         </View>
         {/* 참가인원 버튼 */}
         <TouchableOpacity style={s.staffBtn} onPress={() => setShowStaffModal(true)} activeOpacity={0.7}>
-          <Feather name="users" size={13} color={C.textSecondary} />
+          <Users size={13} color={C.textSecondary} />
           <Text style={s.staffCount}>{staff.length}명</Text>
         </TouchableOpacity>
       </View>
@@ -567,10 +568,10 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
           {/* 지정 메시지 대상 표시 */}
           {targetUser && (
             <View style={s.targetBadge}>
-              <Feather name="at-sign" size={13} color={PRIMARY} />
+              <AtSign size={13} color={PRIMARY} />
               <Text style={s.targetBadgeText}>{targetUser.name}에게만 보냄</Text>
               <TouchableOpacity onPress={() => setTargetUser(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Feather name="x" size={14} color={C.textSecondary} />
+                <X size={14} color={C.textSecondary} />
               </TouchableOpacity>
             </View>
           )}
@@ -582,7 +583,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                 {loadingStudents ? (
                   <ActivityIndicator size="small" color={C.textSecondary} />
                 ) : (
-                  <Feather name="plus" size={22} color={PRIMARY} />
+                  <Plus size={22} color={PRIMARY} />
                 )}
               </TouchableOpacity>
               <TextInput
@@ -596,7 +597,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                 maxLength={1000}
               />
               <TouchableOpacity style={s.sideBtn} activeOpacity={0.7}>
-                <Feather name="smile" size={22} color={C.textSecondary} />
+                <Smile size={22} color={C.textSecondary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.sendBtn, { backgroundColor: PRIMARY }, talkInput.trim().length === 0 && s.sendBtnOff]}
@@ -604,7 +605,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                 disabled={sending || talkInput.trim().length === 0}
                 activeOpacity={0.7}
               >
-                {sending ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={16} color="#fff" />}
+                {sending ? <ActivityIndicator size="small" color="#fff" /> : <Send size={16} color="#fff" />}
               </TouchableOpacity>
             </View>
           </View>
@@ -618,7 +619,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <View style={s.center}><ActivityIndicator color={PRIMARY} /></View>
           ) : noticeMessages.length === 0 ? (
             <View style={s.center}>
-              <Feather name="bell-off" size={36} color={C.textSecondary} />
+              <BellOff size={36} color={C.textSecondary} />
               <Text style={s.emptyText}>공지사항이 없습니다.</Text>
             </View>
           ) : (
@@ -652,13 +653,13 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                   disabled={sending || noticeInput.trim().length === 0}
                   activeOpacity={0.7}
                 >
-                  {sending ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={16} color="#fff" />}
+                  {sending ? <ActivityIndicator size="small" color="#fff" /> : <Send size={16} color="#fff" />}
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <View style={s.readonlyBar}>
-              <Feather name="lock" size={13} color={AMBER_TEXT} />
+              <Lock size={13} color={AMBER_TEXT} />
               <Text style={s.readonlyText}>관리자만 공지를 작성할 수 있습니다.</Text>
             </View>
           )}
@@ -673,7 +674,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <Text style={s.sheetTitle}>첨부</Text>
             <TouchableOpacity style={s.sheetItem} onPress={handleFileAttach} activeOpacity={0.7}>
               <View style={[s.sheetIcon, { backgroundColor: "#E6FFFA" }]}>
-                <Feather name="paperclip" size={22} color="#4EA7D8" />
+                <Paperclip size={22} color="#4EA7D8" />
               </View>
               <View style={s.sheetItemText}>
                 <Text style={s.sheetItemLabel}>파일 첨부</Text>
@@ -682,7 +683,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             </TouchableOpacity>
             <TouchableOpacity style={s.sheetItem} onPress={handleMemberCard} activeOpacity={0.7}>
               <View style={[s.sheetIcon, { backgroundColor: "#DFF3EC" }]}>
-                <Feather name="user" size={22} color="#2E9B6F" />
+                <User size={22} color="#2E9B6F" />
               </View>
               <View style={s.sheetItemText}>
                 <Text style={s.sheetItemLabel}>내 회원정보 올리기</Text>
@@ -703,7 +704,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>회원 선택</Text>
               <TouchableOpacity onPress={() => setShowStudentPicker(false)}>
-                <Feather name="x" size={20} color={C.text} />
+                <X size={20} color={C.text} />
               </TouchableOpacity>
             </View>
             <Text style={s.modalSub}>정보를 공유할 회원을 선택하세요</Text>
@@ -724,7 +725,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                       {st.class_name || "미배정"} {st.schedule_days && `· ${st.schedule_days}`}
                     </Text>
                   </View>
-                  <Feather name="send" size={16} color={PRIMARY} />
+                  <Send size={16} color={PRIMARY} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -739,7 +740,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>참가인원 {staff.length}명</Text>
               <TouchableOpacity onPress={() => setShowStaffModal(false)}>
-                <Feather name="x" size={20} color={C.text} />
+                <X size={20} color={C.text} />
               </TouchableOpacity>
             </View>
             <Text style={s.modalSub}>메시지를 보낼 대상을 선택하면 지정 메시지를 보낼 수 있습니다.</Text>
@@ -769,8 +770,8 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                       <Text style={s.staffName}>{member.name}{isMe ? " (나)" : ""}</Text>
                       <Text style={s.staffRole}>{member.role === "pool_admin" ? "관리자" : "선생님"}{member.position ? ` · ${member.position}` : ""}</Text>
                     </View>
-                    {isSelected && <Feather name="check-circle" size={18} color={PRIMARY} />}
-                    {!isMe && !isSelected && <Feather name="at-sign" size={16} color={C.textSecondary} />}
+                    {isSelected && <CircleCheck size={18} color={PRIMARY} />}
+                    {!isMe && !isSelected && <AtSign size={16} color={C.textSecondary} />}
                   </TouchableOpacity>
                 );
               })}
@@ -788,7 +789,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                 <View style={s.modalHeader}>
                   <Text style={s.modalTitle}>회원 상세 정보</Text>
                   <TouchableOpacity onPress={() => setSelectedCard(null)}>
-                    <Feather name="x" size={20} color={C.text} />
+                    <X size={20} color={C.text} />
                   </TouchableOpacity>
                 </View>
                 <View style={s.cardDetailBody}>
@@ -860,23 +861,23 @@ function MemberCardBubble({
             <View style={s.memberCard}>
               <View style={s.memberCardHeader}>
                 <View style={s.memberCardIcon}>
-                  <Feather name="user" size={14} color={PRIMARY} />
+                  <User size={14} color={PRIMARY} />
                 </View>
                 <Text style={s.memberCardLabel}>회원정보 카드</Text>
               </View>
               <Text style={s.memberCardName}>{extra.member_name || "-"}</Text>
               <View style={s.memberCardRow}>
-                <Feather name="layers" size={11} color={C.textSecondary} />
+                <Layers size={11} color={C.textSecondary} />
                 <Text style={s.memberCardMeta}>{extra.class_name || "미배정"}</Text>
               </View>
               {extra.schedule_days && (
                 <View style={s.memberCardRow}>
-                  <Feather name="calendar" size={11} color={C.textSecondary} />
+                  <Calendar size={11} color={C.textSecondary} />
                   <Text style={s.memberCardMeta}>{extra.schedule_days} {extra.schedule_time}</Text>
                 </View>
               )}
               <View style={s.memberCardRow}>
-                <Feather name="phone" size={11} color={C.textSecondary} />
+                <Phone size={11} color={C.textSecondary} />
                 <Text style={s.memberCardMeta}>{extra.parent_phone || "-"}</Text>
               </View>
               <Text style={s.memberCardTap}>탭하여 상세 보기</Text>
@@ -921,7 +922,7 @@ function AttachFileBubble({
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
           <View style={s.fileCard}>
             <View style={[s.fileIconBox, { backgroundColor: isImage ? "#E6FFFA" : "#F1F5F9" }]}>
-              <Feather name={isImage ? "image" : "file"} size={20} color={isImage ? "#4EA7D8" : C.textSecondary} />
+              <LucideIcon name={isImage ? "image" : "file"} size={20} color={isImage ? "#4EA7D8" : C.textSecondary} />
             </View>
             <View style={s.fileInfo}>
               <Text style={s.fileName} numberOfLines={1}>{extra.attachment_name || "파일"}</Text>
@@ -939,7 +940,7 @@ function AttachFileBubble({
 function DetailRow({ icon, label, value }: { icon: any; label: string; value: string }) {
   return (
     <View style={s.detailRow}>
-      <Feather name={icon} size={13} color={C.textSecondary} />
+      <LucideIcon name={icon} size={13} color={C.textSecondary} />
       <Text style={s.detailLabel}>{label}</Text>
       <Text style={s.detailValue}>{value}</Text>
     </View>

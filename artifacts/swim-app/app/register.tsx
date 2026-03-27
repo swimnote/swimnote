@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Briefcase, CircleAlert, CircleCheck, Home, Key, Lock, Mail, MapPin, Phone, User } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
 import {
@@ -181,7 +181,7 @@ export default function RegisterScreen() {
           onPress={() => router.back()}
           style={[styles.backBtn, { top: insets.top + (Platform.OS === "web" ? 67 : 16) }]}
         >
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <ArrowLeft size={22} color={C.text} />
         </Pressable>
 
         <View style={styles.header}>
@@ -194,7 +194,7 @@ export default function RegisterScreen() {
         <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
           {!!error && (
             <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="alert-circle" size={14} color={C.error} />
+              <CircleAlert size={14} color={C.error} />
               <Text style={[styles.errorText, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -203,7 +203,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>이름 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="user" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <User size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.name}
@@ -219,7 +219,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>아이디(이메일) *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="mail" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <Mail size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.email}
@@ -237,7 +237,7 @@ export default function RegisterScreen() {
             <Text style={[styles.label, { color: C.textSecondary }]}>휴대폰 번호 *</Text>
             <View style={styles.phoneRow}>
               <View style={[styles.inputBox, { flex: 1, borderColor: phoneVerified ? "#2EC4B6" : C.border, backgroundColor: C.background }]}>
-                <Feather name="phone" size={16} color={phoneVerified ? "#2EC4B6" : C.textMuted} style={styles.inputIcon} />
+                <Phone size={16} color={phoneVerified ? "#2EC4B6" : C.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={form.phone}
@@ -250,7 +250,7 @@ export default function RegisterScreen() {
                   keyboardType="phone-pad"
                   editable={!phoneVerified}
                 />
-                {phoneVerified && <Feather name="check-circle" size={16} color="#2EC4B6" />}
+                {phoneVerified && <CircleCheck size={16} color="#2EC4B6" />}
               </View>
               {!phoneVerified && (
                 <Pressable
@@ -271,7 +271,7 @@ export default function RegisterScreen() {
               <View style={styles.codeSection}>
                 <View style={styles.codeRow}>
                   <View style={[styles.inputBox, { flex: 1, borderColor: C.border, backgroundColor: C.background }]}>
-                    <Feather name="key" size={16} color={C.textMuted} style={styles.inputIcon} />
+                    <Key size={16} color={C.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: C.text }]}
                       value={smsCode}
@@ -323,7 +323,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>비밀번호 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="lock" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <Lock size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.password}
@@ -340,7 +340,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>비밀번호 확인 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="lock" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <Lock size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.passwordConfirm}
@@ -364,7 +364,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>수영장 이름 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="map-pin" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <MapPin size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.pool_name}
@@ -379,7 +379,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>주소 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="home" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <Home size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.pool_address}
@@ -394,7 +394,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>수영장 전화번호 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="phone" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <Phone size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.pool_phone}
@@ -410,7 +410,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>대표자 이름 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="briefcase" size={16} color={C.textMuted} style={styles.inputIcon} />
+              <Briefcase size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.pool_owner_name}

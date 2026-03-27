@@ -3,7 +3,8 @@
  * 슈퍼관리자가 대상별 공지를 등록/수정/삭제.
  * 앱 실행 시 대상 역할에 해당하는 최신 공지가 팝업으로 노출됨(NoticePopup).
  */
-import { Feather } from "@expo/vector-icons";
+import { Bell, BellOff, Lock, Plus, Radio, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useMemo, useState } from "react";
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -39,14 +40,14 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
     <View style={[nc.card, isLatest && nc.cardLatest]}>
       {isLatest && (
         <View style={nc.latestBadge}>
-          <Feather name="radio" size={9} color="#2EC4B6" />
+          <Radio size={9} color="#2EC4B6" />
           <Text style={nc.latestTxt}>현재 노출 중</Text>
         </View>
       )}
       <View style={nc.top}>
         {/* 공지 유형 */}
         <View style={[nc.typeBadge, { backgroundColor: ntCfg.bg }]}>
-          <Feather name={ntCfg.icon as any} size={9} color={ntCfg.color} />
+          <LucideIcon name={ntCfg.icon as any} size={9} color={ntCfg.color} />
           <Text style={[nc.typeTxt, { color: ntCfg.color }]}>{ntCfg.label}</Text>
         </View>
         {/* 대상 */}
@@ -55,7 +56,7 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
         </View>
         {notice.forcedAck && (
           <View style={nc.forcedBadge}>
-            <Feather name="lock" size={10} color="#D96C6C" />
+            <Lock size={10} color="#D96C6C" />
             <Text style={nc.forcedTxt}>강제 확인</Text>
           </View>
         )}
@@ -189,7 +190,7 @@ export default function NoticesScreen() {
 
       {/* 안내 */}
       <View style={s.infoBanner}>
-        <Feather name="bell" size={12} color="#2EC4B6" />
+        <Bell size={12} color="#2EC4B6" />
         <Text style={s.infoTxt}>
           최신 공지 1개가 대상 역할에 맞게 앱 실행 시 팝업으로 노출됩니다. 새 공지 등록 시 이전 공지는 대체됩니다.
         </Text>
@@ -208,7 +209,7 @@ export default function NoticesScreen() {
           </View>
         </ScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
-          <Feather name="plus" size={16} color="#fff" />
+          <Plus size={16} color="#fff" />
           <Text style={s.addTxt}>공지 등록</Text>
         </Pressable>
       </View>
@@ -217,7 +218,7 @@ export default function NoticesScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {filtered.length === 0 ? (
           <View style={s.empty}>
-            <Feather name="bell-off" size={36} color="#D1D5DB" />
+            <BellOff size={36} color="#D1D5DB" />
             <Text style={s.emptyTxt}>등록된 공지가 없습니다</Text>
           </View>
         ) : (
@@ -236,7 +237,7 @@ export default function NoticesScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "공지 수정" : "공지 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <Feather name="x" size={20} color="#64748B" />
+                <X size={20} color="#64748B" />
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -294,7 +295,7 @@ export default function NoticesScreen() {
               <Pressable style={[m.saveBtn, (!form.title.trim() || !form.content.trim()) && { opacity: 0.4 }]}
                 onPress={() => setOtpVisible(true)} disabled={!form.title.trim() || !form.content.trim()}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Feather name="lock" size={13} color="#fff" />
+                  <Lock size={13} color="#fff" />
                   <Text style={m.saveTxt}>{editId ? "저장" : "등록"}</Text>
                 </View>
               </Pressable>

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Clock, ShoppingBag } from "lucide-react-native";
 import React from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,14 +15,14 @@ export default function ShoppingScreen() {
       </View>
       <View style={s.body}>
         <View style={[s.icon, { backgroundColor: C.tintLight }]}>
-          <Feather name="shopping-bag" size={48} color={C.tint} />
+          <ShoppingBag size={48} color={C.tint} />
         </View>
         <Text style={[s.heading, { color: C.text }]}>쇼핑 준비중</Text>
         <Text style={[s.sub, { color: C.textMuted }]}>
           곧 다양한 수영용품과 혜택이{"\n"}제공될 예정입니다.
         </Text>
         <View style={[s.badge, { backgroundColor: "#FFF1BF", borderColor: "#FDE68A" }]}>
-          <Feather name="clock" size={14} color="#D97706" />
+          <Clock size={14} color="#D97706" />
           <Text style={[s.badgeTxt, { color: "#92400E" }]}>Coming Soon</Text>
         </View>
       </View>

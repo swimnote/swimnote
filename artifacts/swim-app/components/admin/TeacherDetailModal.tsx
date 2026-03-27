@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Check, Phone, Repeat, UserMinus, X } from "lucide-react-native";
 import React from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
@@ -61,7 +61,7 @@ function PhoneRow({ label, phone }: { label: string; phone: string | null | unde
     >
       <Text style={dm.infoLabel}>{label}</Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-        <Feather name="phone" size={13} color={valid ? CALL_COLOR : C.textMuted} />
+        <Phone size={13} color={valid ? CALL_COLOR : C.textMuted} />
         <Text style={[dm.infoValue, valid ? { color: CALL_COLOR } : { color: C.textSecondary }]}>
           {phone ? formatPhone(phone) : "미입력"}
         </Text>
@@ -105,7 +105,7 @@ export function TeacherDetailModal({
               </View>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <Feather name="x" size={20} color={C.textSecondary} />
+              <X size={20} color={C.textSecondary} />
             </Pressable>
           </View>
 
@@ -134,7 +134,7 @@ export function TeacherDetailModal({
                   <Pressable style={[dm.actionBtn, { borderWidth: 1.5, borderColor: C.error, backgroundColor: "#fff" }]} onPress={onRejectOpen} disabled={processing}>
                     {processing ? <ActivityIndicator color={C.error} size="small" /> : (
                       <>
-                        <Feather name="x" size={14} color={C.error} />
+                        <X size={14} color={C.error} />
                         <Text style={[dm.actionBtnText, { color: C.error }]}>거절</Text>
                       </>
                     )}
@@ -144,7 +144,7 @@ export function TeacherDetailModal({
                   <Pressable style={[dm.actionBtn, { backgroundColor: C.success }]} onPress={onApprove} disabled={processing}>
                     {processing ? <ActivityIndicator color="#fff" size="small" /> : (
                       <>
-                        <Feather name="check" size={14} color="#fff" />
+                        <Check size={14} color="#fff" />
                         <Text style={[dm.actionBtnText, { color: "#fff" }]}>승인</Text>
                       </>
                     )}
@@ -159,7 +159,7 @@ export function TeacherDetailModal({
                   <Pressable style={[dm.smBtn, { borderWidth: 1.5, borderColor: "#D96C6C", backgroundColor: "#FEF2F2" }]} onPress={onRevoke} disabled={processing}>
                     {processing ? <ActivityIndicator color="#D96C6C" size="small" /> : (
                       <>
-                        <Feather name="user-minus" size={13} color="#D96C6C" />
+                        <UserMinus size={13} color="#D96C6C" />
                         <Text style={[dm.smBtnText, { color: "#D96C6C" }]}>승인 해제</Text>
                       </>
                     )}
@@ -167,7 +167,7 @@ export function TeacherDetailModal({
                 )}
                 {onTransfer && (
                   <Pressable style={[dm.smBtn, { backgroundColor: C.tint }]} onPress={onTransfer} disabled={processing}>
-                    <Feather name="repeat" size={13} color="#fff" />
+                    <Repeat size={13} color="#fff" />
                     <Text style={[dm.smBtnText, { color: "#fff" }]}>수업 인수</Text>
                   </Pressable>
                 )}

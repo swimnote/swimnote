@@ -22,7 +22,7 @@ import {
   API_BASE, DiaryEntry, DiaryTemplate, ExistingNote,
   StudentNote, StudentOption, SubView, UploadedMedia, todayStr,
 } from "@/components/teacher/diary/types";
-import { Feather } from "@expo/vector-icons";
+import { Clock } from "lucide-react-native";
 
 const C = Colors.light;
 
@@ -350,7 +350,7 @@ export default function TeacherDiaryScreen() {
           <Pressable
             style={[s.tabBtn, { backgroundColor: subView === "history" ? themeColor : C.background, borderColor: themeColor }]}
             onPress={() => setSubView(v => v === "history" ? "write" : "history")}>
-            <Feather name="clock" size={13} color={subView === "history" ? "#fff" : themeColor} />
+            <Clock size={13} color={subView === "history" ? "#fff" : themeColor} />
             <Text style={[s.tabBtnText, { color: subView === "history" ? "#fff" : themeColor }]}>지난 일지</Text>
           </Pressable>
         </View>

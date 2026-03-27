@@ -2,7 +2,8 @@
  * (super)/security.tsx — 슈퍼관리자 보안관리
  * 계정/역할/2FA/세션/디바이스/잠금
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, Lock, Monitor } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
@@ -228,7 +229,7 @@ export default function SecurityScreen() {
                     <Text style={m.sectionTitle}>디바이스 기록</Text>
                     {selected.devices.map(d => (
                       <View key={d.id} style={m.devRow}>
-                        <Feather name="monitor" size={14} color="#64748B" />
+                        <Monitor size={14} color="#64748B" />
                         <View style={{ flex: 1 }}>
                           <Text style={m.devLabel}>{d.label} {d.isCurrent && <Text style={m.devCurrent}>(현재)</Text>}</Text>
                           <Text style={m.devMeta}>{d.os} · {d.browser} · {fmtDate(d.lastUsedAt)}</Text>
@@ -290,7 +291,7 @@ export default function SecurityScreen() {
                     {r === 'senior_admin' && <Text style={m.roleDesc}>대부분 기능 · 킬스위치 제외</Text>}
                     {r === 'read_only_admin' && <Text style={m.roleDesc}>읽기만 가능 · 변경 불가</Text>}
                   </View>
-                  {selected.role === r && <Feather name="check" size={16} color={ROLE_CFG[r].color} />}
+                  {selected.role === r && <Check size={16} color={ROLE_CFG[r].color} />}
                 </Pressable>
               ))}
             </Pressable>
@@ -321,7 +322,7 @@ export default function SecurityScreen() {
                   <Text style={m.cancelTxt}>취소</Text>
                 </Pressable>
                 <Pressable style={m.dangerBtn} onPress={doLock}>
-                  <Feather name="lock" size={14} color="#fff" />
+                  <Lock size={14} color="#fff" />
                   <Text style={m.dangerTxt}>잠금 실행</Text>
                 </Pressable>
               </View>
@@ -336,7 +337,7 @@ export default function SecurityScreen() {
 function MetaItem({ icon, label, color = "#64748B" }: { icon: any; label: string; color?: string }) {
   return (
     <View style={s.metaItem}>
-      <Feather name={icon} size={10} color={color} />
+      <LucideIcon name={icon} size={10} color={color} />
       <Text style={[s.metaTxt, { color }]}>{label}</Text>
     </View>
   );
@@ -356,7 +357,7 @@ function ActionBtn({ label, icon, color, bg, onPress, loading }: {
 }) {
   return (
     <Pressable style={[m.actionBtn, { backgroundColor: bg }]} onPress={onPress} disabled={loading}>
-      {loading ? <ActivityIndicator size="small" color={color} /> : <Feather name={icon} size={14} color={color} />}
+      {loading ? <ActivityIndicator size="small" color={color} /> : <LucideIcon name={icon} size={14} color={color} />}
       <Text style={[m.actionTxt, { color }]}>{label}</Text>
     </Pressable>
   );

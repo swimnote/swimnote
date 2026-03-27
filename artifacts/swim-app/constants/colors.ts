@@ -1,14 +1,22 @@
 // ─── 스윔노트 디자인 시스템 토큰 ──────────────────────────────────────────
-// 아이콘 색상 규칙:
-//   민트(#2EC4B6)  → 스케줄/출결/시간표 관련
-//   오렌지(#F97316) → 회원관리/등록/결제 관련
-//   네이비(#0F172A) → 설정/정보/공지 관련
+// 아이콘 3색 규칙:
+//   파랑(#007AFF)  → 탐색·기본행동 (홈, 일정, 검색, 설정)
+//   녹색(#00704A)  → 완료·긍정    (출석, 승인, 매출, 저장)
+//   주황(#FF6F0F)  → 경고·알림    (결석, 지각, 대기, 삭제)
 
 const mint      = "#2EC4B6";
 const navy      = "#0F172A";
 const mintLight = "#E6FAF8";
 const orange    = "#F97316";
 const blue      = "#2563EB";
+
+// ── 아이콘 3색 시스템 ─────────────────────────────────────────────────────
+const iconBlue   = "#007AFF";
+const iconGreen  = "#00704A";
+const iconOrange = "#FF6F0F";
+const iconBlueBg   = "#EAF4FF";
+const iconGreenBg  = "#E6F5EF";
+const iconOrangeBg = "#FFF2E8";
 
 export default {
   light: {
@@ -38,10 +46,18 @@ export default {
     button:          orange,
     buttonSecondary: blue,
 
-    // ── 아이콘 카테고리 색상 ──────────────────────────────────────────
-    iconSchedule: mint,          // 스케줄/출결/시간표
-    iconMember:   orange,        // 회원관리/등록/결제
-    iconInfo:     navy,          // 설정/정보/공지
+    // ── 아이콘 3색 시스템 ────────────────────────────────────────────
+    iconBlue:       iconBlue,    // 탐색·기본행동
+    iconGreen:      iconGreen,   // 완료·긍정
+    iconOrange:     iconOrange,  // 경고·알림
+    iconBlueBg:     iconBlueBg,
+    iconGreenBg:    iconGreenBg,
+    iconOrangeBg:   iconOrangeBg,
+
+    // ── 아이콘 카테고리 색상 (레거시 — 신규 코드는 iconBlue/Green/Orange 사용) ──
+    iconSchedule: iconBlue,
+    iconMember:   iconOrange,
+    iconInfo:     iconGreen,
 
     // ── 파스텔 카드 구분색 ────────────────────────────────────────────
     lavender:  "#EEDDF5",

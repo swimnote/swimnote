@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowRight, CircleAlert, Key, Lock, User, UserX } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -109,7 +110,7 @@ export default function LoginScreen() {
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디</Text>
             <View style={[styles.inputRow, { borderColor: identifier ? C.tint : C.border, backgroundColor: C.background }]}>
-              <Feather name="user" size={16} color={identifier ? C.tint : C.textMuted} />
+              <User size={16} color={identifier ? C.tint : C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={identifier}
@@ -128,7 +129,7 @@ export default function LoginScreen() {
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호</Text>
             <View style={[styles.inputRow, { borderColor: password ? C.button : C.border, backgroundColor: C.background }]}>
-              <Feather name="lock" size={16} color={password ? C.button : C.textMuted} />
+              <Lock size={16} color={password ? C.button : C.textMuted} />
               <TextInput
                 ref={pwRef}
                 style={[styles.input, { color: C.text }]}
@@ -142,7 +143,7 @@ export default function LoginScreen() {
                 editable={!loading}
               />
               <Pressable onPress={() => setShowPw(v => !v)} hitSlop={8}>
-                <Feather name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
+                <LucideIcon name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.arrowBtn, { opacity: pressed || loading ? 0.5 : 1 }]}
@@ -151,7 +152,7 @@ export default function LoginScreen() {
               >
                 {loading
                   ? <ActivityIndicator color={C.tint} size="small" />
-                  : <Feather name="arrow-right" size={22} color={C.tint} />
+                  : <ArrowRight size={22} color={C.tint} />
                 }
               </Pressable>
             </View>
@@ -159,7 +160,7 @@ export default function LoginScreen() {
 
           {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="alert-circle" size={14} color={C.error} />
+              <CircleAlert size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -168,7 +169,7 @@ export default function LoginScreen() {
             style={({ pressed }) => [styles.forgotBtn, { opacity: pressed ? 0.7 : 1 }]}
             onPress={() => router.push({ pathname: "/forgot-password", params: { identifier } } as any)}
           >
-            <Feather name="key" size={13} color={C.textMuted} />
+            <Key size={13} color={C.textMuted} />
             <Text style={[styles.forgotText, { color: C.textMuted }]}>비밀번호를 잊으셨나요?</Text>
           </Pressable>
         </View>
@@ -180,7 +181,7 @@ export default function LoginScreen() {
             onPress={() => router.push("/signup" as any)}
           >
             <Text style={[styles.signupBtnText, { color: C.tint }]}>회원가입</Text>
-            <Feather name="arrow-right" size={14} color={C.tint} />
+            <ArrowRight size={14} color={C.tint} />
           </Pressable>
         </View>
       </ScrollView>
@@ -194,7 +195,7 @@ export default function LoginScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setShowNotFoundModal(false)}>
           <Pressable style={[styles.modalCard, { backgroundColor: C.card }]} onPress={e => e.stopPropagation()}>
             <View style={[styles.modalIconWrap, { backgroundColor: "#FFF1BF" }]}>
-              <Feather name="user-x" size={26} color="#D97706" />
+              <UserX size={26} color="#D97706" />
             </View>
             <Text style={[styles.modalTitle, { color: C.text }]}>가입된 계정이 없습니다</Text>
             <Text style={[styles.modalDesc, { color: C.textSecondary }]}>

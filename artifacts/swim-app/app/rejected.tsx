@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleX } from "lucide-react-native";
 import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -15,7 +15,7 @@ export default function RejectedScreen() {
     <View style={[styles.container, { backgroundColor: C.background, paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0), paddingBottom: insets.bottom + 34 }]}>
       <View style={styles.content}>
         <View style={[styles.iconBox, { backgroundColor: "#F9DEDA" }]}>
-          <Feather name="x-circle" size={40} color="#D96C6C" />
+          <CircleX size={40} color="#D96C6C" />
         </View>
         <Text style={[styles.title, { color: C.text }]}>가입 신청 반려</Text>
         <Text style={[styles.message, { color: C.textSecondary }]}>

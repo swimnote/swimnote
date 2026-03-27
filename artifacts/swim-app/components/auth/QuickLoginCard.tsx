@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { LogIn } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -35,13 +36,13 @@ export function QuickLoginCard({ id, pw, label, roleKey, color, disabled, onPres
       disabled={disabled}
     >
       <View style={[styles.iconWrap, { backgroundColor: color + "18" }]}>
-        <Feather name={icon} size={16} color={color} />
+        <LucideIcon name={icon} size={16} color={color} />
       </View>
       <View style={styles.info}>
         <Text style={styles.label} numberOfLines={1}>{label}</Text>
         <Text style={styles.cred}>ID {id} / PW {pw}</Text>
       </View>
-      <Feather name="log-in" size={13} color={color} />
+      <LogIn size={13} color={color} />
     </Pressable>
   );
 }

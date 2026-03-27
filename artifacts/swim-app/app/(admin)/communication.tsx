@@ -3,7 +3,7 @@
  * 서브탭: 공지사항 / 학부모 요청 / 선생님 전달
  * 실 DB: /notices, /parent-students/pending, /class-diaries
  */
-import { Feather } from "@expo/vector-icons";
+import { Bookmark, Plus, Trash2 } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -118,7 +118,7 @@ export default function CommunicationScreen() {
               onPress={() => setShowCreate(true)}
               style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#FFFFFF" }}
             >
-              <Feather name="plus" size={20} color={themeColor} />
+              <Plus size={20} color={themeColor} />
             </Pressable>
           ) : undefined
         }
@@ -154,14 +154,14 @@ export default function CommunicationScreen() {
                 <View style={s.row}>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      {item.is_pinned && <Feather name="bookmark" size={13} color={themeColor} />}
+                      {item.is_pinned && <Bookmark size={13} color={themeColor} />}
                       <Text style={s.name} numberOfLines={1}>{item.title}</Text>
                     </View>
                     <Text style={s.sub}>{item.author_name || "관리자"}  {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text>
                     {item.content ? <Text style={s.sub2} numberOfLines={2}>{item.content}</Text> : null}
                   </View>
                   <Pressable onPress={() => deleteNotice(item.id)} style={{ padding: 6 }}>
-                    <Feather name="trash-2" size={16} color="#D96C6C" />
+                    <Trash2 size={16} color="#D96C6C" />
                   </Pressable>
                 </View>
               </View>

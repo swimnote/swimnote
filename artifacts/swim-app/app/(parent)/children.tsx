@@ -4,7 +4,7 @@
  * - 새 자녀 연결 요청 입력 영역
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, User, UserX } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -102,7 +102,7 @@ export default function ChildrenScreen() {
 
         {students.length === 0 ? (
           <View style={[s.emptyBox, { backgroundColor: C.card }]}>
-            <Feather name="user-x" size={36} color={C.textMuted} />
+            <UserX size={36} color={C.textMuted} />
             <Text style={[s.emptyTxt, { color: C.textSecondary }]}>아직 연결된 자녀가 없습니다</Text>
           </View>
         ) : (
@@ -129,7 +129,7 @@ export default function ChildrenScreen() {
                     : <Text style={[s.childClass, { color: C.textMuted }]}>반 배정 전</Text>
                   }
                 </View>
-                <Feather name="chevron-right" size={18} color={C.textMuted} />
+                <ChevronRight size={18} color={C.textMuted} />
               </Pressable>
             );
           })
@@ -142,7 +142,7 @@ export default function ChildrenScreen() {
             {requests.map(req => (
               <View key={req.id} style={[s.reqCard, { backgroundColor: C.card }]}>
                 <View style={[s.reqAvatar, { backgroundColor: C.tintLight }]}>
-                  <Feather name="user" size={18} color={C.tint} />
+                  <User size={18} color={C.tint} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[s.childName, { color: C.text }]}>{req.child_name}</Text>

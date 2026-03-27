@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, CircleAlert, Droplet, Layers, LogOut } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -56,7 +56,7 @@ export default function PoolSelectScreen() {
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={[styles.logoBox, { backgroundColor: "#E8F7F6" }]}>
-          <Feather name="layers" size={28} color={TINT} />
+          <Layers size={28} color={TINT} />
         </View>
         <Text style={[styles.title, { color: C.text }]}>수영장 선택</Text>
         <Text style={[styles.subtitle, { color: C.textSecondary }]}>
@@ -76,7 +76,7 @@ export default function PoolSelectScreen() {
         >
           {error ? (
             <View style={[styles.errorBox, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
-              <Feather name="alert-circle" size={16} color="#DC2626" />
+              <CircleAlert size={16} color="#DC2626" />
               <Text style={[styles.errorTxt, { color: "#DC2626" }]}>{error}</Text>
             </View>
           ) : null}
@@ -103,7 +103,7 @@ export default function PoolSelectScreen() {
                   {p.logo_emoji ? (
                     <Text style={styles.emoji}>{p.logo_emoji}</Text>
                   ) : (
-                    <Feather name="droplet" size={24} color={isCurrent ? TINT : C.textMuted} />
+                    <Droplet size={24} color={isCurrent ? TINT : C.textMuted} />
                   )}
                 </View>
 
@@ -139,7 +139,7 @@ export default function PoolSelectScreen() {
                   {isSelecting ? (
                     <ActivityIndicator size="small" color={TINT} />
                   ) : (
-                    <Feather name="chevron-right" size={22} color={isCurrent ? TINT : C.textMuted} />
+                    <ChevronRight size={22} color={isCurrent ? TINT : C.textMuted} />
                   )}
                 </View>
               </Pressable>
@@ -154,7 +154,7 @@ export default function PoolSelectScreen() {
           onPress={() => { logout(); router.replace("/"); }}
           style={styles.logoutBtn}
         >
-          <Feather name="log-out" size={15} color={C.textMuted} />
+          <LogOut size={15} color={C.textMuted} />
           <Text style={[styles.logoutTxt, { color: C.textMuted }]}>다른 계정으로 로그인</Text>
         </Pressable>
       </View>

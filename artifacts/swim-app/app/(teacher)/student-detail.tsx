@@ -11,7 +11,8 @@
  * - 상태 변경 버튼 → MemberStatusChangeModal 공통 팝업
  * - 레벨 뱃지 + 레벨 변경 기능
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, EyeOff, Layers, PenLine, Phone, Plus, UserX } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -159,7 +160,7 @@ export default function StudentDetailScreen() {
       <View style={s.safe}>
         <SubScreenHeader title="회원 정보" homePath="/(teacher)/today-schedule" />
         <View style={s.emptyBox}>
-          <Feather name="user-x" size={40} color={C.textMuted} />
+          <UserX size={40} color={C.textMuted} />
           <Text style={s.emptyText}>회원 정보를 불러올 수 없습니다</Text>
         </View>
       </View>
@@ -213,14 +214,14 @@ export default function StudentDetailScreen() {
                   onPress={() => setShowWeeklyPicker(true)}
                 >
                   <Text style={[s.statusText, { color: weeklyBadge.color }]}>{weeklyBadge.label}</Text>
-                  <Feather name="edit-2" size={9} color={weeklyBadge.color} style={{ marginLeft: 3 }} />
+                  <PenLine size={9} color={weeklyBadge.color} style={{ marginLeft: 3 }} />
                 </Pressable>
               ) : (
                 <Pressable
                   style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#D1D5DB", borderStyle: "dashed" }]}
                   onPress={() => setShowWeeklyPicker(true)}
                 >
-                  <Feather name="plus" size={10} color="#64748B" />
+                  <Plus size={10} color="#64748B" />
                   <Text style={[s.statusText, { color: "#64748B", marginLeft: 3 }]}>주 횟수</Text>
                 </Pressable>
               )}
@@ -247,7 +248,7 @@ export default function StudentDetailScreen() {
                   </Text>
                   {levelInfo?.current_level?.is_active === false && (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
-                      <Feather name="eye-off" size={11} color="#D97706" />
+                      <EyeOff size={11} color="#D97706" />
                       <Text style={{ fontSize: 11, color: "#D97706", fontFamily: "Pretendard-SemiBold" }}>사용 안 함 레벨</Text>
                     </View>
                   )}
@@ -262,7 +263,7 @@ export default function StudentDetailScreen() {
                 style={[s.changeBtn, { borderColor: themeColor }]}
                 onPress={() => setShowLevelPicker(true)}
               >
-                <Feather name="edit-2" size={14} color={themeColor} />
+                <PenLine size={14} color={themeColor} />
                 <Text style={[s.changeBtnText, { color: themeColor }]}>레벨 변경</Text>
               </Pressable>
             </View>
@@ -289,7 +290,7 @@ export default function StudentDetailScreen() {
               </View>
               <Pressable style={[s.changeBtn, { borderColor: themeColor }]}
                 onPress={() => setShowStatusModal(true)}>
-                <Feather name="edit-2" size={14} color={themeColor} />
+                <PenLine size={14} color={themeColor} />
                 <Text style={[s.changeBtnText, { color: themeColor }]}>상태 변경</Text>
               </Pressable>
             </View>
@@ -326,7 +327,7 @@ export default function StudentDetailScreen() {
                 style={s.infoRow}
                 onPress={() => callPhone(student.parent_phone)}
               >
-                <Feather name="phone" size={14} color={CALL_COLOR} style={{ marginTop: 1 }} />
+                <Phone size={14} color={CALL_COLOR} style={{ marginTop: 1 }} />
                 <Text style={s.infoLabel}>연락처</Text>
                 <Text style={[s.infoValue, { color: CALL_COLOR }]}>{formatPhone(student.parent_phone)}</Text>
               </Pressable>
@@ -339,7 +340,7 @@ export default function StudentDetailScreen() {
           <Text style={s.sectionTitle}>수강 반</Text>
           {(!student.assignedClasses || student.assignedClasses.length === 0) ? (
             <View style={[s.card, s.emptyCard]}>
-              <Feather name="layers" size={24} color={C.textMuted} />
+              <Layers size={24} color={C.textMuted} />
               <Text style={s.emptyCardText}>배정된 반이 없습니다</Text>
             </View>
           ) : (
@@ -432,7 +433,7 @@ export default function StudentDetailScreen() {
                     <Text style={[s.pickerOptionText, { color: isCurrent ? badge.color : C.text }]}>
                       주 {count}회
                     </Text>
-                    {isCurrent && <Feather name="check" size={16} color={badge.color} />}
+                    {isCurrent && <Check size={16} color={badge.color} />}
                   </Pressable>
                 );
               })}
@@ -469,7 +470,7 @@ export default function StudentDetailScreen() {
                         <Text style={[s.levelPickerLabel, isCurrent && { color: themeColor }]}>
                           {lv.level_name}
                         </Text>
-                        {isCurrent && <Feather name="check" size={12} color={themeColor} />}
+                        {isCurrent && <Check size={12} color={themeColor} />}
                       </Pressable>
                     );
                   })}
@@ -505,7 +506,7 @@ function InfoRow({
 }) {
   return (
     <View style={s.infoRow}>
-      <Feather name={icon} size={14} color={C.textMuted} style={{ marginTop: 1 }} />
+      <LucideIcon name={icon} size={14} color={C.textMuted} style={{ marginTop: 1 }} />
       <Text style={s.infoLabel}>{label}</Text>
       <Text style={[s.infoValue, valueColor ? { color: valueColor } : undefined]}>{value}</Text>
     </View>

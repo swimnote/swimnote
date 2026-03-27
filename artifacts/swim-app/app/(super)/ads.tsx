@@ -3,7 +3,8 @@
  * 슈퍼관리자 전용. 학부모 화면에는 광고 슬롯 노출하지 않음.
  * 등록/수정/상태 변경/삭제. 상태: scheduled | active | inactive
  */
-import { Feather } from "@expo/vector-icons";
+import { Calendar, Image, Info, Plus, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useMemo, useState } from "react";
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -45,13 +46,13 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
           <Text style={ac.target}>대상: {TARGET_LABELS[ad.target] ?? ad.target}</Text>
         </View>
         <View style={[ac.badge, { backgroundColor: cfg.bg }]}>
-          <Feather name={cfg.icon} size={11} color={cfg.color} />
+          <LucideIcon name={cfg.icon} size={11} color={cfg.color} />
           <Text style={[ac.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
         </View>
       </View>
       {ad.description ? <Text style={ac.desc} numberOfLines={2}>{ad.description}</Text> : null}
       <View style={ac.dateRow}>
-        <Feather name="calendar" size={11} color="#64748B" />
+        <Calendar size={11} color="#64748B" />
         <Text style={ac.dateTxt}>
           {new Date(ad.displayStart).toLocaleDateString("ko-KR")} ~ {new Date(ad.displayEnd).toLocaleDateString("ko-KR")}
         </Text>
@@ -182,7 +183,7 @@ export default function AdsScreen() {
 
       {/* 안내 배너 */}
       <View style={s.noticeBanner}>
-        <Feather name="info" size={12} color="#D97706" />
+        <Info size={12} color="#D97706" />
         <Text style={s.noticeTxt}>현재 학부모 화면에는 광고가 노출되지 않습니다. 관리 기능만 운영 중입니다.</Text>
       </View>
 
@@ -214,7 +215,7 @@ export default function AdsScreen() {
           </View>
         </ScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
-          <Feather name="plus" size={16} color="#fff" />
+          <Plus size={16} color="#fff" />
           <Text style={s.addTxt}>등록</Text>
         </Pressable>
       </View>
@@ -223,7 +224,7 @@ export default function AdsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {filtered.length === 0 ? (
           <View style={s.empty}>
-            <Feather name="image" size={36} color="#D1D5DB" />
+            <Image size={36} color="#D1D5DB" />
             <Text style={s.emptyTxt}>이 상태의 광고가 없습니다</Text>
           </View>
         ) : (
@@ -244,7 +245,7 @@ export default function AdsScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "광고 수정" : "광고 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <Feather name="x" size={20} color="#64748B" />
+                <X size={20} color="#64748B" />
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>

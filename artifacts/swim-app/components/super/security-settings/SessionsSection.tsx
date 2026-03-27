@@ -2,7 +2,7 @@
  * components/super/security-settings/SessionsSection.tsx
  * F. 세션·접속 관리
  */
-import { Feather } from "@expo/vector-icons";
+import { Monitor } from "lucide-react-native";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SectionTitle } from "./SectionTitle";
@@ -24,7 +24,7 @@ export function SessionsSection({ sessions, onTerminate }: Props) {
       {sessions.map(sess => (
         <View key={sess.id} style={s.sessionRow}>
           <View style={[s.sessionIconBox, { backgroundColor: "#FFFFFF" }]}>
-            <Feather name="monitor" size={14} color="#64748B" />
+            <Monitor size={14} color="#64748B" />
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>

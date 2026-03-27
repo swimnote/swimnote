@@ -2,7 +2,7 @@
  * (super)/policy.tsx — 정책·컴플라이언스
  * operatorsStore (미동의 필터) + 로컬 버전 상태 — API 호출 없음
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, CircleAlert, CircleCheck, CirclePlus, FileText, GitBranch, Plus } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -119,7 +119,7 @@ export default function PolicyScreen() {
           <View style={s.policyCard}>
             <View style={s.policyHeader}>
               <View style={s.policyIconBg}>
-                <Feather name="file-text" size={16} color={P} />
+                <FileText size={16} color={P} />
               </View>
               <Text style={s.policyTitle}>{policyLabel}</Text>
               <View style={s.activeBadge}>
@@ -131,21 +131,21 @@ export default function PolicyScreen() {
 
           <View style={s.actionCard}>
             <Pressable style={s.actionRow} onPress={() => { setVersionKey(tab); setTab("versions"); }}>
-              <Feather name="git-branch" size={16} color={P} />
+              <GitBranch size={16} color={P} />
               <Text style={s.actionTxt}>버전 이력 확인</Text>
-              <Feather name="chevron-right" size={15} color="#64748B" />
+              <ChevronRight size={15} color="#64748B" />
             </Pressable>
             <View style={s.divider} />
             <Pressable style={s.actionRow} onPress={() => { setUnsignedKey(tab); setTab("unsigned"); }}>
-              <Feather name="alert-circle" size={16} color="#D96C6C" />
+              <CircleAlert size={16} color="#D96C6C" />
               <Text style={[s.actionTxt, { color: "#D96C6C" }]}>미동의 운영자 확인</Text>
-              <Feather name="chevron-right" size={15} color="#64748B" />
+              <ChevronRight size={15} color="#64748B" />
             </Pressable>
             <View style={s.divider} />
             <Pressable style={s.actionRow} onPress={() => { setVersionKey(tab); setVersionModal(true); }}>
-              <Feather name="plus-circle" size={16} color="#2EC4B6" />
+              <CirclePlus size={16} color="#2EC4B6" />
               <Text style={[s.actionTxt, { color: "#2EC4B6" }]}>새 버전 저장</Text>
-              <Feather name="chevron-right" size={15} color="#64748B" />
+              <ChevronRight size={15} color="#64748B" />
             </Pressable>
           </View>
         </ScrollView>
@@ -170,7 +170,7 @@ export default function PolicyScreen() {
             contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 80 }}
             ListHeaderComponent={
               <Pressable style={s.addVerBtn} onPress={() => setVersionModal(true)}>
-                <Feather name="plus" size={13} color="#fff" />
+                <Plus size={13} color="#fff" />
                 <Text style={s.addVerTxt}>현재 버전 저장</Text>
               </Pressable>
             }
@@ -185,7 +185,7 @@ export default function PolicyScreen() {
             )}
             ListEmptyComponent={
               <View style={s.empty}>
-                <Feather name="git-branch" size={28} color="#D1D5DB" />
+                <GitBranch size={28} color="#D1D5DB" />
                 <Text style={s.emptyTxt}>저장된 버전이 없습니다</Text>
               </View>
             }
@@ -213,7 +213,7 @@ export default function PolicyScreen() {
             ListHeaderComponent={
               unsignedOperators.length > 0 ? (
                 <View style={s.unsignedHeader}>
-                  <Feather name="alert-circle" size={14} color="#D96C6C" />
+                  <CircleAlert size={14} color="#D96C6C" />
                   <Text style={s.unsignedHeaderTxt}>
                     {TABS.find(t => t.key === unsignedKey)?.label} 미동의 운영자 {unsignedOperators.length}명
                   </Text>
@@ -235,12 +235,12 @@ export default function PolicyScreen() {
                     {item.isApproved ? "승인" : "대기"}
                   </Text>
                 </View>
-                <Feather name="chevron-right" size={14} color="#64748B" />
+                <ChevronRight size={14} color="#64748B" />
               </Pressable>
             )}
             ListEmptyComponent={
               <View style={s.empty}>
-                <Feather name="check-circle" size={28} color="#2E9B6F" />
+                <CircleCheck size={28} color="#2E9B6F" />
                 <Text style={s.emptyTxt}>모든 운영자가 동의했습니다</Text>
               </View>
             }

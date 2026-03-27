@@ -10,7 +10,8 @@
  * 뒤로가기: router.back() → 이전 학부모 화면
  * 홈:      router.replace("/(parent)/home")
  */
-import { Feather } from "@expo/vector-icons";
+import { Send } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -160,7 +161,7 @@ export default function MessagesScreen() {
                 <View key={msg.id} style={[s.msgRow, isMine && s.msgRowRight]}>
                   {!isMine && (
                     <View style={s.msgAvatar}>
-                      <Feather name={msg.sender_role === "teacher" ? "user-check" : "shield"} size={14} color={C.tint} />
+                      <LucideIcon name={msg.sender_role === "teacher" ? "user-check" : "shield"} size={14} color={C.tint} />
                     </View>
                   )}
                   <View style={{ maxWidth: "75%", gap: 2 }}>
@@ -220,7 +221,7 @@ export default function MessagesScreen() {
             >
               {sending
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Feather name="send" size={18} color="#fff" />
+                : <Send size={18} color="#fff" />
               }
             </Pressable>
           </View>

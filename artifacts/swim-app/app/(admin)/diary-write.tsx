@@ -4,7 +4,7 @@
  * 선생님 목록 → 선택 → diary-teacher-entries.tsx 로 이동
  * (관리자는 작성 불가, 조회/삭제만 가능)
  */
-import { Feather } from "@expo/vector-icons";
+import { BookOpen, ChevronRight, Clock, Info, Layers, Users } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -84,23 +84,23 @@ export default function AdminDiaryHubScreen() {
             <Text style={dw.teacherName}>{item.teacher_name} 선생님</Text>
             <View style={dw.statRow}>
               <View style={dw.statItem}>
-                <Feather name="layers" size={11} color={C.textSecondary} />
+                <Layers size={11} color={C.textSecondary} />
                 <Text style={dw.statText}>담당 반 {cCount}개</Text>
               </View>
               <View style={dw.statItem}>
-                <Feather name="book-open" size={11} color={C.textSecondary} />
+                <BookOpen size={11} color={C.textSecondary} />
                 <Text style={dw.statText}>작성 {dCount}건</Text>
               </View>
               {item.last_diary_date && (
                 <View style={dw.statItem}>
-                  <Feather name="clock" size={11} color={C.textSecondary} />
+                  <Clock size={11} color={C.textSecondary} />
                   <Text style={dw.statText}>최근 {formatDate(item.last_diary_date)}</Text>
                 </View>
               )}
             </View>
           </View>
         </View>
-        <Feather name="chevron-right" size={16} color={C.textMuted} />
+        <ChevronRight size={16} color={C.textMuted} />
       </Pressable>
     );
   }, [handlePress, themeColor]);
@@ -130,7 +130,7 @@ export default function AdminDiaryHubScreen() {
             <Text style={dw.summaryLabel}>전체 일지</Text>
           </View>
           <View style={[dw.summaryNote]}>
-            <Feather name="info" size={11} color={C.textMuted} />
+            <Info size={11} color={C.textMuted} />
             <Text style={dw.summaryNoteText}>조회·삭제만 가능 (수정 불가)</Text>
           </View>
         </View>
@@ -149,7 +149,7 @@ export default function AdminDiaryHubScreen() {
           refreshing={refreshing}
           ListEmptyComponent={
             <View style={dw.empty}>
-              <Feather name="users" size={40} color={C.textMuted} />
+              <Users size={40} color={C.textMuted} />
               <Text style={dw.emptyTitle}>등록된 선생님이 없습니다</Text>
             </View>
           }

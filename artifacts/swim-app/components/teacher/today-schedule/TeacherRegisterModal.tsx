@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, CircleCheck, Info, X } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
@@ -70,7 +70,7 @@ export default function TeacherRegisterModal({
           {done ? (
             <View style={treg.doneWrap}>
               <View style={[treg.doneIcon, { backgroundColor: themeColor + "20" }]}>
-                <Feather name="check-circle" size={36} color={themeColor} />
+                <CircleCheck size={36} color={themeColor} />
               </View>
               <Text style={[treg.doneTitle, { color: C.text }]}>등록요청 완료</Text>
               <Text style={[treg.doneSub, { color: C.textSecondary }]}>{doneMsg}</Text>
@@ -85,11 +85,11 @@ export default function TeacherRegisterModal({
             <>
               <View style={treg.header}>
                 <Text style={treg.title}>회원 등록 요청</Text>
-                <Pressable onPress={handleClose}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={handleClose}><X size={22} color={C.textSecondary} /></Pressable>
               </View>
               {error ? (
                 <View style={treg.errorRow}>
-                  <Feather name="alert-circle" size={14} color={C.error} />
+                  <CircleAlert size={14} color={C.error} />
                   <Text style={treg.errorText}>{error}</Text>
                 </View>
               ) : null}
@@ -127,7 +127,7 @@ export default function TeacherRegisterModal({
                 </View>
               </ScrollView>
               <View style={treg.notice}>
-                <Feather name="info" size={13} color={themeColor} />
+                <Info size={13} color={themeColor} />
                 <Text style={[treg.noticeText, { color: C.textSecondary }]}>관리자 승인 후 정식 회원으로 반영됩니다.</Text>
               </View>
               <Pressable style={[treg.saveBtn, { backgroundColor: themeColor, opacity: saving ? 0.7 : 1 }]}

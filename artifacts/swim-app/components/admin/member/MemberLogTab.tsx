@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Activity } from "lucide-react-native";
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -29,7 +29,7 @@ export function MemberLogTab({ logs }: MemberLogTabProps) {
       <ScrollView contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
         <View style={ms.section}>
           <View style={{ alignItems: "center", paddingVertical: 30, gap: 10 }}>
-            <Feather name="activity" size={36} color={C.textMuted} />
+            <Activity size={36} color={C.textMuted} />
             <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>활동 기록이 없습니다</Text>
           </View>
         </View>

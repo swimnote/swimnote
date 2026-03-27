@@ -1,7 +1,7 @@
 /**
  * 카테고리별 사용량 — 사진 · 영상 · 메신저 · 기록 분류
  */
-import { Feather } from "@expo/vector-icons";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -75,7 +75,7 @@ export default function DataStorageByCategoryScreen() {
               <View key={cat.label} style={[s.card, { backgroundColor: C.card }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
                   <View style={[s.iconWrap, { backgroundColor: cat.bg }]}>
-                    <Feather name={cat.icon} size={20} color={cat.color} />
+                    <LucideIcon name={cat.icon} size={20} color={cat.color} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>

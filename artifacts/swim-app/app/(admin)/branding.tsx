@@ -3,7 +3,8 @@
  * 테마 색상, 로고 이모지, 로고 URL을 변경한다.
  * 저장 즉시 BrandContext가 업데이트되어 앱 전체에 반영된다.
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, Info } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
@@ -165,7 +166,7 @@ export default function BrandingScreen() {
             <View style={styles.previewTabBar}>
               {["대시보드", "회원", "출결"].map((tab, i) => (
                 <View key={tab} style={styles.previewTab}>
-                  <Feather
+                  <LucideIcon
                     name={i === 0 ? "grid" : i === 1 ? "users" : "check-square"}
                     size={18}
                     color={i === 0 ? selectedColor : "#64748B"}
@@ -277,7 +278,7 @@ export default function BrandingScreen() {
         {/* ── 앱 아이콘 안내 ─────────────────────────────────── */}
         <Section title="앱 아이콘 커스터마이징">
           <View style={styles.infoBox}>
-            <Feather name="info" size={16} color="#2EC4B6" style={{ marginTop: 2 }} />
+            <Info size={16} color="#2EC4B6" style={{ marginTop: 2 }} />
             <Text style={styles.infoText}>
               앱스토어·구글플레이에서 다운로드되는 앱 아이콘은 항상 스윔노트 기본 아이콘으로 표시됩니다.{"\n\n"}
               수영장별 아이콘 변경은 별도의 화이트라벨 빌드가 필요하며, 엔터프라이즈 플랜에서 지원됩니다. 문의: support@swimnote.kr
@@ -295,7 +296,7 @@ export default function BrandingScreen() {
             <ActivityIndicator color="#fff" />
           ) : saveSuccess ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Feather name="check" size={18} color="#fff" />
+              <Check size={18} color="#fff" />
               <Text style={styles.saveBtnText}>저장 완료!</Text>
             </View>
           ) : (

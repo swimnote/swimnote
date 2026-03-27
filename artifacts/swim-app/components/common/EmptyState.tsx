@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -15,7 +15,7 @@ export function EmptyState({ icon = "inbox", title, subtitle }: EmptyStateProps)
   return (
     <View style={s.root}>
       <View style={[s.iconWrap, { backgroundColor: C.tintLight }]}>
-        <Feather name={icon} size={32} color={C.tint} />
+        <LucideIcon name={icon} size={32} color={C.tint} />
       </View>
       <Text style={[s.title, { color: C.text }]}>{title}</Text>
       {subtitle ? <Text style={[s.sub, { color: C.textMuted }]}>{subtitle}</Text> : null}

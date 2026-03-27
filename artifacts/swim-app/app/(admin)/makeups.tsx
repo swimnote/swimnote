@@ -4,7 +4,7 @@
  * 실 DB: /admin/makeups, /admin/makeups/eligible-classes,
  *         /admin/makeups/:id/assign, /transfer, /complete, /cancel, /revert
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleCheck, Clock, RotateCcw, UserCheck } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -181,7 +181,7 @@ export default function MakeupsScreen() {
           refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Feather name="check-circle" size={40} color={C.border} />
+              <CircleCheck size={40} color={C.border} />
               <Text style={s.emptyTxt}>
                 {tab === "결석자 리스트" ? "처리할 결석자가 없습니다"
                   : tab === "만료" ? "만료된 보강권이 없습니다"
@@ -342,7 +342,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
         <View style={{ gap: 8, marginTop: 10 }}>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable style={[s.actBtn, { backgroundColor: "#E6FFFA", flex: 1 }]} onPress={onComplete}>
-              <Feather name="check-circle" size={14} color="#2EC4B6" />
+              <CircleCheck size={14} color="#2EC4B6" />
               <Text style={[s.actBtnTxt, { color: "#2EC4B6" }]}>보강 완료 처리</Text>
             </Pressable>
             <Pressable style={[s.actBtn, { backgroundColor: "#FFFFFF" }]} onPress={onCancel}>
@@ -350,7 +350,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
             </Pressable>
           </View>
           <Pressable style={[s.revertBtn]} onPress={onRevert}>
-            <Feather name="rotate-ccw" size={13} color="#D97706" />
+            <RotateCcw size={13} color="#D97706" />
             <Text style={s.revertTxt}>보강대기자로 되돌리기</Text>
           </Pressable>
         </View>
@@ -360,11 +360,11 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {tab === "다른선생님" && (
         <View style={{ gap: 8, marginTop: 10 }}>
           <Pressable style={[s.actBtn, { backgroundColor: "#E6FFFA", flexDirection: "row", gap: 6 }]} onPress={onComplete}>
-            <Feather name="check-circle" size={14} color="#2EC4B6" />
+            <CircleCheck size={14} color="#2EC4B6" />
             <Text style={[s.actBtnTxt, { color: "#2EC4B6" }]}>대리보강 완료</Text>
           </Pressable>
           <Pressable style={s.revertBtn} onPress={onRevert}>
-            <Feather name="rotate-ccw" size={13} color="#D97706" />
+            <RotateCcw size={13} color="#D97706" />
             <Text style={s.revertTxt}>보강대기자로 되돌리기</Text>
           </Pressable>
         </View>
@@ -373,7 +373,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {/* 완료 기록 탭 — 읽기 전용 */}
       {tab === "완료 기록" && item.substitute_teacher_name && (
         <View style={[s.completedBanner]}>
-          <Feather name="user-check" size={12} color="#2EC4B6" />
+          <UserCheck size={12} color="#2EC4B6" />
           <Text style={s.completedTxt}>
             대리 진행: {item.substitute_teacher_name} 선생님
           </Text>
@@ -383,7 +383,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {/* 만료 탭 — 읽기 전용 */}
       {tab === "만료" && (
         <View style={[s.completedBanner, { backgroundColor: "#F3F4F6" }]}>
-          <Feather name="clock" size={12} color="#64748B" />
+          <Clock size={12} color="#64748B" />
           <Text style={[s.completedTxt, { color: "#64748B" }]}>
             보강권 만료됨{item.expire_at ? ` · ${new Date(item.expire_at).toLocaleDateString("ko-KR")}` : ""}
           </Text>

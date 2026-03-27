@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Award, BookOpen, CircleArrowRight, Info } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, RefreshControl,
@@ -107,7 +107,7 @@ export default function ParentLevelScreen() {
               {currentLevel.level_description ? (
                 <View style={s.descBlock}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <Feather name="info" size={14} color={C.tint} />
+                    <Info size={14} color={C.tint} />
                     <Text style={[s.descTitle, { color: C.tint }]}>레벨 소개</Text>
                   </View>
                   <Text style={[s.descText, { color: C.text }]}>{currentLevel.level_description}</Text>
@@ -117,7 +117,7 @@ export default function ParentLevelScreen() {
               {currentLevel.learning_content ? (
                 <View style={[s.descBlock, currentLevel.level_description && s.descBorderTop]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <Feather name="book-open" size={14} color="#3B82F6" />
+                    <BookOpen size={14} color="#3B82F6" />
                     <Text style={[s.descTitle, { color: "#3B82F6" }]}>이 레벨에서 배우는 내용</Text>
                   </View>
                   <Text style={[s.descText, { color: C.text }]}>{currentLevel.learning_content}</Text>
@@ -127,7 +127,7 @@ export default function ParentLevelScreen() {
               {currentLevel.promotion_test_rule ? (
                 <View style={[s.descBlock, (currentLevel.level_description || currentLevel.learning_content) && s.descBorderTop]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <Feather name="award" size={14} color="#D97706" />
+                    <Award size={14} color="#D97706" />
                     <Text style={[s.descTitle, { color: "#D97706" }]}>다음 레벨 승급 기준</Text>
                   </View>
                   <Text style={[s.descText, { color: C.text }]}>{currentLevel.promotion_test_rule}</Text>
@@ -140,7 +140,7 @@ export default function ParentLevelScreen() {
           {levelInfo?.next_level && (
             <View style={[s.nextCard, { backgroundColor: "#FFFBEB", borderColor: "#FEF3C7" }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Feather name="arrow-right-circle" size={18} color="#D97706" />
+                <CircleArrowRight size={18} color="#D97706" />
                 <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D97706" }}>
                   다음 목표: 레벨 {levelInfo.next_level.level_name}
                 </Text>

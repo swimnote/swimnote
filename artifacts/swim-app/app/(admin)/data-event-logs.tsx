@@ -2,7 +2,8 @@
  * 이벤트 기록 타임라인
  * 카테고리 필터 + 무한 스크롤 FlatList
  */
-import { Feather } from "@expo/vector-icons";
+import { Clock, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -85,7 +86,7 @@ export default function DataEventLogsScreen() {
               onPress={() => setFilter(cat)}
               style={[s.chip, active && { backgroundColor: (meta?.color ?? themeColor) + "20", borderColor: meta?.color ?? themeColor }]}
             >
-              {meta && <Feather name={meta.icon as any} size={12} color={active ? (meta.color ?? themeColor) : C.textMuted} />}
+              {meta && <LucideIcon name={meta.icon as any} size={12} color={active ? (meta.color ?? themeColor) : C.textMuted} />}
               <Text style={[s.chipText, { color: active ? (meta?.color ?? themeColor) : C.textSecondary }]}>{cat}</Text>
             </Pressable>
           );
@@ -108,7 +109,7 @@ export default function DataEventLogsScreen() {
             <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />
           ) : (
             <View style={{ alignItems: "center", paddingTop: 60, gap: 12 }}>
-              <Feather name="clock" size={40} color={C.textMuted} />
+              <Clock size={40} color={C.textMuted} />
               <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textMuted }}>이벤트 기록이 없습니다</Text>
             </View>
           )
@@ -134,7 +135,7 @@ export default function DataEventLogsScreen() {
             <View style={[s.card, { backgroundColor: C.card }]}>
               <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
                 <View style={[s.evtIcon, { backgroundColor: meta.bg }]}>
-                  <Feather name={meta.icon as any} size={16} color={meta.color} />
+                  <LucideIcon name={meta.icon as any} size={16} color={meta.color} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
@@ -151,7 +152,7 @@ export default function DataEventLogsScreen() {
                 </View>
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                <Feather name="user" size={11} color={C.textMuted} />
+                <User size={11} color={C.textMuted} />
                 <Text style={s.actor}>{actorName}</Text>
               </View>
             </View>

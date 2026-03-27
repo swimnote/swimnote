@@ -3,7 +3,8 @@
  * 미승인 학부모(pending / rejected)는 홈 진입 차단 → 대기 화면 표시
  * join_status는 로그인 응답(unified-login)에서 받아 SessionContext에 저장
  */
-import { Feather } from "@expo/vector-icons";
+import { Home, Info } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Stack } from "expo-router";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -26,7 +27,7 @@ function ApprovalPendingScreen({ status }: { status: string }) {
     <View style={[g.root, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
       <View style={g.content}>
         <View style={[g.iconBox, { backgroundColor: isRejected ? "#F9DEDA" : "#FFF1BF" }]}>
-          <Feather name={isRejected ? "x-circle" : "clock"} size={40} color={isRejected ? "#D96C6C" : "#E4A93A"} />
+          <LucideIcon name={isRejected ? "x-circle" : "clock"} size={40} color={isRejected ? "#D96C6C" : "#E4A93A"} />
         </View>
 
         <Text style={g.title}>
@@ -52,7 +53,7 @@ function ApprovalPendingScreen({ status }: { status: string }) {
         )}
 
         <View style={[g.waitBanner, { backgroundColor: C.tintLight }]}>
-          <Feather name="info" size={14} color={C.tint} />
+          <Info size={14} color={C.tint} />
           <Text style={[g.waitTxt, { color: C.tint }]}>
             {isRejected
               ? "문의: 수영장에 직접 연락해 주세요"
@@ -71,7 +72,7 @@ function ApprovalPendingScreen({ status }: { status: string }) {
 function InfoRow({ icon, color, text }: { icon: any; color: string; text: string }) {
   return (
     <View style={g.infoRow}>
-      <Feather name={icon} size={14} color={color} />
+      <LucideIcon name={icon} size={14} color={color} />
       <Text style={[g.infoText, { color: C.textSecondary }]}>{text}</Text>
     </View>
   );

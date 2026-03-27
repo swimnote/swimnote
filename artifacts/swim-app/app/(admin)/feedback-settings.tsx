@@ -7,7 +7,7 @@
  * - 카테고리 이름 수정
  * - 카테고리 초기화 / 전체 초기화
  */
-import { Feather } from "@expo/vector-icons";
+import { Inbox, Info, PenLine, Plus, RefreshCcw, RotateCcw, Tag, Trash2 } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -132,10 +132,10 @@ export default function FeedbackSettingsScreen() {
         <Text style={[s.rowText, { color: C.text }]} numberOfLines={3}>{item.template_text}</Text>
         <View style={s.rowActions}>
           <Pressable style={s.rowBtn} onPress={() => openEdit(item)} hitSlop={6}>
-            <Feather name="edit-2" size={15} color="#4EA7D8" />
+            <PenLine size={15} color="#4EA7D8" />
           </Pressable>
           <Pressable style={[s.rowBtn, { backgroundColor: "#FEF2F2" }]} onPress={() => setDeleteTarget(item)} hitSlop={6}>
-            <Feather name="trash-2" size={15} color="#D96C6C" />
+            <Trash2 size={15} color="#D96C6C" />
           </Pressable>
         </View>
       </View>
@@ -150,7 +150,7 @@ export default function FeedbackSettingsScreen() {
         homePath="/(admin)/dashboard"
         rightSlot={
           <Pressable style={s.resetAllBtn} onPress={() => setResetAllVisible(true)}>
-            <Feather name="refresh-ccw" size={13} color="#D96C6C" />
+            <RefreshCcw size={13} color="#D96C6C" />
             <Text style={s.resetAllBtnText}>전체 초기화</Text>
           </Pressable>
         }
@@ -158,7 +158,7 @@ export default function FeedbackSettingsScreen() {
 
       {/* 안내 문구 */}
       <View style={[s.descBox, { backgroundColor: themeColor + "0C" }]}>
-        <Feather name="info" size={13} color={themeColor} />
+        <Info size={13} color={themeColor} />
         <Text style={[s.descText, { color: themeColor }]}>
           수업 일지 작성 시 선생님들이 사용할 기본 피드백 문구를 설정합니다. 변경 내용은 즉시 반영됩니다.
         </Text>
@@ -193,11 +193,11 @@ export default function FeedbackSettingsScreen() {
         </Text>
         <View style={s.catBtns}>
           <Pressable style={s.catBtn} onPress={openLabel}>
-            <Feather name="tag" size={13} color="#64748B" />
+            <Tag size={13} color="#64748B" />
             <Text style={s.catBtnText}>이름 변경</Text>
           </Pressable>
           <Pressable style={[s.catBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]} onPress={() => setResetCatVisible(true)}>
-            <Feather name="rotate-ccw" size={13} color="#D96C6C" />
+            <RotateCcw size={13} color="#D96C6C" />
             <Text style={[s.catBtnText, { color: "#D96C6C" }]}>초기화</Text>
           </Pressable>
         </View>
@@ -212,7 +212,7 @@ export default function FeedbackSettingsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={s.emptyBox}>
-            <Feather name="inbox" size={36} color={C.textMuted} />
+            <Inbox size={36} color={C.textMuted} />
             <Text style={s.emptyText}>
               {activeTab === "custom"
                 ? "기본 문구를 추가해 보세요."
@@ -229,7 +229,7 @@ export default function FeedbackSettingsScreen() {
           onPress={openAdd}
           disabled={isFull}
         >
-          <Feather name="plus" size={18} color="#fff" />
+          <Plus size={18} color="#fff" />
           <Text style={s.addBtnText}>문구 추가</Text>
           {isFull && <Text style={[s.addBtnText, { fontSize: 11, opacity: 0.8 }]}>(최대 도달)</Text>}
         </Pressable>

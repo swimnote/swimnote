@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Search, Users, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView,
@@ -59,14 +59,14 @@ export default function UnregisteredPickerModal({
               <Text style={um.sub}>반에 배정하면 정상회원으로 전환됩니다</Text>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <Feather name="x" size={20} color={C.textSecondary} />
+              <X size={20} color={C.textSecondary} />
             </Pressable>
           </View>
           <View style={um.searchBar}>
-            <Feather name="search" size={14} color={C.textMuted} />
+            <Search size={14} color={C.textMuted} />
             <TextInput style={um.searchInput} value={q} onChangeText={setQ}
               placeholder="이름·전화번호 검색" placeholderTextColor={C.textMuted} />
-            {!!q && <Pressable onPress={() => setQ("")}><Feather name="x" size={14} color={C.textMuted} /></Pressable>}
+            {!!q && <Pressable onPress={() => setQ("")}><X size={14} color={C.textMuted} /></Pressable>}
           </View>
           {loading ? (
             <ActivityIndicator style={{ marginTop: 40 }} color={themeColor} />
@@ -74,7 +74,7 @@ export default function UnregisteredPickerModal({
             <ScrollView style={um.list} showsVerticalScrollIndicator={false}>
               {filtered.length === 0 ? (
                 <View style={um.empty}>
-                  <Feather name="users" size={28} color={C.textMuted} />
+                  <Users size={28} color={C.textMuted} />
                   <Text style={um.emptyTxt}>미등록회원이 없습니다</Text>
                 </View>
               ) : filtered.map(item => (

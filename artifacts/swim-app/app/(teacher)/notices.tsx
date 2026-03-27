@@ -4,7 +4,8 @@
  * 소속 수영장의 공지를 열람한다.
  * 작성·삭제 권한 없음.
  */
-import { Feather } from "@expo/vector-icons";
+import { BellOff, Pin, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Pressable, RefreshControl,
@@ -77,7 +78,7 @@ export default function TeacherNoticesScreen() {
           {pinned.length > 0 && (
             <>
               <View style={s.sectionRow}>
-                <Feather name="pin" size={13} color={themeColor} />
+                <Pin size={13} color={themeColor} />
                 <Text style={[s.sectionLabel, { color: themeColor }]}>고정 공지</Text>
               </View>
               {pinned.map(n => (
@@ -95,7 +96,7 @@ export default function TeacherNoticesScreen() {
           ))}
           {notices.length === 0 && (
             <View style={s.empty}>
-              <Feather name="bell-off" size={40} color="#D1D5DB" />
+              <BellOff size={40} color="#D1D5DB" />
               <Text style={s.emptyTxt}>등록된 공지사항이 없습니다</Text>
             </View>
           )}
@@ -118,10 +119,10 @@ function NoticeCard({
     >
       <View style={s.cardHeader}>
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {n.is_pinned && <Feather name="pin" size={12} color={themeColor} />}
+          {n.is_pinned && <Pin size={12} color={themeColor} />}
           <Text style={s.noticeTitle} numberOfLines={isOpen ? undefined : 1}>{n.title}</Text>
         </View>
-        <Feather name={isOpen ? "chevron-up" : "chevron-down"} size={16} color="#64748B" />
+        <LucideIcon name={isOpen ? "chevron-up" : "chevron-down"} size={16} color="#64748B" />
       </View>
 
       {isOpen && (
@@ -131,7 +132,7 @@ function NoticeCard({
       <View style={s.meta}>
         {n.notice_type === "individual" && n.student_name && (
           <View style={s.indiBadge}>
-            <Feather name="user" size={10} color="#7C3AED" />
+            <User size={10} color="#7C3AED" />
             <Text style={s.indiBadgeTxt}>{n.student_name} 개인공지</Text>
           </View>
         )}

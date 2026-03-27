@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
-import { Feather } from "@expo/vector-icons";
+import { Calendar, Check, ChevronRight, CirclePlus, CircleStop, FileText, Mic, Pencil, Plus, Trash2, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -132,19 +133,19 @@ export default function DaySheet({
             </View>
             <View style={dy.headerActions}>
               <Pressable style={dy.iconBtnWrap} onPress={() => setShowMemoPanel(p => !p)}>
-                <Feather name="file-text" size={20} color={memo ? "#D97706" : C.textSecondary} />
+                <FileText size={20} color={memo ? "#D97706" : C.textSecondary} />
                 {(memo && memo.trim()) ? <View style={dy.redDot} /> : null}
               </Pressable>
               <Pressable style={dy.iconBtnWrap} onPress={isRecording ? stopAndSaveRecording : startRecording}>
-                <Feather name="mic" size={20} color={isRecording ? "#D96C6C" : (audioList.length > 0 ? "#4338CA" : C.textSecondary)} />
+                <Mic size={20} color={isRecording ? "#D96C6C" : (audioList.length > 0 ? "#4338CA" : C.textSecondary)} />
                 {(audioList.length > 0 && !isRecording) ? <View style={[dy.redDot, { backgroundColor: "#4338CA" }]} /> : null}
               </Pressable>
               <Pressable style={[dy.headerBtn, { backgroundColor: C.tint }]} onPress={onAddClass}>
-                <Feather name="plus" size={13} color="#fff" />
+                <Plus size={13} color="#fff" />
                 <Text style={[dy.headerBtnTxt, { color: "#fff" }]}>수업 추가</Text>
               </Pressable>
               <Pressable onPress={onClose} style={dy.closeBtn}>
-                <Feather name="x" size={20} color={C.textSecondary} />
+                <X size={20} color={C.textSecondary} />
               </Pressable>
             </View>
           </View>
@@ -154,11 +155,11 @@ export default function DaySheet({
 
             {classes.length === 0 && (
               <View style={dy.emptyBox}>
-                <Feather name="calendar" size={32} color={C.textMuted} />
+                <Calendar size={32} color={C.textMuted} />
                 <Text style={dy.emptyTxt}>이 날은 수업이 없습니다</Text>
                 <Pressable style={[dy.emptyAction, { borderColor: C.tint }]}
                   onPress={() => { onClose(); setTimeout(onAddClass, 200); }}>
-                  <Feather name="plus-circle" size={13} color={C.tint} />
+                  <CirclePlus size={13} color={C.tint} />
                   <Text style={[dy.emptyActionTxt, { color: C.tint }]}>수업 추가</Text>
                 </Pressable>
               </View>
@@ -185,19 +186,19 @@ export default function DaySheet({
                           <Text style={[dy.classSub, done && { color: C.textMuted }]}>{capLabel}</Text>
                           {attCnt > 0 && (
                             <View style={dy.attBadge}>
-                              <Feather name="check" size={9} color="#2EC4B6" />
+                              <Check size={9} color="#2EC4B6" />
                               <Text style={dy.attBadgeTxt}>출결 {attCnt}</Text>
                             </View>
                           )}
                           {diarDone && (
                             <View style={dy.diaryBadge}>
-                              <Feather name="edit-3" size={9} color="#7C3AED" />
+                              <Pencil size={9} color="#7C3AED" />
                               <Text style={dy.diaryBadgeTxt}>일지 완료</Text>
                             </View>
                           )}
                         </View>
                       </View>
-                      <Feather name="chevron-right" size={16} color={done ? C.textMuted : C.textSecondary} />
+                      <ChevronRight size={16} color={done ? C.textMuted : C.textSecondary} />
                     </Pressable>
                   );
                 })}
@@ -207,7 +208,7 @@ export default function DaySheet({
             {showMemoPanel && (
               <View style={dy.memoSection}>
                 <View style={dy.memoHeader}>
-                  <Feather name="file-text" size={14} color={C.textSecondary} />
+                  <FileText size={14} color={C.textSecondary} />
                   <Text style={dy.memoLabel}>날짜 메모</Text>
                   {!editingMemo && (
                     <Pressable onPress={() => setEditingMemo(true)} style={dy.memoEditBtn}>
@@ -246,17 +247,17 @@ export default function DaySheet({
 
                 <View style={dy.audioDivider} />
                 <View style={dy.audioRow}>
-                  <Feather name="mic" size={13} color={C.textSecondary} />
+                  <Mic size={13} color={C.textSecondary} />
                   <Text style={dy.audioLabel}>음성 메모</Text>
                   <View style={{ flex: 1 }} />
                   {isRecording ? (
                     <Pressable style={[dy.audioBtn, { backgroundColor: "#F9DEDA" }]} onPress={stopAndSaveRecording}>
-                      <Feather name="stop-circle" size={15} color="#D96C6C" />
+                      <CircleStop size={15} color="#D96C6C" />
                       <Text style={[dy.audioBtnTxt, { color: "#D96C6C" }]}>저장</Text>
                     </Pressable>
                   ) : (
                     <Pressable style={[dy.audioBtn, { backgroundColor: C.tintLight }]} onPress={startRecording}>
-                      <Feather name="mic" size={15} color={C.tint} />
+                      <Mic size={15} color={C.tint} />
                       <Text style={[dy.audioBtnTxt, { color: C.tint }]}>녹음</Text>
                     </Pressable>
                   )}
@@ -275,20 +276,20 @@ export default function DaySheet({
                       const timeLabel = `${String(t.getHours()).padStart(2,"0")}:${String(t.getMinutes()).padStart(2,"0")}`;
                       return (
                         <View key={item.uri} style={dy.audioListItem}>
-                          <Feather name="file-text" size={13} color="#92400E" />
+                          <FileText size={13} color="#92400E" />
                           <Text style={dy.audioListLabel}>녹음 {idx + 1}  <Text style={dy.audioListTime}>{timeLabel}</Text></Text>
                           <View style={{ flex: 1 }} />
                           <Pressable
                             style={[dy.audioPlayBtn, isThis && { backgroundColor: C.tintLight }]}
                             onPress={() => playAudio(item.uri)}>
-                            <Feather name={isThis ? "volume-2" : "play"} size={14}
+                            <LucideIcon name={isThis ? "volume-2" : "play"} size={14}
                               color={C.tint} />
                             <Text style={[dy.audioBtnTxt, { color: C.tint }]}>
                               {isThis ? "재생중" : "재생"}
                             </Text>
                           </Pressable>
                           <Pressable style={dy.audioDelBtn} onPress={() => deleteAudioItem(item.uri)}>
-                            <Feather name="trash-2" size={13} color="#D96C6C" />
+                            <Trash2 size={13} color="#D96C6C" />
                           </Pressable>
                         </View>
                       );

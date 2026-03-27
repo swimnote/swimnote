@@ -4,7 +4,7 @@
  * - /auth/totp/verify-action API로 실제 검증
  * - 사용법: visible/token/onSuccess/onCancel 으로 제어
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, CircleCheck, Shield, Smartphone, Unlock } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Keyboard, Modal, Pressable, StyleSheet,
@@ -81,7 +81,7 @@ export function OtpGateModal({ visible, title, desc, token, onSuccess, onCancel 
           {/* 헤더 */}
           <View style={s.iconRow}>
             <View style={s.iconCircle}>
-              <Feather name="shield" size={22} color={P} />
+              <Shield size={22} color={P} />
             </View>
           </View>
           <Text style={s.title}>{title}</Text>
@@ -89,7 +89,7 @@ export function OtpGateModal({ visible, title, desc, token, onSuccess, onCancel 
 
           {success ? (
             <View style={s.successBox}>
-              <Feather name="check-circle" size={20} color={GREEN} />
+              <CircleCheck size={20} color={GREEN} />
               <Text style={s.successTxt}>인증 성공 — 실행합니다</Text>
             </View>
           ) : (
@@ -123,14 +123,14 @@ export function OtpGateModal({ visible, title, desc, token, onSuccess, onCancel 
               {/* 에러 */}
               {!!error && (
                 <View style={s.errorRow}>
-                  <Feather name="alert-circle" size={13} color={DANGER} />
+                  <CircleAlert size={13} color={DANGER} />
                   <Text style={s.errorTxt}>{error}</Text>
                 </View>
               )}
 
               {/* 안내 */}
               <View style={s.hintBox}>
-                <Feather name="smartphone" size={12} color="#64748B" />
+                <Smartphone size={12} color="#64748B" />
                 <Text style={s.hintTxt}>Google Authenticator 앱의 6자리 코드를 입력하세요</Text>
               </View>
 
@@ -146,7 +146,7 @@ export function OtpGateModal({ visible, title, desc, token, onSuccess, onCancel 
                 >
                   {loading
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <><Feather name="unlock" size={14} color="#fff" /><Text style={s.confirmTxt}>인증 확인</Text></>
+                    : <><Unlock size={14} color="#fff" /><Text style={s.confirmTxt}>인증 확인</Text></>
                   }
                 </Pressable>
               </View>

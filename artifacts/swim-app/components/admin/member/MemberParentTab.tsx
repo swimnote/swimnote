@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { Copy, Phone, Share2, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import * as Clipboard from "expo-clipboard";
 import { Share } from "react-native";
 import React from "react";
@@ -27,7 +28,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
         <View style={[ms.connCard, {
           backgroundColor: connStatus === "linked" ? "#E6FFFA" : connStatus === "pending" ? "#FFF1BF" : "#FFFFFF",
         }]}>
-          <Feather
+          <LucideIcon
             name={connStatus === "linked" ? "check-circle" : connStatus === "pending" ? "clock" : "x-circle"}
             size={24}
             color={connStatus === "linked" ? "#2EC4B6" : connStatus === "pending" ? "#D97706" : C.textMuted}
@@ -57,7 +58,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
                   onAlert({ title: "복사 완료", msg: "초대 문자가 클립보드에 복사되었습니다." });
                 }}
               >
-                <Feather name="copy" size={14} color={themeColor} />
+                <Copy size={14} color={themeColor} />
                 <Text style={[ms.outlineBtnText, { color: themeColor }]}>복사</Text>
               </Pressable>
               <Pressable
@@ -67,7 +68,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
                   await Share.share({ message: msg });
                 }}
               >
-                <Feather name="share-2" size={14} color="#2EC4B6" />
+                <Share2 size={14} color="#2EC4B6" />
                 <Text style={[ms.outlineBtnText, { color: "#2EC4B6" }]}>공유</Text>
               </Pressable>
             </View>
@@ -78,7 +79,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
       <View style={ms.section}>
         <Text style={ms.sectionTitle}>보호자 정보</Text>
         <View style={ms.infoRow}>
-          <Feather name="user" size={13} color={C.textMuted} />
+          <User size={13} color={C.textMuted} />
           <Text style={ms.infoLabel}>이름</Text>
           <Text style={ms.infoValue}>{data.parent_name || "미입력"}</Text>
         </View>
@@ -87,7 +88,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
           const hasPhone = !!ph;
           return (
             <View key={label} style={ms.infoRow}>
-              <Feather name="phone" size={13} color={hasPhone ? CALL_COLOR : C.textMuted} />
+              <Phone size={13} color={hasPhone ? CALL_COLOR : C.textMuted} />
               <Text style={ms.infoLabel}>{label}</Text>
               {hasPhone ? (
                 <Pressable

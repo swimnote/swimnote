@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, CircleAlert, Pencil, Trash2, UserX, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -189,23 +190,23 @@ export default function ClassDetailSheet({
               </View>
               <Pressable style={cds.deleteBtn}
                 onPress={() => { onClose(); setTimeout(() => onDeleteClass?.(), 200); }}>
-                <Feather name="trash-2" size={15} color="#E11D48" />
+                <Trash2 size={15} color="#E11D48" />
               </Pressable>
               <Pressable onPress={handleClose} style={cds.closeBtn}>
                 {colorSaving
                   ? <ActivityIndicator size="small" color={C.textSecondary} />
-                  : <Feather name="x" size={20} color={C.textSecondary} />}
+                  : <X size={20} color={C.textSecondary} />}
               </Pressable>
             </View>
             <View style={cds.actionRow}>
               <Pressable style={[cds.actionBtn, { backgroundColor: "#E6FFFA", flex: 1 }]}
                 onPress={() => onNavigateTo?.(() => router.push(`/class-assign?classId=${group.id}` as any))}>
-                <Feather name="users" size={13} color="#4338CA" />
+                <Users size={13} color="#4338CA" />
                 <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
               </Pressable>
               <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
                 onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name} } as any))}>
-                <Feather name="edit-3" size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
+                <Pencil size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
                 <Text style={[cds.actionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
               </Pressable>
             </View>
@@ -215,7 +216,7 @@ export default function ClassDetailSheet({
             <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
               {groupStudents.length === 0 ? (
                 <View style={cds.empty}>
-                  <Feather name="users" size={28} color={C.textMuted} />
+                  <Users size={28} color={C.textMuted} />
                   <Text style={cds.emptyText}>배정된 학생이 없습니다</Text>
                 </View>
               ) : groupStudents.map(st => {
@@ -264,7 +265,7 @@ export default function ClassDetailSheet({
                       onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: st.id} } as any))}
                       style={{ padding: 4 }}
                     >
-                      <Feather name="chevron-right" size={16} color={C.textMuted} />
+                      <ChevronRight size={16} color={C.textMuted} />
                     </Pressable>
                   </View>
                 );
@@ -306,7 +307,7 @@ export default function ClassDetailSheet({
                   <Text style={cds.sheetSub}>{moveStudent.name} · 이동할 반을 선택하세요</Text>
                 </View>
                 <Pressable onPress={() => { setMoveStudent(null); setMovingToClassId(null); }} style={cds.closeBtn}>
-                  <Feather name="x" size={20} color={C.textSecondary} />
+                  <X size={20} color={C.textSecondary} />
                 </Pressable>
               </View>
               {/* 미배정으로 이동 버튼 — 리스트 상단 고정 */}
@@ -314,14 +315,14 @@ export default function ClassDetailSheet({
                 style={cds.unassignBtn}
                 onPress={() => { setUnassignStudent(moveStudent); setShowUnassignTiming(true); }}
               >
-                <Feather name="user-x" size={14} color="#D97706" />
+                <UserX size={14} color="#D97706" />
                 <Text style={cds.unassignBtnTxt}>미배정으로 이동</Text>
               </Pressable>
 
               <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
                 {moveTargetClasses.length === 0 ? (
                   <View style={cds.empty}>
-                    <Feather name="alert-circle" size={24} color={C.textMuted} />
+                    <CircleAlert size={24} color={C.textMuted} />
                     <Text style={cds.emptyText}>이동 가능한 다른 반이 없습니다</Text>
                   </View>
                 ) : moveTargetClasses.map(g => {
@@ -332,7 +333,7 @@ export default function ClassDetailSheet({
                       style={[cds.moveClassRow, isSelected && { backgroundColor: themeColor + "15", borderColor: themeColor }]}
                       onPress={() => setMovingToClassId(g.id)}
                     >
-                      <Feather
+                      <LucideIcon
                         name={isSelected ? "check-circle" : "circle"}
                         size={16}
                         color={isSelected ? themeColor : C.textMuted}
@@ -341,7 +342,7 @@ export default function ClassDetailSheet({
                         <Text style={[cds.moveClassName, isSelected && { color: themeColor }]}>{g.name}</Text>
                         <Text style={cds.moveClassSub}>{g.schedule_days.split(",").join("·")} · {g.schedule_time}</Text>
                       </View>
-                      <Feather name="chevron-right" size={14} color={C.textMuted} />
+                      <ChevronRight size={14} color={C.textMuted} />
                     </Pressable>
                   );
                 })}
@@ -378,7 +379,7 @@ export default function ClassDetailSheet({
                   <Text style={cds.sheetSub}>{unassignStudent.name} · 미배정으로 이동</Text>
                 </View>
                 <Pressable onPress={() => setShowUnassignTiming(false)} style={cds.closeBtn}>
-                  <Feather name="x" size={20} color={C.textSecondary} />
+                  <X size={20} color={C.textSecondary} />
                 </Pressable>
               </View>
               {([
@@ -398,7 +399,7 @@ export default function ClassDetailSheet({
                   </View>
                   {unassigningStudent
                     ? <ActivityIndicator size="small" color="#D97706" />
-                    : <Feather name="chevron-right" size={16} color={C.textMuted} />
+                    : <ChevronRight size={16} color={C.textMuted} />
                   }
                 </Pressable>
               ))}

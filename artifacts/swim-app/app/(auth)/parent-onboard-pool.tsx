@@ -2,7 +2,7 @@
  * parent-onboard-pool.tsx — STEP 1: 수영장 검색
  * /pools/public-search API로 실제 DB 수영장 목록 표시
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Check, ChevronRight, Droplet, Info, Search, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -69,7 +69,7 @@ export default function ParentOnboardPoolScreen() {
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 20) }]}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <ArrowLeft size={22} color={C.text} />
         </Pressable>
         <StepBar current={1} />
       </View>
@@ -82,7 +82,7 @@ export default function ParentOnboardPoolScreen() {
 
         {/* 검색 입력 */}
         <View style={[styles.searchRow, { backgroundColor: C.card, borderColor: query ? C.tint : C.border }]}>
-          <Feather name="search" size={18} color={query ? C.tint : C.textMuted} />
+          <Search size={18} color={query ? C.tint : C.textMuted} />
           <TextInput
             style={[styles.searchInput, { color: C.text }]}
             value={query}
@@ -94,7 +94,7 @@ export default function ParentOnboardPoolScreen() {
           />
           {!!query && (
             <Pressable onPress={() => setQuery("")} hitSlop={8}>
-              <Feather name="x" size={16} color={C.textMuted} />
+              <X size={16} color={C.textMuted} />
             </Pressable>
           )}
         </View>
@@ -102,7 +102,7 @@ export default function ParentOnboardPoolScreen() {
         {/* 안내 배너 */}
         {!query.trim() && !loading && (
           <View style={[styles.hintBox, { backgroundColor: C.tintLight }]}>
-            <Feather name="info" size={13} color={C.tint} />
+            <Info size={13} color={C.tint} />
             <Text style={[styles.hintTxt, { color: C.tint }]}>
               이름·주소로 검색하거나 아래 목록에서 선택하세요
             </Text>
@@ -119,14 +119,14 @@ export default function ParentOnboardPoolScreen() {
           </View>
         ) : pools.length === 0 && query.trim() ? (
           <View style={styles.emptyState}>
-            <Feather name="search" size={36} color={C.textMuted} />
+            <Search size={36} color={C.textMuted} />
             <Text style={[styles.emptyText, { color: C.textSecondary }]}>
               검색 결과가 없습니다.{"\n"}다른 키워드로 검색해보세요.
             </Text>
           </View>
         ) : pools.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="droplet" size={36} color={C.textMuted} />
+            <Droplet size={36} color={C.textMuted} />
             <Text style={[styles.emptyText, { color: C.textSecondary }]}>
               등록된 수영장이 없습니다.
             </Text>
@@ -144,7 +144,7 @@ export default function ParentOnboardPoolScreen() {
                 onPress={() => selectPool(item.id, item.name)}
               >
                 <View style={[styles.poolIcon, { backgroundColor: C.tintLight }]}>
-                  <Feather name="droplet" size={18} color={C.tint} />
+                  <Droplet size={18} color={C.tint} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.poolName, { color: C.text }]}>{item.name}</Text>
@@ -157,7 +157,7 @@ export default function ParentOnboardPoolScreen() {
                     <Text style={[styles.poolPhone, { color: C.textMuted }]}>{item.phone}</Text>
                   )}
                 </View>
-                <Feather name="chevron-right" size={18} color={C.textMuted} />
+                <ChevronRight size={18} color={C.textMuted} />
               </Pressable>
             )}
           />
@@ -176,7 +176,7 @@ function StepBar({ current }: { current: number }) {
           {i > 0 && <View style={[sb.line, { backgroundColor: s <= current ? C.tint : C.border }]} />}
           <View style={[sb.dot, { backgroundColor: s < current ? "#2E9B6F" : s === current ? C.tint : C.border }]}>
             {s < current
-              ? <Feather name="check" size={12} color="#fff" />
+              ? <Check size={12} color="#fff" />
               : <Text style={[sb.dotTxt, { color: s === current ? "#fff" : C.textMuted }]}>{s}</Text>
             }
           </View>

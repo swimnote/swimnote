@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -32,7 +32,7 @@ export default function AuditModal({
         <View style={[a.sheet, { backgroundColor: C.card }]}>
           <View style={a.sheetHeader}>
             <Text style={[a.sheetTitle, { color: C.text }]}>변경 기록</Text>
-            <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
+            <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
           </View>
           {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} /> : (
             <ScrollView contentContainerStyle={{ gap: 10, padding: 16, paddingBottom: 40 }}>

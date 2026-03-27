@@ -1,4 +1,5 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useMemo, useState, useEffect } from "react";
 import {
@@ -112,7 +113,7 @@ export default function OrgRoleSelectScreen() {
           </View>
         </View>
         <Pressable onPress={handleLogout} style={styles.logoutBtn} hitSlop={8}>
-          <Feather name="log-out" size={18} color={C.textMuted} />
+          <LogOut size={18} color={C.textMuted} />
         </Pressable>
       </View>
 
@@ -122,7 +123,7 @@ export default function OrgRoleSelectScreen() {
         ) : availableRoles.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={[styles.emptyIconBox, { backgroundColor: "#FFF1BF" }]}>
-              <Feather name="alert-circle" size={32} color="#D97706" />
+              <CircleAlert size={32} color="#D97706" />
             </View>
             <Text style={[styles.emptyTitle, { color: C.text }]}>이용 가능한 권한이 없습니다</Text>
             <Text style={[styles.emptyText, { color: C.textSecondary }]}>
@@ -148,7 +149,7 @@ export default function OrgRoleSelectScreen() {
                   onPress={() => handleSelectRole(item)}
                 >
                   <View style={styles.roleIconBox}>
-                    <Feather name={icon as any} size={36} color="#0F172A" />
+                    <LucideIcon name={icon as any} size={36} color="#0F172A" />
                   </View>
                   <Text style={[styles.roleTitle, { color: C.text }]}>{label}</Text>
                 </Pressable>

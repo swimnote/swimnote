@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowRight, Check } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -54,11 +54,11 @@ export default function ParentOnboardNicknameScreen() {
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 20) }]}>
         <View style={styles.stepRow}>
           <View style={[styles.step, { backgroundColor: "#2E9B6F" }]}>
-            <Feather name="check" size={14} color="#fff" />
+            <Check size={14} color="#fff" />
           </View>
           <View style={[styles.stepLine, { backgroundColor: "#2E9B6F" }]} />
           <View style={[styles.step, { backgroundColor: "#2E9B6F" }]}>
-            <Feather name="check" size={14} color="#fff" />
+            <Check size={14} color="#fff" />
           </View>
           <View style={[styles.stepLine, { backgroundColor: C.tint }]} />
           <View style={[styles.step, { backgroundColor: C.tint }]}>
@@ -153,7 +153,7 @@ export default function ParentOnboardNicknameScreen() {
               : (
                 <>
                   <Text style={styles.confirmBtnText}>완료 — 홈으로</Text>
-                  <Feather name="arrow-right" size={16} color="#fff" />
+                  <ArrowRight size={16} color="#fff" />
                 </>
               )
             }

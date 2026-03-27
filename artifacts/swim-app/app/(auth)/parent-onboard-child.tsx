@@ -4,7 +4,7 @@
  * - 학생 명부 이름 일치 → 자동 승인 → 로그인 화면
  * - 이름 불일치 → pending → 대기 화면
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Calendar, Check, CircleAlert, CirclePlus, CircleX, Send, User, Zap } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState } from "react";
@@ -136,7 +136,7 @@ export default function ParentOnboardChildScreen() {
     >
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 20) }]}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <ArrowLeft size={22} color={C.text} />
         </Pressable>
         <StepBar current={2} />
       </View>
@@ -154,7 +154,7 @@ export default function ParentOnboardChildScreen() {
 
         {!!error && (
           <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
-            <Feather name="alert-circle" size={13} color={C.error} />
+            <CircleAlert size={13} color={C.error} />
             <Text style={[styles.errorTxt, { color: C.error }]}>{error}</Text>
           </View>
         )}
@@ -193,14 +193,14 @@ export default function ParentOnboardChildScreen() {
                 </View>
                 {idx > 0 && (
                   <Pressable onPress={() => removeChild(idx)} hitSlop={8}>
-                    <Feather name="x-circle" size={18} color={C.textMuted} />
+                    <CircleX size={18} color={C.textMuted} />
                   </Pressable>
                 )}
               </View>
 
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>이름 *</Text>
               <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                <Feather name="user" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                <User size={15} color={C.textMuted} style={{ marginRight: 8 }} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={child.name}
@@ -212,7 +212,7 @@ export default function ParentOnboardChildScreen() {
 
               <Text style={[styles.fieldLabel, { color: C.textSecondary, marginTop: 10 }]}>생년월일 *</Text>
               <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                <Feather name="calendar" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                <Calendar size={15} color={C.textMuted} style={{ marginRight: 8 }} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={child.birthDate}
@@ -228,14 +228,14 @@ export default function ParentOnboardChildScreen() {
 
           {children.length < 3 && (
             <Pressable style={[styles.addChildBtn, { borderColor: C.border }]} onPress={addChild}>
-              <Feather name="plus-circle" size={16} color={C.tint} />
+              <CirclePlus size={16} color={C.tint} />
               <Text style={[styles.addChildTxt, { color: C.tint }]}>자녀 추가</Text>
             </Pressable>
           )}
         </View>
 
         <View style={[styles.autoHint, { backgroundColor: "#DFF3EC", borderColor: "#A7F3D0" }]}>
-          <Feather name="zap" size={14} color="#2EC4B6" />
+          <Zap size={14} color="#2EC4B6" />
           <Text style={[styles.autoHintTxt, { color: "#2EC4B6" }]}>
             입력한 이름이 학생 명부와 일치하면 즉시 자동 승인됩니다
           </Text>
@@ -249,7 +249,7 @@ export default function ParentOnboardChildScreen() {
           onPress={handleSubmit}
           disabled={submitting}
         >
-          <Feather name="send" size={16} color="#fff" />
+          <Send size={16} color="#fff" />
           <Text style={styles.submitTxt}>{submitting ? "처리 중..." : "가입 요청 보내기"}</Text>
         </Pressable>
       </ScrollView>
@@ -266,7 +266,7 @@ function StepBar({ current }: { current: number }) {
           {i > 0 && <View style={[sb.line, { backgroundColor: s <= current ? C.tint : C.border }]} />}
           <View style={[sb.dot, { backgroundColor: s < current ? "#2E9B6F" : s === current ? C.tint : C.border }]}>
             {s < current
-              ? <Feather name="check" size={12} color="#fff" />
+              ? <Check size={12} color="#fff" />
               : <Text style={[sb.dotTxt, { color: s === current ? "#fff" : C.textMuted }]}>{s}</Text>
             }
           </View>

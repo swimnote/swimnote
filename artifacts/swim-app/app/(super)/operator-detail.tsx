@@ -3,7 +3,8 @@
  * 기본정보 / 구독·결제 / 저장공간 / 정책·동의 / 로그 / 강제조치
  * Zustand 완전 제거 → GET /super/operators/:id 실 API 연동
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, CircleCheck, FileText, HardDrive, Lock, TriangleAlert } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -205,7 +206,7 @@ export default function OperatorDetailScreen() {
 
       {!!feedback && (
         <View style={d.feedbackBanner}>
-          <Feather name="check-circle" size={14} color="#2EC4B6" />
+          <CircleCheck size={14} color="#2EC4B6" />
           <Text style={d.feedbackTxt}>{feedback}</Text>
         </View>
       )}
@@ -267,7 +268,7 @@ export default function OperatorDetailScreen() {
             <InfoRow label="운영 유형"    value={pool.pool_type ?? "swimming_pool"} />
             {isPaymentIssue && (
               <View style={d.alertBox}>
-                <Feather name="alert-triangle" size={14} color="#D96C6C" />
+                <TriangleAlert size={14} color="#D96C6C" />
                 <Text style={d.alertTxt}>결제 이슈가 있는 운영자입니다. 강제조치 탭에서 처리할 수 있습니다.</Text>
               </View>
             )}
@@ -295,16 +296,16 @@ export default function OperatorDetailScreen() {
               </View>
               {storageAlert && (
                 <View style={d.alertBox}>
-                  <Feather name="alert-triangle" size={14} color="#D96C6C" />
+                  <TriangleAlert size={14} color="#D96C6C" />
                   <Text style={d.alertTxt}>저장공간이 95% 이상 사용되었습니다.</Text>
                 </View>
               )}
             </View>
             <Pressable style={[d.actionCard, { marginTop: 12 }]}
               onPress={() => router.push(`/(super)/storage?operatorId=${id}` as any)}>
-              <Feather name="hard-drive" size={18} color={P} />
+              <HardDrive size={18} color={P} />
               <Text style={d.actionCardTxt}>추가 용량 부여</Text>
-              <Feather name="chevron-right" size={16} color="#64748B" style={{ marginLeft: "auto" }} />
+              <ChevronRight size={16} color="#64748B" style={{ marginLeft: "auto" }} />
             </Pressable>
           </>
         )}
@@ -319,9 +320,9 @@ export default function OperatorDetailScreen() {
               <InfoRow label="마지막 확인" value={fmtDate(policy.refund_policy)} />
             )}
             <Pressable style={[d.actionCard, { marginTop: 12 }]} onPress={() => router.push("/(super)/policy" as any)}>
-              <Feather name="file-text" size={18} color={P} />
+              <FileText size={18} color={P} />
               <Text style={d.actionCardTxt}>정책 편집 (슈퍼관리자)</Text>
-              <Feather name="chevron-right" size={16} color="#64748B" style={{ marginLeft: "auto" }} />
+              <ChevronRight size={16} color="#64748B" style={{ marginLeft: "auto" }} />
             </Pressable>
           </View>
         )}
@@ -358,22 +359,22 @@ export default function OperatorDetailScreen() {
             ].map(item => (
               <Pressable key={item.act} style={d.forceCard} onPress={() => setAction(item.act)}>
                 <View style={[d.forceIcon, { backgroundColor: item.bg }]}>
-                  <Feather name={item.icon} size={22} color={item.color} />
+                  <LucideIcon name={item.icon} size={22} color={item.color} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={d.forceTxt}>{item.label}</Text>
                   <Text style={d.forceSub}>{item.sub}</Text>
                 </View>
-                <Feather name="chevron-right" size={16} color="#D1D5DB" />
+                <ChevronRight size={16} color="#D1D5DB" />
               </Pressable>
             ))}
 
             <View style={[d.card, { marginTop: 8 }]}>
               <Text style={d.cardTitle}>빠른 링크</Text>
               <Pressable style={d.quickLink} onPress={() => router.push("/(super)/kill-switch" as any)}>
-                <Feather name="alert-triangle" size={15} color="#D96C6C" />
+                <TriangleAlert size={15} color="#D96C6C" />
                 <Text style={[d.quickLinkTxt, { color: "#D96C6C" }]}>킬스위치 (데이터 삭제)</Text>
-                <Feather name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+                <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />
               </Pressable>
             </View>
           </>
@@ -410,7 +411,7 @@ export default function OperatorDetailScreen() {
                   {processing ? <ActivityIndicator color="#fff" size="small" />
                     : SENSITIVE_ACTIONS.includes(action!) ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Feather name="lock" size={13} color="#fff" />
+                        <Lock size={13} color="#fff" />
                         <Text style={m.confirmTxt}>OTP 인증 후 실행</Text>
                       </View>
                     ) : <Text style={m.confirmTxt}>확인</Text>}

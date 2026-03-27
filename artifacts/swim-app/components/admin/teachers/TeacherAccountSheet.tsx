@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleCheck, Eye, PenLine, Plus, User, Users, X } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
@@ -98,21 +98,21 @@ export function TeacherAccountSheet({
               <Text style={[ts.sheetTitle, { color: C.text }]}>선생님 계정 관리</Text>
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable style={[ts.addBtn, { backgroundColor: C.tint }]} onPress={() => { resetForm(); setShowAdd(true); }}>
-                  <Feather name="plus" size={16} color="#fff" />
+                  <Plus size={16} color="#fff" />
                   <Text style={ts.addBtnText}>계정 추가</Text>
                 </Pressable>
                 <Pressable onPress={onClose}>
-                  <Feather name="x" size={22} color={C.textSecondary} />
+                  <X size={22} color={C.textSecondary} />
                 </Pressable>
               </View>
             </View>
             <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, gap: 10 }} showsVerticalScrollIndicator={false}>
               {teachers.length === 0 ? (
-                <View style={ts.emptyBox}><Feather name="users" size={36} color={C.textMuted} /><Text style={[ts.emptyText, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text></View>
+                <View style={ts.emptyBox}><Users size={36} color={C.textMuted} /><Text style={[ts.emptyText, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text></View>
               ) : teachers.map(t => (
                 <View key={t.id} style={[ts.teacherCard, { backgroundColor: C.background }]}>
                   <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }} onPress={() => openTeacherEdit(t)}>
-                    <View style={[ts.avatar, { backgroundColor: C.tintLight }]}><Feather name="user" size={18} color={C.tint} /></View>
+                    <View style={[ts.avatar, { backgroundColor: C.tintLight }]}><User size={18} color={C.tint} /></View>
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Text style={[ts.teacherName, { color: C.text }]}>{t.name}</Text>
@@ -128,13 +128,13 @@ export function TeacherAccountSheet({
                     <View style={[ts.statusBadge, { backgroundColor: t.is_activated ? "#E6FFFA" : "#FFF1BF" }]}>
                       <Text style={[ts.statusText, { color: t.is_activated ? "#2EC4B6" : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
                     </View>
-                    <Feather name="edit-2" size={14} color={C.textMuted} />
+                    <PenLine size={14} color={C.textMuted} />
                   </Pressable>
                   {!t.is_activated && (
                     <Pressable style={[ts.codeBtn, { borderTopColor: C.border }]} onPress={() => handleViewCode(t.id)} disabled={loadingCode === t.id}>
                       {loadingCode === t.id ? <ActivityIndicator size={14} color={C.tint} />
                         : codeVisible[t.id] ? <Text style={[ts.codeBtnText, { color: C.tint }]}>인증코드: {codeVisible[t.id]}</Text>
-                        : <><Feather name="eye" size={13} color={C.tint} /><Text style={[ts.codeBtnText, { color: C.tint }]}>인증코드 보기</Text></>}
+                        : <><Eye size={13} color={C.tint} /><Text style={[ts.codeBtnText, { color: C.tint }]}>인증코드 보기</Text></>}
                     </Pressable>
                   )}
                 </View>
@@ -152,7 +152,7 @@ export function TeacherAccountSheet({
               <View style={ts.sheetHandle} />
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <Text style={[ts.sheetTitle, { color: C.text }]}>선생님 계정 추가</Text>
-                <Pressable onPress={() => { setShowAdd(false); resetForm(); }}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={() => { setShowAdd(false); resetForm(); }}><X size={22} color={C.textSecondary} /></Pressable>
               </View>
               {addError ? <View style={[ts.errBox, { backgroundColor: "#F9DEDA" }]}><Text style={[ts.errText, { color: "#D96C6C" }]}>{addError}</Text></View> : null}
               <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>이름 *</Text>
@@ -184,7 +184,7 @@ export function TeacherAccountSheet({
       <Modal visible={!!newTeacher} animationType="fade" transparent presentationStyle="overFullScreen">
         <View style={[ts.overlay, { justifyContent: "center" }]}>
           <View style={[ts.successCard, { backgroundColor: C.card }]}>
-            <View style={[ts.successIcon, { backgroundColor: "#E6FFFA" }]}><Feather name="check-circle" size={36} color="#2EC4B6" /></View>
+            <View style={[ts.successIcon, { backgroundColor: "#E6FFFA" }]}><CircleCheck size={36} color="#2EC4B6" /></View>
             <Text style={[ts.sheetTitle, { color: C.text, textAlign: "center" }]}>계정 생성 완료</Text>
             <Text style={[ts.label, { color: C.textSecondary, textAlign: "center" }]}>
               {newTeacher?.teacher.name} 선생님 계정이 생성되었습니다.{"\n"}아래 인증코드를 전달해 주세요.
@@ -206,7 +206,7 @@ export function TeacherAccountSheet({
             <View style={ts.sheetHandle} />
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={[ts.sheetTitle, { color: C.text }]}>선생님 정보 수정</Text>
-              <Pressable onPress={() => setSelectedDetail(null)}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
+              <Pressable onPress={() => setSelectedDetail(null)}><X size={22} color={C.textSecondary} /></Pressable>
             </View>
             <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>이름</Text>
               <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={editName} onChangeText={setEditName} placeholderTextColor={C.textMuted} /></View>

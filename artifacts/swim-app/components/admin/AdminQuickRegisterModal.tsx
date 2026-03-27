@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, CircleCheck, Info, X } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
@@ -80,7 +80,7 @@ export function AdminQuickRegisterModal({
           {done ? (
             <View style={qr.doneWrap}>
               <View style={[qr.doneIcon, { backgroundColor: "#2EC4B6" + "18" }]}>
-                <Feather name="check-circle" size={36} color="#2EC4B6" />
+                <CircleCheck size={36} color="#2EC4B6" />
               </View>
               <Text style={qr.doneTitle}>등록 완료</Text>
               <Text style={qr.doneSub}>{doneName} 학생이{"\n"}정식 회원으로 등록됐습니다.</Text>
@@ -93,11 +93,11 @@ export function AdminQuickRegisterModal({
             <>
               <View style={qr.header}>
                 <Text style={qr.title}>어린이 직접 등록</Text>
-                <Pressable onPress={handleClose}><Feather name="x" size={22} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={handleClose}><X size={22} color={C.textSecondary} /></Pressable>
               </View>
               {error ? (
                 <View style={qr.errorRow}>
-                  <Feather name="alert-circle" size={14} color={C.error} />
+                  <CircleAlert size={14} color={C.error} />
                   <Text style={qr.errorTxt}>{error}</Text>
                 </View>
               ) : null}
@@ -136,7 +136,7 @@ export function AdminQuickRegisterModal({
                 </View>
               </ScrollView>
               <View style={qr.notice}>
-                <Feather name="info" size={13} color={C.textMuted} />
+                <Info size={13} color={C.textMuted} />
                 <Text style={qr.noticeTxt}>등록 후 초대코드가 생성됩니다. 보호자에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
               </View>
               <Pressable style={[qr.saveBtn, { backgroundColor: "#2EC4B6", opacity: saving ? 0.7 : 1 }]} onPress={submit} disabled={saving}>

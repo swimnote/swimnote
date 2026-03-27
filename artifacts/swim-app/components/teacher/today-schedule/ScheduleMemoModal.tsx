@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Info } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -62,7 +62,7 @@ export default function ScheduleMemoModal({
             <View style={[sm.header, { borderBottomColor: C.border, paddingTop: 20 }]}>
               <Pressable style={sm.backBtn} onPress={onClose}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                <Feather name="arrow-left" size={24} color={C.text} />
+                <ArrowLeft size={24} color={C.text} />
               </Pressable>
               <Text style={[sm.headerTitle, { color: C.text }]}>스케줄 메모</Text>
               <View style={{ width: 48 }} />
@@ -77,7 +77,7 @@ export default function ScheduleMemoModal({
                 onChangeMonth={handleChangeMonth}
               />
               <View style={[sm.tipBox, { backgroundColor: C.tintLight }]}>
-                <Feather name="info" size={13} color={themeColor} />
+                <Info size={13} color={themeColor} />
                 <Text style={[sm.tipText, { color: themeColor }]}>
                   날짜를 탭하면 메모를 작성하거나 편집할 수 있습니다.
                 </Text>

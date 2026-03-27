@@ -2,7 +2,8 @@
  * 인원관리 허브 화면
  * 회원관리 / 학부모관리 / 선생님관리 / 승인·미배정 로 진입하는 허브
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -268,9 +269,9 @@ function HubCard({
       {/* 아이콘 + 타이틀 */}
       <View style={s.cardHeader}>
         <View style={[s.iconBox, { backgroundColor: bg }]}>
-          <Feather name={icon} size={22} color={color} />
+          <LucideIcon name={icon} size={22} color={color} />
         </View>
-        <Feather name="chevron-right" size={16} color={C.textMuted} />
+        <ChevronRight size={16} color={C.textMuted} />
       </View>
 
       <Text style={s.cardTitle}>{title}</Text>
@@ -310,7 +311,7 @@ function QuickBtn({
       onPress={onPress}
     >
       <View style={[s.quickIcon, { backgroundColor: color + "15" }]}>
-        <Feather name={icon} size={18} color={color} />
+        <LucideIcon name={icon} size={18} color={color} />
         {badge !== undefined && badge > 0 && (
           <View style={s.quickBadge}><Text style={s.quickBadgeTxt}>{badge}</Text></View>
         )}

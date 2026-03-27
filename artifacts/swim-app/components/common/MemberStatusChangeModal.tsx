@@ -5,7 +5,7 @@
  * 선생님 모드: 정상/미배정/연기/퇴원 (아카이브·영구삭제 제외)
  * 연기/퇴원 선택 시 → 즉시 이동 / 다음 달 이동 2단계 선택
  */
-import { Feather } from "@expo/vector-icons";
+import { Calendar, CircleAlert, Clock, Zap } from "lucide-react-native";
 import React, { useState } from "react";
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -134,7 +134,7 @@ export function MemberStatusChangeModal({
 
             {error && (
               <View style={m.errorBox}>
-                <Feather name="alert-circle" size={14} color="#D96C6C" />
+                <CircleAlert size={14} color="#D96C6C" />
                 <Text style={m.errorText}>{error}</Text>
               </View>
             )}
@@ -151,8 +151,8 @@ export function MemberStatusChangeModal({
                     <Text style={m.optSub}>{opt.sub}</Text>
                   </View>
                   {opt.hasTiming
-                    ? <Feather name="clock" size={14} color={opt.color} />
-                    : <Feather name="zap" size={14} color={opt.color} />
+                    ? <Clock size={14} color={opt.color} />
+                    : <Zap size={14} color={opt.color} />
                   }
                 </Pressable>
               ))}
@@ -169,7 +169,7 @@ export function MemberStatusChangeModal({
 
             {error && (
               <View style={m.errorBox}>
-                <Feather name="alert-circle" size={14} color="#D96C6C" />
+                <CircleAlert size={14} color="#D96C6C" />
                 <Text style={m.errorText}>{error}</Text>
               </View>
             )}
@@ -180,7 +180,7 @@ export function MemberStatusChangeModal({
                 onPress={() => doChange(pickedStatus!, "immediate")}
                 style={[m.option, { backgroundColor: "#FEF2F2", borderColor: "#991B1B40" }]}>
                 <View style={[m.optIcon, { backgroundColor: "#F9DEDA" }]}>
-                  <Feather name="zap" size={20} color="#991B1B" />
+                  <Zap size={20} color="#991B1B" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[m.optLabel, { color: "#991B1B" }]}>즉시 이동</Text>
@@ -193,7 +193,7 @@ export function MemberStatusChangeModal({
                 onPress={() => doChange(pickedStatus!, "next_month")}
                 style={[m.option, { backgroundColor: "#DFF3EC", borderColor: "#16A34A40" }]}>
                 <View style={[m.optIcon, { backgroundColor: "#DCFCE7" }]}>
-                  <Feather name="calendar" size={20} color="#16A34A" />
+                  <Calendar size={20} color="#16A34A" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[m.optLabel, { color: "#16A34A" }]}>다음 달부터 이동</Text>

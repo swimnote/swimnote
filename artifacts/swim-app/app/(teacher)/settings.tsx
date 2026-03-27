@@ -9,7 +9,8 @@
  *  5. 사진·영상 앨범 바로가기
  *  6. 기타
  */
-import { Feather } from "@expo/vector-icons";
+import { Bell, Camera, ChevronRight, FileText, HardDrive, Pencil } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -118,9 +119,9 @@ export default function TeacherSettingsScreen() {
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/notices" as any)}
         >
-          <Feather name="bell" size={18} color="#0F172A" />
+          <Bell size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>공지함</Text>
-          <Feather name="chevron-right" size={16} color="#0F172A" />
+          <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 
         {/* ── 피드백 기본 설정 ── */}
@@ -128,9 +129,9 @@ export default function TeacherSettingsScreen() {
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/feedback-custom" as any)}
         >
-          <Feather name="edit-3" size={18} color="#0F172A" />
+          <Pencil size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>피드백 기본 설정</Text>
-          <Feather name="chevron-right" size={16} color="#0F172A" />
+          <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 
         {/* ── 사진·영상 앨범 ── */}
@@ -138,15 +139,15 @@ export default function TeacherSettingsScreen() {
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
           onPress={() => router.push("/(teacher)/photos" as any)}
         >
-          <Feather name="camera" size={18} color="#0F172A" />
+          <Camera size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>사진·영상 앨범</Text>
-          <Feather name="chevron-right" size={16} color="#0F172A" />
+          <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 
         {/* ── 알림 설정 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Feather name="bell" size={15} color={themeColor} />
+            <Bell size={15} color={themeColor} />
             <Text style={s.cardTitle}>알림 설정</Text>
           </View>
           <View style={s.switchSection}>
@@ -192,7 +193,7 @@ export default function TeacherSettingsScreen() {
         {/* ── 저장공간 (데이터 정보) ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Feather name="hard-drive" size={15} color={themeColor} />
+            <HardDrive size={15} color={themeColor} />
             <Text style={s.cardTitle}>저장공간</Text>
           </View>
           <View style={{ padding: 16, gap: 14 }}>
@@ -226,7 +227,7 @@ export default function TeacherSettingsScreen() {
             ]).map(item => (
               <View key={item.label} style={s.usageRow}>
                 <View style={[s.usageIcon, { backgroundColor: item.bg }]}>
-                  <Feather name={item.icon} size={16} color={item.color} />
+                  <LucideIcon name={item.icon} size={16} color={item.color} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.usageLabel}>{item.label}</Text>
@@ -241,7 +242,7 @@ export default function TeacherSettingsScreen() {
         {/* ── 약관 및 정책 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Feather name="file-text" size={15} color={themeColor} />
+            <FileText size={15} color={themeColor} />
             <Text style={s.cardTitle}>약관 및 정책</Text>
           </View>
           {[
@@ -258,7 +259,7 @@ export default function TeacherSettingsScreen() {
               onPress={() => router.push(item.path as any)}
             >
               <Text style={s.policyLabel}>{item.label}</Text>
-              <Feather name="chevron-right" size={16} color={C.textMuted} />
+              <ChevronRight size={16} color={C.textMuted} />
             </Pressable>
           ))}
         </View>

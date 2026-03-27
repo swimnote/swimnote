@@ -1,7 +1,8 @@
 /**
  * pending.tsx — 승인 대기 화면 (pool_admin: 수영장 등록 대기 / parent: 가입 승인 대기)
  */
-import { Feather } from "@expo/vector-icons";
+import { Info, RefreshCw } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Alert, Platform, Pressable, StyleSheet, Text, View, ActivityIndicator } from "react-native";
@@ -89,7 +90,7 @@ export default function PendingScreen() {
     >
       <View style={styles.content}>
         <View style={[styles.iconBox, { backgroundColor: isRejected ? "#F9DEDA" : "#FFF1BF" }]}>
-          <Feather name={isRejected ? "x-circle" : "clock"} size={40} color={isRejected ? "#D96C6C" : "#E4A93A"} />
+          <LucideIcon name={isRejected ? "x-circle" : "clock"} size={40} color={isRejected ? "#D96C6C" : "#E4A93A"} />
         </View>
 
         {isParent ? (
@@ -133,7 +134,7 @@ export default function PendingScreen() {
         )}
 
         <View style={[styles.waitBanner, { backgroundColor: isRejected ? "#FEF2F2" : C.tintLight }]}>
-          <Feather name="info" size={14} color={isRejected ? "#D96C6C" : C.tint} />
+          <Info size={14} color={isRejected ? "#D96C6C" : C.tint} />
           <Text style={[styles.waitTxt, { color: isRejected ? "#D96C6C" : C.tint }]}>
             {isRejected
               ? (isParent ? "문의: 수영장에 직접 연락해 주세요" : "문의: 플랫폼 운영팀에 연락해 주세요")
@@ -151,7 +152,7 @@ export default function PendingScreen() {
         >
           {checking
             ? <ActivityIndicator size="small" color={C.tint} />
-            : <Feather name="refresh-cw" size={16} color={C.tint} />
+            : <RefreshCw size={16} color={C.tint} />
           }
           <Text style={[styles.refreshText, { color: C.tint }]}>승인 상태 확인</Text>
         </Pressable>
@@ -167,7 +168,7 @@ export default function PendingScreen() {
 function InfoRow({ icon, color, text }: { icon: any; color: string; text: string }) {
   return (
     <View style={styles.infoRow}>
-      <Feather name={icon} size={14} color={color} />
+      <LucideIcon name={icon} size={14} color={color} />
       <Text style={[styles.infoText, { color: Colors.light.textSecondary }]}>{text}</Text>
     </View>
   );

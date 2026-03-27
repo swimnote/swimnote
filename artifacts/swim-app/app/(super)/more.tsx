@@ -5,7 +5,8 @@
  * 5) 고객센터  6) 정책·컴플라이언스  7) 보안·통제
  * 8) 시스템 상태  9) 광고 관리
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, Shield } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -46,7 +47,7 @@ function MenuItem({ icon, label, sub, onPress, color, badge }: MenuEntry) {
       onPress={onPress}
     >
       <View style={[s.menuIcon, { backgroundColor: cfg.bg }]}>
-        <Feather name={icon as any} size={20} color={cfg.icon} />
+        <LucideIcon name={icon as any} size={20} color={cfg.icon} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[s.menuLabel, { color: C.text }]}>{label}</Text>
@@ -57,7 +58,7 @@ function MenuItem({ icon, label, sub, onPress, color, badge }: MenuEntry) {
           <Text style={[s.badgeTxt, { color: cfg.icon }]}>{badge}</Text>
         </View>
       ) : null}
-      <Feather name="chevron-right" size={18} color={C.textMuted} />
+      <ChevronRight size={18} color={C.textMuted} />
     </Pressable>
   );
 }
@@ -222,7 +223,7 @@ export default function SuperMoreScreen() {
               <Text style={s.profileRole}>슈퍼관리자</Text>
             </View>
             <Pressable style={s.securityBtn} onPress={() => router.push("/(super)/security-settings" as any)}>
-              <Feather name="shield" size={16} color="#fff" />
+              <Shield size={16} color="#fff" />
               <Text style={s.securityBtnTxt}>보안</Text>
             </Pressable>
           </View>
@@ -238,7 +239,7 @@ export default function SuperMoreScreen() {
             onPress={() => router.push("/totp-setup" as any)}
           >
             <View style={[s.otpBannerIcon, { backgroundColor: totpEnabled ? "#DCFCE7" : "#FEF3C7" }]}>
-              <Feather name={totpEnabled ? "shield" : "smartphone"} size={20} color={totpEnabled ? "#16A34A" : "#D97706"} />
+              <LucideIcon name={totpEnabled ? "shield" : "smartphone"} size={20} color={totpEnabled ? "#16A34A" : "#D97706"} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.otpBannerTitle, { color: totpEnabled ? "#15803D" : "#92400E" }]}>
@@ -248,7 +249,7 @@ export default function SuperMoreScreen() {
                 {totpEnabled ? "2단계 인증이 설정되어 있습니다" : "탭하여 2단계 인증을 등록하세요"}
               </Text>
             </View>
-            <Feather name="chevron-right" size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
+            <ChevronRight size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
           </Pressable>
         )}
 

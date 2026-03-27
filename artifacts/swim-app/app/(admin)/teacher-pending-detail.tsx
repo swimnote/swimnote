@@ -6,7 +6,8 @@
  * - rejected: 거절 사유 보기 / 다시 승인
  * - approved: teacher-hub로 자동 리다이렉트
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, CircleCheck, CircleX, FileText, RefreshCw } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -161,7 +162,7 @@ export default function TeacherPendingDetailScreen() {
       <View style={[s.root, { paddingTop: insets.top }]}>
         <SubScreenHeader title="선생님 승인 처리" onBack={() => router.back()} />
         <View style={s.errorState}>
-          <Feather name="alert-circle" size={48} color={C.textMuted} />
+          <CircleAlert size={48} color={C.textMuted} />
           <Text style={s.errorTitle}>존재하지 않는 선생님입니다</Text>
           <Text style={s.errorDesc}>이미 처리됐거나 존재하지 않는 요청입니다.</Text>
           <Pressable
@@ -191,7 +192,7 @@ export default function TeacherPendingDetailScreen() {
 
         {/* ── 상태 배너 ── */}
         <View style={[s.statusBanner, { backgroundColor: statusInfo.bg }]}>
-          <Feather name={statusInfo.icon as any} size={20} color={statusInfo.color} />
+          <LucideIcon name={statusInfo.icon as any} size={20} color={statusInfo.color} />
           <Text style={[s.statusBannerTxt, { color: statusInfo.color }]}>{statusInfo.label}</Text>
           {isPending && (
             <Text style={[s.statusBannerSub, { color: statusInfo.color }]}>
@@ -231,7 +232,7 @@ export default function TeacherPendingDetailScreen() {
         {/* ── 승인 오류 메시지 ── */}
         {!!approveError && (
           <View style={[s.warnBox, { backgroundColor: "#F9DEDA" }]}>
-            <Feather name="alert-circle" size={14} color="#D96C6C" />
+            <CircleAlert size={14} color="#D96C6C" />
             <Text style={[s.warnTxt, { color: "#991B1B" }]}>{approveError}</Text>
           </View>
         )}
@@ -249,7 +250,7 @@ export default function TeacherPendingDetailScreen() {
               }}
               disabled={approving}
             >
-              <Feather name="x-circle" size={16} color="#D96C6C" />
+              <CircleX size={16} color="#D96C6C" />
               <Text style={s.rejectBtnTxt}>거절</Text>
             </Pressable>
             <Pressable
@@ -261,7 +262,7 @@ export default function TeacherPendingDetailScreen() {
                 ? <ActivityIndicator color="#fff" size="small" />
                 : (
                   <>
-                    <Feather name="check-circle" size={16} color="#fff" />
+                    <CircleCheck size={16} color="#fff" />
                     <Text style={s.approveBtnTxt}>선생님으로 승인</Text>
                   </>
                 )
@@ -278,7 +279,7 @@ export default function TeacherPendingDetailScreen() {
               onPress={() => setShowRejectReasonModal(true)}
               disabled={approving}
             >
-              <Feather name="file-text" size={16} color="#64748B" />
+              <FileText size={16} color="#64748B" />
               <Text style={s.rejectReasonBtnTxt}>거절 사유 보기</Text>
             </Pressable>
             <Pressable
@@ -290,7 +291,7 @@ export default function TeacherPendingDetailScreen() {
                 ? <ActivityIndicator color="#fff" size="small" />
                 : (
                   <>
-                    <Feather name="refresh-cw" size={16} color="#fff" />
+                    <RefreshCw size={16} color="#fff" />
                     <Text style={s.approveBtnTxt}>선생님으로 재승인</Text>
                   </>
                 )
@@ -376,7 +377,7 @@ export default function TeacherPendingDetailScreen() {
 
               {!!rejectError && (
                 <View style={s.errorRow}>
-                  <Feather name="alert-circle" size={13} color="#D96C6C" />
+                  <CircleAlert size={13} color="#D96C6C" />
                   <Text style={s.errorTxt}>{rejectError}</Text>
                 </View>
               )}
@@ -410,7 +411,7 @@ export default function TeacherPendingDetailScreen() {
         <Pressable style={s.modalOverlay} onPress={() => setShowRejectReasonModal(false)}>
           <Pressable style={[s.reasonSheet, { paddingBottom: insets.bottom + 24 }]} onPress={e => e.stopPropagation()}>
             <View style={[s.reasonIconWrap, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="x-circle" size={28} color="#D96C6C" />
+              <CircleX size={28} color="#D96C6C" />
             </View>
             <Text style={s.reasonTitle}>거절 사유</Text>
             {rejectedDate && (
@@ -439,7 +440,7 @@ export default function TeacherPendingDetailScreen() {
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <View style={s.infoRow}>
-      <Feather name={icon as any} size={13} color={C.textMuted} style={{ marginTop: 1 }} />
+      <LucideIcon name={icon as any} size={13} color={C.textMuted} style={{ marginTop: 1 }} />
       <Text style={s.infoLabel}>{label}</Text>
       <Text style={s.infoValue}>{value}</Text>
     </View>
@@ -450,7 +451,7 @@ function StatBox({ label, value, icon, color }: { label: string; value: number; 
   return (
     <View style={[s.statBox, { backgroundColor: C.card }]}>
       <View style={[s.statIconBox, { backgroundColor: color + "18" }]}>
-        <Feather name={icon as any} size={18} color={color} />
+        <LucideIcon name={icon as any} size={18} color={color} />
       </View>
       <Text style={[s.statValue, { color }]}>{value}</Text>
       <Text style={s.statLabel}>{label}</Text>

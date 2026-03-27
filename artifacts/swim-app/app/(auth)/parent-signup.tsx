@@ -3,7 +3,8 @@
  * 공통 폼: 아이디 / 비밀번호 / 성별 / 휴대폰
  * 휴대폰 SMS 인증 필수 → 인증 완료 후 수영장 검색 단계로 이동
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, Heart, Key, Phone } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
 import {
@@ -145,12 +146,12 @@ export default function ParentSignupScreen() {
           onPress={() => router.back()}
           style={[styles.backBtn, { top: insets.top + (Platform.OS === "web" ? 67 : 16) }]}
         >
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <ArrowLeft size={22} color={C.text} />
         </Pressable>
 
         <View style={styles.header}>
           <View style={[styles.iconBox, { backgroundColor: "#FFF1BF" }]}>
-            <Feather name="heart" size={28} color="#E4A93A" />
+            <Heart size={28} color="#E4A93A" />
           </View>
           <Text style={[styles.title, { color: C.text }]}>학부모 가입</Text>
           <Text style={[styles.sub, { color: C.textSecondary }]}>
@@ -161,7 +162,7 @@ export default function ParentSignupScreen() {
         <View style={[styles.card, { backgroundColor: C.card }]}>
           {!!error && (
             <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="alert-circle" size={13} color={C.error} />
+              <CircleAlert size={13} color={C.error} />
               <Text style={[styles.errorTxt, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -227,7 +228,7 @@ export default function ParentSignupScreen() {
             <Text style={[styles.label, { color: C.textSecondary }]}>휴대폰 번호 *</Text>
             <View style={styles.phoneRow}>
               <View style={[styles.inputBox, { flex: 1, borderColor: phoneVerified ? "#2EC4B6" : C.border, backgroundColor: C.background }]}>
-                <Feather name="phone" size={15} color={phoneVerified ? "#2EC4B6" : C.textMuted} style={{ marginRight: 8 }} />
+                <Phone size={15} color={phoneVerified ? "#2EC4B6" : C.textMuted} style={{ marginRight: 8 }} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={phone}
@@ -239,7 +240,7 @@ export default function ParentSignupScreen() {
                   keyboardType="phone-pad"
                   editable={!phoneVerified}
                 />
-                {phoneVerified && <Feather name="check-circle" size={16} color="#2EC4B6" />}
+                {phoneVerified && <CircleCheck size={16} color="#2EC4B6" />}
               </View>
               {!phoneVerified && (
                 <Pressable
@@ -259,7 +260,7 @@ export default function ParentSignupScreen() {
               <View style={styles.codeSection}>
                 <View style={styles.codeRow}>
                   <View style={[styles.inputBox, { flex: 1, borderColor: C.border, backgroundColor: C.background }]}>
-                    <Feather name="key" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                    <Key size={15} color={C.textMuted} style={{ marginRight: 8 }} />
                     <TextInput
                       style={[styles.input, { color: C.text }]}
                       value={smsCode}
@@ -313,7 +314,7 @@ export default function ParentSignupScreen() {
             disabled={!phoneVerified}
           >
             <Text style={styles.primaryBtnTxt}>수영장 검색하기</Text>
-            <Feather name="arrow-right" size={16} color="#fff" />
+            <ArrowRight size={16} color="#fff" />
           </Pressable>
         </View>
 
@@ -336,7 +337,7 @@ function Field({ label, icon, children }: { label: string; icon: any; children: 
     <View style={styles.field}>
       <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
       <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-        <Feather name={icon} size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+        <LucideIcon name={icon} size={15} color={C.textMuted} style={{ marginRight: 8 }} />
         {children}
       </View>
     </View>

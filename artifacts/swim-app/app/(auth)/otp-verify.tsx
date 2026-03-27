@@ -3,7 +3,7 @@
  * login.tsx에서 분리: 비밀번호 입력 후 totp_required 상태일 때 이 화면으로 이동
  * params: totpSession (서버에서 발급한 임시 세션 ID)
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, CircleAlert, Info, Shield, Smartphone } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState, createRef } from "react";
 import {
@@ -87,10 +87,10 @@ export default function OtpVerifyScreen() {
       >
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={22} color={C.text} />
+            <ArrowLeft size={22} color={C.text} />
           </Pressable>
           <View style={[styles.idChip, { backgroundColor: "#E6FAF8" }]}>
-            <Feather name="shield" size={13} color="#7C3AED" />
+            <Shield size={13} color="#7C3AED" />
             <Text style={[styles.idChipText, { color: "#7C3AED" }]} numberOfLines={1}>2단계 인증</Text>
           </View>
         </View>
@@ -98,7 +98,7 @@ export default function OtpVerifyScreen() {
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <View style={styles.otpIconRow}>
             <View style={[styles.otpIconBg, { backgroundColor: "#E6FAF8" }]}>
-              <Feather name="smartphone" size={28} color="#7C3AED" />
+              <Smartphone size={28} color="#7C3AED" />
             </View>
           </View>
 
@@ -109,7 +109,7 @@ export default function OtpVerifyScreen() {
 
           {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="alert-circle" size={14} color={C.error} />
+              <CircleAlert size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -163,7 +163,7 @@ export default function OtpVerifyScreen() {
         </View>
 
         <View style={[styles.otpGuideCard, { backgroundColor: "#F5F3FF", borderColor: "#E6FAF8" }]}>
-          <Feather name="info" size={14} color="#7C3AED" />
+          <Info size={14} color="#7C3AED" />
           <Text style={[styles.otpGuideText, { color: "#5B21B6" }]}>
             Google Authenticator 앱을 열고 계정 이름 옆의 6자리 숫자를 입력하세요. 코드는 30초마다 갱신됩니다.
           </Text>

@@ -1,10 +1,11 @@
 import { router } from "expo-router";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, Linking, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { MessageSquare, Send } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -374,7 +375,7 @@ export default function ApprovalsScreen() {
     return (
       <View style={x.childBox}>
         <View style={x.matchRow}>
-          <Feather name={mc.icon as any} size={11} color={mc.color} />
+          <LucideIcon name={mc.icon as any} size={11} color={mc.color} />
           <Text style={[x.matchTxt, { color: mc.color }]}>{mc.label}</Text>
           {req.status === "auto_approved" && (
             <View style={x.autoChip}>
@@ -396,7 +397,7 @@ export default function ApprovalsScreen() {
         ))}
         {lastInvite && (
           <View style={x.inviteHint}>
-            <Feather name="send" size={11} color="#2EC4B6" />
+            <Send size={11} color="#2EC4B6" />
             <Text style={x.inviteHintTxt}>
               초대 이력 있음 · {lastInvite.senderName} ·{" "}
               {new Date(lastInvite.createdAt).toLocaleDateString("ko-KR")}
@@ -522,7 +523,7 @@ export default function ApprovalsScreen() {
                       style={({ pressed }) => [s.smsBtn, { opacity: pressed ? 0.7 : 1 }]}
                       onPress={() => handleSmsInvite(st)}
                     >
-                      <Feather name="message-square" size={14} color="#fff" />
+                      <MessageSquare size={14} color="#fff" />
                       <Text style={s.smsBtnTxt}>초대</Text>
                     </Pressable>
                   ) : (

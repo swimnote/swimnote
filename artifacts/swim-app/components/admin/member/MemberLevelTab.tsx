@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { EyeOff, PenLine, Save } from "lucide-react-native";
 import React from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -47,7 +47,7 @@ export function MemberLevelTab({
               </Text>
               {levelInfo?.current_level?.is_active === false && (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4, backgroundColor: "#FFF7ED", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" }}>
-                  <Feather name="eye-off" size={12} color="#D97706" />
+                  <EyeOff size={12} color="#D97706" />
                   <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#D97706" }}>사용 안 함 레벨</Text>
                 </View>
               )}
@@ -61,7 +61,7 @@ export function MemberLevelTab({
               style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: themeColor, flexDirection: "row", alignItems: "center", gap: 5 }}
               onPress={onOpenLevelPicker}
             >
-              <Feather name="edit-2" size={13} color={themeColor} />
+              <PenLine size={13} color={themeColor} />
               <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: themeColor }}>변경</Text>
             </Pressable>
           </View>
@@ -133,7 +133,7 @@ export function MemberLevelTab({
             disabled={saving || !infoChanged}
           >
             {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-              <><Feather name="save" size={16} color="#fff" /><Text style={ms.saveBtnText}>메모 저장</Text></>
+              <><Save size={16} color="#fff" /><Text style={ms.saveBtnText}>메모 저장</Text></>
             )}
           </Pressable>
         </View>

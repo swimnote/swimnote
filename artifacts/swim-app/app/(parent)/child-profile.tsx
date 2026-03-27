@@ -3,7 +3,8 @@
  * - 이름, 성별, 출생연도, 소속 수영장, 반 정보 표시
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { Feather } from "@expo/vector-icons";
+import { Clock } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -32,7 +33,7 @@ function InfoRow({ icon, label, value, accentColor }: InfoRowProps) {
   return (
     <View style={ir.row}>
       <View style={[ir.iconBox, { backgroundColor: (accentColor || C.tint) + "15" }]}>
-        <Feather name={icon} size={16} color={accentColor || C.tint} />
+        <LucideIcon name={icon} size={16} color={accentColor || C.tint} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[ir.label, { color: C.textMuted }]}>{label}</Text>
@@ -138,7 +139,7 @@ export default function ChildProfileScreen() {
             {scheduleChips.length > 0 && (
               <View style={ir.row}>
                 <View style={[ir.iconBox, { backgroundColor: accentColor + "15" }]}>
-                  <Feather name="clock" size={16} color={accentColor} />
+                  <Clock size={16} color={accentColor} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[ir.label, { color: C.textMuted }]}>수업 일정</Text>
@@ -173,7 +174,7 @@ export default function ChildProfileScreen() {
                     router.push(btn.path as any);
                   }}
                 >
-                  <Feather name={btn.icon as any} size={18} color={accentColor} />
+                  <LucideIcon name={btn.icon as any} size={18} color={accentColor} />
                   <Text style={[s.quickBtnTxt, { color: accentColor }]}>{btn.label}</Text>
                 </Pressable>
               ))}

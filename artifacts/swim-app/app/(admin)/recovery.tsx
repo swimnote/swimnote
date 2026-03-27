@@ -2,7 +2,8 @@
  * (admin)/recovery.tsx — 백업·복구
  * 스냅샷 목록 보기 → 시점 선택 → 영향 범위 확인 → 복구 실행
  */
-import { Feather } from "@expo/vector-icons";
+import { Activity, Archive, CircleAlert, CircleCheck, Clock, GitBranch, Info, RotateCcw, Save, Trash2, TriangleAlert, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
@@ -91,9 +92,9 @@ function SnapshotDeleteModal({
       <Pressable style={rm.backdrop} onPress={onClose} />
       <View style={rm.sheet}>
         <View style={rm.header}>
-          <Feather name="trash-2" size={20} color="#D96C6C" />
+          <Trash2 size={20} color="#D96C6C" />
           <Text style={rm.title}>스냅샷 삭제</Text>
-          <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
+          <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
         </View>
 
         <View style={[rm.targetBox, { backgroundColor: "#F9DEDA" }]}>
@@ -108,7 +109,7 @@ function SnapshotDeleteModal({
         {step === 1 ? (
           <>
             <View style={[rm.checkRow, { backgroundColor: "#FEF2F2" }]}>
-              <Feather name="alert-triangle" size={14} color="#D96C6C" />
+              <TriangleAlert size={14} color="#D96C6C" />
               <Text style={[rm.checkTxt, { color: "#991B1B" }]}>
                 데이터 유지를 위하여 백업 데이터를 삭제할 경우 이전 데이터는 영원히 복구할 수 없습니다.
               </Text>
@@ -118,7 +119,7 @@ function SnapshotDeleteModal({
                 <Text style={[rm.btnTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable style={[rm.btn, { backgroundColor: "#F9DEDA", flex: 1.5 }]} onPress={() => setStep(2)}>
-                <Feather name="trash-2" size={14} color="#D96C6C" />
+                <Trash2 size={14} color="#D96C6C" />
                 <Text style={[rm.btnTxt, { color: "#D96C6C" }]}>계속 (2/2)</Text>
               </Pressable>
             </View>
@@ -140,7 +141,7 @@ function SnapshotDeleteModal({
                 onPress={execDelete}
                 disabled={!confirmed}
               >
-                <Feather name="trash-2" size={14} color="#fff" />
+                <Trash2 size={14} color="#fff" />
                 <Text style={[rm.btnTxt, { color: "#fff" }]}>영구 삭제</Text>
               </Pressable>
             </View>
@@ -170,7 +171,7 @@ function SnapshotCard({
     <View style={s.snapCard}>
       <Pressable style={s.snapTop} onPress={() => setExpanded(v => !v)}>
         <View style={[s.snapIcon, { backgroundColor: chip.bg }]}>
-          <Feather name={chip.icon as any} size={16} color={chip.color} />
+          <LucideIcon name={chip.icon as any} size={16} color={chip.color} />
         </View>
         <View style={s.snapInfo}>
           {snap.snapshotName && (
@@ -185,7 +186,7 @@ function SnapshotCard({
           <Text style={s.snapNote} numberOfLines={1}>{snap.note}</Text>
           <Text style={s.snapMeta}>{fmtSize(snap.sizeMb)} · {snap.createdBy}</Text>
         </View>
-        <Feather name={expanded ? "chevron-up" : "chevron-down"} size={16} color={C.textMuted} />
+        <LucideIcon name={expanded ? "chevron-up" : "chevron-down"} size={16} color={C.textMuted} />
       </Pressable>
 
       {expanded && (
@@ -199,7 +200,7 @@ function SnapshotCard({
             ))}
           </View>
           <View style={s.excludeBox}>
-            <Feather name="alert-circle" size={12} color="#D97706" />
+            <CircleAlert size={12} color="#D97706" />
             <Text style={s.excludeTxt}>사진·영상 원본 복구 미보장</Text>
           </View>
           {/* 액션 버튼: 복구 / 비교 / 삭제 */}
@@ -208,21 +209,21 @@ function SnapshotCard({
               style={[s.restoreBtn, { backgroundColor: C.button, flex: 1 }]}
               onPress={() => onRestore(snap)}
             >
-              <Feather name="rotate-ccw" size={14} color="#fff" />
+              <RotateCcw size={14} color="#fff" />
               <Text style={s.restoreBtnTxt}>이 시점으로 복구</Text>
             </Pressable>
             <Pressable
               style={[s.restoreBtn, { backgroundColor: "#E6FFFA", flex: 0.65 }]}
               onPress={handleCompare}
             >
-              <Feather name="git-branch" size={14} color="#2EC4B6" />
+              <GitBranch size={14} color="#2EC4B6" />
               <Text style={[s.restoreBtnTxt, { color: "#2EC4B6" }]}>비교</Text>
             </Pressable>
             <Pressable
               style={[s.restoreBtn, { backgroundColor: "#F9DEDA", flex: 0.55 }]}
               onPress={() => onDelete(snap)}
             >
-              <Feather name="trash-2" size={14} color="#D96C6C" />
+              <Trash2 size={14} color="#D96C6C" />
               <Text style={[s.restoreBtnTxt, { color: "#D96C6C" }]}>삭제</Text>
             </Pressable>
           </View>
@@ -291,9 +292,9 @@ function RestoreModal({
       <Pressable style={rm.backdrop} onPress={onClose} />
       <View style={rm.sheet}>
         <View style={rm.header}>
-          <Feather name="alert-triangle" size={20} color="#D96C6C" />
+          <TriangleAlert size={20} color="#D96C6C" />
           <Text style={rm.title}>복구 실행 확인</Text>
-          <Pressable onPress={onClose}><Feather name="x" size={20} color={C.textSecondary} /></Pressable>
+          <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
@@ -321,7 +322,7 @@ function RestoreModal({
 
           {/* 전체 복구 안내 */}
           <View style={[rm.policyBox, { marginTop: 10 }]}>
-            <Feather name="alert-circle" size={13} color="#D97706" />
+            <CircleAlert size={13} color="#D97706" />
             <Text style={rm.policyTxt}>
               전체 시점 복구만 허용됩니다. 부분 복구(항목별 선택 복구)는 지원하지 않습니다.
             </Text>
@@ -329,7 +330,7 @@ function RestoreModal({
 
           {/* 덮어쓰기 경고 */}
           <View style={[rm.overwriteBox, { marginTop: 8 }]}>
-            <Feather name="alert-triangle" size={13} color="#D96C6C" />
+            <TriangleAlert size={13} color="#D96C6C" />
             <Text style={rm.overwriteTxt}>
               복구 실행 시 현재 데이터가 모두 이 시점으로 덮어쓰여집니다. 이 시점 이후 입력·수정된 데이터는 복구되지 않습니다.
             </Text>
@@ -339,7 +340,7 @@ function RestoreModal({
           <Text style={[rm.sectionTitle, { marginTop: 12 }]}>복구 대상 데이터 종류</Text>
           {AFFECTED_ITEMS.map(item => (
             <View key={item.label} style={rm.affectedRow}>
-              <Feather name={item.icon} size={13} color="#2EC4B6" />
+              <LucideIcon name={item.icon} size={13} color="#2EC4B6" />
               <View style={{ flex: 1 }}>
                 <Text style={rm.affectedLabel}>{item.label}</Text>
                 <Text style={rm.affectedDetail}>{item.detail}</Text>
@@ -351,7 +352,7 @@ function RestoreModal({
           <Text style={[rm.sectionTitle, { color: "#D97706", marginTop: 10 }]}>복구 제외 / 미보장</Text>
           {EXCLUDED_ITEMS.map(item => (
             <View key={item.label} style={[rm.affectedRow, { borderLeftColor: "#FFF1BF" }]}>
-              <Feather name={item.icon} size={13} color="#D97706" />
+              <LucideIcon name={item.icon} size={13} color="#D97706" />
               <View style={{ flex: 1 }}>
                 <Text style={[rm.affectedLabel, { color: "#D97706" }]}>{item.label}</Text>
                 <Text style={rm.affectedDetail}>{item.detail}</Text>
@@ -386,7 +387,7 @@ function RestoreModal({
             {running
               ? <ActivityIndicator color="#fff" size="small" />
               : <>
-                  <Feather name="rotate-ccw" size={14} color="#fff" />
+                  <RotateCcw size={14} color="#fff" />
                   <Text style={[rm.btnTxt, { color: "#fff" }]}>복구 실행</Text>
                 </>
             }
@@ -461,7 +462,7 @@ export default function RecoveryScreen() {
       >
         {/* 상태 요약 */}
         <View style={[s.statusCard, { backgroundColor: latestSnap ? "#E6FFFA" : "#F9DEDA" }]}>
-          <Feather name={latestSnap ? "shield" : "alert-circle"} size={18}
+          <LucideIcon name={latestSnap ? "shield" : "alert-circle"} size={18}
             color={latestSnap ? "#2EC4B6" : "#D96C6C"} />
           <View style={{ flex: 1 }}>
             <Text style={[s.statusTitle, { color: latestSnap ? "#2EC4B6" : "#D96C6C" }]}>
@@ -479,7 +480,7 @@ export default function RecoveryScreen() {
             {creating
               ? <ActivityIndicator color="#fff" size="small" />
               : <>
-                  <Feather name="save" size={13} color="#fff" />
+                  <Save size={13} color="#fff" />
                   <Text style={s.manualBtnTxt}>지금 백업</Text>
                 </>
             }
@@ -489,7 +490,7 @@ export default function RecoveryScreen() {
         {/* 자동 백업 정책 안내 */}
         <View style={[s.autoBackupBox, { backgroundColor: "#DFF3EC" }]}>
           <View style={s.autoBackupRow}>
-            <Feather name="clock" size={14} color="#2EC4B6" />
+            <Clock size={14} color="#2EC4B6" />
             <Text style={s.autoBackupTitle}>자동 백업 정책</Text>
           </View>
           <Text style={s.autoBackupLine}>• 자동 백업 주기: <Text style={{ fontFamily: "Pretendard-SemiBold" }}>1시간</Text></Text>
@@ -510,7 +511,7 @@ export default function RecoveryScreen() {
         {/* 복구 완료 배너 */}
         {doneSnap && (
           <View style={s.doneBanner}>
-            <Feather name="check-circle" size={14} color="#2EC4B6" />
+            <CircleCheck size={14} color="#2EC4B6" />
             <Text style={s.doneTxt}>복구가 실행 중입니다. 완료 후 화면을 새로고침하세요.</Text>
           </View>
         )}
@@ -518,7 +519,7 @@ export default function RecoveryScreen() {
         {/* 삭제 완료 배너 */}
         {doneDelete && (
           <View style={[s.doneBanner, { backgroundColor: "#F9DEDA" }]}>
-            <Feather name="trash-2" size={14} color="#D96C6C" />
+            <Trash2 size={14} color="#D96C6C" />
             <Text style={[s.doneTxt, { color: "#991B1B" }]}>스냅샷이 영구 삭제되었습니다.</Text>
           </View>
         )}
@@ -534,7 +535,7 @@ export default function RecoveryScreen() {
 
         {/* 역할 안내 */}
         <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
-          <Feather name="info" size={13} color="#D97706" />
+          <Info size={13} color="#D97706" />
           <View style={{ flex: 1, marginLeft: 6 }}>
             <Text style={[s.infoTitle, { color: "#D97706" }]}>역할 안내</Text>
             <Text style={[s.infoLine, { color: "#92400E" }]}>
@@ -570,7 +571,7 @@ export default function RecoveryScreen() {
           <Text style={s.sectionTitle}>스냅샷 목록 ({mySnaps.length})</Text>
           {mySnaps.length === 0 ? (
             <View style={s.emptyBox}>
-              <Feather name="archive" size={32} color={C.textMuted} />
+              <Archive size={32} color={C.textMuted} />
               <Text style={s.emptyTxt}>아직 스냅샷이 없습니다.{"\n"}"지금 백업" 버튼으로 첫 백업을 만드세요.</Text>
             </View>
           ) : (
@@ -586,7 +587,7 @@ export default function RecoveryScreen() {
             <Text style={s.sectionTitle}>최근 이벤트 로그</Text>
             {eventLogs.map(log => (
               <View key={log.id} style={[s.logRow, { backgroundColor: C.card }]}>
-                <Feather name="activity" size={13} color={C.tint} />
+                <Activity size={13} color={C.tint} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.logSummary} numberOfLines={1}>{log.summary}</Text>
                   <Text style={s.logMeta}>{fmtDateTime(log.createdAt)} · {log.actorName}</Text>

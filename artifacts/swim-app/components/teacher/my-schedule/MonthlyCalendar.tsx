@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -67,13 +67,13 @@ export default function MonthlyCalendar({
     <View style={mc.root}>
       <View style={mc.monthNav}>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}>
-          <Feather name="chevron-left" size={20} color={C.text} />
+          <ChevronLeft size={20} color={C.text} />
         </Pressable>
         <Pressable onPress={() => setOffset(0)}>
           <Text style={mc.monthTitle}>{year}년 {month}월</Text>
         </Pressable>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}>
-          <Feather name="chevron-right" size={20} color={C.text} />
+          <ChevronRight size={20} color={C.text} />
         </Pressable>
       </View>
 
@@ -119,7 +119,7 @@ export default function MonthlyCalendar({
                 {isMultiPicked && (
                   <View style={{ position: "absolute", top: 3, right: 3, width: 14, height: 14, borderRadius: 7,
                     backgroundColor: "#2E9B6F", alignItems: "center", justifyContent: "center" }}>
-                    <Feather name="check" size={9} color="#fff" />
+                    <Check size={9} color="#fff" />
                   </View>
                 )}
 

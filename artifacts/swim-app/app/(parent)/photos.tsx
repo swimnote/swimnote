@@ -7,7 +7,8 @@
  * - 사진 탭 → 라이트박스 (이 사진 다운로드 / 전체 다운로드)
  * - 롱프레스 → 선택 모드 다중 다운로드
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, CloudDownload, Download, SquareCheck, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
 import { useLocalSearchParams } from "expo-router";
@@ -194,7 +195,7 @@ export default function ParentPhotosScreen() {
       {selectMode && (
         <View style={st.toolbar}>
           <Pressable onPress={toggleAll} style={st.toolbarLeft}>
-            <Feather name={selected.size === photos.length ? "check-square" : "square"} size={18} color={C.tint} />
+            <LucideIcon name={selected.size === photos.length ? "check-square" : "square"} size={18} color={C.tint} />
             <Text style={[st.toolbarToggleText, { color: C.tint }]}>
               {selected.size === photos.length ? "전체 해제" : "전체 선택"}
             </Text>
@@ -205,7 +206,7 @@ export default function ParentPhotosScreen() {
               style={[st.toolbarAction, { backgroundColor: C.button, opacity: selected.size === 0 ? 0.4 : 1 }]}>
               {bulkSaving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><Feather name="download" size={14} color="#fff" /><Text style={st.toolbarActionText}>받기</Text></>}
+                : <><Download size={14} color="#fff" /><Text style={st.toolbarActionText}>받기</Text></>}
             </Pressable>
             <Pressable onPress={exitSelect} style={st.toolbarCancel}>
               <Text style={st.toolbarCancelText}>취소</Text>
@@ -228,7 +229,7 @@ export default function ParentPhotosScreen() {
           ListHeaderComponent={
             photos.length > 0 && !selectMode ? (
               <Pressable onPress={() => setSelectMode(true)} style={st.selectBtn}>
-                <Feather name="check-square" size={15} color={C.tint} />
+                <SquareCheck size={15} color={C.tint} />
                 <Text style={[st.selectBtnText, { color: C.tint }]}>선택</Text>
               </Pressable>
             ) : null
@@ -271,7 +272,7 @@ export default function ParentPhotosScreen() {
                 {/* 선택 체크 */}
                 {selectMode && (
                   <View style={[st.checkCircle, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
-                    {isSelected && <Feather name="check" size={12} color="#fff" />}
+                    {isSelected && <Check size={12} color="#fff" />}
                   </View>
                 )}
               </Pressable>
@@ -285,7 +286,7 @@ export default function ParentPhotosScreen() {
         <View style={st.lightbox}>
           <View style={[st.lbHeader, { paddingTop: insets.top + 12 }]}>
             <Pressable onPress={() => setLightbox(null)} style={st.lbClose}>
-              <Feather name="x" size={26} color="#fff" />
+              <X size={26} color="#fff" />
             </Pressable>
           </View>
           {lightbox && (
@@ -312,7 +313,7 @@ export default function ParentPhotosScreen() {
             >
               {lbSaving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><Feather name="download" size={16} color="#fff" /><Text style={st.lbBtnText}>이 사진 다운로드</Text></>}
+                : <><Download size={16} color="#fff" /><Text style={st.lbBtnText}>이 사진 다운로드</Text></>}
             </Pressable>
             <Pressable
               onPress={saveAll}
@@ -321,7 +322,7 @@ export default function ParentPhotosScreen() {
             >
               {allSaving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><Feather name="download-cloud" size={16} color="#fff" /><Text style={st.lbBtnText}>전체 다운로드 ({photos.length})</Text></>}
+                : <><CloudDownload size={16} color="#fff" /><Text style={st.lbBtnText}>전체 다운로드 ({photos.length})</Text></>}
             </Pressable>
           </View>
         </View>

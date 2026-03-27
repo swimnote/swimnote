@@ -1,7 +1,8 @@
 /**
  * (parent)/push-settings.tsx — 학부모 푸시 알림 설정
  */
-import { Feather } from "@expo/vector-icons";
+import { Info } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View,
@@ -94,7 +95,7 @@ export default function ParentPushSettingsScreen() {
             {ITEMS.map((item, idx) => (
               <View key={item.key} style={[s.row, idx > 0 && { borderTopWidth: 1, borderTopColor: C.border }]}>
                 <View style={[s.iconBox, { backgroundColor: themeColor + "15" }]}>
-                  <Feather name={item.icon as any} size={16} color={themeColor} />
+                  <LucideIcon name={item.icon as any} size={16} color={themeColor} />
                 </View>
                 <View style={s.textBox}>
                   <Text style={s.label}>{item.label}</Text>
@@ -112,7 +113,7 @@ export default function ParentPushSettingsScreen() {
           </View>
 
           <View style={s.infoBox}>
-            <Feather name="info" size={13} color={C.textMuted} />
+            <Info size={13} color={C.textMuted} />
             <Text style={s.infoText}>
               알림을 완전히 끄려면 기기의 알림 설정에서도 꺼주세요.
             </Text>

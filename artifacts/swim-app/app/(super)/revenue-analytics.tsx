@@ -3,7 +3,8 @@
  * GET /billing/revenue-logs → 실제 revenue_logs DB 기반 집계
  * 탭: 주간 / 월간 / 연간
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight, CreditCard, Inbox, Info } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -95,7 +96,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
 function SectionHeader({ title, icon }: { title: string; icon: React.ComponentProps<typeof Feather>["name"] }) {
   return (
     <View style={st.sectionHeader}>
-      <Feather name={icon} size={14} color={P} />
+      <LucideIcon name={icon} size={14} color={P} />
       <Text style={st.sectionTitle}>{title}</Text>
     </View>
   );
@@ -194,7 +195,7 @@ export default function RevenueAnalyticsScreen() {
           onRefresh={async () => { setRefreshing(true); await fetchLogs(period); setRefreshing(false); }} />}
       >
         <View style={st.noticeBox}>
-          <Feather name="info" size={12} color="#2EC4B6" />
+          <Info size={12} color="#2EC4B6" />
           <Text style={st.noticeTxt}>revenue_logs DB 실측 기반. 추정·미결제 금액 제외.</Text>
         </View>
 
@@ -240,7 +241,7 @@ export default function RevenueAnalyticsScreen() {
         <SectionHeader title="기간 내 결제 내역" icon="list" />
         {logs.length === 0 ? (
           <View style={st.empty}>
-            <Feather name="inbox" size={32} color="#D1D5DB" />
+            <Inbox size={32} color="#D1D5DB" />
             <Text style={st.emptyTxt}>이 기간의 결제 내역이 없습니다</Text>
           </View>
         ) : (
@@ -272,9 +273,9 @@ export default function RevenueAnalyticsScreen() {
         )}
 
         <Pressable style={st.linkBtn} onPress={() => router.push("/(super)/subscriptions" as any)}>
-          <Feather name="credit-card" size={14} color={P} />
+          <CreditCard size={14} color={P} />
           <Text style={[st.linkTxt, { color: P }]}>구독·결제 관리로 이동</Text>
-          <Feather name="chevron-right" size={14} color={P} />
+          <ChevronRight size={14} color={P} />
         </Pressable>
       </ScrollView>
     </SafeAreaView>

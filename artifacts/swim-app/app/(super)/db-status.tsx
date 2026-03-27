@@ -2,7 +2,8 @@
  * (super)/db-status.tsx — DB 이원화 모니터링 (4탭)
  * 탭: DB 개요 / 수영장별 / 이벤트 로그 / 서비스 상태
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleAlert, CircleCheck, CircleX, Database, Inbox, RefreshCw, TriangleAlert } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, Pressable, RefreshControl,
@@ -84,7 +85,7 @@ function fmtTime(iso: string | null): string {
 function SectionTitle({ icon, title }: { icon: React.ComponentProps<typeof Feather>["name"]; title: string }) {
   return (
     <View style={s.sectionTitle}>
-      <Feather name={icon} size={14} color={P} />
+      <LucideIcon name={icon} size={14} color={P} />
       <Text style={s.sectionTitleTxt}>{title}</Text>
     </View>
   );
@@ -109,7 +110,7 @@ function DbCard({ info, accent }: { info: DbInfo; accent: string }) {
     <View style={[s.card, { borderLeftColor: accent, borderLeftWidth: 4 }]}>
       <View style={s.cardHeader}>
         <View style={[s.dbIcon, { backgroundColor: accent + "18" }]}>
-          <Feather name="database" size={18} color={accent} />
+          <Database size={18} color={accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.cardTitle}>{info.label}</Text>
@@ -128,7 +129,7 @@ function DbCard({ info, accent }: { info: DbInfo; accent: string }) {
         <>
           <Pressable style={s.expandBtn} onPress={() => setExpanded(v => !v)}>
             <Text style={s.expandTxt}>테이블 상세 {expanded ? "접기" : "보기"}</Text>
-            <Feather name={expanded ? "chevron-up" : "chevron-down"} size={13} color={P} />
+            <LucideIcon name={expanded ? "chevron-up" : "chevron-down"} size={13} color={P} />
           </Pressable>
           {expanded && (
             <View style={s.tableList}>
@@ -193,7 +194,7 @@ function DlqCard({ item, onResend }: { item: DlqItem; onResend: (id: string) => 
           style={s.resendBtn}
           onPress={() => onResend(item.id)}
         >
-          <Feather name="refresh-cw" size={13} color={P} />
+          <RefreshCw size={13} color={P} />
           <Text style={s.resendTxt}>재전송</Text>
         </Pressable>
       </View>
@@ -318,7 +319,7 @@ export default function DbStatusScreen() {
         <View style={s.center}><ActivityIndicator color={P} size="large" /></View>
       ) : error ? (
         <View style={s.center}>
-          <Feather name="alert-circle" size={40} color={RED} />
+          <CircleAlert size={40} color={RED} />
           <Text style={s.errTxt}>{error}</Text>
           <Pressable style={s.retryBtn} onPress={onRefresh}>
             <Text style={s.retryTxt}>다시 시도</Text>
@@ -334,7 +335,7 @@ export default function DbStatusScreen() {
             <>
               {/* DB 분리 상태 배너 */}
               <View style={[s.separationBanner, { backgroundColor: status.is_separated ? "#E6FFFA" : "#FFF8E6" }]}>
-                <Feather name={status.is_separated ? "check-circle" : "alert-circle"} size={16} color={status.is_separated ? GREEN : ORANGE} />
+                <LucideIcon name={status.is_separated ? "check-circle" : "alert-circle"} size={16} color={status.is_separated ? GREEN : ORANGE} />
                 <Text style={[s.separationTxt, { color: status.is_separated ? GREEN : ORANGE }]}>
                   {status.is_separated
                     ? "슈퍼관리자 DB · 수영장 운영 DB 물리 분리 완료"
@@ -398,13 +399,13 @@ export default function DbStatusScreen() {
 
               {status.retry_queue.pending > 0 && (
                 <View style={s.warnBanner}>
-                  <Feather name="alert-triangle" size={14} color={ORANGE} />
+                  <TriangleAlert size={14} color={ORANGE} />
                   <Text style={s.warnTxt}>재시도 대기 {status.retry_queue.pending}건 — 백그라운드에서 자동 재처리됩니다.</Text>
                 </View>
               )}
               {status.dead_letter_queue.pending > 0 && (
                 <View style={[s.warnBanner, { backgroundColor: "#FDE8E8" }]}>
-                  <Feather name="x-circle" size={14} color={RED} />
+                  <CircleX size={14} color={RED} />
                   <Text style={[s.warnTxt, { color: RED }]}>
                     Dead-letter queue {status.dead_letter_queue.pending}건 — 서비스 상태 탭에서 수동 재전송하세요.
                   </Text>
@@ -462,7 +463,7 @@ export default function DbStatusScreen() {
                   <View style={[s.diagBanner, {
                     backgroundColor: diag.status === "healthy" ? "#E6FFFA" : diag.status === "degraded" ? "#FFF8E6" : "#FDE8E8",
                   }]}>
-                    <Feather
+                    <LucideIcon
                       name={diag.status === "healthy" ? "check-circle" : diag.status === "degraded" ? "alert-triangle" : "x-circle"}
                       size={20}
                       color={diag.status === "healthy" ? GREEN : diag.status === "degraded" ? ORANGE : RED}
@@ -545,7 +546,7 @@ export default function DbStatusScreen() {
                       <SectionTitle icon="info" title="권고사항" />
                       {diag.recommendations.map((rec, i) => (
                         <View key={i} style={s.recCard}>
-                          <Feather name="alert-triangle" size={13} color={ORANGE} />
+                          <TriangleAlert size={13} color={ORANGE} />
                           <Text style={s.recTxt}>{rec}</Text>
                         </View>
                       ))}
@@ -558,13 +559,13 @@ export default function DbStatusScreen() {
               <SectionTitle icon="inbox" title={`Dead-letter Queue (${dlq.length}건 미처리)`} />
               {dlq.length === 0 ? (
                 <View style={[s.emptyWrap, { backgroundColor: "#E6FFFA", borderRadius: 12, paddingVertical: 20 }]}>
-                  <Feather name="check-circle" size={28} color={GREEN} />
+                  <CircleCheck size={28} color={GREEN} />
                   <Text style={[s.emptyTxt, { color: GREEN }]}>미처리 이벤트 없음</Text>
                 </View>
               ) : (
                 <>
                   <View style={[s.warnBanner, { backgroundColor: "#FDE8E8" }]}>
-                    <Feather name="alert-circle" size={14} color={RED} />
+                    <CircleAlert size={14} color={RED} />
                     <Text style={[s.warnTxt, { color: RED }]}>
                       최대 재시도 초과 이벤트 {dlq.length}건 — 수동 재전송 또는 원인 확인이 필요합니다.
                     </Text>
@@ -599,7 +600,7 @@ function PoolStat({ icon, value, label, color }: {
 }) {
   return (
     <View style={ps.wrap}>
-      <Feather name={icon} size={13} color={color} />
+      <LucideIcon name={icon} size={13} color={color} />
       <Text style={[ps.num, { color }]}>{value.toLocaleString()}</Text>
       <Text style={ps.label}>{label}</Text>
     </View>
@@ -608,7 +609,7 @@ function PoolStat({ icon, value, label, color }: {
 function EmptyState({ text, sub }: { text: string; sub?: string }) {
   return (
     <View style={s.emptyWrap}>
-      <Feather name="inbox" size={40} color="#D1D5DB" />
+      <Inbox size={40} color="#D1D5DB" />
       <Text style={s.emptyTxt}>{text}</Text>
       {sub && <Text style={[s.emptyTxt, { fontSize: 12, marginTop: 4 }]}>{sub}</Text>}
     </View>

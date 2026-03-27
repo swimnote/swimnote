@@ -25,7 +25,7 @@ import {
   View,
 } from "react-native";
 
-import { Feather } from "@expo/vector-icons";
+import { Check, CircleX, CornerLeftUp, Eye, Inbox, Plus, Search, Trash2, X } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useFeedbackTemplates, SentenceLevel, FeedbackTemplate } from "@/context/FeedbackTemplateContext";
 
@@ -127,7 +127,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
           <Text style={[s.levelBadgeText, { color: levelColor(item.level) }]}>{levelLabel(item.level)}</Text>
         </View>
       )}
-      <Feather name="plus" size={16} color={PRIMARY} style={{ marginLeft: 6 }} />
+      <Plus size={16} color={PRIMARY} style={{ marginLeft: 6 }} />
     </TouchableOpacity>
   ), [isSearching, addToPreview, labels]);
 
@@ -151,13 +151,13 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
           <View style={s.header}>
             <Text style={s.title}>문장 불러오기</Text>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Feather name="x" size={20} color={C.textSecondary} />
+              <X size={20} color={C.textSecondary} />
             </TouchableOpacity>
           </View>
 
           {/* 검색창 */}
           <View style={s.searchRow}>
-            <Feather name="search" size={15} color={C.textSecondary} />
+            <Search size={15} color={C.textSecondary} />
             <TextInput
               style={s.searchInput}
               value={searchQuery}
@@ -168,7 +168,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Feather name="x-circle" size={16} color={C.textSecondary} />
+                <CircleX size={16} color={C.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
@@ -206,7 +206,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
             keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               <View style={s.emptyBox}>
-                <Feather name="inbox" size={28} color={C.textMuted} />
+                <Inbox size={28} color={C.textMuted} />
                 <Text style={s.emptyText}>
                   {isSearching ? "검색 결과가 없습니다." : "문장이 없습니다.\n피드백커스텀에서 추가해 보세요."}
                 </Text>
@@ -218,7 +218,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
           <View style={s.previewBox}>
             <View style={s.previewHeader}>
               <Text style={s.previewLabel}>
-                <Feather name="eye" size={12} color={C.textSecondary} />
+                <Eye size={12} color={C.textSecondary} />
                 {" "}삽입 예정 미리보기
               </Text>
               <Text style={s.previewCount}>{preview.length}문장</Text>
@@ -241,7 +241,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 disabled={preview.length === 0}
                 activeOpacity={0.7}
               >
-                <Feather name="corner-left-up" size={13} color={preview.length === 0 ? C.textMuted : C.textSecondary} />
+                <CornerLeftUp size={13} color={preview.length === 0 ? C.textMuted : C.textSecondary} />
                 <Text style={[s.previewBtnText, preview.length === 0 && { color: C.textMuted }]}>바로 전 삭제</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -250,7 +250,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
                 disabled={preview.length === 0}
                 activeOpacity={0.7}
               >
-                <Feather name="trash-2" size={13} color={preview.length === 0 ? C.textMuted : "#D96C6C"} />
+                <Trash2 size={13} color={preview.length === 0 ? C.textMuted : "#D96C6C"} />
                 <Text style={[s.previewBtnText, preview.length === 0 ? { color: C.textMuted } : { color: "#D96C6C" }]}>전체 삭제</Text>
               </TouchableOpacity>
             </View>
@@ -267,7 +267,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
               disabled={preview.length === 0}
               activeOpacity={0.7}
             >
-              <Feather name="check" size={15} color={preview.length === 0 ? C.textMuted : "#fff"} />
+              <Check size={15} color={preview.length === 0 ? C.textMuted : "#fff"} />
               <Text style={[s.insertBtnText, preview.length === 0 && { color: C.textMuted }]}>완료 · 삽입</Text>
             </TouchableOpacity>
           </View>

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Calendar, ChevronRight, CircleAlert, CircleCheck, Clock, Droplet, Search, User } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -79,7 +79,7 @@ export default function LinkChildScreen() {
       {/* 헤더 */}
       <View style={[st.header, { paddingTop: insets.top + 10 }]}>
         <Pressable style={st.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <ArrowLeft size={22} color={C.text} />
         </Pressable>
         <Text style={[st.title, { color: C.text }]}>자녀 연결하기</Text>
         <View style={{ width: 40 }} />
@@ -94,7 +94,7 @@ export default function LinkChildScreen() {
           <Text style={[st.sectionTitle, { color: C.text }]}>자녀가 다니는 수영장을 찾아주세요</Text>
 
           <View style={[st.searchRow, { borderColor: C.border, backgroundColor: C.card }]}>
-            <Feather name="search" size={18} color={C.textMuted} />
+            <Search size={18} color={C.textMuted} />
             <TextInput
               style={[st.searchInput, { color: C.text }]}
               value={query} onChangeText={setQuery}
@@ -113,7 +113,7 @@ export default function LinkChildScreen() {
 
           {!!error && (
             <View style={[st.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="alert-circle" size={14} color={C.error} />
+              <CircleAlert size={14} color={C.error} />
               <Text style={[st.errTxt, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -125,19 +125,19 @@ export default function LinkChildScreen() {
               onPress={() => { setSelectedPool(pool); setStep("child"); setError(""); }}
             >
               <View style={[st.poolIcon, { backgroundColor: C.tintLight }]}>
-                <Feather name="droplet" size={20} color={C.tint} />
+                <Droplet size={20} color={C.tint} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[st.poolName, { color: C.text }]}>{pool.name}</Text>
                 {pool.address && <Text style={[st.poolAddr, { color: C.textMuted }]}>{pool.address}</Text>}
               </View>
-              <Feather name="chevron-right" size={18} color={C.textMuted} />
+              <ChevronRight size={18} color={C.textMuted} />
             </Pressable>
           ))}
 
           {results.length === 0 && query && !searching && (
             <View style={st.emptyBox}>
-              <Feather name="search" size={28} color={C.textMuted} />
+              <Search size={28} color={C.textMuted} />
               <Text style={[st.emptyTxt, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
             </View>
           )}
@@ -152,7 +152,7 @@ export default function LinkChildScreen() {
         >
           {/* 선택된 수영장 */}
           <View style={[st.selectedPool, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-            <Feather name="droplet" size={16} color={C.tint} />
+            <Droplet size={16} color={C.tint} />
             <Text style={[st.selectedPoolName, { color: C.tint }]}>{selectedPool.name}</Text>
             <Pressable onPress={() => { setStep("pool"); setError(""); }}>
               <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Medium" }}>변경</Text>
@@ -166,7 +166,7 @@ export default function LinkChildScreen() {
 
           {!!error && (
             <View style={[st.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <Feather name="alert-circle" size={14} color={C.error} />
+              <CircleAlert size={14} color={C.error} />
               <Text style={[st.errTxt, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -175,7 +175,7 @@ export default function LinkChildScreen() {
             <View style={{ gap: 6 }}>
               <Text style={[st.label, { color: C.textSecondary }]}>자녀 이름 *</Text>
               <View style={[st.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-                <Feather name="user" size={16} color={C.textMuted} />
+                <User size={16} color={C.textMuted} />
                 <TextInput
                   style={[st.input, { color: C.text }]}
                   value={childName} onChangeText={setChildName}
@@ -187,7 +187,7 @@ export default function LinkChildScreen() {
             <View style={{ gap: 6 }}>
               <Text style={[st.label, { color: C.textSecondary }]}>출생 연도 (선택)</Text>
               <View style={[st.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
-                <Feather name="calendar" size={16} color={C.textMuted} />
+                <Calendar size={16} color={C.textMuted} />
                 <TextInput
                   style={[st.input, { color: C.text }]}
                   value={birthYear} onChangeText={setBirthYear}
@@ -215,7 +215,7 @@ export default function LinkChildScreen() {
       {step === "done" && (
         <View style={st.resultBox}>
           <View style={[st.resultIcon, { backgroundColor: "#E6FFFA" }]}>
-            <Feather name="check-circle" size={44} color="#2EC4B6" />
+            <CircleCheck size={44} color="#2EC4B6" />
           </View>
           <Text style={[st.resultTitle, { color: C.text }]}>연결 완료!</Text>
           <Text style={[st.resultSub, { color: C.textSecondary }]}>
@@ -234,7 +234,7 @@ export default function LinkChildScreen() {
       {step === "pending" && (
         <View style={st.resultBox}>
           <View style={[st.resultIcon, { backgroundColor: "#FFF1BF" }]}>
-            <Feather name="clock" size={44} color="#D97706" />
+            <Clock size={44} color="#D97706" />
           </View>
           <Text style={[st.resultTitle, { color: C.text }]}>관리자 확인 중</Text>
           <Text style={[st.resultSub, { color: C.textSecondary }]}>

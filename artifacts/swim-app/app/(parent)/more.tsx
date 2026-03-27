@@ -10,7 +10,8 @@
  *
  * ParentScreenHeader (홈 버튼 → 학부모 홈, 관리자 경로 차단)
  */
-import { Feather } from "@expo/vector-icons";
+import { ChevronRight } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -42,13 +43,13 @@ function MenuItem({
       onPress={onPress}
     >
       <View style={[s.menuIcon, { backgroundColor: bg }]}>
-        <Feather name={icon} size={18} color={ic} />
+        <LucideIcon name={icon} size={18} color={ic} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={[s.menuLabel, { color: danger ? "#D96C6C" : C.text }]}>{label}</Text>
         {sub ? <Text style={[s.menuSub, { color: C.textMuted }]}>{sub}</Text> : null}
       </View>
-      {!danger && <Feather name="chevron-right" size={16} color={C.textMuted} />}
+      {!danger && <ChevronRight size={16} color={C.textMuted} />}
     </Pressable>
   );
 }

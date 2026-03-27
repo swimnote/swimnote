@@ -5,7 +5,8 @@
  * Step 3: 역할 선택
  * Step 4: 역할별 추가정보 → 가입 → 자동 로그인
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Check, CircleAlert, CircleCheck, CircleX, Hash, MapPin, Search, Smartphone, Terminal } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -306,7 +307,7 @@ export default function SignupScreen() {
             <View key={n} style={styles.stepItem}>
               <View style={[styles.stepDot, { backgroundColor: done ? C.tint : active ? C.tint : C.border }]}>
                 {done
-                  ? <Feather name="check" size={12} color="#fff" />
+                  ? <Check size={12} color="#fff" />
                   : <Text style={[styles.stepNum, { color: active ? "#fff" : C.textMuted }]}>{n}</Text>}
               </View>
               <Text style={[styles.stepLabel, { color: active ? C.tint : C.textMuted }]}>{label}</Text>
@@ -348,7 +349,7 @@ export default function SignupScreen() {
             returnKeyType="next"
           />
           <Pressable onPress={() => setShowPw(v => !v)}>
-            <Feather name={showPw ? "eye-off" : "eye"} size={18} color={C.textMuted} />
+            <LucideIcon name={showPw ? "eye-off" : "eye"} size={18} color={C.textMuted} />
           </Pressable>
         </InputField>
 
@@ -363,7 +364,7 @@ export default function SignupScreen() {
             returnKeyType="done"
           />
           <Pressable onPress={() => setShowPwc(v => !v)}>
-            <Feather name={showPwc ? "eye-off" : "eye"} size={18} color={C.textMuted} />
+            <LucideIcon name={showPwc ? "eye-off" : "eye"} size={18} color={C.textMuted} />
           </Pressable>
         </InputField>
       </View>
@@ -380,7 +381,7 @@ export default function SignupScreen() {
           <Text style={[styles.label, { color: C.textSecondary }]}>휴대폰 번호</Text>
           <View style={styles.phoneRow}>
             <View style={[styles.inputBox, { flex: 1, borderColor: C.border, backgroundColor: C.background }]}>
-              <Feather name="smartphone" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+              <Smartphone size={15} color={C.textMuted} style={{ marginRight: 8 }} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 placeholder="010-0000-0000"
@@ -409,7 +410,7 @@ export default function SignupScreen() {
             <Text style={[styles.label, { color: C.textSecondary }]}>인증번호</Text>
             <View style={styles.codeRow}>
               <View style={[styles.inputBox, { flex: 1, borderColor: verified ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="hash" size={15} color={verified ? C.tint : C.textMuted} style={{ marginRight: 8 }} />
+                <Hash size={15} color={verified ? C.tint : C.textMuted} style={{ marginRight: 8 }} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   placeholder="6자리 입력"
@@ -438,7 +439,7 @@ export default function SignupScreen() {
             </View>
             {verified && (
               <View style={styles.verifiedRow}>
-                <Feather name="check-circle" size={14} color={C.tint} />
+                <CircleCheck size={14} color={C.tint} />
                 <Text style={[styles.verifiedTxt, { color: C.tint }]}>인증 완료</Text>
               </View>
             )}
@@ -447,7 +448,7 @@ export default function SignupScreen() {
 
         {devCode && (
           <View style={styles.devCodeBox}>
-            <Feather name="terminal" size={13} color="#856404" />
+            <Terminal size={13} color="#856404" />
             <Text style={styles.devCodeLabel}>개발용 코드:</Text>
             <Text style={styles.devCodeNum}>{devCode}</Text>
           </View>
@@ -468,13 +469,13 @@ export default function SignupScreen() {
             onPress={() => setRole(r.role)}
           >
             <View style={[styles.roleIcon, { backgroundColor: r.bg }]}>
-              <Feather name={r.icon} size={22} color={r.color} />
+              <LucideIcon name={r.icon} size={22} color={r.color} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.roleLabel, { color: C.text }]}>{r.label}</Text>
               <Text style={[styles.roleDesc, { color: C.textSecondary }]}>{r.desc}</Text>
             </View>
-            {role === r.role && <Feather name="check-circle" size={18} color={C.tint} />}
+            {role === r.role && <CircleCheck size={18} color={C.tint} />}
           </Pressable>
         ))}
       </View>
@@ -523,20 +524,20 @@ export default function SignupScreen() {
             {selectedPool ? (
               <View style={styles.selectedPool}>
                 <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
-                  <Feather name="check" size={14} color={C.tint} />
+                  <Check size={14} color={C.tint} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.poolNameSm, { color: C.text }]}>{selectedPool.name}</Text>
                   {selectedPool.address ? <Text style={[styles.poolAddrSm, { color: C.textSecondary }]}>{selectedPool.address}</Text> : null}
                 </View>
                 <Pressable onPress={() => setSelectedPool(null)}>
-                  <Feather name="x-circle" size={18} color={C.textMuted} />
+                  <CircleX size={18} color={C.textMuted} />
                 </Pressable>
               </View>
             ) : (
               <>
                 <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-                  <Feather name="search" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                  <Search size={15} color={C.textMuted} style={{ marginRight: 8 }} />
                   <TextInput
                     style={[styles.input, { color: C.text }]}
                     placeholder="수영장 이름 검색"
@@ -558,7 +559,7 @@ export default function SignupScreen() {
                     onPress={() => setSelectedPool(p)}
                   >
                     <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
-                      <Feather name="map-pin" size={13} color={C.tint} />
+                      <MapPin size={13} color={C.tint} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.poolNameSm, { color: C.text }]}>{p.name}</Text>
@@ -612,7 +613,7 @@ export default function SignupScreen() {
         {/* 헤더 */}
         <View style={styles.header}>
           <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={goBack}>
-            <Feather name="arrow-left" size={22} color={C.text} />
+            <ArrowLeft size={22} color={C.text} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: C.text }]}>회원가입</Text>
           <View style={{ width: 30 }} />
@@ -628,7 +629,7 @@ export default function SignupScreen() {
         {/* 에러 */}
         {error ? (
           <View style={[styles.errBox, { backgroundColor: "#FFF0F0" }]}>
-            <Feather name="alert-circle" size={14} color="#D96C6C" />
+            <CircleAlert size={14} color="#D96C6C" />
             <Text style={styles.errTxt}>{error}</Text>
           </View>
         ) : null}
@@ -662,7 +663,7 @@ function InputField({ label, icon, children }: { label: string; icon: any; child
     <View style={styles.field}>
       <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
       <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-        <Feather name={icon} size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+        <LucideIcon name={icon} size={15} color={C.textMuted} style={{ marginRight: 8 }} />
         {children}
       </View>
     </View>

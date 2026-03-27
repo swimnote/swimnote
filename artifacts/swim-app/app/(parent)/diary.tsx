@@ -4,7 +4,8 @@
  * - 항목 클릭 시 펼치기/접기
  * - 쪽지달기 → messages.tsx 페이지로 이동 (Modal 제거)
  */
-import { Feather } from "@expo/vector-icons";
+import { CircleCheck, Mail, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -37,7 +38,7 @@ function Toast({ msg, visible }: { msg: string; visible: boolean }) {
   if (!visible) return null;
   return (
     <View style={ts.toast} pointerEvents="none">
-      <Feather name="check-circle" size={14} color="#fff" />
+      <CircleCheck size={14} color="#fff" />
       <Text style={ts.toastTxt}>{msg}</Text>
     </View>
   );
@@ -104,7 +105,7 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
             <Text style={[ds.teacher, { color: C.text }]}>{entry.teacher_name} 선생님</Text>
             {entry.student_note && (
               <View style={[ds.badge, { backgroundColor: "#EEDDF5" }]}>
-                <Feather name="user" size={9} color="#7C3AED" />
+                <User size={9} color="#7C3AED" />
                 <Text style={[ds.badgeTxt, { color: "#7C3AED" }]}>개별 일지</Text>
               </View>
             )}
@@ -116,7 +117,7 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
           </View>
           <Text style={[ds.preview, { color: C.textMuted }]} numberOfLines={2}>{entry.common_content}</Text>
         </View>
-        <Feather name={open ? "chevron-up" : "chevron-down"} size={18} color={C.textMuted} />
+        <LucideIcon name={open ? "chevron-up" : "chevron-down"} size={18} color={C.textMuted} />
       </Pressable>
 
       {open && (
@@ -131,7 +132,7 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
           {entry.student_note?.note_content ? (
             <View style={[ds.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#E6FAF8" }]}>
               <View style={ds.section}>
-                <Feather name="user" size={12} color="#7C3AED" />
+                <User size={12} color="#7C3AED" />
                 <Text style={ds.noteTitle}>우리 아이 개별 일지</Text>
               </View>
               <Text style={[ds.content, { color: "#0F172A" }]}>{entry.student_note.note_content}</Text>
@@ -157,7 +158,7 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
           <Text style={[ds.reactionLabel, { color: myReactions.has("thank") ? "#BE185D" : C.textSecondary }]}>감사합니다</Text>
         </Pressable>
         <Pressable onPress={goToMessages} style={ds.reactionBtn}>
-          <Feather name="mail" size={17} color={C.textSecondary} />
+          <Mail size={17} color={C.textSecondary} />
           <Text style={[ds.reactionLabel, { color: C.textSecondary }]}>쪽지달기</Text>
         </Pressable>
       </View>

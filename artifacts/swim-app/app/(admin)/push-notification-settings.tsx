@@ -5,7 +5,8 @@
  *  1. 운영 알림 (구독 만료, 결제, 보강 신청)
  *  2. 메신저 알림
  */
-import { Feather } from "@expo/vector-icons";
+import { Info } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View,
@@ -116,7 +117,7 @@ export default function AdminPushNotificationSettingsScreen() {
           {SECTIONS.map(section => (
             <View key={section.title}>
               <View style={s.sectionHeader}>
-                <Feather name={section.icon as any} size={14} color={themeColor} />
+                <LucideIcon name={section.icon as any} size={14} color={themeColor} />
                 <Text style={[s.sectionTitle, { color: themeColor }]}>{section.title}</Text>
               </View>
               <View style={s.card}>
@@ -150,7 +151,7 @@ export default function AdminPushNotificationSettingsScreen() {
           ))}
 
           <View style={s.infoBox}>
-            <Feather name="info" size={13} color={C.textMuted} />
+            <Info size={13} color={C.textMuted} />
             <Text style={s.infoText}>
               결제 알림은 보안상 항상 발송됩니다. 기기 알림 설정에서 꺼도 서버 로그에 기록됩니다.
             </Text>

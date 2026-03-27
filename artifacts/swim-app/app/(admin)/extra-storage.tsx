@@ -2,7 +2,8 @@
  * (admin)/extra-storage.tsx — 추가 용량 구매
  * 구독 플랜과 별개 상품 / 구매 시 영상 업로드 잠금 해제
  */
-import { Feather } from '@expo/vector-icons'
+import { CircleCheck, HardDrive, Package, ShoppingCart } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useMemo, useState } from 'react'
 import {
   Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View,
@@ -97,7 +98,7 @@ export default function ExtraStorageScreen() {
         <View style={[s.card, { borderColor: videoUnlocked ? '#E6FFFA' : '#F9DEDA' }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={[s.iconBox, { backgroundColor: videoUnlocked ? '#E6FFFA' : '#F9DEDA' }]}>
-              <Feather name={videoUnlocked ? 'video' : 'video-off'} size={20} color={videoUnlocked ? G : '#D96C6C'} />
+              <LucideIcon name={videoUnlocked ? 'video' : 'video-off'} size={20} color={videoUnlocked ? G : '#D96C6C'} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.sectionTitle}>영상 업로드</Text>
@@ -129,7 +130,7 @@ export default function ExtraStorageScreen() {
               {selectedProduct === prod.id ? <View style={s.prodRadioInner} /> : null}
             </View>
             <View style={[s.prodIconBox, { backgroundColor: '#E6FFFA' }]}>
-              <Feather name="hard-drive" size={22} color={G} />
+              <HardDrive size={22} color={G} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.prodName}>{prod.name}</Text>
@@ -145,7 +146,7 @@ export default function ExtraStorageScreen() {
           onPress={() => { if (selectedProduct) setConfirmModal(true) }}
           disabled={!selectedProduct}
         >
-          <Feather name="shopping-cart" size={16} color="#fff" />
+          <ShoppingCart size={16} color="#fff" />
           <Text style={s.primaryBtnTxt}>구매하기</Text>
         </Pressable>
 
@@ -156,7 +157,7 @@ export default function ExtraStorageScreen() {
             {myPurchases.map(p => (
               <View key={p.id} style={s.histCard}>
                 <View style={[s.iconBox, { backgroundColor: '#E6FFFA' }]}>
-                  <Feather name="package" size={16} color={G} />
+                  <Package size={16} color={G} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.histName}>{p.productName}</Text>
@@ -190,7 +191,7 @@ export default function ExtraStorageScreen() {
       <Modal visible={doneModal} transparent animationType="fade" onRequestClose={() => setDoneModal(false)}>
         <Pressable style={m.overlay} onPress={() => setDoneModal(false)}>
           <Pressable style={m.sheet} onPress={e => e.stopPropagation()}>
-            <Feather name="check-circle" size={48} color={G} style={{ alignSelf: 'center', marginBottom: 8 }} />
+            <CircleCheck size={48} color={G} style={{ alignSelf: 'center', marginBottom: 8 }} />
             <Text style={[m.title, { textAlign: 'center' }]}>구매 완료</Text>
             <Text style={[m.sub, { textAlign: 'center' }]}>
               {selectedProd?.name ?? '추가 용량'}이 즉시 적용되었습니다.{'\n'}영상 업로드가 가능합니다.

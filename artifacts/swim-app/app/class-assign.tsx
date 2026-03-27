@@ -6,7 +6,7 @@
  * 주횟수 미설정 학생 → 주횟수 선택 팝업 먼저 표시
  * 배정 후 남은 횟수 있으면 리스트 유지, 다 채우면 제거
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, Calendar, Check, CircleX, Clock, Layers, Minus, Plus, RefreshCw, Search, TriangleAlert, User, X } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -246,7 +246,7 @@ export default function ClassAssignScreen() {
       <View style={[s.root, { backgroundColor: C.background }]}>
         <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
           <Pressable onPress={goBack} style={s.backBtn}>
-            <Feather name="arrow-left" size={20} color={C.text} />
+            <ArrowLeft size={20} color={C.text} />
           </Pressable>
           <Text style={[s.title, { color: C.text }]}>반배정 변경</Text>
           <View style={{ width: 40 }} />
@@ -267,7 +267,7 @@ export default function ClassAssignScreen() {
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
         <Pressable onPress={goBack} style={s.backBtn}>
-          <Feather name="arrow-left" size={20} color={C.text} />
+          <ArrowLeft size={20} color={C.text} />
         </Pressable>
         <Text style={[s.title, { color: C.text }]}>반배정 변경</Text>
         <View style={{ width: 40 }} />
@@ -283,23 +283,23 @@ export default function ClassAssignScreen() {
         {classInfo && (
           <View style={[s.classCard, { backgroundColor: C.card }]}>
             <View style={[s.classIcon, { backgroundColor: "#E6FAF8" }]}>
-              <Feather name="layers" size={20} color="#7C3AED" />
+              <Layers size={20} color="#7C3AED" />
             </View>
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={[s.className, { color: C.text }]}>{classInfo.name}</Text>
               <View style={{ flexDirection: "row", gap: 12 }}>
                 <View style={s.metaRow}>
-                  <Feather name="calendar" size={12} color={C.textMuted} />
+                  <Calendar size={12} color={C.textMuted} />
                   <Text style={[s.meta, { color: C.textSecondary }]}>{days}요일</Text>
                 </View>
                 <View style={s.metaRow}>
-                  <Feather name="clock" size={12} color={C.textMuted} />
+                  <Clock size={12} color={C.textMuted} />
                   <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.schedule_time}</Text>
                 </View>
               </View>
               {classInfo.instructor && (
                 <View style={s.metaRow}>
-                  <Feather name="user" size={12} color={C.textMuted} />
+                  <User size={12} color={C.textMuted} />
                   <Text style={[s.meta, { color: C.textSecondary }]}>{classInfo.instructor}</Text>
                 </View>
               )}
@@ -354,7 +354,7 @@ export default function ClassAssignScreen() {
 
         {/* 검색창 */}
         <View style={[s.searchWrap, { backgroundColor: C.card, borderColor: C.border }]}>
-          <Feather name="search" size={16} color={C.textMuted} />
+          <Search size={16} color={C.textMuted} />
           <TextInput
             style={[s.searchInput, { color: C.text }]}
             value={search}
@@ -364,7 +364,7 @@ export default function ClassAssignScreen() {
           />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch("")}>
-              <Feather name="x-circle" size={16} color={C.textMuted} />
+              <CircleX size={16} color={C.textMuted} />
             </Pressable>
           )}
         </View>
@@ -400,7 +400,7 @@ export default function ClassAssignScreen() {
           style={[s.doneBtn, { backgroundColor: hasChanges ? C.tint : C.border }]}
           onPress={goBack}
         >
-          <Feather name="check" size={18} color={hasChanges ? "#fff" : C.textMuted} />
+          <Check size={18} color={hasChanges ? "#fff" : C.textMuted} />
           <Text style={[s.doneTxt, { color: hasChanges ? "#fff" : C.textMuted }]}>
             {hasChanges ? `배정 완료 — ${assigned.length}명 확정` : "변경 없음 · 돌아가기"}
           </Text>
@@ -440,10 +440,10 @@ export default function ClassAssignScreen() {
               style={{ position: "absolute", top: 12, right: 12, padding: 4 }}
               hitSlop={8}
             >
-              <Feather name="x" size={20} color="#999" />
+              <X size={20} color="#999" />
             </Pressable>
             <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#FFF3CD", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-              <Feather name="alert-triangle" size={24} color="#E8A000" />
+              <TriangleAlert size={24} color="#E8A000" />
             </View>
             <Text style={{ fontSize: 17, fontWeight: "700", color: "#222", marginBottom: 8 }}>배정 상태가 변경되었습니다</Text>
             <Text style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>다른 선생님이 먼저 배정을 완료했습니다.{"\n"}목록을 새로고침하여 최신 상태를 확인하세요.</Text>
@@ -451,7 +451,7 @@ export default function ClassAssignScreen() {
               onPress={handleConflict}
               style={{ backgroundColor: C.button, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6 }}
             >
-              <Feather name="refresh-cw" size={15} color="#fff" />
+              <RefreshCw size={15} color="#fff" />
               <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>목록 새로고침</Text>
             </Pressable>
           </View>
@@ -585,8 +585,8 @@ function StudentRow({
         {loading
           ? <ActivityIndicator size={14} color={isAdd ? "#fff" : C.error} />
           : isAdd
-            ? <Feather name="plus" size={14} color="#fff" />
-            : <Feather name="minus" size={14} color={C.error} />
+            ? <Plus size={14} color="#fff" />
+            : <Minus size={14} color={C.error} />
         }
         <Text style={[r.btnText, { color: isAdd ? (disabled ? C.textMuted : "#fff") : C.error }]}>
           {isAdd ? "추가" : "해제"}

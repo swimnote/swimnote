@@ -8,7 +8,7 @@
  * - 일간 뷰: WeeklySchedule 공용 컴포넌트 + 담당 선생님 표시
  * - AdminClassDetailSheet 사용 (관리자 기능)
  */
-import { Feather } from "@expo/vector-icons";
+import { Calendar, Check, ChevronLeft, ChevronRight, Plus, Repeat, RotateCcw, User, Users, X } from "lucide-react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -114,13 +114,13 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
     <View style={mc.root}>
       <View style={mc.monthNav}>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}>
-          <Feather name="chevron-left" size={20} color={C.text} />
+          <ChevronLeft size={20} color={C.text} />
         </Pressable>
         <Pressable onPress={() => setOffset(0)}>
           <Text style={mc.monthTitle}>{year}년 {month}월</Text>
         </Pressable>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}>
-          <Feather name="chevron-right" size={20} color={C.text} />
+          <ChevronRight size={20} color={C.text} />
         </Pressable>
       </View>
 
@@ -245,11 +245,11 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
             </View>
             <View style={dy.headerActions}>
               <Pressable style={[dy.headerBtn, { backgroundColor: "#E6FFFA" }]} onPress={onOpenMakeup}>
-                <Feather name="repeat" size={13} color="#4338CA" />
+                <Repeat size={13} color="#4338CA" />
                 <Text style={[dy.headerBtnTxt, { color: "#4338CA" }]}>보강</Text>
               </Pressable>
               <Pressable onPress={onClose} style={dy.closeBtn}>
-                <Feather name="x" size={20} color={C.textSecondary} />
+                <X size={20} color={C.textSecondary} />
               </Pressable>
             </View>
           </View>
@@ -259,10 +259,10 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
 
             {classes.length === 0 && (
               <View style={dy.emptyBox}>
-                <Feather name="calendar" size={32} color={C.textMuted} />
+                <Calendar size={32} color={C.textMuted} />
                 <Text style={dy.emptyTxt}>이 날은 수업이 없습니다</Text>
                 <Pressable style={[dy.emptyAction, { borderColor: "#4338CA" }]} onPress={onOpenMakeup}>
-                  <Feather name="repeat" size={13} color="#4338CA" />
+                  <Repeat size={13} color="#4338CA" />
                   <Text style={[dy.emptyActionTxt, { color: "#4338CA" }]}>보강 추가</Text>
                 </Pressable>
               </View>
@@ -285,19 +285,19 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
                           <Text style={dy.classSub}>{g.student_count}명</Text>
                           {!!g.instructor && (
                             <View style={dy.instructorBadge}>
-                              <Feather name="user" size={9} color="#64748B" />
+                              <User size={9} color="#64748B" />
                               <Text style={dy.instructorTxt}>{g.instructor}</Text>
                             </View>
                           )}
                           {attCnt > 0 && (
                             <View style={dy.attBadge}>
-                              <Feather name="check" size={9} color="#2EC4B6" />
+                              <Check size={9} color="#2EC4B6" />
                               <Text style={dy.attBadgeTxt}>출결 {attCnt}</Text>
                             </View>
                           )}
                         </View>
                       </View>
-                      <Feather name="chevron-right" size={16} color={C.textSecondary} />
+                      <ChevronRight size={16} color={C.textSecondary} />
                     </Pressable>
                   );
                 })}
@@ -501,17 +501,17 @@ export default function ClassesScreen() {
           <View style={s.rightBtns}>
             <Pressable style={[s.iconBtn, { backgroundColor: "#EEDDF5" }]}
               onPress={() => router.push("/(admin)/makeups" as any)}>
-              <Feather name="rotate-ccw" size={13} color="#7C3AED" />
+              <RotateCcw size={13} color="#7C3AED" />
               <Text style={[s.iconBtnTxt, { color: "#7C3AED" }]}>보강</Text>
             </Pressable>
             <Pressable style={[s.mgmtBtn, { borderColor: themeColor }]}
               onPress={() => setShowManagement(true)}>
-              <Feather name="users" size={13} color={themeColor} />
+              <Users size={13} color={themeColor} />
               <Text style={[s.mgmtBtnTxt, { color: themeColor }]}>수강생관리</Text>
             </Pressable>
             <Pressable style={[s.createBtn, { backgroundColor: C.button }]}
               onPress={() => setShowCreate(true)}>
-              <Feather name="plus" size={14} color="#fff" />
+              <Plus size={14} color="#fff" />
               <Text style={s.createBtnTxt}>반 등록</Text>
             </Pressable>
           </View>

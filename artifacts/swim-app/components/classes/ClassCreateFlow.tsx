@@ -6,7 +6,8 @@
  * Step 3: 선생님 선택 (pool_admin만, teacher는 자동 스킵)
  * Step 4: 반 개설 확인 카드
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft, ArrowRight, Calendar, Check, CircleAlert, CircleCheck, Layers, UserX, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Dimensions, KeyboardAvoidingView, Modal, Platform,
@@ -151,7 +152,7 @@ function TeacherRow({ t, selected, onPress }: { t: Teacher; selected: boolean; o
           <Text style={tr.badgeText}>미활성</Text>
         </View>
       )}
-      {selected && <Feather name="check-circle" size={20} color={C.tint} />}
+      {selected && <CircleCheck size={20} color={C.tint} />}
     </Pressable>
   );
 }
@@ -315,14 +316,14 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
               <StepDots current={stepIndex(step)} total={totalSteps} />
             </View>
             <Pressable onPress={onClose} hitSlop={8}>
-              <Feather name="x" size={22} color={C.textSecondary} />
+              <X size={22} color={C.textSecondary} />
             </Pressable>
           </View>
 
           {/* 에러 (고정, 스크롤 밖) */}
           {errorMsg && (
             <View style={fl.errorRow}>
-              <Feather name="alert-circle" size={14} color={C.error} />
+              <CircleAlert size={14} color={C.error} />
               <Text style={fl.errorText}>{errorMsg}</Text>
             </View>
           )}
@@ -366,7 +367,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                     <Text style={fl.stepTitle}>수업 날짜를 입력하세요</Text>
                     <Text style={fl.stepSub}>1회만 운영되는 특별 수업입니다</Text>
                     <View style={[ot.dateBox, { borderColor: oneTimeDate && getDayOfWeek(oneTimeDate) ? C.tint : C.border, backgroundColor: C.background }]}>
-                      <Feather name="calendar" size={18} color={C.tint} style={{ marginRight: 10 }} />
+                      <Calendar size={18} color={C.tint} style={{ marginRight: 10 }} />
                       <TextInput
                         style={[ot.dateInput, { color: C.text }]}
                         value={oneTimeDate}
@@ -379,7 +380,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                     </View>
                     {oneTimeDate && getDayOfWeek(oneTimeDate) ? (
                       <View style={[s1.preview, { backgroundColor: "#E6FAF8" }]}>
-                        <Feather name="check-circle" size={14} color="#7C3AED" />
+                        <CircleCheck size={14} color="#7C3AED" />
                         <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" }}>
                           {oneTimeDate} ({getDayOfWeek(oneTimeDate)}요일)
                         </Text>
@@ -450,7 +451,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                   <ActivityIndicator color={C.tint} style={{ marginTop: 30 }} />
                 ) : teachers.length === 0 ? (
                   <View style={s3.empty}>
-                    <Feather name="user-x" size={36} color={C.textMuted} />
+                    <UserX size={36} color={C.textMuted} />
                     <Text style={[s3.emptyText, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text>
                   </View>
                 ) : (
@@ -464,10 +465,10 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                         onPress={() => setSelectedTeacher(null)}
                       >
                         <View style={[tr.avatar, { backgroundColor: C.border }]}>
-                          <Feather name="user-x" size={18} color={C.textMuted} />
+                          <UserX size={18} color={C.textMuted} />
                         </View>
                         <Text style={[tr.name, { color: C.textSecondary }]}>미지정</Text>
-                        {selectedTeacher === null && <Feather name="check-circle" size={20} color={C.textSecondary} />}
+                        {selectedTeacher === null && <CircleCheck size={20} color={C.textSecondary} />}
                       </Pressable>
                     )}
                     {teachers.map(t => (
@@ -494,7 +495,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                         <Text style={{ color: "#fff", fontSize: 10, fontFamily: "Pretendard-Bold" }}>1회성</Text>
                       </View>
                     )}
-                    <Feather name="layers" size={20} color={isOneTime ? "#7C3AED" : C.tint} />
+                    <Layers size={20} color={isOneTime ? "#7C3AED" : C.tint} />
                     <Text style={[s4.name, { color: isOneTime ? "#7C3AED" : C.tint }]}>{classLabel}</Text>
                   </View>
                   <View style={s4.rows}>
@@ -527,7 +528,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
           <View style={[fl.btnRow, { paddingBottom: insets.bottom + 8 }]}>
             {step > 1 && (
               <Pressable style={fl.backBtn} onPress={handleBack}>
-                <Feather name="arrow-left" size={18} color={C.textSecondary} />
+                <ArrowLeft size={18} color={C.textSecondary} />
               </Pressable>
             )}
             {step < 4 ? (
@@ -536,7 +537,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 onPress={handleNext}
               >
                 <Text style={fl.nextText}>다음</Text>
-                <Feather name="arrow-right" size={16} color="#fff" />
+                <ArrowRight size={16} color="#fff" />
               </Pressable>
             ) : (
               <Pressable
@@ -548,7 +549,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
                   <>
-                    <Feather name="check" size={16} color="#fff" />
+                    <Check size={16} color="#fff" />
                     <Text style={fl.nextText}>{isOneTime ? "1회성 반 개설" : "반 개설하기"}</Text>
                   </>
                 )}
@@ -564,7 +565,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
 function InfoRow({ icon, label, value }: { icon: any; label: string; value: string }) {
   return (
     <View style={ir.row}>
-      <Feather name={icon} size={14} color={C.textMuted} />
+      <LucideIcon name={icon} size={14} color={C.textMuted} />
       <Text style={ir.label}>{label}</Text>
       <Text style={ir.value}>{value}</Text>
     </View>

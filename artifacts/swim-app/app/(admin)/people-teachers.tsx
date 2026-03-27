@@ -4,7 +4,7 @@
  * - rejected → teacher-pending-detail (승인관리 상세, 재승인 가능)
  * - approved → teacher-hub (일반 상세)
  */
-import { Feather } from "@expo/vector-icons";
+import { ArrowRight, Check, ChevronRight, CircleX, Clock, Phone, Search, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -110,7 +110,7 @@ export default function PeopleTeachersScreen() {
 
       {/* 검색 */}
       <View style={s.searchBar}>
-        <Feather name="search" size={15} color={C.textSecondary} />
+        <Search size={15} color={C.textSecondary} />
         <TextInput
           style={s.searchInput}
           value={q}
@@ -120,7 +120,7 @@ export default function PeopleTeachersScreen() {
         />
         {!!q && (
           <Pressable onPress={() => setQ("")}>
-            <Feather name="x" size={15} color={C.textSecondary} />
+            <X size={15} color={C.textSecondary} />
           </Pressable>
         )}
       </View>
@@ -148,7 +148,7 @@ export default function PeopleTeachersScreen() {
           refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Feather name="users" size={36} color={C.textMuted} />
+              <Users size={36} color={C.textMuted} />
               <Text style={s.emptyTxt}>
                 {filter === "미승인" ? "승인 대기 또는 거절된 선생님이 없습니다" : "선생님이 없습니다"}
               </Text>
@@ -177,19 +177,19 @@ export default function PeopleTeachersScreen() {
                       {/* 상태 뱃지 */}
                       {status === "pending" && (
                         <View style={s.pendingBadge}>
-                          <Feather name="clock" size={10} color="#D97706" />
+                          <Clock size={10} color="#D97706" />
                           <Text style={s.pendingBadgeTxt}>승인 대기</Text>
                         </View>
                       )}
                       {status === "rejected" && (
                         <View style={s.rejectedBadge}>
-                          <Feather name="x-circle" size={10} color="#D96C6C" />
+                          <CircleX size={10} color="#D96C6C" />
                           <Text style={s.rejectedBadgeTxt}>거절됨</Text>
                         </View>
                       )}
                       {status === "approved" && (
                         <View style={s.activeBadge}>
-                          <Feather name="check" size={10} color="#2EC4B6" />
+                          <Check size={10} color="#2EC4B6" />
                           <Text style={s.activeBadgeTxt}>승인됨</Text>
                         </View>
                       )}
@@ -201,7 +201,7 @@ export default function PeopleTeachersScreen() {
                         disabled={!isValidPhone(item.phone)}
                         hitSlop={6}
                       >
-                        <Feather name="phone" size={11} color={isValidPhone(item.phone) ? CALL_COLOR : C.textMuted} />
+                        <Phone size={11} color={isValidPhone(item.phone) ? CALL_COLOR : C.textMuted} />
                         <Text style={[s.sub, isValidPhone(item.phone) ? { color: CALL_COLOR } : {}]}>
                           {formatPhone(item.phone)}
                         </Text>
@@ -218,18 +218,18 @@ export default function PeopleTeachersScreen() {
                     </View>
                     {status === "pending" && (
                       <View style={s.hintRow}>
-                        <Feather name="arrow-right" size={11} color={C.tint} />
+                        <ArrowRight size={11} color={C.tint} />
                         <Text style={[s.hintTxt, { color: C.tint }]}>탭하여 승인/거절 처리</Text>
                       </View>
                     )}
                     {status === "rejected" && (
                       <View style={s.hintRow}>
-                        <Feather name="arrow-right" size={11} color="#D96C6C" />
+                        <ArrowRight size={11} color="#D96C6C" />
                         <Text style={[s.hintTxt, { color: "#D96C6C" }]}>탭하여 재승인 또는 이력 확인</Text>
                       </View>
                     )}
                   </View>
-                  <Feather name="chevron-right" size={18} color={C.textSecondary} />
+                  <ChevronRight size={18} color={C.textSecondary} />
                 </View>
               </Pressable>
             );

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ArrowLeft } from "lucide-react-native";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -38,7 +38,7 @@ export default function PrivacyScreen() {
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color={C.text} />
+          <ArrowLeft size={22} color={C.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: C.text }]}>개인정보 처리방침</Text>
         <View style={{ width: 40 }} />

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { ExternalLink, RotateCcw } from "lucide-react-native";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
@@ -27,7 +27,7 @@ export function MemberMakeupTab({ makeups, themeColor }: MemberMakeupTabProps) {
         <Text style={ms.sectionTitle}>보강 이력 ({makeups.length}건)</Text>
         {makeups.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 30 }}>
-            <Feather name="rotate-ccw" size={36} color={C.textMuted} />
+            <RotateCcw size={36} color={C.textMuted} />
             <Text style={{ fontSize: 14, color: C.textMuted, marginTop: 10 }}>보강 기록이 없습니다</Text>
           </View>
         ) : makeups.map((mk: any) => {
@@ -62,7 +62,7 @@ export function MemberMakeupTab({ makeups, themeColor }: MemberMakeupTabProps) {
           style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, justifyContent: "center" }}
           onPress={() => router.push("/(admin)/makeups")}
         >
-          <Feather name="external-link" size={14} color={themeColor} />
+          <ExternalLink size={14} color={themeColor} />
           <Text style={{ fontSize: 13, color: themeColor, fontWeight: "600" }}>보강 관리 화면으로 이동</Text>
         </Pressable>
       </View>

@@ -6,7 +6,7 @@
  *   섹션 배지 없음 / 선 최소화 / 흰 배경
  *   기능·로직·클릭이벤트는 기존 그대로 유지
  */
-import { Feather } from "@expo/vector-icons";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react-native";
 import React, { useMemo } from "react";
 import {
   Dimensions, Pressable, ScrollView,
@@ -124,7 +124,7 @@ export default function WeeklyTimetableV2({
             borderColor:     "#374151",
             backgroundColor: selected ? "#374151" : "transparent",
           }]}>
-            {selected && <Feather name="check" size={6} color="#fff" />}
+            {selected && <Check size={6} color="#fff" />}
           </View>
         )}
         <View style={[wt.accentBar, { backgroundColor: accent }]} />
@@ -148,7 +148,7 @@ export default function WeeklyTimetableV2({
       {/* 주간 네비게이션 */}
       <View style={wt.weekNav}>
         <Pressable style={wt.weekNavBtn} onPress={onPrevWeek}>
-          <Feather name="chevron-left" size={18} color="#9CA3AF" />
+          <ChevronLeft size={18} color="#9CA3AF" />
         </Pressable>
         <Text style={wt.weekNavTitle}>
           {(() => {
@@ -159,7 +159,7 @@ export default function WeeklyTimetableV2({
           })()}
         </Text>
         <Pressable style={wt.weekNavBtn} onPress={onNextWeek}>
-          <Feather name="chevron-right" size={18} color="#9CA3AF" />
+          <ChevronRight size={18} color="#9CA3AF" />
         </Pressable>
       </View>
 

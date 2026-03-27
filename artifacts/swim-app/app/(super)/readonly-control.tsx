@@ -3,7 +3,8 @@
  * 3단계: 플랫폼 전체 / 운영자별 / 기능별
  * readonlyStore + operatorsStore + auditLogStore — API 호출 없음
  */
-import { Feather } from "@expo/vector-icons";
+import { Activity, Globe, ToggleLeft, TriangleAlert, Unlock, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useMemo, useState } from "react";
 import {
   Alert, Modal, Pressable,
@@ -48,7 +49,7 @@ function PlatformSection({
     <View style={[ps.card, enabled && ps.cardActive]}>
       <View style={ps.top}>
         <View style={[ps.iconBox, { backgroundColor: enabled ? "#F9DEDA" : "#FFFFFF" }]}>
-          <Feather name="globe" size={20} color={enabled ? "#D96C6C" : "#64748B"} />
+          <Globe size={20} color={enabled ? "#D96C6C" : "#64748B"} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={ps.title}>플랫폼 전체 읽기전용</Text>
@@ -64,7 +65,7 @@ function PlatformSection({
       {enabled && (
         <>
           <View style={ps.warningBanner}>
-            <Feather name="alert-triangle" size={14} color="#D96C6C" />
+            <TriangleAlert size={14} color="#D96C6C" />
             <Text style={ps.warningTxt}>플랫폼 전체가 읽기전용 상태입니다. 모든 운영자의 데이터 입력이 차단됩니다.</Text>
           </View>
           {reason && <Text style={ps.reasonTxt}>사유: {reason}</Text>}
@@ -74,7 +75,7 @@ function PlatformSection({
       <Pressable
         style={[ps.btn, enabled ? { backgroundColor: "#E6FFFA" } : { backgroundColor: "#F9DEDA" }]}
         onPress={() => { setInputReason(""); setShowModal(true); }}>
-        <Feather name={enabled ? "unlock" : "lock"} size={14} color={enabled ? "#2EC4B6" : "#D96C6C"} />
+        <LucideIcon name={enabled ? "unlock" : "lock"} size={14} color={enabled ? "#2EC4B6" : "#D96C6C"} />
         <Text style={[ps.btnTxt, { color: enabled ? "#2EC4B6" : "#D96C6C" }]}>
           {enabled ? "읽기전용 해제" : "읽기전용 활성화"}
         </Text>
@@ -86,7 +87,7 @@ function PlatformSection({
             <Text style={pm.title}>{enabled ? "읽기전용 해제" : "플랫폼 전체 읽기전용 활성화"}</Text>
             {!enabled && (
               <View style={pm.warningBox}>
-                <Feather name="alert-triangle" size={16} color="#D97706" />
+                <TriangleAlert size={16} color="#D97706" />
                 <Text style={pm.warningTxt}>모든 운영자의 쓰기 기능이 즉시 차단됩니다.</Text>
               </View>
             )}
@@ -240,7 +241,7 @@ export default function ReadonlyControlScreen() {
           {SCOPE_INFO.map(info => (
             <View key={info.scope} style={[s.scopeCard, { borderTopColor: info.color, borderTopWidth: 3 }]}>
               <View style={[s.scopeIcon, { backgroundColor: info.bg }]}>
-                <Feather name={info.icon} size={14} color={info.color} />
+                <LucideIcon name={info.icon} size={14} color={info.color} />
               </View>
               <Text style={s.scopeLabel}>{info.scope}</Text>
               <Text style={s.scopeDesc}>{info.desc}</Text>
@@ -258,7 +259,7 @@ export default function ReadonlyControlScreen() {
         {/* 운영자별 읽기전용 목록 */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Feather name="users" size={15} color="#D97706" />
+            <Users size={15} color="#D97706" />
             <Text style={s.sectionTitle}>운영자별 읽기전용</Text>
             <View style={[s.countBadge, { backgroundColor: readonlyOperators.length > 0 ? "#FFF1BF" : "#FFFFFF" }]}>
               <Text style={[s.countTxt, { color: readonlyOperators.length > 0 ? "#D97706" : "#64748B" }]}>
@@ -279,7 +280,7 @@ export default function ReadonlyControlScreen() {
                   <Text style={or.sub}>{op.representativeName}</Text>
                 </View>
                 <Pressable style={or.releaseBtn} onPress={() => releaseOperator({ id: op.id, name: op.name })}>
-                  <Feather name="unlock" size={12} color="#2EC4B6" />
+                  <Unlock size={12} color="#2EC4B6" />
                   <Text style={or.releaseTxt}>해제</Text>
                 </Pressable>
               </View>
@@ -290,7 +291,7 @@ export default function ReadonlyControlScreen() {
         {/* 기능별 읽기전용 (기능 플래그) */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Feather name="toggle-left" size={15} color="#2EC4B6" />
+            <ToggleLeft size={15} color="#2EC4B6" />
             <Text style={s.sectionTitle}>기능별 읽기전용 (기능 플래그)</Text>
           </View>
           {globalFlags.filter(f => !f.enabled).length === 0 ? (
@@ -315,7 +316,7 @@ export default function ReadonlyControlScreen() {
         {/* 최근 제어 로그 */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Feather name="activity" size={15} color="#64748B" />
+            <Activity size={15} color="#64748B" />
             <Text style={s.sectionTitle}>최근 읽기전용 제어 로그</Text>
           </View>
           {recentLogs.length === 0 ? (

@@ -1,4 +1,5 @@
-import { Feather } from "@expo/vector-icons";
+import { Check, Info, Pause, Phone, RefreshCw, UserX, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, View,
@@ -43,7 +44,7 @@ function PDPhoneRow({ label, phone }: { label: string; phone: string | null | un
     >
       <Text style={pd.infoLabel}>{label}</Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-        <Feather name="phone" size={13} color={valid ? CALL_COLOR : C.textMuted} />
+        <Phone size={13} color={valid ? CALL_COLOR : C.textMuted} />
         <Text style={[pd.infoValue, valid ? { color: CALL_COLOR } : {}]}>
           {phone ? formatPhone(phone) : "미입력"}
         </Text>
@@ -86,13 +87,13 @@ export function ParentDetailModal({
               </View>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <Feather name="x" size={20} color={C.textSecondary} />
+              <X size={20} color={C.textSecondary} />
             </Pressable>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={[pd.matchBadge, { backgroundColor: mc.bg }]}>
-              <Feather name={mc.icon as any} size={13} color={mc.color} />
+              <LucideIcon name={mc.icon as any} size={13} color={mc.color} />
               <Text style={[pd.matchTxt, { color: mc.color }]}>{mc.label}</Text>
               {req.matchedStudentIds.length > 0 && (
                 <Text style={[pd.matchSub, { color: mc.color }]}>· {req.matchedStudentIds.length}명 연결</Text>
@@ -132,33 +133,33 @@ export function ParentDetailModal({
             {(isPending || isOnHold) && (
               <>
                 <Pressable style={[pd.btn, { backgroundColor: "#FFF1BF", borderColor: "#D97706", borderWidth: 1 }]} onPress={onHold}>
-                  <Feather name="pause" size={14} color="#D97706" />
+                  <Pause size={14} color="#D97706" />
                   <Text style={[pd.btnTxt, { color: "#D97706" }]}>보류</Text>
                 </Pressable>
                 <Pressable style={[pd.btn, { backgroundColor: "#F9DEDA", borderColor: C.error, borderWidth: 1 }]} onPress={onOpenReject}>
-                  <Feather name="x" size={14} color={C.error} />
+                  <X size={14} color={C.error} />
                   <Text style={[pd.btnTxt, { color: C.error }]}>거절</Text>
                 </Pressable>
                 <Pressable style={[pd.btn, { backgroundColor: C.success }]} onPress={onApprove}>
-                  <Feather name="check" size={14} color="#fff" />
+                  <Check size={14} color="#fff" />
                   <Text style={[pd.btnTxt, { color: "#fff" }]}>승인</Text>
                 </Pressable>
               </>
             )}
             {isApproved && (
               <Pressable style={[pd.btn, { flex: 1, backgroundColor: "#F9DEDA", borderColor: "#D96C6C", borderWidth: 1 }]} onPress={onRevoke}>
-                <Feather name="user-x" size={14} color="#D96C6C" />
+                <UserX size={14} color="#D96C6C" />
                 <Text style={[pd.btnTxt, { color: "#D96C6C" }]}>승인 해제</Text>
               </Pressable>
             )}
             {req.status === "rejected" && (
               <>
                 <View style={pd.rejectInfo}>
-                  <Feather name="info" size={13} color="#D96C6C" />
+                  <Info size={13} color="#D96C6C" />
                   <Text style={pd.rejectInfoTxt}>거절 상태입니다. 재승인하면 가입을 허용합니다.</Text>
                 </View>
                 <Pressable style={[pd.btn, { flex: 1, backgroundColor: C.success }]} onPress={onReApprove}>
-                  <Feather name="refresh-cw" size={14} color="#fff" />
+                  <RefreshCw size={14} color="#fff" />
                   <Text style={[pd.btnTxt, { color: "#fff" }]}>재승인</Text>
                 </Pressable>
               </>

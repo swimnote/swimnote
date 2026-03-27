@@ -4,7 +4,8 @@
  * 새 구조: lesson_date, common_content, teacher_name, is_edited
  *          student_note: { note_content, is_edited }
  */
-import { Feather } from "@expo/vector-icons";
+import { User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -71,7 +72,7 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
             )}
             {entry.student_note && (
               <View style={[s.editedBadge, { backgroundColor: "#EEDDF5" }]}>
-                <Feather name="user" size={9} color="#7C3AED" />
+                <User size={9} color="#7C3AED" />
                 <Text style={[s.editedBadgeText, { color: "#7C3AED" }]}>개별 일지</Text>
               </View>
             )}
@@ -80,7 +81,7 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
             {!isCurrentYear && `${year}년 · `}{entry.common_content}
           </Text>
         </View>
-        <Feather name={open ? "chevron-up" : "chevron-down"} size={18} color={C.textMuted} />
+        <LucideIcon name={open ? "chevron-up" : "chevron-down"} size={18} color={C.textMuted} />
       </Pressable>
 
       {open && (
@@ -100,7 +101,7 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
           {entry.student_note?.note_content && (
             <View style={[s.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#E6FAF8" }]}>
               <View style={s.sectionHeader}>
-                <Feather name="user" size={12} color="#7C3AED" />
+                <User size={12} color="#7C3AED" />
                 <Text style={s.noteTitle}>우리 아이 개별 일지</Text>
                 {entry.student_note.is_edited && (
                   <View style={[s.editedBadge, { backgroundColor: "#EEDDF5" }]}>
