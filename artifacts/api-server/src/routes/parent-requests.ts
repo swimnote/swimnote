@@ -267,23 +267,27 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
         if (!["approved", "auto_approved"].includes(request.request_status)) {
           res.status(409).json({ success: false, message: "승인된 학부모만 승인 해제할 수 있습니다." }); return;
         }
-        // parent_accounts 비활성화
         if (request.parent_account_id) {
-          await db.execute(sql`
-            UPDATE parent_accounts SET is_active = false, updated_at = NOW()
-            WHERE id = ${request.parent_account_id}
-          `);
-          // 해당 학부모의 학생 연결도 해제
+          // 학생 연결만 해제 (계정은 유지 — 학부모는 홈에서 "자녀 없음" 상태로 진입)
           await db.execute(sql`
             UPDATE students SET parent_user_id = NULL, updated_at = NOW()
             WHERE parent_user_id = ${request.parent_account_id}
+          `);
+          // parent_students 연결 해제
+          await db.execute(sql`
+            DELETE FROM parent_students WHERE parent_id = ${request.parent_account_id}
+          `);
+          // swimming_pool_id 초기화 (재연결 가능하도록)
+          await db.execute(sql`
+            UPDATE parent_accounts SET swimming_pool_id = NULL, updated_at = NOW()
+            WHERE id = ${request.parent_account_id}
           `);
         }
         await superAdminDb.execute(sql`
           UPDATE parent_pool_requests SET request_status = 'revoked', processed_at = NOW(), processed_by = ${req.user!.userId}
           WHERE id = ${req.params.id}
         `);
-        res.json({ success: true, message: "학부모 승인이 해제되었습니다." }); return;
+        res.json({ success: true, message: "자녀 연결이 해제되었습니다. 학부모는 로그인 후 자녀 연결 화면을 볼 수 있습니다." }); return;
       }
 
       if (request.request_status !== "pending") {

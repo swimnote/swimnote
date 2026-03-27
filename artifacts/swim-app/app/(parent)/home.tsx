@@ -244,7 +244,7 @@ export default function ParentHomeScreen() {
               <Feather name="link" size={38} color={C.tint} />
             </View>
             <View style={{ alignItems: "center", gap: 10 }}>
-              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: C.text }}>자녀를 연결해주세요</Text>
+              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: C.text }}>연결된 자녀가 없습니다</Text>
               <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
                 수영장과 자녀 이름을 입력하면{"\n"}자동으로 연결됩니다.
               </Text>
