@@ -99,10 +99,12 @@ export default function LoginScreen() {
             style={styles.logoImage}
             resizeMode="cover"
           />
-          <Text style={[styles.appSub, { color: C.textSecondary }]}>{LOGIN_LABELS.appSub}</Text>
-          <Text style={[styles.appDesc, { color: C.textMuted }]}>
-            수영장 · 선생님 · 학부모가 하나로 연결됩니다
-          </Text>
+          <View style={styles.descBox}>
+            <Text style={[styles.appSub, { color: C.textSecondary }]}>{LOGIN_LABELS.appSub}</Text>
+            <Text style={[styles.appDesc, { color: C.textMuted }]}>
+              수영장 · 선생님 · 학부모가 하나로 연결됩니다
+            </Text>
+          </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
@@ -225,11 +227,16 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "center" },
-  logoArea: { alignItems: "center", gap: 12, paddingBottom: 28 },
+  logoArea: { alignItems: "center", paddingBottom: 24 },
+  descBox: {
+    marginTop: 20, backgroundColor: "#fff", borderRadius: 16,
+    paddingHorizontal: 20, paddingVertical: 12, alignItems: "center", gap: 4,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
   logoImage: { width: 230, height: 230, borderRadius: 52, shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
   appSub: { fontSize: 18, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   appDesc: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
-  spacer: { height: 95 },
+  spacer: { height: 5 },
   card: { borderRadius: 20, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 },
   cardTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   field: { gap: 4 },
