@@ -175,7 +175,7 @@ export default function DiaryIndexScreen() {
 
       {/* 일지 작성 버튼 */}
       <Pressable
-        style={[di.writeBtn, { backgroundColor: themeColor }]}
+        style={[di.writeBtn, { backgroundColor: C.button }]}
         onPress={() => router.push("/(teacher)/diary-unwritten" as any)}
       >
         <Feather name="edit-3" size={15} color="#fff" />

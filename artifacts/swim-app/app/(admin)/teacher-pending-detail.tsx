@@ -165,7 +165,7 @@ export default function TeacherPendingDetailScreen() {
           <Text style={s.errorTitle}>존재하지 않는 선생님입니다</Text>
           <Text style={s.errorDesc}>이미 처리됐거나 존재하지 않는 요청입니다.</Text>
           <Pressable
-            style={({ pressed }) => [s.backBtn, { backgroundColor: themeColor, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [s.backBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
             onPress={() => router.back()}
           >
             <Text style={s.backBtnTxt}>목록으로 돌아가기</Text>
@@ -253,7 +253,7 @@ export default function TeacherPendingDetailScreen() {
               <Text style={s.rejectBtnTxt}>거절</Text>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [s.approveBtn, { backgroundColor: themeColor, opacity: pressed || approving ? 0.85 : 1, flex: 1 }]}
+              style={({ pressed }) => [s.approveBtn, { backgroundColor: C.button, opacity: pressed || approving ? 0.85 : 1, flex: 1 }]}
               onPress={handleApprove}
               disabled={approving}
             >
@@ -282,7 +282,7 @@ export default function TeacherPendingDetailScreen() {
               <Text style={s.rejectReasonBtnTxt}>거절 사유 보기</Text>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [s.approveBtn, { backgroundColor: themeColor, opacity: pressed || approving ? 0.85 : 1, flex: 1 }]}
+              style={({ pressed }) => [s.approveBtn, { backgroundColor: C.button, opacity: pressed || approving ? 0.85 : 1, flex: 1 }]}
               onPress={handleApprove}
               disabled={approving}
             >

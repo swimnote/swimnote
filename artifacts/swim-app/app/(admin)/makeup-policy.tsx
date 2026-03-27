@@ -180,7 +180,7 @@ export default function MakeupPolicyScreen() {
 
         {/* 저장 버튼 */}
         <Pressable
-          style={[s.saveBtn, { backgroundColor: themeColor }]}
+          style={[s.saveBtn, { backgroundColor: C.button }]}
           onPress={() => setShowConfirm(true)}
           disabled={saving}
         >

@@ -323,7 +323,7 @@ export default function DataDeleteScreen() {
                 </View>
                 <Text style={[s.resultMsg, { color: result.ok ? "#2EC4B6" : "#D96C6C" }]}>{result.message}</Text>
               </View>
-              <Pressable style={[s.primaryBtn, { backgroundColor: themeColor }]} onPress={resetKs}>
+              <Pressable style={[s.primaryBtn, { backgroundColor: C.button }]} onPress={resetKs}>
                 <Text style={s.primaryBtnText}>다시 시작</Text>
               </Pressable>
             </View>

@@ -480,7 +480,7 @@ export default function MyScheduleScreen() {
                   <Feather name="users" size={13} color={themeColor} />
                   <Text style={[s.mgmtBtnText, { color: themeColor }]}>수강생관리</Text>
                 </Pressable>
-                <Pressable style={[s.createBtn, { backgroundColor: themeColor }]} onPress={() => { setCreateInitialDays([]); setCreateInitialStep(1); setShowCreate(true); }}>
+                <Pressable style={[s.createBtn, { backgroundColor: C.button }]} onPress={() => { setCreateInitialDays([]); setCreateInitialStep(1); setShowCreate(true); }}>
                   <Feather name="plus" size={14} color="#fff" />
                   <Text style={s.createBtnText}>반 등록</Text>
                 </Pressable>

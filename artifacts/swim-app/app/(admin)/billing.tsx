@@ -360,7 +360,7 @@ export default function BillingScreen() {
                   onPress={() => setShowCardForm(false)}>
                   <Text style={{ fontWeight: "500", color: "#6B7280" }}>취소</Text>
                 </Pressable>
-                <Pressable style={[s.formBtn, { flex: 1, backgroundColor: themeColor }]}
+                <Pressable style={[s.formBtn, { flex: 1, backgroundColor: C.button }]}
                   onPress={registerCard} disabled={cardSaving}>
                   <Text style={{ fontWeight: "600", color: "#fff" }}>{cardSaving ? "등록 중..." : "등록"}</Text>
                 </Pressable>

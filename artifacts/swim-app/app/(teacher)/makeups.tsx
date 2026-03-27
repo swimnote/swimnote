@@ -412,7 +412,7 @@ export default function MakeupsScreen() {
                   )}
                   <View style={s.btnRow}>
                     <Pressable
-                      style={[s.actionBtn, { backgroundColor: themeColor }]}
+                      style={[s.actionBtn, { backgroundColor: C.button }]}
                       onPress={() => openAssignModal(mk)}
                     >
                       <Feather name="calendar" size={14} color="#fff" />
@@ -578,7 +578,7 @@ export default function MakeupsScreen() {
               {selectedClassId && (
                 <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8 }}>
                   <Pressable
-                    style={[s.confirmBtn, { backgroundColor: themeColor, opacity: assigning ? 0.6 : 1 }]}
+                    style={[s.confirmBtn, { backgroundColor: C.button, opacity: assigning ? 0.6 : 1 }]}
                     onPress={doAssign}
                     disabled={assigning}
                   >

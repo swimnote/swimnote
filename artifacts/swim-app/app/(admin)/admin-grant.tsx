@@ -136,7 +136,7 @@ export default function AdminGrantScreen() {
                   s.grantBtn,
                   item.is_admin_granted
                     ? s.grantBtnRevoke
-                    : { backgroundColor: themeColor },
+                    : { backgroundColor: C.button },
                   { opacity: pressed ? 0.8 : 1 },
                 ]}
                 onPress={() => setConfirmTarget(item)}
@@ -188,7 +188,7 @@ export default function AdminGrantScreen() {
                 <Pressable
                   style={[
                     s.dialogBtn,
-                    confirmTarget.is_admin_granted ? s.dialogBtnRevoke : { backgroundColor: themeColor },
+                    confirmTarget.is_admin_granted ? s.dialogBtnRevoke : { backgroundColor: C.button },
                   ]}
                   onPress={() => handleGrant(confirmTarget.id, !confirmTarget.is_admin_granted)}
                   disabled={processing}
@@ -215,7 +215,7 @@ export default function AdminGrantScreen() {
               <Text style={[s.dialogTitle, { textAlign: "center" }]}>완료</Text>
               <Text style={[s.dialogBody, { textAlign: "center" }]}>{resultMsg}</Text>
               <Pressable
-                style={[s.dialogBtn, { backgroundColor: themeColor, alignSelf: "center", paddingHorizontal: 40 }]}
+                style={[s.dialogBtn, { backgroundColor: C.button, alignSelf: "center", paddingHorizontal: 40 }]}
                 onPress={() => setResultMsg(null)}
               >
                 <Text style={s.dialogBtnTxt}>확인</Text>

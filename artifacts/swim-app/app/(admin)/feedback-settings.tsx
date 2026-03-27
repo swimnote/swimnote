@@ -258,7 +258,7 @@ export default function FeedbackSettingsScreen() {
               <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setAddVisible(false)}>
                 <Text style={s.modalBtnCancelText}>취소</Text>
               </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: themeColor }]} onPress={handleAdd}>
+              <Pressable style={[s.modalBtn, { backgroundColor: C.button }]} onPress={handleAdd}>
                 <Text style={s.modalBtnText}>추가</Text>
               </Pressable>
             </View>
@@ -288,7 +288,7 @@ export default function FeedbackSettingsScreen() {
               <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setEditItem(null)}>
                 <Text style={s.modalBtnCancelText}>취소</Text>
               </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: themeColor }]} onPress={handleEdit}>
+              <Pressable style={[s.modalBtn, { backgroundColor: C.button }]} onPress={handleEdit}>
                 <Text style={s.modalBtnText}>저장</Text>
               </Pressable>
             </View>
@@ -317,7 +317,7 @@ export default function FeedbackSettingsScreen() {
               <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setLabelVisible(false)}>
                 <Text style={s.modalBtnCancelText}>취소</Text>
               </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: themeColor }]} onPress={handleLabelSave}>
+              <Pressable style={[s.modalBtn, { backgroundColor: C.button }]} onPress={handleLabelSave}>
                 <Text style={s.modalBtnText}>저장</Text>
               </Pressable>
             </View>

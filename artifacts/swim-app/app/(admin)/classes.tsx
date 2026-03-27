@@ -509,7 +509,7 @@ export default function ClassesScreen() {
               <Feather name="users" size={13} color={themeColor} />
               <Text style={[s.mgmtBtnTxt, { color: themeColor }]}>수강생관리</Text>
             </Pressable>
-            <Pressable style={[s.createBtn, { backgroundColor: themeColor }]}
+            <Pressable style={[s.createBtn, { backgroundColor: C.button }]}
               onPress={() => setShowCreate(true)}>
               <Feather name="plus" size={14} color="#fff" />
               <Text style={s.createBtnTxt}>반 등록</Text>

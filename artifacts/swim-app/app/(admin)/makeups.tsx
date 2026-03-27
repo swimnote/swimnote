@@ -265,7 +265,7 @@ export default function MakeupsScreen() {
             <Text style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>다른 작업자가 먼저 처리했습니다.{"\n"}최신 목록을 다시 불러옵니다.</Text>
             <Pressable
               onPress={() => { setConflictVisible(false); load(); }}
-              style={{ backgroundColor: themeColor, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
+              style={{ backgroundColor: C.button, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
             >
               <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>확인</Text>
             </Pressable>
@@ -325,7 +325,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {/* 결석자 리스트 액션 */}
       {tab === "결석자 리스트" && (
         <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-          <Pressable style={[s.actBtn, { backgroundColor: themeColor }]} onPress={onAssign}>
+          <Pressable style={[s.actBtn, { backgroundColor: C.button }]} onPress={onAssign}>
             <Text style={s.actBtnTxt}>보강반 배정</Text>
           </Pressable>
           <Pressable style={[s.actBtn, { backgroundColor: "#EEDDF5" }]} onPress={onTransfer}>

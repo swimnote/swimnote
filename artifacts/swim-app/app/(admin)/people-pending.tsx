@@ -333,7 +333,7 @@ export default function PeoplePendingScreen() {
             <View style={[s.inviteBar, { bottom: TAB_BAR_H }]}>
               <Text style={s.inviteCount}>{selectedIds.size}명 선택됨</Text>
               <Pressable
-                style={[s.inviteBtn, { backgroundColor: themeColor }]}
+                style={[s.inviteBtn, { backgroundColor: C.button }]}
                 onPress={() => setShowInviteConfirm(true)}
                 disabled={inviting}
               >
@@ -382,7 +382,7 @@ export default function PeoplePendingScreen() {
                 </View>
               ))}
             </ScrollView>
-            <Pressable style={[s.validateClose, { backgroundColor: themeColor }]} onPress={() => setShowValidate(false)}>
+            <Pressable style={[s.validateClose, { backgroundColor: C.button }]} onPress={() => setShowValidate(false)}>
               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>확인</Text>
             </Pressable>
           </View>
@@ -417,7 +417,7 @@ function ApprovalCard({ item, onAction, themeColor }: {
       <Text style={s.sub}>연락처: {item.parent?.phone || item.parent_phone || item.phone || "-"}</Text>
       <Text style={s.sub2}>{new Date(item.requested_at || item.created_at || "").toLocaleDateString("ko-KR")}</Text>
       <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-        <Pressable style={[s.actionBtn, { backgroundColor: themeColor }]} onPress={() => onAction(linkId, "approve")}>
+        <Pressable style={[s.actionBtn, { backgroundColor: C.button }]} onPress={() => onAction(linkId, "approve")}>
           <Text style={s.actionBtnTxt}>승인</Text>
         </Pressable>
         <Pressable style={[s.actionBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => onAction(linkId, "reject")}>

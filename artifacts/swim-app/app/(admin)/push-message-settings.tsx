@@ -189,7 +189,7 @@ export default function AdminPushMessageSettingsScreen() {
 
         {/* ── 저장 버튼 ── */}
         <Pressable
-          style={[s.saveBtn, { backgroundColor: themeColor }]}
+          style={[s.saveBtn, { backgroundColor: C.button }]}
           onPress={() => setConfirmVisible(true)}
         >
           <Feather name="save" size={16} color="#fff" />

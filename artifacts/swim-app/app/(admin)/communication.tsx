@@ -172,7 +172,7 @@ export default function CommunicationScreen() {
                 <Text style={s.sub}>연락처: {item.phone || "-"}  {new Date(item.requested_at || item.created_at).toLocaleDateString("ko-KR")}</Text>
                 {item.children_requested && <Text style={s.sub2}>요청 자녀: {item.children_requested}</Text>}
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                  <Pressable style={[s.actBtn, { backgroundColor: themeColor }]} onPress={() => handleApprove(item.id, "approve")}>
+                  <Pressable style={[s.actBtn, { backgroundColor: C.button }]} onPress={() => handleApprove(item.id, "approve")}>
                     <Text style={s.actBtnTxt}>승인</Text>
                   </Pressable>
                   <Pressable style={[s.actBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => handleApprove(item.id, "reject")}>
@@ -225,7 +225,7 @@ export default function CommunicationScreen() {
           <TextInput style={[s.input, { height: 120, textAlignVertical: "top" }]} value={newContent} onChangeText={setNewContent}
             placeholder="내용을 입력하세요" placeholderTextColor={C.textSecondary} multiline />
         </View>
-        <Pressable style={[s.submitBtn, { backgroundColor: themeColor }]} onPress={createNotice} disabled={creating}>
+        <Pressable style={[s.submitBtn, { backgroundColor: C.button }]} onPress={createNotice} disabled={creating}>
           <Text style={s.submitBtnTxt}>{creating ? "등록 중..." : "공지 등록"}</Text>
         </Pressable>
       </ModalSheet>

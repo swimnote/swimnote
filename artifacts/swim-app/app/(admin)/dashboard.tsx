@@ -365,7 +365,7 @@ export default function DashboardScreen() {
 
             {/* ── 회원추가 퀵버튼 ── */}
             <Pressable
-              style={({ pressed }) => [s.addMemberBtn, { backgroundColor: themeColor, opacity: pressed ? 0.82 : 1 }]}
+              style={({ pressed }) => [s.addMemberBtn, { backgroundColor: C.button, opacity: pressed ? 0.82 : 1 }]}
               onPress={() => setShowRegister(true)}
             >
               <View style={[s.addMemberIconWrap, { backgroundColor: "rgba(255,255,255,0.22)" }]}>

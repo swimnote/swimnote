@@ -154,7 +154,7 @@ export default function CommunityScreen() {
         rightSlot={
           tab === "공지사항" ? (
             <Pressable
-              style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: themeColor, alignItems: "center", justifyContent: "center" }}
+              style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: C.button, alignItems: "center", justifyContent: "center" }}
               onPress={() => router.push("/(admin)/notices")}
             >
               <Feather name="plus" size={18} color="#fff" />
@@ -189,7 +189,7 @@ export default function CommunityScreen() {
             <View style={s.empty}>
               <Feather name="bell-off" size={40} color={C.textMuted} />
               <Text style={s.emptyText}>공지사항이 없습니다</Text>
-              <Pressable style={[s.emptyBtn, { backgroundColor: themeColor }]} onPress={() => router.push("/(admin)/notices")}>
+              <Pressable style={[s.emptyBtn, { backgroundColor: C.button }]} onPress={() => router.push("/(admin)/notices")}>
                 <Feather name="plus" size={16} color="#fff" />
                 <Text style={s.emptyBtnText}>첫 공지 작성</Text>
               </Pressable>

@@ -380,7 +380,7 @@ export default function RevenueScreen() {
           </Text>
           <View style={{ gap: 8 }}>
             <Pressable
-              style={[rv.confirmBtn, { backgroundColor: themeColor }]}
+              style={[rv.confirmBtn, { backgroundColor: C.button }]}
               onPress={async () => {
                 try {
                   await apiRequest(token, "/settlement/finalize", {
