@@ -147,6 +147,23 @@ export default function DashboardScreen() {
 
   const lastPopupRef = useRef<PopupKey | null>(null);
 
+  const fetchStats = useCallback(async () => {
+    try {
+      const [statsRes, storageRes] = await Promise.all([
+        apiRequest(token, "/admin/dashboard-stats"),
+        apiRequest(token, "/admin/storage").catch(() => null),
+      ]);
+      if (statsRes.ok) setStats(await statsRes.json());
+      if (storageRes?.ok) {
+        const s = await storageRes.json();
+        const quota = s.quota_bytes ?? 5 * 1024 ** 3;
+        setStoragePct(quota > 0 ? Math.min(100, Math.round((s.total_bytes / quota) * 1000) / 10) : 0);
+      }
+    } finally { setLoading(false); setRefreshing(false); }
+  }, [token]);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
   useFocusEffect(useCallback(() => {
     const popup = lastPopupRef.current;
     if (popup) {
@@ -176,23 +193,6 @@ export default function DashboardScreen() {
     } catch (e) { console.error(e); }
     finally { setSwitching(false); }
   }
-
-  const fetchStats = useCallback(async () => {
-    try {
-      const [statsRes, storageRes] = await Promise.all([
-        apiRequest(token, "/admin/dashboard-stats"),
-        apiRequest(token, "/admin/storage").catch(() => null),
-      ]);
-      if (statsRes.ok) setStats(await statsRes.json());
-      if (storageRes?.ok) {
-        const s = await storageRes.json();
-        const quota = s.quota_bytes ?? 5 * 1024 ** 3;
-        setStoragePct(quota > 0 ? Math.min(100, Math.round((s.total_bytes / quota) * 1000) / 10) : 0);
-      }
-    } finally { setLoading(false); setRefreshing(false); }
-  }, [token]);
-
-  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const sub = STATUS_BADGE[pool?.subscription_status || "trial"];
 
