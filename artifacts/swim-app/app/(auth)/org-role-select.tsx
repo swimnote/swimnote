@@ -105,7 +105,7 @@ export default function OrgRoleSelectScreen() {
   return (
     <View style={[styles.root, { backgroundColor: C.background, paddingBottom: insets.bottom }]}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 16) }]}>
-        <View style={[styles.orgSelector, { backgroundColor: C.card, borderColor: C.border }]}>
+        <View style={styles.headerNameWrap} pointerEvents="none">
           <Text style={[styles.orgName, { color: C.text }]} numberOfLines={1}>{orgName}</Text>
         </View>
         <Pressable onPress={handleLogout} style={styles.logoutBtn} hitSlop={8}>
@@ -160,12 +160,10 @@ export default function OrgRoleSelectScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12, gap: 10 },
-  orgSelector: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 20, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, maxWidth: 260 },
-  orgAvatar: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  orgAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  orgName: { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  logoutBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10 },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
+  headerNameWrap: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  orgName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  logoutBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, marginLeft: "auto" },
   content: { flex: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 40 },
   emptyState: { alignItems: "center", gap: 14, paddingVertical: 60 },
   emptyIconBox: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center" },
