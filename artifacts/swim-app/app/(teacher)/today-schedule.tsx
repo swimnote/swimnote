@@ -161,15 +161,15 @@ export default function TodayScheduleScreen() {
       <View style={[h.header, { paddingTop: topPad }]}>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={[h.poolName, { color: themeColor }]} numberOfLines={1}>
+            <Text style={[h.poolName, { color: C.text }]} numberOfLines={1}>
               {pool?.name ?? "수영장"}
             </Text>
             {canSwitchToAdmin && (
-              <Pressable style={({ pressed }) => [h.switchChip, { borderColor: themeColor+"50", backgroundColor: themeColor+"15", opacity: pressed || switching ? 0.7 : 1 }]}
+              <Pressable style={({ pressed }) => [h.switchChip, { borderColor: C.border, backgroundColor: C.backgroundSoft, opacity: pressed || switching ? 0.7 : 1 }]}
                 onPress={handleSwitchToAdmin} disabled={switching}>
                 {switching
-                  ? <ActivityIndicator size="small" color={themeColor} />
-                  : <><Feather name="repeat" size={10} color={themeColor} /><Text style={[h.switchChipTxt, { color: themeColor }]}>관리자로 전환</Text></>}
+                  ? <ActivityIndicator size="small" color={C.textSecondary} />
+                  : <><Feather name="repeat" size={10} color={C.textSecondary} /><Text style={[h.switchChipTxt, { color: C.textSecondary }]}>관리자로 전환</Text></>}
               </Pressable>
             )}
           </View>
