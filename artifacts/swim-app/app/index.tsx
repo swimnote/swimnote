@@ -145,13 +145,13 @@ export default function LoginScreen() {
                 <Feather name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
               </Pressable>
               <Pressable
-                style={({ pressed }) => [styles.arrowBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.8 : 1 }]}
+                style={({ pressed }) => [styles.arrowBtn, { opacity: pressed || loading ? 0.5 : 1 }]}
                 onPress={() => handleLogin()}
                 disabled={loading}
               >
                 {loading
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Feather name="arrow-right" size={18} color="#fff" />
+                  ? <ActivityIndicator color={C.tint} size="small" />
+                  : <Feather name="arrow-right" size={22} color={C.tint} />
                 }
               </Pressable>
             </View>
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10 },
   errText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
-  arrowBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  arrowBtn: { alignItems: "center", justifyContent: "center", paddingLeft: 4 },
   forgotBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingVertical: 2 },
   forgotText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 14 },
