@@ -4,13 +4,49 @@ import { Stack, router, useSegments } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
-import { Platform } from "react-native";
+import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NoticePopup } from "@/components/common/NoticePopup";
 import { AuthProvider, apiRequest, useAuth, type AccountEntry, type AdminUser, type SessionKind, type ParentAccount } from "@/context/AuthContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
+
+function AppLoadingScreen() {
+  return (
+    <View style={loadingStyles.container}>
+      <Image
+        source={require("../assets/images/swimnote-logo.png")}
+        style={loadingStyles.logo}
+        resizeMode="cover"
+      />
+      <Text style={loadingStyles.appName}>스윔노트</Text>
+      <ActivityIndicator size="small" color="#2EC4B6" style={{ marginTop: 32 }} />
+    </View>
+  );
+}
+
+const loadingStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F5F5F5",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  logo: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
+  },
+  appName: {
+    fontSize: 26,
+    fontFamily: "Pretendard-Bold",
+    color: "#0F172A",
+    letterSpacing: 6,
+    marginTop: 8,
+  },
+});
 
 SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
@@ -256,6 +292,8 @@ function RootNav() {
 
     doRoute();
   }, [kind, isLoading, adminUser?.role, adminUser?.swimming_pool_id, pool?.id, pool?.approval_status, pool?.subscription_status, activeRole, lastUsedTenant]);
+
+  if (isLoading) return <AppLoadingScreen />;
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#ffffff" } }}>

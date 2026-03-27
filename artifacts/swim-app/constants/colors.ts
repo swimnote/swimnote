@@ -13,9 +13,9 @@ const blue      = "#2563EB";
 export default {
   light: {
     // ── 텍스트 ─────────────────────────────────────────────────────────
-    text:           "#1C1C1E",   // primary (iOS 스타일 검정)
+    text:           "#0F172A",   // primary
     textSecondary:  "#64748B",   // secondary
-    textMuted:      "#C7C7CC",   // hint / meta
+    textMuted:      "#64748B",   // hint / meta
 
     // ── 배경 ──────────────────────────────────────────────────────────
     background:     "#F5F5F5",   // 앱 배경 (따뜻한 연회색)
