@@ -796,15 +796,12 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         FROM attendance WHERE date = ${today} AND swimming_pool_id = ${poolId}
       `)).rows as any[];
 
-      const [pendingRow] = (await superAdminDb.execute(sql`
-        SELECT COUNT(*)::int AS pending_requests FROM student_registration_requests
-        WHERE swimming_pool_id = ${poolId} AND status = 'pending'
+      const [pendingRow] = (await db.execute(sql`
+        SELECT COUNT(*)::int AS pending_requests FROM teacher_invites
+        WHERE swimming_pool_id = ${poolId} AND invite_status = 'joinedPendingApproval'
       `)).rows as any[];
 
-      const [parentPendingRow] = (await db.execute(sql`
-        SELECT COUNT(*)::int AS parent_pending FROM parent_students
-        WHERE swimming_pool_id = ${poolId} AND status = 'pending'
-      `)).rows as any[];
+      const parentPendingRow = { parent_pending: 0 };
 
       const [diaryRow] = (await db.execute(sql`
         SELECT COUNT(DISTINCT cg.id)::int AS total_classes,
