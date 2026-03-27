@@ -12,6 +12,7 @@ import { SubScreenHeader } from '@/components/common/SubScreenHeader'
 import { useAuth } from '@/context/AuthContext'
 import { useExtraStorageStore } from '@/store/extraStorageStore'
 import { useOperatorsStore } from '@/store/operatorsStore'
+import { billingEnabled } from '@/config/billing'
 
 const G = '#1F8F86'
 
@@ -28,6 +29,7 @@ function fmtDate(iso: string | null | undefined) {
 }
 
 export default function ExtraStorageScreen() {
+  if (!billingEnabled) return null;
   const { adminUser, pool } = useAuth()
   const actorName  = adminUser?.name ?? '운영자'
   const operatorId = pool?.id ?? 'op-001'

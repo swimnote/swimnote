@@ -62,7 +62,6 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 interface RiskSummary {
-  payment_risk:    number;
   storage_risk:    number;
   deletion_pending: number;
   sla_overdue:     number;
@@ -74,7 +73,7 @@ export default function SuperMoreScreen() {
   const go = (path: string) => () => router.push(path as any);
 
   const [risk, setRisk] = useState<RiskSummary>({
-    payment_risk: 0, storage_risk: 0, deletion_pending: 0, sla_overdue: 0,
+    storage_risk: 0, deletion_pending: 0, sla_overdue: 0,
   });
   const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
 
@@ -85,7 +84,6 @@ export default function SuperMoreScreen() {
       if (res.ok) {
         const data = await res.json();
         setRisk({
-          payment_risk:     Number(data.payment_risk    ?? 0),
           storage_risk:     Number(data.storage_risk    ?? 0),
           deletion_pending: Number(data.deletion_pending ?? 0),
           sla_overdue:      Number(data.sla_overdue     ?? 0),
@@ -110,34 +108,13 @@ export default function SuperMoreScreen() {
       items: [
         {
           icon: "briefcase", label: "운영 관리",
-          sub: "운영자·구독·저장공간·상태 관리",
+          sub: "운영자·저장공간·상태 관리",
           color: "purple", onPress: go("/(super)/op-group"),
-          badge: risk.payment_risk > 0 ? `결제 ${risk.payment_risk}` : undefined,
         },
       ],
     },
     {
-      title: "② 매출 분석",
-      items: [
-        {
-          icon: "bar-chart-2", label: "매출 분석",
-          sub: "주간·월간·연간 결제 기반 집계",
-          color: "green", onPress: go("/(super)/revenue-analytics"),
-        },
-      ],
-    },
-    {
-      title: "③ 비용·지출",
-      items: [
-        {
-          icon: "trending-down", label: "비용·지출",
-          sub: "DB·스토리지·스토어수수료·순이익",
-          color: "orange", onPress: go("/(super)/cost-analytics"),
-        },
-      ],
-    },
-    {
-      title: "④ 데이터 관리",
+      title: "② 데이터 관리",
       items: [
         {
           icon: "shield", label: "보호·통제",
@@ -148,7 +125,7 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "⑤ 고객센터",
+      title: "③ 고객센터",
       items: [
         {
           icon: "message-circle", label: "지원 센터",
@@ -159,7 +136,7 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "⑥ 정책·컴플라이언스",
+      title: "④ 정책·컴플라이언스",
       items: [
         {
           icon: "file-text", label: "정책·컴플라이언스",
@@ -169,7 +146,7 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "⑦ 보안·통제",
+      title: "⑤ 보안·통제",
       items: [
         {
           icon: "lock", label: "보안·설정",
@@ -189,7 +166,7 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "⑧ 시스템 상태",
+      title: "⑥ 시스템 상태",
       items: [
         {
           icon: "server", label: "시스템 상태",
@@ -209,7 +186,7 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "⑨ 광고 관리",
+      title: "⑦ 광고 관리",
       items: [
         {
           icon: "image", label: "광고 관리",

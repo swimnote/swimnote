@@ -215,9 +215,6 @@ function RootNav() {
           if (!pool) return;
           if (pool.approval_status === "pending") { didRoute.current = true; router.replace("/pending"); return; }
           if (pool.approval_status === "rejected") { didRoute.current = true; router.replace("/rejected"); return; }
-          if (["expired", "suspended", "cancelled"].includes(pool.subscription_status)) {
-            didRoute.current = true; router.replace("/subscription-expired"); return;
-          }
           try {
             const poolsRes = await apiRequest(token, "/pools/my-pools");
             const pools = await poolsRes.json();

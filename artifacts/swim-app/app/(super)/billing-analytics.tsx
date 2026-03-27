@@ -11,6 +11,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { billingEnabled } from "@/config/billing";
 
 const P = "#7C3AED";
 type Period = "week" | "month" | "year";
@@ -104,6 +105,7 @@ interface RevSummary {
 interface PlanStat { plan_id: string; plan_name?: string; payment_count: number; total_amount: number; }
 
 export default function BillingAnalyticsScreen() {
+  if (!billingEnabled) return null;
   const { token } = useAuth();
   const [period, setPeriod] = useState<Period>("month");
   const [logs,        setLogs]        = useState<RevLog[]>([]);

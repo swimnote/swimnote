@@ -49,7 +49,6 @@ const MENUS = [
   { id: "protect",  icon: "shield" as const,         title: "보호·통제",   sub: "킬스위치·백업·플래그·읽기전용", path: "/(super)/protect-group",        color: "#D96C6C", bg: "#F9DEDA" },
   { id: "security", icon: "lock" as const,           title: "보안·설정",   sub: "계정·2FA·외부서비스·세션·정책", path: "/(super)/security-settings",    color: "#991B1B", bg: "#FEF2F2" },
   { id: "audit",    icon: "activity" as const,       title: "감사·리스크", sub: "운영로그·리스크·보안·민감작업",  path: "/(super)/audit-group",          color: "#1F8F86", bg: "#DDF2EF" },
-  { id: "billing",  icon: "bar-chart-2" as const,    title: "매출·정산",   sub: "매출·지출·수수료·순이익 통합 관리", path: "/(super)/billing-analytics",  color: "#1F8F86", bg: "#DDF2EF" },
 ];
 
 const POOL_TYPE_LABELS: Record<string, string> = {
@@ -246,8 +245,8 @@ export default function SuperDashboard() {
   }
 
   const today = new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
-  const totalAlerts = (stats?.payment_issue_count ?? 0) + (stats?.storage_danger_count ?? 0) + (stats?.deletion_pending_count ?? 0);
-  const todoCount = (todo?.pending_approval.length ?? 0) + (todo?.payment_failed.length ?? 0) +
+  const totalAlerts = (stats?.storage_danger_count ?? 0) + (stats?.deletion_pending_count ?? 0);
+  const todoCount = (todo?.pending_approval.length ?? 0) +
     (todo?.storage_danger.length ?? 0) + (todo?.deletion_pending.length ?? 0) +
     (todo?.policy_unsigned.length ?? 0) + (todo?.security_events.length ?? 0) +
     (todo?.support_open_count ?? 0);
@@ -290,7 +289,6 @@ export default function SuperDashboard() {
                 { label: "전체 운영자",   v: stats?.total_operators ?? 0,        alert: false, path: "/(super)/pools" },
                 { label: "활성 운영자",   v: stats?.active_operators ?? 0,       alert: false, path: "/(super)/pools" },
                 { label: "승인 대기",     v: stats?.pending_operators ?? 0,      alert: true,  path: "/(super)/pools?filter=pending" },
-                { label: "결제 이슈",     v: stats?.payment_issue_count ?? 0,    alert: true,  path: "/(super)/subscriptions" },
                 { label: "저장 위험",     v: stats?.storage_danger_count ?? 0,   alert: true,  path: "/(super)/storage" },
                 { label: "24h 삭제",      v: stats?.deletion_pending_count ?? 0, alert: true,  path: "/(super)/risk-center" },
               ].map((item, i) => (
@@ -323,17 +321,6 @@ export default function SuperDashboard() {
                     <TodoRow item={item} color="#D97706" onAction={doAction} />
                   )}
                   path="/(super)/pools?filter=pending"
-                />
-
-                {/* 결제 실패 */}
-                <TodoSection
-                  title="결제 실패" count={todo?.payment_failed.length ?? 0}
-                  color="#D96C6C" bg="#F9DEDA" icon="credit-card"
-                  items={todo?.payment_failed ?? []}
-                  renderItem={(item: TodoItem) => (
-                    <TodoRow item={item} color="#D96C6C" onAction={doAction} />
-                  )}
-                  path="/(super)/subscriptions"
                 />
 
                 {/* 저장공간 위험 */}
@@ -425,7 +412,6 @@ export default function SuperDashboard() {
                 </Pressable>
                 <View style={s.riskGrid}>
                   {[
-                    { label: "결제 리스크",    v: riskSummary.payment_risk,    color: "#D96C6C", path: "/(super)/subscriptions" },
                     { label: "저장공간 리스크", v: riskSummary.storage_risk,    color: "#D97706", path: "/(super)/storage" },
                     { label: "삭제 예정",      v: riskSummary.deletion_pending, color: "#1F8F86", path: "/(super)/risk-center" },
                     { label: "정책 미확인",    v: riskSummary.policy_unsigned,  color: "#1F8F86", path: "/(super)/policy" },

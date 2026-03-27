@@ -17,6 +17,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { billingEnabled } from "@/config/billing";
 
 interface Plan {
   tier: string; name: string;
@@ -61,6 +62,7 @@ const PLAN_SKU: Record<string, string> = {
 const PAYMENT_FAILED_STATUSES = new Set(["payment_failed", "pending_deletion", "deleted"]);
 
 export default function BillingScreen() {
+  if (!billingEnabled) return null;
   const { token, refreshPool } = useAuth();
   const { themeColor } = useBrand();
 

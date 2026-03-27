@@ -11,6 +11,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { billingEnabled } from "@/config/billing";
 
 const P = "#7C3AED";
 type Period = "week" | "month" | "year";
@@ -67,6 +68,7 @@ interface CostItem {
 }
 
 export default function CostAnalyticsScreen() {
+  if (!billingEnabled) return null;
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
   const [period, setPeriod] = useState<Period>("month");

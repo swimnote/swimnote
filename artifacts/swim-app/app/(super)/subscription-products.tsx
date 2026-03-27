@@ -14,6 +14,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
+import { billingEnabled } from "@/config/billing";
 import { useExtraStorageStore } from "@/store/extraStorageStore";
 import type { SubscriptionPlan } from "@/domain/types";
 import type { ExtraStorageProduct } from "@/store/extraStorageStore";
@@ -383,6 +384,7 @@ function rowToSubscriptionPlan(row: ApiPlanRow): SubscriptionPlan {
 }
 
 export default function SubscriptionProductsScreen() {
+  if (!billingEnabled) return null;
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
 

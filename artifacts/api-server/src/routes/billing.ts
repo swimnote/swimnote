@@ -16,8 +16,18 @@ import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { getPaymentProvider } from "../payment/index.js";
 import { logEvent } from "../lib/event-logger.js";
+import { billingEnabled } from "../config/billing.js";
 
 const router = Router();
+
+// ── 앱스토어 제출용: 결제 기능 비활성화 차단 ──────────────────────────────
+router.use((_req, res, next) => {
+  if (!billingEnabled) {
+    res.status(403).json({ error: "billing disabled", message: "현재 앱 내 결제 기능은 제공되지 않습니다." });
+    return;
+  }
+  next();
+});
 
 // ── 테이블 보장 (서버 시작 시 1회 실행) ──────────────────────────────
 async function ensureBillingTables() {

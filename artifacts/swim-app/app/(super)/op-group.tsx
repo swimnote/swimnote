@@ -21,22 +21,6 @@ const MENUS = [
     bg: "#EEDDF5",
   },
   {
-    icon: "credit-card" as const,
-    title: "구독·결제 관리",
-    sub: "플랜·결제실패·환불·차지백·크레딧",
-    path: "/(super)/subscriptions",
-    color: "#1F8F86",
-    bg: "#ECFEFF",
-  },
-  {
-    icon: "package" as const,
-    title: "구독 상품 설정",
-    sub: "플랜 생성·수정·비활성화·가격",
-    path: "/(super)/subscription-products",
-    color: "#7C3AED",
-    bg: "#EEDDF5",
-  },
-  {
     icon: "hard-drive" as const,
     title: "저장공간 관리",
     sub: "사용량·급증·차단·삭제 큐·임시허용",
@@ -65,7 +49,6 @@ const MENUS = [
 export default function OpGroupScreen() {
   const operators = useOperatorsStore(s => s.operators);
   const pendingCount = operators.filter(o => o.status === 'pending').length;
-  const paymentIssue = operators.filter(o => o.billingStatus === 'payment_failed' || o.billingStatus === 'grace').length;
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
@@ -80,10 +63,6 @@ export default function OpGroupScreen() {
           <View style={[s.summaryCard, pendingCount > 0 && s.summaryAlert]}>
             <Text style={[s.summaryNum, pendingCount > 0 && { color: "#D97706" }]}>{pendingCount}</Text>
             <Text style={s.summaryLabel}>승인 대기</Text>
-          </View>
-          <View style={[s.summaryCard, paymentIssue > 0 && s.summaryAlert]}>
-            <Text style={[s.summaryNum, paymentIssue > 0 && { color: "#D96C6C" }]}>{paymentIssue}</Text>
-            <Text style={s.summaryLabel}>결제 이슈</Text>
           </View>
         </View>
 

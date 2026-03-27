@@ -58,8 +58,6 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "user-check",  label: "선생님 관리",  color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/people-teachers") },
       { icon: "check-circle",label: "승인 관리",   color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/approvals"), badge: pending },
       { icon: "send",        label: "초대 안내 기록", color: "#1F8F86", bg: "#ECFEFF", onPress: () => router.push("/(admin)/invite-records") },
-      { icon: "credit-card", label: "결제·구독",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/billing") },
-      { icon: "hard-drive",  label: "추가 용량",   color: "#1F8F86", bg: "#DFF3EC", onPress: () => router.push("/(admin)/extra-storage") },
       { icon: "trending-up", label: "매출 관리",   color: "#EA580C", bg: "#FFF1BF", onPress: () => router.push("/(admin)/admin-revenue") },
     ];
     // ─ 수업 관리 ─
@@ -194,8 +192,6 @@ export default function DashboardScreen() {
     finally { setSwitching(false); }
   }
 
-  const sub = STATUS_BADGE[pool?.subscription_status || "trial"];
-
   const bannerItems = [
     {
       label: "데이터 사용량",
@@ -273,11 +269,6 @@ export default function DashboardScreen() {
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
             <Text style={s.greet}>{pool?.name ? `${pool.name} 관리자` : (adminUser?.name ?? "관리자")}</Text>
-            {sub && (
-              <View style={[s.subBadge, { backgroundColor: sub.bg }]}>
-                <Text style={[s.subBadgeTxt, { color: sub.color }]}>{sub.label}</Text>
-              </View>
-            )}
           </View>
         </View>
         <Pressable onPress={() => setShowSearch(true)} style={s.headerBtn} hitSlop={8}>

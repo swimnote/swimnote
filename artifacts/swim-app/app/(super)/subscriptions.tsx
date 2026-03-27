@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
+import { billingEnabled } from "@/config/billing";
 
 const P = "#1F8F86";
 
@@ -92,6 +93,7 @@ function hoursLeft(row: PoolRow): string {
 }
 
 export default function SubscriptionsScreen() {
+  if (!billingEnabled) return null;
   const { token } = useAuth();
 
   const [operators, setOperators]       = useState<PoolRow[]>([]);
