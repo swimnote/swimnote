@@ -21,6 +21,7 @@ export default function ParentRegisterScreen() {
   const [password, setPassword]               = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [showPw, setShowPw]                   = useState(false);
+  const [termsAgreed, setTermsAgreed]         = useState(false);
   const [submitting, setSubmitting]           = useState(false);
   const [error, setError]                     = useState("");
 
@@ -33,6 +34,7 @@ export default function ParentRegisterScreen() {
     if (!password)          { setError("비밀번호를 입력해주세요."); return; }
     if (password.length < 4) { setError("비밀번호는 4자리 이상이어야 합니다."); return; }
     if (password !== passwordConfirm) { setError("비밀번호가 일치하지 않습니다."); return; }
+    if (!termsAgreed) { setError("이용약관에 동의해주세요."); return; }
 
     setSubmitting(true);
     try {
@@ -173,6 +175,30 @@ export default function ParentRegisterScreen() {
           </View>
         </View>
 
+        {/* 이용약관 동의 */}
+        <Pressable
+          style={styles.termsRow}
+          onPress={() => setTermsAgreed(v => !v)}
+          activeOpacity={0.7}
+        >
+          <View style={[
+            styles.checkbox,
+            { borderColor: termsAgreed ? C.tint : C.border, backgroundColor: termsAgreed ? C.tint : "transparent" }
+          ]}>
+            {termsAgreed && <Feather name="check" size={12} color="#fff" />}
+          </View>
+          <Text style={[styles.termsText, { color: C.textSecondary }]}>
+            {"스윔노트 "}
+            <Text
+              style={{ color: C.tint, textDecorationLine: "underline" }}
+              onPress={(e) => { e.stopPropagation(); router.push("/terms" as any); }}
+            >
+              이용약관
+            </Text>
+            {"에 동의합니다 (필수)"}
+          </Text>
+        </Pressable>
+
         {/* 가입 버튼 */}
         <Pressable
           style={[styles.submitBtn, { backgroundColor: C.tint, opacity: submitting ? 0.7 : 1 }]}
@@ -207,6 +233,9 @@ const styles = StyleSheet.create({
   label:       { fontSize: 13, fontFamily: "Inter_500Medium" },
   inputRow:    { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
   input:       { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  termsRow:    { flexDirection: "row", alignItems: "center", gap: 10 },
+  checkbox:    { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, justifyContent: "center", alignItems: "center" },
+  termsText:   { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
   submitBtn:   { height: 52, borderRadius: 12, justifyContent: "center", alignItems: "center", marginTop: 8 },
   submitTxt:   { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
   loginLink:   { alignItems: "center", paddingTop: 8 },
