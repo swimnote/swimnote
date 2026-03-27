@@ -2644,5 +2644,32 @@ router.patch("/students/:id/level", requireAuth, requireRole("super_admin","pool
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── GET /admin/unlinked-students — 학부모 미연결 학생 목록 ───────────────
+router.get("/unlinked-students", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    let poolId: string | null = null;
+    if (req.user!.role === "pool_admin") {
+      const [u] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      poolId = u?.swimming_pool_id || null;
+    } else {
+      poolId = req.query.pool_id as string || null;
+    }
+    if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
+
+    const rows = await db.execute(sql`
+      SELECT s.id, s.name, s.phone, s.birth_year, s.status, s.class_group_id,
+             cg.name AS class_name
+      FROM students s
+      LEFT JOIN class_groups cg ON cg.id = s.class_group_id
+      WHERE s.swimming_pool_id = ${poolId}
+        AND s.parent_user_id IS NULL
+        AND s.status NOT IN ('deleted', 'withdrawn', 'archived')
+      ORDER BY s.name
+    `);
+    res.json({ success: true, data: rows.rows });
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
 export default router;
 

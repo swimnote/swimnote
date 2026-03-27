@@ -880,4 +880,7 @@ export async function initPoolDb(): Promise<void> {
       console.warn("[pool-db-init] pool 백업 DB 초기화 건너뜀:", e.message);
     }
   }
+
+  // ── 학부모 간편가입: swimming_pool_id nullable 허용 ────────────────────
+  await db.execute(sql.raw(`ALTER TABLE parent_accounts ALTER COLUMN swimming_pool_id DROP NOT NULL`)).catch(() => {});
 }

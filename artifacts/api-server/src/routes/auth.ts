@@ -379,6 +379,43 @@ router.post("/parent-register", async (req, res) => {
   }
 });
 
+// ── 학부모 간편 가입 (수영장/자녀 없이 계정만 생성) ──────────────────────
+router.post("/simple-parent-register", async (req, res) => {
+  const { parent_name, phone, loginId, password } = req.body;
+  const name = (parent_name || "").trim();
+  const ph   = (phone || "").trim();
+  const lid  = (loginId || "").trim();
+  const pw   = (password || "").trim();
+  if (!name || !ph || !pw) return err(res, 400, "이름, 전화번호, 비밀번호는 필수입니다.");
+  if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
+  if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
+  try {
+    // 아이디 중복 확인
+    if (lid) {
+      const dupId = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
+      if ((dupId.rows as any[]).length > 0) return err(res, 409, "이미 사용 중인 아이디입니다.");
+    }
+    // 전화번호 중복 확인 (pool 무관하게 전체)
+    const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} LIMIT 1`);
+    if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다.");
+
+    const pin_hash = await hashPassword(pw);
+    const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await db.execute(sql`
+      INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)
+      VALUES (${parentId}, NULL, ${ph}, ${pin_hash}, ${name}, ${lid || null}, true, now(), now())
+    `);
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
+    const token = signToken({ userId: pa.id, role: "parent_account", poolId: null });
+    res.status(201).json({ success: true, token, parent: { id: pa.id, name: pa.name, phone: pa.phone, swimming_pool_id: null } });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("unique") || msg.includes("duplicate")) return err(res, 409, "이미 사용 중인 정보입니다.");
+    console.error(e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
 // ── 아이디 존재 여부 확인 ───────────────────────────────────────────────
 router.post("/check-id", async (req, res) => {
   const { identifier } = req.body;

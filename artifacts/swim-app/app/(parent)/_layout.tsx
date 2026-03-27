@@ -14,7 +14,8 @@ import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
-const BLOCKED_STATUSES = ["pending", "on_hold", "rejected"];
+// 간편가입 도입으로 승인 차단 제거 — 모든 학부모 홈 진입 허용
+const BLOCKED_STATUSES: string[] = [];
 
 function ApprovalPendingScreen({ status }: { status: string }) {
   const insets = useSafeAreaInsets();
@@ -113,6 +114,7 @@ function ParentStack() {
       <Stack.Screen name="notifications" />
       <Stack.Screen name="shopping" />
       <Stack.Screen name="push-settings" />
+      <Stack.Screen name="link-child" />
     </Stack>
   );
 }

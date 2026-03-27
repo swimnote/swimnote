@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Modal, Pressable,
+  ActivityIndicator, Alert, FlatList, Linking, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -63,7 +63,13 @@ interface TeacherDetail {
 
 
 type MainTab   = "parents" | "teachers";
-type StatusFilter = "pending" | "approved" | "rejected";
+type StatusFilter = "unlinked" | "approved" | "rejected";
+
+interface UnlinkedStudent {
+  id: string; name: string; phone: string | null;
+  birth_year: number | null; status: string;
+  class_name: string | null;
+}
 
 function parseRoles(roles: any): string[] {
   if (Array.isArray(roles)) return roles;
@@ -73,8 +79,12 @@ function parseRoles(roles: any): string[] {
   return [];
 }
 
-const FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
-  { key: "pending",  label: "대기",   icon: "clock",        activeColor: STATUS_COLORS.pending.color,  activeBg: STATUS_COLORS.pending.bg  },
+const PARENT_FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
+  { key: "unlinked", label: "미연결", icon: "link",         activeColor: "#D97706",                    activeBg: "#FFF1BF"                 },
+  { key: "approved", label: "연결됨", icon: "check-circle", activeColor: STATUS_COLORS.approved.color, activeBg: STATUS_COLORS.approved.bg },
+];
+const TEACHER_FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
+  { key: "unlinked", label: "대기",   icon: "clock",        activeColor: STATUS_COLORS.pending.color,  activeBg: STATUS_COLORS.pending.bg  },
   { key: "approved", label: "승인",   icon: "check-circle", activeColor: STATUS_COLORS.approved.color, activeBg: STATUS_COLORS.approved.bg },
   { key: "rejected", label: "거절됨", icon: "x-circle",     activeColor: STATUS_COLORS.rejected.color, activeBg: STATUS_COLORS.rejected.bg },
 ];
@@ -87,12 +97,14 @@ export default function ApprovalsScreen() {
 
   // 학부모 가입 요청 (실제 API)
   const [apiParentRequests, setApiParentRequests] = useState<ParentJoinRequest[]>([]);
+  // 미연결 학생 (parent_user_id IS NULL)
+  const [unlinkedStudents, setUnlinkedStudents] = useState<UnlinkedStudent[]>([]);
 
   // inviteRecordStore — 초대 이력 연동
   const inviteRecords    = useInviteRecordStore(s => s.records);
 
   const [mainTab,  setMainTab]  = useState<MainTab>("parents");
-  const [filter,   setFilter]   = useState<StatusFilter>("pending");
+  const [filter,   setFilter]   = useState<StatusFilter>("unlinked");
   const [invites,  setInvites]  = useState<TeacherInvite[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -148,12 +160,14 @@ export default function ApprovalsScreen() {
   // ── 데이터 로드 ────────────────────────────────────────────────
   const load = useCallback(async () => {
     try {
-      const [iRes, pRes] = await Promise.all([
+      const [iRes, pRes, uRes] = await Promise.all([
         apiRequest(token, "/admin/teacher-invites"),
         apiRequest(token, "/admin/parent-requests"),
+        apiRequest(token, "/admin/unlinked-students"),
       ]);
       if (iRes.ok) { const d = await iRes.json(); setInvites(d.data ?? []); }
       if (pRes.ok) { const d = await pRes.json(); setApiParentRequests((d.data ?? []).map(mapApiToRequest)); }
+      if (uRes.ok) { const d = await uRes.json(); setUnlinkedStudents(d.data ?? []); }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
@@ -286,34 +300,43 @@ export default function ApprovalsScreen() {
 
   // ── 필터링 ────────────────────────────────────────────────────
   const filteredParents = apiParentRequests.filter(r => {
-    if (filter === "pending")  return r.status === "pending" || r.status === "on_hold";
     if (filter === "approved") return r.status === "approved" || r.status === "auto_approved";
     if (filter === "rejected") return r.status === "rejected";
     return false;
   });
   const filteredTeachers = invites.filter(i => {
-    if (filter === "pending")  return i.invite_status === "joinedPendingApproval";
+    if (filter === "unlinked") return i.invite_status === "joinedPendingApproval";
     if (filter === "approved") return i.invite_status === "approved";
     if (filter === "rejected") return i.invite_status === "rejected" || i.invite_status === "inactive";
     return false;
   });
 
-  const pendingParentsCnt  = apiParentRequests.filter(r => r.status === "pending" || r.status === "on_hold").length;
+  const unlinkedParentsCnt = unlinkedStudents.length;
   const pendingTeachersCnt = invites.filter(i => i.invite_status === "joinedPendingApproval").length;
 
   function chipsWithCount(): FilterChipItem<StatusFilter>[] {
-    return FILTER_CHIPS.map(chip => {
+    const chips = mainTab === "parents" ? PARENT_FILTER_CHIPS : TEACHER_FILTER_CHIPS;
+    return chips.map(chip => {
       let cnt = 0;
       if (mainTab === "parents") {
-        if (chip.key === "pending")  cnt = apiParentRequests.filter(r => r.status === "pending" || r.status === "on_hold").length;
+        if (chip.key === "unlinked") cnt = unlinkedStudents.length;
         if (chip.key === "approved") cnt = apiParentRequests.filter(r => r.status === "approved" || r.status === "auto_approved").length;
-        if (chip.key === "rejected") cnt = apiParentRequests.filter(r => r.status === "rejected").length;
       } else {
-        if (chip.key === "pending")  cnt = invites.filter(i => i.invite_status === "joinedPendingApproval").length;
+        if (chip.key === "unlinked") cnt = invites.filter(i => i.invite_status === "joinedPendingApproval").length;
         if (chip.key === "approved") cnt = invites.filter(i => i.invite_status === "approved").length;
         if (chip.key === "rejected") cnt = invites.filter(i => i.invite_status === "rejected" || i.invite_status === "inactive").length;
       }
       return { ...chip, count: cnt };
+    });
+  }
+
+  // ── SMS 초대 ─────────────────────────────────────────────────
+  function handleSmsInvite(student: UnlinkedStudent) {
+    const phone = student.phone?.replace(/\D/g, "") || "";
+    if (!phone) { Alert.alert("알림", "해당 학생의 연락처가 없습니다."); return; }
+    const msg = encodeURIComponent(`[SwimNote] 안녕하세요! ${student.name} 학부모님, SwimNote 앱에 가입하여 자녀의 수업 정보를 확인하세요.`);
+    Linking.openURL(`sms:${phone}${Platform.OS === "ios" ? "&" : "?"}body=${msg}`).catch(() => {
+      Alert.alert("알림", `연락처: ${student.phone}`);
     });
   }
 
@@ -430,11 +453,11 @@ export default function ApprovalsScreen() {
       <SubScreenHeader title="승인 관리" />
       <MainTabs<MainTab>
         tabs={[
-          { key: "parents",  label: "학부모 승인", badge: pendingParentsCnt  },
+          { key: "parents",  label: "학부모", badge: unlinkedParentsCnt  },
           { key: "teachers", label: "선생님 승인", badge: pendingTeachersCnt },
         ]}
         active={mainTab}
-        onChange={key => { setMainTab(key); setFilter("pending"); }}
+        onChange={key => { setMainTab(key); setFilter(key === "parents" ? "unlinked" : "unlinked"); }}
       />
       <FilterChips<StatusFilter>
         chips={chipsWithCount()}
@@ -452,14 +475,17 @@ export default function ApprovalsScreen() {
     );
   }
 
-  const isParentTab = mainTab === "parents";
-  const data        = isParentTab ? filteredParents : filteredTeachers;
+  const isParentTab   = mainTab === "parents";
+  const isUnlinkedTab = isParentTab && filter === "unlinked";
+  const listData: any[] = isParentTab
+    ? (isUnlinkedTab ? unlinkedStudents : filteredParents)
+    : filteredTeachers;
 
   return (
     <>
       <ScreenLayout header={header}>
         <FlatList
-          data={data}
+          data={listData}
           keyExtractor={item => item.id}
           contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 100 }]}
           showsVerticalScrollIndicator={false}
@@ -467,11 +493,46 @@ export default function ApprovalsScreen() {
           ListEmptyComponent={
             <EmptyState
               icon={isParentTab ? "users" : "send"}
-              title={filter === "pending" ? "대기 중인 요청이 없습니다" : filter === "approved" ? "승인된 내역이 없습니다" : "거절된 내역이 없습니다"}
-              subtitle="상단 필터에서 다른 상태를 선택해보세요"
+              title={
+                isUnlinkedTab ? "미연결 학생이 없습니다"
+                  : filter === "approved" ? "연결된 학부모가 없습니다"
+                  : "내역이 없습니다"
+              }
+              subtitle={isUnlinkedTab ? "모든 학생이 학부모와 연결되었습니다" : "상단 필터에서 다른 상태를 선택해보세요"}
             />
           }
           renderItem={({ item }) => {
+            // ── 미연결 학생 카드 ───────────────────────────────
+            if (isUnlinkedTab) {
+              const st = item as UnlinkedStudent;
+              return (
+                <View style={[s.unlinkCard, { backgroundColor: C.card, borderColor: C.border }]}>
+                  <View style={[s.unlinkAvatar, { backgroundColor: C.tintLight }]}>
+                    <Text style={[s.unlinkAvatarTxt, { color: C.tint }]}>{st.name[0]}</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={[s.unlinkName, { color: C.text }]}>{st.name}</Text>
+                    <Text style={[s.unlinkSub, { color: C.textMuted }]}>
+                      {[st.class_name, st.birth_year ? `${st.birth_year}년생` : null, st.phone].filter(Boolean).join(" · ")}
+                    </Text>
+                  </View>
+                  {st.phone ? (
+                    <Pressable
+                      style={({ pressed }) => [s.smsBtn, { opacity: pressed ? 0.7 : 1 }]}
+                      onPress={() => handleSmsInvite(st)}
+                    >
+                      <Feather name="message-square" size={14} color="#fff" />
+                      <Text style={s.smsBtnTxt}>초대</Text>
+                    </Pressable>
+                  ) : (
+                    <View style={[s.smsBtn, { backgroundColor: C.border }]}>
+                      <Text style={[s.smsBtnTxt, { color: C.textMuted }]}>연락처 없음</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            }
+            // ── 연결된 학부모 카드 ────────────────────────────
             if (isParentTab) {
               const req = item as ParentJoinRequest;
               const isPending = req.status === "pending" || req.status === "on_hold";
@@ -483,16 +544,16 @@ export default function ApprovalsScreen() {
                   onView={() => setStoreParentDetail(req)}
                 />
               );
-            } else {
-              const inv = item as TeacherInvite;
-              return (
-                <ApprovalCard
-                  meta={buildTeacherMeta(inv)}
-                  onApprove={() => handleInviteAction(inv.id, "approve")}
-                  onView={() => handleViewTeacher(inv)}
-                />
-              );
             }
+            // ── 선생님 카드 ───────────────────────────────────
+            const inv = item as TeacherInvite;
+            return (
+              <ApprovalCard
+                meta={buildTeacherMeta(inv)}
+                onApprove={() => handleInviteAction(inv.id, "approve")}
+                onView={() => handleViewTeacher(inv)}
+              />
+            );
           }}
         />
       </ScreenLayout>
@@ -586,5 +647,12 @@ const x = StyleSheet.create({
 });
 
 const s = StyleSheet.create({
-  list: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
+  list:          { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
+  unlinkCard:    { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
+  unlinkAvatar:  { width: 42, height: 42, borderRadius: 21, justifyContent: "center", alignItems: "center" },
+  unlinkAvatarTxt:{ fontSize: 17, fontFamily: "Inter_700Bold" },
+  unlinkName:    { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  unlinkSub:     { fontSize: 12, fontFamily: "Inter_400Regular" },
+  smsBtn:        { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#1F8F86", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  smsBtnTxt:     { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });

@@ -62,6 +62,7 @@ export function useAuth() {
     completeTotpLogin: session.completeTotpLogin,
     adminLogin: session.adminLogin,
     parentLogin: session.parentLogin,
+    setParentSession: session.setParentSession,
     logout: async () => {
       await session.logout();
       await role.clearRole();

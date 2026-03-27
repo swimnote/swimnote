@@ -107,6 +107,7 @@ interface SessionContextType {
   completeTotpLogin: (totpSession: string, otpCode: string) => Promise<{ available_accounts: AccountEntry[] }>;
   adminLogin: (email: string, password: string) => Promise<void>;
   parentLogin: (identifier: string, password: string) => Promise<void>;
+  setParentSession: (token: string, parent: ParentAccount) => Promise<void>;
   logout: () => Promise<void>;
   refreshPool: () => Promise<void>;
   loadOwnedPools: () => Promise<void>;
@@ -339,6 +340,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setKind("parent");
   }
 
+  async function setParentSession(token: string, parent: ParentAccount) {
+    await AsyncStorage.multiSet([
+      ["auth_token", token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(parent)],
+    ]);
+    setToken(token);
+    setParentAccount(parent);
+    setKind("parent");
+  }
+
   async function logout() {
     await AsyncStorage.multiRemove([
       "auth_token", "auth_kind", "auth_admin", "auth_parent",
@@ -384,7 +394,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     <SessionContext.Provider value={{
       kind, adminUser, parentAccount, token, pool, isLoading,
       allAccounts, ownedPools, parentJoinStatus, parentJoinRequestId,
-      unifiedLogin, completeTotpLogin, adminLogin, parentLogin,
+      unifiedLogin, completeTotpLogin, adminLogin, parentLogin, setParentSession,
       logout, refreshPool, loadOwnedPools, switchPool,
       activateAccount, updateParentNickname, checkRolePermission, applyRoleSwitch,
     }}>
