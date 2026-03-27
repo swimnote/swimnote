@@ -87,7 +87,7 @@ export default function LoginScreen() {
       keyboardVerticalOffset={0}
     >
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 60 : 48), paddingBottom: insets.bottom + 40 }]}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 72 : 60), paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -102,6 +102,8 @@ export default function LoginScreen() {
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
           </Text>
         </View>
+
+        <View style={styles.spacer} />
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <Text style={[styles.cardTitle, { color: C.text }]}>로그인</Text>
@@ -230,11 +232,12 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: { flexGrow: 1, paddingHorizontal: 20, gap: 20 },
-  logoArea: { alignItems: "center", gap: 8, paddingBottom: 4 },
-  logoImage: { width: 120, height: 120, borderRadius: 28, shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.22, shadowRadius: 16, elevation: 8 },
-  appSub: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  appDesc: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 2 },
+  container: { flexGrow: 1, paddingHorizontal: 20 },
+  logoArea: { alignItems: "center", gap: 10, paddingBottom: 8 },
+  logoImage: { width: 160, height: 160, borderRadius: 38, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.28, shadowRadius: 24, elevation: 12 },
+  appSub: { fontSize: 15, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  appDesc: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  spacer: { height: 36 },
   card: { borderRadius: 20, padding: 22, gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 },
   cardTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 2 },
   field: { gap: 6 },
@@ -248,7 +251,7 @@ const styles = StyleSheet.create({
   loginBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
   forgotBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingVertical: 4 },
   forgotText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 20 },
   signupLabel: { fontSize: 14, fontFamily: "Inter_400Regular" },
   signupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },
   signupBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
