@@ -82,7 +82,7 @@ export default function MonthlyCalendar({
           <View key={wd} style={[mc.weekHeader, { width: CELL_W }]}>
             <Text style={[mc.weekHeaderText,
               i === 0 && { color: "#D96C6C" },
-              i === 6 && { color: themeColor },
+              i === 6 && { color: C.tint },
             ]}>{wd}</Text>
           </View>
         ))}
@@ -109,9 +109,9 @@ export default function MonthlyCalendar({
               <Pressable key={dateStr}
                 style={[
                   mc.dayCell, { width: CELL_W, height: CELL_H },
-                  isSelected && { backgroundColor: themeColor + "18", borderRadius: 8 },
+                  isSelected && { backgroundColor: C.tintLight, borderRadius: 8 },
                   isMultiPicked && { backgroundColor: "#2E9B6F" + "20", borderRadius: 8, borderWidth: 1.5, borderColor: "#2E9B6F" },
-                  isToday && !isSelected && !isMultiPicked && { backgroundColor: themeColor + "0C" },
+                  isToday && !isSelected && !isMultiPicked && { backgroundColor: C.tintLight },
                   isHoliday && !isMultiPicked && { backgroundColor: "#FEF2F2" },
                 ]}
                 onPress={() => onSelectDate(dateStr)}>
@@ -124,11 +124,11 @@ export default function MonthlyCalendar({
                 )}
 
                 <View style={[mc.dayNumWrap,
-                  isToday && { backgroundColor: themeColor },
-                  isSelected && !isToday && { backgroundColor: themeColor + "30" },
+                  isToday && { backgroundColor: C.tint },
+                  isSelected && !isToday && { backgroundColor: C.tintLight },
                 ]}>
                   <Text style={[mc.dayNum,
-                    isSun || isHoliday ? { color: "#D96C6C" } : isSat ? { color: themeColor } : {},
+                    isSun || isHoliday ? { color: "#D96C6C" } : isSat ? { color: C.tint } : {},
                     isToday && { color: "#fff" },
                   ]}>{dayNum}</Text>
                 </View>
@@ -149,7 +149,7 @@ export default function MonthlyCalendar({
                       const pillBorder = pillBg === "#FFFFFF" ? "#E5E7EB" : "transparent";
                       return (
                         <View key={ti} style={[mc.timePill, { backgroundColor: pillBg, borderWidth: 0.5, borderColor: pillBorder }]}>
-                          <Text style={[mc.timePillText, { color: "#111827" }]}>{label}</Text>
+                          <Text style={[mc.timePillText, { color: C.text }]}>{label}</Text>
                           {pillIsPast && (
                             <View style={mc.strikeOverlay} pointerEvents="none">
                               <View style={mc.strikeLine} />
@@ -175,7 +175,7 @@ export default function MonthlyCalendar({
 const mc = StyleSheet.create({
   root:           { paddingHorizontal: 16, paddingBottom: 8 },
   monthNav:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
-  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
+  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: C.card, alignItems: "center", justifyContent: "center" },
   monthTitle:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text },
   weekRow:        { flexDirection: "row" },
   weekHeader:     { height: 28, alignItems: "center", justifyContent: "center" },

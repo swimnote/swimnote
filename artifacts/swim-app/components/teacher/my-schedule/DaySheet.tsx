@@ -139,7 +139,7 @@ export default function DaySheet({
                 <Feather name="mic" size={20} color={isRecording ? "#D96C6C" : (audioList.length > 0 ? "#4338CA" : C.textSecondary)} />
                 {(audioList.length > 0 && !isRecording) ? <View style={[dy.redDot, { backgroundColor: "#4338CA" }]} /> : null}
               </Pressable>
-              <Pressable style={[dy.headerBtn, { backgroundColor: themeColor }]} onPress={onAddClass}>
+              <Pressable style={[dy.headerBtn, { backgroundColor: C.tint }]} onPress={onAddClass}>
                 <Feather name="plus" size={13} color="#fff" />
                 <Text style={[dy.headerBtnTxt, { color: "#fff" }]}>수업 추가</Text>
               </Pressable>
@@ -156,10 +156,10 @@ export default function DaySheet({
               <View style={dy.emptyBox}>
                 <Feather name="calendar" size={32} color={C.textMuted} />
                 <Text style={dy.emptyTxt}>이 날은 수업이 없습니다</Text>
-                <Pressable style={[dy.emptyAction, { borderColor: themeColor }]}
+                <Pressable style={[dy.emptyAction, { borderColor: C.tint }]}
                   onPress={() => { onClose(); setTimeout(onAddClass, 200); }}>
-                  <Feather name="plus-circle" size={13} color={themeColor} />
-                  <Text style={[dy.emptyActionTxt, { color: themeColor }]}>수업 추가</Text>
+                  <Feather name="plus-circle" size={13} color={C.tint} />
+                  <Text style={[dy.emptyActionTxt, { color: C.tint }]}>수업 추가</Text>
                 </Pressable>
               </View>
             )}
@@ -211,7 +211,7 @@ export default function DaySheet({
                   <Text style={dy.memoLabel}>날짜 메모</Text>
                   {!editingMemo && (
                     <Pressable onPress={() => setEditingMemo(true)} style={dy.memoEditBtn}>
-                      <Text style={[dy.memoEditBtnTxt, { color: themeColor }]}>
+                      <Text style={[dy.memoEditBtnTxt, { color: C.tint }]}>
                         {memo ? "수정" : "추가"}
                       </Text>
                     </Pressable>
@@ -232,7 +232,7 @@ export default function DaySheet({
                       <Pressable style={dy.memoCancelBtn} onPress={() => setEditingMemo(false)}>
                         <Text style={dy.memoCancelBtnTxt}>취소</Text>
                       </Pressable>
-                      <Pressable style={[dy.memoSaveBtn, { backgroundColor: themeColor }]}
+                      <Pressable style={[dy.memoSaveBtn, { backgroundColor: C.tint }]}
                         onPress={() => { onSaveMemo(); setEditingMemo(false); }}>
                         <Text style={dy.memoSaveBtnTxt}>저장</Text>
                       </Pressable>
@@ -255,9 +255,9 @@ export default function DaySheet({
                       <Text style={[dy.audioBtnTxt, { color: "#D96C6C" }]}>저장</Text>
                     </Pressable>
                   ) : (
-                    <Pressable style={[dy.audioBtn, { backgroundColor: themeColor + "1A" }]} onPress={startRecording}>
-                      <Feather name="mic" size={15} color={themeColor} />
-                      <Text style={[dy.audioBtnTxt, { color: themeColor }]}>녹음</Text>
+                    <Pressable style={[dy.audioBtn, { backgroundColor: C.tintLight }]} onPress={startRecording}>
+                      <Feather name="mic" size={15} color={C.tint} />
+                      <Text style={[dy.audioBtnTxt, { color: C.tint }]}>녹음</Text>
                     </Pressable>
                   )}
                 </View>
@@ -279,11 +279,11 @@ export default function DaySheet({
                           <Text style={dy.audioListLabel}>녹음 {idx + 1}  <Text style={dy.audioListTime}>{timeLabel}</Text></Text>
                           <View style={{ flex: 1 }} />
                           <Pressable
-                            style={[dy.audioPlayBtn, isThis && { backgroundColor: themeColor + "30" }]}
+                            style={[dy.audioPlayBtn, isThis && { backgroundColor: C.tintLight }]}
                             onPress={() => playAudio(item.uri)}>
                             <Feather name={isThis ? "volume-2" : "play"} size={14}
-                              color={isThis ? themeColor : "#2EC4B6"} />
-                            <Text style={[dy.audioBtnTxt, { color: isThis ? themeColor : "#2EC4B6" }]}>
+                              color={C.tint} />
+                            <Text style={[dy.audioBtnTxt, { color: C.tint }]}>
                               {isThis ? "재생중" : "재생"}
                             </Text>
                           </Pressable>
@@ -328,7 +328,7 @@ const dy = StyleSheet.create({
                       paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
   emptyActionTxt:   { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   classCard:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 12,
-                      backgroundColor: "#F8FAFC", borderRadius: 12 },
+                      backgroundColor: C.card, borderRadius: 12 },
   classCardDone:    { opacity: 0.65 },
   colorBar:         { width: 4, height: "100%" as any, borderRadius: 2, alignSelf: "stretch" },
   classTime:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
