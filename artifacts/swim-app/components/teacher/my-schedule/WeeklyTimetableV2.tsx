@@ -209,7 +209,7 @@ export default function WeeklyTimetableV2({
 }
 
 const wt = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#FFF7ED" }, /* DEBUG — WeeklyTimetableV2 확인용 */
+  root: { flex: 1, backgroundColor: "#FFFFFF" },
 
   weekNav: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
