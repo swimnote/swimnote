@@ -348,7 +348,7 @@ export default function MembersScreen() {
       <View style={ms.actionRow}>
         {!sel.selectionMode ? (
           <>
-            <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? "#9CA3AF" : themeColor }]} onPress={handleAddMember}>
+            <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? "#9CA3AF" : "#2EC4B6" }]} onPress={handleAddMember}>
               <Feather name={isMemberLimitReached ? "lock" : "user-plus"} size={14} color="#fff" />
               <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
             </Pressable>
