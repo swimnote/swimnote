@@ -29,7 +29,7 @@ import type { ClassGroup } from "@/components/admin/member/memberDetailTypes";
 
 const C = Colors.light;
 
-const _IC = "#1B4965"; const _IB = "#E6FAF8";
+const _IC = "#0F172A"; const _IB = "#E6FAF8";
 const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "all",               label: "전체",       icon: "list" },
   { key: "normal",            label: "정상",       icon: "check-circle",  activeColor: _IC, activeBg: _IB },

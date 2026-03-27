@@ -45,7 +45,7 @@ interface AuditLogItem {
 
 const MINT = "#2EC4B6"; const MINT_BG = "#E6FAF8";
 const ORNG = "#F97316"; const ORNG_BG = "#FFF1E8";
-const NAVY = "#1B4965"; const NAVY_BG = "#E8EEF4";
+const NAVY = "#0F172A"; const NAVY_BG = "#E8EEF4";
 const IC = NAVY; const IB = MINT_BG;
 
 const MENUS = [

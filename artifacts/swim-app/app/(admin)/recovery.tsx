@@ -640,8 +640,8 @@ const s = StyleSheet.create({
   doneTxt:      { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#065F46", flex: 1 },
 
   infoBox:      { borderRadius: 12, padding: 14, gap: 4, flexDirection: "row" },
-  infoTitle:    { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#1B4965", marginBottom: 4 },
-  infoLine:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#1B4965", lineHeight: 18 },
+  infoTitle:    { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 4 },
+  infoLine:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
 
   section:      { gap: 8 },
   sectionTitle: { fontSize: 13, fontFamily: "Pretendard-Bold", color: C.textSecondary },

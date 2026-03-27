@@ -26,18 +26,18 @@ function fmtBytes(b: number) {
 }
 
 const KS_TYPES = [
-  { key: "photo",  label: "사진",      icon: "image"     as const, color: "#1B4965", bg: "#E6FAF8" },
-  { key: "video",  label: "영상",      icon: "video"     as const, color: "#1B4965", bg: "#E6FAF8" },
-  { key: "record", label: "기록/일지", icon: "book-open" as const, color: "#1B4965", bg: "#E6FAF8" },
+  { key: "photo",  label: "사진",      icon: "image"     as const, color: "#0F172A", bg: "#E6FAF8" },
+  { key: "video",  label: "영상",      icon: "video"     as const, color: "#0F172A", bg: "#E6FAF8" },
+  { key: "record", label: "기록/일지", icon: "book-open" as const, color: "#0F172A", bg: "#E6FAF8" },
 ];
 
 const MONTH_OPTIONS = [1, 3, 6, 12];
 
 const RETENTION_TYPES = [
-  { key: "photo",     label: "사진",       icon: "image"      as const, color: "#1B4965", bg: "#E6FAF8" },
-  { key: "video",     label: "영상",       icon: "video"      as const, color: "#1B4965", bg: "#E6FAF8" },
-  { key: "record",    label: "기록/일지",  icon: "book-open"  as const, color: "#1B4965", bg: "#E6FAF8" },
-  { key: "messenger", label: "메신저",     icon: "message-square" as const, color: "#1B4965", bg: "#E6FAF8" },
+  { key: "photo",     label: "사진",       icon: "image"      as const, color: "#0F172A", bg: "#E6FAF8" },
+  { key: "video",     label: "영상",       icon: "video"      as const, color: "#0F172A", bg: "#E6FAF8" },
+  { key: "record",    label: "기록/일지",  icon: "book-open"  as const, color: "#0F172A", bg: "#E6FAF8" },
+  { key: "messenger", label: "메신저",     icon: "message-square" as const, color: "#0F172A", bg: "#E6FAF8" },
 ];
 const RETENTION_OPTIONS = [6, 12, 24, 36, 0]; // 0 = 영구 보관
 

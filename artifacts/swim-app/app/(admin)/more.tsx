@@ -41,7 +41,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 // 바로가기 (대시보드에 없는 보조 메뉴만)
-const N = "#1B4965"; const N_BG = "#E6FAF8";
+const N = "#0F172A"; const N_BG = "#E6FAF8";
 
 const SHORTCUTS = [
   { label: "공지함",           icon: "bell"       as const, color: N, bg: N_BG, route: "/(admin)/notices"                     },

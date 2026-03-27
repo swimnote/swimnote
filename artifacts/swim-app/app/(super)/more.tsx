@@ -16,7 +16,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 const PURPLE = "#7C3AED";
 
-const IC = "#1B4965"; const IB = "#E6FAF8";
+const IC = "#0F172A"; const IB = "#E6FAF8";
 
 const ICON_COLOR_MAP: Record<string, { bg: string; icon: string }> = {
   mint:    { bg: IB, icon: IC },

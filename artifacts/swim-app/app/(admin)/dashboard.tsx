@@ -43,7 +43,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
 };
 
 // ── 아이콘 색상 통일 규칙: 연한 민트 박스 + 네이비 아이콘 ──────────────────
-const _IC = "#1B4965"; const _IB = "#E6FAF8";
+const _IC = "#0F172A"; const _IB = "#E6FAF8";
 
 // ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
 type PopupKey = "운영관리" | "수업관리" | "보강관리" | "매출관리" | "데이터관리" | "수업설정" | "운영설정";
@@ -108,7 +108,7 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
 // ── 메인 홈 아이콘 정의 ──────────────────────────────────────────────────────
 const MINT = "#2EC4B6"; const MINT_BG = "#E6FAF8";
 const ORNG = "#F97316"; const ORNG_BG = "#FFF1E8";
-const NAVY = "#1B4965"; const NAVY_BG = "#E8EEF4";
+const NAVY = "#0F172A"; const NAVY_BG = "#E8EEF4";
 const IC = NAVY; const IB = MINT_BG;
 
 const MAIN_ICONS: Array<{
@@ -193,7 +193,7 @@ export default function DashboardScreen() {
     finally { setSwitching(false); }
   }
 
-  const _BIC = "#1B4965"; const _BIB = "#E6FAF8";
+  const _BIC = "#0F172A"; const _BIB = "#E6FAF8";
   const bannerItems = [
     {
       label: "데이터 사용량",
@@ -254,15 +254,15 @@ export default function DashboardScreen() {
               <Pressable
                 style={({ pressed }) => [
                   s.switchChip,
-                  { borderColor: "#1B496530", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
+                  { borderColor: "#0F172A30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
                 ]}
                 onPress={handleSwitchToTeacher}
                 disabled={switching}
               >
                 {switching
-                  ? <ActivityIndicator size="small" color="#1B4965" />
+                  ? <ActivityIndicator size="small" color="#0F172A" />
                   : <>
-                      <Feather name="repeat" size={10} color="#1B4965" />
+                      <Feather name="repeat" size={10} color="#0F172A" />
                       <Text style={[s.switchChipTxt, { color: C.text }]}>선생님으로 전환</Text>
                     </>
                 }
@@ -321,7 +321,7 @@ export default function DashboardScreen() {
               <Pressable style={s.splitStatRow} onPress={() => router.push("/(admin)/members")}>
                 <View style={s.splitStatItem}>
                   <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
-                    <Feather name="alert-circle" size={14} color="#1B4965" />
+                    <Feather name="alert-circle" size={14} color="#0F172A" />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unassigned ?? 0}명</Text>
@@ -331,7 +331,7 @@ export default function DashboardScreen() {
                 <View style={s.splitStatDivider} />
                 <View style={s.splitStatItem}>
                   <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
-                    <Feather name="user-x" size={14} color="#1B4965" />
+                    <Feather name="user-x" size={14} color="#0F172A" />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unlinked_members ?? 0}명</Text>
@@ -371,7 +371,7 @@ export default function DashboardScreen() {
               onPress={() => setShowRegister(true)}
             >
               <View style={[s.addMemberIconWrap, { backgroundColor: "#E6FAF8" }]}>
-                <Feather name="user-plus" size={20} color="#1B4965" />
+                <Feather name="user-plus" size={20} color="#0F172A" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.addMemberLabel}>회원추가</Text>

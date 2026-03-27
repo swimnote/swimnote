@@ -313,7 +313,7 @@ const ps = StyleSheet.create({
   permLabel:    { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   permDesc:     { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 1 },
   badge:        { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeText:    { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#1B4965" },
+  badgeText:    { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#0F172A" },
   noPerm:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 6, fontStyle: "italic" },
   superTag:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   superTagText: { fontSize: 11, fontFamily: "Pretendard-Medium" },

@@ -190,7 +190,7 @@ export default function ParentHomeScreen() {
   }
 
   // 기능 아이콘 6개: 수업일지, 출결, 앨범, 공지, 쪽지, 수영정보
-  const IC = "#1B4965"; const IB = "#E6FAF8";
+  const IC = "#0F172A"; const IB = "#E6FAF8";
   const icons = [
     { icon: "book-open", label: "수업일지", badge: null,
       color: IC, bg: IB, path: "/(parent)/diary" },

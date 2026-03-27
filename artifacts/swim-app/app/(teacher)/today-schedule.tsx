@@ -137,7 +137,7 @@ export default function TodayScheduleScreen() {
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(sun); d.setDate(sun.getDate() + i); return d; });
   }, []);
 
-  const IC = "#1B4965"; const IB = "#E6FAF8";
+  const IC = "#0F172A"; const IB = "#E6FAF8";
 
   const icons: HubIcon[] = [
     { key: "my-schedule", label: "수업관리",  icon: "layers",         color: IC, bg: IB, onPress: () => router.push("/(teacher)/my-schedule" as any) },
@@ -241,7 +241,7 @@ export default function TodayScheduleScreen() {
         <Pressable style={({ pressed }) => [h.addMemberBtn, { backgroundColor: C.card, opacity: pressed ? 0.82 : 1 }]}
           onPress={() => setShowTeacherRegister(true)}>
           <View style={[h.addMemberIconWrap, { backgroundColor: "#E6FAF8" }]}>
-            <Feather name="user-plus" size={20} color="#1B4965" />
+            <Feather name="user-plus" size={20} color="#0F172A" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={h.addMemberLabel}>회원추가</Text>

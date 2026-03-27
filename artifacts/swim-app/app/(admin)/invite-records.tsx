@@ -23,7 +23,7 @@ const C = Colors.light;
 
 type FilterKey = "all" | InviteTargetType;
 
-const _IC = "#1B4965"; const _IB = "#E6FAF8";
+const _IC = "#0F172A"; const _IB = "#E6FAF8";
 const FILTER_CHIPS: FilterChipItem<FilterKey>[] = [
   { key: "all",      label: "전체",   icon: "list"   },
   { key: "guardian", label: "학부모", icon: "users",      activeColor: _IC, activeBg: _IB },

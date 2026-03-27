@@ -2,10 +2,10 @@
 // 아이콘 색상 규칙:
 //   민트(#2EC4B6)  → 스케줄/출결/시간표 관련
 //   오렌지(#F97316) → 회원관리/등록/결제 관련
-//   네이비(#1B4965) → 설정/정보/공지 관련
+//   네이비(#0F172A) → 설정/정보/공지 관련
 
 const mint      = "#2EC4B6";
-const navy      = "#1B4965";
+const navy      = "#0F172A";
 const mintLight = "#E6FAF8";
 const orange    = "#F97316";
 const blue      = "#2563EB";

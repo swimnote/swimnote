@@ -79,7 +79,7 @@ function parseRoles(roles: any): string[] {
   return [];
 }
 
-const _IC = "#1B4965"; const _IB = "#E6FAF8";
+const _IC = "#0F172A"; const _IB = "#E6FAF8";
 const PARENT_FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
   { key: "unlinked", label: "미연결", icon: "link",         activeColor: _IC, activeBg: _IB },
   { key: "approved", label: "연결됨", icon: "check-circle", activeColor: _IC, activeBg: _IB },

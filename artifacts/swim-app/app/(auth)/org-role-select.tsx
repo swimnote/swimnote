@@ -148,7 +148,7 @@ export default function OrgRoleSelectScreen() {
                   onPress={() => handleSelectRole(item)}
                 >
                   <View style={styles.roleIconBox}>
-                    <Feather name={icon as any} size={36} color="#1B4965" />
+                    <Feather name={icon as any} size={36} color="#0F172A" />
                   </View>
                   <Text style={[styles.roleTitle, { color: C.text }]}>{label}</Text>
                 </Pressable>
