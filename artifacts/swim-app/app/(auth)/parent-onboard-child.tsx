@@ -1,10 +1,12 @@
 /**
  * parent-onboard-child.tsx — STEP 2: 보호자·자녀 정보 입력
- * 관계/호칭 + 자녀 최대 3명 (이름 + 생년월일) 입력
- * 제출 시 자동승인 여부 확인 → 결과에 따라 이동
+ * 제출 시 /auth/pool-join-request API 호출
+ * - 학생 명부 이름 일치 → 자동 승인 → 로그인 화면
+ * - 이름 불일치 → pending → 대기 화면
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState } from "react";
 import {
   Alert, KeyboardAvoidingView, Platform, Pressable,
@@ -12,29 +14,33 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/context/AuthContext";
-import { checkAutoApproval, useParentJoinStore, type ParentRelation } from "@/store/parentJoinStore";
+import { apiRequest } from "@/context/AuthContext";
 
 const C = Colors.light;
 
+type ParentRelation = "부" | "모" | "조부" | "조모" | "기타";
 const RELATIONS: ParentRelation[] = ["부", "모", "조부", "조모", "기타"];
 
 interface ChildForm { name: string; birthDate: string; }
 
 export default function ParentOnboardChildScreen() {
-  const { adminUser, parentAccount } = useAuth();
-  const insets   = useSafeAreaInsets();
-  const params   = useLocalSearchParams<{ pool_id: string; pool_name: string }>();
-  const submitRequest = useParentJoinStore(s => s.submitRequest);
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    pool_id: string;
+    pool_name: string;
+    name?: string;
+    loginId?: string;
+    pw?: string;
+    phone?: string;
+  }>();
 
-  const [relation, setRelation]       = useState<ParentRelation | null>(null);
-  const [displayName, setDisplayName] = useState("");
-  const [children, setChildren]       = useState<ChildForm[]>([{ name: "", birthDate: "" }]);
-  const [error, setError]             = useState("");
-  const [submitting, setSubmitting]   = useState(false);
+  const [relation, setRelation] = useState<ParentRelation | null>(null);
+  const [children, setChildren] = useState<ChildForm[]>([{ name: "", birthDate: "" }]);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const parentPhone = adminUser?.phone ?? parentAccount?.phone ?? "";
-  const parentName  = adminUser?.name  ?? parentAccount?.name  ?? "학부모";
+  const parentName = params.name ?? "";
+  const parentPhone = params.phone ?? "";
 
   function updateChild(idx: number, field: keyof ChildForm, val: string) {
     setChildren(prev => {
@@ -55,27 +61,14 @@ export default function ParentOnboardChildScreen() {
   }
 
   function validate(): boolean {
-    if (!relation) {
-      setError("보호자 관계를 선택해주세요."); return false;
-    }
-    if (!displayName.trim()) {
-      setError("호칭을 입력해주세요. (예: 민수엄마)"); return false;
-    }
+    if (!relation) { setError("보호자 관계를 선택해주세요."); return false; }
     const first = children[0];
-    if (!first.name.trim()) {
-      setError("첫 번째 자녀 이름을 입력해주세요."); return false;
-    }
-    if (!first.birthDate.trim()) {
-      setError("첫 번째 자녀 생년월일을 입력해주세요."); return false;
-    }
+    if (!first.name.trim()) { setError("첫 번째 자녀 이름을 입력해주세요."); return false; }
+    if (!first.birthDate.trim()) { setError("첫 번째 자녀 생년월일을 입력해주세요."); return false; }
     for (let i = 1; i < children.length; i++) {
       const c = children[i];
-      if (c.name.trim() && !c.birthDate.trim()) {
-        setError(`자녀 ${i + 1} 생년월일을 입력해주세요.`); return false;
-      }
-      if (!c.name.trim() && c.birthDate.trim()) {
-        setError(`자녀 ${i + 1} 이름을 입력해주세요.`); return false;
-      }
+      if (c.name.trim() && !c.birthDate.trim()) { setError(`자녀 ${i + 1} 생년월일을 입력해주세요.`); return false; }
+      if (!c.name.trim() && c.birthDate.trim()) { setError(`자녀 ${i + 1} 이름을 입력해주세요.`); return false; }
     }
     return true;
   }
@@ -83,35 +76,61 @@ export default function ParentOnboardChildScreen() {
   async function handleSubmit() {
     setError("");
     if (!validate()) return;
+    if (!params.pool_id) { setError("수영장 정보가 없습니다. 이전 단계로 돌아가 주세요."); return; }
+    if (!params.loginId || !params.pw || !parentPhone) {
+      setError("회원가입 정보가 없습니다. 처음부터 다시 시도해주세요."); return;
+    }
+
     setSubmitting(true);
+    const validChildren = children.filter(c => c.name.trim());
+    const first = validChildren[0];
 
-    const validChildren = children.filter(c => c.name.trim() && c.birthDate.trim());
-    const result = checkAutoApproval(params.pool_id ?? "", parentPhone, validChildren);
+    try {
+      const res = await apiRequest(null, "/auth/pool-join-request", {
+        method: "POST",
+        body: JSON.stringify({
+          swimming_pool_id: params.pool_id,
+          parent_name: parentName,
+          phone: parentPhone,
+          child_name: first.name.trim(),
+          child_birth_year: first.birthDate ? parseInt(first.birthDate.slice(0, 4)) : null,
+          children_requested: validChildren.map(c => ({
+            childName: c.name.trim(),
+            childBirthYear: c.birthDate ? parseInt(c.birthDate.slice(0, 4)) : null,
+          })),
+          loginId: params.loginId,
+          password: params.pw,
+        }),
+      });
+      const json = await res.json();
 
-    submitRequest({
-      operatorId:    params.pool_id   ?? "unknown",
-      operatorName:  params.pool_name ?? "수영장",
-      parentId:      adminUser?.id    ?? parentAccount?.id ?? "usr-new",
-      parentName,
-      parentPhone,
-      relation:      relation!,
-      displayName:   displayName.trim(),
-      children:      validChildren,
-      status:        result.status,
-      matchStatus:   result.matchStatus,
-      matchedStudentIds: result.matchedStudentIds,
-    });
+      if (!res.ok || !json.success) {
+        setError(json.message || "요청 중 오류가 발생했습니다.");
+        return;
+      }
 
-    setSubmitting(false);
+      const status: string = json.data?.status ?? "pending";
 
-    if (result.status === "auto_approved") {
-      Alert.alert(
-        "자동 승인 완료!",
-        `자녀 정보가 학생 명부와 일치하여\n즉시 승인되었습니다.\n\n연결된 자녀: ${validChildren.map(c => c.name).join(", ")}`,
-        [{ text: "홈으로", onPress: () => router.replace("/(parent)/home" as any) }]
-      );
-    } else {
-      router.replace("/pending" as any);
+      if (status === "auto_approved") {
+        const matchedNames: string[] = json.data?.matched_students ?? [first.name.trim()];
+        Alert.alert(
+          "자동 승인 완료!",
+          `자녀 정보가 학생 명부와 일치하여\n즉시 승인되었습니다.\n\n연결된 자녀: ${matchedNames.join(", ")}\n\n설정한 아이디/비밀번호로 로그인해주세요.`,
+          [{ text: "로그인하기", onPress: () => router.replace("/parent-login" as any) }]
+        );
+      } else {
+        // pending → requestId 저장 후 대기 화면
+        const requestId: string = json.data?.id ?? "";
+        if (requestId) {
+          await AsyncStorage.setItem("parent_join_request_id", requestId);
+          await AsyncStorage.setItem("parent_join_status", "pending");
+        }
+        router.replace("/pending" as any);
+      }
+    } catch (e) {
+      setError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -120,7 +139,6 @@ export default function ParentOnboardChildScreen() {
       style={{ flex: 1, backgroundColor: C.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 20) }]}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <Feather name="arrow-left" size={22} color={C.text} />
@@ -161,19 +179,6 @@ export default function ParentOnboardChildScreen() {
               </Pressable>
             ))}
           </View>
-
-          <Text style={[styles.fieldLabel, { color: C.textSecondary, marginTop: 14 }]}>호칭 (표시 이름) *</Text>
-          <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-            <Feather name="tag" size={15} color={C.textMuted} style={{ marginRight: 8 }} />
-            <TextInput
-              style={[styles.input, { color: C.text }]}
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="예: 민수엄마, 지수아빠, 할머니"
-              placeholderTextColor={C.textMuted}
-            />
-          </View>
-          <Text style={[styles.hint, { color: C.textMuted }]}>앱에서 관리자에게 보여질 이름입니다</Text>
         </View>
 
         {/* ── 자녀 정보 ── */}
@@ -227,25 +232,20 @@ export default function ParentOnboardChildScreen() {
           ))}
 
           {children.length < 3 && (
-            <Pressable
-              style={[styles.addChildBtn, { borderColor: C.border }]}
-              onPress={addChild}
-            >
+            <Pressable style={[styles.addChildBtn, { borderColor: C.border }]} onPress={addChild}>
               <Feather name="plus-circle" size={16} color={C.tint} />
               <Text style={[styles.addChildTxt, { color: C.tint }]}>자녀 추가</Text>
             </Pressable>
           )}
         </View>
 
-        {/* 자동승인 안내 */}
         <View style={[styles.autoHint, { backgroundColor: "#DFF3EC", borderColor: "#A7F3D0" }]}>
           <Feather name="zap" size={14} color="#1F8F86" />
           <Text style={[styles.autoHintTxt, { color: "#1F8F86" }]}>
-            입력한 정보가 학생 명부와 일치하면 즉시 자동 승인됩니다
+            입력한 이름이 학생 명부와 일치하면 즉시 자동 승인됩니다
           </Text>
         </View>
 
-        {/* 제출 버튼 */}
         <Pressable
           style={({ pressed }) => [
             styles.submitBtn,
@@ -255,7 +255,7 @@ export default function ParentOnboardChildScreen() {
           disabled={submitting}
         >
           <Feather name="send" size={16} color="#fff" />
-          <Text style={styles.submitTxt}>가입 요청 보내기</Text>
+          <Text style={styles.submitTxt}>{submitting ? "처리 중..." : "가입 요청 보내기"}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -291,7 +291,7 @@ const sb = StyleSheet.create({
 const styles = StyleSheet.create({
   header:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 8, gap: 16 },
   content:      { paddingHorizontal: 20, paddingTop: 20, gap: 16 },
-  title:        { fontSize: 22, fontFamily: "Inter_700Bold", color: C.text },
+  title:        { fontSize: 22, fontFamily: "Inter_700Bold" },
   sub:          { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 21 },
   errorBox:     { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   errorTxt:     { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
@@ -304,7 +304,6 @@ const styles = StyleSheet.create({
   fieldLabel:   { fontSize: 12, fontFamily: "Inter_500Medium" },
   inputBox:     { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 46 },
   input:        { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
-  hint:         { fontSize: 11, fontFamily: "Inter_400Regular" },
   childCard:    { borderWidth: 1.5, borderRadius: 14, padding: 14, gap: 6, marginTop: 6 },
   childHeader:  { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   childBadge:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },

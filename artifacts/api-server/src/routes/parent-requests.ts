@@ -11,7 +11,7 @@ import {
   swimmingPoolsTable, usersTable, parentAccountsTable,
   parentStudentsTable, studentsTable,
 } from "@workspace/db/schema";
-import { eq, ilike, sql, and } from "drizzle-orm";
+import { eq, ilike, sql, and, or, isNull, inArray } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword } from "../lib/auth.js";
 
@@ -110,6 +110,63 @@ router.post("/auth/pool-join-request", async (req, res) => {
 
     const pwHash = await hashPassword(pw);
 
+    // ── 학생 명부와 이름 매칭 → 자동 승인 체크 ──────────────────────────
+    const childNames = childrenData.map((c: any) => (c.childName || "").trim()).filter(Boolean);
+    let matchedStudents: Array<{ id: string; name: string }> = [];
+    if (childNames.length > 0) {
+      matchedStudents = await db
+        .select({ id: studentsTable.id, name: studentsTable.name })
+        .from(studentsTable)
+        .where(
+          and(
+            eq(studentsTable.swimming_pool_id, swimming_pool_id),
+            inArray(studentsTable.status, ["active", "pending_parent_link"]),
+            isNull(studentsTable.parent_user_id),
+            or(...childNames.map((n: string) => ilike(studentsTable.name, n))),
+          )
+        )
+        .limit(5);
+    }
+
+    if (matchedStudents.length > 0) {
+      // ── 자동 승인 ─────────────────────────────────────────────────────
+      const paId = genId("pa");
+      await db.execute(sql`
+        INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, created_at, updated_at)
+        VALUES (${paId}, ${swimming_pool_id}, ${phone.trim()}, ${pwHash}, ${parent_name.trim()}, ${lid}, NOW(), NOW())
+      `);
+      await superAdminDb.execute(sql`
+        INSERT INTO parent_pool_requests (id, swimming_pool_id, parent_name, phone, child_name, child_birth_year, children_requested, login_id, password_hash, request_status, parent_account_id, requested_at, processed_at)
+        VALUES (${id}, ${swimming_pool_id}, ${parent_name.trim()}, ${phone.trim()},
+                ${child_name?.trim() || null}, ${child_birth_year || null},
+                ${JSON.stringify(childrenData)}, ${lid}, ${pwHash}, 'auto_approved', ${paId}, NOW(), NOW())
+      `);
+      // 매칭된 학생들과 연결
+      for (const student of matchedStudents) {
+        const psId = genId("ps");
+        await db.execute(sql`
+          INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+          VALUES (${psId}, ${paId}, ${student.id}, ${swimming_pool_id}, 'approved', NOW())
+          ON CONFLICT DO NOTHING
+        `);
+        await db.execute(sql`
+          UPDATE students SET parent_user_id = ${paId}, updated_at = NOW()
+          WHERE id = ${student.id} AND parent_user_id IS NULL
+        `);
+      }
+      return res.status(201).json({
+        success: true,
+        data: {
+          id,
+          status: "auto_approved",
+          parent_account_id: paId,
+          matched_students: matchedStudents.map((s: any) => s.name),
+          message: "자녀 정보가 학생 명부와 일치하여 자동으로 승인되었습니다.",
+        },
+      });
+    }
+
+    // ── 수동 승인 대기 ────────────────────────────────────────────────────
     await superAdminDb.execute(sql`
       INSERT INTO parent_pool_requests (id, swimming_pool_id, parent_name, phone, child_name, child_birth_year, children_requested, login_id, password_hash, request_status, requested_at)
       VALUES (${id}, ${swimming_pool_id}, ${parent_name.trim()}, ${phone.trim()},
@@ -117,7 +174,7 @@ router.post("/auth/pool-join-request", async (req, res) => {
               ${JSON.stringify(childrenData)}, ${lid}, ${pwHash}, 'pending', NOW())
     `);
 
-    res.status(201).json({ success: true, data: { id, message: "가입 요청이 접수되었습니다. 수영장 관리자 승인 후 이용 가능합니다." } });
+    res.status(201).json({ success: true, data: { id, status: "pending", message: "가입 요청이 접수되었습니다. 수영장 관리자 승인 후 이용 가능합니다." } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "서버 오류" });
@@ -384,6 +441,22 @@ router.post("/admin/parent-invites", requireAuth, requireRole("pool_admin", "sup
     }
   }
 );
+
+// ─── 공개: 학부모 본인 요청 상태 확인 (requestId로 조회) ──────────────────
+router.get("/auth/parent-join-status/:id", async (req, res) => {
+  try {
+    const result = await superAdminDb.execute(sql`
+      SELECT id, request_status, reject_reason, processed_at
+      FROM parent_pool_requests WHERE id = ${req.params.id} LIMIT 1
+    `);
+    if (!result.rows.length) { res.status(404).json({ success: false, message: "요청을 찾을 수 없습니다." }); return; }
+    const row = result.rows[0] as any;
+    res.json({ success: true, data: { status: row.request_status, rejectReason: row.reject_reason, processedAt: row.processed_at } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "서버 오류" });
+  }
+});
 
 // ─── 관리자: 학부모 초대코드 목록 ─────────────────────────────────────────
 router.get("/admin/parent-invites", requireAuth, requireRole("pool_admin", "super_admin", "teacher"),

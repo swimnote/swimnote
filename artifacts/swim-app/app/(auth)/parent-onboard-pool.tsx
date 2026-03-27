@@ -3,7 +3,7 @@
  * /pools/public-search API로 실제 DB 수영장 목록 표시
  */
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, FlatList, Platform, Pressable, StyleSheet,
@@ -55,8 +55,13 @@ export default function ParentOnboardPoolScreen() {
     );
   }, [allPools, query]);
 
+  const params = useLocalSearchParams<{ name?: string; loginId?: string; pw?: string; gender?: string; phone?: string }>();
+
   function selectPool(id: string, name: string) {
-    router.push({ pathname: "/parent-onboard-child", params: { pool_id: id, pool_name: name } } as any);
+    router.push({
+      pathname: "/parent-onboard-child",
+      params: { pool_id: id, pool_name: name, ...params },
+    } as any);
   }
 
   return (

@@ -234,39 +234,38 @@ router.put(
   }
 );
 
-// ── 내 모든 수영장 목록 (멀티풀) ─────────────────────────────────────
+// ── 내 모든 수영장 목록 (단일풀: users.swimming_pool_id 기반) ─────────
 router.get("/my-pools", requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId;
+    const userRow = await superAdminDb.execute(sql`
+      SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+    `);
+    const poolId = (userRow.rows[0] as any)?.swimming_pool_id;
+    if (!poolId) { res.json([]); return; }
     const rows = await superAdminDb.execute(sql`
-      SELECT sp.id, sp.name, sp.address, sp.phone, sp.approval_status,
-             sp.subscription_status, sp.theme_color, sp.logo_url, sp.logo_emoji,
-             up.is_primary, up.created_at as linked_at
-      FROM user_pools up
-      JOIN swimming_pools sp ON sp.id = up.pool_id
-      WHERE up.user_id = ${userId}
-      ORDER BY up.is_primary DESC, up.created_at ASC
+      SELECT id, name, address, phone, approval_status,
+             subscription_status, theme_color, logo_url, logo_emoji,
+             true AS is_primary, created_at AS linked_at
+      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `);
     res.json(rows.rows);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
-// ── 수영장 전환 (새 토큰 발급) ──────────────────────────────────────
+// ── 수영장 전환 (새 토큰 발급, users.swimming_pool_id 기반) ──────────
 router.post("/switch/:poolId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId;
     const { poolId } = req.params;
-    const access = await superAdminDb.execute(sql`
-      SELECT up.role FROM user_pools up WHERE up.user_id = ${userId} AND up.pool_id = ${poolId} LIMIT 1
-    `);
-    if (!access.rows.length) { res.status(403).json({ error: "해당 수영장에 접근 권한이 없습니다." }); return; }
-    const role = (access.rows[0] as any).role || "pool_admin";
-    await superAdminDb.execute(sql`UPDATE users SET swimming_pool_id = ${poolId} WHERE id = ${userId}`);
     const poolRow = await superAdminDb.execute(sql`SELECT * FROM swimming_pools WHERE id = ${poolId} LIMIT 1`);
+    if (!poolRow.rows.length) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
     const pool = poolRow.rows[0] as any;
-    const newToken = signToken({ userId, role, poolId });
+    await superAdminDb.execute(sql`UPDATE users SET swimming_pool_id = ${poolId} WHERE id = ${userId}`);
     const userRow = await superAdminDb.execute(sql`SELECT id, email, name, phone, role, swimming_pool_id, roles FROM users WHERE id = ${userId} LIMIT 1`);
     const user = userRow.rows[0] as any;
+    const role = user?.role || req.user!.role || "pool_admin";
+    const newToken = signToken({ userId, role, poolId });
     res.json({ token: newToken, pool, user: { ...user, swimming_pool_id: poolId } });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
@@ -286,10 +285,6 @@ router.post("/create-pool", requireAuth, requireRole("pool_admin", "super_admin"
       VALUES (${id}, ${name.trim()}, ${nameEn}, ${address || null}, ${phone || null},
               ${userInfo?.name || ""}, ${userInfo?.email || ""},
               'approved', 'trial')
-    `);
-    await superAdminDb.execute(sql`
-      INSERT INTO user_pools (id, user_id, pool_id, role, is_primary)
-      VALUES (gen_random_uuid()::text, ${userId}, ${id}, 'pool_admin', false)
     `);
 
     const srcId = source_pool_id || req.user!.poolId;
