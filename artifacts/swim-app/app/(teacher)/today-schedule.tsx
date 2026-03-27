@@ -252,12 +252,12 @@ export default function TodayScheduleScreen() {
 
         <View style={[h.sectionCard, { backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
-            <View style={[h.sectionIconBox, { backgroundColor: themeColor + "18" }]}>
-              <Feather name="layers" size={13} color={themeColor} />
+            <View style={[h.sectionIconBox, { backgroundColor: C.tintLight }]}>
+              <Feather name="layers" size={13} color={C.iconSchedule} />
             </View>
             <Text style={h.sectionTitle}>오늘 수업</Text>
             {!loading && sortedItems.length > 0 && (
-              <Text style={[h.classCnt, { color: themeColor }]}>{sortedItems.length}개</Text>
+              <Text style={[h.classCnt, { color: C.tint }]}>{sortedItems.length}개</Text>
             )}
           </View>
           <View style={h.badgeGrid}>
@@ -273,10 +273,10 @@ export default function TodayScheduleScreen() {
               const attPartial = item.att_present > 0 && !attDone;
               const dotColor   = item.att_total === 0 ? "transparent" : attDone ? "#2E9B6F" : attPartial ? "#E4A93A" : "#D96C6C";
               return (
-                <Pressable key={item.id} style={[h.chip, { backgroundColor: themeColor + "12" }]}
+                <Pressable key={item.id} style={[h.chip, { backgroundColor: C.tintLight }]}
                   onPress={() => handleChipPress(item)}>
                   <View style={h.chipTop}>
-                    <Text style={[h.chipTime, { color: themeColor }]} numberOfLines={1}>{item.schedule_time}</Text>
+                    <Text style={[h.chipTime, { color: C.tint }]} numberOfLines={1}>{item.schedule_time}</Text>
                     {item.att_total > 0 && <View style={[h.chipDot, { backgroundColor: dotColor }]} />}
                   </View>
                   <Text style={h.chipName} numberOfLines={1}>{item.name}</Text>
