@@ -240,16 +240,16 @@ export default function TodayScheduleScreen() {
           </View>
         </Pressable>
 
-        <Pressable style={({ pressed }) => [h.addMemberBtn, { opacity: pressed ? 0.82 : 1 }]}
+        <Pressable style={({ pressed }) => [h.addMemberBtn, { backgroundColor: C.card, opacity: pressed ? 0.82 : 1 }]}
           onPress={() => setShowTeacherRegister(true)}>
-          <View style={[h.addMemberIconWrap, { backgroundColor: "rgba(255,255,255,0.22)" }]}>
-            <Feather name="user-plus" size={20} color="#fff" />
+          <View style={[h.addMemberIconWrap, { backgroundColor: "#FFF1E8" }]}>
+            <Feather name="user-plus" size={20} color="#F97316" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={h.addMemberLabel}>회원추가</Text>
             <Text style={h.addMemberSub}>등록 요청 → 관리자 승인 후 반영</Text>
           </View>
-          <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
+          <Feather name="chevron-right" size={18} color={C.textMuted} />
         </Pressable>
 
         <View style={[h.sectionCard, { backgroundColor: C.card }]}>
@@ -390,10 +390,10 @@ const h = StyleSheet.create({
   miniDate:         { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#111827" },
   miniDateToday:    { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#fff" },
   miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
-  addMemberBtn:     { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#2EC4B6", borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#2EC4B6", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
+  addMemberBtn:     { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   addMemberIconWrap:{ width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  addMemberLabel:   { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
-  addMemberSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
+  addMemberLabel:   { fontSize: 15, fontFamily: "Pretendard-Bold", color: C.text },
+  addMemberSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   gridCard:       { borderRadius: 18, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   grid:           { flexDirection: "row", flexWrap: "wrap" },
   gridItem:       { width: "25%", alignItems: "center", gap: 5, paddingVertical: 8 },

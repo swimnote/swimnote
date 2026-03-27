@@ -369,17 +369,17 @@ export default function DashboardScreen() {
 
             {/* ── 회원추가 퀵버튼 ── */}
             <Pressable
-              style={({ pressed }) => [s.addMemberBtn, { backgroundColor: C.button, opacity: pressed ? 0.82 : 1 }]}
+              style={({ pressed }) => [s.addMemberBtn, { backgroundColor: C.card, opacity: pressed ? 0.82 : 1 }]}
               onPress={() => setShowRegister(true)}
             >
-              <View style={[s.addMemberIconWrap, { backgroundColor: "rgba(255,255,255,0.22)" }]}>
-                <Feather name="user-plus" size={20} color="#fff" />
+              <View style={[s.addMemberIconWrap, { backgroundColor: "#FFF1E8" }]}>
+                <Feather name="user-plus" size={20} color="#F97316" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.addMemberLabel}>회원추가</Text>
                 <Text style={s.addMemberSub}>어린이 즉시 등록 → 바로 반영</Text>
               </View>
-              <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
+              <Feather name="chevron-right" size={18} color={C.textMuted} />
             </Pressable>
 
             {/* ── 메인 아이콘 8개 (4×2 그리드) ── */}
@@ -522,8 +522,8 @@ const s = StyleSheet.create({
   splitStatLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   splitStatDivider: { width: 1, height: 32, backgroundColor: C.border },
 
-  addMemberBtn:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#2EC4B6", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
+  addMemberBtn:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   addMemberIconWrap: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  addMemberLabel:    { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
-  addMemberSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
+  addMemberLabel:    { fontSize: 15, fontFamily: "Pretendard-Bold", color: C.text },
+  addMemberSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
 });
