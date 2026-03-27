@@ -216,7 +216,7 @@ export default function WeeklyTimetableV2({
                   {info.label}
                 </Text>
                 <Text style={[wt.dayHeaderText,
-                  info.isToday && { color: C.tint, fontFamily: "Inter_700Bold" }]}>
+                  info.isToday && { color: "#2EC4B6", fontFamily: "Inter_500Medium" }]}>
                   {day}
                 </Text>
               </View>
@@ -324,63 +324,63 @@ function SundayLabel({
 
 const wt = StyleSheet.create({
   weekNav:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                  paddingHorizontal: 8, paddingVertical: 6,
-                  borderBottomWidth: 1, borderBottomColor: C.border },
+                  paddingHorizontal: 8, paddingVertical: 5, backgroundColor: "#FAFBFC",
+                  borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB" },
   weekNavBtn:   { padding: 8 },
-  weekNavTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
+  weekNavTitle: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827" },
 
   /* 섹션 배지 */
-  badgeRow:  { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 4 },
+  badgeRow:  { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 3 },
   badge:     { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  badgeText: { fontSize: 10, fontFamily: "Inter_500Medium" },
 
   /* 그리드 */
   gridRow:   { flexDirection: "row" },
-  headerRow: { borderBottomWidth: 1, borderBottomColor: C.border },
+  headerRow: { borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB" },
 
   /* 시간축 */
-  timeTop:   { height: 46, backgroundColor: "#FBF8F6",
-               borderRightWidth: 1, borderRightColor: C.border },
-  timeCell:  { backgroundColor: "#FBF8F6", borderRightWidth: 1, borderRightColor: C.border,
+  timeTop:   { height: 42, backgroundColor: "#FAFBFC",
+               borderRightWidth: 0.5, borderRightColor: "#E5E7EB" },
+  timeCell:  { backgroundColor: "#FAFBFC", borderRightWidth: 0.5, borderRightColor: "#E5E7EB",
                alignItems: "center", justifyContent: "flex-start", paddingTop: 5 },
-  timeText:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#B0A89D" },
+  timeText:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 
   /* 요일 헤더 */
-  dayHeader:      { height: 46, alignItems: "center", justifyContent: "center",
-                    borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#FBF8F6" },
-  dayHeaderToday: { backgroundColor: C.tint + "14" },
-  dayHeaderDate:  { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted, lineHeight: 13 },
-  dayHeaderText:  { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text, lineHeight: 15 },
+  dayHeader:      { height: 42, alignItems: "center", justifyContent: "center",
+                    borderLeftWidth: 0.5, borderLeftColor: "#E5E7EB", backgroundColor: "#FAFBFC" },
+  dayHeaderToday: { backgroundColor: "#2EC4B614" },
+  dayHeaderDate:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", lineHeight: 13 },
+  dayHeaderText:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", lineHeight: 14 },
 
   /* 셀 */
-  cell:       { borderLeftWidth: 1, borderLeftColor: "#EAE7E2",
-                borderBottomWidth: 1, borderBottomColor: "#F0EDE9",
-                padding: 2, gap: 2 },
-  cellSunday: { backgroundColor: "#FAFAFA" },
+  cell:       { borderLeftWidth: 0.5, borderLeftColor: "#E5E7EB",
+                borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB",
+                padding: 2, gap: 2, backgroundColor: "#FFFFFF" },
+  cellSunday: { backgroundColor: "#FAFBFC" },
 
   /* 슬림 운영형 카드 */
-  card:         { borderRadius: 5, padding: 3, paddingLeft: 7,
+  card:         { borderRadius: 7, padding: 3, paddingLeft: 7,
                   minHeight: 38, justifyContent: "center",
                   borderWidth: 1, overflow: "hidden", gap: 1 },
   accentBar:    { position: "absolute", left: 0, top: 0, bottom: 0, width: 3 },
   checkBox:     { position: "absolute", top: 2, right: 2, width: 13, height: 13,
-                  borderRadius: 7, borderWidth: 1.5,
+                  borderRadius: 7, borderWidth: 1,
                   alignItems: "center", justifyContent: "center" },
   changeDot:    { position: "absolute", top: 3, right: 3, width: 6, height: 6,
                   borderRadius: 3, backgroundColor: "#FCD34D",
                   borderWidth: 1, borderColor: "#D97706", zIndex: 10 },
 
-  cardName:     { fontSize: 10, fontFamily: "Inter_700Bold", color: "#111827", lineHeight: 13 },
-  cardStudents: { fontSize: 8.5, fontFamily: "Inter_400Regular", color: "#374151", lineHeight: 12 },
-  cardAtt:      { fontSize: 8, fontFamily: "Inter_600SemiBold", lineHeight: 11 },
+  cardName:     { fontSize: 10, fontFamily: "Inter_500Medium", color: "#111827", lineHeight: 13 },
+  cardStudents: { fontSize: 8.5, fontFamily: "Inter_400Regular", color: "#6B7280", lineHeight: 12 },
+  cardAtt:      { fontSize: 8, fontFamily: "Inter_500Medium", lineHeight: 11 },
   attDone:      { color: "#059669" },
   attPend:      { color: "#D97706" },
 
   /* 구분선 */
-  sectionDivider: { height: 8, backgroundColor: "#F0EDE9", marginVertical: 4 },
+  sectionDivider: { height: 6, backgroundColor: "#F3F4F6", marginVertical: 4 },
 
   /* 휴무 */
   closedPill:     { backgroundColor: "#FEF3C7", paddingHorizontal: 8, paddingVertical: 3,
                     borderRadius: 10, borderWidth: 1, borderColor: "#F59E0B" },
-  closedPillText: { fontSize: 10, fontFamily: "Inter_500Medium", color: "#92400E" },
+  closedPillText: { fontSize: 10, fontFamily: "Inter_400Regular", color: "#92400E" },
 });
