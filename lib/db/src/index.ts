@@ -99,6 +99,19 @@ export function getBackupDb() {
 }
 
 /**
+ * getPoolDb — 개발 기간 완전 차단.
+ *
+ * 운영 데이터는 무조건 superAdminDb(= db)만 사용한다.
+ * 이 함수는 호출 즉시 에러를 발생시킨다.
+ * 백업 모듈은 반드시 getBackupDb()를 사용할 것.
+ */
+export function getPoolDb(): never {
+  const msg = "[POOL_DB_DISABLED_IN_DEV] getPoolDb() 호출 금지. 운영 데이터는 superAdminDb(db)만 사용하세요.";
+  console.error(msg);
+  throw new Error(msg);
+}
+
+/**
  * poolDb — 앱 로직에서 사용 금지.
  *
  * 이 export는 하위 호환을 위해 유지되지만,
