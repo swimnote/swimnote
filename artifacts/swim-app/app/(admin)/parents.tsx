@@ -480,16 +480,23 @@ export default function ParentsScreen() {
     else setBulkDeleting(true);
     try {
       const results = await Promise.allSettled(
-        ids.map(id => apiRequest(token, `/admin/parents/${id}`, { method: "DELETE" }).then(r => ({ id, ok: r.ok })))
+        ids.map(async id => {
+          const r = await apiRequest(token, `/admin/parents/${id}`, { method: "DELETE" });
+          if (!r.ok) {
+            const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+            const msg = body?.error || `HTTP ${r.status}`;
+            Alert.alert("삭제 실패", msg);
+            return { id, ok: false };
+          }
+          return { id, ok: true };
+        })
       );
       const succeeded = results
         .filter((r): r is PromiseFulfilledResult<{ id: string; ok: boolean }> => r.status === "fulfilled" && r.value.ok)
         .map(r => r.value.id);
-      const failed = ids.length - succeeded.length;
       setParents(prev => prev.filter(p => !succeeded.includes(p.id)));
       if (!isSingle) sel.exitSelectionMode();
-      if (failed > 0) Alert.alert("일부 실패", `${failed}개 삭제에 실패했습니다.`);
-    } catch { Alert.alert("오류", "삭제 중 오류가 발생했습니다."); }
+    } catch (e: any) { Alert.alert("오류", e?.message || "삭제 중 오류가 발생했습니다."); }
     finally { setDeletingId(null); setBulkDeleting(false); }
   }
 

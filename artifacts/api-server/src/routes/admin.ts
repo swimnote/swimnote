@@ -388,6 +388,7 @@ router.post("/parents", requireAuth, requireRole("super_admin", "pool_admin"), a
 
 router.delete("/parents/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const parentId = req.params.id;
+  console.log(`[ADMIN DELETE PARENT] 요청 수신: parentId=${parentId}, userId=${req.user?.userId}, role=${req.user?.role}`);
   try {
     // 1. 학생 parent_user_id 초기화 (자녀 기록은 보존, 연결만 해제)
     await db.execute(sql`UPDATE students SET parent_user_id = NULL, updated_at = NOW() WHERE parent_user_id = ${parentId}`);
