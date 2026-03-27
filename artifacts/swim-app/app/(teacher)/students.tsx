@@ -3,12 +3,9 @@
  *
  * 탭: 전체 / 미배정 / 연기예정 / 퇴원예정
  *
- * 전체: 내 풀의 모든 활성 회원 + 예정 상태 회원
- * 미배정: 반 배정이 없는 활성 회원
- * 연기예정: pending_status_change = 'suspended'
- * 퇴원예정: pending_status_change = 'withdrawn'
- *
- * 연기예정/퇴원예정 카드 → 처리 팝업 → 이달 말 유지 / 오늘 즉시 적용
+ * 카드 클릭 → WaitingActionSheet (반 배정 / 연기 / 퇴원)
+ * 연기/퇴원 → MemberStatusChangeModal (기존 API 재사용)
+ * 반 배정 → student-detail 이동
  */
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -23,6 +20,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { UnifiedMemberCard } from "@/components/common/MemberCard";
+import { MemberStatusChangeModal } from "@/components/common/MemberStatusChangeModal";
 import type { StudentMember } from "@/utils/studentUtils";
 
 const C = Colors.light;
@@ -96,8 +94,11 @@ export default function WaitingListScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search,     setSearch]     = useState("");
-  const [actionTarget, setActionTarget] = useState<TeacherMember | null>(null);
-  const [applying,   setApplying]   = useState(false);
+
+  // 하단 시트 (카드 클릭)
+  const [sheetTarget,  setSheetTarget]  = useState<TeacherMember | null>(null);
+  // 상태 변경 모달 (연기 / 퇴원)
+  const [statusTarget, setStatusTarget] = useState<TeacherMember | null>(null);
 
   const load = useCallback(async (activeTab: TabKey) => {
     try {
@@ -115,28 +116,11 @@ export default function WaitingListScreen() {
     load(tab);
   }, [tab, load]);
 
-  // 화면 포커스 복귀 시 자동 새로고침 (student-detail 에서 주 횟수 변경 후 반영)
   const isMountedRef = useRef(false);
   useFocusEffect(useCallback(() => {
     if (!isMountedRef.current) { isMountedRef.current = true; return; }
     load(tab);
   }, [load, tab]));
-
-  // 즉시 적용
-  async function applyNow() {
-    if (!actionTarget) return;
-    setApplying(true);
-    try {
-      const res = await apiRequest(token, `/students/${actionTarget.id}/apply-pending-now`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        // 목록에서 즉시 제거 (상태가 바뀌어 이 탭과 전체 탭에서 사라짐)
-        setList(prev => prev.filter(m => m.id !== actionTarget.id));
-      }
-    } catch (e) { console.error(e); }
-    finally { setApplying(false); setActionTarget(null); }
-  }
 
   const displayed = list.filter(m => {
     if (!search.trim()) return true;
@@ -219,114 +203,117 @@ export default function WaitingListScreen() {
               )}
             </View>
           }
-          renderItem={({ item }) => {
-            const hasPending = item.pending_status_change === "suspended" || item.pending_status_change === "withdrawn";
-            return (
-              <UnifiedMemberCard
-                student={toStudentMember(item)}
-                onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id } } as any)}
-                actions={hasPending ? [
-                  {
-                    label: item.pending_status_change === "suspended" ? "연기예정 처리" : "퇴원예정 처리",
-                    icon: "settings",
-                    color: item.pending_status_change === "suspended" ? "#B45309" : "#D96C6C",
-                    bg: item.pending_status_change === "suspended" ? "#FFF1BF" : "#FEF2F2",
-                    onPress: () => setActionTarget(item),
-                  },
-                ] : undefined}
-              />
-            );
+          renderItem={({ item }) => (
+            <UnifiedMemberCard
+              student={toStudentMember(item)}
+              onPress={() => setSheetTarget(item)}
+            />
+          )}
+        />
+      )}
+
+      {/* 카드 클릭 → 하단 시트 */}
+      {sheetTarget && (
+        <WaitingActionSheet
+          member={sheetTarget}
+          onClose={() => setSheetTarget(null)}
+          onAssign={() => {
+            setSheetTarget(null);
+            router.push({ pathname: "/(teacher)/student-detail", params: { id: sheetTarget.id } } as any);
+          }}
+          onStatusChange={() => {
+            setStatusTarget(sheetTarget);
+            setSheetTarget(null);
           }}
         />
       )}
 
-      {/* 예정 상태 처리 팝업 */}
-      {actionTarget && (
-        <PendingActionModal
-          member={actionTarget}
-          applying={applying}
-          onApplyNow={applyNow}
-          onKeep={() => setActionTarget(null)}
-          onCancel={() => setActionTarget(null)}
+      {/* 연기 / 퇴원 → MemberStatusChangeModal */}
+      {statusTarget && (
+        <MemberStatusChangeModal
+          visible
+          studentId={statusTarget.id}
+          studentName={statusTarget.name}
+          currentStatus={statusTarget.status}
+          pendingStatusChange={statusTarget.pending_status_change}
+          pendingEffectiveMode={statusTarget.pending_effective_mode}
+          onClose={() => setStatusTarget(null)}
+          onChanged={() => {
+            setStatusTarget(null);
+            load(tab);
+          }}
         />
       )}
     </SafeAreaView>
   );
 }
 
-// ── 예정 상태 처리 모달 ───────────────────────────────────────────
-function PendingActionModal({
-  member, applying, onApplyNow, onKeep, onCancel,
+// ── 카드 클릭 하단 시트 ───────────────────────────────────────────
+function WaitingActionSheet({
+  member, onClose, onAssign, onStatusChange,
 }: {
   member: TeacherMember;
-  applying: boolean;
-  onApplyNow: () => void;
-  onKeep: () => void;
-  onCancel: () => void;
+  onClose: () => void;
+  onAssign: () => void;
+  onStatusChange: () => void;
 }) {
-  const isSuspend = member.pending_status_change === "suspended";
-  const label = isSuspend ? "연기" : "퇴원";
-  const labelColor = isSuspend ? "#B45309" : "#D96C6C";
-  const labelBg = isSuspend ? "#FFF1BF" : "#FEF2F2";
-  const labelBgBtn = isSuspend ? "#FFFBEB" : "#FEF2F2";
+  const hasPending = !!member.pending_status_change;
 
   return (
-    <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
-      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }} onPress={onCancel} />
-      <View style={{
-        position: "absolute", bottom: 0, left: 0, right: 0,
-        backgroundColor: C.background, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-        padding: 24, paddingBottom: 36,
-      }}>
-        <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 4 }}>
-          {`"${member.name}" ${label}예정 처리`}
-        </Text>
-        <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted, marginBottom: 20 }}>
-          {label} 처리 시점을 선택하세요.
-        </Text>
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={sh.overlay} onPress={onClose} />
+      <View style={sh.sheet}>
+        {/* 헤더 */}
+        <View style={sh.handleBar} />
+        <Text style={sh.name}>{member.name}</Text>
+        {hasPending && (
+          <View style={sh.pendingBadge}>
+            <Text style={sh.pendingBadgeText}>
+              {member.pending_status_change === "suspended" ? "⏸ 연기예정" : "🚪 퇴원예정"}
+            </Text>
+          </View>
+        )}
 
-        <View style={{ gap: 10 }}>
-          {/* 이달 말 유지 */}
-          <Pressable
-            onPress={onKeep}
-            style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#FBF8F6", borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: C.border }}
-          >
-            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#F6F3F1", alignItems: "center", justifyContent: "center" }}>
-              <Feather name="calendar" size={20} color={C.textSecondary} />
+        <View style={sh.options}>
+          {/* 반 배정 */}
+          <Pressable style={[sh.option, { borderColor: "#2EC4B620" }]} onPress={onAssign}>
+            <View style={[sh.optIcon, { backgroundColor: "#E6F9F7" }]}>
+              <Feather name="user-check" size={20} color="#2EC4B6" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: C.text }}>이달 말 {label} 유지</Text>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 }}>
-                이번 달 수업 계속 유지, 말일에 {label} 확정 처리
-              </Text>
+              <Text style={[sh.optLabel, { color: "#1F8F86" }]}>반 배정</Text>
+              <Text style={sh.optSub}>학생 상세 페이지에서 반을 변경합니다</Text>
             </View>
+            <Feather name="chevron-right" size={16} color="#9CA3AF" />
           </Pressable>
 
-          {/* 오늘 즉시 */}
-          <Pressable
-            onPress={onApplyNow}
-            disabled={applying}
-            style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: labelBgBtn, borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: labelColor + "40" }}
-          >
-            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: labelBg, alignItems: "center", justifyContent: "center" }}>
-              {applying
-                ? <ActivityIndicator size={16} color={labelColor} />
-                : <Feather name="zap" size={20} color={labelColor} />
-              }
+          {/* 연기 */}
+          <Pressable style={[sh.option, { borderColor: "#B4530920" }]} onPress={onStatusChange}>
+            <View style={[sh.optIcon, { backgroundColor: "#FFF1BF" }]}>
+              <Feather name="pause-circle" size={20} color="#B45309" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: labelColor }}>
-                오늘 즉시 {label}
-              </Text>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 }}>
-                지금 바로 {label} 처리, 반 배정에서 즉시 제외됩니다
-              </Text>
+              <Text style={[sh.optLabel, { color: "#B45309" }]}>연기</Text>
+              <Text style={sh.optSub}>수강 연기 처리 — 이동 시점 선택 가능</Text>
             </View>
+            <Feather name="chevron-right" size={16} color="#9CA3AF" />
+          </Pressable>
+
+          {/* 퇴원 */}
+          <Pressable style={[sh.option, { borderColor: "#D96C6C20" }]} onPress={onStatusChange}>
+            <View style={[sh.optIcon, { backgroundColor: "#FEF2F2" }]}>
+              <Feather name="log-out" size={20} color="#D96C6C" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[sh.optLabel, { color: "#D96C6C" }]}>퇴원</Text>
+              <Text style={sh.optSub}>수강 종료 처리 — 이동 시점 선택 가능</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color="#9CA3AF" />
           </Pressable>
         </View>
 
-        <Pressable onPress={onCancel} style={{ alignItems: "center", marginTop: 18 }}>
-          <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: C.textMuted }}>취소</Text>
+        <Pressable onPress={onClose} style={sh.cancelBtn}>
+          <Text style={sh.cancelText}>취소</Text>
         </Pressable>
       </View>
     </Modal>
@@ -342,4 +329,31 @@ const s = StyleSheet.create({
   emptyBox:    { alignItems: "center", gap: 10, paddingVertical: 60 },
   emptyText:   { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" },
   emptyHint:   { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 4 },
+});
+
+const sh = StyleSheet.create({
+  overlay:   { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet:     {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, paddingBottom: 36,
+  },
+  handleBar: { width: 36, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 16 },
+  name:      { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text, textAlign: "center", marginBottom: 6 },
+  pendingBadge: {
+    alignSelf: "center", paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 10, backgroundColor: "#FFF1BF", marginBottom: 14,
+  },
+  pendingBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#B45309" },
+  options:   { gap: 8, marginBottom: 6, marginTop: 8 },
+  option:    {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 14, padding: 14, borderWidth: 1.5,
+    backgroundColor: C.background,
+  },
+  optIcon:   { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  optLabel:  { fontSize: 15, fontFamily: "Inter_700Bold" },
+  optSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  cancelBtn: { alignItems: "center", marginTop: 14 },
+  cancelText: { fontSize: 14, fontFamily: "Inter_500Medium", color: C.textMuted },
 });
