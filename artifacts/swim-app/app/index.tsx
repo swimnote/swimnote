@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   logoImage: { width: 230, height: 230, borderRadius: 52, shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
   appSub: { fontSize: 18, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   appDesc: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
-  spacer: { height: 140 },
+  spacer: { height: 95 },
   card: { borderRadius: 20, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 },
   cardTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   field: { gap: 4 },
