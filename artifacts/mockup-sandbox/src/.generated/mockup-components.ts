@@ -7,5 +7,7 @@ export const modules: ModuleMap = {
   "./components/mockups/icon-compare/Tabler.tsx": () => import("../components/mockups/icon-compare/Tabler.tsx"),
   "./components/mockups/phosphor-sample/Attendance.tsx": () => import("../components/mockups/phosphor-sample/Attendance.tsx"),
   "./components/mockups/phosphor-sample/Dashboard.tsx": () => import("../components/mockups/phosphor-sample/Dashboard.tsx"),
-  "./components/mockups/phosphor-sample/MemberList.tsx": () => import("../components/mockups/phosphor-sample/MemberList.tsx")
+  "./components/mockups/phosphor-sample/MemberList.tsx": () => import("../components/mockups/phosphor-sample/MemberList.tsx"),
+  "./components/mockups/teacher-color/TeacherHome.tsx": () => import("../components/mockups/teacher-color/TeacherHome.tsx"),
+  "./components/mockups/teacher-color/TeacherSettings.tsx": () => import("../components/mockups/teacher-color/TeacherSettings.tsx")
 };
