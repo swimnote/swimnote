@@ -404,6 +404,7 @@ router.post("/unified-login", async (req, res) => {
   const { identifier, password } = req.body;
   if (!identifier || !password) return err(res, 400, "아이디와 비밀번호를 입력해주세요.");
   const id = identifier.trim();
+  console.log("[LOGIN_ROUTE] unified-login 요청 수신", { identifier: id });
   try {
     const available_accounts: any[] = [];
     let wrongPwCount = 0;
@@ -517,7 +518,10 @@ router.post("/unified-login", async (req, res) => {
       user: first.kind === "admin" ? first.user : undefined,
       parent: first.kind === "parent" ? first.parent : undefined,
     });
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+  } catch (e: any) {
+    console.error("[LOGIN_ROUTE_ERROR]", { path: "/unified-login", body: { identifier: req.body?.identifier }, reason: e?.message, stack: e?.stack });
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
 });
 
 // ── 역할 권한 유효성 확인 ─────────────────────────────────────────────

@@ -265,19 +265,8 @@ function RootNav() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#ffffff" } }}>
       <Stack.Screen name="index" />
-      {/* (auth) 그룹 — 인증 화면 */}
-      <Stack.Screen name="(auth)/login" />
-      <Stack.Screen name="(auth)/org-role-select" />
-      <Stack.Screen name="(auth)/parent-login" />
-      <Stack.Screen name="(auth)/otp-verify" />
-      <Stack.Screen name="(auth)/totp-setup" />
-      <Stack.Screen name="(auth)/forgot-password" />
-      <Stack.Screen name="(auth)/teacher-signup" />
-      <Stack.Screen name="(auth)/parent-signup" />
-      <Stack.Screen name="(auth)/parent-code-signup" />
-      <Stack.Screen name="(auth)/parent-onboard-pool" />
-      <Stack.Screen name="(auth)/parent-onboard-child" />
-      <Stack.Screen name="(auth)/parent-onboard-nickname" />
+      {/* (auth) 그룹 — 파일시스템으로 자동 등록됨, 개별 화면은 선언 불필요 */}
+      <Stack.Screen name="(auth)" />
       {/* 로그인 후 온보딩/전환 화면 */}
       <Stack.Screen name="register" />
       <Stack.Screen name="pool-apply" />

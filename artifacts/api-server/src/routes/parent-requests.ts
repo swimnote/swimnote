@@ -446,12 +446,12 @@ router.post("/admin/parent-invites", requireAuth, requireRole("pool_admin", "sup
 router.get("/auth/parent-join-status/:id", async (req, res) => {
   try {
     const result = await superAdminDb.execute(sql`
-      SELECT id, request_status, reject_reason, processed_at
+      SELECT id, request_status, rejection_reason, processed_at
       FROM parent_pool_requests WHERE id = ${req.params.id} LIMIT 1
     `);
     if (!result.rows.length) { res.status(404).json({ success: false, message: "요청을 찾을 수 없습니다." }); return; }
     const row = result.rows[0] as any;
-    res.json({ success: true, data: { status: row.request_status, rejectReason: row.reject_reason, processedAt: row.processed_at } });
+    res.json({ success: true, data: { status: row.request_status, rejectReason: row.rejection_reason, processedAt: row.processed_at } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "서버 오류" });

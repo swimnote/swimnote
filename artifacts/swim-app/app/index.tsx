@@ -43,6 +43,11 @@ export default function LoginScreen() {
         needs_activation?: boolean; teacher_id?: string;
         error_code?: string; totp_required?: boolean; totp_session?: string;
       };
+      console.error("[LOGIN_ERROR]", {
+        message: e.message,
+        error_code: e.error_code,
+        stack: e.stack,
+      });
       if (e.totp_required && e.totp_session) {
         router.push({ pathname: "/otp-verify", params: { session: e.totp_session } } as any);
         return;
