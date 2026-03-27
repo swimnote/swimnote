@@ -738,27 +738,68 @@ router.post("/teacher-self-signup", async (req, res) => {
     const hash = await hashPassword(password);
     const userId = `u_teacher_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 유저 생성 (is_activated = false → 관리자 승인 전 로그인 불가)
+    // 관리자가 사전에 등록한 teacher_invite 레코드에서 전화번호 일치 여부 확인
+    const cleanedPhone = phone?.trim() || "";
+    let autoApproved = false;
+    let matchedInviteId: string | null = null;
+
+    if (cleanedPhone) {
+      const inviteMatch = await superAdminDb.execute(sql`
+        SELECT id FROM teacher_invites
+        WHERE swimming_pool_id = ${pool_id}
+          AND phone = ${cleanedPhone}
+          AND invite_status IN ('invited', 'active', 'pending')
+        LIMIT 1
+      `);
+      if ((inviteMatch.rows as any[]).length > 0) {
+        autoApproved = true;
+        matchedInviteId = (inviteMatch.rows[0] as any).id;
+      }
+    }
+
+    // 유저 생성 (자동승인이면 is_activated=true)
     await superAdminDb.execute(sql`
       INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, created_at, updated_at)
-      VALUES (${userId}, ${identifier}, ${hash}, ${name.trim()}, ${phone?.trim() || null},
-              'teacher', ${pool_id}, false, now(), now())
+      VALUES (${userId}, ${identifier}, ${hash}, ${name.trim()}, ${cleanedPhone || null},
+              'teacher', ${pool_id}, ${autoApproved}, now(), now())
     `);
 
-    // teacher_invites에 승인 대기 레코드 생성 (관리자 승인 화면에서 처리 가능하도록)
-    const inviteId = `ti_self_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await superAdminDb.execute(sql`
-      INSERT INTO teacher_invites (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, requested_at, created_at)
-      VALUES (${inviteId}, ${pool_id}, ${name.trim()}, ${phone?.trim() || ''},
-              'joinedPendingApproval', ${userId}, ${userId}, now(), now())
-    `);
+    if (autoApproved && matchedInviteId) {
+      // 기존 invite 레코드 → 승인 완료 처리
+      await superAdminDb.execute(sql`
+        UPDATE teacher_invites
+        SET invite_status = 'approved', user_id = ${userId}, approved_at = now(), approved_by = ${userId}
+        WHERE id = ${matchedInviteId}
+      `);
+    } else {
+      // 새 승인 대기 레코드 생성
+      const inviteId = `ti_self_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await superAdminDb.execute(sql`
+        INSERT INTO teacher_invites (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, requested_at, created_at)
+        VALUES (${inviteId}, ${pool_id}, ${name.trim()}, ${cleanedPhone},
+                'joinedPendingApproval', ${userId}, ${userId}, now(), now())
+      `);
+    }
 
-    res.status(201).json({
-      success: true,
-      message: "가입 신청이 완료되었습니다. 수영장 관리자 승인 후 로그인 가능합니다.",
-      pool_name: pool.name,
-      status: "pending_approval",
-    });
+    if (autoApproved) {
+      const token = signToken({ userId, role: "teacher", poolId: pool_id });
+      res.status(201).json({
+        success: true,
+        message: "가입이 완료되었습니다.",
+        pool_name: pool.name,
+        status: "approved",
+        auto_approved: true,
+        token,
+        user: { id: userId, email: identifier, name: name.trim(), phone: cleanedPhone, role: "teacher", swimming_pool_id: pool_id, is_activated: true },
+      });
+    } else {
+      res.status(201).json({
+        success: true,
+        message: "가입 신청이 완료되었습니다. 수영장 관리자 승인 후 로그인 가능합니다.",
+        pool_name: pool.name,
+        status: "pending_approval",
+      });
+    }
   } catch (e: any) {
     console.error("[teacher-self-signup]", e);
     return err(res, 500, e.message || "서버 오류가 발생했습니다.");
@@ -1003,7 +1044,7 @@ router.post("/send-sms-code", async (req, res) => {
   const { phone, purpose } = req.body;
   const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "";
 
-  const validPurposes = ["pool_admin_signup", "parent_signup", "password_reset", "reset_password"];
+  const validPurposes = ["pool_admin_signup", "parent_signup", "password_reset", "reset_password", "signup"];
   if (!validPurposes.includes(purpose)) {
     return err(res, 400, "invalid_purpose");
   }

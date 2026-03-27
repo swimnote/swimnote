@@ -76,7 +76,7 @@ router.post("/auth/pool-join-request", async (req, res) => {
     const lid = loginId?.trim() || null;
     const pw = password?.trim() || null;
     if (!lid) { res.status(400).json({ success: false, message: "아이디는 필수입니다." }); return; }
-    if (lid.length < 3) { res.status(400).json({ success: false, message: "아이디는 3자 이상이어야 합니다." }); return; }
+    if (lid.length < 4) { res.status(400).json({ success: false, message: "아이디는 4자 이상이어야 합니다." }); return; }
     if (!pw) { res.status(400).json({ success: false, message: "비밀번호는 필수입니다." }); return; }
     if (pw.length < 4) { res.status(400).json({ success: false, message: "비밀번호는 4자리 이상이어야 합니다." }); return; }
 

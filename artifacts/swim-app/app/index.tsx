@@ -177,7 +177,7 @@ export default function LoginScreen() {
           <Text style={[styles.signupLabel, { color: C.textSecondary }]}>아직 계정이 없으신가요?</Text>
           <Pressable
             style={({ pressed }) => [styles.signupBtn, { opacity: pressed ? 0.7 : 1 }]}
-            onPress={() => router.push("/signup-role" as any)}
+            onPress={() => router.push("/signup" as any)}
           >
             <Text style={[styles.signupBtnText, { color: C.tint }]}>회원가입</Text>
             <Feather name="arrow-right" size={14} color={C.tint} />
@@ -210,7 +210,7 @@ export default function LoginScreen() {
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.modalBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => { setShowNotFoundModal(false); router.push("/signup-role" as any); }}
+                onPress={() => { setShowNotFoundModal(false); router.push("/signup" as any); }}
               >
                 <Text style={[styles.modalBtnText, { color: "#fff" }]}>회원가입하기</Text>
               </Pressable>
