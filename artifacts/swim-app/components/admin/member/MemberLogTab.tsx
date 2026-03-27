@@ -30,7 +30,7 @@ export function MemberLogTab({ logs }: MemberLogTabProps) {
         <View style={ms.section}>
           <View style={{ alignItems: "center", paddingVertical: 30, gap: 10 }}>
             <Feather name="activity" size={36} color={C.textMuted} />
-            <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted }}>활동 기록이 없습니다</Text>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>활동 기록이 없습니다</Text>
           </View>
         </View>
       </ScrollView>
@@ -54,24 +54,24 @@ export function MemberLogTab({ logs }: MemberLogTabProps) {
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: meta.color + "15" }}>
-                      <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: meta.color }}>{typeLabel} {meta.label}</Text>
+                      <Text style={{ fontSize: 11, fontFamily: "Pretendard-SemiBold", color: meta.color }}>{typeLabel} {meta.label}</Text>
                     </View>
-                    <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted }}>
+                    <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
                       {`${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`}
                     </Text>
                   </View>
                   {(log.before_value || log.after_value) && (
                     <View style={{ marginTop: 6, gap: 3 }}>
-                      {log.before_value && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C" }}>이전: {log.before_value}</Text>}
-                      {log.after_value  && <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#2EC4B6" }}>변경: {log.after_value}</Text>}
+                      {log.before_value && <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>이전: {log.before_value}</Text>}
+                      {log.after_value  && <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>변경: {log.after_value}</Text>}
                     </View>
                   )}
                   {log.note && (
-                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 4, fontStyle: "italic" }}>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 4, fontStyle: "italic" }}>
                       메모: {log.note}
                     </Text>
                   )}
-                  <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 4 }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 4 }}>
                     {log.actor_name} ({log.actor_role === "pool_admin" ? "관리자" : "선생님"})
                   </Text>
                 </View>

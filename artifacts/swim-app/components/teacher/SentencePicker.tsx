@@ -296,7 +296,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingBottom: 10,
   },
-  title: { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
+  title: { fontSize: 16, fontFamily: "Pretendard-Bold", color: C.text },
 
   searchRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
@@ -305,11 +305,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 9,
   },
   searchInput: {
-    flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text,
+    flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text,
     padding: 0,
   },
   searchHint: {
-    fontSize: 11, color: C.textSecondary, fontFamily: "Inter_400Regular",
+    fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular",
     marginHorizontal: 16, marginBottom: 8,
   },
 
@@ -327,7 +327,7 @@ const s = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  tabText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
 
   sentenceList: { maxHeight: 274 },
   sentenceListContent: { paddingHorizontal: 16, paddingBottom: 4, gap: 4 },
@@ -337,11 +337,11 @@ const s = StyleSheet.create({
     backgroundColor: C.background, borderRadius: 10, borderWidth: 1, borderColor: C.border,
     minHeight: 44,
   },
-  sentenceText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: C.text, lineHeight: 19 },
+  sentenceText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 19 },
   levelBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  levelBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  levelBadgeText: { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
   emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
-  emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
 
   previewBox: {
     marginHorizontal: 16, marginTop: 10,
@@ -353,11 +353,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4,
     borderBottomWidth: 1, borderBottomColor: C.tintLight,
   },
-  previewLabel: { fontSize: 11, color: C.textSecondary, fontFamily: "Inter_500Medium" },
-  previewCount: { fontSize: 11, color: PRIMARY, fontFamily: "Inter_600SemiBold" },
+  previewLabel: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Medium" },
+  previewCount: { fontSize: 11, color: PRIMARY, fontFamily: "Pretendard-SemiBold" },
   previewScroll: { maxHeight: 88, paddingHorizontal: 12, paddingVertical: 8 },
-  previewEmpty: { fontSize: 12, color: C.textMuted, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 8 },
-  previewLine: { fontSize: 12, color: C.text, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  previewEmpty: { fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", paddingVertical: 8 },
+  previewLine: { fontSize: 12, color: C.text, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   previewActions: {
     flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 6, paddingBottom: 8,
     borderTopWidth: 1, borderTopColor: C.tintLight,
@@ -368,7 +368,7 @@ const s = StyleSheet.create({
     backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: C.border,
   },
   previewBtnDisabled: { opacity: 0.4 },
-  previewBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  previewBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.textSecondary },
 
   footer: {
     flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4,
@@ -377,11 +377,11 @@ const s = StyleSheet.create({
     flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1.5, borderColor: C.border,
     alignItems: "center", justifyContent: "center",
   },
-  cancelBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  cancelBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
   insertBtn: {
     flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 13, borderRadius: 12, backgroundColor: PRIMARY,
   },
   insertBtnDisabled: { backgroundColor: C.border },
-  insertBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  insertBtnText: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
 });

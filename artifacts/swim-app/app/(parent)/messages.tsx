@@ -235,15 +235,15 @@ const s = StyleSheet.create({
 
   noDiary: { alignItems: "center", paddingTop: 60, gap: 12, paddingHorizontal: 20 },
   noDiaryEmoji: { fontSize: 56 },
-  noDiaryTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  noDiarySub: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  noDiaryTitle: { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  noDiarySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   noDiaryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
-  noDiaryBtnTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  noDiaryBtnTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 
   emptyWrap: { alignItems: "center", paddingTop: 60, gap: 8 },
   emptyEmoji: { fontSize: 48 },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  emptySub: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center" },
 
   msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginBottom: 4 },
   msgRowRight: { flexDirection: "row-reverse" },
@@ -251,12 +251,12 @@ const s = StyleSheet.create({
     width: 32, height: 32, borderRadius: 10, backgroundColor: C.tintLight,
     alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
-  msgSender: { fontSize: 11, fontFamily: "Inter_500Medium", color: C.textSecondary, marginBottom: 2, paddingLeft: 2 },
+  msgSender: { fontSize: 11, fontFamily: "Pretendard-Medium", color: C.textSecondary, marginBottom: 2, paddingLeft: 2 },
   msgBubble: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10 },
-  msgContent: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  msgContent: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   msgMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  msgTime: { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
-  msgAction: { fontSize: 11, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  msgTime: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  msgAction: { fontSize: 11, fontFamily: "Pretendard-Medium", color: C.textSecondary },
 
   inputRow: {
     flexDirection: "row", alignItems: "flex-end", gap: 8,
@@ -264,7 +264,7 @@ const s = StyleSheet.create({
   },
   input: {
     flex: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
-    fontSize: 14, fontFamily: "Inter_400Regular", maxHeight: 100, minHeight: 44,
+    fontSize: 14, fontFamily: "Pretendard-Regular", maxHeight: 100, minHeight: 44,
   },
   sendBtn: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
 });

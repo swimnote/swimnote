@@ -87,7 +87,7 @@ function DatePicker({ value, onChange }: { value: string; onChange: (d: string) 
       <TouchableOpacity onPress={() => add(-1)} style={{ padding: 8 }}>
         <Feather name="chevron-left" size={22} color={C.text} />
       </TouchableOpacity>
-      <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: C.text }}>
+      <Text style={{ fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.text }}>
         {y}년 {m}월 {d}일 ({DOW})
       </Text>
       <TouchableOpacity onPress={() => add(1)} style={{ padding: 8 }}>
@@ -543,7 +543,7 @@ export default function TeacherAttendanceScreen() {
             {eligLoading ? (
               <ActivityIndicator color={themeColor} style={{ marginTop: 16 }} />
             ) : eligibleClasses.length === 0 ? (
-              <Text style={{ textAlign: "center", color: C.textMuted, marginTop: 16, fontFamily: "Inter_400Regular" }}>
+              <Text style={{ textAlign: "center", color: C.textMuted, marginTop: 16, fontFamily: "Pretendard-Regular" }}>
                 보강 가능한 반이 없습니다
               </Text>
             ) : (
@@ -755,16 +755,16 @@ const s = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: C.background },
   subTabBar:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
   subTabBtn:      { flex: 1, alignItems: "center", paddingVertical: 12 },
-  subTabLabel:    { fontSize: 14, fontFamily: "Inter_500Medium" },
+  subTabLabel:    { fontSize: 14, fontFamily: "Pretendard-Medium" },
   titleRow:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 },
-  title:          { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  dateBadge:      { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted, backgroundColor: C.card, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  title:          { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text },
+  dateBadge:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, backgroundColor: C.card, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
 
   // 출결 요약
   attSummary:     { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
-  attSummaryText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  attSummaryPresent: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#2EC4B6" },
-  attSummaryAbsent:  { fontSize: 13, fontFamily: "Inter_500Medium", color: "#D96C6C" },
+  attSummaryText: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  attSummaryPresent: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#2EC4B6" },
+  attSummaryAbsent:  { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#D96C6C" },
   summaryDot:     { width: 3, height: 3, borderRadius: 2, backgroundColor: C.border },
 
   // 학생 리스트
@@ -776,49 +776,49 @@ const s = StyleSheet.create({
   absentDot:      { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C" },
 
   // 이름
-  attName:        { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
-  attSub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 1 },
+  attName:        { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
+  attSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
   strikethrough:  { textDecorationLine: "line-through", color: C.textSecondary },
 
   // 버튼
   attBtns:        { flexDirection: "row", gap: 5 },
   attBtn:         { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, alignItems: "center", minWidth: 44 },
   moveBtn:        { flexDirection: "row", alignItems: "center", gap: 3, minWidth: 60 },
-  attBtnText:     { fontSize: 12, fontFamily: "Inter_500Medium", color: C.text },
+  attBtnText:     { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.text },
   arrowBtn:       { paddingLeft: 4 },
 
   // 빈 상태
   emptyBox:       { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyText:      { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" },
+  emptyText:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
 
   // 보강 카드
   mkCard:         { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 14, gap: 12 },
-  mkName:         { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
-  mkSub:          { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  mkName:         { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
+  mkSub:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   mkActionBtn:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: "center", minWidth: 64 },
-  mkActionBtnText:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  mkActionBtnText:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 
   // 모달
   modalOverlay:   { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   modalBox:       { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "85%" },
   modalHeader:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  modalTitle:     { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
-  modalSub:       { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
-  sectionLabel:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 6 },
+  modalTitle:     { fontSize: 18, fontFamily: "Pretendard-Bold", color: C.text },
+  modalSub:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  sectionLabel:   { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, marginBottom: 6 },
   eligRow:        { flexDirection: "row", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 12, marginBottom: 8 },
-  eligName:       { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  eligSub:        { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  eligName:       { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  eligSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   sameTeacherBadge: { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  sameTeacherText:  { fontSize: 11, fontFamily: "Inter_500Medium", color: "#2EC4B6" },
+  sameTeacherText:  { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#2EC4B6" },
   slotBadge:      { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, minWidth: 44, alignItems: "center" },
-  slotText:       { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  slotText:       { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   confirmBtn:     { paddingVertical: 14, borderRadius: 12, alignItems: "center" },
-  confirmBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  errText:        { color: "#D96C6C", fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 6 },
+  confirmBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  errText:        { color: "#D96C6C", fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", marginTop: 6 },
   warnBox:        { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFFBEB", borderRadius: 8, padding: 10 },
-  warnText:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#92400E", flex: 1 },
+  warnText:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", flex: 1 },
   reasonRow:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10, marginBottom: 6 },
   radioCircle:    { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: C.border },
-  reasonText:     { fontSize: 14, fontFamily: "Inter_500Medium" },
-  customInput:    { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Inter_400Regular", marginTop: 4 },
+  reasonText:     { fontSize: 14, fontFamily: "Pretendard-Medium" },
+  customInput:    { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Pretendard-Regular", marginTop: 4 },
 });

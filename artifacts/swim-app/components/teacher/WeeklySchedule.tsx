@@ -271,15 +271,15 @@ const ws = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 5,
     borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FAFBFC",
   },
-  dayTabText:   { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
+  dayTabText:   { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
   todayDot:     { width: 3, height: 3, borderRadius: 2 },
   dayCntBubble: { minWidth: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
-  dayCntText:   { fontSize: 9, fontFamily: "Inter_500Medium" },
+  dayCntText:   { fontSize: 9, fontFamily: "Pretendard-Medium" },
 
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8 },
-  sectionDay:    { fontSize: 12, fontFamily: "Inter_500Medium" },
-  todayLabel:    { fontSize: 11, fontFamily: "Inter_400Regular" },
-  sectionCount:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  sectionDay:    { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  todayLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  sectionCount:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 
   slotList: { paddingHorizontal: 12, gap: 6 },
 
@@ -294,18 +294,18 @@ const ws = StyleSheet.create({
   colorBar: { width: 3, alignSelf: "stretch" },
 
   timeCol: {
-    fontSize: 10, fontFamily: "Inter_400Regular",
+    fontSize: 10, fontFamily: "Pretendard-Regular",
     width: 58, textAlign: "center", color: "#9CA3AF",
   },
   nameCol: {
-    fontSize: 13, fontFamily: "Inter_500Medium",
+    fontSize: 13, fontFamily: "Pretendard-Medium",
     color: "#111827",
   },
-  levelInline:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  instructorCol:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
+  levelInline:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  instructorCol:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 1 },
 
   rightCol: { alignItems: "flex-end", paddingRight: 10, gap: 3 },
-  cntText:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  cntText:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   dots:     { flexDirection: "row", gap: 2 },
   dot:      { width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center" },
 
@@ -313,5 +313,5 @@ const ws = StyleSheet.create({
               alignItems: "center", justifyContent: "center", marginLeft: 6 },
 
   empty:    { alignItems: "center", paddingTop: 40, gap: 8 },
-  emptyText:{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 });

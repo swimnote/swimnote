@@ -37,7 +37,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
               {connStatus === "linked" ? "학부모 앱 연결 완료" : connStatus === "pending" ? "연결 요청 대기 중" : "학부모미연결"}
             </Text>
             {data.parent_account_name && (
-              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 }}>
+              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 }}>
                 연결 계정: {data.parent_account_name}
               </Text>
             )}
@@ -46,7 +46,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
 
         {data.invite_code && connStatus !== "linked" && (
           <View style={ms.inviteBox}>
-            <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, marginBottom: 4 }}>초대 코드</Text>
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary, marginBottom: 4 }}>초대 코드</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Text style={[ms.inviteCode, { color: themeColor }]}>{data.invite_code}</Text>
               <Pressable

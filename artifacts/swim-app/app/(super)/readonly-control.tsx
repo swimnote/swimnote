@@ -103,7 +103,7 @@ function PlatformSection({
             <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
               <Pressable style={[pm.actionBtn, { flex: 1, backgroundColor: "#F8FAFC" }]}
                 onPress={() => { setShowModal(false); setInputReason(""); }}>
-                <Text style={{ color: "#111827", fontFamily: "Inter_600SemiBold" }}>취소</Text>
+                <Text style={{ color: "#111827", fontFamily: "Pretendard-SemiBold" }}>취소</Text>
               </Pressable>
               <Pressable
                 style={[pm.actionBtn, { flex: 1, backgroundColor: enabled ? "#2EC4B6" : "#D96C6C" },
@@ -115,7 +115,7 @@ function PlatformSection({
                   setInputReason("");
                 }}
                 disabled={!inputReason.trim()}>
-                <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>확인</Text>
+                <Text style={{ color: "#fff", fontFamily: "Pretendard-SemiBold" }}>확인</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -130,25 +130,25 @@ const ps = StyleSheet.create({
   cardActive:    { borderColor: "#D96C6C", borderWidth: 2, backgroundColor: "#FFF5F5" },
   top:           { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   iconBox:       { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  title:         { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:           { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  title:         { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827" },
+  sub:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
   badge:         { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  badgeTxt:      { fontSize: 11, fontFamily: "Inter_700Bold" },
+  badgeTxt:      { fontSize: 11, fontFamily: "Pretendard-Bold" },
   warningBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#F9DEDA", borderRadius: 8, padding: 10, marginBottom: 8 },
-  warningTxt:    { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#991B1B", lineHeight: 18 },
-  reasonTxt:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#D97706", marginBottom: 8 },
+  warningTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#991B1B", lineHeight: 18 },
+  reasonTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D97706", marginBottom: 8 },
   btn:           { borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12 },
-  btnTxt:        { fontSize: 13, fontFamily: "Inter_700Bold" },
+  btnTxt:        { fontSize: 13, fontFamily: "Pretendard-Bold" },
 });
 
 const pm = StyleSheet.create({
   overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:      { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 12 },
+  title:      { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 12 },
   warningBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF1BF", borderRadius: 8, padding: 10, marginBottom: 12 },
-  warningTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#92400E" },
-  label:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 6 },
-  input:      { backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827", height: 80 },
+  warningTxt: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#92400E" },
+  label:      { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827", marginBottom: 6 },
+  input:      { backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827", height: 80 },
   actionBtn:  { borderRadius: 8, padding: 12, alignItems: "center" },
 });
 
@@ -352,30 +352,30 @@ const s = StyleSheet.create({
   scopeRow:     { flexDirection: "row", gap: 8 },
   scopeCard:    { flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E5E7EB" },
   scopeIcon:    { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", marginBottom: 6 },
-  scopeLabel:   { fontSize: 11, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 4 },
-  scopeDesc:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280", lineHeight: 14 },
+  scopeLabel:   { fontSize: 11, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 4 },
+  scopeDesc:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#6B7280", lineHeight: 14 },
   section:      { backgroundColor: "#fff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
   sectionHeader:{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", flex: 1 },
+  sectionTitle: { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827", flex: 1 },
   countBadge:   { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  countTxt:     { fontSize: 11, fontFamily: "Inter_700Bold" },
+  countTxt:     { fontSize: 11, fontFamily: "Pretendard-Bold" },
   emptyRow:     { paddingVertical: 16, alignItems: "center" },
-  emptyTxt:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 });
 
 const or = StyleSheet.create({
   row:        { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
-  name:       { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  sub:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  name:       { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  sub:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
   releaseBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#E6FFFA", borderRadius: 7, paddingHorizontal: 10, paddingVertical: 6 },
-  releaseTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#2EC4B6" },
+  releaseTxt: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" },
 });
 
 const lr = StyleSheet.create({
   row:      { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   dot:      { width: 8, height: 8, borderRadius: 4 },
-  desc:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#111827" },
-  time:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  desc:     { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#111827" },
+  time:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
   badge:    { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold" },
+  badgeTxt: { fontSize: 10, fontFamily: "Pretendard-Bold" },
 });

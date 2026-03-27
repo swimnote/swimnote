@@ -121,12 +121,12 @@ const s = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Pretendard-Bold",
     textAlign: "center",
   },
   message: {
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Pretendard-Regular",
     textAlign: "center",
     lineHeight: 21,
   },
@@ -148,6 +148,6 @@ const s = StyleSheet.create({
   },
   btnTxt: {
     fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Pretendard-SemiBold",
   },
 });

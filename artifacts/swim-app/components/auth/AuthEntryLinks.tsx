@@ -60,12 +60,12 @@ const styles = StyleSheet.create({
   label: {
     flex: 1,
     fontSize: 13,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Pretendard-Regular",
     color: C.textSecondary,
   },
   action: {
     fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Pretendard-SemiBold",
     color: C.tint,
   },
 });

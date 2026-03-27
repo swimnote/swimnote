@@ -326,7 +326,7 @@ export default function SupportScreen() {
           hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
           <Feather name="alert-circle" size={14} color="#991B1B" />
           <Text style={s.slaBannerTxt}>
-            SLA 초과 <Text style={{ fontFamily: "Inter_700Bold" }}>{slaCount}건</Text> — 즉시 처리 필요
+            SLA 초과 <Text style={{ fontFamily: "Pretendard-Bold" }}>{slaCount}건</Text> — 즉시 처리 필요
           </Text>
           <Feather name="chevron-right" size={14} color="#991B1B" />
         </Pressable>
@@ -599,7 +599,7 @@ const s = StyleSheet.create({
     backgroundColor: "#F9DEDA", paddingHorizontal: 16, paddingVertical: 10,
     borderBottomWidth: 1, borderBottomColor: "#FCA5A5",
   },
-  slaBannerTxt: { fontFamily: "Inter_500Medium", fontSize: 13, color: "#991B1B", flex: 1 },
+  slaBannerTxt: { fontFamily: "Pretendard-Medium", fontSize: 13, color: "#991B1B", flex: 1 },
 
   // 3대 지표 요약 (no scroll, 명확한 높이)
   statRow: {
@@ -610,8 +610,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
   },
   statItem:    { flex: 1, alignItems: "center", justifyContent: "center" },
-  statNum:     { fontSize: 20, fontFamily: "Inter_700Bold", color: "#111827" },
-  statLabel:   { fontSize: 10, fontFamily: "Inter_500Medium", color: "#9CA3AF", marginTop: 1 },
+  statNum:     { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#111827" },
+  statLabel:   { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#9CA3AF", marginTop: 1 },
   statDivider: { width: 1, height: 28, backgroundColor: "#E5E7EB" },
 
   // 필터 탭 (명확한 height, overflow visible)
@@ -629,16 +629,16 @@ const s = StyleSheet.create({
     borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB",
     backgroundColor: "#fff", height: 34,
   },
-  tabChipTxt:  { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  tabChipTxt:  { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
   tabCount:    { backgroundColor: "#F8FAFC", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
-  tabCountTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#111827" },
+  tabCountTxt: { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#111827" },
 
   // 리스트
   list:        { flex: 1, backgroundColor: "#F8FAFC" },
   listContent: { paddingBottom: 100 },
   separator:   { height: 1, backgroundColor: "#F8FAFC" },
   empty:       { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:    { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 
   // 티켓 카드
   row: {
@@ -655,20 +655,20 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 2,
     backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5,
   },
-  emergencyBadgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: RED },
+  emergencyBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Bold", color: RED },
   typeIcon:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   rowMain:    { flex: 1, gap: 3 },
   rowTop:     { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  subject:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  subject:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
   slaTag:     { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
-  slaTxt:     { fontSize: 9, fontFamily: "Inter_700Bold", color: RED },
+  slaTxt:     { fontSize: 9, fontFamily: "Pretendard-Bold", color: RED },
   rowMeta:    { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  metaTxt:    { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  metaTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   metaDot:    { fontSize: 10, color: "#D1D5DB" },
   rowRight:   { alignItems: "flex-end", gap: 4 },
   badge:      { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-  badgeTxt:   { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  assigneeTxt:{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  badgeTxt:   { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  assigneeTxt:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 
   // FAB
   fab: {
@@ -688,31 +688,31 @@ const m = StyleSheet.create({
     padding: 20, paddingBottom: 40, maxHeight: "88%", gap: 12,
   },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  desc:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827", lineHeight: 20 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827" },
+  desc:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827", lineHeight: 20 },
   infoBox:   { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 12, gap: 6 },
   infoRow:   { flexDirection: "row", gap: 8 },
-  infoLabel: { width: 60, fontSize: 12, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
-  infoVal:   { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: "#111827" },
+  infoLabel: { width: 60, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
+  infoVal:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#111827" },
   section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  label:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
   input: {
     borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10,
-    padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827",
+    padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827",
   },
   optChip: {
     paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff",
   },
-  optTxt:    { fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827" },
+  optTxt:    { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#111827" },
   linkBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12,
   },
-  linkBtnTxt:{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: P },
+  linkBtnTxt:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: P },
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end", marginTop: 4 },
   cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
-  cancelTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
   saveBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
-  saveTxt:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  saveTxt:   { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

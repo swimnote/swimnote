@@ -708,42 +708,42 @@ const s = StyleSheet.create({
 
   // 헤더
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 12 },
-  title: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  title: { fontSize: 22, fontFamily: "Pretendard-Bold" },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   selBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
-  selBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  selBtnText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
-  addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
 
   // 빈 상태
   empty: { alignItems: "center", paddingTop: 80, gap: 12 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  emptySub: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
+  emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center" },
 
   // 카드
   checkWrap: { justifyContent: "center", marginRight: 4 },
   checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: C.border, backgroundColor: C.background, alignItems: "center", justifyContent: "center" },
   avatar: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  avatarText: { fontSize: 18, fontFamily: "Pretendard-Bold" },
   accountCard: { borderRadius: 14, overflow: "hidden", borderWidth: 1.5, borderColor: "transparent", backgroundColor: C.card },
   accountHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
   accountInfo: { flex: 1 },
-  accountName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  accountPhone: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  accountName: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  accountPhone: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   cardActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   linkBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
-  linkBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  linkBtnText: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   deleteParentBtn: { padding: 6 },
 
   // 학생 목록 (카드 내)
   studentsSection: { borderTopWidth: 1, paddingHorizontal: 14, paddingVertical: 6, gap: 4 },
   studentRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 5 },
   studentLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  studentName: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  studentName: { fontSize: 14, fontFamily: "Pretendard-Medium" },
   studentRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   miniBtn: { width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  badgeText: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
 
   // 드래그 시트 공통
   kvOverlay: { flex: 1, justifyContent: "flex-end" },
@@ -751,54 +751,54 @@ const s = StyleSheet.create({
   sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 0, gap: 12 },
   dragArea: { alignItems: "center", paddingVertical: 14 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB" },
-  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 2 },
+  sheetTitle: { fontSize: 18, fontFamily: "Pretendard-Bold", color: C.text, marginBottom: 2 },
 
   // 연결 모달 내부
   infoBox: { flexDirection: "row", gap: 8, alignItems: "flex-start", padding: 12, borderRadius: 12 },
-  infoText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  infoText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   childRefBox: { borderRadius: 12, padding: 12, gap: 6 },
   childRefHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  childRefLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  childRefLabel: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   childRefRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  childRefName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  childRefYear: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  childRefName: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  childRefYear: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   // 검색
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44 },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
 
   // 리스트 헤더
   listHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  listHeaderText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
-  listHeaderSub: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
+  listHeaderText: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.text },
+  listHeaderSub: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   // 학생 선택 목록
   listScroll: { maxHeight: 220 },
   emptyHint: { alignItems: "center", paddingVertical: 24, gap: 10 },
-  emptyHintText: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  emptyHintText: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
   studentOption: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1.5, marginBottom: 6 },
   sOptionAvatar: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  sOptionAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  sOptionName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  sOptionSub: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  sOptionAvatarText: { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  sOptionName: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  sOptionSub: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   sOptionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: C.border },
 
   // 에러
   errBox: { padding: 10, borderRadius: 10 },
-  errText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  errText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   // 추가 폼
   field: { gap: 5 },
-  label: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Inter_400Regular" },
+  label: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Pretendard-Regular" },
 
   // 하단 버튼
   modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
   smsIcon: { width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  smsDesc: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20, textAlign: "center" },
-  smsPhone: { fontSize: 16, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  smsDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 20, textAlign: "center" },
+  smsPhone: { fontSize: 16, fontFamily: "Pretendard-Bold", letterSpacing: 0.5 },
   cancelBtn: { flex: 1, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1.5 },
-  cancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  cancelText: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
   submitBtn: { flex: 2, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  submitText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  submitText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-SemiBold" },
 });

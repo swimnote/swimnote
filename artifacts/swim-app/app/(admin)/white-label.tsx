@@ -160,7 +160,7 @@ export default function WhiteLabelScreen() {
               </View>
               <View style={[styles.previewNote, { backgroundColor: settings.hide_platform_name ? "#FFF7ED" : "#F0FDF4", borderColor: settings.hide_platform_name ? "#FED7AA" : "#BBF7D0" }]}>
                 <Feather name={settings.hide_platform_name ? "eye-off" : "eye"} size={13} color={settings.hide_platform_name ? "#C2410C" : "#15803D"} />
-                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: settings.hide_platform_name ? "#C2410C" : "#15803D" }}>
+                <Text style={{ fontSize: 12, fontFamily: "Pretendard-Medium", color: settings.hide_platform_name ? "#C2410C" : "#15803D" }}>
                   {settings.hide_platform_name ? "스윔노트 표시 숨김" : "스윔노트 표시 중"}
                 </Text>
               </View>
@@ -227,30 +227,30 @@ function ToggleRow({
 
 const styles = StyleSheet.create({
   descCard: { flexDirection: "row", gap: 12, padding: 16, borderRadius: 14, borderWidth: 1, alignItems: "flex-start" },
-  descTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  descBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  descTitle: { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  descBody: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
   poolChip: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
-  poolChipTxt: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  poolChipName: { fontSize: 14, fontFamily: "Inter_700Bold", flex: 1 },
+  poolChipTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  poolChipName: { fontSize: 14, fontFamily: "Pretendard-Bold", flex: 1 },
   section: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-  sectionTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", letterSpacing: 0.4, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, textTransform: "uppercase" },
+  sectionTitle: { fontSize: 12, fontFamily: "Pretendard-SemiBold", letterSpacing: 0.4, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, textTransform: "uppercase" },
   divider: { height: 1, marginHorizontal: 16 },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, paddingVertical: 14 },
   toggleDisabled: { opacity: 0.45 },
   toggleIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  toggleLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  toggleDesc: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  toggleLabel: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  toggleDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
   preview: { margin: 16, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   previewHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   previewIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  previewPoolName: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
+  previewPoolName: { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#111827" },
   previewPowered: {},
-  previewPoweredTxt: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  previewPoweredTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   previewNote: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
   lockCard: { flexDirection: "row", gap: 12, padding: 16, borderRadius: 14, borderWidth: 1, alignItems: "flex-start" },
-  lockTitle: { fontSize: 13, fontFamily: "Inter_700Bold", marginBottom: 3 },
-  lockBody: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
-  errTxt: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+  lockTitle: { fontSize: 13, fontFamily: "Pretendard-Bold", marginBottom: 3 },
+  lockBody: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
+  errTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center" },
   saveBtn: { height: 52, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  saveBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  saveBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
 });

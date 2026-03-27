@@ -361,22 +361,22 @@ const de = StyleSheet.create({
     borderBottomWidth: 1,
   },
   toolbarBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-  toolbarBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  toolbarBtnText: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   toolbarDeleteBtn: { gap: 4 },
-  toolbarDeleteText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
+  toolbarDeleteText: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
 
   infoBar: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 16, paddingVertical: 8,
   },
-  infoText: { fontSize: 11, color: C.textMuted, fontFamily: "Inter_400Regular" },
+  infoText: { fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular" },
 
   msg: {
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 16, marginBottom: 8,
     padding: 10, borderRadius: 8,
   },
-  msgText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  msgText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
 
   listContent: { paddingHorizontal: 16, paddingBottom: 100, gap: 8 },
 
@@ -393,17 +393,17 @@ const de = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 3 },
-  cardDate: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
+  cardDate: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.text },
   badgeRow: { flexDirection: "row", gap: 4 },
   badge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  badgeText: { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
   cardMeta: { flexDirection: "row", alignItems: "center" },
-  cardMetaText: { fontSize: 11, color: C.textSecondary, fontFamily: "Inter_400Regular", marginLeft: 3 },
+  cardMetaText: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginLeft: 3 },
   contentBox: { marginTop: 10, padding: 10, borderRadius: 8 },
-  contentText: { fontSize: 13, color: C.text, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  contentText: { fontSize: 13, color: C.text, fontFamily: "Pretendard-Regular", lineHeight: 20 },
 
   empty: { alignItems: "center", paddingTop: 100, gap: 10 },
-  emptyTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  emptyTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
 
   overlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
@@ -413,14 +413,14 @@ const de = StyleSheet.create({
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
     padding: 20, paddingBottom: 36, gap: 12,
   },
-  modeTitle: { fontSize: 17, fontFamily: "Inter_700Bold", textAlign: "center" },
-  modeDesc: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", marginBottom: 4 },
+  modeTitle: { fontSize: 17, fontFamily: "Pretendard-Bold", textAlign: "center" },
+  modeDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", marginBottom: 4 },
   modeBtn: {
     flexDirection: "row", alignItems: "center", gap: 12,
     padding: 14, borderRadius: 12, borderWidth: 1,
   },
-  modeBtnTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  modeBtnDesc: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  modeBtnTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  modeBtnDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   modeCancelBtn: { paddingVertical: 14, alignItems: "center" },
-  modeCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  modeCancelText: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
 });

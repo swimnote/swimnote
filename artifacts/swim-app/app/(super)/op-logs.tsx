@@ -111,7 +111,7 @@ export default function OpLogsScreen() {
       <View style={s.countBanner}>
         <Feather name="activity" size={13} color={P} />
         <Text style={s.countTxt}>
-          총 <Text style={{ color: P, fontFamily: "Inter_700Bold" }}>{allLogs.length}</Text>건 기록됨
+          총 <Text style={{ color: P, fontFamily: "Pretendard-Bold" }}>{allLogs.length}</Text>건 기록됨
           {activeTab !== "전체" && <Text> · 필터: {logs.length}건</Text>}
         </Text>
       </View>
@@ -248,34 +248,34 @@ export default function OpLogsScreen() {
 const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: C.background },
   countBanner:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
-  countTxt:     { fontFamily: "Inter_400Regular", fontSize: 13, color: "#111827" },
+  countTxt:     { fontFamily: "Pretendard-Regular", fontSize: 13, color: "#111827" },
   tabBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   tabContent:   { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
   tab:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7,
                   borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
   tabAllActive: { backgroundColor: P, borderColor: P },
-  tabTxt:       { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  tabTxt:       { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#6B7280" },
   dateDivider:  { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
   dateLine:     { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
-  dateLabel:    { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
+  dateLabel:    { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
   logCard:      { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   logIcon:      { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0 },
   logBody:      { flex: 1, gap: 5 },
   logTop:       { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827", lineHeight: 19 },
-  logSubDesc:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280" },
-  logTime:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", flexShrink: 0 },
+  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827", lineHeight: 19 },
+  logSubDesc:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280" },
+  logTime:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", flexShrink: 0 },
   logMeta:      { flexDirection: "row", alignItems: "center", gap: 5 },
   catBadge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  catTxt:       { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  catTxt:       { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
   impactBadge:  { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6 },
-  impactTxt:    { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  logMetaTxt:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  impactTxt:    { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  logMetaTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   logMetaDot:   { fontSize: 10, color: "#D1D5DB" },
   logDetail:    { backgroundColor: "#F1F5F9", borderRadius: 8, padding: 10, gap: 5 },
   detailRow:    { flexDirection: "row", gap: 8 },
-  detailLabel:  { width: 48, fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
-  detailVal:    { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#111827" },
+  detailLabel:  { width: 48, fontSize: 11, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
+  detailVal:    { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#111827" },
   empty:        { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 });

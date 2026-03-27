@@ -11,28 +11,28 @@ export const ms = StyleSheet.create({
     shadowOpacity: 1, shadowRadius: 6, elevation: 2,
   },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sectionTitle: { fontSize: 15, fontFamily: "Inter_700Bold", color: C.text },
+  sectionTitle: { fontSize: 15, fontFamily: "Pretendard-Bold", color: C.text },
 
   saveBtn: { height: 50, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
   outlineBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5 },
-  outlineBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  outlineBtnText: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
 
   infoRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
-  infoLabel: { width: 90, fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
-  infoValue: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: C.text },
+  infoLabel: { width: 90, fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary },
+  infoValue: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
 
-  fieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary, marginBottom: 4 },
+  fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary, marginBottom: 4 },
   weekBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
-  weekBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  weekBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
   warnBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA", padding: 12, borderRadius: 12 },
   classChip: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1.5, gap: 10 },
-  className: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  className: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
 
   connCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
-  connStatus: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  connStatus: { fontSize: 15, fontFamily: "Pretendard-Bold" },
   inviteBox: { marginTop: 12, gap: 8 },
-  inviteCode: { fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: 3 },
+  inviteCode: { fontSize: 22, fontFamily: "Pretendard-Bold", letterSpacing: 3 },
 
   logRow: { paddingVertical: 12 },
   logDot: { width: 28, height: 28, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 2 },
@@ -40,12 +40,12 @@ export const ms = StyleSheet.create({
 
   statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   statusBadgeLg: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  statusBadgeLgText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  statusBadgeLgText: { fontSize: 14, fontFamily: "Pretendard-Bold" },
   changeStatusBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: C.tint },
-  changeStatusText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  changeStatusText: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
 
   restoreBanner: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#F3E8FF", padding: 14, borderRadius: 14 },
-  restoreText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#7C3AED", flex: 1 },
+  restoreText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#7C3AED", flex: 1 },
 
   infoCard: { borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: C.border },
 });

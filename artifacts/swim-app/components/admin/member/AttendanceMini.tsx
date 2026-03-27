@@ -25,14 +25,14 @@ export function AttendanceMini({ records }: AttendanceMiniProps) {
         return (
           <View key={i} style={{ alignItems: "center", gap: 2 }}>
             <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: c + "20", alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: c }}>{l}</Text>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Bold", color: c }}>{l}</Text>
             </View>
-            <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: C.textMuted }}>{dt.getMonth() + 1}/{dt.getDate()}</Text>
+            <Text style={{ fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{dt.getMonth() + 1}/{dt.getDate()}</Text>
           </View>
         );
       })}
       {records.length === 0 && (
-        <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted }}>출결 기록이 없습니다</Text>
+        <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>출결 기록이 없습니다</Text>
       )}
     </View>
   );

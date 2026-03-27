@@ -217,7 +217,7 @@ const wt = StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB",
   },
   weekNavBtn:   { padding: 10 },
-  weekNavTitle: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  weekNavTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280" },
 
   gridRow:   { flexDirection: "row" },
   headerRow: { borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB" },
@@ -231,7 +231,7 @@ const wt = StyleSheet.create({
     borderRightWidth: 0.5, borderRightColor: "#E5E7EB",
     alignItems: "center", justifyContent: "flex-start", paddingTop: 4,
   },
-  timeText: { fontSize: 9, fontFamily: "Inter_400Regular", color: "#D1D5DB" },
+  timeText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D1D5DB" },
 
   dayHeader: {
     alignItems: "center", justifyContent: "center",
@@ -239,8 +239,8 @@ const wt = StyleSheet.create({
     backgroundColor: "#FFFFFF", paddingVertical: 6,
   },
   dayHeaderToday: { backgroundColor: "#F0FFFE" },
-  dayHeaderDate:  { fontSize: 9, fontFamily: "Inter_400Regular", color: "#D1D5DB", lineHeight: 12 },
-  dayHeaderText:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", lineHeight: 15 },
+  dayHeaderDate:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D1D5DB", lineHeight: 12 },
+  dayHeaderText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", lineHeight: 15 },
 
   cell: {
     borderLeftWidth: 0.5, borderLeftColor: "#E5E7EB",
@@ -263,9 +263,9 @@ const wt = StyleSheet.create({
     borderRadius: 3, backgroundColor: "#FCD34D", zIndex: 10,
   },
 
-  cardName:     { fontSize: 9, fontFamily: "Inter_500Medium", color: "#111827", lineHeight: 12 },
-  cardStudents: { fontSize: 8, fontFamily: "Inter_400Regular", color: "#9CA3AF", lineHeight: 11 },
-  cardAtt:      { fontSize: 8, fontFamily: "Inter_400Regular", lineHeight: 11 },
+  cardName:     { fontSize: 9, fontFamily: "Pretendard-Medium", color: "#111827", lineHeight: 12 },
+  cardStudents: { fontSize: 8, fontFamily: "Pretendard-Regular", color: "#9CA3AF", lineHeight: 11 },
+  cardAtt:      { fontSize: 8, fontFamily: "Pretendard-Regular", lineHeight: 11 },
   attDone:      { color: "#059669" },
   attPend:      { color: "#D97706" },
 });

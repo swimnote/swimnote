@@ -190,19 +190,21 @@ export default function ParentHomeScreen() {
   }
 
   // 기능 아이콘 6개: 수업일지, 출결, 앨범, 공지, 쪽지, 수영정보
+  const MINT_C = "#2EC4B6"; const MINT_B = "#E6FAF8";
+  const NAVY_C = "#1B4965"; const NAVY_B = "#E8EEF4";
   const icons = [
     { icon: "book-open", label: "수업일지", badge: null,
-      color: "#2EC4B6", bg: "#DFF3EC", path: "/(parent)/diary" },
+      color: MINT_C, bg: MINT_B, path: "/(parent)/diary" },
     { icon: "calendar",  label: "출결",     badge: null,
-      color: "#7C3AED", bg: "#EEDDF5", path: "/(parent)/attendance-history" },
+      color: MINT_C, bg: MINT_B, path: "/(parent)/attendance-history" },
     { icon: "image",     label: "앨범",     badge: null,
-      color: "#D97706", bg: "#FFF1BF", path: "/(parent)/photos" },
+      color: NAVY_C, bg: NAVY_B, path: "/(parent)/photos" },
     { icon: "bell",      label: "공지",     badge: unread.unread_notices,
-      color: "#2EC4B6", bg: "#E6FFFA", path: "/(parent)/notices" },
+      color: NAVY_C, bg: NAVY_B, path: "/(parent)/notices" },
     { icon: "mail",      label: "쪽지",     badge: unread.unread_messages,
-      color: "#0EA5E9", bg: "#F0F9FF", path: "/(parent)/messages" },
+      color: NAVY_C, bg: NAVY_B, path: "/(parent)/messages" },
     { icon: "droplet",   label: "수영정보", badge: null,
-      color: "#2EC4B6", bg: "#E6FFFA", path: "/(parent)/swim-info" },
+      color: NAVY_C, bg: NAVY_B, path: "/(parent)/swim-info" },
   ] as const;
 
   const scheduleText = selectedStudent ? getScheduleText(selectedStudent.class_group) : null;
@@ -244,8 +246,8 @@ export default function ParentHomeScreen() {
               <Feather name="link" size={38} color={C.tint} />
             </View>
             <View style={{ alignItems: "center", gap: 10 }}>
-              <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: C.text }}>연결된 자녀가 없습니다</Text>
-              <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
+              <Text style={{ fontSize: 20, fontFamily: "Pretendard-Bold", color: C.text }}>연결된 자녀가 없습니다</Text>
+              <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
                 수영장과 자녀 이름을 입력하면{"\n"}자동으로 연결됩니다.
               </Text>
             </View>
@@ -253,12 +255,12 @@ export default function ParentHomeScreen() {
               style={{ backgroundColor: C.button, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40 }}
               onPress={() => router.push("/(parent)/link-child" as any)}
             >
-              <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" }}>자녀 연결하기</Text>
+              <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" }}>자녀 연결하기</Text>
             </Pressable>
 
             {/* 설정으로 이동 안내 */}
             <Pressable onPress={() => router.push("/(parent)/more" as any)}>
-              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted }}>
+              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
                 설정에서 약관 및 계정 정보를 확인할 수 있습니다
               </Text>
             </Pressable>
@@ -429,7 +431,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 20, paddingBottom: 10,
   },
-  poolName: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  poolName: { fontSize: 14, fontFamily: "Pretendard-Medium" },
   headerBtn: {
     width: 40, height: 40, borderRadius: 12,
     alignItems: "center", justifyContent: "center",
@@ -438,7 +440,7 @@ const s = StyleSheet.create({
   childTab: {
     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5,
   },
-  childTabTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  childTabTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
 
   infoCard: {
     marginHorizontal: 20, marginTop: 6, marginBottom: 8, borderRadius: 16, padding: 13,
@@ -450,21 +452,21 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.25)",
     alignItems: "center", justifyContent: "center",
   },
-  infoAvatarTxt: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
-  infoName: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-  infoSub: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.85)" },
-  infoSchedule: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" },
+  infoAvatarTxt: { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#fff" },
+  infoName: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
+  infoSub: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "rgba(255,255,255,0.85)" },
+  infoSchedule: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.7)" },
 
   noChildCard: {
     marginHorizontal: 20, marginVertical: 10, borderRadius: 16, padding: 18,
     flexDirection: "row", alignItems: "center", gap: 12,
   },
-  noChildTxt: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
+  noChildTxt: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Medium" },
 
   section: { paddingHorizontal: 20, paddingTop: 16, gap: 12 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  sectionMore: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  sectionTitle: { fontSize: 17, fontFamily: "Pretendard-Bold" },
+  sectionMore: { fontSize: 13, fontFamily: "Pretendard-Medium" },
 
   iconGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   iconCell: { alignItems: "center", gap: 8, paddingVertical: 14 },
@@ -476,8 +478,8 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center", paddingHorizontal: 4,
     borderWidth: 2, borderColor: "#fff",
   },
-  badgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#fff" },
-  iconLabel: { fontSize: 12, fontFamily: "Inter_500Medium", textAlign: "center" },
+  badgeTxt: { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#fff" },
+  iconLabel: { fontSize: 12, fontFamily: "Pretendard-Medium", textAlign: "center" },
 
   newsCard: {
     borderRadius: 16, padding: 14, gap: 7,
@@ -486,16 +488,16 @@ const s = StyleSheet.create({
   },
   newsTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   newsTag: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  newsTagTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  newsTagTxt: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   unreadDot: { width: 7, height: 7, borderRadius: 4 },
-  newsDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  newsTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  newsBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  newsDate: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  newsTitle: { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  newsBody: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
   noteBox: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#EEDDF5", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
-  noteTxt: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+  noteTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1 },
 
   emptyBox: { borderRadius: 16, padding: 32, alignItems: "center", gap: 8 },
   emptyEmoji: { fontSize: 40 },
-  emptyTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  emptyBody: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  emptyTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  emptyBody: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
 });

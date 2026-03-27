@@ -56,7 +56,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
             )}
           </View>
           <Pressable onPress={onClose} style={sm.closeBtn}>
-            <Text style={{ color: C.tint, fontSize: 15, fontFamily: "Inter_600SemiBold" }}>취소</Text>
+            <Text style={{ color: C.tint, fontSize: 15, fontFamily: "Pretendard-SemiBold" }}>취소</Text>
           </Pressable>
         </View>
         {loading ? (
@@ -129,14 +129,14 @@ const sm = StyleSheet.create({
   container:    { flex: 1, backgroundColor: C.background, paddingTop: Platform.OS === "ios" ? 58 : 24 },
   header:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10, marginBottom: 8 },
   searchBar:    { flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: C.border },
-  input:        { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text },
+  input:        { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   closeBtn:     { paddingHorizontal: 4 },
-  sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textMuted, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#F1F5F9" },
+  sectionLabel: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textMuted, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#F1F5F9" },
   row:          { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },
   avatar:       { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  avatarText:   { fontSize: 14, fontFamily: "Inter_700Bold" },
-  rowTitle:     { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
-  rowSub:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  avatarText:   { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  rowTitle:     { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
+  rowSub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   empty:        { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyText:    { fontSize: 15, fontFamily: "Inter_400Regular", color: C.textMuted },
+  emptyText:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });

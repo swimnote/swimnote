@@ -172,7 +172,7 @@ export default function ParentRegisterScreen() {
               />
             </View>
             {!!passwordConfirm && password !== passwordConfirm && (
-              <Text style={{ color: C.error, fontSize: 12, fontFamily: "Inter_400Regular" }}>
+              <Text style={{ color: C.error, fontSize: 12, fontFamily: "Pretendard-Regular" }}>
                 비밀번호가 일치하지 않습니다
               </Text>
             )}
@@ -272,23 +272,23 @@ export default function ParentRegisterScreen() {
 const styles = StyleSheet.create({
   header:      { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12 },
   backBtn:     { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-  headerTitle: { flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  headerTitle: { flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Pretendard-SemiBold" },
   content:     { paddingHorizontal: 20, paddingTop: 20, gap: 16 },
   infoBox:     { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 10 },
-  infoText:    { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  infoText:    { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
   errBox:      { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },
-  errText:     { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
-  label:       { fontSize: 13, fontFamily: "Inter_500Medium" },
+  errText:     { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular" },
+  label:       { fontSize: 13, fontFamily: "Pretendard-Medium" },
   inputRow:    { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
-  input:       { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  input:       { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   agreeBox:      { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, gap: 10 },
   divider:       { height: 1, marginVertical: 2 },
   termsRow:      { flexDirection: "row", alignItems: "center", gap: 10 },
   checkbox:      { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, justifyContent: "center", alignItems: "center" },
-  termsText:     { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
-  termsTextBold: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  termsText:     { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 18 },
+  termsTextBold: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
   submitBtn:   { height: 52, borderRadius: 12, justifyContent: "center", alignItems: "center", marginTop: 8 },
-  submitTxt:   { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  submitTxt:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
   loginLink:   { alignItems: "center", paddingTop: 8 },
-  loginLinkTxt:{ fontSize: 13, fontFamily: "Inter_400Regular" },
+  loginLinkTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular" },
 });

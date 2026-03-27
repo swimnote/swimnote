@@ -175,7 +175,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingBottom: 12,
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  headerTitle: { fontSize: 17, fontFamily: "Pretendard-Bold" },
 
   card: {
     borderRadius: 18, overflow: "hidden",
@@ -184,17 +184,17 @@ const s = StyleSheet.create({
   cardHeader: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
 
   dateBadge: { width: 52, borderRadius: 12, alignItems: "center", paddingVertical: 8, gap: 1, flexShrink: 0 },
-  dateMonth: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.8)" },
-  dateDay: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff", lineHeight: 26 },
-  dateWeekday: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.8)" },
+  dateMonth: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "rgba(255,255,255,0.8)" },
+  dateDay: { fontSize: 22, fontFamily: "Pretendard-Bold", color: "#fff", lineHeight: 26 },
+  dateWeekday: { fontSize: 11, fontFamily: "Pretendard-Medium", color: "rgba(255,255,255,0.8)" },
 
   cardMeta: { flex: 1, gap: 4 },
   cardMetaRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  cardTeacher: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  cardPreview: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  cardTeacher: { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  cardPreview: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
 
   editedBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FFF1BF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
-  editedBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#92400E" },
+  editedBadgeText: { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#92400E" },
 
   cardBody: { paddingHorizontal: 14, paddingBottom: 14, gap: 12 },
   divider: { height: 1, marginBottom: 2 },
@@ -202,14 +202,14 @@ const s = StyleSheet.create({
   section: { gap: 6 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  sectionLabel: { fontSize: 11, fontFamily: "Inter_700Bold", textTransform: "uppercase", letterSpacing: 0.5 },
-  sectionValue: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22, paddingLeft: 14 },
+  sectionLabel: { fontSize: 11, fontFamily: "Pretendard-Bold", textTransform: "uppercase", letterSpacing: 0.5 },
+  sectionValue: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, paddingLeft: 14 },
 
   noteBox: { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
-  noteTitle: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#7C3AED", flex: 1 },
+  noteTitle: { fontSize: 12, fontFamily: "Pretendard-Bold", color: "#7C3AED", flex: 1 },
 
   empty: { alignItems: "center", justifyContent: "center", paddingTop: 100, gap: 12 },
   emptyEmoji: { fontSize: 56 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  emptySub: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  emptyTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
+  emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
 });

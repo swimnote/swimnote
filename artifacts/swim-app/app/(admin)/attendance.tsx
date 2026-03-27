@@ -426,7 +426,7 @@ export default function AttendanceScreen() {
               <View style={[a.dateInput, { borderColor: C.border, backgroundColor: C.background }]}>
                 <Feather name="calendar" size={16} color={C.textSecondary} style={{ marginRight: 8 }} />
                 <TextInput
-                  style={[{ flex: 1, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text }]}
+                  style={[{ flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}
                   value={assignDate}
                   onChangeText={setAssignDate}
                   placeholder="YYYY-MM-DD"
@@ -440,7 +440,7 @@ export default function AttendanceScreen() {
               ) : (
                 <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
                   {eligibleClasses.length === 0 ? (
-                    <Text style={[{ color: C.textMuted, textAlign: "center", marginTop: 24, fontFamily: "Inter_400Regular" }]}>
+                    <Text style={[{ color: C.textMuted, textAlign: "center", marginTop: 24, fontFamily: "Pretendard-Regular" }]}>
                       보강 가능한 반이 없습니다
                     </Text>
                   ) : eligibleClasses.map(ec => {
@@ -460,7 +460,7 @@ export default function AttendanceScreen() {
                             <Text style={[a.eligibleName, { color: C.text }]}>{ec.name}</Text>
                             {isSame && (
                               <View style={[a.sameTag, { backgroundColor: "#E6FFFA" }]}>
-                                <Text style={{ fontSize: 10, color: "#2EC4B6", fontFamily: "Inter_600SemiBold" }}>담당</Text>
+                                <Text style={{ fontSize: 10, color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" }}>담당</Text>
                               </View>
                             )}
                           </View>
@@ -472,7 +472,7 @@ export default function AttendanceScreen() {
                           <Text style={[a.slotText, { color: ec.available_slots > 0 ? C.tint : "#D96C6C" }]}>
                             여유 {ec.available_slots}명
                           </Text>
-                          <Text style={[{ fontSize: 11, color: C.textMuted, fontFamily: "Inter_400Regular" }]}>
+                          <Text style={[{ fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular" }]}>
                             {ec.current_members}/{ec.capacity ?? "∞"}명
                           </Text>
                         </View>
@@ -540,7 +540,7 @@ export default function AttendanceScreen() {
               )}
               <View style={[a.warnBox, { backgroundColor: "#FFF1BF" }]}>
                 <Feather name="alert-triangle" size={14} color="#D97706" />
-                <Text style={[{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", flex: 1 }]}>
+                <Text style={[{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", flex: 1 }]}>
                   소멸 처리 후 보강 기회가 사라집니다. 신중히 처리하세요.
                 </Text>
               </View>
@@ -570,7 +570,7 @@ export default function AttendanceScreen() {
             ListHeaderComponent={
               <View style={[a.makeupSummary, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
                 <Feather name="clock" size={16} color={C.tint} />
-                <Text style={[{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: C.tint }]}>
+                <Text style={[{ fontFamily: "Pretendard-SemiBold", fontSize: 14, color: C.tint }]}>
                   보강 대기 {makeupList.length}명
                 </Text>
                 <Pressable style={[a.refreshBtn]} onPress={fetchMakeup}>
@@ -891,89 +891,89 @@ const a = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 4,
   },
   navArrow: { padding: 8 },
-  dateLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", textAlign: "center", flex: 1 },
+  dateLabel: { fontSize: 14, fontFamily: "Pretendard-SemiBold", textAlign: "center", flex: 1 },
 
   classTab:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
-  classTabText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  classTabText: { fontSize: 14, fontFamily: "Pretendard-Medium" },
 
   card: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, gap: 12 },
   avatar:     { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  avatarText: { fontSize: 18, fontFamily: "Pretendard-Bold" },
   memberInfo: { flex: 1, gap: 4 },
-  memberName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  memberName: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
   badge:      { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeText:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  noStatus:   { fontSize: 12, fontFamily: "Inter_400Regular" },
+  badgeText:  { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
+  noStatus:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
   attBtns:    { flexDirection: "row", gap: 8 },
   attBtn:     { width: 36, height: 36, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   readonlyTag:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB" },
-  readonlyTagTxt:  { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
+  readonlyTagTxt:  { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
   readonlyBanner:  { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF9E6", borderRadius: 10, padding: 10, marginHorizontal: 0, marginBottom: 8 },
-  readonlyBannerTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", flex: 1 },
+  readonlyBannerTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", flex: 1 },
 
   empty:     { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
+  emptyText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
 
   weekHeaderRow:   { flexDirection: "row", borderBottomWidth: 1 },
   weekRow:         { flexDirection: "row", borderBottomWidth: 1 },
   weekNameCell:    { width: 88, paddingHorizontal: 10, paddingVertical: 10, borderRightWidth: 1, justifyContent: "center" },
   weekDateCell:    { width: 56, alignItems: "center", paddingVertical: 8, borderRightWidth: 1 },
   weekStatusCell:  { width: 56, alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRightWidth: 1 },
-  weekHeaderText:  { fontSize: 12, fontFamily: "Inter_500Medium" },
-  weekDayLabel:    { fontSize: 11, fontFamily: "Inter_500Medium" },
-  weekDateLabel:   { fontSize: 14, fontFamily: "Inter_600SemiBold", marginTop: 2 },
-  weekStudentName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  weekClassName:   { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  weekHeaderText:  { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  weekDayLabel:    { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  weekDateLabel:   { fontSize: 14, fontFamily: "Pretendard-SemiBold", marginTop: 2 },
+  weekStudentName: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  weekClassName:   { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 },
   weekBadge:       { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
-  weekBadgeText:   { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  weekBadgeText:   { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
   weekEmpty:       { fontSize: 14 },
 
   monthCard:      { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, gap: 12, borderWidth: 1 },
   monthStats:     { flexDirection: "row", gap: 12 },
   monthStat:      { alignItems: "center", minWidth: 36 },
-  monthStatNum:   { fontSize: 18, fontFamily: "Inter_700Bold" },
-  monthStatLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  monthStatNum:   { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  monthStatLabel: { fontSize: 11, fontFamily: "Pretendard-Regular" },
 
   searchBox:   { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, marginHorizontal: 16, height: 46 },
-  searchInput: { flex: 1, paddingHorizontal: 10, fontSize: 15, fontFamily: "Inter_400Regular", height: "100%" },
+  searchInput: { flex: 1, paddingHorizontal: 10, fontSize: 15, fontFamily: "Pretendard-Regular", height: "100%" },
   chip:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
-  chipText:    { fontSize: 13, fontFamily: "Inter_500Medium" },
+  chipText:    { fontSize: 13, fontFamily: "Pretendard-Medium" },
   searchCard:  { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 14, borderWidth: 1, gap: 10 },
-  searchName:  { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  searchSub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
-  resultCount: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 8 },
+  searchName:  { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  searchSub:   { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 3 },
+  resultCount: { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
 
   // 보강 관리
   makeupSummary: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1.5, marginBottom: 4 },
   refreshBtn:    { marginLeft: "auto" as any, padding: 4 },
   mkCard:        { borderRadius: 14, padding: 14, borderWidth: 1.5, backgroundColor: "#fff" },
-  mkSub:         { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  absDate:       { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 8 },
+  mkSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  absDate:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginBottom: 8 },
   daysTag:       { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  daysTagText:   { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  daysTagText:   { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   mkActions:     { flexDirection: "row", gap: 8 },
   mkBtn:         { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  mkBtnText:     { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  mkBtnText:     { color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold" },
 
   // 모달
   modalOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalSheet:    { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, gap: 12, maxHeight: "85%" },
   modalHeader:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  modalTitle:    { fontSize: 18, fontFamily: "Inter_700Bold" },
-  modalSub:      { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: -4 },
-  fieldLabel:    { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 4 },
+  modalTitle:    { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  modalSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: -4 },
+  fieldLabel:    { fontSize: 12, fontFamily: "Pretendard-SemiBold", marginTop: 4 },
   dateInput:     { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 46 },
   eligibleCard:  { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, padding: 12, marginBottom: 8, gap: 8 },
-  eligibleName:  { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  eligibleSub:   { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  eligibleName:  { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  eligibleSub:   { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   sameTag:       { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  slotText:      { fontSize: 13, fontFamily: "Inter_700Bold" },
+  slotText:      { fontSize: 13, fontFamily: "Pretendard-Bold" },
   confirmBtn:    { padding: 14, borderRadius: 14, alignItems: "center", marginTop: 8 },
-  confirmBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  confirmBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Bold" },
   reasonRow:     { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 12, padding: 12, marginBottom: 6 },
   radio:         { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   radioDot:      { width: 10, height: 10, borderRadius: 5 },
-  reasonLabel:   { fontSize: 14, fontFamily: "Inter_500Medium" },
-  customInput:   { borderWidth: 1.5, borderRadius: 12, padding: 12, minHeight: 60, textAlignVertical: "top", fontSize: 14, fontFamily: "Inter_400Regular" },
+  reasonLabel:   { fontSize: 14, fontFamily: "Pretendard-Medium" },
+  customInput:   { borderWidth: 1.5, borderRadius: 12, padding: 12, minHeight: 60, textAlignVertical: "top", fontSize: 14, fontFamily: "Pretendard-Regular" },
   warnBox:       { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 10 },
 });

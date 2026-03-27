@@ -99,13 +99,13 @@ export default function DataStorageOverviewScreen() {
 
 const s = StyleSheet.create({
   card:       { borderRadius: 18, padding: 20, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
-  cardTitle:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280", marginBottom: 4 },
-  bigNum:     { fontSize: 40, fontFamily: "Inter_700Bold" },
-  sub:        { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginBottom: 6 },
+  cardTitle:  { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#6B7280", marginBottom: 4 },
+  bigNum:     { fontSize: 40, fontFamily: "Pretendard-Bold" },
+  sub:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginBottom: 6 },
   gaugeWrap:  { height: 12, backgroundColor: "#E5E7EB", borderRadius: 6, overflow: "hidden" },
   gaugeBar:   { height: 12, borderRadius: 6 },
   statCard:   { flexDirection: "row", alignItems: "center", gap: 16, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   statIcon:   { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  statLabel:  { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280", marginBottom: 2 },
-  statValue:  { fontSize: 22, fontFamily: "Inter_700Bold" },
+  statLabel:  { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#6B7280", marginBottom: 2 },
+  statValue:  { fontSize: 22, fontFamily: "Pretendard-Bold" },
 });

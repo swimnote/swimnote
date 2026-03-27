@@ -247,11 +247,11 @@ export default function DiaryIndexScreen() {
       {showDayPicker && (
         <View style={di.picker}>
           <Pressable style={di.pickerItem} onPress={() => handleDaySelect(null)}>
-            <Text style={[di.pickerItemText, !activeDay && { color: themeColor, fontFamily: "Inter_700Bold" }]}>전체</Text>
+            <Text style={[di.pickerItemText, !activeDay && { color: themeColor, fontFamily: "Pretendard-Bold" }]}>전체</Text>
           </Pressable>
           {KO_DAYS.map(d => (
             <Pressable key={d} style={di.pickerItem} onPress={() => handleDaySelect(d)}>
-              <Text style={[di.pickerItemText, activeDay === d && { color: themeColor, fontFamily: "Inter_700Bold" }]}>{d}요일</Text>
+              <Text style={[di.pickerItemText, activeDay === d && { color: themeColor, fontFamily: "Pretendard-Bold" }]}>{d}요일</Text>
               {activeDay === d && <Feather name="check" size={14} color={themeColor} />}
             </Pressable>
           ))}
@@ -262,13 +262,13 @@ export default function DiaryIndexScreen() {
       {showTimePicker && (
         <View style={di.picker}>
           <Pressable style={di.pickerItem} onPress={() => handleTimeSelect(null)}>
-            <Text style={[di.pickerItemText, !activeTime && { color: themeColor, fontFamily: "Inter_700Bold" }]}>전체</Text>
+            <Text style={[di.pickerItemText, !activeTime && { color: themeColor, fontFamily: "Pretendard-Bold" }]}>전체</Text>
           </Pressable>
           {availableTimes.length === 0 ? (
             <Text style={di.pickerEmptyText}>수업 시간 정보 없음</Text>
           ) : availableTimes.map(t => (
             <Pressable key={t} style={di.pickerItem} onPress={() => handleTimeSelect(t)}>
-              <Text style={[di.pickerItemText, activeTime === t && { color: themeColor, fontFamily: "Inter_700Bold" }]}>{t}</Text>
+              <Text style={[di.pickerItemText, activeTime === t && { color: themeColor, fontFamily: "Pretendard-Bold" }]}>{t}</Text>
               {activeTime === t && <Feather name="check" size={14} color={themeColor} />}
             </Pressable>
           ))}
@@ -313,13 +313,13 @@ const di = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 13,
     borderRadius: 12,
   },
-  writeBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff", flex: 1 },
+  writeBtnText: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff", flex: 1 },
   writeBtnBadgeWrap: { opacity: 0.7 },
 
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   backBtn: { marginBottom: 6, width: 32 },
-  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  headerSub: { fontSize: 12, color: C.textSecondary, fontFamily: "Inter_400Regular", marginTop: 2 },
+  headerTitle: { fontSize: 20, fontFamily: "Pretendard-Bold" },
+  headerSub: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginTop: 2 },
 
   searchRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
@@ -327,7 +327,7 @@ const di = StyleSheet.create({
     backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: C.border,
     paddingHorizontal: 12, paddingVertical: 9,
   },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, padding: 0 },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, padding: 0 },
 
   filterBar: {
     flexDirection: "row", alignItems: "center", gap: 8,
@@ -338,14 +338,14 @@ const di = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  filterBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  filterBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.textSecondary },
   resetBtn: {
     flexDirection: "row", alignItems: "center", gap: 3,
     paddingHorizontal: 8, paddingVertical: 6,
     borderRadius: 8, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FCA5A5",
   },
-  resetBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
-  resultCount: { marginLeft: "auto", fontSize: 12, color: C.textSecondary, fontFamily: "Inter_400Regular" },
+  resetBtnText: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
+  resultCount: { marginLeft: "auto", fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
 
   picker: {
     marginHorizontal: 16, backgroundColor: "#fff",
@@ -358,8 +358,8 @@ const di = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  pickerItemText: { fontSize: 14, fontFamily: "Inter_400Regular", color: C.text },
-  pickerEmptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular", textAlign: "center", padding: 12 },
+  pickerItemText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
+  pickerEmptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", padding: 12 },
 
   listContent: { paddingHorizontal: 16, paddingBottom: 32, gap: 8 },
   card: {
@@ -368,14 +368,14 @@ const di = StyleSheet.create({
     shadowRadius: 4, elevation: 1, position: "relative",
   },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  cardDate: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text },
+  cardDate: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.text },
   typeBadge: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
-  typeBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  typeBadgeText: { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
   cardMeta: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  cardMetaText: { fontSize: 11, color: C.textSecondary, fontFamily: "Inter_400Regular", marginLeft: 3 },
-  cardContent: { fontSize: 13, color: C.text, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  cardMetaText: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginLeft: 3 },
+  cardContent: { fontSize: 13, color: C.text, fontFamily: "Pretendard-Regular", lineHeight: 19 },
   chevron: { position: "absolute", right: 12, top: "50%" },
   empty: { alignItems: "center", paddingTop: 80, gap: 8 },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
+  emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
 });

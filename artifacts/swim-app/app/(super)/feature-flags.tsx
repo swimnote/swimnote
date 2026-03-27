@@ -302,7 +302,7 @@ export default function FeatureFlagsScreen() {
                 <Text style={[m.title, { color: DANGER }]}>위험 플래그 변경</Text>
               </View>
               <Text style={m.dangerDesc}>
-                <Text style={{ fontFamily: "Inter_700Bold" }}>{dangerModal.flag.name}</Text> 은(는) 전체 시스템에 영향을 미치는 위험 플래그입니다.{"\n"}
+                <Text style={{ fontFamily: "Pretendard-Bold" }}>{dangerModal.flag.name}</Text> 은(는) 전체 시스템에 영향을 미치는 위험 플래그입니다.{"\n"}
                 {FLAG_IMPACT[dangerModal.flag.key]?.scope && `영향 범위: ${FLAG_IMPACT[dangerModal.flag.key].scope}\n`}
                 변경 내용을 신중히 검토하고 사유를 기록하세요.
               </Text>
@@ -336,9 +336,9 @@ export default function FeatureFlagsScreen() {
               <Text style={m.sub}>{rollbackModal.name} ({rollbackModal.key})</Text>
               <View style={m.rollbackInfo}>
                 <Text style={m.rollbackInfoTxt}>
-                  현재: <Text style={{ fontFamily: "Inter_700Bold" }}>{rollbackModal.enabled ? '활성' : '비활성'}</Text>
+                  현재: <Text style={{ fontFamily: "Pretendard-Bold" }}>{rollbackModal.enabled ? '활성' : '비활성'}</Text>
                   {"  →  "}
-                  롤백 후: <Text style={{ fontFamily: "Inter_700Bold", color: P }}>{rollbackModal.lastEnabledState ? '활성' : '비활성'}</Text>
+                  롤백 후: <Text style={{ fontFamily: "Pretendard-Bold", color: P }}>{rollbackModal.lastEnabledState ? '활성' : '비활성'}</Text>
                 </Text>
               </View>
               <Text style={m.label}>롤백 사유 (필수)</Text>
@@ -415,40 +415,40 @@ const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: C.background },
   infoBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#E0F2FE",
                    padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#BAE6FD" },
-  infoBannerTxt: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#0369A1", lineHeight: 17 },
+  infoBannerTxt: { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0369A1", lineHeight: 17 },
   catSection:    { gap: 8 },
   catHeader:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center",
                    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
-  catLabel:      { fontSize: 13, fontFamily: "Inter_700Bold" },
-  catCount:      { fontSize: 12, fontFamily: "Inter_400Regular" },
+  catLabel:      { fontSize: 13, fontFamily: "Pretendard-Bold" },
+  catCount:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
   flagCard:      { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8,
                    shadowColor: "#0000001A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 3, elevation: 1 },
   flagCardDanger:{ borderWidth: 1, borderColor: "#FCA5A5" },
   flagTop:       { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   flagNameRow:   { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   dangerIcon:    { fontSize: 12 },
-  flagName:      { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  flagName:      { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827" },
   overrideBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: "#EEDDF5" },
-  overrideTxt:   { fontSize: 10, fontFamily: "Inter_700Bold", color: P },
-  flagKey:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
-  flagDesc:      { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2, lineHeight: 17 },
+  overrideTxt:   { fontSize: 10, fontFamily: "Pretendard-Bold", color: P },
+  flagKey:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
+  flagDesc:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2, lineHeight: 17 },
   impactRow:     { flexDirection: "row", alignItems: "center", gap: 6 },
-  impactScope:   { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular" },
+  impactScope:   { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular" },
   riskBadge:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  riskBadgeTxt:  { fontSize: 10, fontFamily: "Inter_700Bold" },
+  riskBadgeTxt:  { fontSize: 10, fontFamily: "Pretendard-Bold" },
   flagMeta:      { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  flagMetaTxt:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  flagReason:    { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280",
+  flagMetaTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  flagReason:    { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280",
                    fontStyle: "italic", backgroundColor: "#F1F5F9", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   rollbackRow:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EEDDF5",
                    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9 },
-  rollbackHint:  { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#5B21B6" },
+  rollbackHint:  { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#5B21B6" },
   rollbackBtn:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4,
                    borderRadius: 7, backgroundColor: "#fff", borderWidth: 1, borderColor: P },
-  rollbackBtnTxt:{ fontSize: 11, fontFamily: "Inter_700Bold", color: P },
+  rollbackBtnTxt:{ fontSize: 11, fontFamily: "Pretendard-Bold", color: P },
   overrideBtn:   { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start",
                    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F8FAFC" },
-  overrideBtnTxt:{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  overrideBtnTxt:{ fontSize: 12, fontFamily: "Pretendard-Medium", color: "#6B7280" },
 });
 
 const m = StyleSheet.create({
@@ -458,33 +458,33 @@ const m = StyleSheet.create({
   handle:        { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
   dangerHeaderRow:{ flexDirection: "row", alignItems: "center", gap: 8 },
   dangerIcon:    { fontSize: 20 },
-  title:         { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:           { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  dangerDesc:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827", lineHeight: 20,
+  title:         { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827" },
+  sub:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  dangerDesc:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827", lineHeight: 20,
                    backgroundColor: "#FFF5F5", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#FCA5A5" },
-  label:         { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  label:         { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
   reasonInput:   { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                   fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827", minHeight: 80,
+                   fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827", minHeight: 80,
                    textAlignVertical: "top" },
   rollbackInfo:  { backgroundColor: "#EEDDF5", padding: 12, borderRadius: 10 },
-  rollbackInfoTxt:{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827" },
+  rollbackInfoTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827" },
   searchInput:   { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 10,
-                   fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+                   fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
   opRow:         { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 4,
                    borderBottomWidth: 1, borderBottomColor: "#F8FAFC", gap: 8 },
   opRowActive:   { backgroundColor: "#EEDDF5" },
-  opRowTxt:      { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: "#111827" },
-  opRowCode:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  opRowTxt:      { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: "#111827" },
+  opRowCode:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   toggleRow:     { flexDirection: "row", alignItems: "center", gap: 10 },
-  toggleLabel:   { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  toggleLabel:   { flex: 1, fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
   btnRow:        { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
   cancelBtn:     { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
-  cancelTxt:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  cancelTxt:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
   confirmBtn:    { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
-  confirmTxt:    { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  confirmTxt:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
   dangerBtn:     { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16,
                    paddingVertical: 10, borderRadius: 10, backgroundColor: DANGER },
-  dangerBtnTxt:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  dangerBtnTxt:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
   rollbackExecBtn:{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16,
                     paddingVertical: 10, borderRadius: 10, backgroundColor: P },
 });

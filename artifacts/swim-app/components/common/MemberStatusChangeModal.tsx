@@ -96,7 +96,7 @@ export function MemberStatusChangeModal({
         {loading ? (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
             <ActivityIndicator color={C.tint} size="large" />
-            <Text style={{ color: C.textSecondary, marginTop: 12, fontFamily: "Inter_400Regular" }}>처리 중...</Text>
+            <Text style={{ color: C.textSecondary, marginTop: 12, fontFamily: "Pretendard-Regular" }}>처리 중...</Text>
           </View>
         ) : step === "select" ? (
           <>
@@ -217,16 +217,16 @@ const m = StyleSheet.create({
   sheet:      { position: "absolute", bottom: 0, left: 0, right: 0,
                 backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
                 padding: 24, paddingBottom: 40 },
-  title:      { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text, textAlign: "center", marginBottom: 4 },
-  sub:        { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center", marginBottom: 16 },
+  title:      { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text, textAlign: "center", marginBottom: 4 },
+  sub:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center", marginBottom: 16 },
   badge:      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  badgeText:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  badgeText:  { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   errorBox:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9DEDA", borderRadius: 10, padding: 10, marginBottom: 12 },
-  errorText:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "#D96C6C", flex: 1 },
+  errorText:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", flex: 1 },
   option:     { flexDirection: "row", alignItems: "center", gap: 14, borderRadius: 14, padding: 14, borderWidth: 1.5 },
   optIcon:    { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  optLabel:   { fontSize: 15, fontFamily: "Inter_700Bold" },
-  optSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  optLabel:   { fontSize: 15, fontFamily: "Pretendard-Bold" },
+  optSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   cancelBtn:  { alignItems: "center", marginTop: 16 },
-  cancelText: { fontSize: 14, fontFamily: "Inter_500Medium", color: C.textMuted },
+  cancelText: { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.textMuted },
 });

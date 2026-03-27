@@ -53,63 +53,67 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   switch (key) {
     // ─ 운영 관리: 인원 + 구독/결제 통합 ─
     case "운영관리": return [
-      { icon: "users",       label: "회원 명부",   color: "#2EC4B6", bg: "#E6FFFA", onPress: () => router.push("/(admin)/members") },
-      { icon: "user",        label: "학부모 계정",  color: "#2EC4B6", bg: "#DFF3EC", onPress: () => router.push("/(admin)/parents") },
-      { icon: "user-check",  label: "선생님 관리",  color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/people-teachers") },
-      { icon: "check-circle",label: "승인 관리",   color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/approvals"), badge: pending },
-      { icon: "send",        label: "초대 안내 기록", color: "#2EC4B6", bg: "#ECFEFF", onPress: () => router.push("/(admin)/invite-records") },
-      { icon: "trending-up", label: "매출 관리",   color: "#EA580C", bg: "#FFF1BF", onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "users",       label: "회원 명부",      color: ORNG, bg: ORNG_BG, onPress: () => router.push("/(admin)/members") },
+      { icon: "user",        label: "학부모 계정",     color: ORNG, bg: ORNG_BG, onPress: () => router.push("/(admin)/parents") },
+      { icon: "user-check",  label: "선생님 관리",     color: ORNG, bg: ORNG_BG, onPress: () => router.push("/(admin)/people-teachers") },
+      { icon: "check-circle",label: "승인 관리",      color: ORNG, bg: ORNG_BG, onPress: () => router.push("/(admin)/approvals"), badge: pending },
+      { icon: "send",        label: "초대 안내 기록",  color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/invite-records") },
+      { icon: "trending-up", label: "매출 관리",      color: ORNG, bg: ORNG_BG, onPress: () => router.push("/(admin)/admin-revenue") },
     ];
     // ─ 수업 관리 ─
     case "수업관리": return [
-      { icon: "calendar",    label: "수업 스케줄",  color: "#2EC4B6", bg: "#E6FFFA", onPress: () => router.push("/(admin)/classes") },
-      { icon: "layers",      label: "반 관리",     color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/class-management") },
-      { icon: "clipboard",   label: "출결 관리",   color: "#2EC4B6", bg: "#DFF3EC", onPress: () => router.push("/(admin)/attendance") },
-      { icon: "book",        label: "수업 일지",   color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/diary-teacher-entries") },
-      { icon: "users",       label: "수강생 관리",  color: "#2EC4B6", bg: "#ECFEFF", onPress: () => router.push("/(admin)/members") },
-      { icon: "shuffle",     label: "반 이동",     color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/class-management") },
+      { icon: "calendar",    label: "수업 스케줄",    color: MINT, bg: MINT_BG, onPress: () => router.push("/(admin)/classes") },
+      { icon: "layers",      label: "반 관리",        color: MINT, bg: MINT_BG, onPress: () => router.push("/(admin)/class-management") },
+      { icon: "clipboard",   label: "출결 관리",      color: MINT, bg: MINT_BG, onPress: () => router.push("/(admin)/attendance") },
+      { icon: "book",        label: "수업 일지",      color: MINT, bg: MINT_BG, onPress: () => router.push("/(admin)/diary-teacher-entries") },
+      { icon: "users",       label: "수강생 관리",    color: ORNG, bg: ORNG_BG, onPress: () => router.push("/(admin)/members") },
+      { icon: "shuffle",     label: "반 이동",        color: MINT, bg: MINT_BG, onPress: () => router.push("/(admin)/class-management") },
     ];
     // ─ 보강 관리 ─
     case "보강관리": return [
-      { icon: "clock",       label: "보강 대기",   color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/makeups"), badge: makeups },
-      { icon: "plus-circle", label: "보강 배정",   color: "#2EC4B6", bg: "#E6FFFA", onPress: () => router.push("/(admin)/makeups") },
-      { icon: "bar-chart-2", label: "보강 현황",   color: "#2EC4B6", bg: "#DFF3EC", onPress: () => router.push("/(admin)/makeups") },
+      { icon: "clock",       label: "보강 대기",      color: MINT, bg: MINT_BG, onPress: () => router.push("/(admin)/makeups"), badge: makeups },
+      { icon: "plus-circle", label: "보강 배정",      color: MINT, bg: MINT_BG, onPress: () => router.push("/(admin)/makeups") },
+      { icon: "bar-chart-2", label: "보강 현황",      color: MINT, bg: MINT_BG, onPress: () => router.push("/(admin)/makeups") },
     ];
     // ─ 매출 관리 ─
     case "매출관리": return [
-      { icon: "trending-up", label: "월별 매출",   color: "#2EC4B6", bg: "#DFF3EC", onPress: () => router.push("/(admin)/admin-revenue") },
-      { icon: "check-square",label: "정산 확인",   color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/settlement") },
-      { icon: "calendar",    label: "휴무일 관리",  color: "#2EC4B6", bg: "#ECFEFF", onPress: () => router.push("/(admin)/holidays") },
+      { icon: "trending-up", label: "월별 매출",      color: ORNG, bg: ORNG_BG, onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "check-square",label: "정산 확인",      color: ORNG, bg: ORNG_BG, onPress: () => router.push("/(admin)/settlement") },
+      { icon: "calendar",    label: "휴무일 관리",    color: MINT, bg: MINT_BG, onPress: () => router.push("/(admin)/holidays") },
     ];
-    // ─ 데이터 관리: 백업·복구 + 저장공간 + 삭제·보존 통합 ─
+    // ─ 데이터 관리 ─
     case "데이터관리": return [
-      { icon: "rotate-ccw",  label: "백업·복구",   color: "#D96C6C", bg: "#F9DEDA", onPress: () => router.push("/(admin)/recovery") },
-      { icon: "list",        label: "이벤트 기록",  color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/data-event-logs") },
-      { icon: "pie-chart",   label: "저장공간 현황", color: "#2EC4B6", bg: "#ECFEFF", onPress: () => router.push("/(admin)/data-storage-overview") },
-      { icon: "users",       label: "계정별 사용량", color: "#2EC4B6", bg: "#E6FFFA", onPress: () => router.push("/(admin)/data-storage-by-account") },
-      { icon: "bar-chart-2", label: "카테고리별\n사용량", color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/data-storage-by-category") },
-      { icon: "archive",     label: "삭제·보존\n정책", color: "#6B7280", bg: "#F8FAFC", onPress: () => router.push("/(admin)/data-delete") },
+      { icon: "rotate-ccw",  label: "백업·복구",      color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/recovery") },
+      { icon: "list",        label: "이벤트 기록",    color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/data-event-logs") },
+      { icon: "pie-chart",   label: "저장공간 현황",  color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/data-storage-overview") },
+      { icon: "users",       label: "계정별 사용량",  color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/data-storage-by-account") },
+      { icon: "bar-chart-2", label: "카테고리별\n사용량", color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/data-storage-by-category") },
+      { icon: "archive",     label: "삭제·보존\n정책", color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/data-delete") },
     ];
     // ─ 수업 설정 ─
     case "수업설정": return [
-      { icon: "refresh-cw",  label: "보강정책\n설정",  color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/makeup-policy") },
-      { icon: "shield",      label: "권한 설정",    color: "#D97706", bg: "#FFFBEB", onPress: () => router.push("/(admin)/admin-grant") },
-      { icon: "bell",        label: "알림 설정",    color: "#2EC4B6", bg: "#DFF3EC", onPress: () => router.push("/(admin)/push-notification-settings") },
-      { icon: "award",       label: "레벨/테스트\n설정", color: "#2EC4B6", bg: "#ECFEFF", onPress: () => router.push("/(admin)/level-settings" as any) },
-      { icon: "message-circle", label: "피드백\n기본설정", color: "#D96C6C", bg: "#FEF2F2", onPress: () => router.push("/(admin)/feedback-settings" as any) },
+      { icon: "refresh-cw",     label: "보강정책\n설정",   color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/makeup-policy") },
+      { icon: "shield",         label: "권한 설정",        color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/admin-grant") },
+      { icon: "bell",           label: "알림 설정",        color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/push-notification-settings") },
+      { icon: "award",          label: "레벨/테스트\n설정",color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/level-settings" as any) },
+      { icon: "message-circle", label: "피드백\n기본설정", color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/feedback-settings" as any) },
     ];
     // ─ 운영 설정 ─
     case "운영설정": return [
-      { icon: "sliders",     label: "브랜드 설정",  color: "#EC4899", bg: "#F6D8E1", onPress: () => router.push("/(admin)/branding") },
-      { icon: "tag",         label: "화이트라벨",   color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/white-label" as any) },
-      { icon: "settings",    label: "수영장 설정",  color: "#6B7280", bg: "#F8FAFC", onPress: () => router.push("/(admin)/pool-settings") },
-      { icon: "file-text",   label: "공지사항",     color: "#7C3AED", bg: "#EEDDF5", onPress: () => router.push("/(admin)/notices") },
+      { icon: "sliders",   label: "브랜드 설정",  color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/branding") },
+      { icon: "tag",       label: "화이트라벨",   color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/white-label" as any) },
+      { icon: "settings",  label: "수영장 설정",  color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "file-text", label: "공지사항",     color: NAVY, bg: NAVY_BG, onPress: () => router.push("/(admin)/notices") },
     ];
     default: return [];
   }
 }
 
 // ── 메인 홈 아이콘 정의 ──────────────────────────────────────────────────────
+const MINT = "#2EC4B6"; const MINT_BG = "#E6FAF8";
+const ORNG = "#F97316"; const ORNG_BG = "#FFF1E8";
+const NAVY = "#1B4965"; const NAVY_BG = "#E8EEF4";
+
 const MAIN_ICONS: Array<{
   key: PopupKey | "메신저";
   label: string;
@@ -117,14 +121,14 @@ const MAIN_ICONS: Array<{
   color: string;
   bg: string;
 }> = [
-  { key: "운영관리",  label: "운영 관리",  icon: "briefcase",    color: "#2EC4B6", bg: "#E6FFFA" },
-  { key: "수업관리",  label: "수업 관리",  icon: "calendar",     color: "#7C3AED", bg: "#EEDDF5" },
-  { key: "보강관리",  label: "보강 관리",  icon: "rotate-ccw",   color: "#D96C6C", bg: "#FEF2F2" },
-  { key: "메신저",    label: "메신저",     icon: "message-circle",color: "#2EC4B6", bg: "#DFF3EC" },
-  { key: "매출관리",  label: "매출 관리",  icon: "trending-up",  color: "#D97706", bg: "#FFFBEB" },
-  { key: "데이터관리",label: "데이터 관리",icon: "hard-drive",   color: "#2EC4B6", bg: "#ECFEFF" },
-  { key: "수업설정",  label: "수업 설정",  icon: "settings",     color: "#EA580C", bg: "#FFF1BF" },
-  { key: "운영설정",  label: "운영 설정",  icon: "sliders",      color: "#6B7280", bg: "#F1F5F9" },
+  { key: "운영관리",  label: "운영 관리",  icon: "briefcase",     color: ORNG, bg: ORNG_BG },
+  { key: "수업관리",  label: "수업 관리",  icon: "calendar",      color: MINT, bg: MINT_BG },
+  { key: "보강관리",  label: "보강 관리",  icon: "rotate-ccw",    color: MINT, bg: MINT_BG },
+  { key: "메신저",    label: "메신저",     icon: "message-circle",color: NAVY, bg: NAVY_BG },
+  { key: "매출관리",  label: "매출 관리",  icon: "trending-up",   color: ORNG, bg: ORNG_BG },
+  { key: "데이터관리",label: "데이터 관리",icon: "hard-drive",    color: NAVY, bg: NAVY_BG },
+  { key: "수업설정",  label: "수업 설정",  icon: "settings",      color: NAVY, bg: NAVY_BG },
+  { key: "운영설정",  label: "운영 설정",  icon: "sliders",       color: NAVY, bg: NAVY_BG },
 ];
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
@@ -453,15 +457,15 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  poolName:    { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
-  greet:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  poolName:    { fontSize: 18, fontFamily: "Pretendard-Bold", color: C.text },
+  greet:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   switchChip:  { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
-  switchChipTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  switchChipTxt: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   subBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  subBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  subBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
   headerBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
 
-  sectionLabel:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 10 },
+  sectionLabel:  { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textMuted, marginBottom: 10 },
 
   bannerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   bannerCard: {
@@ -476,9 +480,9 @@ const s = StyleSheet.create({
     elevation: 2,
   },
   bannerIcon:  { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center", marginBottom: 6 },
-  bannerValue: { fontSize: 19, fontFamily: "Inter_700Bold", marginBottom: 1 },
-  bannerLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.text },
-  bannerSub:   { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 1 },
+  bannerValue: { fontSize: 19, fontFamily: "Pretendard-Bold", marginBottom: 1 },
+  bannerLabel: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.text },
+  bannerSub:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
 
   alertCard: {
     flexDirection: "row",
@@ -490,7 +494,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#FDE68A",
   },
-  alertTxt: { fontSize: 13, fontFamily: "Inter_400Regular", color: C.text },
+  alertTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
 
   iconGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 16 },
   iconCell:  { alignItems: "center", gap: 8 },
@@ -506,7 +510,7 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  iconLabel:   { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.text, textAlign: "center" },
+  iconLabel:   { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: C.text, textAlign: "center" },
   directBadge: { position: "absolute", bottom: 4, right: 4, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   notiBadge:   { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 4, borderWidth: 1.5, borderColor: "#F5F6FA" },
   notiBadgeTxt:{ color: "#fff", fontSize: 9, fontWeight: "700" },
@@ -514,12 +518,12 @@ const s = StyleSheet.create({
   splitStatRow:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.card, borderRadius: 14, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   splitStatItem:   { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   splitStatIcon:   { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  splitStatNum:    { fontSize: 16, fontFamily: "Inter_700Bold" },
-  splitStatLabel:  { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 },
+  splitStatNum:    { fontSize: 16, fontFamily: "Pretendard-Bold" },
+  splitStatLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   splitStatDivider: { width: 1, height: 32, backgroundColor: C.border },
 
   addMemberBtn:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#2EC4B6", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   addMemberIconWrap: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  addMemberLabel:    { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
-  addMemberSub:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
+  addMemberLabel:    { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
+  addMemberSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 },
 });

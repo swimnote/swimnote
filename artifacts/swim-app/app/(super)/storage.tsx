@@ -174,7 +174,7 @@ export default function StorageScreen() {
           <View style={s.rowMeta}>
             <Text style={s.metaTxt}>{fmtMb(p.usedMb)} / {fmtMb(p.totalMb)}</Text>
             {isDeletion && <><Text style={s.metaDot}>·</Text>
-              <Text style={[s.metaTxt, { color: DANGER, fontFamily: "Inter_700Bold" }]}>{hoursLeft(p.autoDeleteScheduledAt)}</Text></>}
+              <Text style={[s.metaTxt, { color: DANGER, fontFamily: "Pretendard-Bold" }]}>{hoursLeft(p.autoDeleteScheduledAt)}</Text></>}
           </View>
 
           {/* 과금 유도 CTA — 95% 이상 */}
@@ -231,7 +231,7 @@ export default function StorageScreen() {
       {/* 정책 배너 */}
       <View style={s.policyBanner}>
         <Text style={s.policyBannerTxt}>
-          <Text style={{ fontFamily: "Inter_700Bold" }}>80%</Text> 경고 → <Text style={{ fontFamily: "Inter_700Bold" }}>95%</Text> 차단 예정(CTA) → <Text style={{ fontFamily: "Inter_700Bold" }}>100%</Text> 업로드 차단
+          <Text style={{ fontFamily: "Pretendard-Bold" }}>80%</Text> 경고 → <Text style={{ fontFamily: "Pretendard-Bold" }}>95%</Text> 차단 예정(CTA) → <Text style={{ fontFamily: "Pretendard-Bold" }}>100%</Text> 업로드 차단
         </Text>
       </View>
 
@@ -406,50 +406,50 @@ export default function StorageScreen() {
 const s = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: "#DFF3EC" },
   policyBanner:   { flexDirection: "row", backgroundColor: "#F0F9FF", paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#BAE6FD" },
-  policyBannerTxt:{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#0369A1" },
+  policyBannerTxt:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0369A1" },
   tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   tabContent:     { paddingHorizontal: 12, paddingVertical: 6, gap: 4 },
   tab:            { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   tabActive:      { backgroundColor: "#E6FFFA" },
-  tabTxt:         { fontSize: 13, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  tabTxtActive:   { color: GREEN, fontFamily: "Inter_700Bold" },
+  tabTxt:         { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#6B7280" },
+  tabTxtActive:   { color: GREEN, fontFamily: "Pretendard-Bold" },
   tabBadge:       { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 7 },
-  tabBadgeTxt:    { fontSize: 10, fontFamily: "Inter_700Bold", color: DANGER },
+  tabBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Bold", color: DANGER },
   spikeBanner:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF1BF", paddingHorizontal: 14, paddingVertical: 9 },
-  spikeBannerTxt: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 16 },
+  spikeBannerTxt: { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 16 },
   row:            { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
   rowBlocked:     { borderLeftWidth: 4, borderLeftColor: DANGER, backgroundColor: "#FFF5F5" },
   rowDanger:      { borderLeftWidth: 3, borderLeftColor: WARN },
   rowWarn:        { borderLeftWidth: 3, borderLeftColor: "#FCD34D" },
   rowMain:        { flex: 1, gap: 4 },
   rowTop:         { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  opName:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  opName:         { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
   blockedTag:     { backgroundColor: "#F9DEDA", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
-  blockedTagTxt:  { fontSize: 9, fontFamily: "Inter_700Bold", color: DANGER },
+  blockedTagTxt:  { fontSize: 9, fontFamily: "Pretendard-Bold", color: DANGER },
   dangerTag:      { backgroundColor: "#FFF1BF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
-  dangerTagTxt:   { fontSize: 9, fontFamily: "Inter_700Bold", color: WARN },
+  dangerTagTxt:   { fontSize: 9, fontFamily: "Pretendard-Bold", color: WARN },
   warnTag:        { backgroundColor: "#FEF9C3", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
-  warnTagTxt:     { fontSize: 9, fontFamily: "Inter_700Bold", color: "#CA8A04" },
+  warnTagTxt:     { fontSize: 9, fontFamily: "Pretendard-Bold", color: "#CA8A04" },
   spikeTag:       { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FFF1BF", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
-  spikeTxt:       { fontSize: 9, fontFamily: "Inter_700Bold", color: WARN },
+  spikeTxt:       { fontSize: 9, fontFamily: "Pretendard-Bold", color: WARN },
   barRow:         { flexDirection: "row", alignItems: "center", gap: 6 },
   barBg:          { flex: 1, height: 7, borderRadius: 3.5, backgroundColor: "#F8FAFC", overflow: "hidden", position: "relative" },
   barFill:        { height: 7, borderRadius: 3.5 },
   barMark:        { position: "absolute", top: 0, bottom: 0, width: 1.5, backgroundColor: WARN, opacity: 0.5 },
-  pctTxt:         { fontSize: 12, fontFamily: "Inter_700Bold", width: 34, textAlign: "right" },
+  pctTxt:         { fontSize: 12, fontFamily: "Pretendard-Bold", width: 34, textAlign: "right" },
   rowMeta:        { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaTxt:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  metaTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   metaDot:        { fontSize: 10, color: "#D1D5DB" },
   ctaBar:         { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF1BF",
                     paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: "#FED7AA" },
-  ctaBarTxt:      { flex: 1, fontSize: 10, fontFamily: "Inter_400Regular", color: "#9A3412" },
+  ctaBarTxt:      { flex: 1, fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9A3412" },
   ctaCta:         { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: WARN },
-  ctaCtaTxt:      { fontSize: 10, fontFamily: "Inter_700Bold", color: "#fff" },
+  ctaCtaTxt:      { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#fff" },
   rowActions:     { gap: 6 },
   actionBtn:      { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, minWidth: 44, alignItems: "center" },
-  actionTxt:      { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  actionTxt:      { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   empty:          { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:       { fontSize: 14, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 });
 
 const m = StyleSheet.create({
@@ -457,31 +457,31 @@ const m = StyleSheet.create({
   sheet:          { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                     borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "80%", gap: 14 },
   handle:         { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:          { fontSize: 17, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:            { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: -8 },
+  title:          { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827" },
+  sub:            { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: -8 },
   infoBar:        { backgroundColor: "#F8FAFC", borderRadius: 8, padding: 8 },
   barBg:          { height: 8, borderRadius: 4, backgroundColor: "#E5E7EB", overflow: "hidden" },
   barFill:        { height: 8, borderRadius: 4 },
   section:        { gap: 8 },
-  label:          { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  label:          { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
   qtyRow:         { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   qtyBtn:         { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F1F5F9" },
   qtyBtnActive:   { backgroundColor: GREEN, borderColor: GREEN },
-  qtyTxt:         { fontSize: 13, fontFamily: "Inter_500Medium", color: "#111827" },
+  qtyTxt:         { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#111827" },
   input:          { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                    fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+                    fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
   costEstimate:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#E6FFFA", padding: 10, borderRadius: 10 },
-  costTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#065F46" },
+  costTxt:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#065F46" },
   btnRow:         { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
   cancelBtn:      { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
   cancelBtnFull:  { paddingVertical: 12, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center" },
-  cancelTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
+  cancelTxt:      { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
   saveBtn:        { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: GREEN },
-  saveTxt:        { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  saveTxt:        { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
   ctaOption:      { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12,
                     backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#E5E7EB" },
-  ctaOptionTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
-  ctaOptionDesc:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  ctaOptionTitle: { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827" },
+  ctaOptionDesc:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
   ctaBtn:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
-  ctaBtnTxt:      { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
+  ctaBtnTxt:      { fontSize: 12, fontFamily: "Pretendard-Bold", color: "#fff" },
 });

@@ -384,20 +384,20 @@ function WaitingActionSheet({
 const s = StyleSheet.create({
   tabRow:      { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   tabBtn:      { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
-  tabTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  tabCount:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textMuted },
+  tabTxt:      { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
+  tabCount:    { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textMuted },
   searchRow:   { flexDirection: "row", alignItems: "center", backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
-  searchInput: { flex: 1, height: 42, paddingHorizontal: 8, fontSize: 14, fontFamily: "Inter_400Regular", color: C.text },
+  searchInput: { flex: 1, height: 42, paddingHorizontal: 8, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   emptyBox:    { alignItems: "center", gap: 10, paddingVertical: 60 },
-  emptyText:   { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" },
-  emptyHint:   { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 4 },
+  emptyText:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
+  emptyHint:   { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", marginTop: 4 },
   toast: {
     position: "absolute", left: 24, right: 24,
     flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: "rgba(30,30,30,0.88)", borderRadius: 14,
     paddingVertical: 12, paddingHorizontal: 16,
   },
-  toastText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#fff", flex: 1 },
+  toastText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#fff", flex: 1 },
 });
 
 const sh = StyleSheet.create({
@@ -408,12 +408,12 @@ const sh = StyleSheet.create({
     padding: 20, paddingBottom: 36,
   },
   handleBar: { width: 36, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 16 },
-  name:      { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text, textAlign: "center", marginBottom: 6 },
+  name:      { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text, textAlign: "center", marginBottom: 6 },
   pendingBadge: {
     alignSelf: "center", paddingHorizontal: 10, paddingVertical: 3,
     borderRadius: 10, backgroundColor: "#FFF1BF", marginBottom: 14,
   },
-  pendingBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#B45309" },
+  pendingBadgeText: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#B45309" },
   options:   { gap: 8, marginBottom: 6, marginTop: 8 },
   option:    {
     flexDirection: "row", alignItems: "center", gap: 14,
@@ -421,8 +421,8 @@ const sh = StyleSheet.create({
     backgroundColor: C.background,
   },
   optIcon:   { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  optLabel:  { fontSize: 15, fontFamily: "Inter_700Bold" },
-  optSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  optLabel:  { fontSize: 15, fontFamily: "Pretendard-Bold" },
+  optSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   cancelBtn: { alignItems: "center", marginTop: 14 },
-  cancelText: { fontSize: 14, fontFamily: "Inter_500Medium", color: C.textMuted },
+  cancelText: { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.textMuted },
 });

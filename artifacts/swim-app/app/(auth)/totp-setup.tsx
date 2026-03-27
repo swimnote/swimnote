@@ -241,7 +241,7 @@ export default function TotpSetupScreen() {
                 <View style={styles.guideRow}>
                   <View style={[styles.guideNum, { backgroundColor: PURPLE }]}><Text style={styles.guideNumTxt}>1</Text></View>
                   <Text style={[styles.guideText, { color: "#5B21B6" }]}>
-                    App Store / Play Store에서 <Text style={{ fontFamily: "Inter_700Bold" }}>"Google Authenticator"</Text> 검색 후 설치
+                    App Store / Play Store에서 <Text style={{ fontFamily: "Pretendard-Bold" }}>"Google Authenticator"</Text> 검색 후 설치
                   </Text>
                 </View>
                 <View style={styles.guideRow}>
@@ -266,7 +266,7 @@ export default function TotpSetupScreen() {
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <Text style={[styles.cardTitle, { color: C.text }]}>1단계 — QR 코드 스캔</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
-              Google Authenticator 앱 열기 → <Text style={{ fontFamily: "Inter_700Bold" }}>+</Text> 버튼 → <Text style={{ fontFamily: "Inter_700Bold" }}>QR 코드 스캔</Text>
+              Google Authenticator 앱 열기 → <Text style={{ fontFamily: "Pretendard-Bold" }}>+</Text> 버튼 → <Text style={{ fontFamily: "Pretendard-Bold" }}>QR 코드 스캔</Text>
             </Text>
 
             {!!qrCode && (
@@ -447,12 +447,12 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "flex-start", gap: 8,
     padding: 12, borderRadius: 12,
   },
-  statusText: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1, lineHeight: 18 },
+  statusText: { fontSize: 13, fontFamily: "Pretendard-Medium", flex: 1, lineHeight: 18 },
   alertBox: {
     flexDirection: "row", alignItems: "flex-start", gap: 8,
     padding: 12, borderRadius: 12, borderWidth: 1,
   },
-  alertText: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1, lineHeight: 18 },
+  alertText: { fontSize: 13, fontFamily: "Pretendard-Medium", flex: 1, lineHeight: 18 },
   card: {
     borderRadius: 20, padding: 22, gap: 14,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
@@ -460,13 +460,13 @@ const styles = StyleSheet.create({
   },
   iconRow: { alignItems: "center" },
   iconBg: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
-  cardDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  cardTitle: { fontSize: 18, fontFamily: "Pretendard-Bold", textAlign: "center" },
+  cardDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   btn: {
     flexDirection: "row", height: 52, borderRadius: 14,
     alignItems: "center", justifyContent: "center", gap: 8,
   },
-  btnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  btnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
   qrWrapper: {
     alignItems: "center", padding: 16,
     backgroundColor: "#FFFFFF", borderRadius: 16,
@@ -476,31 +476,31 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 8,
     padding: 12, borderRadius: 12, borderWidth: 1.5,
   },
-  secretToggleTxt: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
+  secretToggleTxt: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium" },
   secretBox: { padding: 14, borderRadius: 12, borderWidth: 1, gap: 6 },
-  secretLabel: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
-  secretText: { fontSize: 14, fontFamily: "Inter_700Bold", letterSpacing: 2 },
-  secretHint: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  secretLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
+  secretText: { fontSize: 14, fontFamily: "Pretendard-Bold", letterSpacing: 2 },
+  secretHint: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   otpBoxRow: { flexDirection: "row", gap: 8, justifyContent: "center" },
   otpBox: {
     width: 44, height: 54, borderRadius: 12, borderWidth: 2,
     alignItems: "center", justifyContent: "center",
   },
-  otpBoxText: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  otpBoxText: { fontSize: 24, fontFamily: "Pretendard-Bold" },
   hiddenInput: { position: "absolute", opacity: 0, width: 1, height: 1 },
   cancelRow: { alignItems: "center", paddingVertical: 4 },
-  cancelText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  cancelText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   tipBox: {
     flexDirection: "row", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, alignItems: "flex-start",
   },
-  tipText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 18 },
+  tipText: { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1, lineHeight: 18 },
   guideCard: { padding: 16, borderRadius: 14, borderWidth: 1, gap: 12 },
-  guideTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  guideTitle: { fontSize: 14, fontFamily: "Pretendard-Bold" },
   guideRow: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   guideNum: {
     width: 20, height: 20, borderRadius: 10,
     alignItems: "center", justifyContent: "center", marginTop: 1, flexShrink: 0,
   },
-  guideNumTxt: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" },
-  guideText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 20 },
+  guideNumTxt: { fontSize: 11, fontFamily: "Pretendard-Bold", color: "#fff" },
+  guideText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1, lineHeight: 20 },
 });

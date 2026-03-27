@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
   container:   { flex: 1 },
   content:     { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 20 },
   iconBox:     { width: 96, height: 96, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  title:       { fontSize: 26, fontFamily: "Inter_700Bold" },
-  message:     { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 24 },
-  logoutText:  { fontSize: 13, fontFamily: "Inter_400Regular" },
+  title:       { fontSize: 26, fontFamily: "Pretendard-Bold" },
+  message:     { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 24 },
+  logoutText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });

@@ -259,17 +259,17 @@ export default function WithdrawnMembersScreen() {
                 </View>
                 <Text style={styles.deleteTitle}>영구 삭제 확인</Text>
                 <Text style={styles.deleteMsg}>
-                  <Text style={{ fontFamily: "Inter_700Bold" }}>{actionTarget.name}</Text>
+                  <Text style={{ fontFamily: "Pretendard-Bold" }}>{actionTarget.name}</Text>
                   {" "}회원을 영구 삭제합니다.{"\n\n"}
                   출결, 수업일지, 사진, 학부모 연결 등{"\n"}모든 데이터가 삭제되며{" "}
-                  <Text style={{ color: "#D96C6C", fontFamily: "Inter_700Bold" }}>복구할 수 없습니다.</Text>
+                  <Text style={{ color: "#D96C6C", fontFamily: "Pretendard-Bold" }}>복구할 수 없습니다.</Text>
                 </Text>
                 <View style={styles.deleteBtnRow}>
                   <Pressable style={[styles.deleteBtn, { backgroundColor: C.border }]} onPress={() => { setConfirmAction(null); setActionTarget(null); }}>
-                    <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary }}>취소</Text>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.textSecondary }}>취소</Text>
                   </Pressable>
                   <Pressable style={[styles.deleteBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => setDeleteStep(2)}>
-                    <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#D96C6C" }}>다음 단계</Text>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Bold", color: "#D96C6C" }}>다음 단계</Text>
                   </Pressable>
                 </View>
               </>
@@ -284,7 +284,7 @@ export default function WithdrawnMembersScreen() {
                 </Text>
                 <View style={styles.deleteBtnRow}>
                   <Pressable style={[styles.deleteBtn, { backgroundColor: C.border }]} onPress={() => setDeleteStep(1)}>
-                    <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary }}>이전</Text>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.textSecondary }}>이전</Text>
                   </Pressable>
                   <Pressable
                     style={[styles.deleteBtn, { backgroundColor: "#D96C6C" }]}
@@ -294,7 +294,7 @@ export default function WithdrawnMembersScreen() {
                     {saving ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                      <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" }}>영구 삭제</Text>
+                      <Text style={{ fontSize: 14, fontFamily: "Pretendard-Bold", color: "#fff" }}>영구 삭제</Text>
                     )}
                   </Pressable>
                 </View>
@@ -401,33 +401,33 @@ function MemberCard({
 const styles = StyleSheet.create({
   tabRow:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:         { flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2.5, borderBottomColor: "transparent" },
-  tabText:     { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  tabText:     { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
   infoBanner:  { paddingHorizontal: 16, paddingVertical: 8, marginBottom: 8 },
-  infoText:    { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  infoText:    { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   searchBox:   { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginBottom: 10 },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   empty:       { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
-  emptyText:   { fontSize: 15, fontFamily: "Inter_400Regular" },
+  emptyText:   { fontSize: 15, fontFamily: "Pretendard-Regular" },
   card:        { borderRadius: 14, padding: 14 },
   avatar:      { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  avatarTxt:   { fontSize: 14, fontFamily: "Inter_700Bold" },
-  memberName:  { fontSize: 15, fontFamily: "Inter_700Bold", color: C.text },
-  memberSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  avatarTxt:   { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  memberName:  { fontSize: 15, fontFamily: "Pretendard-Bold", color: C.text },
+  memberSub:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   tagBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
-  tagTxt:      { fontSize: 9, fontFamily: "Inter_700Bold" },
+  tagTxt:      { fontSize: 9, fontFamily: "Pretendard-Bold" },
   attBadge:    { alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 50 },
-  attNum:      { fontSize: 16, fontFamily: "Inter_700Bold", color: C.tint },
-  attLabel:    { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 1 },
+  attNum:      { fontSize: 16, fontFamily: "Pretendard-Bold", color: C.tint },
+  attLabel:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
   dateRow:     { marginBottom: 8 },
-  dateText:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
+  dateText:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   actionRow:   { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   actionBtn:   { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
-  actionBtnTxt:{ fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  actionBtnTxt:{ fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   backdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
   deleteModal: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 28, alignItems: "center", gap: 12, paddingBottom: 48 },
   deleteIcon:  { width: 60, height: 60, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  deleteTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
-  deleteMsg:   { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 },
+  deleteTitle: { fontSize: 18, fontFamily: "Pretendard-Bold", color: C.text },
+  deleteMsg:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 },
   deleteBtnRow:{ flexDirection: "row", gap: 12, width: "100%", marginTop: 4 },
   deleteBtn:   { flex: 1, alignItems: "center", paddingVertical: 13, borderRadius: 12 },
 });

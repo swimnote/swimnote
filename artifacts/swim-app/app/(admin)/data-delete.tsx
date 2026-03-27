@@ -272,7 +272,7 @@ export default function DataDeleteScreen() {
                   <View style={[s.menuIcon, { backgroundColor: selectedType.bg }]}>
                     <Feather name={selectedType.icon} size={18} color={selectedType.color} />
                   </View>
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#D96C6C" }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" }}>
                     {selectedType.label} · {ksMonths}개월 이상 전
                   </Text>
                 </View>
@@ -338,47 +338,47 @@ export default function DataDeleteScreen() {
 const s = StyleSheet.create({
   sectionHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 12 },
   sectionDot:    { width: 4, height: "100%" as any, borderRadius: 2, minHeight: 36, marginTop: 2 },
-  sectionTitle:  { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
-  sectionSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  sectionTitle:  { fontSize: 16, fontFamily: "Pretendard-Bold", color: C.text },
+  sectionSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
 
   card:         { borderRadius: 16, overflow: "hidden", backgroundColor: "#fff", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   menuRow:      { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },
   menuIcon:     { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  menuLabel:    { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
-  menuSub:      { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  menuLabel:    { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
+  menuSub:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
 
   infoBox:  { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 10, padding: 10, backgroundColor: "#DFF3EC", borderRadius: 10 },
-  infoText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#065F46", lineHeight: 18 },
+  infoText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#065F46", lineHeight: 18 },
 
   retentionRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, padding: 14 },
   rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   chipRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   chip:         { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#F1F5F9" },
-  chipText:     { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  chipText:     { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
 
   saveBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 46, borderRadius: 14, marginTop: 10 },
-  saveBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
+  saveBtnText: { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#fff" },
 
   warnBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FEF2F2", padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "#FECACA" },
-  warnText:   { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#D96C6C", lineHeight: 18 },
+  warnText:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#D96C6C", lineHeight: 18 },
 
-  stepLabel:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  stepLabel:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
   typeRow:      { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 16, borderWidth: 1.5 },
   monthChip:    { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
-  monthChipText:{ fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  monthChipText:{ fontSize: 14, fontFamily: "Pretendard-SemiBold" },
 
   primaryBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 50, borderRadius: 16 },
-  primaryBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  primaryBtnText: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
   secondaryBtn:   { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" },
-  secondaryBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  secondaryBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
 
   previewCard:  { backgroundColor: "#FEF2F2", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#FECACA" },
   previewRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  previewLabel: { fontSize: 14, fontFamily: "Inter_500Medium", color: "#111827" },
-  previewValue: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#D96C6C" },
+  previewLabel: { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#111827" },
+  previewValue: { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#D96C6C" },
 
-  pwInput:   { height: 50, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 14, paddingHorizontal: 16, fontSize: 15, fontFamily: "Inter_400Regular", backgroundColor: "#F1F5F9" },
+  pwInput:   { height: 50, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 14, paddingHorizontal: 16, fontSize: 15, fontFamily: "Pretendard-Regular", backgroundColor: "#F1F5F9" },
   resultCard:{ alignItems: "center", gap: 16, paddingVertical: 32, backgroundColor: "#F1F5F9", borderRadius: 18 },
   resultIcon:{ width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  resultMsg: { fontSize: 16, fontFamily: "Inter_700Bold", textAlign: "center", paddingHorizontal: 16 },
+  resultMsg: { fontSize: 16, fontFamily: "Pretendard-Bold", textAlign: "center", paddingHorizontal: 16 },
 });

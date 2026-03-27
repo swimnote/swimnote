@@ -401,7 +401,7 @@ export default function MakeupsScreen() {
                   {expireInfo && (
                     <View style={s.infoRow}>
                       <Feather name="clock" size={13} color={expireInfo.color} />
-                      <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Inter_600SemiBold" }]}>{expireInfo.text}</Text>
+                      <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-SemiBold" }]}>{expireInfo.text}</Text>
                     </View>
                   )}
                   {mk.assigned_class_group_name && (
@@ -483,12 +483,12 @@ export default function MakeupsScreen() {
                           {expireInfo && (
                             <View style={s.infoRow}>
                               <Feather name="clock" size={12} color={expireInfo.color} />
-                              <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Inter_600SemiBold" }]}>{expireInfo.text}</Text>
+                              <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-SemiBold" }]}>{expireInfo.text}</Text>
                             </View>
                           )}
                         </View>
                         <View style={{ backgroundColor: "#EEDDF5", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-                          <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#7C3AED" }}>대리보강</Text>
+                          <Text style={{ fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" }}>대리보강</Text>
                         </View>
                       </View>
                       <Pressable
@@ -496,7 +496,7 @@ export default function MakeupsScreen() {
                         onPress={() => setCompleteTarget(mk)}
                       >
                         <Feather name="check-circle" size={15} color="#7C3AED" />
-                        <Text style={[s.actionTxt, { color: "#7C3AED", fontFamily: "Inter_700Bold" }]}>보강 완료 확인</Text>
+                        <Text style={[s.actionTxt, { color: "#7C3AED", fontFamily: "Pretendard-Bold" }]}>보강 완료 확인</Text>
                       </Pressable>
                     </View>
                   );
@@ -566,7 +566,7 @@ export default function MakeupsScreen() {
                     >
                       <Feather name={isSelected ? "check-circle" : "circle"} size={16} color={isSelected ? themeColor : C.textMuted} />
                       <View style={{ flex: 1 }}>
-                        <Text style={[s.className, { fontSize: 14, fontFamily: "Inter_600SemiBold", color: isSelected ? themeColor : C.text }]}>{cg.name}</Text>
+                        <Text style={[s.className, { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: isSelected ? themeColor : C.text }]}>{cg.name}</Text>
                         <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
                       </View>
                       <Text style={[s.infoTxt, { color: C.textMuted }]}>잔여 {cg.available_slots ?? "?"}석</Text>
@@ -632,7 +632,7 @@ export default function MakeupsScreen() {
                         >
                           <Feather name={isSelected ? "check-circle" : "circle"} size={16} color={isSelected ? "#4F46E5" : C.textMuted} />
                           <View style={{ flex: 1 }}>
-                            <Text style={[s.className, { fontSize: 14, fontFamily: "Inter_600SemiBold", color: isSelected ? "#4F46E5" : C.text }]}>
+                            <Text style={[s.className, { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: isSelected ? "#4F46E5" : C.text }]}>
                               {t.name}{isMe ? " (나)" : ""}
                             </Text>
                           </View>
@@ -664,11 +664,11 @@ export default function MakeupsScreen() {
                   <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#E6FFFA", alignItems: "center", justifyContent: "center" }}>
                     <Feather name="check" size={28} color="#2EC4B6" />
                   </View>
-                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: C.text }}>인계 완료</Text>
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 }}>
+                  <Text style={{ fontSize: 16, fontFamily: "Pretendard-Bold", color: C.text }}>인계 완료</Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 }}>
                     {handoverDoneMsg}
                   </Text>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" }}>
+                  <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" }}>
                     메신저 대화방에 자동 알림이 전송되었습니다.
                   </Text>
                   <Pressable style={[s.confirmBtn, { backgroundColor: "#2EC4B6", alignSelf: "stretch" }]} onPress={closeHandover}>
@@ -719,37 +719,37 @@ export default function MakeupsScreen() {
 const s = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: "#F8FAFC" },
   tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
-  tabTxt:          { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  tabTxt:          { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
   tabBadge:        { width: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },
-  tabBadgeTxt:     { fontSize: 9, fontFamily: "Inter_700Bold", color: "#fff" },
+  tabBadgeTxt:     { fontSize: 9, fontFamily: "Pretendard-Bold", color: "#fff" },
   list:            { padding: 14, gap: 10 },
-  groupLabel:      { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textMuted, marginBottom: 6, marginTop: 4 },
+  groupLabel:      { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textMuted, marginBottom: 6, marginTop: 4 },
   empty:           { alignItems: "center", gap: 12, paddingVertical: 60 },
-  emptyTxt:        { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" },
+  emptyTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
   card:            { borderRadius: 16, padding: 14, gap: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   cardTop:         { flexDirection: "row", alignItems: "flex-start" },
-  studentName:     { fontSize: 16, fontFamily: "Inter_700Bold", color: C.text },
-  className:       { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary },
+  studentName:     { fontSize: 16, fontFamily: "Pretendard-Bold", color: C.text },
+  className:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   statusBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  statusTxt:       { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  statusTxt:       { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   infoRow:         { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  infoTxt:         { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, flex: 1 },
+  infoTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
   btnRow:          { flexDirection: "row", gap: 8, marginTop: 4 },
   actionBtn:       { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 9, borderRadius: 10 },
-  actionTxt:       { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  actionTxt:       { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   assignedInfo:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 10, marginBottom: 10 },
-  assignedInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#7C3AED", lineHeight: 18 },
+  assignedInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED", lineHeight: 18 },
   backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   sheet:           { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "65%", paddingBottom: 32 },
   sheetHandle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
   sheetHeader:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
-  sheetTitle:      { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  sheetSub:        { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 2 },
+  sheetTitle:      { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text },
+  sheetSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   classRow:        { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, borderColor: "transparent", marginHorizontal: 12, marginBottom: 4, borderRadius: 10 },
   confirmBtn:      { height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  confirmTxt:      { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  confirmTxt:      { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
   menuOption:      { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.card, borderRadius: 14, padding: 16 },
   menuIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  menuTitle:       { fontSize: 15, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 3 },
-  menuDesc:        { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, lineHeight: 17 },
+  menuTitle:       { fontSize: 15, fontFamily: "Pretendard-Bold", color: C.text, marginBottom: 3 },
+  menuDesc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 17 },
 });

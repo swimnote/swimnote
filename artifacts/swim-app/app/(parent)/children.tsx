@@ -222,35 +222,35 @@ export default function ChildrenScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginTop: 4 },
+  sectionTitle: { fontSize: 16, fontFamily: "Pretendard-Bold", marginTop: 4 },
 
   emptyBox: { borderRadius: 16, padding: 28, alignItems: "center", gap: 8 },
-  emptyTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  emptyTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
 
   childCard: {
     borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center", gap: 12,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
   childAvatar: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  childAvatarTxt: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  childName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  childClass: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  childAvatarTxt: { fontSize: 20, fontFamily: "Pretendard-Bold" },
+  childName: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  childClass: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
   reqCard: {
     borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 12,
   },
   reqAvatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   reqStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  reqStatusTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  reqStatusTxt: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
 
   formCard: { borderRadius: 16, padding: 16, gap: 10 },
-  formLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  formNote: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  formLabel: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  formNote: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   input: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 14, fontFamily: "Inter_400Regular",
+    fontSize: 14, fontFamily: "Pretendard-Regular",
   },
   inputMulti: { minHeight: 72, textAlignVertical: "top" },
   submitBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 4 },
-  submitBtnTxt: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  submitBtnTxt: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

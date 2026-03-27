@@ -154,7 +154,7 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 <View style={[p.diaryEmpty, { borderColor: C.border }]}>
                   <Feather name="edit-3" size={32} color={C.textMuted} />
                   <Text style={[p.empty, { color: C.textMuted }]}>아직 일지가 작성되지 않았습니다</Text>
-                  <Text style={[{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" }]}>{date} 기준</Text>
+                  <Text style={[{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" }]}>{date} 기준</Text>
                 </View>
               )
             )}
@@ -192,30 +192,30 @@ function StatusBadge({ label, bg, color }: { label: string; bg: string; color: s
 
 const p = StyleSheet.create({
   backRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1 },
-  backText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  backText: { fontSize: 14, fontFamily: "Pretendard-Medium" },
   summaryCard: { margin: 20, borderRadius: 16, padding: 16, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  className: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  subInfo: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 2 },
+  className: { fontSize: 18, fontFamily: "Pretendard-Bold", marginBottom: 4 },
+  subInfo: { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 2 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  badgeText: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   statRow: { flexDirection: "row", borderTopWidth: 1, marginTop: 12, paddingTop: 12 },
   statItem: { flex: 1, alignItems: "center", gap: 3 },
-  statVal: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  statVal: { fontSize: 20, fontFamily: "Pretendard-Bold" },
+  statLabel: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   divider: { width: 1, marginVertical: 4 },
   tabBar: { flexDirection: "row", borderBottomWidth: 1 },
   tabItem: { flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2.5, borderBottomColor: "transparent" },
-  tabLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  tabLabel: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
   listRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   avatar: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  listName: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
+  listName: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium" },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  statusText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  statusText: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   diaryCard: { borderRadius: 12, padding: 16, borderLeftWidth: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  diaryTeacher: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  diaryTime: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  diaryContent: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
+  diaryTeacher: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  diaryTime: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  diaryContent: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22 },
   diaryEmpty: { borderWidth: 1.5, borderStyle: "dashed", borderRadius: 16, padding: 40, alignItems: "center", gap: 10 },
-  empty: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 20 },
+  empty: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", marginTop: 20 },
   shadow: {},
 });

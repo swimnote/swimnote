@@ -351,30 +351,30 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
 const dc = StyleSheet.create({
   wrap:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 4 },
   header:     { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
   refreshBtn: { padding: 4 },
   loadingBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB" },
-  loadingTxt: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  loadingTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   errorBox:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, backgroundColor: "#FDE8E8", borderRadius: 12 },
-  errorTxt:   { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: DANGER },
-  retryTxt:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: DANGER },
+  errorTxt:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: DANGER },
+  retryTxt:   { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: DANGER },
   card:       { backgroundColor: "#FAFAF9", borderRadius: 10, padding: 10, gap: 2 },
   cardTop:    { flexDirection: "row", alignItems: "center", gap: 8 },
   iconWrap:   { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  cardLabel:  { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  cardSub:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 1 },
-  cardSub2:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginLeft: 40 },
+  cardLabel:  { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  cardSub:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 1 },
+  cardSub2:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginLeft: 40 },
   statusBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
-  statusTxt:  { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  errorLine:  { fontSize: 10, fontFamily: "Inter_400Regular", color: DANGER, marginLeft: 40, marginTop: 2 },
+  statusTxt:  { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  errorLine:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: DANGER, marginLeft: 40, marginTop: 2 },
   btnRow:     { flexDirection: "row", gap: 8, marginTop: 4 },
   manualBtn:  { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
                 backgroundColor: P, borderRadius: 10, paddingVertical: 10 },
-  manualBtnTxt:{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+  manualBtnTxt:{ fontSize: 13, fontFamily: "Pretendard-Bold", color: "#fff" },
   poolBtn:    { flexDirection: "row", alignItems: "center", gap: 5,
                 backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
-  poolBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: P },
-  checkedAt:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", textAlign: "right" },
+  poolBtnTxt: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: P },
+  checkedAt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", textAlign: "right" },
 });
 
 // ── 백업 카드 ─────────────────────────────────────────────────────────────────
@@ -458,15 +458,15 @@ const bc = StyleSheet.create({
   card:     { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E5E7EB" },
   top:      { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   badge:    { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeTxt: { fontSize: 10, fontFamily: "Inter_700Bold" },
-  time:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginLeft: "auto" },
-  name:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 8 },
+  badgeTxt: { fontSize: 10, fontFamily: "Pretendard-Bold" },
+  time:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginLeft: "auto" },
+  name:     { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 8 },
   meta:     { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaVal:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  metaVal:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280" },
   actions:  { flexDirection: "row", gap: 8 },
   btn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7 },
-  btnTxt:   { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  btnTxt:   { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
 });
 
 // ── 수동 백업 생성 모달 ───────────────────────────────────────────────────────
@@ -517,13 +517,13 @@ function CreateModal({
 
 const cr = StyleSheet.create({
   header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
-  label:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 8 },
-  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  title:      { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#111827" },
+  label:      { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827", marginBottom: 8 },
+  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
   confirmBtn: { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
-  confirmTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  confirmTxt: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
   infoBox:    { flexDirection: "row", gap: 8, backgroundColor: "#EFF6FF", borderRadius: 8, padding: 12, alignItems: "flex-start" },
-  infoTxt:    { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#0284C7", lineHeight: 18 },
+  infoTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0284C7", lineHeight: 18 },
 });
 
 // ── 복구 확인 모달 ────────────────────────────────────────────────────────────
@@ -582,16 +582,16 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
 
 const rm = StyleSheet.create({
   header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:      { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
+  title:      { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#111827" },
   warningBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14 },
-  warningTxt: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "#92400E", lineHeight: 20 },
+  warningTxt: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#92400E", lineHeight: 20 },
   infoBox:    { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 14, gap: 4 },
-  infoLabel:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
-  infoVal:    { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", marginBottom: 6 },
-  inputLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 6 },
-  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827", height: 90 },
+  infoLabel:  { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  infoVal:    { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 6 },
+  inputLabel: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827", marginBottom: 6 },
+  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827", height: 90 },
   confirmBtn: { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
-  confirmTxt: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  confirmTxt: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
 });
 
 // ── 자동 백업 설정 패널 ───────────────────────────────────────────────────────
@@ -700,19 +700,19 @@ function AutoBackupPanel({ token }: { token: string | null }) {
 const ap = StyleSheet.create({
   wrap:        { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 10, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 10 },
   row:         { flexDirection: "row", alignItems: "center", gap: 10 },
-  label:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827", flex: 1 },
-  sub:         { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  label:       { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827", flex: 1 },
+  sub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
   divider:     { height: 1, backgroundColor: "#F8FAFC" },
   segRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
   seg:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: "#F8FAFC" },
   segActive:   { backgroundColor: P },
-  segTxt:      { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  segTxt:      { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
   segActiveTxt:{ color: "#fff" },
   hourPicker:  { flexDirection: "row", alignItems: "center", gap: 8 },
   hourBtn:     { width: 30, height: 30, borderRadius: 8, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
-  hourVal:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827", minWidth: 50, textAlign: "center" },
+  hourVal:     { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827", minWidth: 50, textAlign: "center" },
   saveBtn:     { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12, marginTop: 4 },
-  saveTxt:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
+  saveTxt:     { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#fff" },
 });
 
 // ── 전체 복구 모달 ────────────────────────────────────────────────────────────
@@ -860,7 +860,7 @@ function FullRestoreModal({
             {/* 확인 문구 입력 */}
             <View>
               <Text style={fr.inputLabel}>
-                확인 입력 — 아래에 <Text style={{ fontFamily: "Inter_700Bold", color: DANGER }}>'전체 복구'</Text>를 입력하세요
+                확인 입력 — 아래에 <Text style={{ fontFamily: "Pretendard-Bold", color: DANGER }}>'전체 복구'</Text>를 입력하세요
               </Text>
               <TextInput style={[fr.input, confirmText === "전체 복구" && { borderColor: DANGER }]}
                 value={confirmText} onChangeText={setConfirmText}
@@ -886,29 +886,29 @@ function FullRestoreModal({
 
 const fr = StyleSheet.create({
   header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:          { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
-  stepTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  title:          { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#111827" },
+  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
   backupList:     { maxHeight: 220, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10 },
   backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F8FAFC", flexDirection: "row", alignItems: "center", gap: 10 },
   backupItemSel:  { backgroundColor: "#F3EEFF" },
-  backupItemDate: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  backupItemMeta: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
-  backupItemNote: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
+  backupItemDate: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  backupItemMeta: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  backupItemNote: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 1 },
   selectedBox:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
-  selectedTxt:    { fontSize: 12, fontFamily: "Inter_600SemiBold", color: P, flex: 1 },
+  selectedTxt:    { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: P, flex: 1 },
   warnBox:        { flexDirection: "row", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14, alignItems: "flex-start" },
-  warnTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#92400E", marginBottom: 2 },
-  warnTxt:        { fontSize: 12, fontFamily: "Inter_400Regular", color: "#92400E", lineHeight: 18 },
+  warnTitle:      { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#92400E", marginBottom: 2 },
+  warnTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 },
   emptyBox:       { backgroundColor: "#F8FAFC", borderRadius: 8, padding: 16, alignItems: "center" },
-  emptyTxt:       { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  inputLabel:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 8 },
-  input:          { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  emptyTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827", marginBottom: 8 },
+  input:          { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
   execBtn:        { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
-  execTxt:        { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  execTxt:        { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
   resultWrap:     { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 16 },
   resultIcon:     { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
-  resultTitle:    { fontSize: 20, fontFamily: "Inter_700Bold" },
-  resultMsg:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center", lineHeight: 22 },
+  resultTitle:    { fontSize: 20, fontFamily: "Pretendard-Bold" },
+  resultMsg:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#6B7280", textAlign: "center", lineHeight: 22 },
 });
 
 // ── 수영장별 복구 모달 ─────────────────────────────────────────────────────────
@@ -1080,7 +1080,7 @@ function PoolRestoreModal({
             {selectedPool && (
               <View style={pr.selectedPoolBox}>
                 <Feather name="anchor" size={14} color={P} />
-                <Text style={pr.selectedPoolTxt}>선택된 수영장: <Text style={{ fontFamily: "Inter_700Bold" }}>{selectedPool.name}</Text></Text>
+                <Text style={pr.selectedPoolTxt}>선택된 수영장: <Text style={{ fontFamily: "Pretendard-Bold" }}>{selectedPool.name}</Text></Text>
               </View>
             )}
 
@@ -1137,7 +1137,7 @@ function PoolRestoreModal({
               <View>
                 <Text style={pr.inputLabel}>
                   확인 입력 — 수영장명{" "}
-                  <Text style={{ fontFamily: "Inter_700Bold", color: DANGER }}>'{selectedPool.name}'</Text>을 입력하세요
+                  <Text style={{ fontFamily: "Pretendard-Bold", color: DANGER }}>'{selectedPool.name}'</Text>을 입력하세요
                 </Text>
                 <TextInput style={[fr.input, confirmName === selectedPool.name && { borderColor: DANGER }]}
                   value={confirmName} onChangeText={setConfirmName}
@@ -1165,23 +1165,23 @@ function PoolRestoreModal({
 
 const pr = StyleSheet.create({
   header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:          { fontSize: 16, fontFamily: "Inter_700Bold", color: "#111827" },
-  stepTitle:      { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  title:          { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#111827" },
+  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
   searchBox:      { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  searchInput:    { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: "#111827" },
+  searchInput:    { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
   resultList:     { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, overflow: "hidden", maxHeight: 200 },
   noResult:       { padding: 16, alignItems: "center" },
-  noResultTxt:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  noResultTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   poolItem:       { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F8FAFC", flexDirection: "row", alignItems: "center", gap: 8 },
   poolItemSel:    { backgroundColor: "#F3EEFF" },
-  poolName:       { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  poolSub:        { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
+  poolName:       { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  poolSub:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 1 },
   selectedPoolBox:{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
-  selectedPoolTxt:{ fontSize: 13, fontFamily: "Inter_400Regular", color: P, flex: 1 },
+  selectedPoolTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: P, flex: 1 },
   backupList:     { maxHeight: 200, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10 },
   backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#F8FAFC", flexDirection: "row", alignItems: "center", gap: 10 },
   backupItemSel:  { backgroundColor: "#F3EEFF" },
-  inputLabel:     { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#111827", marginBottom: 8 },
+  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827", marginBottom: 8 },
 });
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
@@ -1458,18 +1458,18 @@ const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#F1F5F9" },
   summaryRow:    { flexDirection: "row", gap: 8 },
   summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 4, borderWidth: 1, borderColor: "#E5E7EB" },
-  summaryVal:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
-  summaryKey:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  summaryVal:    { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
+  summaryKey:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   btnRow:        { flexDirection: "row", gap: 8 },
   actionBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: P, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },
-  actionBtnTxt:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+  actionBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#fff" },
   outlineBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
-  outlineBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: P },
+  outlineBtnTxt: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: P },
   tab:           { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#F8FAFC" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  tabTxt:        { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
   tabActiveTxt:  { color: "#fff" },
   empty:         { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:      { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#9CA3AF" },
-  emptySubTxt:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#9CA3AF" },
+  emptySubTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 });

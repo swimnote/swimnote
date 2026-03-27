@@ -412,7 +412,7 @@ export default function MyScheduleScreen() {
           <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }}
             onPress={() => { setShowMoveSheet(false); setMoveStudent(null); }} />
           <View style={{ backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 }}>
-            <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 4 }}>반이동</Text>
+            <Text style={{ fontSize: 15, fontFamily: "Pretendard-Bold", color: C.text, marginBottom: 4 }}>반이동</Text>
             <Text style={{ fontSize: 12, color: C.textSecondary, marginBottom: 16 }}>
               {moveStudent?.name} 학생을 이동할 반을 선택하세요
             </Text>
@@ -427,7 +427,7 @@ export default function MyScheduleScreen() {
                   borderBottomWidth: 1, borderBottomColor: "#F0EDE9" }}
                 onPress={() => handleMoveToClass(og.id)}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text }}>{og.name}</Text>
+                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text }}>{og.name}</Text>
                   <Text style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>{og.schedule_days} · {og.schedule_time}</Text>
                 </View>
                 {moveSheetSaving
@@ -667,36 +667,36 @@ const s = StyleSheet.create({
   titleArea:    { backgroundColor: "#FAFBFC", borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB",
                   paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   titleRow:     { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  title:        { fontSize: 19, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  titleSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  title:        { fontSize: 19, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  titleSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   rightBtns:    { flexDirection: "row", gap: 4, alignItems: "center" },
   selBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10 },
-  selBtnText:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#fff" },
+  selBtnText:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#fff" },
   mgmtBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10, borderWidth: 1, backgroundColor: "#FAFBFC" },
-  mgmtBtnText:  { fontSize: 12, fontFamily: "Inter_500Medium" },
+  mgmtBtnText:  { fontSize: 12, fontFamily: "Pretendard-Medium" },
   createBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10 },
-  createBtnText:{ color: "#fff", fontSize: 13, fontFamily: "Inter_500Medium" },
+  createBtnText:{ color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
   controlRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   viewToggle:   { flexDirection: "row", gap: 5 },
   toggleBtn:    { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FAFBFC" },
-  toggleText:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
+  toggleText:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
   diaryIndexBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  diaryIndexBtnText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  diaryIndexBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium" },
   subHeader:    { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 12,
                   backgroundColor: "#FAFBFC", borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB" },
   subActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
                   gap: 5, paddingVertical: 9, borderRadius: 10 },
-  subActionText:{ fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  subActionText:{ fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   studentList:  { padding: 12, gap: 8, paddingBottom: 120 },
-  listHeader:   { fontSize: 12, fontFamily: "Inter_500Medium", color: C.textMuted, marginBottom: 4 },
+  listHeader:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.textMuted, marginBottom: 4 },
   studentRow:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 14 },
-  studentName:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text },
-  studentSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  studentName:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text },
+  studentSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   stBtn:        { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8,
                   backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2DDD9" },
-  stBtnTxt:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  stBtnTxt:     { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   emptyBox:     { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted },
+  emptyText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
   emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
-  emptyHintText:   { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
+  emptyHintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });

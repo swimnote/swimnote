@@ -77,7 +77,7 @@ export default function DataStorageByAccountScreen() {
           {staff.length === 0 ? (
             <View style={{ alignItems: "center", paddingTop: 60, gap: 12 }}>
               <Feather name="users" size={40} color={C.textMuted} />
-              <Text style={{ fontSize: 15, fontFamily: "Inter_400Regular", color: C.textMuted }}>계정 정보가 없습니다</Text>
+              <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textMuted }}>계정 정보가 없습니다</Text>
             </View>
           ) : (
             <View style={[s.card, { backgroundColor: C.card }]}>
@@ -134,13 +134,13 @@ export default function DataStorageByAccountScreen() {
                   <View style={[sm.catIcon, { backgroundColor: cat.bg }]}>
                     <Feather name={cat.icon} size={14} color={cat.color} />
                   </View>
-                  <Text style={{ flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: C.text }}>{cat.label}</Text>
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: cat.color }}>{fmtBytes((selected as any)?.[cat.key] ?? 0)}</Text>
+                  <Text style={{ flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text }}>{cat.label}</Text>
+                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-Bold", color: cat.color }}>{fmtBytes((selected as any)?.[cat.key] ?? 0)}</Text>
                 </View>
               ))}
               <View style={[sm.total, { borderColor: themeColor + "30", backgroundColor: themeColor + "08" }]}>
-                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: themeColor }}>합계</Text>
-                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: themeColor }}>{fmtBytes(selected?.total_bytes ?? 0)}</Text>
+                <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: themeColor }}>합계</Text>
+                <Text style={{ fontSize: 18, fontFamily: "Pretendard-Bold", color: themeColor }}>{fmtBytes(selected?.total_bytes ?? 0)}</Text>
               </View>
             </View>
             <Pressable style={sm.closeBtn} onPress={() => setSelected(null)}>
@@ -156,12 +156,12 @@ export default function DataStorageByAccountScreen() {
 const sm = StyleSheet.create({
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:       { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:       { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:         { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 4 },
+  title:       { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#111827" },
+  sub:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#6B7280", marginBottom: 4 },
   catIcon:     { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   total:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderRadius: 14, borderWidth: 1, marginTop: 4 },
   closeBtn:    { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" },
-  closeBtnText:{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  closeBtnText:{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
 });
 
 const s = StyleSheet.create({
@@ -169,10 +169,10 @@ const s = StyleSheet.create({
   row:          { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
   rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   avatar:       { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  avatarText:   { fontSize: 16, fontFamily: "Inter_700Bold" },
-  name:         { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  bytes:        { fontSize: 14, fontFamily: "Inter_700Bold", color: "#111827" },
+  avatarText:   { fontSize: 16, fontFamily: "Pretendard-Bold" },
+  name:         { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  bytes:        { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827" },
   miniGaugeWrap:{ height: 5, backgroundColor: "#E5E7EB", borderRadius: 3, overflow: "hidden" },
   miniGaugeBar: { height: 5, borderRadius: 3 },
-  pctText:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  pctText:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 });

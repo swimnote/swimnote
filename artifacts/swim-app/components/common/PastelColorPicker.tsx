@@ -97,9 +97,9 @@ const pc = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: C.border,
   },
   labelRow: { flexDirection: "row", alignItems: "center", gap: 7 },
-  label: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  label: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary },
   previewRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  previewText: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
+  previewText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
   circle: {
     width: 22, height: 22, borderRadius: 11,
   },

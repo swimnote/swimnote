@@ -236,7 +236,7 @@ export default function PoolSettingsScreen() {
                 keyboardType="number-pad"
                 maxLength={3}
               />
-              <Text style={[{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted, paddingRight: 4 }]}>명</Text>
+              <Text style={[{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted, paddingRight: 4 }]}>명</Text>
             </View>
           </View>
           {capacityMsg ? (
@@ -355,25 +355,25 @@ export default function PoolSettingsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16 },
-  headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  headerTitle: { fontSize: 24, fontFamily: "Pretendard-Bold" },
   saveBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, minWidth: 60, alignItems: "center" },
-  saveBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" },
+  saveBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Bold" },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },
   msgBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10 },
-  errText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  errText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   card: { borderRadius: 16, padding: 18, gap: 14, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3 },
-  sectionTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  sectionTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
   field: { gap: 4 },
-  label: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  hint: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  label: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  hint: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   inputBox: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 48 },
   inputIcon: { marginRight: 8 },
-  input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  input: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   previewBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10 },
-  previewText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+  previewText: { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1 },
   statusRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  statusLabel: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  statusValue: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  statusLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  statusValue: { fontSize: 13, fontFamily: "Pretendard-Medium" },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  badgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  badgeText: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
 });

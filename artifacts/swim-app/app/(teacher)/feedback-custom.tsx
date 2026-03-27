@@ -377,21 +377,21 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: C.border, gap: 10,
   },
   backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
-  subTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
+  subTitle: { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text },
 
   resetAllBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: 8, borderWidth: 1, borderColor: "#FCA5A5", backgroundColor: "#FEF2F2",
   },
-  resetAllBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#D96C6C" },
+  resetAllBtnText: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
 
   descBox: {
     flexDirection: "row", alignItems: "flex-start", gap: 8,
     marginHorizontal: 14, marginTop: 10, marginBottom: 4,
     paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
   },
-  descText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  descText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
 
   tabBar: {
     flexDirection: "row", paddingHorizontal: 14, gap: 8, marginTop: 10, marginBottom: 4,
@@ -401,23 +401,23 @@ const s = StyleSheet.create({
     gap: 4, paddingVertical: 8, borderRadius: 12,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  tabText: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   tabBadge: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
-  tabBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold" },
+  tabBadgeText: { fontSize: 10, fontFamily: "Pretendard-Bold" },
 
   catControl: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 14, paddingVertical: 8,
     borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  countText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  countText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
   catBtns: { flexDirection: "row", gap: 8 },
   catBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
     borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
-  catBtnText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
+  catBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#6B7280" },
 
   listContent: { paddingHorizontal: 14, paddingTop: 8, gap: 8 },
 
@@ -429,8 +429,8 @@ const s = StyleSheet.create({
     width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center",
     flexShrink: 0,
   },
-  rowIndexText: { fontSize: 12, fontFamily: "Inter_700Bold" },
-  rowText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  rowIndexText: { fontSize: 12, fontFamily: "Pretendard-Bold" },
+  rowText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
   rowActions: { flexDirection: "row", gap: 6, flexShrink: 0 },
   rowBtn: {
     width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center",
@@ -438,7 +438,7 @@ const s = StyleSheet.create({
   },
 
   emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 10 },
-  emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
 
   addBtnWrap: {
     position: "absolute", bottom: 0, left: 0, right: 0,
@@ -449,7 +449,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     height: 50, borderRadius: 14,
   },
-  addBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+  addBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Bold" },
 
   /* 모달 공통 */
   modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
@@ -458,21 +458,21 @@ const s = StyleSheet.create({
     backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
     paddingHorizontal: 20, paddingTop: 20, gap: 12,
   },
-  modalTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: C.text },
-  modalSub:   { fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: -4 },
+  modalTitle: { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text },
+  modalSub:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -4 },
   textInput: {
     borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 14, fontFamily: "Inter_400Regular", color: C.text,
+    fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text,
     minHeight: 80, textAlignVertical: "top",
     backgroundColor: C.background,
   },
-  charCount: { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "right", marginTop: -6 },
-  errorText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "#D96C6C" },
+  charCount: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "right", marginTop: -6 },
+  errorText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#D96C6C" },
   modalBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
   modalBtn: {
     flex: 1, height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center",
   },
   modalBtnCancel: { borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
-  modalBtnCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  modalBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  modalBtnCancelText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
+  modalBtnText: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
 });

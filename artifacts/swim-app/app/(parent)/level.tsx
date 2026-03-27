@@ -141,12 +141,12 @@ export default function ParentLevelScreen() {
             <View style={[s.nextCard, { backgroundColor: "#FFFBEB", borderColor: "#FEF3C7" }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Feather name="arrow-right-circle" size={18} color="#D97706" />
-                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#D97706" }}>
+                <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D97706" }}>
                   다음 목표: 레벨 {levelInfo.next_level.level_name}
                 </Text>
               </View>
               {levelInfo.next_level.promotion_test_rule ? (
-                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#92400E", marginTop: 6, lineHeight: 20 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", marginTop: 6, lineHeight: 20 }}>
                   {levelInfo.next_level.promotion_test_rule}
                 </Text>
               ) : null}
@@ -204,10 +204,10 @@ const s = StyleSheet.create({
     borderRadius: 24, padding: 28, alignItems: "center", gap: 8,
     shadowColor: "#0000002A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 4,
   },
-  currentLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.8)" },
-  currentLevel: { fontSize: 52, fontFamily: "Inter_700Bold", color: "#fff", marginTop: 4 },
-  currentLevelName: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff" },
-  currentDate: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)" },
+  currentLabel: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "rgba(255,255,255,0.8)" },
+  currentLevel: { fontSize: 52, fontFamily: "Pretendard-Bold", color: "#fff", marginTop: 4 },
+  currentLevelName: { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#fff" },
+  currentDate: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.8)" },
 
   descCard: {
     marginTop: 14, borderRadius: 16,
@@ -215,28 +215,28 @@ const s = StyleSheet.create({
   },
   descBlock: { padding: 14 },
   descBorderTop: { borderTopWidth: 1, borderTopColor: "#F0EDE9" },
-  descTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  descText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
+  descTitle: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  descText: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22 },
 
   nextCard: {
     marginTop: 12, borderRadius: 14, padding: 14, borderWidth: 1,
   },
 
-  sectionTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  sectionTitle: { fontSize: 17, fontFamily: "Pretendard-Bold" },
   timelineRow: { flexDirection: "row", gap: 12 },
   timelineLeft: { alignItems: "center", width: 16 },
   timelineDot: { width: 14, height: 14, borderRadius: 7, marginTop: 16 },
   timelineLine: { width: 2, flex: 1, marginTop: 4 },
   timelineCard: { borderRadius: 16, padding: 14 },
   timelineHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  timelineLevel: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  timelineLevel: { fontSize: 20, fontFamily: "Pretendard-Bold" },
   currentBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  currentBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  timelineDate: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
-  timelineTeacher: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  timelineNote: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 4, lineHeight: 18 },
+  currentBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  timelineDate: { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  timelineTeacher: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  timelineNote: { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: 4, lineHeight: 18 },
   empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyEmoji: { fontSize: 56 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
-  emptySub: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  emptyTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
+  emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
 });

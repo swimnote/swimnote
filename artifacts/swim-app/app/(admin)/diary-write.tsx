@@ -171,14 +171,14 @@ const dw = StyleSheet.create({
     shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
   summaryItem: { alignItems: "center" },
-  summaryNum: { fontSize: 18, fontFamily: "Inter_700Bold", color: C.text },
-  summaryLabel: { fontSize: 11, color: C.textSecondary, fontFamily: "Inter_400Regular" },
+  summaryNum: { fontSize: 18, fontFamily: "Pretendard-Bold", color: C.text },
+  summaryLabel: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
   summaryDivider: { width: 1, height: 28, backgroundColor: C.border },
   summaryNote: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 4,
     justifyContent: "flex-end",
   },
-  summaryNoteText: { fontSize: 11, color: C.textMuted, fontFamily: "Inter_400Regular" },
+  summaryNoteText: { fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular" },
 
   listContent: { paddingHorizontal: 16, paddingBottom: 100, gap: 8 },
 
@@ -193,12 +193,12 @@ const dw = StyleSheet.create({
     width: 42, height: 42, borderRadius: 21,
     alignItems: "center", justifyContent: "center",
   },
-  avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  teacherName: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 4 },
+  avatarText: { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  teacherName: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text, marginBottom: 4 },
   statRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
   statItem: { flexDirection: "row", alignItems: "center", gap: 3 },
-  statText: { fontSize: 11, color: C.textSecondary, fontFamily: "Inter_400Regular" },
+  statText: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
 
   empty: { alignItems: "center", paddingTop: 100, gap: 10 },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
 });

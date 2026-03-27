@@ -254,7 +254,7 @@ export default function RevenueAnalyticsScreen() {
                   {" · "}{new Date(r.occurred_at).toLocaleDateString("ko-KR")}
                 </Text>
                 {r.intro_discount_amount > 0 && (
-                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#DC2626", marginTop: 1 }}>
+                  <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 1 }}>
                     첫 달 50% 할인 적용 (-{fmtKRW(r.intro_discount_amount)})
                   </Text>
                 )}
@@ -262,7 +262,7 @@ export default function RevenueAnalyticsScreen() {
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={[st.recordAmt, { color: P }]}>{fmtKRW(r.charged_amount)}</Text>
                 {r.store_fee > 0 && (
-                  <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" }}>
+                  <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" }}>
                     수수료 -{fmtKRW(r.store_fee)}
                   </Text>
                 )}
@@ -287,27 +287,27 @@ const st = StyleSheet.create({
                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#F8FAFC" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
   tabTxtActive:  { color: "#fff" },
   noticeBox:     { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E6FFFA",
                    borderRadius: 8, padding: 10, marginTop: 4 },
-  noticeTxt:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#2EC4B6", flex: 1 },
+  noticeTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flex: 1 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  sectionTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
   cardGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card:          { backgroundColor: "#fff", borderRadius: 12, padding: 14, flex: 1, minWidth: "45%",
                    borderWidth: 1, borderColor: "#E5E7EB" },
-  cardLabel:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 4 },
-  cardValue:     { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
-  cardSub:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  cardLabel:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginBottom: 4 },
+  cardValue:     { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#111827" },
+  cardSub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
   empty:         { alignItems: "center", paddingVertical: 32, gap: 8 },
-  emptyTxt:      { fontSize: 13, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   recordRow:     { backgroundColor: "#fff", borderRadius: 10, padding: 12, flexDirection: "row",
                    alignItems: "flex-start", borderWidth: 1, borderColor: "#E5E7EB" },
-  recordName:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  recordSub:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
-  recordAmt:     { fontSize: 15, fontFamily: "Inter_700Bold" },
+  recordName:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  recordSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  recordAmt:     { fontSize: 15, fontFamily: "Pretendard-Bold" },
   linkBtn:       { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center",
                    backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12 },
-  linkTxt:       { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  linkTxt:       { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
 });

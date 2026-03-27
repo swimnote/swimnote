@@ -171,8 +171,8 @@ const u = StyleSheet.create({
     borderWidth: 1, borderColor: "#FDE68A",
   },
   summaryLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  summaryText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#B45309" },
-  sortLabel: { fontSize: 11, color: C.textMuted, fontFamily: "Inter_400Regular" },
+  summaryText: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#B45309" },
+  sortLabel: { fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular" },
 
   listContent: { paddingHorizontal: 16, paddingBottom: 40 },
 
@@ -182,7 +182,7 @@ const u = StyleSheet.create({
     marginTop: 8,
   },
   dateHeaderText: {
-    fontSize: 13, fontFamily: "Inter_700Bold", color: C.textSecondary,
+    fontSize: 13, fontFamily: "Pretendard-Bold", color: C.textSecondary,
   },
 
   card: {
@@ -196,12 +196,12 @@ const u = StyleSheet.create({
     backgroundColor: "#F9DEDA", borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 2,
   },
-  unwrittenBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#D96C6C" },
-  className: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.text, marginBottom: 2 },
+  unwrittenBadgeText: { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#D96C6C" },
+  className: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text, marginBottom: 2 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 3 },
-  metaText: { fontSize: 11, color: C.textSecondary, fontFamily: "Inter_400Regular", marginLeft: 2 },
+  metaText: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginLeft: 2 },
 
   empty: { alignItems: "center", paddingTop: 100, gap: 10 },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: C.text, textAlign: "center" },
-  emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.text, textAlign: "center" },
+  emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
 });

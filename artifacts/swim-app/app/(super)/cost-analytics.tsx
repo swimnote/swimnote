@@ -218,8 +218,8 @@ export default function CostAnalyticsScreen() {
             <Text style={[s.profitVal, { color: "#D96C6C" }]}>− {fmtKRW(totalCost)}</Text>
           </View>
           <View style={[s.profitRow, { borderTopWidth: 1, borderTopColor: "#E5E7EB", marginTop: 8, paddingTop: 8 }]}>
-            <Text style={[s.profitLabel, { fontFamily: "Inter_700Bold" }]}>순이익</Text>
-            <Text style={[s.profitVal, { fontFamily: "Inter_700Bold", color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
+            <Text style={[s.profitLabel, { fontFamily: "Pretendard-Bold" }]}>순이익</Text>
+            <Text style={[s.profitVal, { fontFamily: "Pretendard-Bold", color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
               {netProfit >= 0 ? "" : "−"}{fmtKRW(Math.abs(netProfit))}
             </Text>
           </View>
@@ -235,35 +235,35 @@ const s = StyleSheet.create({
                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#F8FAFC" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
   tabTxtActive:  { color: "#fff" },
   mockBanner:    { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFF1BF",
                    borderRadius: 8, padding: 10, marginTop: 4 },
-  mockTxt:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#D97706", flex: 1 },
+  mockTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", flex: 1 },
   summaryRow:    { flexDirection: "row", gap: 10 },
   summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 14,
                    borderWidth: 1, alignItems: "center" },
-  summaryLabel:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 4 },
-  summaryValue:  { fontSize: 20, fontFamily: "Inter_700Bold" },
+  summaryLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", marginBottom: 4 },
+  summaryValue:  { fontSize: 20, fontFamily: "Pretendard-Bold" },
   sectionHdr:    { flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionTitle:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "#111827" },
+  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
   costRow:       { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff",
                    borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   costIcon:      { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  costLabel:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#111827" },
-  costNote:      { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
-  costAmt:       { fontSize: 14, fontFamily: "Inter_700Bold" },
-  costPct:       { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  costLabel:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  costNote:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 1 },
+  costAmt:       { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  costPct:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   realBadge:     { backgroundColor: "#E6FFFA", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  realBadgeTxt:  { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#2EC4B6" },
+  realBadgeTxt:  { fontSize: 9, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" },
   barWrap:       { flexDirection: "row", height: 14, borderRadius: 7, overflow: "hidden", backgroundColor: "#F8FAFC" },
   barSeg:        { height: 14 },
   legendRow:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   legendItem:    { flexDirection: "row", alignItems: "center", gap: 4 },
   legendDot:     { width: 8, height: 8, borderRadius: 4 },
-  legendTxt:     { fontSize: 10, fontFamily: "Inter_400Regular", color: "#6B7280" },
+  legendTxt:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#6B7280" },
   profitBox:     { backgroundColor: "#fff", borderRadius: 12, padding: 16, borderWidth: 1 },
   profitRow:     { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  profitLabel:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "#111827" },
-  profitVal:     { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  profitLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827" },
+  profitVal:     { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
 });

@@ -57,6 +57,6 @@ const styles = StyleSheet.create({
   noPoolText: {
     color: C.textSecondary,
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Pretendard-Regular",
   },
 });

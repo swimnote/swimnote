@@ -138,13 +138,13 @@ const s = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Pretendard-SemiBold",
     color: C.text,
     textAlign: "center",
   },
   subtitle: {
     fontSize: 12,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Pretendard-Regular",
     color: C.textSecondary,
     textAlign: "center",
     marginTop: 1,

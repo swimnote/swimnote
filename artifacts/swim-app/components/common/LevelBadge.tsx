@@ -73,6 +73,6 @@ const styles = StyleSheet.create({
     shadowColor: "#00000025", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 1, shadowRadius: 4, elevation: 2,
   },
-  label: { fontFamily: "Inter_700Bold", textAlign: "center" },
-  name: { fontFamily: "Inter_600SemiBold", color: "#3A3530" },
+  label: { fontFamily: "Pretendard-Bold", textAlign: "center" },
+  name: { fontFamily: "Pretendard-SemiBold", color: "#3A3530" },
 });

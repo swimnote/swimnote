@@ -38,7 +38,7 @@ export function MemberClassTab({
           <Text style={ms.sectionTitle}>반 배정</Text>
           {classChanged && (
             <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#FFF1BF" }}>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#92400E" }}>변경됨</Text>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: "#92400E" }}>변경됨</Text>
             </View>
           )}
         </View>
@@ -64,7 +64,7 @@ export function MemberClassTab({
         {assignedClasses.length === 0 ? (
           <View style={ms.warnBox}>
             <Feather name="alert-circle" size={14} color="#D96C6C" />
-            <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#D96C6C" }}>아직 배정된 반이 없습니다</Text>
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>아직 배정된 반이 없습니다</Text>
           </View>
         ) : (
           <View style={{ gap: 8, marginBottom: 8 }}>
@@ -74,8 +74,8 @@ export function MemberClassTab({
                 <View key={g.id} style={[ms.classChip, { borderColor: themeColor + "40", backgroundColor: themeColor + "0D" }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={[ms.className, { color: C.text }]}>{g.name}</Text>
-                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: themeColor, marginTop: 2 }}>{days}요일 · {g.schedule_time}</Text>
-                    {g.instructor && <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 1 }}>선생님: {g.instructor}</Text>}
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: themeColor, marginTop: 2 }}>{days}요일 · {g.schedule_time}</Text>
+                    {g.instructor && <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 }}>선생님: {g.instructor}</Text>}
                   </View>
                   <Pressable onPress={() => { setAssignedIds(p => p.filter(x => x !== g.id)); setClassChanged(true); }}>
                     <Feather name="x-circle" size={18} color={C.error} />
@@ -114,8 +114,8 @@ export function MemberClassTab({
             const cnt = (data.recent_attendance || []).filter(r => r.status === key).length;
             return (
               <View key={key} style={{ alignItems: "center", flex: 1, backgroundColor: color + "15", borderRadius: 10, paddingVertical: 10 }}>
-                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color }}>{cnt}</Text>
-                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 }}>{label}</Text>
+                <Text style={{ fontSize: 18, fontFamily: "Pretendard-Bold", color }}>{cnt}</Text>
+                <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 }}>{label}</Text>
               </View>
             );
           })}
@@ -126,23 +126,23 @@ export function MemberClassTab({
       <View style={ms.section}>
         <Text style={ms.sectionTitle}>최근 수업 일지</Text>
         {(data.recent_diaries || []).length === 0 ? (
-          <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textMuted }}>등록된 일지가 없습니다</Text>
+          <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>등록된 일지가 없습니다</Text>
         ) : (
           <View style={{ gap: 10 }}>
             {(data.recent_diaries || []).map(d => (
               <View key={d.id} style={{ backgroundColor: "#F1F5F9", borderRadius: 12, padding: 12, gap: 6 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.text }}>{d.lesson_date}</Text>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted }}>{d.teacher_name}</Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.text }}>{d.lesson_date}</Text>
+                  <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{d.teacher_name}</Text>
                 </View>
                 {d.common_content && (
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.textSecondary, lineHeight: 18 }} numberOfLines={2}>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 }} numberOfLines={2}>
                     {d.common_content}
                   </Text>
                 )}
                 {d.student_note && (
                   <View style={{ backgroundColor: themeColor + "15", padding: 8, borderRadius: 8 }}>
-                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: themeColor }}>📝 {d.student_note}</Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: themeColor }}>📝 {d.student_note}</Text>
                   </View>
                 )}
               </View>

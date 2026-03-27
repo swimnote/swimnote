@@ -42,7 +42,7 @@ function TypeBadge({ type, scope }: { type?: string; scope?: string }) {
 }
 const tb = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, alignSelf: "flex-start" },
-  txt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  txt: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
 });
 
 export default function ParentNoticesScreen() {
@@ -157,7 +157,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
     borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff",
   },
-  chipTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  chipTxt: { fontSize: 13, fontFamily: "Pretendard-Medium" },
   card: {
     borderRadius: 16, padding: 14, gap: 8,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
@@ -166,13 +166,13 @@ const s = StyleSheet.create({
   cardUnread: { borderLeftWidth: 3, borderLeftColor: C.tint },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  title: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  content: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  contentPreview: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  title: { fontSize: 15, fontFamily: "Pretendard-Bold" },
+  content: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
+  contentPreview: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
-  meta: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  expandHint: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  meta: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  expandHint: { fontSize: 12, fontFamily: "Pretendard-Medium" },
   emptyBox: { borderRadius: 16, padding: 40, alignItems: "center", gap: 8, marginTop: 20 },
   emptyEmoji: { fontSize: 44 },
-  emptyTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  emptyTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
 });

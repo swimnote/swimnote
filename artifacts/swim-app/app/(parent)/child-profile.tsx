@@ -44,8 +44,8 @@ function InfoRow({ icon, label, value, accentColor }: InfoRowProps) {
 const ir = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8 },
   iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  label: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  value: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginTop: 1 },
+  label: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  value: { fontSize: 14, fontFamily: "Pretendard-SemiBold", marginTop: 1 },
 });
 
 export default function ChildProfileScreen() {
@@ -194,23 +194,23 @@ const s = StyleSheet.create({
     width: 72, height: 72, borderRadius: 22,
     alignItems: "center", justifyContent: "center",
   },
-  avatarTxt: { fontSize: 30, fontFamily: "Inter_700Bold", color: "#fff" },
-  heroName: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff" },
-  heroClass: { fontSize: 14, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.85)" },
+  avatarTxt: { fontSize: 30, fontFamily: "Pretendard-Bold", color: "#fff" },
+  heroName: { fontSize: 22, fontFamily: "Pretendard-Bold", color: "#fff" },
+  heroClass: { fontSize: 14, fontFamily: "Pretendard-Medium", color: "rgba(255,255,255,0.85)" },
 
   card: {
     borderRadius: 16, padding: 16, gap: 4,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
-  cardTitle: { fontSize: 14, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  cardTitle: { fontSize: 14, fontFamily: "Pretendard-Bold", marginBottom: 4 },
   divider: { height: 1, marginBottom: 4 },
   chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  chipTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  chipTxt: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
 
   quickBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12 },
-  quickBtnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  quickBtnTxt: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
 
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
-  emptyTxt: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  emptyTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
 });

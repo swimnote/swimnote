@@ -407,12 +407,12 @@ function isDarkColor(hex: string): boolean {
 const s = StyleSheet.create({
   root: { flex: 1 },
   saveBtn: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 10 },
-  saveBtnTxt: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  saveBtnTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
   infoCard: {
     flexDirection: "row", gap: 8, alignItems: "flex-start",
     padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 16,
   },
-  infoTxt: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1, lineHeight: 20 },
+  infoTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1, lineHeight: 20 },
   card: {
     backgroundColor: "#fff", borderRadius: 16, marginBottom: 10,
     borderWidth: 1, borderColor: C.border,
@@ -426,7 +426,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
     backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB",
   },
-  inactiveBadgeTxt: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#9CA3AF" },
+  inactiveBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#9CA3AF" },
   activeToggle: {
     width: 32, height: 32, borderRadius: 8, borderWidth: 1,
     alignItems: "center", justifyContent: "center", marginLeft: 8,
@@ -434,26 +434,26 @@ const s = StyleSheet.create({
   cardHeader: {
     flexDirection: "row", alignItems: "center", padding: 14, gap: 4,
   },
-  cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: C.text },
-  cardSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 },
+  cardTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
+  cardSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   cardBody: { paddingHorizontal: 14, paddingBottom: 16 },
   divider: { height: 1, backgroundColor: C.border, marginVertical: 12 },
   fieldBlock: { marginBottom: 14 },
-  fieldLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 6 },
+  fieldLabel: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, marginBottom: 6 },
   input: {
     borderWidth: 1, borderColor: C.border, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 9,
-    fontSize: 14, fontFamily: "Inter_400Regular", color: C.text,
+    fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text,
     backgroundColor: C.background,
   },
   multiline: { minHeight: 72, textAlignVertical: "top" },
-  sectionLabel: { fontSize: 14, fontFamily: "Inter_700Bold", color: C.text, marginBottom: 10 },
+  sectionLabel: { fontSize: 14, fontFamily: "Pretendard-Bold", color: C.text, marginBottom: 10 },
   badgeTypeRow: { flexDirection: "row", gap: 8 },
   typeBtn: {
     flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 8,
     borderWidth: 1, borderColor: C.border,
   },
-  typeBtnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  typeBtnTxt: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
   colorRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   colorDot: {
     width: 34, height: 34, borderRadius: 17, borderWidth: 2,
@@ -468,5 +468,5 @@ const s = StyleSheet.create({
   bottomSave: {
     marginTop: 12, padding: 16, borderRadius: 14, alignItems: "center",
   },
-  bottomSaveTxt: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
+  bottomSaveTxt: { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#fff" },
 });

@@ -73,7 +73,7 @@ export default function TeacherLayout() {
         tabBarStyle: {
           display: "none",
         },
-        tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 11 },
+        tabBarLabelStyle: { fontFamily: "Pretendard-Medium", fontSize: 11 },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />

@@ -103,12 +103,12 @@ export function MonthlyCalendar({ classGroups, onSelectDate }: MonthlyCalendarPr
 
 const mc = StyleSheet.create({
   navBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
-  monthTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  monthTitle: { fontSize: 17, fontFamily: "Pretendard-Bold" },
   weekHeader: { height: 28, alignItems: "center", justifyContent: "center" },
-  weekHeaderText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
+  weekHeaderText: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
   dayCell: { height: 64, alignItems: "center", paddingTop: 6 },
   dayNumWrap: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  dayNum: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  dayNum: { fontSize: 13, fontFamily: "Pretendard-Medium" },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  moreText: { fontSize: 8, fontFamily: "Inter_400Regular" },
+  moreText: { fontSize: 8, fontFamily: "Pretendard-Regular" },
 });

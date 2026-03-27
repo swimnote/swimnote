@@ -33,10 +33,10 @@ export function EditField({ label, value, onChangeText, placeholder, keyboardTyp
 
 const ef = StyleSheet.create({
   wrap: { gap: 6 },
-  label: { fontSize: 13, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  label: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary },
   input: {
     backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: C.border, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Inter_400Regular", color: C.text,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text,
   },
   multiline: { minHeight: 80, textAlignVertical: "top" },
 });

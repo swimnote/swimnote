@@ -74,22 +74,22 @@ const s = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  title: { fontSize: 16, fontFamily: "Pretendard-Bold" },
   input: {
     borderWidth: 1.5, borderRadius: 12,
     padding: 12, minHeight: 90,
     textAlignVertical: "top", fontSize: 14,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Pretendard-Regular",
   },
   row: { flexDirection: "row", gap: 12 },
   cancelBtn: {
     flex: 1, height: 46, borderRadius: 12, borderWidth: 1.5,
     alignItems: "center", justifyContent: "center",
   },
-  cancelText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  cancelText: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
   confirmBtn: {
     flex: 1, height: 46, borderRadius: 12,
     alignItems: "center", justifyContent: "center",
   },
-  confirmText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  confirmText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

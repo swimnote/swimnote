@@ -188,23 +188,23 @@ export default function SwimInfoScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <LevelBadge level={levelInfo.current_level ?? null} size="md" />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: C.textSecondary }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
                     {selectedStudent.name}의 현재 레벨
                   </Text>
-                  <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: C.text, marginTop: 2 }}>
+                  <Text style={{ fontSize: 18, fontFamily: "Pretendard-Bold", color: C.text, marginTop: 2 }}>
                     {levelInfo.current_level?.level_name ?? "미지정"}
                   </Text>
                   {levelInfo.current_level?.level_description ? (
-                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 2 }} numberOfLines={2}>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 }} numberOfLines={2}>
                       {levelInfo.current_level.level_description}
                     </Text>
                   ) : null}
                 </View>
                 {levelInfo.next_level && (
                   <View style={{ alignItems: "center", gap: 2 }}>
-                    <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: C.textMuted }}>다음 목표</Text>
+                    <Text style={{ fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textMuted }}>다음 목표</Text>
                     <LevelBadge level={levelInfo.next_level} size="sm" />
-                    <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: C.textSecondary }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Medium", color: C.textSecondary }}>
                       {levelInfo.next_level.level_name}
                     </Text>
                   </View>
@@ -212,8 +212,8 @@ export default function SwimInfoScreen() {
               </View>
               {levelInfo.current_level?.promotion_test_rule ? (
                 <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border }}>
-                  <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#D97706" }}>승급 기준</Text>
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: C.text, marginTop: 4, lineHeight: 20 }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#D97706" }}>승급 기준</Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 4, lineHeight: 20 }}>
                     {levelInfo.current_level.promotion_test_rule}
                   </Text>
                 </View>
@@ -251,13 +251,13 @@ const s = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 6, elevation: 3,
   },
-  poolName: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
-  poolMeta: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)" },
+  poolName: { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#fff" },
+  poolMeta: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.85)" },
   notice: {
     borderRadius: 12, padding: 14,
     flexDirection: "row", gap: 8, alignItems: "flex-start",
   },
-  noticeTxt: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18, flex: 1 },
+  noticeTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18, flex: 1 },
 });
 
 const sl = StyleSheet.create({
@@ -278,10 +278,10 @@ const cs = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 12, padding: 16,
   },
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  cardTitle: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  cardTitle: { flex: 1, fontSize: 15, fontFamily: "Pretendard-SemiBold" },
   cardBody: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
   divider: { height: 1, marginBottom: 6 },
-  content: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 23 },
+  content: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 23 },
   placeholder: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
-  placeholderTxt: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  placeholderTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
 });

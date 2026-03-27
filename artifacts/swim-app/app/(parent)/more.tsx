@@ -155,9 +155,9 @@ const s = StyleSheet.create({
     width: 48, height: 48, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
   },
-  accountAvatarTxt: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  accountName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  accountPool: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  accountAvatarTxt: { fontSize: 20, fontFamily: "Pretendard-Bold" },
+  accountName: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  accountPool: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
 
   menuItem: {
     flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 15, gap: 12,
@@ -165,9 +165,9 @@ const s = StyleSheet.create({
     shadowOpacity: 0.03, shadowRadius: 3, elevation: 1,
   },
   menuIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  menuLabel: { fontSize: 15, fontFamily: "Inter_500Medium" },
-  menuSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  menuLabel: { fontSize: 15, fontFamily: "Pretendard-Medium" },
+  menuSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
   versionRow: { paddingVertical: 4, alignItems: "center" },
-  versionTxt: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  versionTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });

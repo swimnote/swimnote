@@ -77,7 +77,7 @@ export default function TeacherSignupScreen() {
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입 요청 완료!</Text>
           <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
-            <Text style={{ fontFamily: "Inter_600SemiBold", color: C.text }}>{selectedPool?.name}</Text>
+            <Text style={{ fontFamily: "Pretendard-SemiBold", color: C.text }}>{selectedPool?.name}</Text>
             {" "}관리자가 요청을 확인 후 승인하면{"\n"}로그인할 수 있습니다.
           </Text>
           <Pressable
@@ -315,12 +315,12 @@ const styles = StyleSheet.create({
   container: { paddingHorizontal: 20, gap: 20 },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backBtn: { padding: 4 },
-  screenTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  screenTitle: { fontSize: 18, fontFamily: "Pretendard-Bold" },
   steps: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 0 },
   stepItem: { alignItems: "center", gap: 4 },
   stepDot: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  stepNum: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  stepLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  stepNum: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  stepLabel: { fontSize: 11, fontFamily: "Pretendard-Medium" },
   stepLine: { width: 60, height: 2, marginBottom: 18, marginHorizontal: 8 },
   card: {
     borderRadius: 20, padding: 22, gap: 14,
@@ -328,11 +328,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.07, shadowRadius: 12, elevation: 4,
   },
   poolBadge: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  poolBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  cardTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  cardDesc: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: -8 },
+  poolBadgeText: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
+  cardTitle: { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  cardDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: -8 },
   field: { gap: 6 },
-  fieldLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Medium" },
   searchRow: {
     flexDirection: "row", alignItems: "center",
     borderWidth: 1.5, borderRadius: 14, paddingLeft: 14, height: 52, overflow: "hidden",
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 10,
     borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52,
   },
-  input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  input: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   poolList: {
     borderWidth: 1, borderRadius: 14, overflow: "hidden",
   },
@@ -352,19 +352,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 13,
   },
   poolIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  poolName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  poolAddr: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
-  emptyText: { textAlign: "center", fontSize: 13, fontFamily: "Inter_400Regular", paddingVertical: 8 },
-  hintText: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  poolName: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  poolAddr: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 1 },
+  emptyText: { textAlign: "center", fontSize: 13, fontFamily: "Pretendard-Regular", paddingVertical: 8 },
+  hintText: { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
-  errText: { fontSize: 13, fontFamily: "Inter_400Regular", flex: 1 },
+  errText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   submitBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
-  submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Bold" },
   /* 완료 */
   doneWrap: { flex: 1, alignItems: "center", paddingHorizontal: 32, gap: 16 },
   doneIcon: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  doneTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  doneDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  doneTitle: { fontSize: 22, fontFamily: "Pretendard-Bold" },
+  doneDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   doneBtn: { height: 52, borderRadius: 14, paddingHorizontal: 32, alignItems: "center", justifyContent: "center", marginTop: 12 },
-  doneBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+  doneBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Bold" },
 });

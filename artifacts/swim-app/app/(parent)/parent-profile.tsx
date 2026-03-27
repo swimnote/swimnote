@@ -144,20 +144,20 @@ export default function ParentProfileScreen() {
 const s = StyleSheet.create({
   root: { flex: 1 },
   section: { borderRadius: 16, padding: 16, gap: 12 },
-  sectionTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  sectionSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: -6 },
+  sectionTitle: { fontSize: 15, fontFamily: "Pretendard-Bold" },
+  sectionSub: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: -6 },
   errorBox: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, padding: 12 },
-  errorTxt: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#D96C6C", flex: 1 },
+  errorTxt: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#D96C6C", flex: 1 },
   saveBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
-  saveBtnTxt: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  saveBtnTxt: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });
 
 const f = StyleSheet.create({
   wrap: { gap: 6 },
-  label: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  label: { fontSize: 13, fontFamily: "Pretendard-Medium" },
   input: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11,
-    fontSize: 14, fontFamily: "Inter_400Regular",
+    fontSize: 14, fontFamily: "Pretendard-Regular",
   },
-  note: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  note: { fontSize: 11, fontFamily: "Pretendard-Regular" },
 });

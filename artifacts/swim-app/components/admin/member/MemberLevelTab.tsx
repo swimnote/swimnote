@@ -41,18 +41,18 @@ export function MemberLevelTab({
               : <LevelBadge level={levelInfo?.current_level ?? null} size="lg" />
             }
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary }}>현재 레벨</Text>
-              <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: C.text, marginTop: 2 }}>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>현재 레벨</Text>
+              <Text style={{ fontSize: 22, fontFamily: "Pretendard-Bold", color: C.text, marginTop: 2 }}>
                 {levelInfo?.current_level?.level_name ?? "미지정"}
               </Text>
               {levelInfo?.current_level?.is_active === false && (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4, backgroundColor: "#FFF7ED", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" }}>
                   <Feather name="eye-off" size={12} color="#D97706" />
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#D97706" }}>사용 안 함 레벨</Text>
+                  <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#D97706" }}>사용 안 함 레벨</Text>
                 </View>
               )}
               {levelInfo?.current_level?.level_description && levelInfo.current_level.is_active !== false ? (
-                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textSecondary, marginTop: 4 }}>
+                <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 4 }}>
                   {levelInfo.current_level.level_description}
                 </Text>
               ) : null}
@@ -62,15 +62,15 @@ export function MemberLevelTab({
               onPress={onOpenLevelPicker}
             >
               <Feather name="edit-2" size={13} color={themeColor} />
-              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: themeColor }}>변경</Text>
+              <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: themeColor }}>변경</Text>
             </Pressable>
           </View>
 
           {levelInfo?.current_level?.learning_content ? (
             <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
               <View style={{ height: 1, backgroundColor: C.border, marginBottom: 12 }} />
-              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 6 }}>이 레벨에서 배우는 내용</Text>
-              <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, lineHeight: 22 }}>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, marginBottom: 6 }}>이 레벨에서 배우는 내용</Text>
+              <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 22 }}>
                 {levelInfo.current_level.learning_content}
               </Text>
             </View>
@@ -79,8 +79,8 @@ export function MemberLevelTab({
           {levelInfo?.current_level?.promotion_test_rule ? (
             <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
               {!levelInfo?.current_level?.learning_content && <View style={{ height: 1, backgroundColor: C.border, marginBottom: 12 }} />}
-              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary, marginBottom: 6 }}>승급 기준</Text>
-              <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: C.text, lineHeight: 22 }}>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, marginBottom: 6 }}>승급 기준</Text>
+              <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 22 }}>
                 {levelInfo.current_level.promotion_test_rule}
               </Text>
             </View>
@@ -106,7 +106,7 @@ export function MemberLevelTab({
                     onPress={() => onLevelChange(lv.level_order)}
                   >
                     <LevelBadge level={lv} size="sm" />
-                    <Text style={{ fontSize: 11, fontFamily: isCurrent ? "Inter_700Bold" : "Inter_400Regular", color: isCurrent ? themeColor : C.textSecondary }}>
+                    <Text style={{ fontSize: 11, fontFamily: isCurrent ? "Pretendard-Bold" : "Pretendard-Regular", color: isCurrent ? themeColor : C.textSecondary }}>
                       {lv.level_name}
                     </Text>
                   </Pressable>
@@ -148,7 +148,7 @@ export function MemberLevelTab({
             style={{ backgroundColor: C.card, borderRadius: 20, padding: 24, width: "100%", maxHeight: 480, gap: 16 }}
             onStartShouldSetResponder={() => true}
           >
-            <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: C.text, textAlign: "center" }}>레벨 선택</Text>
+            <Text style={{ fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text, textAlign: "center" }}>레벨 선택</Text>
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                 {(levelInfo?.all_levels ?? []).filter(lv => lv.is_active !== false).map(lv => {
@@ -164,7 +164,7 @@ export function MemberLevelTab({
                       onPress={() => onLevelChange(lv.level_order)}
                     >
                       <LevelBadge level={lv} size="md" />
-                      <Text style={{ fontSize: 12, fontFamily: isCurrent ? "Inter_700Bold" : "Inter_500Medium", color: isCurrent ? themeColor : C.text }}>
+                      <Text style={{ fontSize: 12, fontFamily: isCurrent ? "Pretendard-Bold" : "Pretendard-Medium", color: isCurrent ? themeColor : C.text }}>
                         {lv.level_name}
                       </Text>
                     </Pressable>
@@ -176,7 +176,7 @@ export function MemberLevelTab({
               style={{ alignItems: "center", paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: C.border }}
               onPress={onCloseLevelPicker}
             >
-              <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.textSecondary }}>취소</Text>
+              <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.textSecondary }}>취소</Text>
             </Pressable>
           </View>
         </Pressable>

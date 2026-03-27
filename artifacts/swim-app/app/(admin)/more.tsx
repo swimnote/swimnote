@@ -41,19 +41,22 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 // 바로가기 (대시보드에 없는 보조 메뉴만)
+const N = "#1B4965"; const N_BG = "#E8EEF4";
+const M = "#2EC4B6"; const M_BG = "#E6FAF8";
+
 const SHORTCUTS = [
-  { label: "공지함",           icon: "bell"       as const, color: "#7C3AED", bg: "#F3EDFE", route: "/(admin)/notices"                     },
-  { label: "휴무일 관리",      icon: "x-square"   as const, color: "#D96C6C", bg: "#F9DEDA", route: "/(admin)/holidays"                    },
-  { label: "데이터 관리",      icon: "hard-drive" as const, color: "#2EC4B6", bg: "#ECFEFF", route: "/(admin)/data-management"             },
-  { label: "초대 안내 기록",   icon: "send"       as const, color: "#2EC4B6", bg: "#ECFEFF", route: "/(admin)/invite-records"              },
-  { label: "푸시 알림 설정",   icon: "bell"       as const, color: "#7C3AED", bg: "#F3EDFE", route: "/(admin)/push-notification-settings"  },
-  { label: "푸시 발송 설정",   icon: "send"       as const, color: "#7C3AED", bg: "#F3EDFE", route: "/(admin)/push-message-settings"       },
+  { label: "공지함",           icon: "bell"       as const, color: N, bg: N_BG, route: "/(admin)/notices"                     },
+  { label: "휴무일 관리",      icon: "x-square"   as const, color: M, bg: M_BG, route: "/(admin)/holidays"                    },
+  { label: "데이터 관리",      icon: "hard-drive" as const, color: N, bg: N_BG, route: "/(admin)/data-management"             },
+  { label: "초대 안내 기록",   icon: "send"       as const, color: N, bg: N_BG, route: "/(admin)/invite-records"              },
+  { label: "푸시 알림 설정",   icon: "bell"       as const, color: N, bg: N_BG, route: "/(admin)/push-notification-settings"  },
+  { label: "푸시 발송 설정",   icon: "send"       as const, color: N, bg: N_BG, route: "/(admin)/push-message-settings"       },
 ];
 
 const MISC = [
-  { label: "내 정보",        icon: "user"       as const, color: "#2EC4B6", bg: "#E6FFFA", route: "/(admin)/my-info" },
-  { label: "Google OTP 설정", icon: "smartphone" as const, color: "#7C3AED", bg: "#F3EDFE", route: "/totp-setup" },
-  { label: "모드 변경",       icon: "grid"       as const, color: "#6B7280", bg: "#F8FAFC", route: "/(admin)/mode" },
+  { label: "내 정보",         icon: "user"       as const, color: N, bg: N_BG, route: "/(admin)/my-info" },
+  { label: "Google OTP 설정", icon: "smartphone" as const, color: N, bg: N_BG, route: "/totp-setup" },
+  { label: "모드 변경",       icon: "grid"       as const, color: N, bg: N_BG, route: "/(admin)/mode" },
 ];
 
 export default function MoreScreen() {
@@ -363,61 +366,61 @@ export default function MoreScreen() {
 const sm = StyleSheet.create({
   overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:           { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:           { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
-  sub:             { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", marginBottom: 4 },
+  title:           { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#111827" },
+  sub:             { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#6B7280", marginBottom: 4 },
   roleRow:         { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 14 },
   roleIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  roleLabel:       { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  roleSub:         { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  roleLabel:       { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  roleSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
   activeBadge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  activeBadgeText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  activeBadgeText: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   closeBtn:        { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" },
-  closeBtnText:    { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#6B7280" },
+  closeBtnText:    { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
 });
 
 const s = StyleSheet.create({
   tabBar:   { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tabItem:  { flex: 1, paddingVertical: 14, alignItems: "center" },
-  tabText:  { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  tabText:  { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
 
   profileCard:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   profileAvatar:  { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  profileInitial: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  profileName:    { fontSize: 18, fontFamily: "Inter_700Bold", color: "#111827" },
-  profileRole:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B7280", marginTop: 2 },
+  profileInitial: { fontSize: 20, fontFamily: "Pretendard-Bold" },
+  profileName:    { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#111827" },
+  profileRole:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
   switchBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
-  switchBtnText:  { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  switchBtnText:  { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
 
   infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#E6FFFA", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#BFDBFE" },
-  infoBannerText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: "#2EC4B6", lineHeight: 18 },
+  infoBannerText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6", lineHeight: 18 },
 
-  groupTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#6B7280", marginBottom: 8, paddingHorizontal: 4 },
+  groupTitle: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#6B7280", marginBottom: 8, paddingHorizontal: 4 },
   groupCard:  { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   menuRow:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },
   menuRowBorder: { borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   menuIcon:   { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  menuLabel:  { fontSize: 15, fontFamily: "Inter_500Medium", color: "#111827" },
+  menuLabel:  { fontSize: 15, fontFamily: "Pretendard-Medium", color: "#111827" },
 
   empty:      { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyText:  { fontSize: 15, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  emptyText:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 
   logCard:       { borderRadius: 16, padding: 14, gap: 8, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   logHeader:     { flexDirection: "row", alignItems: "center", gap: 10 },
   logIcon:       { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  logName:       { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
-  logAction:     { fontSize: 12, fontFamily: "Inter_600SemiBold", marginTop: 1 },
-  logDate:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
-  logTime:       { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 2 },
+  logName:       { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827" },
+  logAction:     { fontSize: 12, fontFamily: "Pretendard-SemiBold", marginTop: 1 },
+  logDate:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  logTime:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
   logChange:     { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 10, gap: 4 },
   logValueRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
-  logValueLabel: { width: 50, fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  logValue:      { flex: 1, fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  logNote:       { fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", fontStyle: "italic" },
+  logValueLabel: { width: 50, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#6B7280" },
+  logValue:      { flex: 1, fontSize: 12, fontFamily: "Pretendard-SemiBold" },
+  logNote:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", fontStyle: "italic" },
   logFooter:     { flexDirection: "row", alignItems: "center", gap: 4 },
-  logActor:      { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
-  logActorRole:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  logActor:      { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
+  logActorRole:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   otpBanner:     { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1.5, padding: 14 },
   otpBannerIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  otpBannerTitle:{ fontSize: 13, fontFamily: "Inter_700Bold" },
-  otpBannerSub:  { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  otpBannerTitle:{ fontSize: 13, fontFamily: "Pretendard-Bold" },
+  otpBannerSub:  { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
 });
