@@ -153,7 +153,8 @@ export default function DashboardScreen() {
       lastPopupRef.current = null;
       setActivePopup(popup);
     }
-  }, []));
+    fetchStats();
+  }, [fetchStats]));
 
   const wrapPopupItems = useCallback((key: PopupKey, items: PopupItem[]): PopupItem[] =>
     items.map(item => ({
