@@ -262,16 +262,21 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
 
       const request = existing.rows[0] as any;
 
-      // revoke는 승인된 상태에서만 가능
+      // revoke는 승인(approved/auto_approved) 상태에서 가능
       if (action === "revoke") {
-        if (request.request_status !== "approved") {
+        if (!["approved", "auto_approved"].includes(request.request_status)) {
           res.status(409).json({ success: false, message: "승인된 학부모만 승인 해제할 수 있습니다." }); return;
         }
-        // parent_accounts is_active = false
+        // parent_accounts 비활성화
         if (request.parent_account_id) {
           await db.execute(sql`
             UPDATE parent_accounts SET is_active = false, updated_at = NOW()
             WHERE id = ${request.parent_account_id}
+          `);
+          // 해당 학부모의 학생 연결도 해제
+          await db.execute(sql`
+            UPDATE students SET parent_user_id = NULL, updated_at = NOW()
+            WHERE parent_user_id = ${request.parent_account_id}
           `);
         }
         await superAdminDb.execute(sql`

@@ -953,6 +953,35 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
     // parent_students는 유지 (학부모가 과거 기록 조회 가능해야 함)
     // swim_diary, attendance 기록도 유지
     console.log(`[deleteStudent] archived success: ${sid}`);
+
+    // ── 학부모 자동 비활성화 처리 ─────────────────────────────────
+    // 이 학생과 연결된 학부모가 있으면 → 해당 학부모의 다른 활성 학생이 없을 경우 로그인 차단
+    const parentUserId = (existing as any).parent_user_id;
+    if (parentUserId) {
+      const otherActiveStudents = await db.execute(sql`
+        SELECT id FROM students
+        WHERE parent_user_id = ${parentUserId}
+          AND id != ${sid}
+          AND status NOT IN ('deleted', 'withdrawn', 'archived')
+        LIMIT 1
+      `);
+      if (otherActiveStudents.rows.length === 0) {
+        // 다른 활성 자녀 없음 → 학부모 계정 비활성화 (로그인 차단)
+        await db.execute(sql`
+          UPDATE parent_accounts SET is_active = false, updated_at = NOW()
+          WHERE id = ${parentUserId}
+        `);
+        // parent_pool_requests도 revoked로 업데이트 (superAdminDb)
+        await superAdminDb.execute(sql`
+          UPDATE parent_pool_requests
+          SET request_status = 'revoked', processed_at = NOW()
+          WHERE parent_account_id = ${parentUserId}
+            AND request_status IN ('approved', 'auto_approved')
+        `).catch(() => {});
+        console.log(`[deleteStudent] 학부모 비활성화: parentId=${parentUserId}`);
+      }
+    }
+
     await logChange({ tenantId: (existing as any).swimming_pool_id, tableName: "students", recordId: sid, changeType: "delete", payload: { name: (existing as any).name, prev_status: (existing as any).status } });
     res.json({ success: true, message: "회원이 삭제회원으로 처리되었습니다." });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
