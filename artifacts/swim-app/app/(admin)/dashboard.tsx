@@ -193,14 +193,15 @@ export default function DashboardScreen() {
     finally { setSwitching(false); }
   }
 
+  const _BIC = "#1B4965"; const _BIB = "#E6FAF8";
   const bannerItems = [
     {
       label: "데이터 사용량",
       value: storagePct !== null ? `${storagePct}%` : "—",
       sub: "전체 저장공간",
       icon: "hard-drive" as const,
-      color: "#2EC4B6",
-      bg: "#ECFEFF",
+      color: _BIC,
+      bg: _BIB,
       onPress: () => router.push("/(admin)/data-storage-overview"),
     },
     {
@@ -208,8 +209,8 @@ export default function DashboardScreen() {
       value: stats ? formatWon(stats.monthly_revenue ?? 0) : "—",
       sub: "월 누적 매출",
       icon: "trending-up" as const,
-      color: "#2EC4B6",
-      bg: "#DFF3EC",
+      color: _BIC,
+      bg: _BIB,
       onPress: () => router.push("/(admin)/admin-revenue"),
     },
     {
@@ -217,8 +218,8 @@ export default function DashboardScreen() {
       value: stats ? String(stats.total_members) : "—",
       sub: "등록 회원 수",
       icon: "users" as const,
-      color: themeColor,
-      bg: themeColor + "18",
+      color: _BIC,
+      bg: _BIB,
       onPress: () => router.push("/(admin)/members"),
     },
     {
@@ -226,8 +227,8 @@ export default function DashboardScreen() {
       value: stats ? String(stats.pending_makeups ?? 0) : "—",
       sub: "처리 필요",
       icon: "rotate-ccw" as const,
-      color: "#D96C6C",
-      bg: "#FEF2F2",
+      color: _BIC,
+      bg: _BIB,
       onPress: () => router.push("/(admin)/makeups"),
     },
   ];
