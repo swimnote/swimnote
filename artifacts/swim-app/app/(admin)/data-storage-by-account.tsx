@@ -156,23 +156,23 @@ export default function DataStorageByAccountScreen() {
 const sm = StyleSheet.create({
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:       { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:       { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#111827" },
-  sub:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#6B7280", marginBottom: 4 },
+  title:       { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  sub:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
   catIcon:     { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   total:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderRadius: 14, borderWidth: 1, marginTop: 4 },
-  closeBtn:    { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" },
-  closeBtnText:{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  closeBtn:    { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
+  closeBtnText:{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
 });
 
 const s = StyleSheet.create({
   card:         { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   row:          { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
-  rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   avatar:       { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText:   { fontSize: 16, fontFamily: "Pretendard-Bold" },
-  name:         { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  bytes:        { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827" },
+  name:         { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  bytes:        { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   miniGaugeWrap:{ height: 5, backgroundColor: "#E5E7EB", borderRadius: 3, overflow: "hidden" },
   miniGaugeBar: { height: 5, borderRadius: 3 },
-  pctText:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  pctText:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });

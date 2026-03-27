@@ -32,14 +32,14 @@ function formatWon(n: number) {
 }
 
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
-  trial:           { label: "체험 중",   color: "#7C3AED", bg: "#F3E8FF" },
+  trial:           { label: "체험 중",   color: "#7C3AED", bg: "#E6FAF8" },
   active:          { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
-  expired:         { label: "만료됨",    color: "#6B7280", bg: "#F8FAFC" },
+  expired:         { label: "만료됨",    color: "#64748B", bg: "#FFFFFF" },
   suspended:       { label: "정지됨",    color: "#D97706", bg: "#FFF1BF" },
   cancelled:       { label: "해지됨",    color: "#D96C6C", bg: "#F9DEDA" },
   payment_failed:  { label: "결제 실패", color: "#DC2626", bg: "#FEE2E2" },
   pending_deletion:{ label: "삭제 예약", color: "#9B1C1C", bg: "#FEE2E2" },
-  deleted:         { label: "삭제됨",    color: "#6B7280", bg: "#E5E7EB" },
+  deleted:         { label: "삭제됨",    color: "#64748B", bg: "#E5E7EB" },
 };
 
 // ── 아이콘 색상 통일 규칙: 연한 민트 박스 + 네이비 아이콘 ──────────────────
@@ -461,7 +461,7 @@ const s = StyleSheet.create({
   switchChipTxt: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   subBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   subBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
-  headerBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
+  headerBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
 
   sectionLabel:  { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textMuted, marginBottom: 10 },
 

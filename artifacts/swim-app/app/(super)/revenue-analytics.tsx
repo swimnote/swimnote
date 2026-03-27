@@ -78,7 +78,7 @@ function pct(current: number, prev: number): string {
 }
 
 function pctColor(current: number, prev: number): string {
-  if (prev === 0) return current > 0 ? "#2EC4B6" : "#6B7280";
+  if (prev === 0) return current > 0 ? "#2EC4B6" : "#64748B";
   return current >= prev ? "#2EC4B6" : "#D96C6C";
 }
 
@@ -212,7 +212,7 @@ export default function RevenueAnalyticsScreen() {
         <SectionHeader title="할인 및 수수료" icon="percent" />
         <View style={st.cardGrid}>
           <StatCard label="첫 달 50% 할인액" value={fmtKRW(totalDiscount)} sub="할인 합계" color="#DC2626" />
-          <StatCard label="스토어 수수료 (30%)" value={fmtKRW(totalStoreFee)} sub="앱스토어/구글플레이" color="#9CA3AF" />
+          <StatCard label="스토어 수수료 (30%)" value={fmtKRW(totalStoreFee)} sub="앱스토어/구글플레이" color="#64748B" />
           <StatCard label="순이익 (수수료 후)" value={fmtKRW(netRevenue - totalStoreFee)} color="#2EC4B6" />
         </View>
 
@@ -262,7 +262,7 @@ export default function RevenueAnalyticsScreen() {
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={[st.recordAmt, { color: P }]}>{fmtKRW(r.charged_amount)}</Text>
                 {r.store_fee > 0 && (
-                  <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" }}>
+                  <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" }}>
                     수수료 -{fmtKRW(r.store_fee)}
                   </Text>
                 )}
@@ -285,27 +285,27 @@ const st = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#F1F5F9" },
   tabRow:        { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, backgroundColor: "#fff",
                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#F8FAFC" },
+  tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   tabTxtActive:  { color: "#fff" },
   noticeBox:     { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E6FFFA",
                    borderRadius: 8, padding: 10, marginTop: 4 },
   noticeTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flex: 1 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
+  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   cardGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card:          { backgroundColor: "#fff", borderRadius: 12, padding: 14, flex: 1, minWidth: "45%",
                    borderWidth: 1, borderColor: "#E5E7EB" },
-  cardLabel:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginBottom: 4 },
-  cardValue:     { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#111827" },
-  cardSub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
+  cardLabel:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
+  cardValue:     { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  cardSub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   empty:         { alignItems: "center", paddingVertical: 32, gap: 8 },
-  emptyTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   recordRow:     { backgroundColor: "#fff", borderRadius: 10, padding: 12, flexDirection: "row",
                    alignItems: "flex-start", borderWidth: 1, borderColor: "#E5E7EB" },
-  recordName:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  recordSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  recordName:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  recordSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   recordAmt:     { fontSize: 15, fontFamily: "Pretendard-Bold" },
   linkBtn:       { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center",
                    backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12 },

@@ -22,7 +22,7 @@ const ICON_COLOR_MAP: Record<string, { bg: string; icon: string }> = {
   mint:    { bg: IB, icon: IC },
   orange:  { bg: IB, icon: IC },
   navy:    { bg: IB, icon: IC },
-  purple:  { bg: "#F3E8FF", icon: PURPLE },
+  purple:  { bg: "#E6FAF8", icon: PURPLE },
   violet:  { bg: IB, icon: IC },
   blue:    { bg: IB, icon: IC },
   green:   { bg: IB, icon: IC },

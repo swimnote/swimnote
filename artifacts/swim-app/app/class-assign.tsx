@@ -282,7 +282,7 @@ export default function ClassAssignScreen() {
         {/* 반 정보 카드 */}
         {classInfo && (
           <View style={[s.classCard, { backgroundColor: C.card }]}>
-            <View style={[s.classIcon, { backgroundColor: "#F3E8FF" }]}>
+            <View style={[s.classIcon, { backgroundColor: "#E6FAF8" }]}>
               <Feather name="layers" size={20} color="#7C3AED" />
             </View>
             <View style={{ flex: 1, gap: 3 }}>

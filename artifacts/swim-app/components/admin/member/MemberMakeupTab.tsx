@@ -12,7 +12,7 @@ const MAKEUP_STATUS: Record<string, { label: string; color: string; bg: string }
   assigned:    { label: "배정",   color: "#2EC4B6", bg: "#E6FFFA" },
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
   completed:   { label: "완료",   color: "#2EC4B6", bg: "#E6FFFA" },
-  cancelled:   { label: "취소",   color: "#6B7280", bg: "#F8FAFC" },
+  cancelled:   { label: "취소",   color: "#64748B", bg: "#FFFFFF" },
 };
 
 interface MemberMakeupTabProps {
@@ -31,7 +31,7 @@ export function MemberMakeupTab({ makeups, themeColor }: MemberMakeupTabProps) {
             <Text style={{ fontSize: 14, color: C.textMuted, marginTop: 10 }}>보강 기록이 없습니다</Text>
           </View>
         ) : makeups.map((mk: any) => {
-          const st = MAKEUP_STATUS[mk.status] || { label: mk.status, color: "#6B7280", bg: "#F8FAFC" };
+          const st = MAKEUP_STATUS[mk.status] || { label: mk.status, color: "#64748B", bg: "#FFFFFF" };
           return (
             <View key={mk.id} style={{ flexDirection: "row", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border, gap: 12 }}>
               <View style={[{ borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" }, { backgroundColor: st.bg }]}>

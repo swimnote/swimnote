@@ -76,7 +76,7 @@ function formatWon(n: number) { return n.toLocaleString("ko-KR") + "원"; }
    AdminRevenueScreen
 ──────────────────────────────────────────────── */
 const STATUS_COLOR: Record<SettlementStatus, { bg: string; text: string }> = {
-  "미정산":    { bg: "#F8FAFC", text: "#6B7280" },
+  "미정산":    { bg: "#FFFFFF", text: "#64748B" },
   "저장됨":    { bg: "#E6FFFA", text: "#2EC4B6" },
   "제출완료":  { bg: "#E6FFFA", text: "#2EC4B6" },
   "관리자확인": { bg: "#EEDDF5", text: "#7C3AED" },
@@ -379,7 +379,7 @@ export default function AdminRevenueScreen() {
               현재 월 정산을 마무리하고{"\n"}다음 달 수업 일정을 새로 생성합니다.{"\n"}보강 이월도 함께 처리됩니다.
             </Text>
             <View style={s.modalBtns}>
-              <Pressable style={[s.modalBtn, { backgroundColor: "#F8FAFC" }]} onPress={() => setNextMonthModal(false)}>
+              <Pressable style={[s.modalBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => setNextMonthModal(false)}>
                 <Text style={[s.modalBtnTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable

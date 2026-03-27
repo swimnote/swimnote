@@ -151,7 +151,7 @@ const s = StyleSheet.create({
   root: { flex: 1 },
   filterRow: {
     flexDirection: "row", gap: 8, paddingHorizontal: 20,
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F8FAFC",
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FFFFFF",
   },
   chip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,

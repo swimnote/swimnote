@@ -93,8 +93,8 @@ function NoticeRow({
         </View>
         <View style={r.pushRow}>
           <View style={[r.pushBadge, pushed ? r.pushSent : r.pushNot]}>
-            <Feather name={pushed ? "send" : "minus-circle"} size={9} color={pushed ? TEAL : "#9CA3AF"} />
-            <Text style={[r.pushTxt, { color: pushed ? TEAL : "#9CA3AF" }]}>
+            <Feather name={pushed ? "send" : "minus-circle"} size={9} color={pushed ? TEAL : "#64748B"} />
+            <Text style={[r.pushTxt, { color: pushed ? TEAL : "#64748B" }]}>
               {pushed ? `발송완료 (${pushCount}회)` : "미발송"}
             </Text>
           </View>
@@ -117,17 +117,17 @@ const r = StyleSheet.create({
   row:       { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
   main:      { flex: 1, gap: 4 },
   top:       { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  title:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827", flex: 1 },
+  title:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A", flex: 1 },
   meta:      { flexDirection: "row", alignItems: "center", gap: 4 },
-  author:    { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  author:    { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   dot:       { fontSize: 10, color: "#D1D5DB" },
-  date:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  date:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   pushRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
   pushBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   pushSent:  { backgroundColor: "#E6FFFA" },
-  pushNot:   { backgroundColor: "#F8FAFC" },
+  pushNot:   { backgroundColor: "#FFFFFF" },
   pushTxt:   { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
-  pushDate:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  pushDate:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   pinBadge:  { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#EEDDF5", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
   pinTxt:    { fontSize: 9, fontFamily: "Pretendard-SemiBold", color: P },
   scopeBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
@@ -294,14 +294,14 @@ export default function PoolNoticesScreen() {
           style={[s.tab, activeScope === "global" && s.tabActive]}
           onPress={() => setActiveScope("global")}
         >
-          <Feather name="globe" size={14} color={activeScope === "global" ? "#fff" : "#6B7280"} />
+          <Feather name="globe" size={14} color={activeScope === "global" ? "#fff" : "#64748B"} />
           <Text style={[s.tabTxt, activeScope === "global" && s.tabTxtActive]}>전체 공지</Text>
         </Pressable>
         <Pressable
           style={[s.tab, activeScope === "pool" && s.tabActive]}
           onPress={() => setActiveScope("pool")}
         >
-          <Feather name="home" size={14} color={activeScope === "pool" ? "#fff" : "#6B7280"} />
+          <Feather name="home" size={14} color={activeScope === "pool" ? "#fff" : "#64748B"} />
           <Text style={[s.tabTxt, activeScope === "pool" && s.tabTxtActive]}>수영장별 공지</Text>
         </Pressable>
       </View>
@@ -333,7 +333,7 @@ export default function PoolNoticesScreen() {
             <Text style={s.poolSelectTxt} numberOfLines={1}>
               {poolsLoading ? "수영장 로딩 중…" : (selectedPool?.name ?? "수영장 선택")}
             </Text>
-            <Feather name="chevron-down" size={14} color="#9CA3AF" />
+            <Feather name="chevron-down" size={14} color="#64748B" />
           </Pressable>
           <Pressable style={[s.addBtn, { backgroundColor: TEAL }]} onPress={openCreate}>
             <Feather name="plus" size={16} color="#fff" />
@@ -396,13 +396,13 @@ export default function PoolNoticesScreen() {
             <View style={pm.handle} />
             <Text style={pm.title}>수영장 선택</Text>
             <TextInput style={pm.search} value={poolSearch} onChangeText={setPoolSearch}
-              placeholder="수영장 이름 검색" placeholderTextColor="#9CA3AF" />
+              placeholder="수영장 이름 검색" placeholderTextColor="#64748B" />
             <ScrollView showsVerticalScrollIndicator={false}>
               {filteredPools.map(p => (
                 <Pressable key={p.id}
                   style={[pm.item, selectedPool?.id === p.id && pm.itemActive]}
                   onPress={() => { setSelectedPool(p); setShowPoolPicker(false); setPoolSearch(""); }}>
-                  <Feather name="home" size={14} color={selectedPool?.id === p.id ? TEAL : "#9CA3AF"} />
+                  <Feather name="home" size={14} color={selectedPool?.id === p.id ? TEAL : "#64748B"} />
                   <View style={{ flex: 1 }}>
                     <Text style={[pm.itemName, selectedPool?.id === p.id && { color: TEAL }]}>{p.name}</Text>
                     {p.address ? <Text style={pm.itemAddr} numberOfLines={1}>{p.address}</Text> : null}
@@ -455,13 +455,13 @@ export default function PoolNoticesScreen() {
                 <Text style={fm.label}>제목 *</Text>
                 <TextInput style={fm.input} value={form.title}
                   onChangeText={v => setForm(f => ({ ...f, title: v }))}
-                  placeholder="공지 제목" placeholderTextColor="#9CA3AF" />
+                  placeholder="공지 제목" placeholderTextColor="#64748B" />
               </View>
               <View>
                 <Text style={fm.label}>내용 *</Text>
                 <TextInput style={[fm.input, { minHeight: 100 }]} value={form.content}
                   onChangeText={v => setForm(f => ({ ...f, content: v }))}
-                  multiline placeholder="공지 내용" placeholderTextColor="#9CA3AF"
+                  multiline placeholder="공지 내용" placeholderTextColor="#64748B"
                   textAlignVertical="top" />
               </View>
 
@@ -557,9 +557,9 @@ const s = StyleSheet.create({
   tabBar:        { flexDirection: "row", padding: 12, gap: 8, backgroundColor: "#fff",
                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:           { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                   gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
+                   gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   tabTxtActive:  { color: "#fff" },
   banner:        { flexDirection: "row", gap: 8, alignItems: "flex-start",
                    paddingHorizontal: 16, paddingVertical: 10,
@@ -568,20 +568,20 @@ const s = StyleSheet.create({
   globalBar:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                    paddingHorizontal: 16, paddingVertical: 10,
                    backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  globalBarLabel:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  globalBarLabel:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   poolBar:       { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10,
                    backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   poolSelect:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
-                   backgroundColor: "#F8FAFC", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  poolSelectTxt: { flex: 1, fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+                   backgroundColor: "#FFFFFF", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  poolSelectTxt: { flex: 1, fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   addBtn:        { flexDirection: "row", alignItems: "center", gap: 5,
                    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   addBtnTxt:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#fff" },
-  list:          { flex: 1, backgroundColor: "#F8FAFC" },
-  sep:           { height: 1, backgroundColor: "#F8FAFC" },
+  list:          { flex: 1, backgroundColor: "#FFFFFF" },
+  sep:           { height: 1, backgroundColor: "#FFFFFF" },
   center:        { flex: 1, alignItems: "center", justifyContent: "center" },
   empty:         { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });
 
 const pm = StyleSheet.create({
@@ -589,14 +589,14 @@ const pm = StyleSheet.create({
   sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "70%" },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 16 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 12 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 12 },
   search:    { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 10, marginBottom: 12,
-               fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
+               fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   item:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10 },
   itemActive:{ backgroundColor: "#E6FFFA" },
-  itemName:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  itemAddr:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  empty:     { textAlign: "center", fontSize: 13, color: "#9CA3AF", padding: 20 },
+  itemName:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  itemAddr:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  empty:     { textAlign: "center", fontSize: 13, color: "#64748B", padding: 20 },
 });
 
 const fm = StyleSheet.create({
@@ -604,22 +604,22 @@ const fm = StyleSheet.create({
   sheet:        { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                   borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "90%" },
   handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 12 },
-  title:        { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 8 },
+  title:        { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 8 },
   scopeTag:     { flexDirection: "row", alignItems: "center", gap: 6,
                   paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, alignSelf: "flex-start", marginBottom: 12 },
   scopeTagTxt:  { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
-  label:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827", marginBottom: 4 },
-  hint:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  label:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginBottom: 4 },
+  hint:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   input:        { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                  fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
+                  fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   switchRow:    { flexDirection: "row", alignItems: "center", gap: 12 },
   infoBanner:   { flexDirection: "row", gap: 8, alignItems: "flex-start",
                   borderRadius: 10, padding: 10 },
   infoBannerTxt:{ fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1, lineHeight: 18 },
   error:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: RED, textAlign: "center" },
   btnRow:       { flexDirection: "row", gap: 10, marginTop: 4 },
-  cancelBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#F8FAFC", alignItems: "center" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  cancelBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   saveBtn:      { flex: 1, padding: 13, borderRadius: 12, alignItems: "center" },
   saveTxt:      { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });
@@ -627,11 +627,11 @@ const fm = StyleSheet.create({
 const dm = StyleSheet.create({
   overlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 24 },
   card:      { backgroundColor: "#fff", borderRadius: 20, padding: 24, width: "100%", maxWidth: 360 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 8 },
-  body:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#6B7280", lineHeight: 22, marginBottom: 20 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 8 },
+  body:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 22, marginBottom: 20 },
   btnRow:    { flexDirection: "row", gap: 10 },
-  cancelBtn: { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#F8FAFC", alignItems: "center" },
-  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  cancelBtn: { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },
+  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   delBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: RED, alignItems: "center" },
   delTxt:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

@@ -657,7 +657,7 @@ export default function TeacherPhotosScreen() {
                       {isSel && <Feather name="check" size={12} color="#fff" />}
                     </View>
                   ) : (
-                    <Feather name="chevron-right" size={18} color="#9CA3AF" />
+                    <Feather name="chevron-right" size={18} color="#64748B" />
                   )}
                 </Pressable>
               );
@@ -724,12 +724,12 @@ export default function TeacherPhotosScreen() {
               <View style={{ flexDirection: "row", justifyContent: "center", marginTop: 8, gap: 10 }}>
                 <Pressable
                   onPress={() => { setLightbox(null); toggleSelect(lightbox?.id ?? ""); if (!selectMode) setSelectMode(true); }}
-                  style={[s.lbActionBtn, { backgroundColor: "#111827" }]}
+                  style={[s.lbActionBtn, { backgroundColor: "#0F172A" }]}
                 >
                   <Feather name="trash-2" size={15} color="#fff" />
                   <Text style={s.lbActionBtnText}>삭제</Text>
                 </Pressable>
-                <Pressable onPress={() => setLightbox(null)} style={[s.lbActionBtn, { backgroundColor: "#6B7280" }]}>
+                <Pressable onPress={() => setLightbox(null)} style={[s.lbActionBtn, { backgroundColor: "#64748B" }]}>
                   <Feather name="x" size={15} color="#fff" />
                   <Text style={s.lbActionBtnText}>닫기</Text>
                 </Pressable>
@@ -886,9 +886,9 @@ export default function TeacherPhotosScreen() {
 
 // ── 스타일 ────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F8FAFC" },
+  safe: { flex: 1, backgroundColor: "#FFFFFF" },
   titleRow: { paddingHorizontal: 16, paddingVertical: 10 },
-  title: { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#111827" },
+  title: { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#0F172A" },
 
   grid: { flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 12 },
   gridBtn: { width: "47%", aspectRatio: 1, borderRadius: 20, borderWidth: 1.5, alignItems: "center", justifyContent: "center", gap: 10 },
@@ -897,14 +897,14 @@ const s = StyleSheet.create({
   gridSub: { fontSize: 13, fontFamily: "Pretendard-Medium" },
 
   usageCard: { marginHorizontal: 12, marginTop: 4, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden" },
-  usageCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  usageCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   usageCardTitle: { fontSize: 14, fontFamily: "Pretendard-Bold" },
   usageCardBody: { padding: 12, gap: 2 },
   usageItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 10 },
-  usageItemLabel: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#111827" },
-  usageItemBytes: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  usageDivider: { height: 1, backgroundColor: "#F8FAFC", marginHorizontal: 8 },
-  usageMonthText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", textAlign: "center", paddingTop: 6 },
+  usageItemLabel: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  usageItemBytes: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  usageDivider: { height: 1, backgroundColor: "#FFFFFF", marginHorizontal: 8 },
+  usageMonthText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", paddingTop: 6 },
 
   listToolbar: { height: 36, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingHorizontal: 14 },
   listSelectBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
@@ -913,20 +913,20 @@ const s = StyleSheet.create({
   selectBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F5F9", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", gap: 4 },
   selectBarLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
   selectBarAllText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
-  selectBarCount: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", textAlign: "center" },
+  selectBarCount: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
   selectBarDel: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#D96C6C", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
   selectBarDelText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   selectBarCancel: { paddingHorizontal: 8, paddingVertical: 7 },
-  selectBarCancelText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#6B7280" },
+  selectBarCancelText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#64748B" },
 
   centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 28 },
-  centerText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#6B7280", textAlign: "center" },
+  centerText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
   retryBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#4EA7D8", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
   retryBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold" },
-  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#111827", textAlign: "center" },
-  emptySubText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9CA3AF", textAlign: "center" },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#0F172A", textAlign: "center" },
+  emptySubText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
 
-  photoCell: { overflow: "hidden", backgroundColor: "#F8FAFC", margin: 1 },
+  photoCell: { overflow: "hidden", backgroundColor: "#FFFFFF", margin: 1 },
   photoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
   photoDateOverlay: { position: "absolute", top: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.28)", paddingHorizontal: 5, paddingVertical: 3 },
   photoDateText: { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
@@ -936,9 +936,9 @@ const s = StyleSheet.create({
 
   videoRow: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 12, gap: 12 },
   videoThumb: { width: 52, height: 52, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  videoLabel: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  videoMeta: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280" },
-  videoUploader: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  videoLabel: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  videoMeta: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  videoUploader: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   fab: { position: "absolute", right: 20, width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 8 },
 
@@ -953,8 +953,8 @@ const s = StyleSheet.create({
 
   uploadCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 40 },
   uploadIcon: { width: 100, height: 100, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  uploadTitle: { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#111827", textAlign: "center" },
-  uploadSub: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#6B7280", textAlign: "center", lineHeight: 20 },
+  uploadTitle: { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#0F172A", textAlign: "center" },
+  uploadSub: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 20 },
   uploadBtn: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 28, paddingVertical: 16, borderRadius: 16 },
   uploadBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Bold" },
 
@@ -962,5 +962,5 @@ const s = StyleSheet.create({
   studentRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
   avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 15, fontFamily: "Pretendard-Bold" },
-  studentName: { flex: 1, fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  studentName: { flex: 1, fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
 });

@@ -81,7 +81,7 @@ function formatExpireAt(expire_at: string | null) {
   const d = new Date(expire_at);
   const diffDays = Math.ceil((d.getTime() - Date.now()) / 86400000);
   const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  const col = diffDays <= 7 ? "#D96C6C" : diffDays <= 14 ? "#D97706" : "#6B7280";
+  const col = diffDays <= 7 ? "#D96C6C" : diffDays <= 14 ? "#D97706" : "#64748B";
   const label = diffDays < 0 ? `만료됨(${ds})` : diffDays <= 14 ? `만료 D-${diffDays}(${ds})` : `만료일: ${ds}`;
   return { text: label, color: col };
 }
@@ -717,7 +717,7 @@ export default function MakeupsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:            { flex: 1, backgroundColor: "#F8FAFC" },
+  safe:            { flex: 1, backgroundColor: "#FFFFFF" },
   tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
   tabTxt:          { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
   tabBadge:        { width: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },

@@ -186,7 +186,7 @@ export default function ParentOnboardChildScreen() {
           {children.map((child, idx) => (
             <View key={idx} style={[styles.childCard, { borderColor: idx === 0 ? C.tint : C.border }]}>
               <View style={styles.childHeader}>
-                <View style={[styles.childBadge, { backgroundColor: idx === 0 ? C.tintLight : "#F8FAFC" }]}>
+                <View style={[styles.childBadge, { backgroundColor: idx === 0 ? C.tintLight : "#FFFFFF" }]}>
                   <Text style={[styles.childBadgeTxt, { color: idx === 0 ? C.tint : C.textSecondary }]}>
                     자녀 {idx + 1}{idx === 0 ? " (필수)" : " (선택)"}
                   </Text>

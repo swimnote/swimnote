@@ -211,7 +211,7 @@ export default function HolidaysScreen() {
             placeholderTextColor={C.textMuted}
           />
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable style={[s.modalBtn, { backgroundColor: "#F8FAFC", flex: 1 }]} onPress={() => setReasonModal(false)}>
+            <Pressable style={[s.modalBtn, { backgroundColor: "#FFFFFF", flex: 1 }]} onPress={() => setReasonModal(false)}>
               <Text style={[s.modalBtnText, { color: C.text }]}>취소</Text>
             </Pressable>
             <Pressable style={[s.modalBtn, { backgroundColor: "#D96C6C", flex: 1 }]} onPress={handleAddHoliday}>
@@ -225,7 +225,7 @@ export default function HolidaysScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#F8FAFC" },
+  safe:        { flex: 1, backgroundColor: "#FFFFFF" },
   monthRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 12 },
   navBtn:      { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   monthText:   { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text },

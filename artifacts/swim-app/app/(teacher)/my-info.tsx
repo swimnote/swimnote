@@ -38,7 +38,7 @@ interface MemberItem {
 
 const DAY_COLORS: Record<string, string> = {
   월: "#4EA7D8", 화: "#8B5CF6", 수: "#2EC4B6",
-  목: "#E4A93A", 금: "#D96C6C", 토: "#2EC4B6", 일: "#6B7280",
+  목: "#E4A93A", 금: "#D96C6C", 토: "#2EC4B6", 일: "#64748B",
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -259,7 +259,7 @@ export default function MyInfoScreen() {
               <Text style={s.profileName}>{profile?.name || "-"}</Text>
               {profile?.position ? <Text style={s.profileSub}>{profile.position}</Text> : null}
               <Text style={s.profileSub}>{profile?.phone || "-"}</Text>
-              <Text style={[s.profileSub, { color: "#9CA3AF" }]}>{profile?.email || "-"}</Text>
+              <Text style={[s.profileSub, { color: "#64748B" }]}>{profile?.email || "-"}</Text>
             </View>
             <Pressable style={[s.editBtn, { borderColor: themeColor }]} onPress={openEdit}>
               <Feather name="edit-2" size={14} color={themeColor} />
@@ -286,7 +286,7 @@ export default function MyInfoScreen() {
                 <Text style={s.permLabel}>보유 역할</Text>
                 <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
                   {adminUser.roles.map((r: string) => (
-                    <View key={r} style={[s.permBadge, { backgroundColor: "#F8FAFC" }]}>
+                    <View key={r} style={[s.permBadge, { backgroundColor: "#FFFFFF" }]}>
                       <Text style={[s.permBadgeText, { color: C.textSecondary }]}>{ROLE_LABEL[r] ?? r}</Text>
                     </View>
                   ))}
@@ -516,7 +516,7 @@ export default function MyInfoScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F8FAFC" },
+  safe:             { flex: 1, backgroundColor: "#FFFFFF" },
   card:             { backgroundColor: C.card, borderRadius: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   cardRow:          { flexDirection: "row", alignItems: "center", gap: 14 },
   cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, paddingBottom: 12 },

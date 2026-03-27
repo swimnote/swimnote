@@ -106,10 +106,10 @@ export default function DataStorageByCategoryScreen() {
 const s = StyleSheet.create({
   card:      { borderRadius: 16, padding: 16, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   iconWrap:  { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  label:     { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  label:     { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   bytes:     { fontSize: 15, fontFamily: "Pretendard-Bold" },
   gaugeWrap: { height: 8, backgroundColor: "#E5E7EB", borderRadius: 4, overflow: "hidden" },
   gaugeBar:  { height: 8, borderRadius: 4 },
-  pct:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 4 },
+  pct:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },
   totalCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderRadius: 16, borderWidth: 1 },
 });

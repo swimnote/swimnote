@@ -228,7 +228,7 @@ export default function SecurityScreen() {
                     <Text style={m.sectionTitle}>디바이스 기록</Text>
                     {selected.devices.map(d => (
                       <View key={d.id} style={m.devRow}>
-                        <Feather name="monitor" size={14} color="#6B7280" />
+                        <Feather name="monitor" size={14} color="#64748B" />
                         <View style={{ flex: 1 }}>
                           <Text style={m.devLabel}>{d.label} {d.isCurrent && <Text style={m.devCurrent}>(현재)</Text>}</Text>
                           <Text style={m.devMeta}>{d.os} · {d.browser} · {fmtDate(d.lastUsedAt)}</Text>
@@ -261,7 +261,7 @@ export default function SecurityScreen() {
                       bg={selected.isActive ? '#FFF1BF' : '#E6FFFA'}
                       onPress={() => { doToggleActive(selected); setSelected(null); }} />
                     {selected.loginFailCount > 0 && (
-                      <ActionBtn label="실패 횟수 초기화" icon="refresh-cw" color="#6B7280" bg="#F8FAFC"
+                      <ActionBtn label="실패 횟수 초기화" icon="refresh-cw" color="#64748B" bg="#FFFFFF"
                         onPress={() => { resetFailCount(selected.id); setSelected(a => a ? { ...a, loginFailCount: 0 } : null); }} />
                     )}
                   </View>
@@ -315,7 +315,7 @@ export default function SecurityScreen() {
                 ))}
               </View>
               <TextInput style={m.reasonInput} value={reason} onChangeText={setReason}
-                placeholder="잠금 사유 입력" placeholderTextColor="#9CA3AF" />
+                placeholder="잠금 사유 입력" placeholderTextColor="#64748B" />
               <View style={m.lockBtns}>
                 <Pressable style={m.cancelBtn} onPress={() => setLockModal(false)}>
                   <Text style={m.cancelTxt}>취소</Text>
@@ -333,7 +333,7 @@ export default function SecurityScreen() {
   );
 }
 
-function MetaItem({ icon, label, color = "#6B7280" }: { icon: any; label: string; color?: string }) {
+function MetaItem({ icon, label, color = "#64748B" }: { icon: any; label: string; color?: string }) {
   return (
     <View style={s.metaItem}>
       <Feather name={icon} size={10} color={color} />
@@ -342,7 +342,7 @@ function MetaItem({ icon, label, color = "#6B7280" }: { icon: any; label: string
   );
 }
 
-function InfoRow({ label, val, valColor = "#111827" }: { label: string; val: string; valColor?: string }) {
+function InfoRow({ label, val, valColor = "#0F172A" }: { label: string; val: string; valColor?: string }) {
   return (
     <View style={m.infoRow}>
       <Text style={m.infoLabel}>{label}</Text>
@@ -368,7 +368,7 @@ const s = StyleSheet.create({
   kpiCard:      { width: 80, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: "#F1F5F9",
                   borderRadius: 10, borderTopWidth: 2, alignItems: "center", gap: 2 },
   kpiVal:       { fontSize: 18, fontFamily: "Pretendard-Bold" },
-  kpiLabel:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#6B7280" },
+  kpiLabel:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 10,
                   shadowColor: "#0000001A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 3, elevation: 1 },
   cardInactive: { opacity: 0.5 },
@@ -377,19 +377,19 @@ const s = StyleSheet.create({
   avatar:       { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarTxt:    { fontSize: 18, fontFamily: "Pretendard-Bold" },
   cardNameRow:  { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  cardName:     { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827" },
-  cardEmail:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
+  cardName:     { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  cardEmail:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   roleBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   roleTxt:      { fontSize: 10, fontFamily: "Pretendard-Bold" },
   lockBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "#F9DEDA" },
   lockTxt:      { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#D96C6C" },
-  inactiveBadge:{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "#F8FAFC" },
-  inactiveTxt:  { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#9CA3AF" },
+  inactiveBadge:{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: "#FFFFFF" },
+  inactiveTxt:  { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#64748B" },
   cardMeta:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   metaItem:     { flexDirection: "row", alignItems: "center", gap: 4 },
   metaTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular" },
   empty:        { alignItems: "center", paddingTop: 60 },
-  emptyTxt:     { fontSize: 14, color: "#9CA3AF", fontFamily: "Pretendard-Regular" },
+  emptyTxt:     { fontSize: 14, color: "#64748B", fontFamily: "Pretendard-Regular" },
 });
 
 const m = StyleSheet.create({
@@ -398,28 +398,28 @@ const m = StyleSheet.create({
                   borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "85%", gap: 10 },
   handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
   titleRow:     { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  title:        { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827" },
-  sub:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  title:        { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  sub:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   roleBadge:    { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   roleTxt:      { fontSize: 11, fontFamily: "Pretendard-Bold" },
   section:      { gap: 8, paddingTop: 6 },
-  sectionTitle: { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827", borderBottomWidth: 1,
-                  borderBottomColor: "#F8FAFC", paddingBottom: 6, marginBottom: 2 },
+  sectionTitle: { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A", borderBottomWidth: 1,
+                  borderBottomColor: "#FFFFFF", paddingBottom: 6, marginBottom: 2 },
   infoRow:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
-  infoLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#6B7280" },
+  infoLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   infoVal:      { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   sessRow:      { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8,
-                  borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
-  sessDevice:   { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  sessMeta:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+                  borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
+  sessDevice:   { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  sessMeta:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   sessKill:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F9DEDA" },
   sessKillTxt:  { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
-  sessDone:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  sessDone:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   devRow:       { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 6,
-                  borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
-  devLabel:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+                  borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
+  devLabel:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   devCurrent:   { color: "#2EC4B6", fontFamily: "Pretendard-Regular" },
-  devMeta:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  devMeta:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   actions:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   actionBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12,
                   paddingVertical: 9, borderRadius: 10 },
@@ -427,17 +427,17 @@ const m = StyleSheet.create({
   roleRow:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10, marginBottom: 4 },
   roleDot:      { width: 10, height: 10, borderRadius: 5 },
   roleRowLabel: { fontSize: 14, fontFamily: "Pretendard-Bold" },
-  roleDesc:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  roleDesc:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   lockHours:    { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
   hourBtn:      { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
                   borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F1F5F9" },
   hourBtnActive:{ backgroundColor: "#D96C6C", borderColor: "#D96C6C" },
-  hourTxt:      { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#111827" },
+  hourTxt:      { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
   reasonInput:  { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                  fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827", marginBottom: 4 },
+                  fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4 },
   lockBtns:     { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn:    { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  cancelBtn:    { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   dangerBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16,
                   paddingVertical: 10, borderRadius: 10, backgroundColor: "#D96C6C" },
   dangerTxt:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },

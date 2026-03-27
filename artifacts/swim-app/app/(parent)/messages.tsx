@@ -205,7 +205,7 @@ export default function MessagesScreen() {
         {diaryId ? (
           <View style={[s.inputRow, { borderTopColor: C.border, paddingBottom: insets.bottom + 8 }]}>
             <TextInput
-              style={[s.input, { backgroundColor: "#F8FAFC", color: C.text }]}
+              style={[s.input, { backgroundColor: "#FFFFFF", color: C.text }]}
               placeholder="쪽지 내용을 입력하세요"
               placeholderTextColor={C.textMuted}
               value={input}

@@ -37,7 +37,7 @@ interface SettlementSummary {
 type SubmitStatus = "미정산" | "저장됨" | "제출완료" | "관리자확인";
 
 const STATUS_COLOR: Record<SubmitStatus, { bg: string; text: string }> = {
-  "미정산":    { bg: "#F8FAFC", text: "#6B7280" },
+  "미정산":    { bg: "#FFFFFF", text: "#64748B" },
   "저장됨":    { bg: "#E6FFFA", text: "#2EC4B6" },
   "제출완료":  { bg: "#E6FFFA", text: "#2EC4B6" },
   "관리자확인": { bg: "#EEDDF5", text: "#7C3AED" },
@@ -260,7 +260,7 @@ export default function RevenueScreen() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={[rv.studentName, { color: C.text }]}>{s.student_name}</Text>
                       {s.is_trial && <View style={[rv.tag, { backgroundColor: "#FFF1BF" }]}><Text style={[rv.tagText, { color: "#D97706" }]}>체험</Text></View>}
-                      {s.is_unregistered && <View style={[rv.tag, { backgroundColor: "#F8FAFC" }]}><Text style={[rv.tagText, { color: "#6B7280" }]}>미등록</Text></View>}
+                      {s.is_unregistered && <View style={[rv.tag, { backgroundColor: "#FFFFFF" }]}><Text style={[rv.tagText, { color: "#64748B" }]}>미등록</Text></View>}
                       {s.temp_transfer_sessions > 0 && <View style={[rv.tag, { backgroundColor: "#EEDDF5" }]}><Text style={[rv.tagText, { color: "#7C3AED" }]}>임시이동</Text></View>}
                     </View>
                     <Text style={[rv.studentSub, { color: C.textSecondary }]}>
@@ -328,7 +328,7 @@ export default function RevenueScreen() {
 
             {/* ─── 버튼 ─────────────────────────────────── */}
             <Pressable
-              style={[rv.saveBtn, { backgroundColor: "#6B7280", opacity: saving ? 0.6 : 1 }]}
+              style={[rv.saveBtn, { backgroundColor: "#64748B", opacity: saving ? 0.6 : 1 }]}
               onPress={handleSave} disabled={saving || submitting}
             >
               {saving ? <ActivityIndicator color="#fff" /> : <>
@@ -395,7 +395,7 @@ export default function RevenueScreen() {
             >
               <Text style={rv.confirmBtnText}>확정 후 다음 달 시작</Text>
             </Pressable>
-            <Pressable style={[rv.confirmBtn, { backgroundColor: "#F8FAFC" }]} onPress={() => setNextMonthModal(false)}>
+            <Pressable style={[rv.confirmBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => setNextMonthModal(false)}>
               <Text style={[rv.confirmBtnText, { color: C.text }]}>취소</Text>
             </Pressable>
           </View>
@@ -406,7 +406,7 @@ export default function RevenueScreen() {
 }
 
 const rv = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F8FAFC" },
+  safe:             { flex: 1, backgroundColor: "#FFFFFF" },
   monthRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 12 },
   navBtn:           { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   monthText:        { fontSize: 17, fontFamily: "Pretendard-Bold" },

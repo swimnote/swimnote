@@ -116,8 +116,8 @@ export function MemberStatusChangeModal({
                 </View>
               )}
               {currentStatus === "withdrawn" && (
-                <View style={[m.badge, { backgroundColor: "#F8FAFC" }]}>
-                  <Text style={[m.badgeText, { color: "#6B7280" }]}>현재: 퇴원</Text>
+                <View style={[m.badge, { backgroundColor: "#FFFFFF" }]}>
+                  <Text style={[m.badgeText, { color: "#64748B" }]}>현재: 퇴원</Text>
                 </View>
               )}
               {pendingStatusChange === "suspended" && pendingEffectiveMode === "next_month" && (

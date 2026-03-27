@@ -54,7 +54,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string; ic
   joinedPendingApproval: { label: "승인 대기",  color: "#D97706", bg: "#FFF1BF", icon: "clock"       },
   approved:              { label: "승인됨",     color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
   rejected:              { label: "거절됨",     color: "#D96C6C", bg: "#F9DEDA", icon: "x-circle"     },
-  inactive:              { label: "비활성",     color: "#6B7280", bg: "#F8FAFC", icon: "slash"        },
+  inactive:              { label: "비활성",     color: "#64748B", bg: "#FFFFFF", icon: "slash"        },
   invited:               { label: "초대됨",     color: "#2EC4B6", bg: "#ECFEFF", icon: "mail"         },
 };
 
@@ -278,7 +278,7 @@ export default function TeacherPendingDetailScreen() {
               onPress={() => setShowRejectReasonModal(true)}
               disabled={approving}
             >
-              <Feather name="file-text" size={16} color="#6B7280" />
+              <Feather name="file-text" size={16} color="#64748B" />
               <Text style={s.rejectReasonBtnTxt}>거절 사유 보기</Text>
             </Pressable>
             <Pressable
@@ -325,7 +325,7 @@ export default function TeacherPendingDetailScreen() {
                 </View>
               )}
               <View style={s.historyItem}>
-                <View style={[s.historyDot, { backgroundColor: "#6B7280" }]} />
+                <View style={[s.historyDot, { backgroundColor: "#64748B" }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.historyDate}>{requestedDate}</Text>
                   <Text style={s.historyDesc}>가입 요청</Text>
@@ -495,7 +495,7 @@ const s = StyleSheet.create({
   rejectBtn:         { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#D96C6C", backgroundColor: "#FFF5F5" },
   rejectBtnTxt:      { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
   rejectReasonBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#F1F5F9" },
-  rejectReasonBtnTxt:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  rejectReasonBtnTxt:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   approveBtn:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
   approveBtnTxt:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 

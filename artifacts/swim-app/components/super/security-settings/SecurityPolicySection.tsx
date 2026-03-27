@@ -60,7 +60,7 @@ export function SecurityPolicySection({
         {REAUTH_ACTIONS.map(act => (
           <View key={act} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 }}>
             <Feather name="check-circle" size={12} color={P} />
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827" }}>{act}</Text>
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" }}>{act}</Text>
           </View>
         ))}
       </View>
@@ -72,15 +72,15 @@ const s = StyleSheet.create({
   section:          { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 10,
                       borderWidth: 1, borderColor: "#E5E7EB" },
   policyRow:        { flexDirection: "row", alignItems: "center", paddingVertical: 8,
-                      borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
-  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#111827" },
-  policyBtn:        { width: 30, height: 30, borderRadius: 8, backgroundColor: "#F8FAFC",
+                      borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
+  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  policyBtn:        { width: 30, height: 30, borderRadius: 8, backgroundColor: "#FFFFFF",
                       alignItems: "center", justifyContent: "center" },
-  policyBtnTxt:     { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#111827", lineHeight: 22 },
-  policyVal:        { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827",
+  policyBtnTxt:     { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#0F172A", lineHeight: 22 },
+  policyVal:        { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A",
                       minWidth: 32, textAlign: "center" },
-  policyChip:       { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F8FAFC" },
+  policyChip:       { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#FFFFFF" },
   policyChipActive: { backgroundColor: P },
-  policyChipTxt:    { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#6B7280" },
+  policyChipTxt:    { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
   policyChipTxtActive: { color: "#fff" },
 });

@@ -49,7 +49,7 @@ const PERM_LABELS: { key: keyof Permissions; label: string; desc: string; icon: 
 ];
 
 const ROLES: Record<string, { label: string; color: string; bg: string }> = {
-  super_admin:    { label: "슈퍼관리자",  color: "#7C3AED", bg: "#F3E8FF" },
+  super_admin:    { label: "슈퍼관리자",  color: "#7C3AED", bg: "#E6FAF8" },
   platform_admin: { label: "플랫폼관리자",color: "#4EA7D8", bg: "#E6FFFA" },
 };
 
@@ -153,8 +153,8 @@ export default function UsersScreen() {
       <View style={{ gap: 8 }}>
         {PERM_LABELS.map(({ key, label, desc, icon }) => (
           <View key={key} style={[ps.row, { opacity: disabled ? 0.5 : 1 }]}>
-            <View style={[ps.icon, { backgroundColor: perms[key] ? "#E6FFFA" : "#F8FAFC" }]}>
-              <Feather name={icon as any} size={15} color={perms[key] ? "#4EA7D8" : "#9CA3AF"} />
+            <View style={[ps.icon, { backgroundColor: perms[key] ? "#E6FFFA" : "#FFFFFF" }]}>
+              <Feather name={icon as any} size={15} color={perms[key] ? "#4EA7D8" : "#64748B"} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[ps.permLabel, { color: C.text }]}>{label}</Text>

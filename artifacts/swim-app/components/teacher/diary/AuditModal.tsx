@@ -79,9 +79,9 @@ const a = StyleSheet.create({
   logHeader:       { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   logBadge:        { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   logBadgeText:    { fontSize: 11, fontFamily: "Pretendard-Bold" },
-  logTarget:       { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#6B7280" },
-  logMeta:         { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", textAlign: "right" },
+  logTarget:       { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  logMeta:         { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "right" },
   logContent:      { borderRadius: 8, borderWidth: 1, padding: 10, gap: 4 },
-  logContentLabel: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  logContentLabel: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   logContentText:  { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
 });

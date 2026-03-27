@@ -204,8 +204,8 @@ export default function StudentDetailScreen() {
                 <Text style={[s.statusText, { color: primaryBadge.color }]}>{primaryBadge.label}</Text>
               </View>
               {weeklyChanging ? (
-                <View style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#F8FAFC" }]}>
-                  <ActivityIndicator size={10} color="#9CA3AF" />
+                <View style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#FFFFFF" }]}>
+                  <ActivityIndicator size={10} color="#64748B" />
                 </View>
               ) : weeklyBadge ? (
                 <Pressable
@@ -217,11 +217,11 @@ export default function StudentDetailScreen() {
                 </Pressable>
               ) : (
                 <Pressable
-                  style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#D1D5DB", borderStyle: "dashed" }]}
+                  style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#D1D5DB", borderStyle: "dashed" }]}
                   onPress={() => setShowWeeklyPicker(true)}
                 >
-                  <Feather name="plus" size={10} color="#6B7280" />
-                  <Text style={[s.statusText, { color: "#6B7280", marginLeft: 3 }]}>주 횟수</Text>
+                  <Feather name="plus" size={10} color="#64748B" />
+                  <Text style={[s.statusText, { color: "#64748B", marginLeft: 3 }]}>주 횟수</Text>
                 </Pressable>
               )}
               {pendingBadge && (
@@ -302,7 +302,7 @@ export default function StudentDetailScreen() {
               value={student.registration_path === "admin_created" ? "관리자 직접" : "학부모 요청"} />
             <InfoRow icon="link" label="학부모 연결"
               value={student.parent_user_id ? "연결됨" : student.status === "pending_parent_link" ? "대기 중" : "학부모미연결"}
-              valueColor={student.parent_user_id ? "#2EC4B6" : student.status === "pending_parent_link" ? "#EA580C" : "#6B7280"} />
+              valueColor={student.parent_user_id ? "#2EC4B6" : student.status === "pending_parent_link" ? "#EA580C" : "#64748B"} />
           </View>
         </View>
 
@@ -538,15 +538,15 @@ const s = StyleSheet.create({
 
   pickerOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 32 },
   pickerSheet:    { width: "100%", borderRadius: 20, padding: 24, gap: 16 },
-  pickerTitle:    { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827", textAlign: "center" },
-  pickerSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#6B7280", textAlign: "center", marginTop: -8 },
+  pickerTitle:    { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A", textAlign: "center" },
+  pickerSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", marginTop: -8 },
   pickerOptions:  { flexDirection: "row", gap: 10 },
   pickerOption:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
                     paddingVertical: 14, borderRadius: 14, borderWidth: 2 },
   pickerOptionText: { fontSize: 16, fontFamily: "Pretendard-Bold" },
   pickerCancel:   { alignItems: "center", paddingVertical: 12, borderRadius: 12,
                     borderWidth: 1.5, borderColor: "#E5E7EB" },
-  pickerCancelText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  pickerCancelText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
 
   levelPickerItem: {
     flexDirection: "row", alignItems: "center", gap: 8,
@@ -581,7 +581,7 @@ const s = StyleSheet.create({
   infoLabel:      { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary, width: 80 },
   infoValue:      { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text, textAlign: "right" },
 
-  divider:        { height: 1, backgroundColor: "#F8FAFC", marginHorizontal: 14 },
+  divider:        { height: 1, backgroundColor: "#FFFFFF", marginHorizontal: 14 },
 
   classRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
   colorBar:       { width: 4, height: 40, borderRadius: 2 },

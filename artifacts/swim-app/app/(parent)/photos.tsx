@@ -317,7 +317,7 @@ export default function ParentPhotosScreen() {
             <Pressable
               onPress={saveAll}
               disabled={allSaving}
-              style={[st.lbBtn, { backgroundColor: "#111827" }]}
+              style={[st.lbBtn, { backgroundColor: "#0F172A" }]}
             >
               {allSaving
                 ? <ActivityIndicator color="#fff" size="small" />
@@ -341,16 +341,16 @@ const st = StyleSheet.create({
   toolbar: { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F5F9", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", gap: 4 },
   toolbarLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
   toolbarToggleText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
-  toolbarCount: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", textAlign: "center" },
+  toolbarCount: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
   toolbarAction: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
   toolbarActionText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   toolbarCancel: { paddingHorizontal: 8, paddingVertical: 7 },
-  toolbarCancelText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#6B7280" },
+  toolbarCancelText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#64748B" },
 
   selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-end", paddingHorizontal: 12, paddingVertical: 6, marginBottom: 4 },
   selectBtnText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
 
-  photoCell: { borderRadius: 4, overflow: "hidden", backgroundColor: "#F8FAFC" },
+  photoCell: { borderRadius: 4, overflow: "hidden", backgroundColor: "#FFFFFF" },
   photoCellSelected: { borderWidth: 3, borderColor: "#2EC4B6" },
   thumbnail: { width: "100%", height: "100%" },
   dateOverlay: { position: "absolute", top: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.28)", paddingHorizontal: 5, paddingVertical: 2 },

@@ -130,7 +130,7 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                     {a.has_makeup && <StatusBadge label="보강" bg="#EEDDF5" color="#7C3AED" />}
                     <StatusBadge
                       label={a.status === "present" ? "출석" : a.status === "absent" ? "결석" : a.status}
-                      bg={a.status === "present" ? "#E6FFFA" : a.status === "absent" ? "#F9DEDA" : "#F8FAFC"}
+                      bg={a.status === "present" ? "#E6FFFA" : a.status === "absent" ? "#F9DEDA" : "#FFFFFF"}
                       color={a.status === "present" ? "#2EC4B6" : a.status === "absent" ? "#D96C6C" : C.textSecondary}
                     />
                   </View>

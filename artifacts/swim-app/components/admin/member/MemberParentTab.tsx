@@ -25,7 +25,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
       <View style={ms.section}>
         <Text style={ms.sectionTitle}>학부모 앱 연결</Text>
         <View style={[ms.connCard, {
-          backgroundColor: connStatus === "linked" ? "#E6FFFA" : connStatus === "pending" ? "#FFF1BF" : "#F8FAFC",
+          backgroundColor: connStatus === "linked" ? "#E6FFFA" : connStatus === "pending" ? "#FFF1BF" : "#FFFFFF",
         }]}>
           <Feather
             name={connStatus === "linked" ? "check-circle" : connStatus === "pending" ? "clock" : "x-circle"}

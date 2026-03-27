@@ -89,7 +89,7 @@ const um = StyleSheet.create({
   title:      { fontSize: 17, fontFamily: "Pretendard-Bold", flex: 1 },
   countBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   countTxt:   { color: "#fff", fontSize: 12, fontFamily: "Pretendard-SemiBold" },
-  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
+  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
   empty:      { alignItems: "center", gap: 10, paddingVertical: 40 },
   emptyTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular" },
   item:       { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },

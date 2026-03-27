@@ -102,13 +102,13 @@ const sc = StyleSheet.create({
   card:       { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   top:        { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   iconWrap:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  name:       { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  category:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  name:       { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  category:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   metrics:    { flexDirection: "row", gap: 16, marginBottom: 6 },
   metricItem: { gap: 2 },
-  metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  metricVal:  { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
-  note:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 4 },
+  metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metricVal:  { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  note:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },
   fixBtn:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, padding: 6,
                 borderRadius: 6, backgroundColor: "#F1F5F9" },
   fixTxt:     { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
@@ -195,7 +195,7 @@ export default function SystemStatusScreen() {
         ))}
 
         <View style={s.noteBox}>
-          <Feather name="info" size={12} color="#6B7280" />
+          <Feather name="info" size={12} color="#64748B" />
           <Text style={s.noteTxt}>
             서비스 상태는 1분 단위로 자동 점검됩니다. 이상 감지 시 슈퍼관리자에게 푸시 알림이 발송됩니다.
           </Text>
@@ -212,9 +212,9 @@ const s = StyleSheet.create({
   overallTitle:   { fontSize: 15, fontFamily: "Pretendard-Bold" },
   overallSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   refreshBtn:     { padding: 6 },
-  categoryTitle:  { fontSize: 12, fontFamily: "Pretendard-Bold", color: "#6B7280", textTransform: "uppercase",
+  categoryTitle:  { fontSize: 12, fontFamily: "Pretendard-Bold", color: "#64748B", textTransform: "uppercase",
                     letterSpacing: 0.5, marginTop: 4 },
-  noteBox:        { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#F8FAFC",
+  noteBox:        { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFFFFF",
                     borderRadius: 8, padding: 10 },
-  noteTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", flex: 1 },
+  noteTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
 });

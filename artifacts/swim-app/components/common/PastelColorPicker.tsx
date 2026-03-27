@@ -22,9 +22,9 @@ export const PASTEL_COLORS = [
   "#FEE2E2", "#FECACA",
   "#FEF3C7", "#FDE68A",
   "#DCFCE7", "#BBF7D0", "#D1FAE5", "#CCFBF1",
-  "#E0F2FE", "#BAE6FD", "#BFDBFE",
-  "#DDD6FE", "#E9D5FF", "#F5D0FE",
-  "#FBCFE8", "#FCE7F3",
+  "#E0F2FE", "#BAE6FD", "#E6FAF8",
+  "#E6FAF8", "#E9D5FF", "#F5D0FE",
+  "#FBCFE8", "#E6FAF8",
   "#F1F5F9", "#E2E8F0", "#D1D5DB",
 ];
 
@@ -77,7 +77,7 @@ export default function PastelColorPicker({ selected, onSelect, label = "반 색
                   onPress={() => { onSelect(col); setOpen(false); }}
                 >
                   {isSelected && (
-                    <Feather name="check" size={13} color="#111827" />
+                    <Feather name="check" size={13} color="#0F172A" />
                   )}
                 </Pressable>
               );
@@ -107,7 +107,7 @@ const pc = StyleSheet.create({
     borderWidth: 1.5, borderColor: "#D1D5DB",
   },
   panel: {
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "#F5F5F5",
     borderBottomWidth: 1, borderBottomColor: C.border,
     paddingVertical: 10,
   },

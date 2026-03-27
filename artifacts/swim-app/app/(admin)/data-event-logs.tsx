@@ -31,7 +31,7 @@ const CAT_META: Record<string, { icon: string; color: string; bg: string }> = {
   "권한":     { icon: "shield",      color: "#2EC4B6", bg: "#E6FFFA" },
   "선생님":   { icon: "user-check",  color: "#0D9488", bg: "#CCFBF1" },
   "저장공간": { icon: "hard-drive",  color: "#EC4899", bg: "#F6D8E1" },
-  "휴무일":   { icon: "calendar",    color: "#6B7280", bg: "#F8FAFC" },
+  "휴무일":   { icon: "calendar",    color: "#64748B", bg: "#FFFFFF" },
 };
 const CATEGORIES = ["전체", "삭제", "결제", "구독", "해지", "권한", "선생님", "저장공간", "휴무일"] as const;
 
@@ -119,7 +119,7 @@ export default function DataEventLogsScreen() {
           loading && logs.length > 0 ? <ActivityIndicator color={themeColor} style={{ marginVertical: 16 }} /> : null
         }
         renderItem={({ item: ev }) => {
-          const meta = CAT_META[ev.category] || { icon: "activity", color: C.textSecondary, bg: "#F8FAFC" };
+          const meta = CAT_META[ev.category] || { icon: "activity", color: C.textSecondary, bg: "#FFFFFF" };
           // 안전한 날짜 파싱 — Invalid Date / NaN:NaN 방지
           const rawDate = ev.created_at;
           const dt = rawDate ? new Date(rawDate) : null;
@@ -169,9 +169,9 @@ const s = StyleSheet.create({
   evtIcon:   { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   badge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeText: { fontSize: 11, fontFamily: "Pretendard-Bold" },
-  desc:      { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827", lineHeight: 20 },
-  target:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
-  date:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  time:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
-  actor:     { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
+  desc:      { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A", lineHeight: 20 },
+  target:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  date:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  time:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  actor:     { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#64748B" },
 });

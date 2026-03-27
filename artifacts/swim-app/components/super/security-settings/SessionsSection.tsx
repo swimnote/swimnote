@@ -23,8 +23,8 @@ export function SessionsSection({ sessions, onTerminate }: Props) {
       )}
       {sessions.map(sess => (
         <View key={sess.id} style={s.sessionRow}>
-          <View style={[s.sessionIconBox, { backgroundColor: "#F8FAFC" }]}>
-            <Feather name="monitor" size={14} color="#6B7280" />
+          <View style={[s.sessionIconBox, { backgroundColor: "#FFFFFF" }]}>
+            <Feather name="monitor" size={14} color="#64748B" />
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -45,15 +45,15 @@ export function SessionsSection({ sessions, onTerminate }: Props) {
 const s = StyleSheet.create({
   section:      { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 10,
                   borderWidth: 1, borderColor: "#E5E7EB" },
-  emptyTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9CA3AF",
+  emptyTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B",
                   textAlign: "center", paddingVertical: 12 },
   sessionRow:   { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
-                  borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+                  borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   sessionIconBox:{ width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  sessionDevice: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  sessionOwner:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280",
-                   backgroundColor: "#F8FAFC", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  sessionMeta:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  sessionDevice: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  sessionOwner:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B",
+                   backgroundColor: "#FFFFFF", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  sessionMeta:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   terminateBtn: { backgroundColor: "#F9DEDA", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   terminateTxt: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: DANGER },
 });

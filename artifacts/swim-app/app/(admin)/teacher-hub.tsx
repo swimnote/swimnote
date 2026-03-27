@@ -32,7 +32,7 @@ const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = 
   assigned:    { label: "배정",   color: "#2EC4B6", bg: "#E6FFFA" },
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
   completed:   { label: "완료",   color: "#2EC4B6", bg: "#E6FFFA" },
-  cancelled:   { label: "취소",   color: "#6B7280", bg: "#F8FAFC" },
+  cancelled:   { label: "취소",   color: "#64748B", bg: "#FFFFFF" },
 };
 
 export default function TeacherHubScreen() {
@@ -125,7 +125,7 @@ export default function TeacherHubScreen() {
             </Pressable>
           );
           if (tab === "출결") {
-            const ast = ATT_STATUS[item.status] || { label: item.status, color: "#6B7280", bg: "#F8FAFC" };
+            const ast = ATT_STATUS[item.status] || { label: item.status, color: "#64748B", bg: "#FFFFFF" };
             return (
               <View style={s.card}>
                 <View style={s.row}>
@@ -154,7 +154,7 @@ export default function TeacherHubScreen() {
               </View>
             </View>
           );
-          const mst = MK_STATUS[item.status] || { label: item.status, color: "#6B7280", bg: "#F8FAFC" };
+          const mst = MK_STATUS[item.status] || { label: item.status, color: "#64748B", bg: "#FFFFFF" };
           return (
             <View style={s.card}>
               <View style={s.row}>

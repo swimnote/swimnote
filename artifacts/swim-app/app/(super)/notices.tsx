@@ -90,10 +90,10 @@ const nc = StyleSheet.create({
   forcedBadge:  { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F9DEDA",
                   paddingHorizontal: 6, paddingVertical: 3, borderRadius: 7 },
   forcedTxt:    { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
-  date:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginLeft: "auto" },
-  title:        { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 4 },
-  content:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", lineHeight: 18, marginBottom: 6 },
-  by:           { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginBottom: 8 },
+  date:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
+  title:        { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 4 },
+  content:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18, marginBottom: 6 },
+  by:           { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 8 },
   actions:      { flexDirection: "row", gap: 6 },
   btn:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   btnTxt:       { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
@@ -236,7 +236,7 @@ export default function NoticesScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "공지 수정" : "공지 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <Feather name="x" size={20} color="#6B7280" />
+                <Feather name="x" size={20} color="#64748B" />
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -317,7 +317,7 @@ export default function NoticesScreen() {
         <View style={m.overlay}>
           <View style={[m.sheet, { maxHeight: 240 }]}>
             <Text style={[m.title, { marginBottom: 12 }]}>공지 삭제</Text>
-            <Text style={{ fontSize: 14, color: "#111827", marginBottom: 8 }}>
+            <Text style={{ fontSize: 14, color: "#0F172A", marginBottom: 8 }}>
               이 공지를 삭제하면 앱에서 더 이상 노출되지 않습니다.
             </Text>
             <Text style={{ fontSize: 13, color: "#D96C6C", marginBottom: 20 }}>
@@ -344,34 +344,34 @@ const s = StyleSheet.create({
                   padding: 10, paddingHorizontal: 16 },
   infoTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flex: 1 },
   filterRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  filterBtn:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F8FAFC" },
+  filterBtn:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   filterActive: { backgroundColor: P },
-  filterTxt:    { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  filterTxt:    { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   filterActiveTxt: { color: "#fff" },
   addBtn:       { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: P,
                   paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   addTxt:       { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#fff" },
   empty:        { alignItems: "center", paddingVertical: 48, gap: 10 },
-  emptyTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });
 
 const m = StyleSheet.create({
   overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:        { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "90%" },
   header:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  title:        { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827" },
-  label:        { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827", marginBottom: 4, marginTop: 12 },
+  title:        { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  label:        { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginBottom: 4, marginTop: 12 },
   input:        { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 10, fontSize: 14,
-                  fontFamily: "Pretendard-Regular", color: "#111827", backgroundColor: "#F1F5F9" },
+                  fontFamily: "Pretendard-Regular", color: "#0F172A", backgroundColor: "#F1F5F9" },
   segRow:       { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  segBtn:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F8FAFC" },
+  segBtn:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   segActive:    { backgroundColor: P },
-  segTxt:       { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  segTxt:       { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   segActiveTxt: { color: "#fff" },
   footer:       { flexDirection: "row", gap: 8, marginTop: 20 },
-  hint:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginBottom: 10, marginTop: -8 },
-  cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  hint:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 10, marginTop: -8 },
+  cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   saveBtn:      { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:      { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

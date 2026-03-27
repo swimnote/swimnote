@@ -128,7 +128,7 @@ export function MemberLevelTab({
             multiline
           />
           <Pressable
-            style={[ms.saveBtn, { backgroundColor: infoChanged ? themeColor : "#9CA3AF" }]}
+            style={[ms.saveBtn, { backgroundColor: infoChanged ? themeColor : "#64748B" }]}
             onPress={onSave}
             disabled={saving || !infoChanged}
           >

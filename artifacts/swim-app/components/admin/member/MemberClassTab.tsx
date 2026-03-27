@@ -92,7 +92,7 @@ export function MemberClassTab({
         </Pressable>
 
         <Pressable
-          style={[ms.saveBtn, { backgroundColor: classChanged ? themeColor : "#9CA3AF", marginTop: 12 }]}
+          style={[ms.saveBtn, { backgroundColor: classChanged ? themeColor : "#64748B", marginTop: 12 }]}
           onPress={onSaveAssignment}
           disabled={saving || !classChanged}
         >

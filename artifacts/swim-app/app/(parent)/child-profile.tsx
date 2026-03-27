@@ -133,7 +133,7 @@ export default function ChildProfileScreen() {
             <InfoRow icon="map-pin" label="소속 수영장" value={parentAccount?.pool_name || "수영장"} accentColor={accentColor} />
             {classGroup?.name
               ? <InfoRow icon="users" label="반" value={classGroup.name} accentColor={accentColor} />
-              : <InfoRow icon="users" label="반" value="배정 전" accentColor="#9CA3AF" />
+              : <InfoRow icon="users" label="반" value="배정 전" accentColor="#64748B" />
             }
             {scheduleChips.length > 0 && (
               <View style={ir.row}>

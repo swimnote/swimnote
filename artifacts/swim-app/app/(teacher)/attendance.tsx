@@ -728,10 +728,10 @@ export default function TeacherAttendanceScreen() {
                         <Text style={s.mkActionBtnText}>보강 지정</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[s.mkActionBtn, { backgroundColor: "#F8FAFC" }]}
+                        style={[s.mkActionBtn, { backgroundColor: "#FFFFFF" }]}
                         onPress={() => openExtinguish(mk)}
                       >
-                        <Text style={[s.mkActionBtnText, { color: "#6B7280" }]}>소멸</Text>
+                        <Text style={[s.mkActionBtnText, { color: "#64748B" }]}>소멸</Text>
                       </TouchableOpacity>
                     </View>
                   </View>

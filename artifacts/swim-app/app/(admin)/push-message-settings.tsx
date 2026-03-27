@@ -18,7 +18,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 
 const C = {
-  background: "#F8FAFC",
+  background: "#FFFFFF",
   card: "#FFFFFF",
   border: "#E5E7EB",
   text: "#1A1A1A",

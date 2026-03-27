@@ -12,7 +12,7 @@ const C = Colors.light;
 const MATCH_CFG: Record<MatchStatus, { label: string; color: string; bg: string; icon: string }> = {
   full_match:  { label: "자동 일치",  color: "#2EC4B6", bg: "#E6FFFA", icon: "zap"          },
   phone_only:  { label: "번호만 일치", color: "#D97706", bg: "#FFF1BF", icon: "phone"        },
-  no_match:    { label: "미일치",     color: "#6B7280", bg: "#F8FAFC", icon: "alert-circle"  },
+  no_match:    { label: "미일치",     color: "#64748B", bg: "#FFFFFF", icon: "alert-circle"  },
 };
 
 const JOIN_STATUS_CFG: Record<JoinStatus, { label: string }> = {

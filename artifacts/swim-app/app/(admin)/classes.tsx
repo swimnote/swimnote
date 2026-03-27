@@ -202,7 +202,7 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
 const mc = StyleSheet.create({
   root:           { paddingHorizontal: 16, paddingBottom: 8 },
   monthNav:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
-  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
+  navBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
   monthTitle:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text },
   weekRow:        { flexDirection: "row" },
   weekHeader:     { height: 28, alignItems: "center", justifyContent: "center" },
@@ -285,7 +285,7 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
                           <Text style={dy.classSub}>{g.student_count}명</Text>
                           {!!g.instructor && (
                             <View style={dy.instructorBadge}>
-                              <Feather name="user" size={9} color="#6B7280" />
+                              <Feather name="user" size={9} color="#64748B" />
                               <Text style={dy.instructorTxt}>{g.instructor}</Text>
                             </View>
                           )}
@@ -338,8 +338,8 @@ const dy = StyleSheet.create({
   className:      { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text, flex: 1 },
   classSub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   instructorBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
-                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#F8FAFC" },
-  instructorTxt:  { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#6B7280" },
+                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#FFFFFF" },
+  instructorTxt:  { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#64748B" },
   attBadge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
                     paddingVertical: 2, borderRadius: 6, backgroundColor: "#E6FFFA" },
   attBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" },
@@ -649,13 +649,13 @@ export default function ClassesScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#F8FAFC" },
+  safe:        { flex: 1, backgroundColor: "#FFFFFF" },
 
   titleArea:   { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border,
                  paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   titleRow:    { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  title:       { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#111827" },
-  titleSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  title:       { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  titleSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   rightBtns:   { flexDirection: "row", gap: 4, alignItems: "center" },
   iconBtn:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10 },

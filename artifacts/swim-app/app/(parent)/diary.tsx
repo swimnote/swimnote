@@ -109,7 +109,7 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
               </View>
             )}
             {entry.is_edited && (
-              <View style={[ds.badge, { backgroundColor: "#F8FAFC" }]}>
+              <View style={[ds.badge, { backgroundColor: "#FFFFFF" }]}>
                 <Text style={[ds.badgeTxt, { color: C.textMuted }]}>수정됨</Text>
               </View>
             )}
@@ -129,12 +129,12 @@ function DiaryCard({ entry, studentId, studentName }: { entry: DiaryEntry; stude
           <Text style={[ds.content, { color: C.text }]}>{entry.common_content}</Text>
 
           {entry.student_note?.note_content ? (
-            <View style={[ds.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#DDD6FE" }]}>
+            <View style={[ds.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#E6FAF8" }]}>
               <View style={ds.section}>
                 <Feather name="user" size={12} color="#7C3AED" />
                 <Text style={ds.noteTitle}>우리 아이 개별 일지</Text>
               </View>
-              <Text style={[ds.content, { color: "#111827" }]}>{entry.student_note.note_content}</Text>
+              <Text style={[ds.content, { color: "#0F172A" }]}>{entry.student_note.note_content}</Text>
             </View>
           ) : null}
         </View>

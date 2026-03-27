@@ -175,7 +175,7 @@ export default function SettlementScreen() {
             </View>
           ) : (
             data.groups.map(g => {
-              const palette = GROUP_COLORS[g.type_key] || { color: "#6B7280", bg: "#F8FAFC", border: C.border };
+              const palette = GROUP_COLORS[g.type_key] || { color: "#64748B", bg: "#FFFFFF", border: C.border };
               return (
                 <View key={g.type_key} style={[s.groupCard, { borderColor: palette.border, backgroundColor: palette.bg }]}>
                   {/* 헤더 */}
@@ -253,13 +253,13 @@ export default function SettlementScreen() {
 function CalcCell({ label, value, color, bold }: { label: string; value: string; color: string; bold?: boolean }) {
   return (
     <View style={{ alignItems: "center", flex: 1 }}>
-      <Text style={{ fontSize: 10, color: "#6B7280", marginBottom: 2 }}>{label}</Text>
+      <Text style={{ fontSize: 10, color: "#64748B", marginBottom: 2 }}>{label}</Text>
       <Text style={{ fontSize: 13, fontWeight: bold ? "800" : "700", color }}>{value}</Text>
     </View>
   );
 }
 function CalcOp({ op }: { op: string }) {
-  return <Text style={{ fontSize: 16, color: "#9CA3AF", paddingTop: 10 }}>{op}</Text>;
+  return <Text style={{ fontSize: 16, color: "#64748B", paddingTop: 10 }}>{op}</Text>;
 }
 
 const s = StyleSheet.create({
@@ -291,12 +291,12 @@ const s = StyleSheet.create({
   extraRow:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14 },
   extraName:      { fontSize: 14, fontWeight: "700", color: C.text },
   extraSub:       { fontSize: 11, color: C.textSecondary, marginTop: 2 },
-  extraCount:     { fontSize: 16, fontWeight: "700", color: "#6B7280" },
+  extraCount:     { fontSize: 16, fontWeight: "700", color: "#64748B" },
   settingBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, marginBottom: 16 },
   settingBtnTxt:  { fontSize: 14, fontWeight: "700" },
   warningCard:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFFBEB", borderWidth: 1.5, borderColor: "#F0D98A", borderRadius: 12, padding: 14, marginBottom: 14 },
   warningTxt:     { flex: 1, fontSize: 12, color: "#D97706", fontWeight: "600" },
-  infoCard:       { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, gap: 5 },
+  infoCard:       { backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, gap: 5 },
   infoTitle:      { fontSize: 13, fontWeight: "700", color: C.text, marginBottom: 3 },
   infoItem:       { fontSize: 11, color: C.textSecondary, lineHeight: 17 },
   empty:          { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },

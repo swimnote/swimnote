@@ -340,7 +340,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 {/* 1회성 반 토글 */}
                 <Pressable
                   style={[ot.toggleRow, {
-                    backgroundColor: isOneTime ? "#F3E8FF" : C.background,
+                    backgroundColor: isOneTime ? "#E6FAF8" : C.background,
                     borderColor: isOneTime ? "#7C3AED" : C.border,
                   }]}
                   onPress={() => {
@@ -378,7 +378,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                       />
                     </View>
                     {oneTimeDate && getDayOfWeek(oneTimeDate) ? (
-                      <View style={[s1.preview, { backgroundColor: "#F3E8FF" }]}>
+                      <View style={[s1.preview, { backgroundColor: "#E6FAF8" }]}>
                         <Feather name="check-circle" size={14} color="#7C3AED" />
                         <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" }}>
                           {oneTimeDate} ({getDayOfWeek(oneTimeDate)}요일)
@@ -459,7 +459,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                       <Pressable
                         style={[tr.row, {
                           borderColor: C.border,
-                          backgroundColor: selectedTeacher === null ? "#F8FAFC" : C.background,
+                          backgroundColor: selectedTeacher === null ? "#FFFFFF" : C.background,
                         }]}
                         onPress={() => setSelectedTeacher(null)}
                       >
@@ -488,7 +488,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
               <View style={s4.wrap}>
                 <Text style={fl.stepTitle}>반 개설을 확인하세요</Text>
                 <View style={[s4.card, { borderColor: (isOneTime ? "#7C3AED" : C.tint) + "50" }]}>
-                  <View style={[s4.nameRow, { backgroundColor: selectedColor !== "#FFFFFF" ? selectedColor : (isOneTime ? "#F3E8FF" : C.tintLight) }]}>
+                  <View style={[s4.nameRow, { backgroundColor: selectedColor !== "#FFFFFF" ? selectedColor : (isOneTime ? "#E6FAF8" : C.tintLight) }]}>
                     {isOneTime && (
                       <View style={[ot.oneTimeBadge, { backgroundColor: "#7C3AED" }]}>
                         <Text style={{ color: "#fff", fontSize: 10, fontFamily: "Pretendard-Bold" }}>1회성</Text>
@@ -586,7 +586,7 @@ const fl = StyleSheet.create({
   stepSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginBottom: 16 },
   errorRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9DEDA", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginBottom: 8 },
   errorText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.error },
-  btnRow: { flexDirection: "row", gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F8FAFC" },
+  btnRow: { flexDirection: "row", gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#FFFFFF" },
   backBtn: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
   nextBtn: { height: 50, borderRadius: 14, paddingHorizontal: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   nextText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },

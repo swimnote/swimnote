@@ -43,7 +43,7 @@ const SUB_STATUS_CFG: Record<string, { label: string; color: string; bg: string 
   trial:       { label: "무료 체험", color: "#2EC4B6", bg: "#ECFEFF" },
   expired:     { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
   suspended:   { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
-  cancelled:   { label: "해지",      color: "#6B7280", bg: "#F8FAFC" },
+  cancelled:   { label: "해지",      color: "#64748B", bg: "#FFFFFF" },
   readonly:    { label: "읽기전용",  color: "#0284C7", bg: "#E0F2FE" },
   deletion:    { label: "삭제 예정", color: "#D96C6C", bg: "#F9DEDA" },
 };
@@ -242,7 +242,7 @@ export default function SubscriptionsScreen() {
 
   const renderItem = ({ item }: { item: PoolRow }) => {
     const status = displayStatus(item);
-    const cfg = SUB_STATUS_CFG[status] ?? { label: status, color: "#6B7280", bg: "#F8FAFC" };
+    const cfg = SUB_STATUS_CFG[status] ?? { label: status, color: "#64748B", bg: "#FFFFFF" };
     const failed = isFailed(item);
 
     return (
@@ -254,7 +254,7 @@ export default function SubscriptionsScreen() {
               <Text style={[s.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
             </View>
             {refundIds.has(item.id) && (
-              <View style={[s.badge, { backgroundColor: "#F3E8FF" }]}>
+              <View style={[s.badge, { backgroundColor: "#E6FAF8" }]}>
                 <Text style={[s.badgeTxt, { color: "#9333EA" }]}>환불</Text>
               </View>
             )}
@@ -354,7 +354,7 @@ export default function SubscriptionsScreen() {
         renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: 80 }}
-        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#F8FAFC" }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#FFFFFF" }} />}
         ListEmptyComponent={
           <View style={s.empty}>
             <Feather name="credit-card" size={30} color="#D1D5DB" />
@@ -392,7 +392,7 @@ export default function SubscriptionsScreen() {
               <View style={m.section}>
                 <Text style={m.label}>크레딧 지급 (원)</Text>
                 <TextInput style={m.input} value={newCredit} onChangeText={setNewCredit}
-                  keyboardType="numeric" placeholder="0" placeholderTextColor="#9CA3AF" />
+                  keyboardType="numeric" placeholder="0" placeholderTextColor="#64748B" />
               </View>
 
               <View style={m.linkRow}>
@@ -435,48 +435,48 @@ const s = StyleSheet.create({
   safe:             { flex: 1, backgroundColor: "#F0FDFE" },
   summaryBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
   summaryContent:   { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
-  summaryChip:      { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: "#F8FAFC", position: "relative" },
+  summaryChip:      { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: "#FFFFFF", position: "relative" },
   summaryChipActive:{ backgroundColor: P },
   alertDot:         { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: "#D96C6C" },
-  summaryNum:       { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827" },
-  summaryLabel:     { fontSize: 9, fontFamily: "Pretendard-Medium", color: "#9CA3AF", marginTop: 1 },
+  summaryNum:       { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  summaryLabel:     { fontSize: 9, fontFamily: "Pretendard-Medium", color: "#64748B", marginTop: 1 },
   bannerRow:        { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA", paddingHorizontal: 14, paddingVertical: 9 },
   bannerTxt:        { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7F1D1D", lineHeight: 16 },
   row:              { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
   rowAlert:         { borderLeftWidth: 3, borderLeftColor: "#D96C6C" },
   rowMain:          { flex: 1, gap: 3 },
   rowTop:           { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  opName:           { flex: 1, fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  opName:           { flex: 1, fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   badge:            { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   badgeTxt:         { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
   rowMeta:          { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
-  metaTxt:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  metaTxt:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   metaDot:          { fontSize: 10, color: "#D1D5DB" },
   deletionWarn:     { fontSize: 11, fontFamily: "Pretendard-Bold", color: "#D96C6C" },
   rowActions:       { flexDirection: "row", gap: 6 },
   actionBtn:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minWidth: 36, alignItems: "center" },
   actionTxt:        { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   empty:            { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });
 
 const m = StyleSheet.create({
   backdrop:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
   sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "85%", gap: 12 },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827" },
-  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: -6 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -6 },
   section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  label:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   chip:      { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB" },
-  chipTxt:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#111827" },
-  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
+  chipTxt:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   linkRow:   { flexDirection: "row" },
   linkBtn:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E0F2FE", borderRadius: 10, padding: 12, flex: 1 },
   linkTxt:   { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: P },
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
-  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
+  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   saveBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   saveTxt:   { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

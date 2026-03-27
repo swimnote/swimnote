@@ -98,7 +98,7 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
 
           {/* 개별 추가 일지 */}
           {entry.student_note?.note_content && (
-            <View style={[s.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#DDD6FE" }]}>
+            <View style={[s.noteBox, { backgroundColor: "#EEDDF5", borderColor: "#E6FAF8" }]}>
               <View style={s.sectionHeader}>
                 <Feather name="user" size={12} color="#7C3AED" />
                 <Text style={s.noteTitle}>우리 아이 개별 일지</Text>
@@ -108,7 +108,7 @@ function DiaryCard({ entry, defaultOpen }: { entry: DiaryEntry; defaultOpen?: bo
                   </View>
                 )}
               </View>
-              <Text style={[s.sectionValue, { color: "#111827" }]}>{entry.student_note.note_content}</Text>
+              <Text style={[s.sectionValue, { color: "#0F172A" }]}>{entry.student_note.note_content}</Text>
             </View>
           )}
         </View>

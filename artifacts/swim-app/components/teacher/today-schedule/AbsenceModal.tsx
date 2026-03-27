@@ -122,10 +122,10 @@ export default function AbsenceModal({
               </Text>
             </View>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={[ab.choiceBtn, { backgroundColor: "#F8FAFC", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
-                {loading ? <ActivityIndicator size="small" color="#6B7280" /> : <>
-                  <Feather name="x-circle" size={18} color="#6B7280" />
-                  <Text style={[ab.choiceBtnText, { color: "#111827" }]}>없음</Text>
+              <Pressable style={[ab.choiceBtn, { backgroundColor: "#FFFFFF", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
+                {loading ? <ActivityIndicator size="small" color="#64748B" /> : <>
+                  <Feather name="x-circle" size={18} color="#64748B" />
+                  <Text style={[ab.choiceBtnText, { color: "#0F172A" }]}>없음</Text>
                   <Text style={ab.choiceSub}>전원 미실시(선생님)</Text>
                 </>}
               </Pressable>

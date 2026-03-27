@@ -258,7 +258,7 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onTog
           onPress={(e) => { e.stopPropagation(); onToggleActive(); }}
           hitSlop={8}
         >
-          <Feather name={inactive ? "toggle-left" : "toggle-right"} size={18} color={inactive ? "#9CA3AF" : C.tint} />
+          <Feather name={inactive ? "toggle-left" : "toggle-right"} size={18} color={inactive ? "#64748B" : C.tint} />
         </Pressable>
         <Feather name={expanded ? "chevron-up" : "chevron-down"} size={18} color={C.textSecondary} style={{ marginLeft: 4 }} />
       </Pressable>
@@ -420,13 +420,13 @@ const s = StyleSheet.create({
     shadowOpacity: 1, shadowRadius: 4, elevation: 1,
   },
   cardInactive: {
-    backgroundColor: "#FAFAFA", borderColor: "#DDD9D5", opacity: 0.85,
+    backgroundColor: "#F5F5F5", borderColor: "#DDD9D5", opacity: 0.85,
   },
   inactiveBadge: {
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
     backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB",
   },
-  inactiveBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#9CA3AF" },
+  inactiveBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   activeToggle: {
     width: 32, height: 32, borderRadius: 8, borderWidth: 1,
     alignItems: "center", justifyContent: "center", marginLeft: 8,

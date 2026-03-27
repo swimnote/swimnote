@@ -116,7 +116,7 @@ export default function CommunicationScreen() {
           tab === "공지사항" ? (
             <Pressable
               onPress={() => setShowCreate(true)}
-              style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#F8FAFC" }}
+              style={{ width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#FFFFFF" }}
             >
               <Feather name="plus" size={20} color={themeColor} />
             </Pressable>
@@ -237,7 +237,7 @@ export default function CommunicationScreen() {
             <Text style={{ fontSize: 17, fontWeight: "700", color: C.text, textAlign: "center" }}>공지 삭제</Text>
             <Text style={{ color: C.textSecondary, textAlign: "center", fontSize: 14 }}>삭제된 공지는 복구할 수 없습니다.{"\n"}삭제하시겠습니까?</Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F8FAFC", alignItems: "center" }}
+              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" }}
                 onPress={() => setDeleteTarget(null)}>
                 <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
               </Pressable>
@@ -261,7 +261,7 @@ export default function CommunicationScreen() {
               {approveTarget?.action === "approve" ? "이 요청을 승인하시겠습니까?" : "이 요청을 거절하시겠습니까?"}
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F8FAFC", alignItems: "center" }}
+              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" }}
                 onPress={() => setApproveTarget(null)}>
                 <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
               </Pressable>

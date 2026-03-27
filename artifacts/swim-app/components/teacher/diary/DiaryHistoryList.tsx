@@ -140,7 +140,7 @@ const s = StyleSheet.create({
   diaryContent:  { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   iconBtn:       { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   emptyBox:      { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   delOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 },
   delSheet:      { width: "100%", borderRadius: 22, padding: 24, alignItems: "center", gap: 14 },
   delIconWrap:   { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center" },

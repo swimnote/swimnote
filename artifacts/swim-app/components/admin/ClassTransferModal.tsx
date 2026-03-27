@@ -72,7 +72,7 @@ export function ClassTransferModal({
           )}
 
           <View style={tm.btnRow}>
-            <Pressable style={[tm.btn, { backgroundColor: "#F8FAFC" }]} onPress={onClose}>
+            <Pressable style={[tm.btn, { backgroundColor: "#FFFFFF" }]} onPress={onClose}>
               <Text style={[tm.btnText, { color: C.textSecondary }]}>취소</Text>
             </Pressable>
             <Pressable

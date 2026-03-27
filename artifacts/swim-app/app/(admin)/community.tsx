@@ -138,9 +138,9 @@ export default function CommunityScreen() {
   }
 
   const NOTICE_TYPE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-    general:    { label: "일반",     color: "#111827", bg: "#F8FAFC" },
+    general:    { label: "일반",     color: "#0F172A", bg: "#FFFFFF" },
     important:  { label: "중요",     color: "#D96C6C", bg: "#F9DEDA" },
-    event:      { label: "이벤트",   color: "#7C3AED", bg: "#F3E8FF" },
+    event:      { label: "이벤트",   color: "#7C3AED", bg: "#E6FAF8" },
     class_info: { label: "수업 안내", color: "#2EC4B6", bg: "#E6FFFA" },
     fee:        { label: "요금 안내", color: "#D97706", bg: "#FFF1BF" },
   };
@@ -336,7 +336,7 @@ const s = StyleSheet.create({
   reqParent: { fontSize: 16, fontFamily: "Pretendard-Bold", color: C.text },
   reqPhone: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   reqDate: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  childRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F8FAFC", padding: 10, borderRadius: 10 },
+  childRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFFFFF", padding: 10, borderRadius: 10 },
   childLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   childNames: { fontSize: 13, fontFamily: "Pretendard-Bold", color: C.text, flex: 1 },
   memoRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, paddingHorizontal: 4 },

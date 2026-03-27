@@ -84,7 +84,7 @@ export default function WhiteLabelScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32, gap: 20 }}
         >
           {/* 설명 카드 */}
-          <View style={[styles.descCard, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
+          <View style={[styles.descCard, { backgroundColor: "#E6FAF8", borderColor: "#E6FAF8" }]}>
             <Feather name="tag" size={18} color="#1D4ED8" />
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={[styles.descTitle, { color: "#1D4ED8" }]}>화이트라벨이란?</Text>
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   preview: { margin: 16, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   previewHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   previewIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  previewPoolName: { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#111827" },
+  previewPoolName: { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   previewPowered: {},
   previewPoweredTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   previewNote: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },

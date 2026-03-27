@@ -133,19 +133,19 @@ export default function PolicyScreen() {
             <Pressable style={s.actionRow} onPress={() => { setVersionKey(tab); setTab("versions"); }}>
               <Feather name="git-branch" size={16} color={P} />
               <Text style={s.actionTxt}>버전 이력 확인</Text>
-              <Feather name="chevron-right" size={15} color="#9CA3AF" />
+              <Feather name="chevron-right" size={15} color="#64748B" />
             </Pressable>
             <View style={s.divider} />
             <Pressable style={s.actionRow} onPress={() => { setUnsignedKey(tab); setTab("unsigned"); }}>
               <Feather name="alert-circle" size={16} color="#D96C6C" />
               <Text style={[s.actionTxt, { color: "#D96C6C" }]}>미동의 운영자 확인</Text>
-              <Feather name="chevron-right" size={15} color="#9CA3AF" />
+              <Feather name="chevron-right" size={15} color="#64748B" />
             </Pressable>
             <View style={s.divider} />
             <Pressable style={s.actionRow} onPress={() => { setVersionKey(tab); setVersionModal(true); }}>
               <Feather name="plus-circle" size={16} color="#2EC4B6" />
               <Text style={[s.actionTxt, { color: "#2EC4B6" }]}>새 버전 저장</Text>
-              <Feather name="chevron-right" size={15} color="#9CA3AF" />
+              <Feather name="chevron-right" size={15} color="#64748B" />
             </Pressable>
           </View>
         </ScrollView>
@@ -235,7 +235,7 @@ export default function PolicyScreen() {
                     {item.isApproved ? "승인" : "대기"}
                   </Text>
                 </View>
-                <Feather name="chevron-right" size={14} color="#9CA3AF" />
+                <Feather name="chevron-right" size={14} color="#64748B" />
               </Pressable>
             )}
             ListEmptyComponent={
@@ -258,13 +258,13 @@ export default function PolicyScreen() {
               <View style={m.section}>
                 <Text style={m.label}>버전 번호 *</Text>
                 <TextInput style={m.input} value={newVer} onChangeText={setNewVer}
-                  placeholder="예: 2.1.0" placeholderTextColor="#9CA3AF" />
+                  placeholder="예: 2.1.0" placeholderTextColor="#64748B" />
               </View>
               <View style={m.section}>
                 <Text style={m.label}>내용 *</Text>
                 <TextInput style={[m.input, { minHeight: 100 }]} value={newVal}
                   onChangeText={setNewVal} multiline placeholder="정책 내용"
-                  placeholderTextColor="#9CA3AF" textAlignVertical="top" />
+                  placeholderTextColor="#64748B" textAlignVertical="top" />
               </View>
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setVersionModal(false)}>
@@ -289,26 +289,26 @@ const s = StyleSheet.create({
   tabContent:      { paddingHorizontal: 12, paddingVertical: 6, gap: 4, flexDirection: "row" },
   tab:             { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   tabActive:       { backgroundColor: "#EEDDF5" },
-  tabTxt:          { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#6B7280" },
+  tabTxt:          { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#64748B" },
   tabTxtActive:    { color: P, fontFamily: "Pretendard-Bold" },
   subTabBar:       { flexGrow: 0, backgroundColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   subTabContent:   { paddingHorizontal: 12, paddingVertical: 6, gap: 4, flexDirection: "row" },
   subTab:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
   subTabActive:    { backgroundColor: "#EEDDF5" },
-  subTabTxt:       { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
+  subTabTxt:       { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
   policyCard:      { backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 12,
                      borderWidth: 1, borderColor: "#E5E7EB" },
   policyHeader:    { flexDirection: "row", alignItems: "center", gap: 10 },
   policyIconBg:    { width: 34, height: 34, borderRadius: 10, backgroundColor: "#EEDDF5",
                      alignItems: "center", justifyContent: "center" },
-  policyTitle:     { flex: 1, fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827" },
+  policyTitle:     { flex: 1, fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   activeBadge:     { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   activeBadgeTxt:  { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" },
-  policyBody:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827", lineHeight: 22 },
+  policyBody:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 22 },
   actionCard:      { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden" },
   actionRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
-  actionTxt:       { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: "#111827" },
-  divider:         { height: 1, backgroundColor: "#F8FAFC", marginHorizontal: 14 },
+  actionTxt:       { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  divider:         { height: 1, backgroundColor: "#FFFFFF", marginHorizontal: 14 },
   addVerBtn:       { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: P,
                      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9,
                      alignSelf: "flex-start", marginBottom: 10 },
@@ -318,8 +318,8 @@ const s = StyleSheet.create({
                      borderWidth: 1, borderColor: "#E5E7EB" },
   verBadge:        { backgroundColor: "#EEDDF5", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   verBadgeTxt:     { fontSize: 11, fontFamily: "Pretendard-Bold", color: P },
-  verPreview:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#111827", lineHeight: 18 },
-  verMeta:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 4 },
+  verPreview:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
+  verMeta:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },
   unsignedHeader:  { flexDirection: "row", alignItems: "center", gap: 8,
                      backgroundColor: "#FEF2F2", borderRadius: 10, padding: 12, marginBottom: 6 },
   unsignedHeaderTxt:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
@@ -328,12 +328,12 @@ const s = StyleSheet.create({
                      borderWidth: 1, borderColor: "#E5E7EB" },
   unsignedLeft:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
   unsignedBullet:  { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#D96C6C", flexShrink: 0 },
-  unsignedName:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  unsignedSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
+  unsignedName:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  unsignedSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   unsignedBadge:   { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   unsignedBadgeTxt:{ fontSize: 10, fontFamily: "Pretendard-Medium" },
   empty:           { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });
 
 const m = StyleSheet.create({
@@ -342,15 +342,15 @@ const m = StyleSheet.create({
                borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40,
                maxHeight: "80%", gap: 14 },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827" },
-  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: -8 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -8 },
   section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  label:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-               fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
+               fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
-  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
+  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   saveBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   saveTxt:   { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

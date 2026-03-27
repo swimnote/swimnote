@@ -152,7 +152,7 @@ export default function MemoSheet({
                       <Feather name={playing ? "pause" : "play"} size={14} color="#fff" />
                       <Text style={ms.recBtnText}>{playing ? "일시정지" : "재생"}</Text>
                     </Pressable>
-                    <Pressable style={[ms.recBtn, { backgroundColor: "#F8FAFC" }]} onPress={() => {
+                    <Pressable style={[ms.recBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => {
                       if (sound) { sound.unloadAsync(); setSound(null); }
                       setPlaying(false); setAudioUri(null); setAudioKey(null);
                     }}>
@@ -192,7 +192,7 @@ const ms = StyleSheet.create({
   sheetHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sheetTitle: { fontSize: 18, fontFamily: "Pretendard-Bold", color: C.text },
   sheetSub:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
-  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
+  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
   textArea:   { borderWidth: 1.5, borderRadius: 12, padding: 12, minHeight: 110, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   audioBox:   { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 12, padding: 12 },
   audioLabel: { fontSize: 13, fontFamily: "Pretendard-Medium", flex: 1 },

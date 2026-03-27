@@ -252,5 +252,5 @@ const styles = StyleSheet.create({
   doneWrap: { alignItems: "center", gap: 16, paddingTop: 40 },
   doneIcon: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   doneTitle: { fontSize: 22, fontFamily: "Pretendard-Bold" },
-  doneDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22, color: "#6B7280" },
+  doneDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22, color: "#64748B" },
 });

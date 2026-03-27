@@ -49,7 +49,7 @@ const CAT_CFG: Record<string, { color: string; bg: string }> = {
   데이터:   { color: DANGER,    bg: "#F9DEDA" },
   저장공간: { color: "#2EC4B6", bg: "#E6FFFA" },
   보안:     { color: "#991B1B", bg: "#F9DEDA" },
-  general:  { color: "#6B7280", bg: "#F8FAFC" },
+  general:  { color: "#64748B", bg: "#FFFFFF" },
 };
 
 function relStr(iso: string | null | undefined) {
@@ -219,7 +219,7 @@ export default function FeatureFlagsScreen() {
                         value={flag.enabled}
                         onValueChange={v => handleToggleAttempt(flag, v)}
                         trackColor={{ false: "#E5E7EB", true: isDanger ? "#FCA5A5" : "#C4B5FD" }}
-                        thumbColor={flag.enabled ? (isDanger ? DANGER : P) : "#9CA3AF"}
+                        thumbColor={flag.enabled ? (isDanger ? DANGER : P) : "#64748B"}
                       />
                     </View>
 
@@ -254,7 +254,7 @@ export default function FeatureFlagsScreen() {
 
                     {/* 운영자 예외 */}
                     <Pressable style={s.overrideBtn} onPress={() => { setOverridePanel(flag); setSelOp(null); setOpReason(""); setOpOverrideEnabled(flag.enabled); }}>
-                      <Feather name="users" size={11} color="#6B7280" />
+                      <Feather name="users" size={11} color="#64748B" />
                       <Text style={s.overrideBtnTxt}>운영자별 예외 설정</Text>
                     </Pressable>
                   </View>
@@ -275,7 +275,7 @@ export default function FeatureFlagsScreen() {
               <Text style={m.sub}>{reasonModal.flag.key}</Text>
               <Text style={m.label}>변경 사유 (필수)</Text>
               <TextInput style={m.reasonInput} value={reason} onChangeText={setReason}
-                placeholder="변경 사유를 입력하세요" placeholderTextColor="#9CA3AF"
+                placeholder="변경 사유를 입력하세요" placeholderTextColor="#64748B"
                 multiline autoFocus />
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setReasonModal(null)}>
@@ -310,7 +310,7 @@ export default function FeatureFlagsScreen() {
               <TextInput style={[m.reasonInput, { borderColor: DANGER }]}
                 value={reason} onChangeText={setReason}
                 placeholder="위험 플래그 변경 사유를 상세히 입력하세요"
-                placeholderTextColor="#9CA3AF" multiline autoFocus />
+                placeholderTextColor="#64748B" multiline autoFocus />
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setDangerModal(null)}>
                   <Text style={m.cancelTxt}>취소</Text>
@@ -343,7 +343,7 @@ export default function FeatureFlagsScreen() {
               </View>
               <Text style={m.label}>롤백 사유 (필수)</Text>
               <TextInput style={m.reasonInput} value={reason} onChangeText={setReason}
-                placeholder="롤백 사유를 입력하세요" placeholderTextColor="#9CA3AF" autoFocus />
+                placeholder="롤백 사유를 입력하세요" placeholderTextColor="#64748B" autoFocus />
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setRollbackModal(null)}>
                   <Text style={m.cancelTxt}>취소</Text>
@@ -369,7 +369,7 @@ export default function FeatureFlagsScreen() {
               <Text style={m.sub}>운영자별 예외 설정</Text>
 
               <TextInput style={m.searchInput} value={opSearch} onChangeText={setOpSearch}
-                placeholder="운영자 검색" placeholderTextColor="#9CA3AF" />
+                placeholder="운영자 검색" placeholderTextColor="#64748B" />
 
               <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
                 {filteredOps.slice(0, 12).map(op => (
@@ -388,10 +388,10 @@ export default function FeatureFlagsScreen() {
                     <Text style={m.toggleLabel}>{selOp.name} — {overridePanel.name}</Text>
                     <Switch value={opOverrideEnabled} onValueChange={setOpOverrideEnabled}
                       trackColor={{ false: "#E5E7EB", true: "#C4B5FD" }}
-                      thumbColor={opOverrideEnabled ? P : "#9CA3AF"} />
+                      thumbColor={opOverrideEnabled ? P : "#64748B"} />
                   </View>
                   <TextInput style={m.reasonInput} value={opReason} onChangeText={setOpReason}
-                    placeholder="예외 설정 사유 (필수)" placeholderTextColor="#9CA3AF" />
+                    placeholder="예외 설정 사유 (필수)" placeholderTextColor="#64748B" />
                   <View style={m.btnRow}>
                     <Pressable style={m.cancelBtn} onPress={() => setOverridePanel(null)}>
                       <Text style={m.cancelTxt}>취소</Text>
@@ -427,18 +427,18 @@ const s = StyleSheet.create({
   flagTop:       { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   flagNameRow:   { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   dangerIcon:    { fontSize: 12 },
-  flagName:      { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827" },
+  flagName:      { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   overrideBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: "#EEDDF5" },
   overrideTxt:   { fontSize: 10, fontFamily: "Pretendard-Bold", color: P },
-  flagKey:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
-  flagDesc:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2, lineHeight: 17 },
+  flagKey:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  flagDesc:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, lineHeight: 17 },
   impactRow:     { flexDirection: "row", alignItems: "center", gap: 6 },
   impactScope:   { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular" },
   riskBadge:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   riskBadgeTxt:  { fontSize: 10, fontFamily: "Pretendard-Bold" },
   flagMeta:      { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  flagMetaTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  flagReason:    { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280",
+  flagMetaTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  flagReason:    { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B",
                    fontStyle: "italic", backgroundColor: "#F1F5F9", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   rollbackRow:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EEDDF5",
                    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9 },
@@ -447,8 +447,8 @@ const s = StyleSheet.create({
                    borderRadius: 7, backgroundColor: "#fff", borderWidth: 1, borderColor: P },
   rollbackBtnTxt:{ fontSize: 11, fontFamily: "Pretendard-Bold", color: P },
   overrideBtn:   { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start",
-                   paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F8FAFC" },
-  overrideBtnTxt:{ fontSize: 12, fontFamily: "Pretendard-Medium", color: "#6B7280" },
+                   paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
+  overrideBtnTxt:{ fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
 });
 
 const m = StyleSheet.create({
@@ -458,28 +458,28 @@ const m = StyleSheet.create({
   handle:        { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
   dangerHeaderRow:{ flexDirection: "row", alignItems: "center", gap: 8 },
   dangerIcon:    { fontSize: 20 },
-  title:         { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827" },
-  sub:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  dangerDesc:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827", lineHeight: 20,
+  title:         { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  sub:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  dangerDesc:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20,
                    backgroundColor: "#FFF5F5", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#FCA5A5" },
-  label:         { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  label:         { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   reasonInput:   { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                   fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827", minHeight: 80,
+                   fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", minHeight: 80,
                    textAlignVertical: "top" },
   rollbackInfo:  { backgroundColor: "#EEDDF5", padding: 12, borderRadius: 10 },
-  rollbackInfoTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827" },
+  rollbackInfoTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   searchInput:   { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 10,
-                   fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
+                   fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   opRow:         { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 4,
-                   borderBottomWidth: 1, borderBottomColor: "#F8FAFC", gap: 8 },
+                   borderBottomWidth: 1, borderBottomColor: "#FFFFFF", gap: 8 },
   opRowActive:   { backgroundColor: "#EEDDF5" },
-  opRowTxt:      { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: "#111827" },
-  opRowCode:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  opRowTxt:      { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  opRowCode:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   toggleRow:     { flexDirection: "row", alignItems: "center", gap: 10 },
-  toggleLabel:   { flex: 1, fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  toggleLabel:   { flex: 1, fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   btnRow:        { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn:     { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
-  cancelTxt:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  cancelBtn:     { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
+  cancelTxt:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   confirmBtn:    { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   confirmTxt:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
   dangerBtn:     { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16,

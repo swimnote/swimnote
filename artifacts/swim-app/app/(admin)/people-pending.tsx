@@ -49,7 +49,7 @@ interface UnregItem {
 type ParseRow = { name: string; parent_phone: string; result: "ok" | "duplicate" | "error"; reason?: string };
 
 const INVITE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  none:    { label: "초대 전",   color: "#6B7280", bg: "#F8FAFC" },
+  none:    { label: "초대 전",   color: "#64748B", bg: "#FFFFFF" },
   invited: { label: "초대 완료", color: "#2EC4B6", bg: "#E6FFFA" },
   joined:  { label: "가입 완료", color: "#2EC4B6", bg: "#E6FFFA" },
 };
@@ -449,9 +449,9 @@ const s = StyleSheet.create({
   tplBtn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: "#4338CA", backgroundColor: "#E6FFFA" },
   tplBtnTxt:      { fontSize: 12, fontWeight: "700", color: "#4338CA" },
 
-  searchBar:      { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#F8FAFC", borderRadius: 10 },
+  searchBar:      { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#FFFFFF", borderRadius: 10 },
   searchInput:    { flex: 1, fontSize: 14, color: C.text },
-  allSelectRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  allSelectRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   allSelectTxt:   { fontSize: 13, color: C.textSecondary },
   checkbox:       { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: "#D1D5DB", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
 
@@ -480,7 +480,7 @@ const s = StyleSheet.create({
   summaryChip:    { flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: "center" },
   summaryLabel:   { fontSize: 13, fontWeight: "700" },
   validateNote:   { fontSize: 12, color: "#4338CA", paddingHorizontal: 16, marginBottom: 8, fontWeight: "600" },
-  validateRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F8FAFC" },
+  validateRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#FFFFFF" },
   rowOk:          { backgroundColor: "#DFF3EC" },
   rowDup:         { backgroundColor: "#FFFBEB" },
   rowErr:         { backgroundColor: "#FFF1F2" },

@@ -351,7 +351,7 @@ const s = StyleSheet.create({
   infoText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#065F46", lineHeight: 18 },
 
   retentionRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, padding: 14 },
-  rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   chipRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   chip:         { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#F1F5F9" },
   chipText:     { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
@@ -362,19 +362,19 @@ const s = StyleSheet.create({
   warnBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FEF2F2", padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "#FECACA" },
   warnText:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#D96C6C", lineHeight: 18 },
 
-  stepLabel:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  stepLabel:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   typeRow:      { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 16, borderWidth: 1.5 },
   monthChip:    { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
   monthChipText:{ fontSize: 14, fontFamily: "Pretendard-SemiBold" },
 
   primaryBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 50, borderRadius: 16 },
   primaryBtnText: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
-  secondaryBtn:   { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" },
-  secondaryBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  secondaryBtn:   { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
+  secondaryBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
 
   previewCard:  { backgroundColor: "#FEF2F2", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#FECACA" },
   previewRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  previewLabel: { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#111827" },
+  previewLabel: { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#0F172A" },
   previewValue: { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#D96C6C" },
 
   pwInput:   { height: 50, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 14, paddingHorizontal: 16, fontSize: 15, fontFamily: "Pretendard-Regular", backgroundColor: "#F1F5F9" },

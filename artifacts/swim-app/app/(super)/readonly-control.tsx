@@ -47,8 +47,8 @@ function PlatformSection({
   return (
     <View style={[ps.card, enabled && ps.cardActive]}>
       <View style={ps.top}>
-        <View style={[ps.iconBox, { backgroundColor: enabled ? "#F9DEDA" : "#F8FAFC" }]}>
-          <Feather name="globe" size={20} color={enabled ? "#D96C6C" : "#6B7280"} />
+        <View style={[ps.iconBox, { backgroundColor: enabled ? "#F9DEDA" : "#FFFFFF" }]}>
+          <Feather name="globe" size={20} color={enabled ? "#D96C6C" : "#64748B"} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={ps.title}>플랫폼 전체 읽기전용</Text>
@@ -98,12 +98,12 @@ function PlatformSection({
               placeholder="변경 사유를 입력하세요"
               multiline numberOfLines={3}
               textAlignVertical="top"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="#64748B"
             />
             <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-              <Pressable style={[pm.actionBtn, { flex: 1, backgroundColor: "#F8FAFC" }]}
+              <Pressable style={[pm.actionBtn, { flex: 1, backgroundColor: "#FFFFFF" }]}
                 onPress={() => { setShowModal(false); setInputReason(""); }}>
-                <Text style={{ color: "#111827", fontFamily: "Pretendard-SemiBold" }}>취소</Text>
+                <Text style={{ color: "#0F172A", fontFamily: "Pretendard-SemiBold" }}>취소</Text>
               </Pressable>
               <Pressable
                 style={[pm.actionBtn, { flex: 1, backgroundColor: enabled ? "#2EC4B6" : "#D96C6C" },
@@ -130,8 +130,8 @@ const ps = StyleSheet.create({
   cardActive:    { borderColor: "#D96C6C", borderWidth: 2, backgroundColor: "#FFF5F5" },
   top:           { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   iconBox:       { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  title:         { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827" },
-  sub:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  title:         { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  sub:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   badge:         { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   badgeTxt:      { fontSize: 11, fontFamily: "Pretendard-Bold" },
   warningBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#F9DEDA", borderRadius: 8, padding: 10, marginBottom: 8 },
@@ -144,11 +144,11 @@ const ps = StyleSheet.create({
 const pm = StyleSheet.create({
   overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:      { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  title:      { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 12 },
+  title:      { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 12 },
   warningBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF1BF", borderRadius: 8, padding: 10, marginBottom: 12 },
   warningTxt: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#92400E" },
-  label:      { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827", marginBottom: 6 },
-  input:      { backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827", height: 80 },
+  label:      { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginBottom: 6 },
+  input:      { backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", height: 80 },
   actionBtn:  { borderRadius: 8, padding: 12, alignItems: "center" },
 });
 
@@ -260,8 +260,8 @@ export default function ReadonlyControlScreen() {
           <View style={s.sectionHeader}>
             <Feather name="users" size={15} color="#D97706" />
             <Text style={s.sectionTitle}>운영자별 읽기전용</Text>
-            <View style={[s.countBadge, { backgroundColor: readonlyOperators.length > 0 ? "#FFF1BF" : "#F8FAFC" }]}>
-              <Text style={[s.countTxt, { color: readonlyOperators.length > 0 ? "#D97706" : "#9CA3AF" }]}>
+            <View style={[s.countBadge, { backgroundColor: readonlyOperators.length > 0 ? "#FFF1BF" : "#FFFFFF" }]}>
+              <Text style={[s.countTxt, { color: readonlyOperators.length > 0 ? "#D97706" : "#64748B" }]}>
                 {readonlyOperators.length}개
               </Text>
             </View>
@@ -315,7 +315,7 @@ export default function ReadonlyControlScreen() {
         {/* 최근 제어 로그 */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Feather name="activity" size={15} color="#6B7280" />
+            <Feather name="activity" size={15} color="#64748B" />
             <Text style={s.sectionTitle}>최근 읽기전용 제어 로그</Text>
           </View>
           {recentLogs.length === 0 ? (
@@ -352,30 +352,30 @@ const s = StyleSheet.create({
   scopeRow:     { flexDirection: "row", gap: 8 },
   scopeCard:    { flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E5E7EB" },
   scopeIcon:    { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", marginBottom: 6 },
-  scopeLabel:   { fontSize: 11, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 4 },
-  scopeDesc:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#6B7280", lineHeight: 14 },
+  scopeLabel:   { fontSize: 11, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 4 },
+  scopeDesc:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 14 },
   section:      { backgroundColor: "#fff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
   sectionHeader:{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827", flex: 1 },
+  sectionTitle: { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A", flex: 1 },
   countBadge:   { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   countTxt:     { fontSize: 11, fontFamily: "Pretendard-Bold" },
   emptyRow:     { paddingVertical: 16, alignItems: "center" },
-  emptyTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });
 
 const or = StyleSheet.create({
-  row:        { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
-  name:       { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  sub:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  row:        { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
+  name:       { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  sub:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   releaseBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#E6FFFA", borderRadius: 7, paddingHorizontal: 10, paddingVertical: 6 },
   releaseTxt: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" },
 });
 
 const lr = StyleSheet.create({
-  row:      { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  row:      { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   dot:      { width: 8, height: 8, borderRadius: 4 },
-  desc:     { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#111827" },
-  time:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
+  desc:     { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  time:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   badge:    { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
   badgeTxt: { fontSize: 10, fontFamily: "Pretendard-Bold" },
 });

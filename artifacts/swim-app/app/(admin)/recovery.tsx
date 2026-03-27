@@ -54,7 +54,7 @@ const TYPE_CFG: Record<string, { color: string; bg: string; label: string; icon:
 };
 
 function snapTypeChip(snap: BackupSnapshot) {
-  return TYPE_CFG[snap.snapshotType ?? "manual"] ?? { color: "#6B7280", bg: "#F8FAFC", label: "기타", icon: "archive" };
+  return TYPE_CFG[snap.snapshotType ?? "manual"] ?? { color: "#64748B", bg: "#FFFFFF", label: "기타", icon: "archive" };
 }
 
 // ── 스냅샷 삭제 확인 모달 (2단계) ────────────────────────────────
@@ -136,7 +136,7 @@ function SnapshotDeleteModal({
                 <Text style={[rm.btnTxt, { color: C.textSecondary }]}>뒤로</Text>
               </Pressable>
               <Pressable
-                style={[rm.btn, { backgroundColor: confirmed ? "#D96C6C" : "#9CA3AF", flex: 1.5 }]}
+                style={[rm.btn, { backgroundColor: confirmed ? "#D96C6C" : "#64748B", flex: 1.5 }]}
                 onPress={execDelete}
                 disabled={!confirmed}
               >
@@ -379,7 +379,7 @@ function RestoreModal({
             <Text style={[rm.btnTxt, { color: C.textSecondary }]}>취소</Text>
           </Pressable>
           <Pressable
-            style={[rm.btn, { backgroundColor: check1 && check2 ? "#D96C6C" : "#9CA3AF", flex: 1.5 }]}
+            style={[rm.btn, { backgroundColor: check1 && check2 ? "#D96C6C" : "#64748B", flex: 1.5 }]}
             onPress={execRestore}
             disabled={running || !check1 || !check2}
           >
@@ -630,7 +630,7 @@ const s = StyleSheet.create({
 
   statusCard:   { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
   statusTitle:  { fontSize: 14, fontFamily: "Pretendard-Bold" },
-  statusSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#111827", marginTop: 2 },
+  statusSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginTop: 2 },
   manualBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12,
                   paddingVertical: 8, borderRadius: 10 },
   manualBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Bold", color: "#fff" },
@@ -703,7 +703,7 @@ const rm = StyleSheet.create({
   targetTime:   { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#D96C6C" },
   targetNote:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#991B1B" },
 
-  previewBox:   { backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 14, gap: 8 },
+  previewBox:   { backgroundColor: "#FFFFFF", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 14, gap: 8 },
   previewRow:   { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   previewKey:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, flexShrink: 0 },
   previewVal:   { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.text, textAlign: "right", flex: 1 },

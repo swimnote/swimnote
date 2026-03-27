@@ -37,7 +37,7 @@ interface BillingStatus {
 }
 
 const PLAN_COLOR: Record<string, string> = {
-  free:            "#6B7280",
+  free:            "#64748B",
   starter:         "#4EA7D8",
   basic:           "#2E9B6F",
   standard:        "#2EC4B6",
@@ -205,10 +205,10 @@ export default function BillingScreen() {
               <Feather
                 name={billingInfo?.subscription_status === "deleted" ? "x-circle" : "alert-triangle"}
                 size={18}
-                color={billingInfo?.subscription_status === "deleted" ? "#6B7280" : "#DC2626"}
+                color={billingInfo?.subscription_status === "deleted" ? "#64748B" : "#DC2626"}
               />
               <View style={{ flex: 1 }}>
-                <Text style={[s.failTitle, billingInfo?.subscription_status === "deleted" && { color: "#6B7280" }]}>
+                <Text style={[s.failTitle, billingInfo?.subscription_status === "deleted" && { color: "#64748B" }]}>
                   {billingInfo?.subscription_status === "deleted"
                     ? "계정이 삭제되었습니다"
                     : billingInfo?.subscription_status === "pending_deletion"
@@ -255,7 +255,7 @@ export default function BillingScreen() {
                 )}
               </View>
               <View style={[s.statusBadge, status?.status === "active" ? s.badgeGreen : s.badgeGray]}>
-                <Text style={[s.badgeText, status?.status === "active" ? { color: "#2EC4B6" } : { color: "#6B7280" }]}>
+                <Text style={[s.badgeText, status?.status === "active" ? { color: "#2EC4B6" } : { color: "#64748B" }]}>
                   {status?.status === "active" ? "활성" : status?.status ?? "미구독"}
                 </Text>
               </View>
@@ -358,7 +358,7 @@ export default function BillingScreen() {
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable style={[s.formBtn, { flex: 1, borderWidth: 1, borderColor: "#E5E7EB" }]}
                   onPress={() => setShowCardForm(false)}>
-                  <Text style={{ fontWeight: "500", color: "#6B7280" }}>취소</Text>
+                  <Text style={{ fontWeight: "500", color: "#64748B" }}>취소</Text>
                 </Pressable>
                 <Pressable style={[s.formBtn, { flex: 1, backgroundColor: C.button }]}
                   onPress={registerCard} disabled={cardSaving}>
@@ -402,7 +402,7 @@ export default function BillingScreen() {
                     </View>
                     {showDiscount && discountedPrice != null ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Text style={[s.planCardPrice, { textDecorationLine: "line-through", color: "#9CA3AF", fontSize: 13 }]}>
+                        <Text style={[s.planCardPrice, { textDecorationLine: "line-through", color: "#64748B", fontSize: 13 }]}>
                           ₩{p.price_per_month.toLocaleString()}/월
                         </Text>
                         <Text style={[s.planCardPrice, { color: "#DC2626" }]}>
@@ -428,7 +428,7 @@ export default function BillingScreen() {
                         showConfirm(`${p.name}으로 변경`, msg, () => subscribe(p.tier));
                       }}
                       disabled={!!subscribing}
-                      style={[s.subscribeBtn, { backgroundColor: isDowngrade ? "#6B7280" : pc }]}
+                      style={[s.subscribeBtn, { backgroundColor: isDowngrade ? "#64748B" : pc }]}
                     >
                       {subscribing === p.tier
                         ? <ActivityIndicator size="small" color="#fff" />
@@ -493,9 +493,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F8FAFC" },
+  safe:             { flex: 1, backgroundColor: "#FFFFFF" },
   section:          { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 12 },
-  sectionTitle:     { fontSize: 12, fontWeight: "700", color: "#6B7280", letterSpacing: 0.5, textTransform: "uppercase" },
+  sectionTitle:     { fontSize: 12, fontWeight: "700", color: "#64748B", letterSpacing: 0.5, textTransform: "uppercase" },
   failBanner:       { borderRadius: 12, borderWidth: 1.5, padding: 14, gap: 12 },
   failBannerActive: { backgroundColor: "#FFF1BF", borderColor: "#F59E0B" },
   failBannerDeleted:{ backgroundColor: "#F1F0EF", borderColor: "#9B9591" },
@@ -508,50 +508,50 @@ const s = StyleSheet.create({
   storageBarFill:   { height: 8, borderRadius: 4 },
   storageBanner:    { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 10, padding: 10 },
   storageBannerTitle:{ fontSize: 12, fontWeight: "600" },
-  storageBannerDesc: { fontSize: 11, color: "#6B7280", marginTop: 2 },
+  storageBannerDesc: { fontSize: 11, color: "#64748B", marginTop: 2 },
   storageActionBtn: { borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   storageActionTxt: { fontSize: 12, fontWeight: "700" },
   // 현재 구독
   subCard:          { borderWidth: 1.5, borderRadius: 12, padding: 14, gap: 10 },
   planDot:          { width: 10, height: 10, borderRadius: 5 },
-  planName:         { fontSize: 16, fontWeight: "700", color: "#111827" },
-  planMeta:         { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  skuLabel:         { fontSize: 10, color: "#9CA3AF", marginTop: 2 },
+  planName:         { fontSize: 16, fontWeight: "700", color: "#0F172A" },
+  planMeta:         { fontSize: 12, color: "#64748B", marginTop: 2 },
+  skuLabel:         { fontSize: 10, color: "#64748B", marginTop: 2 },
   statusBadge:      { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   badgeGreen:       { backgroundColor: "#E6FFFA" },
-  badgeGray:        { backgroundColor: "#F8FAFC" },
+  badgeGray:        { backgroundColor: "#FFFFFF" },
   badgeText:        { fontSize: 11, fontWeight: "600" },
   infoRow:          { flexDirection: "row", justifyContent: "space-between" },
-  metaLabel:        { fontSize: 13, color: "#6B7280" },
-  metaValue:        { fontSize: 13, color: "#111827", fontWeight: "600" },
+  metaLabel:        { fontSize: 13, color: "#64748B" },
+  metaValue:        { fontSize: 13, color: "#0F172A", fontWeight: "600" },
   // 카드
   cardBox:          { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, padding: 14 },
-  cardBrand:        { fontSize: 12, color: "#6B7280" },
-  cardNum:          { fontSize: 15, fontWeight: "600", color: "#111827" },
-  cardNick:         { fontSize: 12, color: "#9CA3AF" },
+  cardBrand:        { fontSize: 12, color: "#64748B" },
+  cardNum:          { fontSize: 15, fontWeight: "600", color: "#0F172A" },
+  cardNick:         { fontSize: 12, color: "#64748B" },
   addCardBtn:       { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderStyle: "dashed", borderRadius: 10, height: 48 },
   addCardText:      { fontWeight: "600", fontSize: 14 },
   cardForm:         { gap: 10, paddingTop: 4 },
-  input:            { height: 44, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, fontSize: 14, color: "#111827" },
+  input:            { height: 44, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, fontSize: 14, color: "#0F172A" },
   formBtn:          { height: 44, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-  cardNote:         { fontSize: 11, color: "#9CA3AF", lineHeight: 16 },
+  cardNote:         { fontSize: 11, color: "#64748B", lineHeight: 16 },
   // 플랜
   planCard:         { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, padding: 14, gap: 10 },
   enterpriseCard:   { backgroundColor: "#FFFBEB" },
   planCardName:     { fontSize: 14, fontWeight: "700" },
-  planCardPrice:    { fontSize: 15, fontWeight: "700", color: "#111827", marginTop: 2 },
-  planCardMeta:     { fontSize: 12, color: "#6B7280" },
+  planCardPrice:    { fontSize: 15, fontWeight: "700", color: "#0F172A", marginTop: 2 },
+  planCardMeta:     { fontSize: 12, color: "#64748B" },
   currentTag:       { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   currentTagText:   { color: "#fff", fontSize: 10, fontWeight: "600" },
-  skuBadge:         { fontSize: 10, color: "#9CA3AF", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  skuBadge:         { fontSize: 10, color: "#64748B", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   subscribeBtn:     { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, minWidth: 60, alignItems: "center" },
   subscribeBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
-  enterpriseNote:   { fontSize: 11, color: "#9CA3AF", lineHeight: 16 },
+  enterpriseNote:   { fontSize: 11, color: "#64748B", lineHeight: 16 },
   // 내역
-  histRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
-  histDesc:         { fontSize: 13, fontWeight: "500", color: "#111827" },
-  histDate:         { fontSize: 11, color: "#9CA3AF", marginTop: 2 },
-  histAmount:       { fontSize: 14, fontWeight: "700", color: "#111827" },
+  histRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
+  histDesc:         { fontSize: 13, fontWeight: "500", color: "#0F172A" },
+  histDate:         { fontSize: 11, color: "#64748B", marginTop: 2 },
+  histAmount:       { fontSize: 14, fontWeight: "700", color: "#0F172A" },
   histStatus:       { fontSize: 11, fontWeight: "500", marginTop: 2 },
-  empty:            { textAlign: "center", color: "#9CA3AF", padding: 20 },
+  empty:            { textAlign: "center", color: "#64748B", padding: 20 },
 });

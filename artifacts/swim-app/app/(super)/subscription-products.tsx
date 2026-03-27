@@ -70,7 +70,7 @@ function PlanCard({ plan, onEdit, onToggle }: {
         <View style={pc.tierBadge}>
           <Text style={pc.tierTxt}>{plan.code.toUpperCase()}</Text>
         </View>
-        <Text style={[pc.name, (!plan.isActive || plan.isArchived) && { color: "#9CA3AF" }]}>{plan.name}</Text>
+        <Text style={[pc.name, (!plan.isActive || plan.isArchived) && { color: "#64748B" }]}>{plan.name}</Text>
         <Text style={pc.price}>{priceStr}</Text>
       </View>
       <View style={pc.row}>
@@ -120,18 +120,18 @@ const pc = StyleSheet.create({
   top:         { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   tierBadge:   { backgroundColor: "#EEDDF5", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   tierTxt:     { fontSize: 10, fontFamily: "Pretendard-Bold", color: P },
-  name:        { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827", flex: 1 },
+  name:        { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A", flex: 1 },
   price:       { fontSize: 13, fontFamily: "Pretendard-Bold", color: G },
   row:         { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
   infoItem:    { flex: 1, minWidth: "20%", backgroundColor: "#F1F5F9", borderRadius: 8, padding: 8 },
-  infoLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#6B7280" },
-  infoVal:     { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827", marginTop: 2 },
+  infoLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  infoVal:     { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginTop: 2 },
   noteBox:     { backgroundColor: "#FFF1BF", borderRadius: 8, padding: 8, marginBottom: 10 },
   noteTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E" },
   actions:     { flexDirection: "row", gap: 8, alignItems: "center" },
   btn:         { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   btnTxt:      { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
-  updatedAt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginLeft: "auto" },
+  updatedAt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
 });
 
 // ── 추가 용량 상품 카드 ─────────────────────────────────────────
@@ -143,8 +143,8 @@ function StorageProductCard({ product, onEdit, onToggle }: {
   return (
     <View style={[ep.card, !product.isActive && ep.cardInactive]}>
       <View style={ep.top}>
-        <View style={[ep.iconBox, { backgroundColor: product.isActive ? "#E6FFFA" : "#F8FAFC" }]}>
-          <Feather name="hard-drive" size={20} color={product.isActive ? G : "#9CA3AF"} />
+        <View style={[ep.iconBox, { backgroundColor: product.isActive ? "#E6FFFA" : "#FFFFFF" }]}>
+          <Feather name="hard-drive" size={20} color={product.isActive ? G : "#64748B"} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={ep.name}>{product.name}</Text>
@@ -185,16 +185,16 @@ const ep = StyleSheet.create({
   cardInactive:{ opacity: 0.6, borderStyle: "dashed" },
   top:         { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
   iconBox:     { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  name:        { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827" },
+  name:        { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   size:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: G, marginTop: 2 },
-  price:       { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827" },
+  price:       { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   statusBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, marginTop: 4 },
   statusTxt:   { fontSize: 10, fontFamily: "Pretendard-Bold" },
-  note:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", marginBottom: 8, lineHeight: 17 },
+  note:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 8, lineHeight: 17 },
   actions:     { flexDirection: "row", gap: 8, alignItems: "center" },
   btn:         { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   btnTxt:      { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
-  updatedAt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginLeft: "auto" },
+  updatedAt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
 });
 
 // ── 구독 플랜 폼 모달 ───────────────────────────────────────────
@@ -233,7 +233,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#6B7280" /></Pressable>
+          <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#64748B" /></Pressable>
           <Text style={fm.title}>{isEdit ? "구독 상품 수정" : "구독 상품 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
@@ -243,14 +243,14 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
               <View key={f.key}>
                 <Text style={fm.label}>{f.label}</Text>
                 <TextInput style={fm.input} value={String(form[f.key])} onChangeText={v => setVal(f.key, v)}
-                  placeholder={f.placeholder ?? ""} placeholderTextColor="#9CA3AF"
+                  placeholder={f.placeholder ?? ""} placeholderTextColor="#64748B"
                   keyboardType={f.numeric ? "numeric" : "default"} />
               </View>
             ))}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 }}>
               <Text style={[fm.label, { marginBottom: 0, flex: 1 }]}>영상 업로드 포함</Text>
               <Switch value={form.includesVideo} onValueChange={v => setVal("includesVideo", v)}
-                trackColor={{ false: "#E5E7EB", true: "#C4B5FD" }} thumbColor={form.includesVideo ? P : "#9CA3AF"} />
+                trackColor={{ false: "#E5E7EB", true: "#C4B5FD" }} thumbColor={form.includesVideo ? P : "#64748B"} />
             </View>
           </ScrollView>
           <View style={fm.bottomBar}>
@@ -299,7 +299,7 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#6B7280" /></Pressable>
+          <Pressable onPress={onClose} style={fm.close}><Feather name="x" size={20} color="#64748B" /></Pressable>
           <Text style={fm.title}>{isEdit ? "추가 용량 상품 수정" : "추가 용량 상품 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
@@ -307,20 +307,20 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
           <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
             <View>
               <Text style={fm.label}>상품명</Text>
-              <TextInput style={fm.input} value={form.name} onChangeText={v => setVal("name", v)} placeholder="예: 추가 30GB" placeholderTextColor="#9CA3AF" />
+              <TextInput style={fm.input} value={form.name} onChangeText={v => setVal("name", v)} placeholder="예: 추가 30GB" placeholderTextColor="#64748B" />
             </View>
             <View>
               <Text style={fm.label}>추가 용량 (MB)</Text>
-              <TextInput style={fm.input} value={form.extraStorageMb} onChangeText={v => setVal("extraStorageMb", v)} placeholder="30720 (30GB)" placeholderTextColor="#9CA3AF" keyboardType="numeric" />
-              <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4, fontFamily: "Pretendard-Regular" }}>1024MB = 1GB</Text>
+              <TextInput style={fm.input} value={form.extraStorageMb} onChangeText={v => setVal("extraStorageMb", v)} placeholder="30720 (30GB)" placeholderTextColor="#64748B" keyboardType="numeric" />
+              <Text style={{ fontSize: 11, color: "#64748B", marginTop: 4, fontFamily: "Pretendard-Regular" }}>1024MB = 1GB</Text>
             </View>
             <View>
               <Text style={fm.label}>가격 (원)</Text>
-              <TextInput style={fm.input} value={form.price} onChangeText={v => setVal("price", v)} placeholder="24900" placeholderTextColor="#9CA3AF" keyboardType="numeric" />
+              <TextInput style={fm.input} value={form.price} onChangeText={v => setVal("price", v)} placeholder="24900" placeholderTextColor="#64748B" keyboardType="numeric" />
             </View>
             <View>
               <Text style={fm.label}>메모 (선택)</Text>
-              <TextInput style={fm.input} value={form.note} onChangeText={v => setVal("note", v)} placeholder="내부 참고용" placeholderTextColor="#9CA3AF" />
+              <TextInput style={fm.input} value={form.note} onChangeText={v => setVal("note", v)} placeholder="내부 참고용" placeholderTextColor="#64748B" />
             </View>
           </ScrollView>
           <View style={fm.bottomBar}>
@@ -346,10 +346,10 @@ function StorageFormModal({ visible, initial, onClose, onSave }: {
 const fm = StyleSheet.create({
   header:        { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   close:         { padding: 4 },
-  title:         { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Bold", color: "#111827" },
+  title:         { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   saveTxt:       { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
-  label:         { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827", marginBottom: 6 },
-  input:         { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827", minHeight: 42 },
+  label:         { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginBottom: 6 },
+  input:         { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", minHeight: 42 },
   bottomBar:     { padding: 16, paddingBottom: 24, borderTopWidth: 1, borderTopColor: "#E5E7EB", backgroundColor: "#F1F5F9" },
   bottomSaveBtn: { backgroundColor: P, borderRadius: 14, height: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
 });
@@ -599,19 +599,19 @@ const s = StyleSheet.create({
   tabBar:           { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tabItem:          { flex: 1, paddingVertical: 14, alignItems: "center" },
   tabItemActive:    { borderBottomWidth: 2, borderBottomColor: P },
-  tabTxt:           { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#9CA3AF" },
+  tabTxt:           { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   tabTxtActive:     { color: P },
   createBtn:        { flexDirection: "row", alignItems: "center", gap: 6, margin: 16, marginBottom: 0, backgroundColor: P, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12 },
   createBtnTxt:     { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#fff" },
   infoBox:          { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12, marginBottom: 12 },
   infoTxt:          { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#5B21B6", lineHeight: 17 },
   empty:            { alignItems: "center", paddingTop: 60, gap: 12 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
   storageSummary:   { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   storageStatCard:  { flex: 1, minWidth: "45%", backgroundColor: "#fff", borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB" },
-  storageStatNum:   { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#111827" },
-  storageStatLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 3, textAlign: "center" },
+  storageStatNum:   { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  storageStatLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3, textAlign: "center" },
   sectionDivider:   { borderTopWidth: 1, borderTopColor: "#E5E7EB", paddingTop: 12, marginBottom: 12 },
-  sectionLabel:     { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827" },
-  sectionHint:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  sectionLabel:     { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  sectionHint:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
 });

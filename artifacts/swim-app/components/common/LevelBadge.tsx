@@ -32,7 +32,7 @@ export function LevelBadge({ level, size = "md", showName = false }: Props) {
     const s = SIZES[size];
     return (
       <View style={[styles.badge, { width: s.badge, height: s.badge, borderRadius: s.radius, backgroundColor: "#E5E7EB" }]}>
-        <Text style={[styles.label, { fontSize: s.font, color: "#9CA3AF" }]}>-</Text>
+        <Text style={[styles.label, { fontSize: s.font, color: "#64748B" }]}>-</Text>
       </View>
     );
   }

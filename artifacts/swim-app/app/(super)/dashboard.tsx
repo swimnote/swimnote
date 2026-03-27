@@ -115,8 +115,8 @@ function TodoRow({
             <Text style={[tr.btnTxt, { color: "#2EC4B6" }]}>재알림</Text>
           </Pressable>
         )}
-        <Pressable style={[tr.btn, { backgroundColor: "#F8FAFC" }]} onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
-          <Text style={[tr.btnTxt, { color: "#111827" }]}>상세</Text>
+        <Pressable style={[tr.btn, { backgroundColor: "#FFFFFF" }]} onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
+          <Text style={[tr.btnTxt, { color: "#0F172A" }]}>상세</Text>
         </Pressable>
       </View>
     </View>
@@ -126,8 +126,8 @@ function TodoRow({
 const tr = StyleSheet.create({
   row:     { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8,
              paddingLeft: 10, borderLeftWidth: 3, marginBottom: 4 },
-  name:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  sub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  name:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  sub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   actions: { flexDirection: "row", gap: 4 },
   btn:     { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6 },
   btnTxt:  { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
@@ -155,7 +155,7 @@ function TodoSection({
         <View style={[ts.badge, { backgroundColor: color }]}>
           <Text style={ts.badgeTxt}>{count}</Text>
         </View>
-        <Feather name={open ? "chevron-up" : "chevron-down"} size={14} color="#9CA3AF" style={{ marginLeft: "auto" }} />
+        <Feather name={open ? "chevron-up" : "chevron-down"} size={14} color="#64748B" style={{ marginLeft: "auto" }} />
       </Pressable>
       {open && (
         <View style={ts.body}>
@@ -176,7 +176,7 @@ const ts = StyleSheet.create({
               borderWidth: 1, borderColor: "#E5E7EB" },
   header:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 12 },
   iconWrap: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  title:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  title:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   badge:    { borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
   badgeTxt: { fontSize: 11, fontFamily: "Pretendard-Bold", color: "#fff" },
   body:     { paddingHorizontal: 12, paddingBottom: 8 },
@@ -310,7 +310,7 @@ export default function SuperDashboard() {
             {todoCount > 0 && (
               <View style={s.todoSection}>
                 <View style={s.todoHeader}>
-                  <Feather name="clipboard" size={15} color="#111827" />
+                  <Feather name="clipboard" size={15} color="#0F172A" />
                   <Text style={s.todoHeaderTxt}>오늘 처리할 일</Text>
                   <View style={s.todoBadge}>
                     <Text style={s.todoBadgeTxt}>{todoCount}</Text>
@@ -413,7 +413,7 @@ export default function SuperDashboard() {
                 <Pressable style={s.riskHeader} onPress={() => router.push("/(super)/risk-center" as any)}>
                   <Feather name="shield" size={15} color="#9333EA" />
                   <Text style={s.riskHeaderTxt}>리스크 요약</Text>
-                  <Feather name="chevron-right" size={14} color="#6B7280" style={{ marginLeft: "auto" }} />
+                  <Feather name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
                 </Pressable>
                 <View style={s.riskGrid}>
                   {[
@@ -439,7 +439,7 @@ export default function SuperDashboard() {
               <Pressable style={s.auditHeader} onPress={() => router.push("/(super)/op-logs" as any)}>
                 <Feather name="activity" size={15} color="#2EC4B6" />
                 <Text style={s.auditHeaderTxt}>최근 감사 로그</Text>
-                <Feather name="chevron-right" size={14} color="#6B7280" style={{ marginLeft: "auto" }} />
+                <Feather name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
               </Pressable>
               {recentLogs.length === 0 ? (
                 <View style={s.auditEmpty}>
@@ -483,7 +483,7 @@ export default function SuperDashboard() {
         </View>
 
         <View style={s.footer}>
-          <Feather name="user" size={13} color="#9CA3AF" />
+          <Feather name="user" size={13} color="#64748B" />
           <Text style={s.footerTxt}>{adminUser?.name ?? "슈퍼관리자"} · 슈퍼관리자 계정</Text>
         </View>
       </ScrollView>
@@ -492,11 +492,11 @@ export default function SuperDashboard() {
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#F8FAFC" },
+  safe:          { flex: 1, backgroundColor: "#FFFFFF" },
   header:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                    paddingHorizontal: 18, paddingTop: 14, paddingBottom: 14 },
-  headerTitle:   { fontSize: 22, fontFamily: "Pretendard-Bold", color: "#111827" },
-  headerSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  headerTitle:   { fontSize: 22, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  headerSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   alertPill:     { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#F9DEDA",
                    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6 },
   alertPillTxt:  { fontSize: 11, fontFamily: "Pretendard-Bold", color: "#D96C6C" },
@@ -511,54 +511,54 @@ const s = StyleSheet.create({
   statAlert:     { borderColor: "#FCA5A5", backgroundColor: "#FEF2F2" },
   alertDot:      { position: "absolute", top: 8, right: 8, width: 7, height: 7,
                    borderRadius: 3.5, backgroundColor: "#D96C6C" },
-  statNum:       { fontSize: 24, fontFamily: "Pretendard-Bold", color: "#111827" },
-  statLabel:     { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#6B7280", marginTop: 2, lineHeight: 14 },
+  statNum:       { fontSize: 24, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  statLabel:     { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#64748B", marginTop: 2, lineHeight: 14 },
 
   todoSection:   { marginHorizontal: 14, marginBottom: 14 },
   todoHeader:    { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  todoHeaderTxt: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827", flex: 1 },
+  todoHeaderTxt: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A", flex: 1 },
   todoBadge:     { backgroundColor: "#D96C6C", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
   todoBadgeTxt:  { fontSize: 12, fontFamily: "Pretendard-Bold", color: "#fff" },
 
   supportBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff",
                    borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#E5E7EB",
                    marginBottom: 10 },
-  supportTitle:  { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  supportSub:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  supportTitle:  { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  supportSub:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
 
   menuSection:   { paddingHorizontal: 14 },
   menuGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   menuCard:      { width: "47.5%", backgroundColor: "#FFFFFF", borderRadius: 16, padding: 16,
                    borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },
   menuIconBox:   { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  menuTitle:     { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827" },
-  menuSub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#6B7280", lineHeight: 15 },
+  menuTitle:     { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  menuSub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 15 },
 
   riskSection:   { marginHorizontal: 14, marginBottom: 14, backgroundColor: "#FFFFFF",
                    borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   riskHeader:    { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  riskHeaderTxt: { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827", flex: 1 },
+  riskHeaderTxt: { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A", flex: 1 },
   riskGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  riskCard:      { width: "30.5%", backgroundColor: "#F8FAFC", borderRadius: 10, padding: 10,
+  riskCard:      { width: "30.5%", backgroundColor: "#FFFFFF", borderRadius: 10, padding: 10,
                    borderWidth: 1, borderColor: "#E5E7EB", position: "relative", minHeight: 60 },
-  riskNum:       { fontSize: 22, fontFamily: "Pretendard-Bold", color: "#111827" },
-  riskLabel:     { fontSize: 9, fontFamily: "Pretendard-Medium", color: "#6B7280", marginTop: 3, lineHeight: 13 },
+  riskNum:       { fontSize: 22, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  riskLabel:     { fontSize: 9, fontFamily: "Pretendard-Medium", color: "#64748B", marginTop: 3, lineHeight: 13 },
   riskDot:       { position: "absolute", top: 6, right: 6, width: 6, height: 6, borderRadius: 3 },
 
   auditSection:  { marginHorizontal: 14, marginBottom: 14, backgroundColor: "#FFFFFF",
                    borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   auditHeader:   { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  auditHeaderTxt:{ fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827", flex: 1 },
+  auditHeaderTxt:{ fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A", flex: 1 },
   auditRow:      { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 7,
                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  auditCatBadge: { backgroundColor: "#EDE9FE", borderRadius: 5, paddingHorizontal: 7,
+  auditCatBadge: { backgroundColor: "#E6FAF8", borderRadius: 5, paddingHorizontal: 7,
                    paddingVertical: 3, minWidth: 50, alignItems: "center" },
   auditCatTxt:   { fontSize: 9, fontFamily: "Pretendard-Bold", color: "#7C3AED" },
-  auditDesc:     { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#111827" },
-  auditMeta:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 1 },
+  auditDesc:     { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  auditMeta:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   auditEmpty:    { paddingVertical: 12, alignItems: "center" },
-  auditEmptyTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280" },
+  auditEmptyTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   footer:        { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center", paddingTop: 24 },
-  footerTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280" },
+  footerTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });

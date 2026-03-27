@@ -161,7 +161,7 @@ export default function ChildrenScreen() {
         <View style={[s.formCard, { backgroundColor: C.card }]}>
           <Text style={[s.formLabel, { color: C.textSecondary }]}>자녀 이름 *</Text>
           <TextInput
-            style={[s.input, { backgroundColor: "#F8FAFC", color: C.text }]}
+            style={[s.input, { backgroundColor: "#FFFFFF", color: C.text }]}
             placeholder="자녀 이름을 입력하세요"
             placeholderTextColor={C.textMuted}
             value={childName}
@@ -169,7 +169,7 @@ export default function ChildrenScreen() {
           />
           <Text style={[s.formLabel, { color: C.textSecondary }]}>생년월일 (YYYY-MM-DD)</Text>
           <TextInput
-            style={[s.input, { backgroundColor: "#F8FAFC", color: C.text }]}
+            style={[s.input, { backgroundColor: "#FFFFFF", color: C.text }]}
             placeholder="예: 2017-03-20"
             placeholderTextColor={C.textMuted}
             value={childBirth}
@@ -179,7 +179,7 @@ export default function ChildrenScreen() {
           />
           <Text style={[s.formLabel, { color: C.textSecondary }]}>전달 메모 (선택)</Text>
           <TextInput
-            style={[s.input, s.inputMulti, { backgroundColor: "#F8FAFC", color: C.text }]}
+            style={[s.input, s.inputMulti, { backgroundColor: "#FFFFFF", color: C.text }]}
             placeholder="관리자에게 전달할 내용이 있으면 입력하세요"
             placeholderTextColor={C.textMuted}
             value={memo}

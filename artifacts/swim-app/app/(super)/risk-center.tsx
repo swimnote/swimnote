@@ -213,7 +213,7 @@ export default function RiskCenterScreen() {
               { label: "SLA 초과",   count: support.overdue_count,   color: "#F87171" },
             ].map(item => (
               <View key={item.label} style={s.riskTile}>
-                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#6B7280" }]}>{item.count}</Text>
+                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#64748B" }]}>{item.count}</Text>
                 <Text style={s.riskLbl}>{item.label}</Text>
               </View>
             ))}
@@ -375,7 +375,7 @@ export default function RiskCenterScreen() {
             </View>
           ))}
           <View style={s.backupRow}>
-            <Feather name="database" size={13} color="#6B7280" />
+            <Feather name="database" size={13} color="#64748B" />
             <Text style={s.backupTxt}>마지막 백업 이벤트: {fmtAgo(backup.last_at)}</Text>
           </View>
         </View>
@@ -398,8 +398,8 @@ const s = StyleSheet.create({
   summaryTitle:  { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#F1F5F9" },
   riskGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   riskTile:      { flex: 1, minWidth: "28%", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 10, padding: 10, alignItems: "center" },
-  riskNum:       { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#6B7280" },
-  riskLbl:       { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#9CA3AF", marginTop: 2, textAlign: "center" },
+  riskNum:       { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#64748B" },
+  riskLbl:       { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#64748B", marginTop: 2, textAlign: "center" },
   supportRow:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(2,132,199,0.12)", borderRadius: 8, padding: 8 },
   supportTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#38BDF8" },
   supportLink:   { backgroundColor: "#0284C7", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
@@ -407,15 +407,15 @@ const s = StyleSheet.create({
 
   serviceCard:   { backgroundColor: "#fff", borderRadius: 14, padding: 14,
                    borderWidth: 1, borderColor: "#E5E7EB", gap: 4 },
-  serviceTitle:  { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 8 },
+  serviceTitle:  { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 8 },
   serviceRow:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
-                   borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+                   borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   serviceDot:    { width: 8, height: 8, borderRadius: 4 },
-  serviceName:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#111827" },
+  serviceName:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
   serviceStatus: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   serviceActions:{ flexDirection: "row", gap: 4 },
   backupRow:     { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
-  backupTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280" },
+  backupTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   allClear:      { alignItems: "center", paddingVertical: 40, gap: 12 },
   allClearTxt:   { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#2E9B6F" },
@@ -426,16 +426,16 @@ const g = StyleSheet.create({
                  borderWidth: 1, borderColor: "#E5E7EB" },
   groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   groupIcon:   { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  groupTitle:  { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
+  groupTitle:  { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   countBadge:  { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   countTxt:    { fontSize: 12, fontFamily: "Pretendard-Bold" },
   viewAll:     { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
 
   item:        { flexDirection: "row", alignItems: "center", gap: 8,
-                 paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+                 paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   itemLeft:    { flex: 1 },
-  itemName:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
-  itemSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 2 },
+  itemName:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  itemSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   itemActions: { flexDirection: "row", gap: 4 },
 
   barRow:      { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },

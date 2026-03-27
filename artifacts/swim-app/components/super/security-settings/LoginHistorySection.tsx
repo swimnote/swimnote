@@ -55,6 +55,6 @@ const s = StyleSheet.create({
   section: { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 10,
              borderWidth: 1, borderColor: "#E5E7EB" },
   row:     { borderRadius: 10, padding: 10, flexDirection: "column", alignItems: "flex-start", gap: 3 },
-  label:   { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#111827" },
-  value:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280" },
+  label:   { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  value:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });

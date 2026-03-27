@@ -443,7 +443,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               )}
               {isDirected && (
                 <View style={[s.directedTag, isMine ? s.directedTagRight : s.directedTagLeft]}>
-                  <Feather name="at-sign" size={10} color="#6B7280" />
+                  <Feather name="at-sign" size={10} color="#64748B" />
                   <Text style={s.directedTagText}>
                     {isMine
                       ? `${extra.target_user_name}에게만`
@@ -1013,7 +1013,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
     borderRadius: 8,
     paddingHorizontal: 7,
     paddingVertical: 2,

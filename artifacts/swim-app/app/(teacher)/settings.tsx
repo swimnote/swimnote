@@ -269,19 +269,19 @@ export default function TeacherSettingsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F8FAFC" },
+  safe:             { flex: 1, backgroundColor: "#FFFFFF" },
   card:             { backgroundColor: C.card, borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   cardTitle:        { fontSize: 15, fontFamily: "Pretendard-Bold", color: C.text },
   storageSummary:   { padding: 14, borderRadius: 14, borderWidth: 1 },
   storageUsedLabel: { fontSize: 12, fontFamily: "Pretendard-Medium", marginBottom: 2 },
   storageUsedBytes: { fontSize: 22, fontFamily: "Pretendard-Bold" },
-  storageQuotaLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginBottom: 2 },
+  storageQuotaLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 2 },
   storageQuotaBytes:{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
   gaugeWrap:        { height: 10, backgroundColor: "#E5E7EB", borderRadius: 5, overflow: "hidden" },
   gaugeBar:         { height: 10, borderRadius: 5 },
   gaugePct:         { fontSize: 12, fontFamily: "Pretendard-Bold" },
-  gaugeRemain:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  gaugeRemain:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   usageRow:         { flexDirection: "row", alignItems: "center", gap: 12 },
   usageIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   usageLabel:       { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text },

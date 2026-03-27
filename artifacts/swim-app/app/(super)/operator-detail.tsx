@@ -66,7 +66,7 @@ const BILLING_CFG: Record<string, { label: string; color: string; bg: string }> 
   active:    { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
   expired:   { label: "만료됨",    color: "#D96C6C", bg: "#F9DEDA" },
   suspended: { label: "일시 정지", color: "#D97706", bg: "#FFF1BF" },
-  cancelled: { label: "해지됨",    color: "#6B7280", bg: "#F8FAFC" },
+  cancelled: { label: "해지됨",    color: "#64748B", bg: "#FFFFFF" },
 };
 
 const APPROVAL_CFG: Record<string, { label: string; color: string; bg: string }> = {
@@ -82,7 +82,7 @@ const CAT_CFG: Record<string, { color: string; bg: string }> = {
   삭제:         { color: "#D96C6C", bg: "#F9DEDA" },
   정책:         { color: "#2EC4B6", bg: "#E6FFFA" },
   결제:         { color: "#2EC4B6", bg: "#ECFEFF" },
-  "읽기전용 전환": { color: "#6B7280", bg: "#F8FAFC" },
+  "읽기전용 전환": { color: "#64748B", bg: "#FFFFFF" },
 };
 
 export default function OperatorDetailScreen() {
@@ -168,7 +168,7 @@ export default function OperatorDetailScreen() {
       <SafeAreaView style={d.safe} edges={[]}>
         <SubScreenHeader title="운영자 상세" homePath="/(super)/pools" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: "#6B7280", fontFamily: "Pretendard-Regular" }}>운영자 정보를 불러올 수 없습니다.</Text>
+          <Text style={{ color: "#64748B", fontFamily: "Pretendard-Regular" }}>운영자 정보를 불러올 수 없습니다.</Text>
         </View>
       </SafeAreaView>
     );
@@ -304,7 +304,7 @@ export default function OperatorDetailScreen() {
               onPress={() => router.push(`/(super)/storage?operatorId=${id}` as any)}>
               <Feather name="hard-drive" size={18} color={P} />
               <Text style={d.actionCardTxt}>추가 용량 부여</Text>
-              <Feather name="chevron-right" size={16} color="#9CA3AF" style={{ marginLeft: "auto" }} />
+              <Feather name="chevron-right" size={16} color="#64748B" style={{ marginLeft: "auto" }} />
             </Pressable>
           </>
         )}
@@ -321,7 +321,7 @@ export default function OperatorDetailScreen() {
             <Pressable style={[d.actionCard, { marginTop: 12 }]} onPress={() => router.push("/(super)/policy" as any)}>
               <Feather name="file-text" size={18} color={P} />
               <Text style={d.actionCardTxt}>정책 편집 (슈퍼관리자)</Text>
-              <Feather name="chevron-right" size={16} color="#9CA3AF" style={{ marginLeft: "auto" }} />
+              <Feather name="chevron-right" size={16} color="#64748B" style={{ marginLeft: "auto" }} />
             </Pressable>
           </View>
         )}
@@ -331,7 +331,7 @@ export default function OperatorDetailScreen() {
             <Text style={d.cardTitle}>운영 이벤트 로그 ({logs.length})</Text>
             {logs.length === 0 && <Text style={d.empty}>이벤트 로그가 없습니다</Text>}
             {logs.map((log: any) => {
-              const catCfg = CAT_CFG[log.category] ?? { color: "#6B7280", bg: "#F8FAFC" };
+              const catCfg = CAT_CFG[log.category] ?? { color: "#64748B", bg: "#FFFFFF" };
               return (
                 <View key={log.id} style={d.logItem}>
                   <View style={[d.logCat, { backgroundColor: catCfg.bg }]}>
@@ -373,7 +373,7 @@ export default function OperatorDetailScreen() {
               <Pressable style={d.quickLink} onPress={() => router.push("/(super)/kill-switch" as any)}>
                 <Feather name="alert-triangle" size={15} color="#D96C6C" />
                 <Text style={[d.quickLinkTxt, { color: "#D96C6C" }]}>킬스위치 (데이터 삭제)</Text>
-                <Feather name="chevron-right" size={14} color="#9CA3AF" style={{ marginLeft: "auto" }} />
+                <Feather name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
               </Pressable>
             </View>
           </>
@@ -392,7 +392,7 @@ export default function OperatorDetailScreen() {
               </Text>
               {(action === "reject" || action === "restrict") && (
                 <TextInput style={m.input} value={reason} onChangeText={setReason}
-                  placeholder="사유 (선택)" placeholderTextColor="#9CA3AF" />
+                  placeholder="사유 (선택)" placeholderTextColor="#64748B" />
               )}
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setAction(null)}>
@@ -443,8 +443,8 @@ const d = StyleSheet.create({
                     paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
                     borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   bannerLeft:     { flex: 1 },
-  bannerName:     { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827" },
-  bannerOwner:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  bannerName:     { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  bannerOwner:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   badge:          { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeTxt:       { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   feedbackBanner: { flexDirection: "row", alignItems: "center", gap: 8,
@@ -455,15 +455,15 @@ const d = StyleSheet.create({
   tab:            { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
                     borderWidth: 1.5, borderColor: "#E5E7EB" },
   tabActive:      { backgroundColor: P, borderColor: P },
-  tabTxt:         { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#6B7280" },
+  tabTxt:         { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
   tabActiveTxt:   { color: "#fff" },
   card:           { backgroundColor: "#fff", borderRadius: 14, padding: 16,
                     borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },
-  cardTitle:      { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 4 },
+  cardTitle:      { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 4 },
   infoRow:        { flexDirection: "row", paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  infoLabel:      { width: 90, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
-  infoVal:        { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#111827" },
-  empty:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9CA3AF", textAlign: "center", paddingVertical: 12 },
+  infoLabel:      { width: 90, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  infoVal:        { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  empty:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", paddingVertical: 12 },
   alertBox:       { flexDirection: "row", alignItems: "flex-start", gap: 8,
                     backgroundColor: "#FEF2F2", borderRadius: 8, padding: 10, marginTop: 4 },
   alertTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#D96C6C" },
@@ -471,27 +471,27 @@ const d = StyleSheet.create({
   storageCircle:  { width: 80, height: 80, borderRadius: 40, borderWidth: 5, borderColor: P,
                     alignItems: "center", justifyContent: "center" },
   storageCircleNum:{ fontSize: 18, fontFamily: "Pretendard-Bold", color: P },
-  storageCircleSub:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  storageCircleSub:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   storageDetails: { flex: 1, gap: 4 },
   actionCard:     { flexDirection: "row", alignItems: "center", gap: 12,
                     backgroundColor: "#fff", borderRadius: 14, padding: 16,
                     borderWidth: 1, borderColor: "#E5E7EB" },
-  actionCardTxt:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  actionCardTxt:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   forceCard:      { flexDirection: "row", alignItems: "center", gap: 14,
                     backgroundColor: "#fff", borderRadius: 14, padding: 16,
                     borderWidth: 1, borderColor: "#E5E7EB" },
   forceIcon:      { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  forceTxt:       { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827" },
-  forceSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
+  forceTxt:       { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  forceSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   quickLink:      { flexDirection: "row", alignItems: "center", gap: 10,
-                    paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F8FAFC" },
+                    paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#FFFFFF" },
   quickLinkTxt:   { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   logItem:        { flexDirection: "row", alignItems: "flex-start", gap: 8,
                     paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   logCat:         { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 2 },
   logCatTxt:      { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
-  logDesc:        { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#111827" },
-  logTime:        { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
+  logDesc:        { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  logTime:        { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
 });
 
 const m = StyleSheet.create({
@@ -499,12 +499,12 @@ const m = StyleSheet.create({
   sheet:      { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                 borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, gap: 16 },
   handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:      { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#111827" },
+  title:      { fontSize: 18, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   input:      { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827" },
+                fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   btnRow:     { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
-  cancelBtn:  { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
-  cancelTxt:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  cancelBtn:  { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
+  cancelTxt:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   confirmBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   confirmTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

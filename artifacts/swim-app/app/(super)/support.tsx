@@ -47,14 +47,14 @@ const TYPE_CFG: Record<string, {
   technical:  { label: "기술",    color: P,      bg: "#EEDDF5", icon: "tool" },
   storage:    { label: "저장공간", color: TEAL,   bg: "#E6FFFA", icon: "hard-drive" },
   chargeback: { label: "차지백",  color: "#991B1B", bg: "#F9DEDA", icon: "alert-triangle" },
-  other:      { label: "기타",    color: "#6B7280", bg: "#F8FAFC", icon: "help-circle" },
+  other:      { label: "기타",    color: "#64748B", bg: "#FFFFFF", icon: "help-circle" },
 };
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   received:          { label: "접수",    color: RED,    bg: "#F9DEDA" },
   in_progress:       { label: "처리 중", color: AMBER,  bg: "#FFF1BF" },
-  on_hold:           { label: "보류",    color: "#6B7280", bg: "#F8FAFC" },
-  refund_linked:     { label: "환불연계", color: "#9333EA", bg: "#F3E8FF" },
+  on_hold:           { label: "보류",    color: "#64748B", bg: "#FFFFFF" },
+  refund_linked:     { label: "환불연계", color: "#9333EA", bg: "#E6FAF8" },
   policy_sent:       { label: "정책발송", color: TEAL,   bg: "#ECFEFF" },
   need_recheck:      { label: "재확인",  color: "#E4A93A", bg: "#FFF1BF" },
   escalated_to_tech: { label: "에스컬",  color: P,      bg: "#EEDDF5" },
@@ -75,7 +75,7 @@ const TICKET_TYPES = Object.keys(TYPE_CFG);
 type FilterKey = "all" | "urgent" | "sla" | "payment" | "security" | "refund";
 
 const FILTER_TABS: Array<{ key: FilterKey; label: string; color: string; icon: React.ComponentProps<typeof Feather>["name"] }> = [
-  { key: "all",      label: "전체",    color: "#111827",  icon: "list" },
+  { key: "all",      label: "전체",    color: "#0F172A",  icon: "list" },
   { key: "urgent",   label: "긴급",    color: RED,        icon: "alert-octagon" },
   { key: "sla",      label: "SLA 초과", color: "#D97706", icon: "clock" },
   { key: "payment",  label: "결제",    color: TEAL,       icon: "credit-card" },
@@ -258,7 +258,7 @@ export default function SupportScreen() {
   const renderItem = ({ item }: { item: SupportTicket }) => {
     const tc = TYPE_CFG[item.type] ?? TYPE_CFG.other;
     const sc = STATUS_CFG[item.status] ?? STATUS_CFG.received;
-    const rc = REQUESTER_CFG[item.requesterRole] ?? { label: item.requesterRole, color: "#6B7280" };
+    const rc = REQUESTER_CFG[item.requesterRole] ?? { label: item.requesterRole, color: "#64748B" };
     const { overdue, label: slaLabel } = getSlaStatus(item);
     const isEmergency = tc.emergency === true;
 
@@ -474,13 +474,13 @@ export default function SupportScreen() {
               <View style={m.section}>
                 <Text style={m.label}>담당자</Text>
                 <TextInput style={m.input} value={assignee} onChangeText={setAssignee}
-                  placeholder="담당자 이름" placeholderTextColor="#9CA3AF" />
+                  placeholder="담당자 이름" placeholderTextColor="#64748B" />
               </View>
 
               <View style={m.section}>
                 <Text style={m.label}>내부 메모</Text>
                 <TextInput style={[m.input, { minHeight: 60 }]} value={internalMemo} onChangeText={setInternalMemo}
-                  multiline placeholder="내부 처리 메모" placeholderTextColor="#9CA3AF" textAlignVertical="top" />
+                  multiline placeholder="내부 처리 메모" placeholderTextColor="#64748B" textAlignVertical="top" />
               </View>
 
               {editTicket.type === "refund" && (
@@ -549,21 +549,21 @@ export default function SupportScreen() {
                   <Text style={m.label}>요청자 이름</Text>
                   <TextInput style={m.input} value={form.requesterName}
                     onChangeText={v => setForm(f => ({ ...f, requesterName: v }))}
-                    placeholder="이름 (선택)" placeholderTextColor="#9CA3AF" />
+                    placeholder="이름 (선택)" placeholderTextColor="#64748B" />
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>제목 *</Text>
                   <TextInput style={m.input} value={form.title}
                     onChangeText={v => setForm(f => ({ ...f, title: v }))}
-                    placeholder="문의 제목" placeholderTextColor="#9CA3AF" />
+                    placeholder="문의 제목" placeholderTextColor="#64748B" />
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>내용</Text>
                   <TextInput style={[m.input, { minHeight: 80 }]} value={form.body}
                     onChangeText={v => setForm(f => ({ ...f, body: v }))}
-                    multiline placeholder="문의 내용 (선택)" placeholderTextColor="#9CA3AF" textAlignVertical="top" />
+                    multiline placeholder="문의 내용 (선택)" placeholderTextColor="#64748B" textAlignVertical="top" />
                 </View>
 
                 <View style={m.btnRow}>
@@ -610,8 +610,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
   },
   statItem:    { flex: 1, alignItems: "center", justifyContent: "center" },
-  statNum:     { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#111827" },
-  statLabel:   { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#9CA3AF", marginTop: 1 },
+  statNum:     { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  statLabel:   { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#64748B", marginTop: 1 },
   statDivider: { width: 1, height: 28, backgroundColor: "#E5E7EB" },
 
   // 필터 탭 (명확한 height, overflow visible)
@@ -629,16 +629,16 @@ const s = StyleSheet.create({
     borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB",
     backgroundColor: "#fff", height: 34,
   },
-  tabChipTxt:  { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
-  tabCount:    { backgroundColor: "#F8FAFC", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
-  tabCountTxt: { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#111827" },
+  tabChipTxt:  { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
+  tabCount:    { backgroundColor: "#FFFFFF", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
+  tabCountTxt: { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#0F172A" },
 
   // 리스트
-  list:        { flex: 1, backgroundColor: "#F8FAFC" },
+  list:        { flex: 1, backgroundColor: "#FFFFFF" },
   listContent: { paddingBottom: 100 },
-  separator:   { height: 1, backgroundColor: "#F8FAFC" },
+  separator:   { height: 1, backgroundColor: "#FFFFFF" },
   empty:       { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   // 티켓 카드
   row: {
@@ -659,16 +659,16 @@ const s = StyleSheet.create({
   typeIcon:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   rowMain:    { flex: 1, gap: 3 },
   rowTop:     { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  subject:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  subject:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   slaTag:     { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
   slaTxt:     { fontSize: 9, fontFamily: "Pretendard-Bold", color: RED },
   rowMeta:    { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  metaTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  metaTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   metaDot:    { fontSize: 10, color: "#D1D5DB" },
   rowRight:   { alignItems: "flex-end", gap: 4 },
   badge:      { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   badgeTxt:   { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
-  assigneeTxt:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  assigneeTxt:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   // FAB
   fab: {
@@ -688,31 +688,31 @@ const m = StyleSheet.create({
     padding: 20, paddingBottom: 40, maxHeight: "88%", gap: 12,
   },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111827" },
-  desc:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111827", lineHeight: 20 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  desc:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
   infoBox:   { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 12, gap: 6 },
   infoRow:   { flexDirection: "row", gap: 8 },
-  infoLabel: { width: 60, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#9CA3AF" },
-  infoVal:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#111827" },
+  infoLabel: { width: 60, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  infoVal:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A" },
   section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  label:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   input: {
     borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10,
-    padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111827",
+    padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A",
   },
   optChip: {
     paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff",
   },
-  optTxt:    { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#111827" },
+  optTxt:    { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
   linkBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12,
   },
   linkBtnTxt:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: P },
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end", marginTop: 4 },
-  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8FAFC" },
-  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
+  cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
+  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
   saveBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   saveTxt:   { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

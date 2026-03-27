@@ -18,7 +18,7 @@ const P       = "#7C3AED";
 const GREEN   = "#2EC4B6";
 const WARN    = "#D97706";
 const DANGER  = "#DC2626";
-const GRAY    = "#6B7280";
+const GRAY    = "#64748B";
 
 // ── 상태 설정 ─────────────────────────────────────────────────────────────────
 type InfraStatus = "normal" | "warning" | "danger" | "full" | "error" | "inactive" | "delay" | "critical_delay";
@@ -181,22 +181,22 @@ const cc = StyleSheet.create({
   card:       { borderRadius: 14, padding: 14, gap: 10, backgroundColor: "#fff" },
   header:     { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   iconBox:    { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  title:      { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
-  desc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 1 },
+  title:      { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  desc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   badge:      { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   badgeTxt:   { fontSize: 10, fontFamily: "Pretendard-Bold" },
   usageBox:   { gap: 0 },
-  usageMain:  { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#111827" },
-  usageSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  usageMain:  { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  usageSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   pctTxt:     { fontSize: 13, fontFamily: "Pretendard-Bold" },
   latRow:     { flexDirection: "row", alignItems: "center", gap: 4 },
   latTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: GRAY },
   metricsGrid:{ flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  metricItem: { backgroundColor: "#F8FAFC", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: "30%" },
-  metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  metricVal:  { fontSize: 12, fontFamily: "Pretendard-Bold", color: "#111827", marginTop: 2 },
-  footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#F8FAFC", paddingTop: 8 },
-  checkedTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  metricItem: { backgroundColor: "#FFFFFF", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: "30%" },
+  metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metricVal:  { fontSize: 12, fontFamily: "Pretendard-Bold", color: "#0F172A", marginTop: 2 },
+  footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#FFFFFF", paddingTop: 8 },
+  checkedTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   footBtn:    { height: 28, minWidth: 28, borderRadius: 8, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
   detailTxt:  { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: P },
 });
@@ -209,7 +209,7 @@ function DetailPanel({ title, rows, onClose }: { title: string; rows: DetailRow[
       <View style={dp.header}>
         <Text style={dp.title}>{title} 상세</Text>
         <Pressable onPress={onClose}>
-          <Feather name="x" size={18} color="#111827" />
+          <Feather name="x" size={18} color="#0F172A" />
         </Pressable>
       </View>
       {rows.map((r, i) => (
@@ -229,12 +229,12 @@ function DetailPanel({ title, rows, onClose }: { title: string; rows: DetailRow[
 const dp = StyleSheet.create({
   container: { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 0 },
   header:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  title:     { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#111827" },
-  row:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
-  key:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF", flex: 1 },
-  val:       { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#111827", textAlign: "right", flex: 1 },
-  closeBtn:  { marginTop: 12, backgroundColor: "#F8FAFC", borderRadius: 10, paddingVertical: 12, alignItems: "center" },
-  closeTxt:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  title:     { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  row:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
+  key:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
+  val:       { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A", textAlign: "right", flex: 1 },
+  closeBtn:  { marginTop: 12, backgroundColor: "#FFFFFF", borderRadius: 10, paddingVertical: 12, alignItems: "center" },
+  closeTxt:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
 });
 
 // ── 서비스 행 (그룹 리스트용) ─────────────────────────────────────────────────
@@ -290,15 +290,15 @@ function ServiceRow({ sv, refreshing, onRefresh }: {
 }
 
 const svc = StyleSheet.create({
-  card:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#FAFAFA", borderWidth: 1, borderColor: "#E5E7EB" },
+  card:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#F5F5F5", borderWidth: 1, borderColor: "#E5E7EB" },
   iconBox:     { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  name:        { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#111827" },
+  name:        { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   badge:       { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
   badgeTxt:    { fontSize: 9, fontFamily: "Pretendard-Bold" },
   placeholder: { backgroundColor: "#F3F4F6", borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 },
   placeholderTxt: { fontSize: 9, fontFamily: "Pretendard-SemiBold", color: GRAY },
-  msg:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", marginTop: 1 },
-  checked:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 1 },
+  msg:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  checked:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   refreshBtn:  { width: 28, height: 28, borderRadius: 7, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
 });
 
@@ -325,7 +325,7 @@ const gh = StyleSheet.create({
 interface AnomalyItem { level: "error" | "warning" | "info"; message: string }
 function AnomalyRow({ item }: { item: AnomalyItem }) {
   const color = item.level === "error" ? DANGER : item.level === "warning" ? WARN : "#0284C7";
-  const bg    = item.level === "error" ? "#FEE2E2" : item.level === "warning" ? "#FEF3C7" : "#EFF6FF";
+  const bg    = item.level === "error" ? "#FEE2E2" : item.level === "warning" ? "#FEF3C7" : "#E6FAF8";
   const icon  = item.level === "error" ? "x-circle" : item.level === "warning" ? "alert-triangle" : "info";
   return (
     <View style={[anom.row, { backgroundColor: bg }]}>
@@ -352,9 +352,9 @@ function HistoryRow({ item }: { item: HistoryItem }) {
   );
 }
 const hist = StyleSheet.create({
-  row:  { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  row:  { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   time: { fontSize: 11, fontFamily: "Pretendard-Medium", color: GRAY, minWidth: 42 },
-  msg:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#111827" },
+  msg:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -839,15 +839,15 @@ export default function InfraStatusPanel() {
 const ps = StyleSheet.create({
   container:       { gap: 12 },
   topHeader:       { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  mainTitle:       { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#111827" },
-  mainSub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 2 },
+  mainTitle:       { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  mainSub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   refreshAll:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, backgroundColor: "#EEDDF5" },
   refreshAllTxt:   { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: P },
   summaryBadgeRow: { flexDirection: "row", gap: 6 },
   summaryBadge:    { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   summaryBadgeTxt: { fontSize: 12, fontFamily: "Pretendard-Bold" },
-  groupTitle:      { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827" },
+  groupTitle:      { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A" },
   groupSection:    { gap: 6 },
-  subSection:      { gap: 6, backgroundColor: "#FAFAFA", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  subTitle:        { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#111827", marginBottom: 2 },
+  subSection:      { gap: 6, backgroundColor: "#F5F5F5", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  subTitle:        { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 2 },
 });

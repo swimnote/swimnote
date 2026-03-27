@@ -193,7 +193,7 @@ export default function FeedbackSettingsScreen() {
         </Text>
         <View style={s.catBtns}>
           <Pressable style={s.catBtn} onPress={openLabel}>
-            <Feather name="tag" size={13} color="#6B7280" />
+            <Feather name="tag" size={13} color="#64748B" />
             <Text style={s.catBtnText}>이름 변경</Text>
           </Pressable>
           <Pressable style={[s.catBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]} onPress={() => setResetCatVisible(true)}>
@@ -225,7 +225,7 @@ export default function FeedbackSettingsScreen() {
       {/* 문장 추가 버튼 */}
       <View style={[s.addBtnWrap, { paddingBottom: insets.bottom + 16 }]}>
         <Pressable
-          style={[s.addBtn, { backgroundColor: isFull ? "#9CA3AF" : themeColor }]}
+          style={[s.addBtn, { backgroundColor: isFull ? "#64748B" : themeColor }]}
           onPress={openAdd}
           disabled={isFull}
         >
@@ -409,7 +409,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
     borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
-  catBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#6B7280" },
+  catBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
 
   listContent: { paddingHorizontal: 14, paddingTop: 8, gap: 8 },
 

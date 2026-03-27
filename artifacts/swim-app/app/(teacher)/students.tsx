@@ -78,10 +78,10 @@ function toStudentMember(m: TeacherMember): StudentMember {
 type TabKey = "all" | "unassigned" | "suspend_pending" | "withdraw_pending" | "suspended" | "withdrawn";
 
 const TAB_CONFIG: { key: TabKey; label: string; color: string }[] = [
-  { key: "all",              label: "전체",    color: "#111827" },
+  { key: "all",              label: "전체",    color: "#0F172A" },
   { key: "unassigned",       label: "미배정",  color: "#D96C6C" },
   { key: "suspend_pending",  label: "연기예정", color: "#B45309" },
-  { key: "withdraw_pending", label: "퇴원예정", color: "#6B7280" },
+  { key: "withdraw_pending", label: "퇴원예정", color: "#64748B" },
   { key: "suspended",        label: "연기",    color: "#7C3AED" },
   { key: "withdrawn",        label: "퇴원",    color: "#374151" },
 ];
@@ -345,7 +345,7 @@ function WaitingActionSheet({
               <Text style={[sh.optLabel, { color: "#2EC4B6" }]}>반 배정</Text>
               <Text style={sh.optSub}>학생 상세 페이지에서 반을 변경합니다</Text>
             </View>
-            <Feather name="chevron-right" size={16} color="#9CA3AF" />
+            <Feather name="chevron-right" size={16} color="#64748B" />
           </Pressable>
 
           {/* 연기 */}
@@ -357,7 +357,7 @@ function WaitingActionSheet({
               <Text style={[sh.optLabel, { color: "#B45309" }]}>연기</Text>
               <Text style={sh.optSub}>수강 연기 처리 — 이동 시점 선택 가능</Text>
             </View>
-            <Feather name="chevron-right" size={16} color="#9CA3AF" />
+            <Feather name="chevron-right" size={16} color="#64748B" />
           </Pressable>
 
           {/* 퇴원 */}
@@ -369,7 +369,7 @@ function WaitingActionSheet({
               <Text style={[sh.optLabel, { color: "#D96C6C" }]}>퇴원</Text>
               <Text style={sh.optSub}>수강 종료 처리 — 이동 시점 선택 가능</Text>
             </View>
-            <Feather name="chevron-right" size={16} color="#9CA3AF" />
+            <Feather name="chevron-right" size={16} color="#64748B" />
           </Pressable>
         </View>
 

@@ -154,7 +154,7 @@ export default function ClassManagementScreen() {
             <StatBox label="대기" value={data.makeups.pending} color={data.makeups.pending > 0 ? "#D96C6C" : C.textSecondary} />
             <StatBox label="배정됨" value={data.makeups.assigned} color="#D97706" />
             <StatBox label="완료" value={data.makeups.completed} color="#2EC4B6" />
-            <StatBox label="소멸" value={data.makeups.extinguished} color="#6B7280" />
+            <StatBox label="소멸" value={data.makeups.extinguished} color="#64748B" />
           </View>
 
           {/* 반 목록 */}
@@ -216,7 +216,7 @@ export default function ClassManagementScreen() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={[s.className, { color: C.text }]}>{cls.name}</Text>
                       {cls.is_one_time && (
-                        <View style={[s.oneTimeTag, { backgroundColor: "#F3E8FF" }]}>
+                        <View style={[s.oneTimeTag, { backgroundColor: "#E6FAF8" }]}>
                           <Text style={[s.oneTimeTagText, { color: "#7C3AED" }]}>1회성</Text>
                         </View>
                       )}

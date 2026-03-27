@@ -70,7 +70,7 @@ export default function ParentProfileScreen() {
       <View style={f.wrap}>
         <Text style={[f.label, { color: C.textSecondary }]}>{label}</Text>
         <TextInput
-          style={[f.input, { backgroundColor: "#F8FAFC", color: C.text }]}
+          style={[f.input, { backgroundColor: "#FFFFFF", color: C.text }]}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}

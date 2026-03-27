@@ -184,7 +184,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F8FAFC",
+    borderBottomColor: "#FFFFFF",
   },
   headerSpacer: { width: 36 },
   title: {
@@ -200,7 +200,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
   },
   content: {
     padding: 20,

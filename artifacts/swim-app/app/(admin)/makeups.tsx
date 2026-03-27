@@ -28,8 +28,8 @@ const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = 
   assigned:    { label: "배정",   color: "#2EC4B6", bg: "#E6FFFA" },
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
   completed:   { label: "완료",   color: "#2EC4B6", bg: "#E6FFFA" },
-  cancelled:   { label: "취소",   color: "#6B7280", bg: "#F8FAFC" },
-  expired:     { label: "만료",   color: "#9CA3AF", bg: "#F3F4F6" },
+  cancelled:   { label: "취소",   color: "#64748B", bg: "#FFFFFF" },
+  expired:     { label: "만료",   color: "#64748B", bg: "#F3F4F6" },
 };
 
 type ConfirmAction = {
@@ -234,7 +234,7 @@ export default function MakeupsScreen() {
       >
         <Text style={s.modalSub}>이동하면 해당 선생님의 보강 리스트에 추가됩니다.</Text>
         {teachers.filter(t => t.id !== transferModal?.mk?.original_teacher_id).map(item => (
-          <Pressable key={item.id} style={[s.classCard, { borderColor: "#6B7280" }]}
+          <Pressable key={item.id} style={[s.classCard, { borderColor: "#64748B" }]}
             onPress={() => handleTransfer(transferModal!.mk, item)}>
             <Text style={s.className}>{item.name}</Text>
             <Text style={s.classSub}>담당반: {item.class_count}개  회원: {item.student_count}명</Text>
@@ -282,10 +282,10 @@ function formatExpireAt(expireAt: string | null): { text: string; color: string 
   const now = new Date();
   const diffDays = Math.ceil((d.getTime() - now.getTime()) / 86400000);
   const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  if (diffDays < 0) return { text: `만료됨 (${dateStr})`, color: "#9CA3AF" };
+  if (diffDays < 0) return { text: `만료됨 (${dateStr})`, color: "#64748B" };
   if (diffDays <= 7) return { text: `만료 D-${diffDays} (${dateStr})`, color: "#D96C6C" };
   if (diffDays <= 14) return { text: `만료 D-${diffDays} (${dateStr})`, color: "#D97706" };
-  return { text: `만료일: ${dateStr}`, color: "#6B7280" };
+  return { text: `만료일: ${dateStr}`, color: "#64748B" };
 }
 
 function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, onRevert, onCancel, onMemberPress }: {
@@ -294,7 +294,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
   onComplete: () => void; onRevert: () => void; onCancel: () => void;
   onMemberPress: () => void;
 }) {
-  const st = MK_STATUS[item.status] || { label: item.status, color: "#6B7280", bg: "#F8FAFC" };
+  const st = MK_STATUS[item.status] || { label: item.status, color: "#64748B", bg: "#FFFFFF" };
   const expireInfo = formatExpireAt(item.expire_at);
   return (
     <View style={s.card}>
@@ -331,8 +331,8 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
           <Pressable style={[s.actBtn, { backgroundColor: "#EEDDF5" }]} onPress={onTransfer}>
             <Text style={[s.actBtnTxt, { color: "#7C3AED" }]}>다른선생님</Text>
           </Pressable>
-          <Pressable style={[s.actBtn, { backgroundColor: "#F8FAFC" }]} onPress={onCancel}>
-            <Text style={[s.actBtnTxt, { color: "#6B7280" }]}>취소</Text>
+          <Pressable style={[s.actBtn, { backgroundColor: "#FFFFFF" }]} onPress={onCancel}>
+            <Text style={[s.actBtnTxt, { color: "#64748B" }]}>취소</Text>
           </Pressable>
         </View>
       )}
@@ -345,8 +345,8 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
               <Feather name="check-circle" size={14} color="#2EC4B6" />
               <Text style={[s.actBtnTxt, { color: "#2EC4B6" }]}>보강 완료 처리</Text>
             </Pressable>
-            <Pressable style={[s.actBtn, { backgroundColor: "#F8FAFC" }]} onPress={onCancel}>
-              <Text style={[s.actBtnTxt, { color: "#6B7280" }]}>취소</Text>
+            <Pressable style={[s.actBtn, { backgroundColor: "#FFFFFF" }]} onPress={onCancel}>
+              <Text style={[s.actBtnTxt, { color: "#64748B" }]}>취소</Text>
             </Pressable>
           </View>
           <Pressable style={[s.revertBtn]} onPress={onRevert}>
@@ -383,8 +383,8 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {/* 만료 탭 — 읽기 전용 */}
       {tab === "만료" && (
         <View style={[s.completedBanner, { backgroundColor: "#F3F4F6" }]}>
-          <Feather name="clock" size={12} color="#9CA3AF" />
-          <Text style={[s.completedTxt, { color: "#6B7280" }]}>
+          <Feather name="clock" size={12} color="#64748B" />
+          <Text style={[s.completedTxt, { color: "#64748B" }]}>
             보강권 만료됨{item.expire_at ? ` · ${new Date(item.expire_at).toLocaleDateString("ko-KR")}` : ""}
           </Text>
         </View>

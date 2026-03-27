@@ -34,10 +34,10 @@ export default function ScheduleCard({
         )}
       </View>
       <View style={card.statusRow}>
-        <View style={[card.badge, { backgroundColor: attDone ? "#E6FFFA" : attPartial ? "#FFF1BF" : "#F8FAFC" }]}>
+        <View style={[card.badge, { backgroundColor: attDone ? "#E6FFFA" : attPartial ? "#FFF1BF" : "#FFFFFF" }]}>
           <Feather name={attDone ? "check-circle" : "circle"} size={11}
-            color={attDone ? "#2EC4B6" : attPartial ? "#D97706" : "#9CA3AF"} />
-          <Text style={[card.badgeText, { color: attDone ? "#2EC4B6" : attPartial ? "#D97706" : "#6B7280" }]}>
+            color={attDone ? "#2EC4B6" : attPartial ? "#D97706" : "#64748B"} />
+          <Text style={[card.badgeText, { color: attDone ? "#2EC4B6" : attPartial ? "#D97706" : "#64748B" }]}>
             {noAtt ? "출결 미시작" : `출결 ${item.att_present}/${item.att_total}`}
           </Text>
         </View>
