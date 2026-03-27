@@ -20,10 +20,10 @@ import { ApprovalCard, ApprovalCardMeta } from "@/components/approval/ApprovalCa
 import { RejectModal }   from "@/components/common/RejectModal";
 import { STATUS_COLORS } from "@/components/common/constants";
 import {
-  useParentJoinStore, type ParentJoinRequest, type JoinStatus, type MatchStatus,
+  type ParentJoinRequest, type JoinStatus, type MatchStatus, type ChildInfo,
 } from "@/store/parentJoinStore";
 import { useInviteRecordStore } from "@/store/inviteRecordStore";
-import { useOperatorEventLogStore } from "@/store/operatorEventLogStore";
+
 
 const C = Colors.light;
 
@@ -85,13 +85,8 @@ export default function ApprovalsScreen() {
   const insets = useSafeAreaInsets();
   const actorName = adminUser?.name ?? "관리자";
 
-  // parentJoinStore — 학부모 탭 (로컬 스토어)
-  const storeRequests    = useParentJoinStore(s => s.requests);
-  const storeApprove     = useParentJoinStore(s => s.approveRequest);
-  const storeReject      = useParentJoinStore(s => s.rejectRequest);
-  const storeReApprove   = useParentJoinStore(s => s.reApproveRequest);
-  const storeHold        = useParentJoinStore(s => s.holdRequest);
-  const addEventLog      = useOperatorEventLogStore(s => s.addLog);
+  // 학부모 가입 요청 (실제 API)
+  const [apiParentRequests, setApiParentRequests] = useState<ParentJoinRequest[]>([]);
 
   // inviteRecordStore — 초대 이력 연동
   const inviteRecords    = useInviteRecordStore(s => s.records);
@@ -118,80 +113,102 @@ export default function ApprovalsScreen() {
   const [transferSource, setTransferSource] = useState<TeacherInvite | null>(null);
   const [actionProcessing, setActionProcessing] = useState(false);
 
-  // ── 데이터 로드 (선생님만 API) ─────────────────────────────────
+  function mapApiToRequest(r: any): ParentJoinRequest {
+    const childrenRaw = typeof r.children_requested === "string"
+      ? JSON.parse(r.children_requested || "[]")
+      : (r.children_requested || []);
+    const children: ChildInfo[] = childrenRaw.length > 0
+      ? childrenRaw.map((c: any) => ({ name: c.childName || "", birthDate: c.childBirthYear ? String(c.childBirthYear) : "" }))
+      : r.child_name ? [{ name: r.child_name, birthDate: r.child_birth_year ? String(r.child_birth_year) : "" }] : [];
+    const statusMap: Record<string, JoinStatus> = {
+      pending: "pending", approved: "approved", auto_approved: "auto_approved",
+      rejected: "rejected", revoked: "rejected", on_hold: "on_hold",
+    };
+    const matchStatus: MatchStatus = r.request_status === "auto_approved" ? "full_match" : "no_match";
+    return {
+      id: r.id,
+      operatorId: r.swimming_pool_id || "",
+      operatorName: "",
+      parentId: r.parent_account_id || r.id,
+      parentName: r.parent_name,
+      parentPhone: r.phone,
+      relation: "부",
+      displayName: r.parent_name,
+      children,
+      status: statusMap[r.request_status] || "pending",
+      matchStatus,
+      matchedStudentIds: [],
+      createdAt: r.requested_at,
+      reviewedAt: r.processed_at || undefined,
+      reviewedBy: undefined,
+      rejectReason: r.rejection_reason || null,
+    };
+  }
+
+  // ── 데이터 로드 ────────────────────────────────────────────────
   const load = useCallback(async () => {
     try {
-      const iRes = await apiRequest(token, "/admin/teacher-invites");
+      const [iRes, pRes] = await Promise.all([
+        apiRequest(token, "/admin/teacher-invites"),
+        apiRequest(token, "/admin/parent-requests"),
+      ]);
       if (iRes.ok) { const d = await iRes.json(); setInvites(d.data ?? []); }
+      if (pRes.ok) { const d = await pRes.json(); setApiParentRequests((d.data ?? []).map(mapApiToRequest)); }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
 
-  // ── 학부모 승인 (스토어) ──────────────────────────────────────
-  function handleStoreApprove(reqId: string) {
-    storeApprove(reqId, actorName);
-    const req = storeRequests.find(r => r.id === reqId);
-    if (req) {
-      addEventLog({
-        operatorId: req.operatorId,
-        actorRole: "operator",
-        actorId: pool?.id ?? "op-unknown",
-        actorName,
-        eventType: "parent_approved",
-        targetType: "parent_join_request",
-        targetId: reqId,
-        summary: `학부모 가입 승인: ${req.parentName} (${req.parentPhone})`,
+  // ── 학부모 승인 (API) ─────────────────────────────────────────
+  async function handleStoreApprove(reqId: string) {
+    setProcessingId(reqId);
+    try {
+      const res = await apiRequest(token, `/admin/parent-requests/${reqId}`, {
+        method: "PATCH", body: JSON.stringify({ action: "approve" }),
       });
-    }
-    setStoreParentDetail(null);
-    Alert.alert("승인 완료", "학부모 가입 요청이 승인되었습니다.");
+      const d = await res.json();
+      if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
+      setStoreParentDetail(null);
+      Alert.alert("승인 완료", "학부모 가입 요청이 승인되었습니다.");
+      await load();
+    } catch (e) { console.error(e); }
+    finally { setProcessingId(null); }
   }
 
-  // ── 학부모 거절 (스토어) ──────────────────────────────────────
-  function handleStoreReject(reqId: string, reason: string) {
-    storeReject(reqId, reason || null, actorName);
-    const req = storeRequests.find(r => r.id === reqId);
-    if (req) {
-      addEventLog({
-        operatorId: req.operatorId,
-        actorRole: "operator",
-        actorId: pool?.id ?? "op-unknown",
-        actorName,
-        eventType: "parent_rejected",
-        targetType: "parent_join_request",
-        targetId: reqId,
-        summary: `학부모 가입 거절: ${req.parentName}${reason ? ` · 사유: ${reason}` : " · 사유 없음"}`,
+  // ── 학부모 거절 (API) ─────────────────────────────────────────
+  async function handleStoreReject(reqId: string, reason: string) {
+    setProcessingId(reqId);
+    try {
+      const res = await apiRequest(token, `/admin/parent-requests/${reqId}`, {
+        method: "PATCH", body: JSON.stringify({ action: "reject", rejection_reason: reason || null }),
       });
-    }
-    setStoreRejectTargetId(null);
-    setStoreParentDetail(null);
+      const d = await res.json();
+      if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
+      setStoreRejectTargetId(null);
+      setStoreParentDetail(null);
+      await load();
+    } catch (e) { console.error(e); }
+    finally { setProcessingId(null); }
   }
 
-  // ── 학부모 재승인 (거절 → 승인) ──────────────────────────────
-  function handleStoreReApprove(reqId: string) {
-    storeReApprove(reqId, actorName);
-    const req = storeRequests.find(r => r.id === reqId);
-    if (req) {
-      addEventLog({
-        operatorId: req.operatorId,
-        actorRole: "operator",
-        actorId: pool?.id ?? "op-unknown",
-        actorName,
-        eventType: "parent_approved",
-        targetType: "parent_join_request",
-        targetId: reqId,
-        summary: `학부모 재승인 (거절 → 승인): ${req.parentName} (${req.parentPhone})`,
+  // ── 학부모 승인 해제 (API) ────────────────────────────────────
+  async function handleStoreReApprove(reqId: string) {
+    setProcessingId(reqId);
+    try {
+      const res = await apiRequest(token, `/admin/parent-requests/${reqId}`, {
+        method: "PATCH", body: JSON.stringify({ action: "revoke" }),
       });
-    }
-    setStoreParentDetail(null);
-    Alert.alert("재승인 완료", "학부모 가입 요청이 승인 처리되었습니다.");
+      const d = await res.json();
+      if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
+      setStoreParentDetail(null);
+      await load();
+    } catch (e) { console.error(e); }
+    finally { setProcessingId(null); }
   }
 
-  // ── 학부모 보류 (스토어) ──────────────────────────────────────
-  function handleStoreHold(reqId: string) {
-    storeHold(reqId, actorName);
+  // ── 학부모 보류 (미지원, 무시) ───────────────────────────────
+  function handleStoreHold(_reqId: string) {
     setStoreParentDetail(null);
   }
 
@@ -268,7 +285,7 @@ export default function ApprovalsScreen() {
   }
 
   // ── 필터링 ────────────────────────────────────────────────────
-  const filteredParents = storeRequests.filter(r => {
+  const filteredParents = apiParentRequests.filter(r => {
     if (filter === "pending")  return r.status === "pending" || r.status === "on_hold";
     if (filter === "approved") return r.status === "approved" || r.status === "auto_approved";
     if (filter === "rejected") return r.status === "rejected";
@@ -281,16 +298,16 @@ export default function ApprovalsScreen() {
     return false;
   });
 
-  const pendingParentsCnt  = storeRequests.filter(r => r.status === "pending" || r.status === "on_hold").length;
+  const pendingParentsCnt  = apiParentRequests.filter(r => r.status === "pending" || r.status === "on_hold").length;
   const pendingTeachersCnt = invites.filter(i => i.invite_status === "joinedPendingApproval").length;
 
   function chipsWithCount(): FilterChipItem<StatusFilter>[] {
     return FILTER_CHIPS.map(chip => {
       let cnt = 0;
       if (mainTab === "parents") {
-        if (chip.key === "pending")  cnt = storeRequests.filter(r => r.status === "pending" || r.status === "on_hold").length;
-        if (chip.key === "approved") cnt = storeRequests.filter(r => r.status === "approved" || r.status === "auto_approved").length;
-        if (chip.key === "rejected") cnt = storeRequests.filter(r => r.status === "rejected").length;
+        if (chip.key === "pending")  cnt = apiParentRequests.filter(r => r.status === "pending" || r.status === "on_hold").length;
+        if (chip.key === "approved") cnt = apiParentRequests.filter(r => r.status === "approved" || r.status === "auto_approved").length;
+        if (chip.key === "rejected") cnt = apiParentRequests.filter(r => r.status === "rejected").length;
       } else {
         if (chip.key === "pending")  cnt = invites.filter(i => i.invite_status === "joinedPendingApproval").length;
         if (chip.key === "approved") cnt = invites.filter(i => i.invite_status === "approved").length;
@@ -313,7 +330,7 @@ export default function ApprovalsScreen() {
     return {
       id:              req.id,
       name:            req.parentName,
-      sub1:            `${req.parentPhone} · ${req.relation} · ${req.displayName} · ${req.operatorName}`,
+      sub1:            `${req.parentPhone}${req.children.length > 0 ? " · 자녀: " + req.children.map(c => c.name).join(", ") : ""}`,
       requestedAt:     req.createdAt,
       statusKey:       statusMap[req.status],
       avatarInitial:   req.parentName[0],
@@ -504,7 +521,7 @@ export default function ApprovalsScreen() {
           onApprove={() => handleStoreApprove(storeParentDetail.id)}
           onHold={() => handleStoreHold(storeParentDetail.id)}
           onOpenReject={() => { setStoreParentDetail(null); setStoreRejectTargetId(storeParentDetail.id); }}
-          onRevoke={() => { storeReject(storeParentDetail.id, "승인 해제", actorName); setStoreParentDetail(null); }}
+          onRevoke={() => handleStoreReApprove(storeParentDetail.id)}
           onReApprove={() => handleStoreReApprove(storeParentDetail.id)}
         />
       )}

@@ -196,7 +196,7 @@ router.get("/admin/parent-requests", requireAuth, requireRole("pool_admin", "sup
       }
       q += ` ORDER BY requested_at DESC`;
 
-      const result = await db.execute(sql.raw(q));
+      const result = await superAdminDb.execute(sql.raw(q));
       res.json({ success: true, data: result.rows });
     } catch (err) {
       console.error(err);
