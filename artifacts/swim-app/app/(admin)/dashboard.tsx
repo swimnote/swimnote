@@ -319,21 +319,21 @@ export default function DashboardScreen() {
             {stats && (
               <Pressable style={s.splitStatRow} onPress={() => router.push("/(admin)/members")}>
                 <View style={s.splitStatItem}>
-                  <View style={[s.splitStatIcon, { backgroundColor: "#FEE2E2" }]}>
-                    <Feather name="alert-circle" size={14} color="#DC2626" />
+                  <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
+                    <Feather name="alert-circle" size={14} color="#1B4965" />
                   </View>
                   <View>
-                    <Text style={[s.splitStatNum, { color: "#DC2626" }]}>{stats.unassigned ?? 0}명</Text>
+                    <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unassigned ?? 0}명</Text>
                     <Text style={s.splitStatLabel}>수업 미배정</Text>
                   </View>
                 </View>
                 <View style={s.splitStatDivider} />
                 <View style={s.splitStatItem}>
-                  <View style={[s.splitStatIcon, { backgroundColor: "#FFF1BF" }]}>
-                    <Feather name="user-x" size={14} color="#EA580C" />
+                  <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
+                    <Feather name="user-x" size={14} color="#1B4965" />
                   </View>
                   <View>
-                    <Text style={[s.splitStatNum, { color: "#EA580C" }]}>{stats.unlinked_members ?? 0}명</Text>
+                    <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unlinked_members ?? 0}명</Text>
                     <Text style={s.splitStatLabel}>학부모미연결</Text>
                   </View>
                 </View>
