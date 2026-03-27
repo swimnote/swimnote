@@ -9,6 +9,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useSupportStore } from "@/store/supportStore";
+import Colors from "@/constants/colors";
+const C = Colors.light;
 
 const MENUS = [
   {

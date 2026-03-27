@@ -15,6 +15,8 @@ import { useFeatureFlagStore } from "@/store/featureFlagStore";
 import { useOperatorsStore } from "@/store/operatorsStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { FeatureFlag } from "@/domain/types";
+import Colors from "@/constants/colors";
+const C = Colors.light;
 
 const P = "#7C3AED";
 const DANGER = "#D96C6C";

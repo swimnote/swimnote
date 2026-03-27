@@ -15,6 +15,8 @@ import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
+import Colors from "@/constants/colors";
+const C = Colors.light;
 
 const P = "#7C3AED";
 

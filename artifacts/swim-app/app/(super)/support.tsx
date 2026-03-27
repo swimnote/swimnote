@@ -24,6 +24,8 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useSupportStore } from "@/store/supportStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SupportTicket, SupportStatus } from "@/domain/types";
+import Colors from "@/constants/colors";
+const C = Colors.light;
 
 const P = "#7C3AED";
 const RED = "#D96C6C";

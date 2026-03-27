@@ -17,6 +17,8 @@ import { useStorageStore } from "@/store/storageStore";
 import { useOperatorsStore } from "@/store/operatorsStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { StoragePolicy } from "@/domain/types";
+import Colors from "@/constants/colors";
+const C = Colors.light;
 
 const GREEN = "#2EC4B6";
 const WARN  = "#D97706";

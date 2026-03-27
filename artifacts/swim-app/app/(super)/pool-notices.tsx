@@ -19,6 +19,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import Colors from "@/constants/colors";
+const C = Colors.light;
 
 const P    = "#7C3AED";
 const TEAL = "#2EC4B6";

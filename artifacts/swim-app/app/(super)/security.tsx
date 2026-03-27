@@ -14,6 +14,8 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useSecurityStore } from "@/store/securityStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SuperAdminAccount, SuperAdminRole, SuperAdminSession } from "@/domain/types";
+import Colors from "@/constants/colors";
+const C = Colors.light;
 
 const P = "#7C3AED";
 const DANGER = "#D96C6C";

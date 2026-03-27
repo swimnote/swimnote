@@ -34,6 +34,8 @@ import {
   FlatSession,
 } from "@/components/super/security-settings/types";
 import { router } from "expo-router";
+import Colors from "@/constants/colors";
+const C = Colors.light;
 
 
 // ─── 메인 ─────────────────────────────────────────────────────────────────────

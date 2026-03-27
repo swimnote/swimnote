@@ -13,6 +13,8 @@ import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { useAuditLogStore } from "@/store/auditLogStore";
+import Colors from "@/constants/colors";
+const C = Colors.light;
 
 const PURPLE = "#7C3AED";
 
