@@ -184,7 +184,7 @@ export default function TodayScheduleScreen() {
         contentContainerStyle={[h.scroll, { paddingBottom: insets.bottom + 40 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}>
 
-        <View style={[h.todayBanner, { backgroundColor: themeColor }]}>
+        <View style={[h.todayBanner, { backgroundColor: C.card }]}>
           <Text style={h.todayDate}>{formatDate(today)}</Text>
           <View style={h.todayStatRow}>
             <Pressable style={h.todayStat} onPress={() => router.push({ pathname:"/(teacher)/my-schedule", params:{openDate:today} } as any)}>
@@ -193,17 +193,17 @@ export default function TodayScheduleScreen() {
             </Pressable>
             <View style={h.todayDivider} />
             <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/attendance" as any)}>
-              <Text style={[h.todayStatNum, pendingAtt > 0 && { color: "#FFD6D6" }]}>{loading ? "-" : pendingAtt}</Text>
+              <Text style={[h.todayStatNum, pendingAtt > 0 && { color: C.error }]}>{loading ? "-" : pendingAtt}</Text>
               <Text style={h.todayStatLabel}>출석 미체크</Text>
             </Pressable>
             <View style={h.todayDivider} />
             <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/diary" as any)}>
-              <Text style={[h.todayStatNum, diaryPending > 0 && { color: "#FFD6D6" }]}>{loading ? "-" : diaryPending}</Text>
+              <Text style={[h.todayStatNum, diaryPending > 0 && { color: C.error }]}>{loading ? "-" : diaryPending}</Text>
               <Text style={h.todayStatLabel}>미작성 일지</Text>
             </Pressable>
             <View style={h.todayDivider} />
             <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/makeups" as any)}>
-              <Text style={[h.todayStatNum, (overview?.makeup_count ?? 0) > 0 && { color: "#FFD6D6" }]}>
+              <Text style={[h.todayStatNum, (overview?.makeup_count ?? 0) > 0 && { color: C.error }]}>
                 {loading ? "-" : (overview?.makeup_count ?? 0)}
               </Text>
               <Text style={h.todayStatLabel}>보강 대기</Text>
@@ -345,21 +345,21 @@ export default function TodayScheduleScreen() {
 }
 
 const h = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#F8FAFC" },
+  safe:           { flex: 1, backgroundColor: C.background },
   header:         { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 14, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   poolName:       { fontSize: 18, fontFamily: "Pretendard-Bold" },
   greeting:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
-  logoutBtn:      { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" },
+  logoutBtn:      { width: 38, height: 38, borderRadius: 10, backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center" },
   switchChip:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   switchChipTxt:  { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   scroll:         { padding: 12, gap: 8 },
-  todayBanner:    { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
-  todayDate:      { fontSize: 10, fontFamily: "Pretendard-Medium", color: "rgba(255,255,255,0.8)", marginBottom: 4 },
+  todayBanner:    { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  todayDate:      { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#64748B", marginBottom: 6 },
   todayStatRow:   { flexDirection: "row", alignItems: "center" },
   todayStat:      { flex: 1, alignItems: "center", gap: 1, paddingVertical: 0 },
-  todayStatNum:   { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
-  todayStatLabel: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.78)" },
-  todayDivider:   { width: 1, height: 18, backgroundColor: "rgba(255,255,255,0.25)" },
+  todayStatNum:   { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  todayStatLabel: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  todayDivider:   { width: 1, height: 18, backgroundColor: C.border },
   sectionCard:    { borderRadius: 14, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   sectionHeaderRow:{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
   sectionIconBox: { width: 24, height: 24, borderRadius: 7, alignItems: "center", justifyContent: "center" },
