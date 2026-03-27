@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo, useState, useEffect } from "react";
 import {
@@ -106,7 +106,10 @@ export default function OrgRoleSelectScreen() {
     <View style={[styles.root, { backgroundColor: C.background, paddingBottom: insets.bottom }]}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 16) }]}>
         <View style={styles.headerNameWrap} pointerEvents="none">
-          <Text style={[styles.orgName, { color: C.text }]} numberOfLines={1}>{orgName}</Text>
+          <View style={styles.orgNameRow}>
+            <Ionicons name="water" size={16} color={C.tint} />
+            <Text style={[styles.orgName, { color: C.text }]} numberOfLines={1}>{orgName}</Text>
+          </View>
         </View>
         <Pressable onPress={handleLogout} style={styles.logoutBtn} hitSlop={8}>
           <Feather name="log-out" size={18} color={C.textMuted} />
@@ -162,6 +165,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
   headerNameWrap: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  orgNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   orgName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   logoutBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 10, marginLeft: "auto" },
   content: { flex: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 40 },
