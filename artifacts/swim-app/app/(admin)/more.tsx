@@ -41,12 +41,11 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 // 바로가기 (대시보드에 없는 보조 메뉴만)
-const N = "#1B4965"; const N_BG = "#E8EEF4";
-const M = "#2EC4B6"; const M_BG = "#E6FAF8";
+const N = "#1B4965"; const N_BG = "#E6FAF8";
 
 const SHORTCUTS = [
   { label: "공지함",           icon: "bell"       as const, color: N, bg: N_BG, route: "/(admin)/notices"                     },
-  { label: "휴무일 관리",      icon: "x-square"   as const, color: M, bg: M_BG, route: "/(admin)/holidays"                    },
+  { label: "휴무일 관리",      icon: "x-square"   as const, color: N, bg: N_BG, route: "/(admin)/holidays"                    },
   { label: "데이터 관리",      icon: "hard-drive" as const, color: N, bg: N_BG, route: "/(admin)/data-management"             },
   { label: "초대 안내 기록",   icon: "send"       as const, color: N, bg: N_BG, route: "/(admin)/invite-records"              },
   { label: "푸시 알림 설정",   icon: "bell"       as const, color: N, bg: N_BG, route: "/(admin)/push-notification-settings"  },

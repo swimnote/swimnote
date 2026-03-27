@@ -190,21 +190,20 @@ export default function ParentHomeScreen() {
   }
 
   // 기능 아이콘 6개: 수업일지, 출결, 앨범, 공지, 쪽지, 수영정보
-  const MINT_C = "#2EC4B6"; const MINT_B = "#E6FAF8";
-  const NAVY_C = "#1B4965"; const NAVY_B = "#E8EEF4";
+  const IC = "#1B4965"; const IB = "#E6FAF8";
   const icons = [
     { icon: "book-open", label: "수업일지", badge: null,
-      color: MINT_C, bg: MINT_B, path: "/(parent)/diary" },
+      color: IC, bg: IB, path: "/(parent)/diary" },
     { icon: "calendar",  label: "출결",     badge: null,
-      color: MINT_C, bg: MINT_B, path: "/(parent)/attendance-history" },
+      color: IC, bg: IB, path: "/(parent)/attendance-history" },
     { icon: "image",     label: "앨범",     badge: null,
-      color: NAVY_C, bg: NAVY_B, path: "/(parent)/photos" },
+      color: IC, bg: IB, path: "/(parent)/photos" },
     { icon: "bell",      label: "공지",     badge: unread.unread_notices,
-      color: NAVY_C, bg: NAVY_B, path: "/(parent)/notices" },
+      color: IC, bg: IB, path: "/(parent)/notices" },
     { icon: "mail",      label: "쪽지",     badge: unread.unread_messages,
-      color: NAVY_C, bg: NAVY_B, path: "/(parent)/messages" },
+      color: IC, bg: IB, path: "/(parent)/messages" },
     { icon: "droplet",   label: "수영정보", badge: null,
-      color: NAVY_C, bg: NAVY_B, path: "/(parent)/swim-info" },
+      color: IC, bg: IB, path: "/(parent)/swim-info" },
   ] as const;
 
   const scheduleText = selectedStudent ? getScheduleText(selectedStudent.class_group) : null;

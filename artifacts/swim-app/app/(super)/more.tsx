@@ -16,23 +16,21 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 const PURPLE = "#7C3AED";
 
-const MINT_C = "#2EC4B6"; const MINT_BG = "#E6FAF8";
-const ORNG_C = "#F97316"; const ORNG_BG = "#FFF1E8";
-const NAVY_C = "#1B4965"; const NAVY_BG = "#E8EEF4";
+const IC = "#1B4965"; const IB = "#E6FAF8";
 
 const ICON_COLOR_MAP: Record<string, { bg: string; icon: string }> = {
-  mint:    { bg: MINT_BG, icon: MINT_C },
-  orange:  { bg: ORNG_BG, icon: ORNG_C },
-  navy:    { bg: NAVY_BG, icon: NAVY_C },
+  mint:    { bg: IB, icon: IC },
+  orange:  { bg: IB, icon: IC },
+  navy:    { bg: IB, icon: IC },
   purple:  { bg: "#F3E8FF", icon: PURPLE },
-  violet:  { bg: NAVY_BG,  icon: NAVY_C },
-  blue:    { bg: NAVY_BG,  icon: NAVY_C },
-  green:   { bg: MINT_BG,  icon: MINT_C },
-  red:     { bg: NAVY_BG,  icon: NAVY_C },
-  indigo:  { bg: NAVY_BG,  icon: NAVY_C },
-  slate:   { bg: NAVY_BG,  icon: NAVY_C },
-  teal:    { bg: NAVY_BG,  icon: NAVY_C },
-  rose:    { bg: NAVY_BG,  icon: NAVY_C },
+  violet:  { bg: IB, icon: IC },
+  blue:    { bg: IB, icon: IC },
+  green:   { bg: IB, icon: IC },
+  red:     { bg: IB, icon: IC },
+  indigo:  { bg: IB, icon: IC },
+  slate:   { bg: IB, icon: IC },
+  teal:    { bg: IB, icon: IC },
+  rose:    { bg: IB, icon: IC },
 };
 
 type MenuEntry = {
