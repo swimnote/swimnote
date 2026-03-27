@@ -27,19 +27,35 @@ function generateInviteCode(): string {
 }
 
 // ─── 공개: 수영장 이름 검색 ───────────────────────────────────────────
+// name 없으면 전체 목록(반려 제외) 반환, name 있으면 이름 검색
 router.get("/pools/public-search", async (req, res) => {
   try {
     const { name } = req.query;
-    if (!name || String(name).trim().length < 1) {
-      res.json({ success: true, data: [] }); return;
-    }
-    const results = await superAdminDb.select({
-      id: swimmingPoolsTable.id,
-      name: swimmingPoolsTable.name,
-      address: swimmingPoolsTable.address,
-    }).from(swimmingPoolsTable)
-      .where(ilike(swimmingPoolsTable.name, `%${name}%`))
-      .limit(20);
+    const nameStr = name ? String(name).trim() : "";
+
+    const results = nameStr.length > 0
+      ? await superAdminDb.select({
+          id: swimmingPoolsTable.id,
+          name: swimmingPoolsTable.name,
+          address: swimmingPoolsTable.address,
+          phone: swimmingPoolsTable.phone,
+        }).from(swimmingPoolsTable)
+          .where(and(
+            sql`approval_status != 'rejected'`,
+            ilike(swimmingPoolsTable.name, `%${nameStr}%`)
+          ))
+          .orderBy(swimmingPoolsTable.name)
+          .limit(50)
+      : await superAdminDb.select({
+          id: swimmingPoolsTable.id,
+          name: swimmingPoolsTable.name,
+          address: swimmingPoolsTable.address,
+          phone: swimmingPoolsTable.phone,
+        }).from(swimmingPoolsTable)
+          .where(sql`approval_status != 'rejected'`)
+          .orderBy(swimmingPoolsTable.name)
+          .limit(100);
+
     res.json({ success: true, data: results });
   } catch (err) {
     console.error(err);

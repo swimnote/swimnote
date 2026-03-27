@@ -1,36 +1,59 @@
 /**
  * parent-onboard-pool.tsx — STEP 1: 수영장 검색
- * operatorsStore의 활성 운영자를 목록으로 사용 (API 없음)
+ * /pools/public-search API로 실제 DB 수영장 목록 표시
  */
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  FlatList, Platform, Pressable, StyleSheet,
+  ActivityIndicator, FlatList, Platform, Pressable, StyleSheet,
   Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { useOperatorsStore } from "@/store/operatorsStore";
+import { apiRequest } from "@/context/AuthContext";
 
 const C = Colors.light;
 
+interface Pool {
+  id: string;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
+}
+
 export default function ParentOnboardPoolScreen() {
-  const insets    = useSafeAreaInsets();
-  const operators = useOperatorsStore(s => s.operators);
+  const insets = useSafeAreaInsets();
+  const [allPools, setAllPools] = useState<Pool[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiRequest(null, "/pools/public-search");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setAllPools(json.data);
+        }
+      } catch (e) {
+        console.error("pool search error", e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
   const pools = useMemo(() => {
-    const active = operators.filter(o => o.status === "active");
-    if (!query.trim()) return active;
+    if (!query.trim()) return allPools;
     const q = query.trim().toLowerCase();
-    return active.filter(
+    return allPools.filter(
       o =>
         o.name.toLowerCase().includes(q) ||
         (o.address ?? "").toLowerCase().includes(q) ||
         (o.phone ?? "").includes(q)
     );
-  }, [operators, query]);
+  }, [allPools, query]);
 
   function selectPool(id: string, name: string) {
     router.push({ pathname: "/parent-onboard-child", params: { pool_id: id, pool_name: name } } as any);
@@ -72,7 +95,7 @@ export default function ParentOnboardPoolScreen() {
         </View>
 
         {/* 안내 배너 */}
-        {!query.trim() && (
+        {!query.trim() && !loading && (
           <View style={[styles.hintBox, { backgroundColor: C.tintLight }]}>
             <Feather name="info" size={13} color={C.tint} />
             <Text style={[styles.hintTxt, { color: C.tint }]}>
@@ -81,12 +104,26 @@ export default function ParentOnboardPoolScreen() {
           </View>
         )}
 
-        {/* 결과 */}
-        {pools.length === 0 && query.trim() ? (
+        {/* 로딩 */}
+        {loading ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color={C.tint} />
+            <Text style={[styles.emptyText, { color: C.textSecondary }]}>
+              수영장 목록을 불러오는 중...
+            </Text>
+          </View>
+        ) : pools.length === 0 && query.trim() ? (
           <View style={styles.emptyState}>
             <Feather name="search" size={36} color={C.textMuted} />
             <Text style={[styles.emptyText, { color: C.textSecondary }]}>
               검색 결과가 없습니다.{"\n"}다른 키워드로 검색해보세요.
+            </Text>
+          </View>
+        ) : pools.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Feather name="droplet" size={36} color={C.textMuted} />
+            <Text style={[styles.emptyText, { color: C.textSecondary }]}>
+              등록된 수영장이 없습니다.
             </Text>
           </View>
         ) : (
