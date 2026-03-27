@@ -127,8 +127,8 @@ export default function LoginScreen() {
 
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호</Text>
-            <View style={[styles.inputRow, { borderColor: password ? C.tint : C.border, backgroundColor: C.background }]}>
-              <Feather name="lock" size={16} color={password ? C.tint : C.textMuted} />
+            <View style={[styles.inputRow, { borderColor: password ? C.button : C.border, backgroundColor: C.background }]}>
+              <Feather name="lock" size={16} color={password ? C.button : C.textMuted} />
               <TextInput
                 ref={pwRef}
                 style={[styles.input, { color: C.text }]}
@@ -141,8 +141,18 @@ export default function LoginScreen() {
                 onSubmitEditing={() => handleLogin()}
                 editable={!loading}
               />
-              <Pressable onPress={() => setShowPw(v => !v)} hitSlop={10}>
-                <Feather name={showPw ? "eye-off" : "eye"} size={16} color={C.textMuted} />
+              <Pressable onPress={() => setShowPw(v => !v)} hitSlop={8}>
+                <Feather name={showPw ? "eye-off" : "eye"} size={15} color={C.textMuted} />
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.arrowBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.8 : 1 }]}
+                onPress={() => handleLogin()}
+                disabled={loading}
+              >
+                {loading
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Feather name="arrow-right" size={18} color="#fff" />
+                }
               </Pressable>
             </View>
           </View>
@@ -153,22 +163,6 @@ export default function LoginScreen() {
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
           )}
-
-          <Pressable
-            style={({ pressed }) => [styles.loginBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
-            onPress={() => handleLogin()}
-            disabled={loading}
-          >
-            {loading
-              ? <ActivityIndicator color="#fff" size="small" />
-              : (
-                <View style={styles.loginBtnInner}>
-                  <Text style={styles.loginBtnText}>로그인</Text>
-                  <Feather name="arrow-right" size={18} color="#fff" />
-                </View>
-              )
-            }
-          </Pressable>
 
           <Pressable
             style={({ pressed }) => [styles.forgotBtn, { opacity: pressed ? 0.7 : 1 }]}
@@ -244,9 +238,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10 },
   errText: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
-  loginBtn: { height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  loginBtnInner: { flexDirection: "row", alignItems: "center", gap: 8 },
-  loginBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+  arrowBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   forgotBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingVertical: 2 },
   forgotText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 14 },
