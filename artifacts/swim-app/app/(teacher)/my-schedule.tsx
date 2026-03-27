@@ -472,7 +472,7 @@ export default function MyScheduleScreen() {
               </>
             ) : (
               <>
-                <Pressable style={[s.selBtn, { backgroundColor: "#F8FAFC" }]} onPress={() => setSelectionMode(true)}>
+                <Pressable style={[s.selBtn, { backgroundColor: C.card }]} onPress={() => setSelectionMode(true)}>
                   <Feather name="check-square" size={13} color={C.textSecondary} />
                   <Text style={[s.selBtnText, { color: C.textSecondary }]}>선택</Text>
                 </Pressable>
@@ -664,7 +664,7 @@ export default function MyScheduleScreen() {
 
 const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: C.background },
-  titleArea:    { backgroundColor: C.background, borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB",
+  titleArea:    { backgroundColor: C.card, borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB",
                   paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   titleRow:     { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   title:        { fontSize: 19, fontFamily: "Pretendard-SemiBold", color: C.text },
@@ -672,13 +672,13 @@ const s = StyleSheet.create({
   rightBtns:    { flexDirection: "row", gap: 4, alignItems: "center" },
   selBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10 },
   selBtnText:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#fff" },
-  mgmtBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10, borderWidth: 1, backgroundColor: C.background },
+  mgmtBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10, borderWidth: 1, backgroundColor: C.card },
   mgmtBtnText:  { fontSize: 12, fontFamily: "Pretendard-Medium" },
   createBtn:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10 },
   createBtnText:{ color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
   controlRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   viewToggle:   { flexDirection: "row", gap: 5 },
-  toggleBtn:    { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: C.background },
+  toggleBtn:    { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: C.card },
   toggleText:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.textSecondary },
   diaryIndexBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   diaryIndexBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium" },
