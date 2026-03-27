@@ -644,12 +644,16 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
   const valid = ["active", "unassigned", "suspended", "withdrawn"];
   if (!new_status || !valid.includes(new_status)) return err(res, 400, "new_status 값이 올바르지 않습니다.");
 
+  console.log(`[change-status] DB_TARGET: superAdminDb | student: ${req.params.id} | new_status: ${new_status} | effective_mode: ${effective_mode} | caller: ${req.user?.role}(${req.user?.userId})`);
+
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [existing] = await db.select().from(studentsTable)
       .where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!existing) return err(res, 404, "학생 없음");
     if (poolId && existing.swimming_pool_id !== poolId) return err(res, 403, "접근 권한 없음");
+
+    console.log(`[change-status] 현재 상태: ${(existing as any).status} | pending: ${(existing as any).pending_status_change ?? "없음"} | pool: ${existing.swimming_pool_id}`);
 
     // 다음 달 예약 (suspended/withdrawn 만)
     if (effective_mode === "next_month" && (new_status === "suspended" || new_status === "withdrawn")) {
@@ -663,6 +667,7 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
         updated_at: new Date(),
       } as any).where(eq(studentsTable.id, req.params.id));
       const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+      console.log(`[change-status] ✅ next_month 예약 완료 → pending: ${new_status} (${nextMonthStr})`);
       return res.json({ success: true, pending_status_change: new_status, pending_effective_mode: "next_month", pending_effective_month: nextMonthStr, student: updated });
     }
 
@@ -675,17 +680,14 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
     };
 
     if (new_status === "active") {
-      // 정상 복귀: 상태만 active로, 반 배정은 유지
       update.status = "active";
       update.archived_reason = null;
     } else if (new_status === "unassigned") {
-      // 미배정: 반 배정 전체 해제, 상태는 active 유지
       update.status = "active";
       update.assigned_class_ids = [] as any;
       update.class_group_id = null;
       update.schedule_labels = null;
     } else if (new_status === "suspended" || new_status === "withdrawn") {
-      // 즉시 휴원/퇴원: 반 배정 해제 + 상태 변경
       update.status = new_status;
       update.assigned_class_ids = [] as any;
       update.class_group_id = null;
@@ -698,8 +700,9 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
 
     await db.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
     const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    console.log(`[change-status] ✅ 즉시 변경 완료 → status: ${(updated as any).status}`);
     return res.json({ success: true, new_status, student: updated });
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
+  } catch (e) { console.error("[change-status] ❌ 오류:", e); return err(res, 500, "서버 오류"); }
 });
 
 router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
