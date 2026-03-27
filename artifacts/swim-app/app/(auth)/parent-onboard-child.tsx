@@ -9,7 +9,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState } from "react";
 import {
-  Alert, KeyboardAvoidingView, Platform, Pressable,
+  KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -112,12 +112,7 @@ export default function ParentOnboardChildScreen() {
       const status: string = json.data?.status ?? "pending";
 
       if (status === "auto_approved") {
-        const matchedNames: string[] = json.data?.matched_students ?? [first.name.trim()];
-        Alert.alert(
-          "자동 승인 완료!",
-          `자녀 정보가 학생 명부와 일치하여\n즉시 승인되었습니다.\n\n연결된 자녀: ${matchedNames.join(", ")}\n\n설정한 아이디/비밀번호로 로그인해주세요.`,
-          [{ text: "로그인하기", onPress: () => router.replace("/parent-login" as any) }]
-        );
+        router.replace("/parent-login" as any);
       } else {
         // pending → requestId 저장 후 대기 화면
         const requestId: string = json.data?.id ?? "";

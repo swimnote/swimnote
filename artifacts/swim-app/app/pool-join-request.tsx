@@ -36,6 +36,7 @@ export default function PoolJoinRequestScreen() {
   const [children, setChildren] = useState<Child[]>([{ childName: "", childBirthYear: null }]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [doneStatus, setDoneStatus] = useState<"auto_approved" | "pending">("pending");
 
   async function handleSearch() {
     if (!query.trim()) return;
@@ -65,21 +66,33 @@ export default function PoolJoinRequestScreen() {
     if (!selectedPool) return;
     setSubmitting(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/auth/parent-register`, {
+      const res = await fetch(`${API_BASE}/auth/pool-join-request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           swimming_pool_id: selectedPool.id,
-          name: parentName.trim(),
+          parent_name: parentName.trim(),
           phone: phone.trim(),
           loginId: loginId.trim(),
           password,
-          child_names: validChildren.map(c => c.childName.trim()).filter(Boolean),
+          child_name: validChildren[0].childName.trim(),
+          child_birth_year: validChildren[0].childBirthYear || null,
+          children_requested: validChildren.map(c => ({
+            childName: c.childName.trim(),
+            childBirthYear: c.childBirthYear || null,
+          })),
         }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.message || "오류가 발생했습니다."); return; }
-      setStep("done");
+
+      const status: string = data.data?.status ?? "pending";
+      if (status === "auto_approved") {
+        router.replace("/parent-login" as any);
+      } else {
+        setDoneStatus("pending");
+        setStep("done");
+      }
     } catch { setError("네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요."); }
     finally { setSubmitting(false); }
   }
@@ -343,19 +356,20 @@ export default function PoolJoinRequestScreen() {
       {/* ── 완료 단계 ─────────────────────────────────────────── */}
       {step === "done" && (
         <View style={[styles.doneContainer, { paddingBottom: insets.bottom + 40 }]}>
-          <View style={[styles.doneIcon, { backgroundColor: "#DDF2EF" }]}>
-            <Feather name="check-circle" size={48} color={C.success} />
+          <View style={[styles.doneIcon, { backgroundColor: "#FFF1BF" }]}>
+            <Feather name="clock" size={48} color="#D97706" />
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입 요청이 접수됐어요!</Text>
           <Text style={[styles.doneSub, { color: C.textSecondary }]}>
-            {selectedPool?.name} 수영장에{"\n"}
+            <Text style={{ fontFamily: "Inter_700Bold", color: C.text }}>{selectedPool?.name}</Text> 수영장에{"\n"}
             가입 요청을 보냈습니다.{"\n\n"}
-            관리자 승인 후{"\n"}
-            아이디 <Text style={{ fontFamily: "Inter_700Bold", color: C.text }}>{loginId}</Text>로 로그인할 수 있습니다.
+            수영장 관리자가 승인하면{"\n"}
+            아이디 <Text style={{ fontFamily: "Inter_700Bold", color: C.text }}>{loginId}</Text>로{"\n"}
+            로그인할 수 있습니다.
           </Text>
           <Pressable
             style={[styles.doneBtn, { backgroundColor: C.tint }]}
-            onPress={() => router.replace("/parent-login")}
+            onPress={() => router.replace("/parent-login" as any)}
           >
             <Text style={styles.doneBtnText}>로그인 화면으로</Text>
           </Pressable>
