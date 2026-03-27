@@ -98,7 +98,7 @@ router.post("/register", async (req, res) => {
   const { email, password, name, phone, role,
           pool_name, pool_address, pool_phone, pool_owner_name, pool_name_en } = req.body;
   if (!email || !password || !name) return err(res, 400, "필수 정보를 입력해주세요.");
-  if (password.length < 6) return err(res, 400, "비밀번호는 6자 이상이어야 합니다.");
+  if (password.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
   const isPoolAdmin = role === "pool_admin";
   if (isPoolAdmin && (!pool_name || !pool_address || !pool_phone || !pool_owner_name)) {
     return err(res, 400, "수영장 정보를 모두 입력해주세요.");
@@ -677,7 +677,7 @@ router.post("/switch-role", requireAuth, requireDbRoleCheck, async (req: AuthReq
 router.post("/reset-password", async (req, res) => {
   const { identifier, new_password } = req.body;
   if (!identifier || !new_password) return err(res, 400, "아이디와 새 비밀번호를 입력해주세요.");
-  if (new_password.length < 6) return err(res, 400, "비밀번호는 6자 이상이어야 합니다.");
+  if (new_password.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
   try {
     const [user] = await superAdminDb.select({ id: usersTable.id }).from(usersTable)
       .where(eq(usersTable.email, identifier.trim().toLowerCase())).limit(1);
@@ -701,7 +701,7 @@ router.post("/reset-password", async (req, res) => {
 router.post("/change-password", requireAuth, async (req: AuthRequest, res) => {
   const { current_password, new_password } = req.body;
   if (!current_password || !new_password) return err(res, 400, "현재 비밀번호와 새 비밀번호를 입력해주세요.");
-  if (new_password.length < 6) return err(res, 400, "새 비밀번호는 6자 이상이어야 합니다.");
+  if (new_password.length < 4) return err(res, 400, "새 비밀번호는 4자 이상이어야 합니다.");
   try {
     const [user] = await superAdminDb.select({ id: usersTable.id, password_hash: usersTable.password_hash })
       .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
@@ -722,7 +722,8 @@ router.post("/teacher-self-signup", async (req, res) => {
   if (!name?.trim() || !identifier || !password || !pool_id) {
     return err(res, 400, "이름, 아이디, 비밀번호, 수영장은 필수입니다.");
   }
-  if (password.length < 6) return err(res, 400, "비밀번호는 6자 이상이어야 합니다.");
+  if (password.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
+  if (identifier.length < 4) return err(res, 400, "아이디는 4자 이상이어야 합니다.");
   try {
     // 아이디 중복 확인
     const [exist] = await superAdminDb.select({ id: usersTable.id }).from(usersTable)
@@ -1002,7 +1003,7 @@ router.post("/send-sms-code", async (req, res) => {
   const { phone, purpose } = req.body;
   const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "";
 
-  const validPurposes = ["pool_admin_signup", "parent_signup", "password_reset"];
+  const validPurposes = ["pool_admin_signup", "parent_signup", "password_reset", "reset_password"];
   if (!validPurposes.includes(purpose)) {
     return err(res, 400, "invalid_purpose");
   }

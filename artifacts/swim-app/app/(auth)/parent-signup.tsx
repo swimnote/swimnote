@@ -108,7 +108,8 @@ export default function ParentSignupScreen() {
   function validate() {
     if (!name.trim())           { setError("이름을 입력해주세요."); return false; }
     if (!loginId.trim())        { setError("아이디를 입력해주세요."); return false; }
-    if (pw.length < 6)          { setError("비밀번호는 6자 이상이어야 합니다."); return false; }
+    if (loginId.trim().length < 4) { setError("아이디는 4자 이상이어야 합니다."); return false; }
+    if (pw.length < 4)          { setError("비밀번호는 4자 이상이어야 합니다."); return false; }
     if (pw !== pwc)             { setError("비밀번호가 일치하지 않습니다."); return false; }
     if (!gender)                { setError("성별을 선택해주세요."); return false; }
     if (!phone.trim())          { setError("휴대폰 번호를 입력해주세요."); return false; }
@@ -176,7 +177,7 @@ export default function ParentSignupScreen() {
           </Field>
 
           {/* 아이디 */}
-          <Field label="아이디 *" icon="at-sign">
+          <Field label="아이디 * (4자 이상)" icon="at-sign">
             <TextInput
               style={[styles.input, { color: C.text }]}
               value={loginId} onChangeText={setLoginId}
@@ -190,7 +191,7 @@ export default function ParentSignupScreen() {
             <TextInput
               style={[styles.input, { color: C.text }]}
               value={pw} onChangeText={setPw}
-              placeholder="6자 이상" placeholderTextColor={C.textMuted}
+              placeholder="4자 이상" placeholderTextColor={C.textMuted}
               secureTextEntry autoCapitalize="none"
             />
           </Field>

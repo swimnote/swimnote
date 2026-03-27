@@ -15,7 +15,6 @@ type Pool = { id: string; name: string; address?: string };
 
 export default function TeacherSignupScreen() {
   const insets = useSafeAreaInsets();
-  const emailRef = useRef<TextInput>(null);
   const loginIdRef = useRef<TextInput>(null);
   const pwRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
@@ -30,7 +29,6 @@ export default function TeacherSignupScreen() {
 
   /* 정보 입력 */
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [loginId, setLoginId] = useState("");
   const [pw, setPw] = useState("");
   const [phone, setPhone] = useState("");
@@ -52,15 +50,18 @@ export default function TeacherSignupScreen() {
     if (!name.trim() || !loginId.trim() || !pw) {
       setError("이름, 아이디, 비밀번호는 필수입니다."); return;
     }
-    if (loginId.trim().length < 3) {
-      setError("아이디는 3자 이상이어야 합니다."); return;
+    if (loginId.trim().length < 4) {
+      setError("아이디는 4자 이상이어야 합니다."); return;
+    }
+    if (pw.length < 4) {
+      setError("비밀번호는 4자 이상이어야 합니다."); return;
     }
     setLoading(true); setError("");
     try {
       const res = await fetch(`${API_BASE}/auth/teacher-self-signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase() || undefined, loginId: loginId.trim().toLowerCase(), password: pw, phone: phone.trim(), pool_id: selectedPool!.id }),
+        body: JSON.stringify({ name: name.trim(), loginId: loginId.trim().toLowerCase(), password: pw, phone: phone.trim(), pool_id: selectedPool!.id }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
@@ -205,7 +206,7 @@ export default function TeacherSignupScreen() {
 
             {/* 사용할 아이디 (로그인 식별자) */}
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>사용할 아이디 *</Text>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>사용할 아이디 * <Text style={{ color: C.textMuted }}>(4자 이상)</Text></Text>
               <View style={[styles.inputRow, { borderColor: loginId ? C.tint : C.border, backgroundColor: C.background }]}>
                 <Feather name="at-sign" size={15} color={loginId ? C.tint : C.textMuted} />
                 <TextInput
@@ -218,28 +219,6 @@ export default function TeacherSignupScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   returnKeyType="next"
-                  onSubmitEditing={() => emailRef.current?.focus()}
-                />
-              </View>
-              <Text style={[styles.hintText, { color: C.textMuted }]}>로그인에 사용할 아이디입니다 (3자 이상)</Text>
-            </View>
-
-            {/* 이메일 (선택, 연락용) */}
-            <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>이메일 <Text style={{ color: C.textMuted }}>(선택)</Text></Text>
-              <View style={[styles.inputRow, { borderColor: email ? C.tint : C.border, backgroundColor: C.background }]}>
-                <Feather name="mail" size={15} color={email ? C.tint : C.textMuted} />
-                <TextInput
-                  ref={emailRef}
-                  style={[styles.input, { color: C.text }]}
-                  value={email}
-                  onChangeText={v => { setEmail(v); setError(""); }}
-                  placeholder="teacher@email.com"
-                  placeholderTextColor={C.textMuted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="email-address"
-                  returnKeyType="next"
                   onSubmitEditing={() => pwRef.current?.focus()}
                 />
               </View>
@@ -247,7 +226,7 @@ export default function TeacherSignupScreen() {
 
             {/* 비밀번호 */}
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호</Text>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 * <Text style={{ color: C.textMuted }}>(4자 이상)</Text></Text>
               <View style={[styles.inputRow, { borderColor: pw ? C.tint : C.border, backgroundColor: C.background }]}>
                 <Feather name="lock" size={15} color={pw ? C.tint : C.textMuted} />
                 <TextInput
@@ -255,7 +234,7 @@ export default function TeacherSignupScreen() {
                   style={[styles.input, { color: C.text }]}
                   value={pw}
                   onChangeText={v => { setPw(v); setError(""); }}
-                  placeholder="6자리 이상"
+                  placeholder="4자 이상"
                   placeholderTextColor={C.textMuted}
                   secureTextEntry={!showPw}
                   returnKeyType="next"
