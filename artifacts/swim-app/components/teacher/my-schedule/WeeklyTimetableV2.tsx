@@ -18,10 +18,11 @@ import {
   addDaysStr, classColor, getWeekDates, parseHour, todayDateStr,
 } from "./utils";
 
-const SCREEN_W = Dimensions.get("window").width;
-const TIME_W   = 28;
-const ALL_DAYS = ["월", "화", "수", "목", "금", "토", "일"];
-const COL_W    = Math.floor((SCREEN_W - TIME_W) / 7);
+const SCREEN_W  = Dimensions.get("window").width;
+const TIME_W    = 28;
+const ALL_DAYS  = ["월", "화", "수", "목", "금", "토"];
+const COL_W     = Math.floor((SCREEN_W - TIME_W) / 6);
+const FIXED_HOURS = Array.from({ length: 13 }, (_, i) => i + 9); // 9~21시 고정
 
 interface Props {
   groups:        TeacherClassGroup[];
@@ -73,18 +74,8 @@ export default function WeeklyTimetableV2({
     return m;
   }, [weekDates, today]);
 
-  /* 전체 그룹의 시간 범위로 단일 시간축 계산 */
-  const allHours = useMemo(() => {
-    const times: number[] = [];
-    groups.forEach(g => {
-      const h = parseHour(g.schedule_time);
-      times.push(h);
-    });
-    if (!times.length) return Array.from({ length: 9 }, (_, i) => i + 9);
-    const min = Math.max(6, Math.min(...times));
-    const max = Math.min(23, Math.max(...times));
-    return Array.from({ length: max - min + 1 }, (_, i) => i + min);
-  }, [groups]);
+  /* 시간축: 9시~21시 고정 */
+  const allHours = FIXED_HOURS;
 
   /* 7일 전체 셀 맵 */
   const cellMap = useMemo(() => {
@@ -99,7 +90,7 @@ export default function WeeklyTimetableV2({
       });
     });
     return map;
-  }, [groups, weekDates, allHours]);
+  }, [groups, weekDates]);
 
   /* ── 카드 렌더 (기존 로직 그대로) ── */
   function renderCard(g: TeacherClassGroup, isToday: boolean) {
