@@ -23,7 +23,7 @@ interface Props {
   pendingStatusChange?: string | null;
   pendingEffectiveMode?: string | null;
   onClose: () => void;
-  onChanged: () => void;
+  onChanged: (result: { status: ActionStatus; mode: "immediate" | "next_month" }) => void;
 }
 
 const OPTIONS = [
@@ -77,7 +77,7 @@ export function MemberStatusChangeModal({
       }
       setLoading(false);
       handleClose();
-      onChanged();
+      onChanged({ status, mode });
     } catch {
       setError("네트워크 오류가 발생했습니다.");
       setLoading(false);

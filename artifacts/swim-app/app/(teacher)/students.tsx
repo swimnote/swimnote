@@ -11,7 +11,7 @@ import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal, Pressable,
+  ActivityIndicator, Animated, FlatList, Modal, Pressable,
   RefreshControl, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -99,6 +99,22 @@ export default function WaitingListScreen() {
   const [sheetTarget,  setSheetTarget]  = useState<TeacherMember | null>(null);
   // 상태 변경 모달 (연기 / 퇴원)
   const [statusTarget, setStatusTarget] = useState<TeacherMember | null>(null);
+
+  // Toast
+  const [toastMsg,    setToastMsg]    = useState("");
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showToast(msg: string) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMsg(msg);
+    Animated.sequence([
+      Animated.timing(toastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.delay(2000),
+      Animated.timing(toastOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start();
+    toastTimer.current = setTimeout(() => setToastMsg(""), 2600);
+  }
 
   const load = useCallback(async (activeTab: TabKey) => {
     try {
@@ -238,11 +254,26 @@ export default function WaitingListScreen() {
           pendingStatusChange={statusTarget.pending_status_change}
           pendingEffectiveMode={statusTarget.pending_effective_mode}
           onClose={() => setStatusTarget(null)}
-          onChanged={() => {
+          onChanged={({ status, mode }) => {
             setStatusTarget(null);
             load(tab);
+            if (mode === "immediate") {
+              const label = status === "withdrawn" ? "퇴원" : status === "suspended" ? "연기" :
+                            status === "active" ? "정상" : "미배정";
+              showToast(`${label} 처리되었습니다`);
+            } else {
+              showToast("다음 달부터 적용됩니다");
+            }
           }}
         />
+      )}
+
+      {/* Toast */}
+      {toastMsg.length > 0 && (
+        <Animated.View style={[s.toast, { opacity: toastOpacity, bottom: insets.bottom + 28 }]}>
+          <Feather name="check-circle" size={14} color="#fff" />
+          <Text style={s.toastText}>{toastMsg}</Text>
+        </Animated.View>
       )}
     </SafeAreaView>
   );
@@ -329,6 +360,13 @@ const s = StyleSheet.create({
   emptyBox:    { alignItems: "center", gap: 10, paddingVertical: 60 },
   emptyText:   { fontSize: 14, fontFamily: "Inter_400Regular", color: C.textMuted, textAlign: "center" },
   emptyHint:   { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", marginTop: 4 },
+  toast: {
+    position: "absolute", left: 24, right: 24,
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "rgba(30,30,30,0.88)", borderRadius: 14,
+    paddingVertical: 12, paddingHorizontal: 16,
+  },
+  toastText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#fff", flex: 1 },
 });
 
 const sh = StyleSheet.create({
