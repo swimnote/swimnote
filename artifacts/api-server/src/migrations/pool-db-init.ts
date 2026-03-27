@@ -717,6 +717,108 @@ export async function initPoolDb(): Promise<void> {
     ) < jsonb_array_length(assigned_class_ids);
   `));
 
+  // ─── pool_subscriptions ──────────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS pool_subscriptions (
+      id                    text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      swimming_pool_id      text        NOT NULL UNIQUE,
+      tier                  text        NOT NULL DEFAULT 'free',
+      card_id               text,
+      status                text        NOT NULL DEFAULT 'active',
+      current_period_start  text,
+      next_billing_at       text,
+      pending_tier          text,
+      downgrade_at          date,
+      created_at            timestamptz NOT NULL DEFAULT now(),
+      updated_at            timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_pool_subs_pool_id ON pool_subscriptions (swimming_pool_id);
+  `));
+
+  // ─── subscription_plans ──────────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS subscription_plans (
+      id                text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      plan_id           text        NOT NULL DEFAULT '',
+      tier              text        NOT NULL UNIQUE,
+      name              text        NOT NULL,
+      price_per_month   integer     NOT NULL DEFAULT 0,
+      max_students      integer,
+      max_teachers      integer,
+      storage_mb        integer     NOT NULL DEFAULT 0,
+      display_storage   text        NOT NULL DEFAULT '',
+      features          jsonb       DEFAULT '[]',
+      is_active         boolean     NOT NULL DEFAULT true,
+      created_at        timestamptz NOT NULL DEFAULT now()
+    )
+  `)).catch(() => {});
+  // subscription_plans 누락 컬럼 보완
+  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS plan_id text NOT NULL DEFAULT ''`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_mb integer NOT NULL DEFAULT 0`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage text NOT NULL DEFAULT ''`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});
+  // 기본 플랜 데이터 삽입
+  await db.execute(sql.raw(`
+    INSERT INTO subscription_plans (tier, name, price_per_month, max_students, max_teachers, storage_mb, display_storage, features)
+    VALUES
+      ('free',       '무료',         0,     30,   3,  1024,  '1GB',  '["기본 출결","일지","학부모 연동"]'),
+      ('basic',      '베이직',    29000,    100,  10,  5120,  '5GB',  '["기본 출결","일지","학부모 연동","쪽지"]'),
+      ('pro',        '프로',      59000,    300,  30, 20480, '20GB', '["기본 출결","일지","학부모 연동","쪽지","통계"]'),
+      ('enterprise', '엔터프라이즈', 99000, null, null, 51200, '50GB', '["무제한 출결","일지","학부모 연동","쪽지","통계","API"]')
+    ON CONFLICT (tier) DO NOTHING
+  `)).catch(() => {});
+
+  // ─── payment_logs ────────────────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS payment_logs (
+      id                   text        PRIMARY KEY,
+      swimming_pool_id     text        NOT NULL,
+      amount               integer     NOT NULL DEFAULT 0,
+      status               text        NOT NULL,
+      method               text,
+      type                 text,
+      description          text,
+      billing_period_start text,
+      billing_period_end   text,
+      paid_at              timestamptz,
+      created_at           timestamptz NOT NULL DEFAULT now()
+    );
+  `));
+  // payment_logs 누락 컬럼 보완
+  await db.execute(sql.raw(`ALTER TABLE payment_logs ADD COLUMN IF NOT EXISTS type text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE payment_logs ADD COLUMN IF NOT EXISTS method text`)).catch(() => {});
+
+  // ─── notifications (인앱 알림) ────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id             text        PRIMARY KEY,
+      recipient_id   text        NOT NULL,
+      recipient_type text        NOT NULL DEFAULT 'parent_account',
+      type           text        NOT NULL,
+      title          text,
+      body           text,
+      ref_id         text,
+      ref_type       text,
+      pool_id        text,
+      is_read        boolean     NOT NULL DEFAULT false,
+      created_at     timestamptz NOT NULL DEFAULT now()
+    );
+  `)).catch(() => {});
+
+  // ─── payment_cards ───────────────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS payment_cards (
+      id               text        PRIMARY KEY,
+      swimming_pool_id text        NOT NULL,
+      card_last4       text        NOT NULL,
+      card_brand       text,
+      billing_key      text,
+      card_nickname    text,
+      is_default       boolean     NOT NULL DEFAULT false,
+      created_at       timestamptz NOT NULL DEFAULT now()
+    );
+  `));
+
   // ─── manual_handover_makeups (기타 보강 인계 기록) ──────────────────────
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS manual_handover_makeups (

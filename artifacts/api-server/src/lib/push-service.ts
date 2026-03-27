@@ -246,8 +246,7 @@ export async function sendPushToPoolAdmins(
     const adminRows = await superAdminDb.execute(sql`
       SELECT id FROM users
       WHERE swimming_pool_id = ${poolId}
-        AND role IN ('pool_admin', 'sub_admin')
-        AND deleted_at IS NULL
+        AND role = 'pool_admin'
     `);
     for (const a of adminRows.rows as any[]) {
       const uid = a.id;
@@ -280,7 +279,6 @@ export async function sendPushToPoolTeachers(
       SELECT id FROM users
       WHERE swimming_pool_id = ${poolId}
         AND role = 'teacher'
-        AND deleted_at IS NULL
     `);
     for (const t of teacherRows.rows as any[]) {
       const uid = t.id;
@@ -315,8 +313,7 @@ export async function sendPushToAllUsers(
     // 1) 모든 관리자·선생님
     const userRows = await superAdminDb.execute(sql`
       SELECT id, role FROM users
-      WHERE role IN ('pool_admin', 'sub_admin', 'teacher')
-        AND deleted_at IS NULL
+      WHERE role IN ('pool_admin', 'teacher')
         AND swimming_pool_id IS NOT NULL
     `);
     for (const u of userRows.rows as any[]) {

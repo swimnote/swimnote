@@ -128,5 +128,65 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] phone_verifications 보완 오류:", e.message);
   }
 
+  // ── payment_logs — 결제 내역 ───────────────────────────────────────────────
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS payment_logs (
+        id                   text        PRIMARY KEY,
+        swimming_pool_id     text        NOT NULL,
+        amount               integer     NOT NULL DEFAULT 0,
+        status               text        NOT NULL,
+        method               text,
+        type                 text,
+        description          text,
+        billing_period_start text,
+        billing_period_end   text,
+        paid_at              timestamptz,
+        created_at           timestamptz NOT NULL DEFAULT now()
+      );
+    `));
+    await db.execute(sql.raw(`ALTER TABLE payment_logs ADD COLUMN IF NOT EXISTS type text`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE payment_logs ADD COLUMN IF NOT EXISTS method text`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE payment_logs ADD COLUMN IF NOT EXISTS description text`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE payment_logs ADD COLUMN IF NOT EXISTS billing_period_start text`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE payment_logs ADD COLUMN IF NOT EXISTS billing_period_end text`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE payment_logs ADD COLUMN IF NOT EXISTS paid_at timestamptz`)).catch(() => {});
+    console.log("[super-db-init] payment_logs 테이블 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] payment_logs 오류:", e.message);
+  }
+
+  // ── revenue_logs — 수익 기록 ───────────────────────────────────────────────
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS revenue_logs (
+        id                    text        PRIMARY KEY,
+        pool_id               text        NOT NULL,
+        pool_name             text,
+        plan_id               text,
+        plan_name             text,
+        event_type            text,
+        gross_amount          integer     NOT NULL DEFAULT 0,
+        intro_discount_amount integer     NOT NULL DEFAULT 0,
+        charged_amount        integer     NOT NULL DEFAULT 0,
+        store_fee             integer     NOT NULL DEFAULT 0,
+        net_revenue           integer     NOT NULL DEFAULT 0,
+        payment_provider      text,
+        occurred_at           timestamptz,
+        created_at            timestamptz NOT NULL DEFAULT now()
+      );
+    `));
+    await db.execute(sql.raw(`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS store_fee integer NOT NULL DEFAULT 0`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS payment_provider text`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at timestamptz`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS gross_amount integer NOT NULL DEFAULT 0`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS intro_discount_amount integer NOT NULL DEFAULT 0`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS charged_amount integer NOT NULL DEFAULT 0`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS net_revenue integer NOT NULL DEFAULT 0`)).catch(() => {});
+    console.log("[super-db-init] revenue_logs 테이블 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] revenue_logs 오류:", e.message);
+  }
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }
