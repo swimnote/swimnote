@@ -9,6 +9,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore } from "@/store/operatorsStore";
 import { useFeatureFlagStore } from "@/store/featureFlagStore";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 const MENUS = [
   {

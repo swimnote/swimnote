@@ -12,7 +12,9 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAdsStore, type Ad, type AdStatus } from "@/store/adsStore";
 import { useAuth } from "@/context/AuthContext";
+import Colors from "@/constants/colors";
 
+const C = Colors.light;
 const P = "#7C3AED";
 
 const STATUS_CFG: Record<AdStatus, { label: string; color: string; bg: string; icon: React.ComponentProps<typeof Feather>["name"] }> = {

@@ -10,7 +10,9 @@ import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import Colors from "@/constants/colors";
 
+const C = Colors.light;
 const P = "#7C3AED";
 
 function fmtAgo(iso: string | null | undefined): string {

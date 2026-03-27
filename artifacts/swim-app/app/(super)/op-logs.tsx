@@ -12,7 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAuditLogStore } from "@/store/auditLogStore";
+import Colors from "@/constants/colors";
 
+const C = Colors.light;
 const P = "#7C3AED";
 
 const TABS = ["전체", "운영자관리", "구독", "저장공간", "삭제", "정책", "결제", "보안", "기능플래그", "읽기전용 전환", "고객센터"];
