@@ -136,7 +136,7 @@ export function WeeklySchedule({
 
       {/* ── 날짜 + 클래스 수 헤더 ── */}
       <View style={ws.sectionHeader}>
-        <Text style={[ws.sectionDay, { color: selectedDay === today ? themeColor : C.text }]}>
+        <Text style={[ws.sectionDay, { color: selectedDay === today ? themeColor : "#111827" }]}>
           {selectedDay}요일 수업
           {selectedDay === today && <Text style={[ws.todayLabel, { color: themeColor }]}> · 오늘</Text>}
         </Text>
@@ -146,7 +146,7 @@ export function WeeklySchedule({
       {/* ── 시간 슬롯 리스트 ── */}
       {currentClasses.length === 0 ? (
         <View style={ws.empty}>
-          <Feather name="calendar" size={24} color={C.textMuted} />
+          <Feather name="calendar" size={22} color="#9CA3AF" />
           <Text style={ws.emptyText}>{selectedDay}요일 수업이 없습니다</Text>
         </View>
       ) : (
@@ -186,13 +186,13 @@ export function WeeklySchedule({
                 )}
 
                 {/* 시간 */}
-                <Text style={[ws.timeCol, { color: inactive ? C.textMuted : barColor }]}>
+                <Text style={[ws.timeCol, { color: "#9CA3AF" }]}>
                   {g.schedule_time.replace(/:00$/, "").replace(/:00 /, " ")}
                 </Text>
 
                 {/* 반 이름 + 담당 선생 */}
                 <View style={{ flex: 1, justifyContent: "center" }}>
-                  <Text style={[ws.nameCol, { color: inactive ? C.textMuted : C.text }]} numberOfLines={1}>
+                  <Text style={[ws.nameCol, { color: inactive ? "#9CA3AF" : "#111827" }]} numberOfLines={1}>
                     {g.name}
                     {g.level ? <Text style={ws.levelInline}> {g.level}</Text> : null}
                   </Text>
@@ -203,7 +203,7 @@ export function WeeklySchedule({
 
                 {/* 우측 정보 */}
                 <View style={ws.rightCol}>
-                  <Text style={[ws.cntText, { color: inactive ? C.textMuted : C.textSecondary }]}>
+                  <Text style={[ws.cntText, { color: "#9CA3AF" }]}>
                     {total}명
                   </Text>
                   {!inactive && (
@@ -286,56 +286,56 @@ export function DayBar({ classGroups, selectedDay, onDayChange, themeColor }: Da
 }
 
 const ws = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, backgroundColor: "#FAFBFC" },
 
-  dayBar:        { backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },
-  dayBarContent: { paddingHorizontal: 12, paddingVertical: 6, gap: 5, flexDirection: "row" },
+  dayBar:        { backgroundColor: "#FAFBFC", borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB" },
+  dayBarContent: { paddingHorizontal: 14, paddingVertical: 8, gap: 6, flexDirection: "row" },
   dayTab: {
     flexDirection: "row", alignItems: "center", gap: 3,
-    paddingHorizontal: 9, paddingVertical: 5,
-    borderRadius: 16, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FAFBFC",
   },
-  dayTabText:   { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.textSecondary },
-  todayDot:     { width: 4, height: 4, borderRadius: 2 },
+  dayTabText:   { fontSize: 11, fontFamily: "Inter_500Medium", color: "#9CA3AF" },
+  todayDot:     { width: 3, height: 3, borderRadius: 2 },
   dayCntBubble: { minWidth: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
-  dayCntText:   { fontSize: 9, fontFamily: "Inter_700Bold" },
+  dayCntText:   { fontSize: 9, fontFamily: "Inter_500Medium" },
 
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 14, paddingVertical: 7 },
-  sectionDay:    { fontSize: 13, fontFamily: "Inter_700Bold" },
-  todayLabel:    { fontSize: 12, fontFamily: "Inter_500Medium" },
-  sectionCount:  { fontSize: 11, fontFamily: "Inter_400Regular", color: C.textMuted },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8 },
+  sectionDay:    { fontSize: 12, fontFamily: "Inter_500Medium" },
+  todayLabel:    { fontSize: 11, fontFamily: "Inter_400Regular" },
+  sectionCount:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 
-  slotList: { paddingHorizontal: 10, gap: 5 },
+  slotList: { paddingHorizontal: 12, gap: 6 },
 
   slot: {
     flexDirection: "row", alignItems: "center",
-    borderRadius: 10, paddingVertical: 6,
-    borderWidth: 1, backgroundColor: C.card,
+    borderRadius: 12, paddingVertical: 7,
+    borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FFFFFF",
     overflow: "hidden", minHeight: 44,
   },
-  slotInactive: { backgroundColor: "#FBF8F6", borderColor: "#E9E2DD" },
+  slotInactive: { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" },
 
-  colorBar: { width: 4, alignSelf: "stretch" },
+  colorBar: { width: 3, alignSelf: "stretch" },
 
   timeCol: {
-    fontSize: 11, fontFamily: "Inter_700Bold",
-    width: 62, textAlign: "center",
+    fontSize: 10, fontFamily: "Inter_400Regular",
+    width: 58, textAlign: "center", color: "#9CA3AF",
   },
   nameCol: {
-    fontSize: 13, fontFamily: "Inter_600SemiBold",
-    color: C.text,
+    fontSize: 13, fontFamily: "Inter_500Medium",
+    color: "#111827",
   },
-  levelInline:    { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted },
-  instructorCol:  { fontSize: 10, fontFamily: "Inter_400Regular", color: C.textMuted, marginTop: 1 },
+  levelInline:    { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
+  instructorCol:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF", marginTop: 1 },
 
   rightCol: { alignItems: "flex-end", paddingRight: 10, gap: 3 },
-  cntText:  { fontSize: 10, fontFamily: "Inter_500Medium", color: C.textSecondary },
+  cntText:  { fontSize: 10, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
   dots:     { flexDirection: "row", gap: 2 },
   dot:      { width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center" },
 
-  checkBox: { width: 18, height: 18, borderRadius: 9, borderWidth: 2,
+  checkBox: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5,
               alignItems: "center", justifyContent: "center", marginLeft: 6 },
 
-  empty:    { alignItems: "center", paddingTop: 32, gap: 8 },
-  emptyText:{ fontSize: 12, fontFamily: "Inter_400Regular", color: C.textMuted },
+  empty:    { alignItems: "center", paddingTop: 40, gap: 8 },
+  emptyText:{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#9CA3AF" },
 });
