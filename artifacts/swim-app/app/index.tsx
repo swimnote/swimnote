@@ -87,7 +87,7 @@ export default function LoginScreen() {
       keyboardVerticalOffset={0}
     >
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 100 : 90), paddingBottom: insets.bottom + 40 }]}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -232,9 +232,9 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: { flexGrow: 1, paddingHorizontal: 20 },
+  container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "center" },
   logoArea: { alignItems: "center", gap: 12, paddingBottom: 10 },
-  logoImage: { width: 192, height: 192, borderRadius: 44, shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
+  logoImage: { width: 230, height: 230, borderRadius: 52, shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
   appSub: { fontSize: 18, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   appDesc: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
   spacer: { height: 140 },
