@@ -115,13 +115,13 @@ function InviteCard({ record }: { record: InviteRecord }) {
 
           {/* 발송자 정보 */}
           <View style={s.senderRow}>
-            <View style={[s.roleBadge, { backgroundColor: record.senderRole === "teacher" ? "#EEDDF5" : "#E6FFFA" }]}>
+            <View style={[s.roleBadge, { backgroundColor: "#E6FAF8" }]}>
               <Feather
                 name={record.senderRole === "teacher" ? "user-check" : "shield"}
                 size={11}
-                color={record.senderRole === "teacher" ? "#7C3AED" : "#2EC4B6"}
+                color={"#0F172A"}
               />
-              <Text style={[s.roleLabel, { color: record.senderRole === "teacher" ? "#7C3AED" : "#2EC4B6" }]}>
+              <Text style={[s.roleLabel, { color: "#0F172A" }]}>
                 {record.senderRole === "teacher" ? "선생님" : "관리자"} · {record.senderName}
               </Text>
             </View>
@@ -171,8 +171,8 @@ export default function InviteRecordsScreen() {
       <SubScreenHeader title="초대 안내 기록" onBack={() => router.back()} />
 
       {/* 안내 배너 */}
-      <View style={[s.infoBanner, { backgroundColor: "#DFF3EC" }]}>
-        <Feather name="info" size={13} color="#2EC4B6" />
+      <View style={[s.infoBanner, { backgroundColor: "#E6FAF8" }]}>
+        <Feather name="info" size={13} color="#0F172A" />
         <Text style={s.infoTxt}>
           플랫폼은 문자 전송 성공·실패를 추적하지 않습니다. "재안내" 버튼으로 문자 앱을 다시 열 수 있습니다.
         </Text>
@@ -184,17 +184,17 @@ export default function InviteRecordsScreen() {
           <Text style={[s.summaryNum, { color: C.text }]}>{operatorRecords.length}</Text>
           <Text style={[s.summaryLbl, { color: C.textSecondary }]}>전체 안내 건</Text>
         </View>
-        <View style={[s.summaryCard, { backgroundColor: "#E6FFFA", flex: 1 }]}>
-          <Text style={[s.summaryNum, { color: "#2EC4B6" }]}>{guardianCount}</Text>
-          <Text style={[s.summaryLbl, { color: "#2EC4B6" }]}>학부모</Text>
+        <View style={[s.summaryCard, { backgroundColor: "#FFFFFF", flex: 1 }]}>
+          <Text style={[s.summaryNum, { color: "#0F172A" }]}>{guardianCount}</Text>
+          <Text style={[s.summaryLbl, { color: "#64748B" }]}>학부모</Text>
         </View>
-        <View style={[s.summaryCard, { backgroundColor: "#EEDDF5", flex: 1 }]}>
-          <Text style={[s.summaryNum, { color: "#7C3AED" }]}>{teacherCount}</Text>
-          <Text style={[s.summaryLbl, { color: "#7C3AED" }]}>선생님</Text>
+        <View style={[s.summaryCard, { backgroundColor: "#FFFFFF", flex: 1 }]}>
+          <Text style={[s.summaryNum, { color: "#0F172A" }]}>{teacherCount}</Text>
+          <Text style={[s.summaryLbl, { color: "#64748B" }]}>선생님</Text>
         </View>
-        <View style={[s.summaryCard, { backgroundColor: "#E6FFFA", flex: 1 }]}>
-          <Text style={[s.summaryNum, { color: "#2EC4B6" }]}>{totalCalls}</Text>
-          <Text style={[s.summaryLbl, { color: "#2EC4B6" }]}>총 호출</Text>
+        <View style={[s.summaryCard, { backgroundColor: "#FFFFFF", flex: 1 }]}>
+          <Text style={[s.summaryNum, { color: "#0F172A" }]}>{totalCalls}</Text>
+          <Text style={[s.summaryLbl, { color: "#64748B" }]}>총 호출</Text>
         </View>
       </View>
 
@@ -232,7 +232,7 @@ export default function InviteRecordsScreen() {
 const s = StyleSheet.create({
   infoBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 8, marginHorizontal: 16, marginBottom: 12,
                    marginTop: 8, padding: 10, borderRadius: 10 },
-  infoTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6", lineHeight: 17 },
+  infoTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 17 },
 
   summaryRow:    { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 12 },
   summaryCard:   { borderRadius: 12, paddingVertical: 10, alignItems: "center" },

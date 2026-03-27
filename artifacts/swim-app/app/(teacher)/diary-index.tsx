@@ -138,10 +138,10 @@ export default function DiaryIndexScreen() {
         {/* 상단 메타 */}
         <View style={di.cardTop}>
           <Text style={di.cardDate}>{formatDate(item.lesson_date)}</Text>
-          <View style={[di.typeBadge, { backgroundColor: isNote ? "#EEDDF5" : "#E6FFFA" }]}>
+          <View style={[di.typeBadge, { backgroundColor: "#E6FAF8" }]}>
             {isNote
-              ? <><Feather name="user" size={10} color="#7C3AED" /><Text style={[di.typeBadgeText, { color: "#7C3AED" }]}>{item.student_name} 추가</Text></>
-              : <><Feather name="users" size={10} color="#2EC4B6" /><Text style={[di.typeBadgeText, { color: "#2EC4B6" }]}>반 공통</Text></>
+              ? <><Feather name="user" size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>{item.student_name} 추가</Text></>
+              : <><Feather name="users" size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>반 공통</Text></>
             }
           </View>
         </View>

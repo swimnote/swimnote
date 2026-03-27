@@ -63,9 +63,9 @@ interface SummaryData {
 }
 
 const GROUP_COLORS: Record<string, { color: string; bg: string; border: string }> = {
-  weekly_1: { color: "#2EC4B6", bg: "#F0FBF9", border: "#B2E0DC" },
-  weekly_2: { color: "#7C3AED", bg: "#F5F0FD", border: "#D4C0F7" },
-  weekly_3: { color: "#D97706", bg: "#FFFBEB", border: "#F0D98A" },
+  weekly_1: { color: "#0F172A", bg: "#FFFFFF", border: "#CBD5E1" },
+  weekly_2: { color: "#0F172A", bg: "#FFFFFF", border: "#CBD5E1" },
+  weekly_3: { color: "#0F172A", bg: "#FFFFFF", border: "#CBD5E1" },
 };
 
 export default function SettlementScreen() {
@@ -294,8 +294,8 @@ const s = StyleSheet.create({
   extraCount:     { fontSize: 16, fontWeight: "700", color: "#64748B" },
   settingBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, marginBottom: 16 },
   settingBtnTxt:  { fontSize: 14, fontWeight: "700" },
-  warningCard:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFFBEB", borderWidth: 1.5, borderColor: "#F0D98A", borderRadius: 12, padding: 14, marginBottom: 14 },
-  warningTxt:     { flex: 1, fontSize: 12, color: "#D97706", fontWeight: "600" },
+  warningCard:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#CBD5E1", borderRadius: 12, padding: 14, marginBottom: 14 },
+  warningTxt:     { flex: 1, fontSize: 12, color: "#0F172A", fontWeight: "600" },
   infoCard:       { backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, gap: 5 },
   infoTitle:      { fontSize: 13, fontWeight: "700", color: C.text, marginBottom: 3 },
   infoItem:       { fontSize: 11, color: C.textSecondary, lineHeight: 17 },

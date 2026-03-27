@@ -1,6 +1,6 @@
 import { Linking } from "react-native";
 
-export const CALL_COLOR = "#F97316";
+export const CALL_COLOR = "#64748B";
 
 /** 유효한 전화번호 여부 (숫자 추출 후 10~11자리) */
 export function isValidPhone(phone: string | null | undefined): boolean {

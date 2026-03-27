@@ -186,17 +186,17 @@ function StudentLinkSheet({
     <DraggableSheet visible={visible} onClose={onClose} paddingBottom={insets.bottom + 16}>
       <Text style={s.sheetTitle}>학생 연결 요청</Text>
 
-      <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
-        <Feather name="info" size={13} color="#D97706" />
-        <Text style={[s.infoText, { color: "#92400E" }]}>연결 요청은 관리자 승인 후 학부모에게 노출됩니다.</Text>
+      <View style={[s.infoBox, { backgroundColor: "#E6FAF8" }]}>
+        <Feather name="info" size={13} color="#0F172A" />
+        <Text style={[s.infoText, { color: "#0F172A" }]}>연결 요청은 관리자 승인 후 학부모에게 노출됩니다.</Text>
       </View>
 
       {/* 신청 시 입력한 자녀 */}
       {(parent?.requested_children ?? []).length > 0 && (
-        <View style={[s.childRefBox, { backgroundColor: "#E6FFFA" }]}>
+        <View style={[s.childRefBox, { backgroundColor: "#E6FAF8" }]}>
           <View style={s.childRefHeader}>
-            <Feather name="user-check" size={13} color="#4338CA" />
-            <Text style={[s.childRefLabel, { color: "#4338CA" }]}>가입 신청 시 입력한 자녀</Text>
+            <Feather name="user-check" size={13} color="#64748B" />
+            <Text style={[s.childRefLabel, { color: "#64748B" }]}>가입 신청 시 입력한 자녀</Text>
           </View>
           {(parent?.requested_children ?? []).map((c, i) => (
             <View key={i} style={s.childRefRow}>
@@ -346,8 +346,8 @@ function AddParentSheet({
     return (
       <DraggableSheet visible={visible} onClose={onClose} paddingBottom={insets.bottom + 16}>
         <View style={{ alignItems: "center", gap: 12, paddingVertical: 8 }}>
-          <View style={[s.smsIcon, { backgroundColor: "#E6FFFA" }]}>
-            <Feather name="message-square" size={26} color="#2EC4B6" />
+          <View style={[s.smsIcon, { backgroundColor: "#E6FAF8" }]}>
+            <Feather name="message-square" size={26} color="#0F172A" />
           </View>
           <Text style={[s.sheetTitle, { textAlign: "center" }]}>앱 안내 문자 발송</Text>
           <Text style={[s.smsDesc, { color: C.textSecondary }]}>
@@ -528,8 +528,8 @@ export default function ParentsScreen() {
 
   const statusBadge = (status: string) => {
     const map: Record<string, { color: string; bg: string; label: string }> = {
-      pending:  { color: C.warning,  bg: "#FFF1BF", label: "승인 대기" },
-      approved: { color: C.success,  bg: "#E6FFFA", label: "승인됨" },
+      pending:  { color: C.warning,  bg: "#E6FAF8", label: "승인 대기" },
+      approved: { color: C.success,  bg: "#E6FAF8", label: "승인됨" },
       rejected: { color: C.error,    bg: "#F9DEDA", label: "거부됨" },
     };
     const st = map[status] || map["pending"];
@@ -598,7 +598,7 @@ export default function ParentsScreen() {
                     </Pressable>
                   )}
                   <View style={[s.avatar, { backgroundColor: C.tintLight }]}>
-                    <Text style={[s.avatarText, { color: C.tint }]}>{pa.name[0]}</Text>
+                    <Text style={[s.avatarText, { color: C.text }]}>{pa.name[0]}</Text>
                   </View>
                   <View style={s.accountInfo}>
                     <Text style={[s.accountName, { color: C.text }]}>{pa.name}</Text>

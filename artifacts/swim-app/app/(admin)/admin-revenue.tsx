@@ -77,9 +77,9 @@ function formatWon(n: number) { return n.toLocaleString("ko-KR") + "원"; }
 ──────────────────────────────────────────────── */
 const STATUS_COLOR: Record<SettlementStatus, { bg: string; text: string }> = {
   "미정산":    { bg: "#FFFFFF", text: "#64748B" },
-  "저장됨":    { bg: "#E6FFFA", text: "#2EC4B6" },
-  "제출완료":  { bg: "#E6FFFA", text: "#2EC4B6" },
-  "관리자확인": { bg: "#EEDDF5", text: "#7C3AED" },
+  "저장됨":    { bg: "#E6FAF8", text: "#0F172A" },
+  "제출완료":  { bg: "#E6FAF8", text: "#0F172A" },
+  "관리자확인": { bg: "#E6FAF8", text: "#0F172A" },
 };
 
 export default function AdminRevenueScreen() {
@@ -180,10 +180,10 @@ export default function AdminRevenueScreen() {
         </View>
 
         <Pressable
-          style={[s.holiBtn, { backgroundColor: "#FFF1BF", borderColor: "#E4A93A" }]}
+          style={[s.holiBtn, { backgroundColor: "#E6FAF8", borderColor: "#CBD5E1" }]}
           onPress={() => setHoliModal(true)}
         >
-          <Feather name="calendar" size={14} color="#D97706" />
+          <Feather name="calendar" size={14} color="#0F172A" />
           <Text style={s.holiBtnTxt}>휴무일 지정</Text>
         </Pressable>
       </View>
@@ -199,20 +199,20 @@ export default function AdminRevenueScreen() {
         >
           {/* ── 바로가기 버튼 ── */}
           <View style={s.quickRow}>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#EEDDF5" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
               onPress={() => router.push("/(admin)/makeups" as any)}>
-              <Feather name="rotate-ccw" size={16} color="#7C3AED" />
-              <Text style={[s.quickLabel, { color: "#7C3AED" }]}>보강 이월</Text>
+              <Feather name="rotate-ccw" size={16} color="#0F172A" />
+              <Text style={[s.quickLabel, { color: "#0F172A" }]}>보강 이월</Text>
             </Pressable>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FFFA" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
               onPress={() => router.push("/(admin)/pool-settings" as any)}>
-              <Feather name="dollar-sign" size={16} color="#2EC4B6" />
-              <Text style={[s.quickLabel, { color: "#2EC4B6" }]}>단가표</Text>
+              <Feather name="dollar-sign" size={16} color="#0F172A" />
+              <Text style={[s.quickLabel, { color: "#0F172A" }]}>단가표</Text>
             </Pressable>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FFFA" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
               onPress={() => router.push("/(admin)/holidays" as any)}>
-              <Feather name="list" size={16} color="#2EC4B6" />
-              <Text style={[s.quickLabel, { color: "#2EC4B6" }]}>휴무 목록</Text>
+              <Feather name="list" size={16} color="#0F172A" />
+              <Text style={[s.quickLabel, { color: "#0F172A" }]}>휴무 목록</Text>
             </Pressable>
           </View>
 
@@ -289,25 +289,25 @@ export default function AdminRevenueScreen() {
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>수업인원</Text>
                     </View>
                     <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#7C3AED" }]}>
+                      <Text style={[s.statBoxVal, { color: "#0F172A" }]}>
                         {report?.makeup_count ?? t.makeup_waiting ?? "—"}
                       </Text>
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>보강</Text>
                     </View>
                     <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#2EC4B6" }]}>
+                      <Text style={[s.statBoxVal, { color: "#0F172A" }]}>
                         {report?.trial_count ?? "—"}
                       </Text>
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>체험</Text>
                     </View>
                     <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#2EC4B6" }]}>
+                      <Text style={[s.statBoxVal, { color: "#0F172A" }]}>
                         {report?.transfer_count ?? "—"}
                       </Text>
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>이동</Text>
                     </View>
                     <View style={s.statBox}>
-                      <Text style={[s.statBoxVal, { color: "#D97706" }]}>
+                      <Text style={[s.statBoxVal, { color: "#64748B" }]}>
                         {report?.postpone_count ?? "—"}
                       </Text>
                       <Text style={[s.statBoxLabel, { color: C.textMuted }]}>연기</Text>
@@ -357,7 +357,7 @@ export default function AdminRevenueScreen() {
               <Text style={s.actionBtnTxt}>이번 달 저장</Text>
             </Pressable>
             <Pressable
-              style={[s.actionBtn, { backgroundColor: "#7C3AED" }]}
+              style={[s.actionBtn, { backgroundColor: "#2EC4B6" }]}
               onPress={() => setNextMonthModal(true)}
             >
               <Feather name="arrow-right-circle" size={16} color="#fff" />
@@ -373,7 +373,7 @@ export default function AdminRevenueScreen() {
         <Pressable style={s.overlay} onPress={() => setNextMonthModal(false)} />
         <View style={s.modalBox}>
           <View style={[s.modalCard, { backgroundColor: C.card }]}>
-            <Feather name="alert-circle" size={32} color="#7C3AED" style={{ alignSelf: "center", marginBottom: 8 }} />
+            <Feather name="alert-circle" size={32} color="#0F172A" style={{ alignSelf: "center", marginBottom: 8 }} />
             <Text style={[s.modalTitle, { color: C.text }]}>다음 달 수업 발생</Text>
             <Text style={[s.modalDesc, { color: C.textSecondary }]}>
               현재 월 정산을 마무리하고{"\n"}다음 달 수업 일정을 새로 생성합니다.{"\n"}보강 이월도 함께 처리됩니다.
@@ -383,7 +383,7 @@ export default function AdminRevenueScreen() {
                 <Text style={[s.modalBtnTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable
-                style={[s.modalBtn, { backgroundColor: "#7C3AED" }]}
+                style={[s.modalBtn, { backgroundColor: "#2EC4B6" }]}
                 onPress={async () => {
                   try {
                     await apiRequest(token, "/settlement/finalize", {
@@ -424,7 +424,7 @@ const s = StyleSheet.create({
   monthArrow: { padding: 4 },
   monthLabel: { fontSize: 16, fontFamily: "Pretendard-Bold", minWidth: 90, textAlign: "center" },
   holiBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
-  holiBtnTxt: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#D97706" },
+  holiBtnTxt: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
 
   quickRow: { flexDirection: "row", gap: 8 },
   quickBtn: { flex: 1, flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 12, paddingVertical: 12, gap: 4 },
@@ -454,7 +454,7 @@ const s = StyleSheet.create({
   statusBadge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusTxt:      { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   statsGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  statBox:        { minWidth: "20%", flex: 1, backgroundColor: "#F1F5F9", borderRadius: 10, padding: 8, alignItems: "center", gap: 2 },
+  statBox:        { minWidth: "20%", flex: 1, backgroundColor: "#F5F5F5", borderRadius: 10, padding: 8, alignItems: "center", gap: 2 },
   statBoxVal:     { fontSize: 16, fontFamily: "Pretendard-Bold" },
   statBoxLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular" },
 
