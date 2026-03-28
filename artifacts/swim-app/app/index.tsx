@@ -93,19 +93,17 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.spacer} />
-
         <View style={styles.logoArea}>
-          <Text style={[styles.appSub, { color: C.text, marginBottom: 36 }]}>어린이 수영레슨 올인원</Text>
           <View style={styles.logoWrap}>
             <View style={styles.logoBorder}>
               <View style={styles.logoImage}>
-                <SwimNoteLogo width={131} height={151} viewBox="160 44 185 210" />
+                <SwimNoteLogo width={100} height={115} viewBox="160 44 185 210" />
               </View>
             </View>
             <Text style={styles.logoWordmark}>SwimNote</Text>
           </View>
-          <Text style={[styles.appDesc, { color: C.textMuted, marginTop: 16 }]}>
+          <Text style={[styles.appSub, { color: C.text, marginTop: 10 }]}>어린이 수영레슨 올인원</Text>
+          <Text style={[styles.appDesc, { color: C.textMuted, marginTop: 6 }]}>
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
           </Text>
         </View>
@@ -232,13 +230,12 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "center" },
   logoArea: { alignItems: "center", paddingBottom: 24 },
 
-  logoWrap: { alignItems: "center", gap: 13 },
-  logoBorder: { borderRadius: 27, borderWidth: 2, borderColor: "#04111f", shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
-  logoImage: { width: 131, height: 151, borderRadius: 26, overflow: "hidden", backgroundColor: "#0a2540" },
-  logoWordmark: { fontSize: 47, fontWeight: "700", color: "#0a2540", letterSpacing: 0.5 },
-  appSub: { fontSize: 22, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.5 },
-  appDesc: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
-  spacer: { height: 5 },
+  logoWrap: { alignItems: "center", gap: 10 },
+  logoBorder: { borderRadius: 21, borderWidth: 2, borderColor: "#04111f", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 10 },
+  logoImage: { width: 100, height: 115, borderRadius: 19, overflow: "hidden", backgroundColor: "#0a2540" },
+  logoWordmark: { fontSize: 36, fontWeight: "700", color: "#0a2540", letterSpacing: 0.5 },
+  appSub: { fontSize: 18, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.3 },
+  appDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
   card: { borderRadius: 20, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 },
   cardTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   field: { gap: 4 },
