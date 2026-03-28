@@ -103,7 +103,7 @@ export default function LoginScreen() {
             <Text style={styles.logoWordmark}>SwimNote</Text>
           </View>
           <Text style={[styles.appSub, { color: C.text, marginTop: 50 }]}>어린이 수영레슨 올인원</Text>
-          <Text style={[styles.appDesc, { color: C.textMuted, marginTop: 30 }]}>
+          <Text style={[styles.appDesc, { color: C.text, marginTop: 30 }]}>
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
           </Text>
         </View>
@@ -120,7 +120,7 @@ export default function LoginScreen() {
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>로그인 후 관리자 · 선생님 · 학부모 선택</Text>
+            <Text style={[styles.fieldLabel, { color: C.text }]}>로그인 후 관리자 · 선생님 · 학부모 선택</Text>
             <View style={[styles.inputRow, { borderColor: identifier ? C.tint : C.border, backgroundColor: C.background }]}>
               <User size={16} color={identifier ? C.tint : C.textMuted} />
               <TextInput
