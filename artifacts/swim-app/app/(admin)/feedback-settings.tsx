@@ -2,7 +2,7 @@
  * (admin)/feedback-settings.tsx — 피드백 기본설정
  *
  * 수영장 관리자가 설정하는 피드백 기본 문구 페이지
- * - 카테고리 탭 (초급/중급/상급/커스텀)
+ * - 카테고리 탭 (초급/중급/상급/커스텀) — 레벨별 고유 색상 적용
  * - 기본 문장 추가/수정/삭제
  * - 카테고리 이름 수정
  * - 카테고리 초기화 / 전체 초기화
@@ -16,7 +16,6 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import {
@@ -39,7 +38,6 @@ const LEVEL_COLORS: Record<SentenceLevel, string> = {
 const LEVEL_KEYS: SentenceLevel[] = ["beginner", "intermediate", "advanced", "custom"];
 
 export default function FeedbackSettingsScreen() {
-  const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const {
     templates, labels,
@@ -73,6 +71,7 @@ export default function FeedbackSettingsScreen() {
   /* ── 전체 초기화 확인 ── */
   const [resetAllVisible, setResetAllVisible] = useState(false);
 
+  const activeColor  = LEVEL_COLORS[activeTab];
   const currentList  = templates.filter(t => t.level === activeTab);
   const currentCount = currentList.length;
   const isFull       = currentCount >= MAX_PER_CATEGORY;
@@ -83,7 +82,7 @@ export default function FeedbackSettingsScreen() {
   }
   function handleAdd() {
     const t = addText.trim();
-    if (!t) { setAddError("문장을 입력해주세요."); return; }
+    if (!t) { setAddError("문구를 입력해주세요."); return; }
     if (t.length > 100) { setAddError("최대 100자까지 입력 가능합니다."); return; }
     if (isFull) { setAddError(`카테고리당 최대 ${MAX_PER_CATEGORY}개까지 추가할 수 있습니다.`); return; }
     addTemplate(activeTab, t);
@@ -97,7 +96,7 @@ export default function FeedbackSettingsScreen() {
   function handleEdit() {
     if (!editItem) return;
     const t = editText.trim();
-    if (!t) { setEditError("문장을 입력해주세요."); return; }
+    if (!t) { setEditError("문구를 입력해주세요."); return; }
     if (t.length > 100) { setEditError("최대 100자까지 입력 가능합니다."); return; }
     updateTemplate(editItem.id, t);
     setEditItem(null);
@@ -126,13 +125,13 @@ export default function FeedbackSettingsScreen() {
   function renderItem({ item, index }: { item: FeedbackTemplate; index: number }) {
     return (
       <View style={[s.row, { backgroundColor: C.card }]}>
-        <View style={[s.rowIndex, { backgroundColor: LEVEL_COLORS[activeTab] + "18" }]}>
-          <Text style={[s.rowIndexText, { color: LEVEL_COLORS[activeTab] }]}>{index + 1}</Text>
+        <View style={[s.rowIndex, { backgroundColor: activeColor + "18" }]}>
+          <Text style={[s.rowIndexText, { color: activeColor }]}>{index + 1}</Text>
         </View>
         <Text style={[s.rowText, { color: C.text }]} numberOfLines={3}>{item.template_text}</Text>
         <View style={s.rowActions}>
-          <Pressable style={s.rowBtn} onPress={() => openEdit(item)} hitSlop={6}>
-            <PenLine size={15} color="#4EA7D8" />
+          <Pressable style={[s.rowBtn, { backgroundColor: activeColor + "15" }]} onPress={() => openEdit(item)} hitSlop={6}>
+            <PenLine size={15} color={activeColor} />
           </Pressable>
           <Pressable style={[s.rowBtn, { backgroundColor: "#FEF2F2" }]} onPress={() => setDeleteTarget(item)} hitSlop={6}>
             <Trash2 size={15} color="#D96C6C" />
@@ -157,9 +156,9 @@ export default function FeedbackSettingsScreen() {
       />
 
       {/* 안내 문구 */}
-      <View style={[s.descBox, { backgroundColor: themeColor + "0C" }]}>
-        <Info size={13} color={themeColor} />
-        <Text style={[s.descText, { color: themeColor }]}>
+      <View style={[s.descBox, { backgroundColor: activeColor + "0D" }]}>
+        <Info size={13} color={activeColor} />
+        <Text style={[s.descText, { color: activeColor }]}>
           수업 일지 작성 시 선생님들이 사용할 기본 피드백 문구를 설정합니다. 변경 내용은 즉시 반영됩니다.
         </Text>
       </View>
@@ -168,17 +167,18 @@ export default function FeedbackSettingsScreen() {
       <View style={s.tabBar}>
         {LEVEL_KEYS.map(key => {
           const active = activeTab === key;
-          const cnt = templates.filter(t => t.level === key).length;
+          const color  = LEVEL_COLORS[key];
+          const cnt    = templates.filter(t => t.level === key).length;
           return (
             <Pressable
               key={key}
-              style={[s.tabBtn, active && { backgroundColor: themeColor, borderColor: themeColor }]}
+              style={[s.tabBtn, active && { backgroundColor: color, borderColor: color }]}
               onPress={() => setActiveTab(key)}
             >
               <Text style={[s.tabText, { color: active ? "#fff" : C.textSecondary }]}>{labels[key]}</Text>
               {cnt > 0 && (
-                <View style={[s.tabBadge, { backgroundColor: active ? "rgba(255,255,255,0.3)" : themeColor + "20" }]}>
-                  <Text style={[s.tabBadgeText, { color: active ? "#fff" : themeColor }]}>{cnt}</Text>
+                <View style={[s.tabBadge, { backgroundColor: active ? "rgba(255,255,255,0.25)" : color + "20" }]}>
+                  <Text style={[s.tabBadgeText, { color: active ? "#fff" : color }]}>{cnt}</Text>
                 </View>
               )}
             </Pressable>
@@ -192,9 +192,9 @@ export default function FeedbackSettingsScreen() {
           현재 {currentCount} / {MAX_PER_CATEGORY}
         </Text>
         <View style={s.catBtns}>
-          <Pressable style={s.catBtn} onPress={openLabel}>
-            <Tag size={13} color="#64748B" />
-            <Text style={s.catBtnText}>이름 변경</Text>
+          <Pressable style={[s.catBtn, { borderColor: activeColor + "50" }]} onPress={openLabel}>
+            <Tag size={13} color={activeColor} />
+            <Text style={[s.catBtnText, { color: activeColor }]}>이름 변경</Text>
           </Pressable>
           <Pressable style={[s.catBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]} onPress={() => setResetCatVisible(true)}>
             <RotateCcw size={13} color="#D96C6C" />
@@ -225,7 +225,7 @@ export default function FeedbackSettingsScreen() {
       {/* 문장 추가 버튼 */}
       <View style={[s.addBtnWrap, { paddingBottom: insets.bottom + 16 }]}>
         <Pressable
-          style={[s.addBtn, { backgroundColor: isFull ? "#64748B" : themeColor }]}
+          style={[s.addBtn, { backgroundColor: isFull ? "#64748B" : activeColor }]}
           onPress={openAdd}
           disabled={isFull}
         >
@@ -258,7 +258,7 @@ export default function FeedbackSettingsScreen() {
               <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setAddVisible(false)}>
                 <Text style={s.modalBtnCancelText}>취소</Text>
               </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: C.button }]} onPress={handleAdd}>
+              <Pressable style={[s.modalBtn, { backgroundColor: activeColor }]} onPress={handleAdd}>
                 <Text style={s.modalBtnText}>추가</Text>
               </Pressable>
             </View>
@@ -288,7 +288,7 @@ export default function FeedbackSettingsScreen() {
               <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setEditItem(null)}>
                 <Text style={s.modalBtnCancelText}>취소</Text>
               </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: C.button }]} onPress={handleEdit}>
+              <Pressable style={[s.modalBtn, { backgroundColor: activeColor }]} onPress={handleEdit}>
                 <Text style={s.modalBtnText}>저장</Text>
               </Pressable>
             </View>
@@ -317,7 +317,7 @@ export default function FeedbackSettingsScreen() {
               <Pressable style={[s.modalBtn, s.modalBtnCancel]} onPress={() => setLabelVisible(false)}>
                 <Text style={s.modalBtnCancelText}>취소</Text>
               </Pressable>
-              <Pressable style={[s.modalBtn, { backgroundColor: C.button }]} onPress={handleLabelSave}>
+              <Pressable style={[s.modalBtn, { backgroundColor: activeColor }]} onPress={handleLabelSave}>
                 <Text style={s.modalBtnText}>저장</Text>
               </Pressable>
             </View>
@@ -426,7 +426,6 @@ const s = StyleSheet.create({
   rowActions: { flexDirection: "row", gap: 6, flexShrink: 0 },
   rowBtn: {
     width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center",
-    backgroundColor: "#E6FFFA",
   },
 
   emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 10 },
