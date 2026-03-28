@@ -131,7 +131,7 @@ export default function LoginScreen() {
                 style={[styles.input, { color: C.text }]}
                 value={identifier}
                 onChangeText={v => { setIdentifier(v); setError(""); setFailCount(0); }}
-                placeholder="아이디 또는 전화번호"
+                placeholder="아이디"
                 placeholderTextColor={C.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
