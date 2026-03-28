@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { CircleAlert, LogOut } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useMemo, useState, useEffect } from "react";

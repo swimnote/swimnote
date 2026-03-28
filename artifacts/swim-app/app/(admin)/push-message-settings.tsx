@@ -12,7 +12,7 @@ import {
   Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import ConfirmModal from "@/components/common/ConfirmModal";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
@@ -189,7 +189,7 @@ export default function AdminPushMessageSettingsScreen() {
 
         {/* ── 저장 버튼 ── */}
         <Pressable
-          style={[s.saveBtn, { backgroundColor: C.button }]}
+          style={[s.saveBtn, { backgroundColor: C.primary }]}
           onPress={() => setConfirmVisible(true)}
         >
           <Save size={16} color="#fff" />

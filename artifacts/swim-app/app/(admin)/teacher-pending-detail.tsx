@@ -87,6 +87,7 @@ export default function TeacherPendingDetailScreen() {
   const [rejectPreset,       setRejectPreset]       = useState("");
   const [rejectCustom,       setRejectCustom]       = useState("");
   const [rejectError,        setRejectError]        = useState("");
+  const [rejecting,          setRejecting]          = useState(false);
 
   const finalRejectReason = rejectPreset === "직접 입력" ? rejectCustom.trim() : rejectPreset;
 
