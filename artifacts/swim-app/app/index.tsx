@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   logoBorder: { borderRadius: 21, borderWidth: 2, borderColor: "#04111f", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 10 },
   logoImage: { width: 100, height: 115, borderRadius: 19, overflow: "hidden", backgroundColor: "#0a2540" },
   logoWordmark: { fontSize: 36, fontWeight: "700", color: "#0a2540", letterSpacing: 0.5 },
-  appSub: { fontSize: 18, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.3 },
+  appSub: { fontSize: 20, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.3 },
   appDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
   card: { borderRadius: 20, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 },
   cardTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
