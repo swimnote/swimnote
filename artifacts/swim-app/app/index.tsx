@@ -124,7 +124,7 @@ export default function LoginScreen() {
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디</Text>
+            <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>로그인 후 관리자 · 선생님 · 학부모 선택</Text>
             <View style={[styles.inputRow, { borderColor: identifier ? C.tint : C.border, backgroundColor: C.background }]}>
               <User size={16} color={identifier ? C.tint : C.textMuted} />
               <TextInput
@@ -143,7 +143,6 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호</Text>
             <View style={[styles.inputRow, { borderColor: password ? C.button : C.border, backgroundColor: C.background }]}>
               <Lock size={16} color={password ? C.button : C.textMuted} />
               <TextInput
