@@ -27,7 +27,6 @@ export default function LoginScreen() {
   const [error, setError]           = useState("");
   const [failCount, setFailCount]   = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
-  const [kbVisible, setKbVisible]   = useState(false);
 
   const logoMargin  = useRef(new Animated.Value(200)).current;
   const textOpacity = useRef(new Animated.Value(1)).current;
@@ -36,14 +35,12 @@ export default function LoginScreen() {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const onShow = Keyboard.addListener(showEvent, () => {
-      setKbVisible(true);
       Animated.parallel([
         Animated.timing(logoMargin,  { toValue: 10,  duration: 250, useNativeDriver: false }),
         Animated.timing(textOpacity, { toValue: 0,   duration: 180, useNativeDriver: false }),
       ]).start();
     });
     const onHide = Keyboard.addListener(hideEvent, () => {
-      setKbVisible(false);
       Animated.parallel([
         Animated.timing(logoMargin,  { toValue: 200, duration: 250, useNativeDriver: false }),
         Animated.timing(textOpacity, { toValue: 1,   duration: 280, useNativeDriver: false }),
