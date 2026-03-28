@@ -110,28 +110,17 @@ export default function LoginScreen() {
 
         <View style={{ flex: 1 }} />
 
-        <View style={styles.roleHintRow}>
-          <Building2 size={13} color={C.textMuted} />
-          <Text style={[styles.roleHintText, { color: C.textMuted }]}>관리자</Text>
-          <Text style={[styles.roleHintDot, { color: C.textMuted }]}>·</Text>
-          <BookOpen size={13} color={C.textMuted} />
-          <Text style={[styles.roleHintText, { color: C.textMuted }]}>선생님</Text>
-          <Text style={[styles.roleHintDot, { color: C.textMuted }]}>·</Text>
-          <Users size={13} color={C.textMuted} />
-          <Text style={[styles.roleHintText, { color: C.textMuted }]}>학부모</Text>
-          <Text style={[styles.roleHintText, { color: C.textMuted }]}> 으로 가입 가능</Text>
-        </View>
+        <Text style={[styles.roleHintText, { color: C.textMuted, textAlign: "center", marginBottom: 6 }]}>
+          가입 후 관리자 · 선생님 · 학부모 선택
+        </Text>
 
-        <View style={styles.signupRow}>
-          <Text style={[styles.signupLabel, { color: C.textSecondary }]}>아직 계정이 없으신가요?</Text>
-          <Pressable
-            style={({ pressed }) => [styles.signupBtn, { opacity: pressed ? 0.7 : 1 }]}
-            onPress={() => router.push("/signup" as any)}
-          >
-            <Text style={[styles.signupBtnText, { color: C.tint }]}>회원가입</Text>
-            <ArrowRight size={14} color={C.tint} />
-          </Pressable>
-        </View>
+        <Pressable
+          style={({ pressed }) => [styles.signupRow, { opacity: pressed ? 0.7 : 1 }]}
+          onPress={() => router.push("/signup" as any)}
+        >
+          <Text style={[styles.signupLabel, { color: C.tint }]}>간단한 회원가입으로 스윔노트를 이용해주세요</Text>
+          <ArrowRight size={14} color={C.tint} />
+        </Pressable>
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <View style={styles.field}>
