@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, Building2, CircleAlert, Key, Lock, User, UserPlus, Users, UserX } from "lucide-react-native";
+import { ArrowRight, BookOpen, Building2, CircleAlert, Key, Lock, Sparkles, User, UserPlus, Users, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -114,9 +114,8 @@ export default function LoginScreen() {
           style={({ pressed }) => [styles.signupRow, { opacity: pressed ? 0.85 : 1 }]}
           onPress={() => router.push("/signup" as any)}
         >
-          <UserPlus size={15} color={C.tint} />
-          <Text style={[styles.signupLabel, { color: C.tint }]}>처음이세요?  무료로 시작하기</Text>
-          <ArrowRight size={14} color={C.tint} />
+          <Sparkles size={16} color={C.text} />
+          <Text style={[styles.signupLabel, { color: C.text }]}>처음이세요?  무료로 시작하기</Text>
         </Pressable>
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
@@ -250,8 +249,8 @@ const styles = StyleSheet.create({
   roleHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 10 },
   roleHintText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   roleHintDot: { fontSize: 12, fontFamily: "Pretendard-Regular", marginHorizontal: 2 },
-  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 12, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 24, backgroundColor: "#E6FAF8", borderWidth: 1, borderColor: "#5FEEE3" },
-  signupLabel: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 14, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 16, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#5FEEE3", shadowColor: "#5FEEE3", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 },
+  signupLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   signupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },
   signupBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
