@@ -127,7 +127,7 @@ export default function FeedbackCustomScreen() {
     return (
       <View style={[s.row, { backgroundColor: C.card }]}>
         <View style={[s.rowIndex, { backgroundColor: activeColor + "18" }]}>
-          <Text style={[s.rowIndexText, { color: activeColor }]}>{index + 1}</Text>
+          <Text style={[s.rowIndexText, { color: C.text }]}>{index + 1}</Text>
         </View>
         <Text style={[s.rowText, { color: C.text }]} numberOfLines={3}>{item.template_text}</Text>
         <View style={s.rowActions}>
@@ -159,7 +159,7 @@ export default function FeedbackCustomScreen() {
       {/* 안내 문구 */}
       <View style={[s.descBox, { backgroundColor: activeColor + "0D" }]}>
         <Info size={13} color={activeColor} />
-        <Text style={[s.descText, { color: activeColor }]}>
+        <Text style={[s.descText, { color: C.text }]}>
           일지 작성 시 불러올 문장을 직접 수정하고 관리할 수 있습니다. 변경 내용은 즉시 반영됩니다.
         </Text>
       </View>
@@ -195,7 +195,7 @@ export default function FeedbackCustomScreen() {
         <View style={s.catBtns}>
           <Pressable style={[s.catBtn, { borderColor: activeColor + "50" }]} onPress={openLabel}>
             <Tag size={13} color={activeColor} />
-            <Text style={[s.catBtnText, { color: activeColor }]}>이름 변경</Text>
+            <Text style={[s.catBtnText, { color: C.text }]}>이름 변경</Text>
           </Pressable>
           <Pressable style={[s.catBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]} onPress={() => setResetCatVisible(true)}>
             <RotateCcw size={13} color="#D96C6C" />
