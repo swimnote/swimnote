@@ -218,12 +218,12 @@ export default function TeacherSettingsScreen() {
             </View>
 
             {([
-              { icon: "image"          as const, bg: "#E6FAF8", color: "#0F172A", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
-              { icon: "video"          as const, bg: "#E6FAF8", color: "#0F172A", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
-              { icon: "message-square" as const, bg: "#E6FAF8", color: "#0F172A", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
-              { icon: "book-open"      as const, bg: "#E6FAF8", color: "#0F172A", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
-              { icon: "bell"           as const, bg: "#E6FAF8", color: "#0F172A", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
-              { icon: "cpu"            as const, bg: "#E6FAF8", color: "#0F172A", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
+              { icon: "image"          as const, bg: "#E6FAF8", color: "#EA580C", label: "사진",     sub: `${storageUsage?.photo_count||0}개`,   bytes: storageUsage?.photo_bytes    ?? 0 },
+              { icon: "video"          as const, bg: "#E6FAF8", color: "#7C3AED", label: "영상",     sub: `${storageUsage?.video_count||0}개`,   bytes: storageUsage?.video_bytes    ?? 0 },
+              { icon: "message-square" as const, bg: "#E6FAF8", color: "#7C3AED", label: "메신저",   sub: "텍스트 데이터",                         bytes: storageUsage?.messenger_bytes ?? 0 },
+              { icon: "book-open"      as const, bg: "#E6FAF8", color: "#16A34A", label: "수영일지", sub: "일지·메모 데이터",                       bytes: storageUsage?.diary_bytes    ?? 0 },
+              { icon: "bell"           as const, bg: "#E6FAF8", color: "#F59E0B", label: "공지",     sub: "공지 본문 데이터",                       bytes: storageUsage?.notice_bytes   ?? 0 },
+              { icon: "cpu"            as const, bg: "#E6FAF8", color: "#0369A1", label: "시스템",   sub: "기본 계정 데이터",                       bytes: storageUsage?.system_bytes   ?? 0 },
             ]).map(item => (
               <View key={item.label} style={s.usageRow}>
                 <View style={[s.usageIcon, { backgroundColor: item.bg }]}>

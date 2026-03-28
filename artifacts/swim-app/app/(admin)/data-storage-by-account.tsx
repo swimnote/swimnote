@@ -34,12 +34,12 @@ interface StaffStorage {
 interface AdminStorage { quota_bytes: number; staff: StaffStorage[]; [k: string]: any; }
 
 const CAT_ITEMS = [
-  { key: "photo_bytes",     icon: "image"          as const, bg: "#E6FAF8", color: "#0F172A", label: "사진"    },
-  { key: "video_bytes",     icon: "video"          as const, bg: "#E6FAF8", color: "#0F172A", label: "영상"    },
-  { key: "messenger_bytes", icon: "message-square" as const, bg: "#E6FAF8", color: "#0F172A", label: "메신저"  },
-  { key: "diary_bytes",     icon: "book-open"      as const, bg: "#E6FAF8", color: "#0F172A", label: "수업기록" },
-  { key: "notice_bytes",    icon: "bell"           as const, bg: "#E6FAF8", color: "#0F172A", label: "공지"    },
-  { key: "system_bytes",    icon: "cpu"            as const, bg: "#E6FAF8", color: "#0F172A", label: "시스템"  },
+  { key: "photo_bytes",     icon: "image"          as const, bg: "#E6FAF8", color: "#EA580C", label: "사진"    },
+  { key: "video_bytes",     icon: "video"          as const, bg: "#E6FAF8", color: "#7C3AED", label: "영상"    },
+  { key: "messenger_bytes", icon: "message-square" as const, bg: "#E6FAF8", color: "#7C3AED", label: "메신저"  },
+  { key: "diary_bytes",     icon: "book-open"      as const, bg: "#E6FAF8", color: "#16A34A", label: "수업기록" },
+  { key: "notice_bytes",    icon: "bell"           as const, bg: "#E6FAF8", color: "#F59E0B", label: "공지"    },
+  { key: "system_bytes",    icon: "cpu"            as const, bg: "#E6FAF8", color: "#0369A1", label: "시스템"  },
 ];
 
 export default function DataStorageByAccountScreen() {

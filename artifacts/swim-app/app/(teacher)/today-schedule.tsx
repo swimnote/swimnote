@@ -166,11 +166,11 @@ export default function TodayScheduleScreen() {
               {pool?.name ?? "수영장"}
             </Text>
             {canSwitchToAdmin && (
-              <Pressable style={({ pressed }) => [h.switchChip, { borderColor: C.border, backgroundColor: C.backgroundSoft, opacity: pressed || switching ? 0.7 : 1 }]}
+              <Pressable style={({ pressed }) => [h.switchChip, { borderColor: "#0F172A30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 }]}
                 onPress={handleSwitchToAdmin} disabled={switching}>
                 {switching
-                  ? <ActivityIndicator size="small" color={C.textSecondary} />
-                  : <><Repeat size={10} color={C.textSecondary} /><Text style={[h.switchChipTxt, { color: C.textSecondary }]}>관리자로 전환</Text></>}
+                  ? <ActivityIndicator size="small" color="#0F172A" />
+                  : <><Repeat size={10} color="#0F172A" /><Text style={[h.switchChipTxt, { color: "#0F172A" }]}>관리자로 전환</Text></>}
               </Pressable>
             )}
           </View>
