@@ -114,7 +114,7 @@ export function MemberClassTab({
             const cnt = (data.recent_attendance || []).filter(r => r.status === key).length;
             return (
               <View key={key} style={{ alignItems: "center", flex: 1, backgroundColor: color + "15", borderRadius: 10, paddingVertical: 10 }}>
-                <Text style={{ fontSize: 18, fontFamily: "Pretendard-Bold", color }}>{cnt}</Text>
+                <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color }}>{cnt}</Text>
                 <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 }}>{label}</Text>
               </View>
             );
@@ -132,7 +132,7 @@ export function MemberClassTab({
             {(data.recent_diaries || []).map(d => (
               <View key={d.id} style={{ backgroundColor: "#F1F5F9", borderRadius: 12, padding: 12, gap: 6 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.text }}>{d.lesson_date}</Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: C.text }}>{d.lesson_date}</Text>
                   <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{d.teacher_name}</Text>
                 </View>
                 {d.common_content && (

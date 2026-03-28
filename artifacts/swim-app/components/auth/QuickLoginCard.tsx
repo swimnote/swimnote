@@ -66,6 +66,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   info: { flex: 1, gap: 2 },
-  label: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.text },
+  label: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.text },
   cred: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });

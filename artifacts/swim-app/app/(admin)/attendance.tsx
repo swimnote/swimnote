@@ -461,7 +461,7 @@ export default function AttendanceScreen() {
                             <Text style={[a.eligibleName, { color: C.text }]}>{ec.name}</Text>
                             {isSame && (
                               <View style={[a.sameTag, { backgroundColor: "#E6FFFA" }]}>
-                                <Text style={{ fontSize: 10, color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" }}>담당</Text>
+                                <Text style={{ fontSize: 10, color: "#2EC4B6", fontFamily: "Pretendard-Medium" }}>담당</Text>
                               </View>
                             )}
                           </View>
@@ -571,7 +571,7 @@ export default function AttendanceScreen() {
             ListHeaderComponent={
               <View style={[a.makeupSummary, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
                 <Clock size={16} color={C.tint} />
-                <Text style={[{ fontFamily: "Pretendard-SemiBold", fontSize: 14, color: C.tint }]}>
+                <Text style={[{ fontFamily: "Pretendard-Medium", fontSize: 14, color: C.tint }]}>
                   보강 대기 {makeupList.length}명
                 </Text>
                 <Pressable style={[a.refreshBtn]} onPress={fetchMakeup}>
@@ -892,18 +892,18 @@ const a = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 4,
   },
   navArrow: { padding: 8 },
-  dateLabel: { fontSize: 14, fontFamily: "Pretendard-SemiBold", textAlign: "center", flex: 1 },
+  dateLabel: { fontSize: 14, fontFamily: "Pretendard-Medium", textAlign: "center", flex: 1 },
 
   classTab:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
   classTabText: { fontSize: 14, fontFamily: "Pretendard-Medium" },
 
   card: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, gap: 12 },
   avatar:     { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  avatarText: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
   memberInfo: { flex: 1, gap: 4 },
-  memberName: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  memberName: { fontSize: 15, fontFamily: "Pretendard-Medium" },
   badge:      { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeText:  { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
+  badgeText:  { fontSize: 11, fontFamily: "Pretendard-Medium" },
   noStatus:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
   attBtns:    { flexDirection: "row", gap: 8 },
   attBtn:     { width: 36, height: 36, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
@@ -922,17 +922,17 @@ const a = StyleSheet.create({
   weekStatusCell:  { width: 56, alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRightWidth: 1 },
   weekHeaderText:  { fontSize: 12, fontFamily: "Pretendard-Medium" },
   weekDayLabel:    { fontSize: 11, fontFamily: "Pretendard-Medium" },
-  weekDateLabel:   { fontSize: 14, fontFamily: "Pretendard-SemiBold", marginTop: 2 },
-  weekStudentName: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  weekDateLabel:   { fontSize: 14, fontFamily: "Pretendard-Medium", marginTop: 2 },
+  weekStudentName: { fontSize: 13, fontFamily: "Pretendard-Medium" },
   weekClassName:   { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 },
   weekBadge:       { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
-  weekBadgeText:   { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  weekBadgeText:   { fontSize: 10, fontFamily: "Pretendard-Medium" },
   weekEmpty:       { fontSize: 14 },
 
   monthCard:      { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, gap: 12, borderWidth: 1 },
   monthStats:     { flexDirection: "row", gap: 12 },
   monthStat:      { alignItems: "center", minWidth: 36 },
-  monthStatNum:   { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  monthStatNum:   { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
   monthStatLabel: { fontSize: 11, fontFamily: "Pretendard-Regular" },
 
   searchBox:   { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, marginHorizontal: 16, height: 46 },
@@ -940,7 +940,7 @@ const a = StyleSheet.create({
   chip:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
   chipText:    { fontSize: 13, fontFamily: "Pretendard-Medium" },
   searchCard:  { flexDirection: "row", alignItems: "center", borderRadius: 12, padding: 14, borderWidth: 1, gap: 10 },
-  searchName:  { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  searchName:  { fontSize: 15, fontFamily: "Pretendard-Medium" },
   searchSub:   { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 3 },
   resultCount: { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
 
@@ -951,26 +951,26 @@ const a = StyleSheet.create({
   mkSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   absDate:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginBottom: 8 },
   daysTag:       { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  daysTagText:   { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
+  daysTagText:   { fontSize: 11, fontFamily: "Pretendard-Medium" },
   mkActions:     { flexDirection: "row", gap: 8 },
   mkBtn:         { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  mkBtnText:     { color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  mkBtnText:     { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
 
   // 모달
   modalOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalSheet:    { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, gap: 12, maxHeight: "85%" },
   modalHeader:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  modalTitle:    { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  modalTitle:    { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
   modalSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: -4 },
-  fieldLabel:    { fontSize: 12, fontFamily: "Pretendard-SemiBold", marginTop: 4 },
+  fieldLabel:    { fontSize: 12, fontFamily: "Pretendard-Medium", marginTop: 4 },
   dateInput:     { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 46 },
   eligibleCard:  { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, padding: 12, marginBottom: 8, gap: 8 },
-  eligibleName:  { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  eligibleName:  { fontSize: 14, fontFamily: "Pretendard-Medium" },
   eligibleSub:   { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   sameTag:       { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  slotText:      { fontSize: 13, fontFamily: "Pretendard-Bold" },
+  slotText:      { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   confirmBtn:    { padding: 14, borderRadius: 14, alignItems: "center", marginTop: 8 },
-  confirmBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Bold" },
+  confirmBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
   reasonRow:     { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 12, padding: 12, marginBottom: 6 },
   radio:         { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   radioDot:      { width: 10, height: 10, borderRadius: 5 },

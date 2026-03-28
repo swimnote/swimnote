@@ -242,7 +242,7 @@ export default function TotpSetupScreen() {
                 <View style={styles.guideRow}>
                   <View style={[styles.guideNum, { backgroundColor: PURPLE }]}><Text style={styles.guideNumTxt}>1</Text></View>
                   <Text style={[styles.guideText, { color: "#5B21B6" }]}>
-                    App Store / Play Store에서 <Text style={{ fontFamily: "Pretendard-Bold" }}>"Google Authenticator"</Text> 검색 후 설치
+                    App Store / Play Store에서 <Text style={{ fontFamily: "Pretendard-SemiBold" }}>"Google Authenticator"</Text> 검색 후 설치
                   </Text>
                 </View>
                 <View style={styles.guideRow}>
@@ -267,7 +267,7 @@ export default function TotpSetupScreen() {
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <Text style={[styles.cardTitle, { color: C.text }]}>1단계 — QR 코드 스캔</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
-              Google Authenticator 앱 열기 → <Text style={{ fontFamily: "Pretendard-Bold" }}>+</Text> 버튼 → <Text style={{ fontFamily: "Pretendard-Bold" }}>QR 코드 스캔</Text>
+              Google Authenticator 앱 열기 → <Text style={{ fontFamily: "Pretendard-SemiBold" }}>+</Text> 버튼 → <Text style={{ fontFamily: "Pretendard-SemiBold" }}>QR 코드 스캔</Text>
             </Text>
 
             {!!qrCode && (
@@ -461,13 +461,13 @@ const styles = StyleSheet.create({
   },
   iconRow: { alignItems: "center" },
   iconBg: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 18, fontFamily: "Pretendard-Bold", textAlign: "center" },
+  cardTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold", textAlign: "center" },
   cardDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   btn: {
     flexDirection: "row", height: 52, borderRadius: 14,
     alignItems: "center", justifyContent: "center", gap: 8,
   },
-  btnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  btnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Medium" },
   qrWrapper: {
     alignItems: "center", padding: 16,
     backgroundColor: "#FFFFFF", borderRadius: 16,
@@ -480,14 +480,14 @@ const styles = StyleSheet.create({
   secretToggleTxt: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium" },
   secretBox: { padding: 14, borderRadius: 12, borderWidth: 1, gap: 6 },
   secretLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
-  secretText: { fontSize: 14, fontFamily: "Pretendard-Bold", letterSpacing: 2 },
+  secretText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", letterSpacing: 2 },
   secretHint: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   otpBoxRow: { flexDirection: "row", gap: 8, justifyContent: "center" },
   otpBox: {
     width: 44, height: 54, borderRadius: 12, borderWidth: 2,
     alignItems: "center", justifyContent: "center",
   },
-  otpBoxText: { fontSize: 24, fontFamily: "Pretendard-Bold" },
+  otpBoxText: { fontSize: 24, fontFamily: "Pretendard-SemiBold" },
   hiddenInput: { position: "absolute", opacity: 0, width: 1, height: 1 },
   cancelRow: { alignItems: "center", paddingVertical: 4 },
   cancelText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
@@ -496,12 +496,12 @@ const styles = StyleSheet.create({
   },
   tipText: { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1, lineHeight: 18 },
   guideCard: { padding: 16, borderRadius: 14, borderWidth: 1, gap: 12 },
-  guideTitle: { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  guideTitle: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
   guideRow: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   guideNum: {
     width: 20, height: 20, borderRadius: 10,
     alignItems: "center", justifyContent: "center", marginTop: 1, flexShrink: 0,
   },
-  guideNumTxt: { fontSize: 11, fontFamily: "Pretendard-Bold", color: "#fff" },
+  guideNumTxt: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#fff" },
   guideText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1, lineHeight: 20 },
 });

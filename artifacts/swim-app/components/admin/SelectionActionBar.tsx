@@ -104,12 +104,12 @@ const s = StyleSheet.create({
     backgroundColor: C.tintLight, paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 8, alignItems: "center",
   },
-  countText: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.tint },
+  countText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.tint },
   deleteBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     backgroundColor: "#D96C6C", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
   },
   deleteBtnDisabled: { backgroundColor: "#D1D5DB" },
-  deleteBtnText: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  deleteBtnText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#fff" },
   exitBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
 });

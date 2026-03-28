@@ -219,8 +219,8 @@ export default function CostAnalyticsScreen() {
             <Text style={[s.profitVal, { color: "#D96C6C" }]}>− {fmtKRW(totalCost)}</Text>
           </View>
           <View style={[s.profitRow, { borderTopWidth: 1, borderTopColor: "#E5E7EB", marginTop: 8, paddingTop: 8 }]}>
-            <Text style={[s.profitLabel, { fontFamily: "Pretendard-Bold" }]}>순이익</Text>
-            <Text style={[s.profitVal, { fontFamily: "Pretendard-Bold", color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
+            <Text style={[s.profitLabel, { fontFamily: "Pretendard-SemiBold" }]}>순이익</Text>
+            <Text style={[s.profitVal, { fontFamily: "Pretendard-SemiBold", color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
               {netProfit >= 0 ? "" : "−"}{fmtKRW(Math.abs(netProfit))}
             </Text>
           </View>
@@ -236,7 +236,7 @@ const s = StyleSheet.create({
                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
+  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#64748B" },
   tabTxtActive:  { color: "#fff" },
   mockBanner:    { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFF1BF",
                    borderRadius: 8, padding: 10, marginTop: 4 },
@@ -245,18 +245,18 @@ const s = StyleSheet.create({
   summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 14,
                    borderWidth: 1, alignItems: "center" },
   summaryLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
-  summaryValue:  { fontSize: 20, fontFamily: "Pretendard-Bold" },
+  summaryValue:  { fontSize: 20, fontFamily: "Pretendard-SemiBold" },
   sectionHdr:    { flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   costRow:       { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff",
                    borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   costIcon:      { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  costLabel:     { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  costLabel:     { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
   costNote:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
-  costAmt:       { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  costAmt:       { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
   costPct:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   realBadge:     { backgroundColor: "#E6FFFA", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  realBadgeTxt:  { fontSize: 9, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" },
+  realBadgeTxt:  { fontSize: 9, fontFamily: "Pretendard-Medium", color: "#2EC4B6" },
   barWrap:       { flexDirection: "row", height: 14, borderRadius: 7, overflow: "hidden", backgroundColor: "#FFFFFF" },
   barSeg:        { height: 14 },
   legendRow:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
@@ -266,5 +266,5 @@ const s = StyleSheet.create({
   profitBox:     { backgroundColor: "#fff", borderRadius: 12, padding: 16, borderWidth: 1 },
   profitRow:     { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
   profitLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  profitVal:     { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  profitVal:     { fontSize: 14, fontFamily: "Pretendard-Medium" },
 });

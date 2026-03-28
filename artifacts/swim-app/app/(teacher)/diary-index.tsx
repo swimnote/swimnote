@@ -247,11 +247,11 @@ export default function DiaryIndexScreen() {
       {showDayPicker && (
         <View style={di.picker}>
           <Pressable style={di.pickerItem} onPress={() => handleDaySelect(null)}>
-            <Text style={[di.pickerItemText, !activeDay && { color: themeColor, fontFamily: "Pretendard-Bold" }]}>전체</Text>
+            <Text style={[di.pickerItemText, !activeDay && { color: themeColor, fontFamily: "Pretendard-SemiBold" }]}>전체</Text>
           </Pressable>
           {KO_DAYS.map(d => (
             <Pressable key={d} style={di.pickerItem} onPress={() => handleDaySelect(d)}>
-              <Text style={[di.pickerItemText, activeDay === d && { color: themeColor, fontFamily: "Pretendard-Bold" }]}>{d}요일</Text>
+              <Text style={[di.pickerItemText, activeDay === d && { color: themeColor, fontFamily: "Pretendard-SemiBold" }]}>{d}요일</Text>
               {activeDay === d && <Check size={14} color={themeColor} />}
             </Pressable>
           ))}
@@ -262,13 +262,13 @@ export default function DiaryIndexScreen() {
       {showTimePicker && (
         <View style={di.picker}>
           <Pressable style={di.pickerItem} onPress={() => handleTimeSelect(null)}>
-            <Text style={[di.pickerItemText, !activeTime && { color: themeColor, fontFamily: "Pretendard-Bold" }]}>전체</Text>
+            <Text style={[di.pickerItemText, !activeTime && { color: themeColor, fontFamily: "Pretendard-SemiBold" }]}>전체</Text>
           </Pressable>
           {availableTimes.length === 0 ? (
             <Text style={di.pickerEmptyText}>수업 시간 정보 없음</Text>
           ) : availableTimes.map(t => (
             <Pressable key={t} style={di.pickerItem} onPress={() => handleTimeSelect(t)}>
-              <Text style={[di.pickerItemText, activeTime === t && { color: themeColor, fontFamily: "Pretendard-Bold" }]}>{t}</Text>
+              <Text style={[di.pickerItemText, activeTime === t && { color: themeColor, fontFamily: "Pretendard-SemiBold" }]}>{t}</Text>
               {activeTime === t && <Check size={14} color={themeColor} />}
             </Pressable>
           ))}
@@ -313,12 +313,12 @@ const di = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 13,
     borderRadius: 12,
   },
-  writeBtnText: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff", flex: 1 },
+  writeBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff", flex: 1 },
   writeBtnBadgeWrap: { opacity: 0.7 },
 
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   backBtn: { marginBottom: 6, width: 32 },
-  headerTitle: { fontSize: 20, fontFamily: "Pretendard-Bold" },
+  headerTitle: { fontSize: 20, fontFamily: "Pretendard-SemiBold" },
   headerSub: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginTop: 2 },
 
   searchRow: {
@@ -344,7 +344,7 @@ const di = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 6,
     borderRadius: 8, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FCA5A5",
   },
-  resetBtnText: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
+  resetBtnText: { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#D96C6C" },
   resultCount: { marginLeft: "auto", fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
 
   picker: {
@@ -368,14 +368,14 @@ const di = StyleSheet.create({
     shadowRadius: 4, elevation: 1, position: "relative",
   },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  cardDate: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.text },
+  cardDate: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.text },
   typeBadge: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
-  typeBadgeText: { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  typeBadgeText: { fontSize: 10, fontFamily: "Pretendard-Medium" },
   cardMeta: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   cardMetaText: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginLeft: 3 },
   cardContent: { fontSize: 13, color: C.text, fontFamily: "Pretendard-Regular", lineHeight: 19 },
   chevron: { position: "absolute", right: 12, top: "50%" },
   empty: { alignItems: "center", paddingTop: 80, gap: 8 },
-  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Medium", color: C.textSecondary },
   emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
 });

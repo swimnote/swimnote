@@ -55,11 +55,11 @@ const s = StyleSheet.create({
     backgroundColor: C.background,
   },
   textCol: { flex: 1 },
-  title: { fontSize: 22, fontFamily: "Pretendard-Bold", color: C.text },
+  title: { fontSize: 22, fontFamily: "Pretendard-SemiBold", color: C.text },
   subtitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   btn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
   },
-  btnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  btnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
 });

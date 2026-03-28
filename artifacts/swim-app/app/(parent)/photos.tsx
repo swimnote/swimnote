@@ -344,7 +344,7 @@ const st = StyleSheet.create({
   toolbarToggleText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
   toolbarCount: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
   toolbarAction: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  toolbarActionText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  toolbarActionText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
   toolbarCancel: { paddingHorizontal: 8, paddingVertical: 7 },
   toolbarCancelText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#64748B" },
 
@@ -362,16 +362,16 @@ const st = StyleSheet.create({
 
   empty: { alignItems: "center", paddingTop: 80, gap: 10, paddingHorizontal: 28 },
   emptyEmoji: { fontSize: 48 },
-  emptyTitle: { fontSize: 17, fontFamily: "Pretendard-SemiBold" },
+  emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Medium" },
   emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 19 },
 
   lightbox: { flex: 1, backgroundColor: "rgba(0,0,0,0.96)", justifyContent: "center" },
   lbHeader: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, flexDirection: "row", justifyContent: "flex-start", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
   lbClose: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   fullImage: { width: "100%", height: "55%" },
-  lbSource: { color: "#E6FFFA", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 14, fontFamily: "Pretendard-SemiBold" },
+  lbSource: { color: "#E6FFFA", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 14, fontFamily: "Pretendard-Medium" },
   lbMeta: { color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center", paddingTop: 4, fontFamily: "Pretendard-Regular" },
   lbBtnRow: { flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingTop: 18, justifyContent: "center" },
   lbBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 14 },
-  lbBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  lbBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Medium" },
 });

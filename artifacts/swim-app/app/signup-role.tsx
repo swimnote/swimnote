@@ -87,7 +87,7 @@ export default function SignupRoleScreen() {
       <Pressable style={({ pressed }) => [styles.loginLink, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
         <Text style={[styles.loginLinkText, { color: C.textSecondary }]}>
           이미 계정이 있으신가요?{" "}
-          <Text style={{ color: C.tint, fontFamily: "Pretendard-SemiBold" }}>로그인</Text>
+          <Text style={{ color: C.tint, fontFamily: "Pretendard-Medium" }}>로그인</Text>
         </Text>
       </Pressable>
     </ScrollView>
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     shadowColor: "#2EC4B6", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2, shadowRadius: 10, elevation: 5,
   },
-  title: { fontSize: 24, fontFamily: "Pretendard-Bold" },
+  title: { fontSize: 24, fontFamily: "Pretendard-SemiBold" },
   subtitle: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   cards: { gap: 12 },
   roleCard: {
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   },
   roleIconWrap: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   roleInfo: { flex: 1, gap: 3 },
-  roleLabel: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  roleLabel: { fontSize: 16, fontFamily: "Pretendard-Medium" },
   roleDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
   loginLink: { alignItems: "center", paddingVertical: 8 },
   loginLinkText: { fontSize: 13, fontFamily: "Pretendard-Regular" },

@@ -377,7 +377,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: 8, borderWidth: 1, borderColor: "#FCA5A5", backgroundColor: "#FEF2F2",
   },
-  resetAllBtnText: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
+  resetAllBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#D96C6C" },
 
   descBox: {
     flexDirection: "row", alignItems: "flex-start", gap: 8,
@@ -394,9 +394,9 @@ const s = StyleSheet.create({
     gap: 4, paddingVertical: 8, borderRadius: 12,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
+  tabText: { fontSize: 12, fontFamily: "Pretendard-Medium" },
   tabBadge: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
-  tabBadgeText: { fontSize: 10, fontFamily: "Pretendard-Bold" },
+  tabBadgeText: { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
 
   catControl: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -422,7 +422,7 @@ const s = StyleSheet.create({
     width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center",
     flexShrink: 0,
   },
-  rowIndexText: { fontSize: 12, fontFamily: "Pretendard-Bold" },
+  rowIndexText: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   rowText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
   rowActions: { flexDirection: "row", gap: 6, flexShrink: 0 },
   rowBtn: {
@@ -441,7 +441,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     height: 50, borderRadius: 14,
   },
-  addBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Bold" },
+  addBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-SemiBold" },
 
   /* 모달 공통 */
   modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
@@ -450,7 +450,7 @@ const s = StyleSheet.create({
     backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
     paddingHorizontal: 20, paddingTop: 20, gap: 12,
   },
-  modalTitle: { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text },
+  modalTitle: { fontSize: 17, fontFamily: "Pretendard-SemiBold", color: C.text },
   modalSub:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -4 },
   textInput: {
     borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
@@ -465,6 +465,6 @@ const s = StyleSheet.create({
     flex: 1, height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center",
   },
   modalBtnCancel: { borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
-  modalBtnCancelText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
-  modalBtnText: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
+  modalBtnCancelText: { fontSize: 15, fontFamily: "Pretendard-Medium", color: C.textSecondary },
+  modalBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

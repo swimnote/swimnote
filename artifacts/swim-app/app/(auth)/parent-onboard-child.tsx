@@ -148,7 +148,7 @@ export default function ParentOnboardChildScreen() {
       >
         <Text style={[styles.title, { color: C.text }]}>보호자·자녀 정보</Text>
         <Text style={[styles.sub, { color: C.textSecondary }]}>
-          <Text style={{ fontFamily: "Pretendard-SemiBold", color: C.text }}>{params.pool_name}</Text>
+          <Text style={{ fontFamily: "Pretendard-Medium", color: C.text }}>{params.pool_name}</Text>
           {" "}가입 요청 정보를 입력해주세요.
         </Text>
 
@@ -279,34 +279,34 @@ function StepBar({ current }: { current: number }) {
 const sb = StyleSheet.create({
   row:    { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center" },
   dot:    { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  dotTxt: { fontSize: 13, fontFamily: "Pretendard-Bold" },
+  dotTxt: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   line:   { flex: 1, height: 2, maxWidth: 40 },
 });
 
 const styles = StyleSheet.create({
   header:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 8, gap: 16 },
   content:      { paddingHorizontal: 20, paddingTop: 20, gap: 16 },
-  title:        { fontSize: 22, fontFamily: "Pretendard-Bold" },
+  title:        { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
   sub:          { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 21 },
   errorBox:     { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   errorTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   card:         { borderRadius: 18, padding: 18, gap: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  cardTitle:    { fontSize: 16, fontFamily: "Pretendard-Bold" },
+  cardTitle:    { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
   cardSub:      { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   relRow:       { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   relBtn:       { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background },
-  relTxt:       { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  relTxt:       { fontSize: 14, fontFamily: "Pretendard-Medium" },
   fieldLabel:   { fontSize: 12, fontFamily: "Pretendard-Medium" },
   inputBox:     { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 46 },
   input:        { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   childCard:    { borderWidth: 1.5, borderRadius: 14, padding: 14, gap: 6, marginTop: 6 },
   childHeader:  { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   childBadge:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  childBadgeTxt:{ fontSize: 11, fontFamily: "Pretendard-SemiBold" },
+  childBadgeTxt:{ fontSize: 11, fontFamily: "Pretendard-Medium" },
   addChildBtn:  { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderStyle: "dashed", borderRadius: 14, paddingVertical: 14, marginTop: 4 },
-  addChildTxt:  { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  addChildTxt:  { fontSize: 14, fontFamily: "Pretendard-Medium" },
   autoHint:     { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, borderRadius: 12, borderWidth: 1 },
   autoHintTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1, lineHeight: 19 },
   submitBtn:    { height: 52, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
-  submitTxt:    { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#fff" },
+  submitTxt:    { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

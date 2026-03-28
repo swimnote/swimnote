@@ -41,7 +41,7 @@ const loadingStyles = StyleSheet.create({
   },
   appName: {
     fontSize: 26,
-    fontFamily: "Pretendard-Bold",
+    fontFamily: "Pretendard-SemiBold",
     color: "#0F172A",
     letterSpacing: 6,
     marginTop: 8,
@@ -325,8 +325,8 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     "Pretendard-Regular":  require("../assets/fonts/Pretendard-Regular.otf"),
     "Pretendard-Medium":   require("../assets/fonts/Pretendard-Medium.otf"),
-    "Pretendard-SemiBold": require("../assets/fonts/Pretendard-SemiBold.otf"),
-    "Pretendard-Bold":     require("../assets/fonts/Pretendard-Bold.otf"),
+    "Pretendard-Medium": require("../assets/fonts/Pretendard-Medium.otf"),
+    "Pretendard-SemiBold":     require("../assets/fonts/Pretendard-SemiBold.otf"),
   });
 
   useEffect(() => {

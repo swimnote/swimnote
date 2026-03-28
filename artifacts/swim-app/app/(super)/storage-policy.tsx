@@ -150,7 +150,7 @@ export default function StoragePolicyScreen() {
         <View style={[styles.thresholdNote, { borderColor: "#FCD34D" }]}>
           <TriangleAlert size={14} color="#D97706" />
           <Text style={styles.thresholdText}>
-            사용량이 <Text style={{ fontFamily: "Pretendard-Bold", color: "#D97706" }}>80%</Text> 이상이 되면 수영장 관리자에게 자동으로 경고 알림이 발송됩니다.
+            사용량이 <Text style={{ fontFamily: "Pretendard-SemiBold", color: "#D97706" }}>80%</Text> 이상이 되면 수영장 관리자에게 자동으로 경고 알림이 발송됩니다.
           </Text>
         </View>
       </ScrollView>
@@ -220,20 +220,20 @@ const styles = StyleSheet.create({
   card:          { backgroundColor: "#fff", borderRadius: 16, overflow: "hidden",
                    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3 },
   cardHeader:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14 },
-  tierLabel:     { fontSize: 16, fontFamily: "Pretendard-Bold" },
+  tierLabel:     { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
   tierRange:     { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 1 },
   editBtn:       { flexDirection: "row", alignItems: "center", gap: 4,
                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  editBtnText:   { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  editBtnText:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#fff" },
   cardBody:      { padding: 14, gap: 10 },
   policyRow:     { flexDirection: "row", alignItems: "center" },
   policyItem:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
   policyKey:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
-  policyVal:     { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  policyVal:     { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
   dividerV:      { width: 1, height: 32, backgroundColor: "#E5E7EB", marginHorizontal: 10 },
   extraRow:      { flexDirection: "row", alignItems: "center", gap: 6, borderTopWidth: 1, paddingTop: 10 },
   extraText:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
-  extraPrice:    { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  extraPrice:    { fontSize: 13, fontFamily: "Pretendard-Medium" },
   desc:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 16 },
   thresholdNote: { flexDirection: "row", gap: 8, alignItems: "flex-start", borderWidth: 1.5,
                    borderRadius: 12, padding: 12, backgroundColor: "#FFFBEB" },
@@ -243,12 +243,12 @@ const styles = StyleSheet.create({
                    padding: 24, gap: 14 },
   handle:        { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
   modalHeader:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  modalTitle:    { fontSize: 20, fontFamily: "Pretendard-Bold", color: "#1F1235" },
+  modalTitle:    { fontSize: 20, fontFamily: "Pretendard-SemiBold", color: "#1F1235" },
   errorText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   field:         { gap: 5 },
   fieldLabel:    { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#64748B" },
   input:         { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14,
                    height: 46, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A", backgroundColor: "#F1F5F9" },
   saveBtn:       { height: 50, borderRadius: 14, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center", marginTop: 4 },
-  saveBtnText:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  saveBtnText:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Medium" },
 });

@@ -236,14 +236,14 @@ const s = StyleSheet.create({
 
   noDiary: { alignItems: "center", paddingTop: 60, gap: 12, paddingHorizontal: 20 },
   noDiaryEmoji: { fontSize: 56 },
-  noDiaryTitle: { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  noDiaryTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
   noDiarySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   noDiaryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
-  noDiaryBtnTxt: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  noDiaryBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#fff" },
 
   emptyWrap: { alignItems: "center", paddingTop: 60, gap: 8 },
   emptyEmoji: { fontSize: 48 },
-  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Medium" },
   emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center" },
 
   msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginBottom: 4 },

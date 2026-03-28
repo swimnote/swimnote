@@ -99,13 +99,13 @@ export default function DataStorageOverviewScreen() {
 
 const s = StyleSheet.create({
   card:       { borderRadius: 18, padding: 20, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
-  cardTitle:  { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#64748B", marginBottom: 4 },
-  bigNum:     { fontSize: 40, fontFamily: "Pretendard-Bold" },
+  cardTitle:  { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#64748B", marginBottom: 4 },
+  bigNum:     { fontSize: 40, fontFamily: "Pretendard-SemiBold" },
   sub:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6 },
   gaugeWrap:  { height: 12, backgroundColor: "#E5E7EB", borderRadius: 6, overflow: "hidden" },
   gaugeBar:   { height: 12, borderRadius: 6 },
   statCard:   { flexDirection: "row", alignItems: "center", gap: 16, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   statIcon:   { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   statLabel:  { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#64748B", marginBottom: 2 },
-  statValue:  { fontSize: 22, fontFamily: "Pretendard-Bold" },
+  statValue:  { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
 });

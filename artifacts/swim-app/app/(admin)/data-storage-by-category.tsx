@@ -94,8 +94,8 @@ export default function DataStorageByCategoryScreen() {
 
           {/* 합계 */}
           <View style={[s.totalCard, { borderColor: themeColor + "30", backgroundColor: themeColor + "08" }]}>
-            <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: themeColor }}>전체 합계</Text>
-            <Text style={{ fontSize: 22, fontFamily: "Pretendard-Bold", color: themeColor }}>{fmtBytes(total)}</Text>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Medium", color: themeColor }}>전체 합계</Text>
+            <Text style={{ fontSize: 22, fontFamily: "Pretendard-SemiBold", color: themeColor }}>{fmtBytes(total)}</Text>
           </View>
         </ScrollView>
       )}
@@ -106,8 +106,8 @@ export default function DataStorageByCategoryScreen() {
 const s = StyleSheet.create({
   card:      { borderRadius: 16, padding: 16, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   iconWrap:  { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  label:     { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
-  bytes:     { fontSize: 15, fontFamily: "Pretendard-Bold" },
+  label:     { fontSize: 15, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  bytes:     { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
   gaugeWrap: { height: 8, backgroundColor: "#E5E7EB", borderRadius: 4, overflow: "hidden" },
   gaugeBar:  { height: 8, borderRadius: 4 },
   pct:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },

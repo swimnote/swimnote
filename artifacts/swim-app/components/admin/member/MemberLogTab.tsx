@@ -54,7 +54,7 @@ export function MemberLogTab({ logs }: MemberLogTabProps) {
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: meta.color + "15" }}>
-                      <Text style={{ fontSize: 11, fontFamily: "Pretendard-SemiBold", color: meta.color }}>{typeLabel} {meta.label}</Text>
+                      <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: meta.color }}>{typeLabel} {meta.label}</Text>
                     </View>
                     <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
                       {`${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`}

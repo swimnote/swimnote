@@ -133,16 +133,16 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 4 },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  studentName: { fontSize: 28, fontFamily: "Pretendard-Bold", marginBottom: 10 },
+  studentName: { fontSize: 28, fontFamily: "Pretendard-SemiBold", marginBottom: 10 },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 24 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10 },
-  chipText: { fontSize: 14, fontFamily: "Pretendard-Bold" },
+  chipText: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
   noSchedule: { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 24 },
 
   bigCardsRow: { flexDirection: "row", gap: 12, marginBottom: 14 },
   bigCard: { flex: 1, borderRadius: 20, padding: 20, gap: 6, minHeight: 140, justifyContent: "flex-end" },
   bigCardEmoji: { fontSize: 32, marginBottom: 4 },
-  bigCardLabel: { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#fff" },
+  bigCardLabel: { fontSize: 17, fontFamily: "Pretendard-SemiBold", color: "#fff" },
   bigCardSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.75)" },
 
   midCard: {
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   },
   midIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   midText: { flex: 1, gap: 3 },
-  midLabel: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  midLabel: { fontSize: 16, fontFamily: "Pretendard-Medium" },
   midSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
   smallCard: {

@@ -138,7 +138,7 @@ const s = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontFamily: "Pretendard-SemiBold",
+    fontFamily: "Pretendard-Medium",
     color: C.text,
     textAlign: "center",
   },

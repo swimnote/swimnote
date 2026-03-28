@@ -708,31 +708,31 @@ const s = StyleSheet.create({
 
   // 헤더
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 12 },
-  title: { fontSize: 22, fontFamily: "Pretendard-Bold" },
+  title: { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   selBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
   selBtnText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
-  addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  addBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Medium" },
 
   // 빈 상태
   empty: { alignItems: "center", paddingTop: 80, gap: 12 },
-  emptyTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
+  emptyTitle: { fontSize: 18, fontFamily: "Pretendard-Medium" },
   emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center" },
 
   // 카드
   checkWrap: { justifyContent: "center", marginRight: 4 },
   checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: C.border, backgroundColor: C.background, alignItems: "center", justifyContent: "center" },
   avatar: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  avatarText: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
   accountCard: { borderRadius: 14, overflow: "hidden", borderWidth: 1.5, borderColor: "transparent", backgroundColor: C.card },
   accountHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
   accountInfo: { flex: 1 },
-  accountName: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  accountName: { fontSize: 15, fontFamily: "Pretendard-Medium" },
   accountPhone: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   cardActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   linkBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
-  linkBtnText: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
+  linkBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium" },
   deleteParentBtn: { padding: 6 },
 
   // 학생 목록 (카드 내)
@@ -743,7 +743,7 @@ const s = StyleSheet.create({
   studentRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   miniBtn: { width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  badgeText: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
+  badgeText: { fontSize: 11, fontFamily: "Pretendard-Medium" },
 
   // 드래그 시트 공통
   kvOverlay: { flex: 1, justifyContent: "flex-end" },
@@ -751,16 +751,16 @@ const s = StyleSheet.create({
   sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 0, gap: 12 },
   dragArea: { alignItems: "center", paddingVertical: 14 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB" },
-  sheetTitle: { fontSize: 18, fontFamily: "Pretendard-Bold", color: C.text, marginBottom: 2 },
+  sheetTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: C.text, marginBottom: 2 },
 
   // 연결 모달 내부
   infoBox: { flexDirection: "row", gap: 8, alignItems: "flex-start", padding: 12, borderRadius: 12 },
   infoText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   childRefBox: { borderRadius: 12, padding: 12, gap: 6 },
   childRefHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  childRefLabel: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
+  childRefLabel: { fontSize: 12, fontFamily: "Pretendard-Medium" },
   childRefRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  childRefName: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  childRefName: { fontSize: 14, fontFamily: "Pretendard-Medium" },
   childRefYear: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   // 검색
@@ -769,7 +769,7 @@ const s = StyleSheet.create({
 
   // 리스트 헤더
   listHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  listHeaderText: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.text },
+  listHeaderText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.text },
   listHeaderSub: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   // 학생 선택 목록
@@ -778,8 +778,8 @@ const s = StyleSheet.create({
   emptyHintText: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
   studentOption: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1.5, marginBottom: 6 },
   sOptionAvatar: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  sOptionAvatarText: { fontSize: 14, fontFamily: "Pretendard-Bold" },
-  sOptionName: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  sOptionAvatarText: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  sOptionName: { fontSize: 14, fontFamily: "Pretendard-Medium" },
   sOptionSub: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   sOptionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: C.border },
 
@@ -796,9 +796,9 @@ const s = StyleSheet.create({
   modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
   smsIcon: { width: 56, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   smsDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 20, textAlign: "center" },
-  smsPhone: { fontSize: 16, fontFamily: "Pretendard-Bold", letterSpacing: 0.5 },
+  smsPhone: { fontSize: 16, fontFamily: "Pretendard-SemiBold", letterSpacing: 0.5 },
   cancelBtn: { flex: 1, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1.5 },
-  cancelText: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  cancelText: { fontSize: 15, fontFamily: "Pretendard-Medium" },
   submitBtn: { flex: 2, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  submitText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  submitText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Medium" },
 });

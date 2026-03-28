@@ -182,24 +182,24 @@ const cc = StyleSheet.create({
   card:       { borderRadius: 14, padding: 14, gap: 10, backgroundColor: "#fff" },
   header:     { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   iconBox:    { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  title:      { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  title:      { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   desc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   badge:      { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeTxt:   { fontSize: 10, fontFamily: "Pretendard-Bold" },
+  badgeTxt:   { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
   usageBox:   { gap: 0 },
-  usageMain:  { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  usageMain:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   usageSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  pctTxt:     { fontSize: 13, fontFamily: "Pretendard-Bold" },
+  pctTxt:     { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   latRow:     { flexDirection: "row", alignItems: "center", gap: 4 },
   latTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: GRAY },
   metricsGrid:{ flexDirection: "row", flexWrap: "wrap", gap: 6 },
   metricItem: { backgroundColor: "#FFFFFF", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: "30%" },
   metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  metricVal:  { fontSize: 12, fontFamily: "Pretendard-Bold", color: "#0F172A", marginTop: 2 },
+  metricVal:  { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginTop: 2 },
   footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#FFFFFF", paddingTop: 8 },
   checkedTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   footBtn:    { height: 28, minWidth: 28, borderRadius: 8, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
-  detailTxt:  { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: P },
+  detailTxt:  { fontSize: 11, fontFamily: "Pretendard-Medium", color: P },
 });
 
 // ── 상세 슬라이드 패널 ────────────────────────────────────────────────────────
@@ -216,7 +216,7 @@ function DetailPanel({ title, rows, onClose }: { title: string; rows: DetailRow[
       {rows.map((r, i) => (
         <View key={i} style={dp.row}>
           <Text style={dp.key}>{r.label}</Text>
-          <Text style={[dp.val, r.highlight ? { color: P, fontFamily: "Pretendard-Bold" } : {}]}>
+          <Text style={[dp.val, r.highlight ? { color: P, fontFamily: "Pretendard-SemiBold" } : {}]}>
             {r.value ?? "미측정"}
           </Text>
         </View>
@@ -230,12 +230,12 @@ function DetailPanel({ title, rows, onClose }: { title: string; rows: DetailRow[
 const dp = StyleSheet.create({
   container: { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 0 },
   header:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  title:     { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  title:     { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   row:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   key:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
   val:       { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A", textAlign: "right", flex: 1 },
   closeBtn:  { marginTop: 12, backgroundColor: "#FFFFFF", borderRadius: 10, paddingVertical: 12, alignItems: "center" },
-  closeTxt:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  closeTxt:  { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#0F172A" },
 });
 
 // ── 서비스 행 (그룹 리스트용) ─────────────────────────────────────────────────
@@ -293,11 +293,11 @@ function ServiceRow({ sv, refreshing, onRefresh }: {
 const svc = StyleSheet.create({
   card:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#F5F5F5", borderWidth: 1, borderColor: "#E5E7EB" },
   iconBox:     { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  name:        { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  name:        { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A" },
   badge:       { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
-  badgeTxt:    { fontSize: 9, fontFamily: "Pretendard-Bold" },
+  badgeTxt:    { fontSize: 9, fontFamily: "Pretendard-SemiBold" },
   placeholder: { backgroundColor: "#F3F4F6", borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 },
-  placeholderTxt: { fontSize: 9, fontFamily: "Pretendard-SemiBold", color: GRAY },
+  placeholderTxt: { fontSize: 9, fontFamily: "Pretendard-Medium", color: GRAY },
   msg:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   checked:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   refreshBtn:  { width: 28, height: 28, borderRadius: 7, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
@@ -318,7 +318,7 @@ function GroupHeader({ label, icon, color, bg }: { label: string; icon: string; 
 const gh = StyleSheet.create({
   row:    { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   iconBox:{ width: 20, height: 20, borderRadius: 5, alignItems: "center", justifyContent: "center" },
-  label:  { fontSize: 11, fontFamily: "Pretendard-Bold" },
+  label:  { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   line:   { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
 });
 
@@ -650,7 +650,7 @@ export default function InfraStatusPanel() {
         <CircleAlert size={24} color={DANGER} />
         <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: DANGER }}>{error}</Text>
         <Pressable style={{ backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 }} onPress={loadAll}>
-          <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: P }}>다시 시도</Text>
+          <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: P }}>다시 시도</Text>
         </Pressable>
       </View>
     );
@@ -840,15 +840,15 @@ export default function InfraStatusPanel() {
 const ps = StyleSheet.create({
   container:       { gap: 12 },
   topHeader:       { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  mainTitle:       { fontSize: 16, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  mainTitle:       { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   mainSub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   refreshAll:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, backgroundColor: "#EEDDF5" },
-  refreshAllTxt:   { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: P },
+  refreshAllTxt:   { fontSize: 11, fontFamily: "Pretendard-Medium", color: P },
   summaryBadgeRow: { flexDirection: "row", gap: 6 },
   summaryBadge:    { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  summaryBadgeTxt: { fontSize: 12, fontFamily: "Pretendard-Bold" },
-  groupTitle:      { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  summaryBadgeTxt: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
+  groupTitle:      { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   groupSection:    { gap: 6 },
   subSection:      { gap: 6, backgroundColor: "#F5F5F5", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  subTitle:        { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#0F172A", marginBottom: 2 },
+  subTitle:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginBottom: 2 },
 });

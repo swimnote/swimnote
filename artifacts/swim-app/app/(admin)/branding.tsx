@@ -177,7 +177,7 @@ export default function BrandingScreen() {
             </View>
           </View>
           <Text style={styles.previewNote}>
-            앱스토어·구글플레이 표시명: <Text style={{ fontFamily: "Pretendard-Bold" }}>스윔노트</Text>
+            앱스토어·구글플레이 표시명: <Text style={{ fontFamily: "Pretendard-SemiBold" }}>스윔노트</Text>
           </Text>
         </Section>
 
@@ -346,15 +346,15 @@ const styles = StyleSheet.create({
   content:         { padding: 16, gap: 8, paddingBottom: 100 },
 
   section:         { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, gap: 12 },
-  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-Bold", color: "#64748B", letterSpacing: 0.5, textTransform: "uppercase" },
+  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#64748B", letterSpacing: 0.5, textTransform: "uppercase" },
   sectionDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
 
   // 미리보기
   previewCard:     { borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden", backgroundColor: "#fff" },
   previewHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   previewBadge:    { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center" },
-  previewBadgeText:{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Bold" },
-  previewPoolName: { fontSize: 14, fontFamily: "Pretendard-Bold", color: "#0F172A" },
+  previewBadgeText:{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  previewPoolName: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
   previewPowered:  { fontSize: 10, fontFamily: "Pretendard-Medium", marginTop: 1 },
   previewTabBar:   { flexDirection: "row", backgroundColor: "#fff" },
   previewTab:      { flex: 1, alignItems: "center", paddingVertical: 10, gap: 3 },
@@ -389,5 +389,5 @@ const styles = StyleSheet.create({
 
   // 저장 버튼
   saveBtn:         { height: 52, borderRadius: 14, justifyContent: "center", alignItems: "center", marginTop: 4 },
-  saveBtnText:     { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Bold" },
+  saveBtnText:     { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
 });

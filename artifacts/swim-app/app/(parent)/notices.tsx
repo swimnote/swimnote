@@ -42,7 +42,7 @@ function TypeBadge({ type, scope }: { type?: string; scope?: string }) {
 }
 const tb = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, alignSelf: "flex-start" },
-  txt: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
+  txt: { fontSize: 11, fontFamily: "Pretendard-Medium" },
 });
 
 export default function ParentNoticesScreen() {
@@ -166,7 +166,7 @@ const s = StyleSheet.create({
   cardUnread: { borderLeftWidth: 3, borderLeftColor: C.tint },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  title: { fontSize: 15, fontFamily: "Pretendard-Bold" },
+  title: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
   content: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   contentPreview: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
@@ -174,5 +174,5 @@ const s = StyleSheet.create({
   expandHint: { fontSize: 12, fontFamily: "Pretendard-Medium" },
   emptyBox: { borderRadius: 16, padding: 40, alignItems: "center", gap: 8, marginTop: 20 },
   emptyEmoji: { fontSize: 44 },
-  emptyTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  emptyTitle: { fontSize: 15, fontFamily: "Pretendard-Medium" },
 });

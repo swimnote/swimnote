@@ -61,11 +61,11 @@ const s = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
-  label: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  label: { fontSize: 13, fontFamily: "Pretendard-Medium" },
   badge: {
     minWidth: 18, height: 18, borderRadius: 9,
     alignItems: "center", justifyContent: "center",
     paddingHorizontal: 4,
   },
-  badgeText: { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#fff" },
+  badgeText: { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

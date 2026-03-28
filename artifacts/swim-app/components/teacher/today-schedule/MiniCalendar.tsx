@@ -57,7 +57,7 @@ export default function MiniCalendar({
               <View style={[cal.dayBox, isToday && { backgroundColor: C.tint }]}>
                 <Text style={[
                   cal.dayNum,
-                  isToday  ? { color: "#fff", fontFamily: "Pretendard-Bold" } :
+                  isToday  ? { color: "#fff", fontFamily: "Pretendard-SemiBold" } :
                   isSun    ? { color: "#D96C6C" } :
                   isSat    ? { color: "#4EA7D8" } :
                              { color: C.text },
@@ -92,9 +92,9 @@ const cal = StyleSheet.create({
   wrap:       { backgroundColor: C.card, borderRadius: 18, padding: 16, gap: 10 },
   header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
   navBtn:     { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10 },
-  title:      { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text },
+  title:      { fontSize: 17, fontFamily: "Pretendard-SemiBold", color: C.text },
   dayRow:     { flexDirection: "row", justifyContent: "space-around" },
-  dayLabel:   { width: "14.28%" as any, textAlign: "center", fontSize: 11, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
+  dayLabel:   { width: "14.28%" as any, textAlign: "center", fontSize: 11, fontFamily: "Pretendard-Medium", color: C.textSecondary },
   grid:       { flexDirection: "row", flexWrap: "wrap" },
   cell:       { width: "14.28%" as any, alignItems: "center", paddingVertical: 4, gap: 2 },
   dayBox:     { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },

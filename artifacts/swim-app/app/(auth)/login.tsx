@@ -185,14 +185,14 @@ const styles = StyleSheet.create({
     flex: 1, flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: "#E6FFFA", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
   },
-  idChipText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", flex: 1 },
+  idChipText: { fontSize: 14, fontFamily: "Pretendard-Medium", flex: 1 },
   changeIdText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   card: {
     borderRadius: 20, padding: 22, gap: 14,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 12, elevation: 3,
   },
-  cardTitle: { fontSize: 18, fontFamily: "Pretendard-Bold" },
+  cardTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10 },
   errText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   field: { gap: 6 },
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   btn: { height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  btnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  btnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Medium" },
   forgotRow: { alignItems: "center", paddingVertical: 4 },
   forgotText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   inviteToggle: {
@@ -219,5 +219,5 @@ const styles = StyleSheet.create({
     height: 52, paddingHorizontal: 16, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
   },
-  inviteBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  inviteBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Medium" },
 });

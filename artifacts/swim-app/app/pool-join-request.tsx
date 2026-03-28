@@ -273,7 +273,7 @@ export default function ParentRegisterScreen() {
 const styles = StyleSheet.create({
   header:      { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12 },
   backBtn:     { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-  headerTitle: { flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Pretendard-SemiBold" },
+  headerTitle: { flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Pretendard-Medium" },
   content:     { paddingHorizontal: 20, paddingTop: 20, gap: 16 },
   infoBox:     { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 10 },
   infoText:    { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
@@ -287,9 +287,9 @@ const styles = StyleSheet.create({
   termsRow:      { flexDirection: "row", alignItems: "center", gap: 10 },
   checkbox:      { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, justifyContent: "center", alignItems: "center" },
   termsText:     { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 18 },
-  termsTextBold: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  termsTextBold: { fontSize: 14, fontFamily: "Pretendard-Medium" },
   submitBtn:   { height: 52, borderRadius: 12, justifyContent: "center", alignItems: "center", marginTop: 8 },
-  submitTxt:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  submitTxt:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Medium" },
   loginLink:   { alignItems: "center", paddingTop: 8 },
   loginLinkTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular" },
 });

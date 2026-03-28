@@ -144,12 +144,12 @@ export default function ParentProfileScreen() {
 const s = StyleSheet.create({
   root: { flex: 1 },
   section: { borderRadius: 16, padding: 16, gap: 12 },
-  sectionTitle: { fontSize: 15, fontFamily: "Pretendard-Bold" },
+  sectionTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
   sectionSub: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: -6 },
   errorBox: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, padding: 12 },
   errorTxt: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#D96C6C", flex: 1 },
   saveBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
-  saveBtnTxt: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  saveBtnTxt: { fontSize: 16, fontFamily: "Pretendard-Medium", color: "#fff" },
 });
 
 const f = StyleSheet.create({

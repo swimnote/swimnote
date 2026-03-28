@@ -272,7 +272,7 @@ export default function ClassDetailSheet({
               })}
               {myLogs.length > 0 && (
                 <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
-                  <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#D97706", marginBottom: 4 }}>
+                  <Text style={{ fontSize: 12, fontFamily: "Pretendard-Medium", color: "#D97706", marginBottom: 4 }}>
                     변경 이력
                   </Text>
                   {myLogs.map(log => {
@@ -420,15 +420,15 @@ const cds = StyleSheet.create({
   handle:          { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
                      alignSelf: "center", marginTop: 10, marginBottom: 4 },
   sheetHeader:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
-  sheetTitle:      { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.text },
+  sheetTitle:      { fontSize: 17, fontFamily: "Pretendard-SemiBold", color: C.text },
   sheetSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   closeBtn:        { padding: 4 },
   deleteBtn:       { padding: 8, marginRight: 4 },
   actionRow:       { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 12 },
   actionBtn:       { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
                      paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10 },
-  actionText:      { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
-  sectionLabel:    { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textMuted,
+  actionText:      { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  sectionLabel:    { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.textMuted,
                      paddingHorizontal: 16, marginBottom: 6 },
   studentScroll:   { flexShrink: 1 },
   studentRow:      { flexDirection: "row", alignItems: "center", gap: 8,
@@ -436,11 +436,11 @@ const cds = StyleSheet.create({
                      borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   absentDot:       { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#D96C6C" },
   absentStrike:    { color: "#D96C6C", textDecorationLine: "line-through" },
-  studentName:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text },
+  studentName:     { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
   studentSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   stBtn:           { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8,
                      backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2DDD9" },
-  stBtnTxt:        { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
+  stBtnTxt:        { fontSize: 11, fontFamily: "Pretendard-Medium" },
   empty:           { alignItems: "center", paddingVertical: 32, gap: 8 },
   emptyText:       { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
   moveClassRow:    { flexDirection: "row", alignItems: "center", gap: 10,
@@ -448,19 +448,19 @@ const cds = StyleSheet.create({
                      borderTopWidth: 1, borderTopColor: "#F8FAFC",
                      borderWidth: 1, borderColor: "transparent", marginHorizontal: 12,
                      marginBottom: 4, borderRadius: 10 },
-  moveClassName:   { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text },
+  moveClassName:   { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
   moveClassSub:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   moveConfirmBtn:  { height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  moveConfirmTxt:  { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  moveConfirmTxt:  { fontSize: 15, fontFamily: "Pretendard-Medium", color: "#fff" },
   unassignBtn:     { flexDirection: "row", alignItems: "center", gap: 8,
                      marginHorizontal: 12, marginBottom: 8,
                      paddingHorizontal: 14, paddingVertical: 12,
                      backgroundColor: "#FFF8EE", borderRadius: 10,
                      borderWidth: 1, borderColor: "#FCD34D" },
-  unassignBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#D97706" },
+  unassignBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#D97706" },
   timingRow:       { flexDirection: "row", alignItems: "center", gap: 10,
                      paddingHorizontal: 16, paddingVertical: 14,
                      borderTopWidth: 1, borderTopColor: "#F8FAFC" },
-  timingLabel:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text },
+  timingLabel:     { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
   timingSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
 });

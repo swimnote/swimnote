@@ -112,7 +112,7 @@ export default function OpLogsScreen() {
       <View style={s.countBanner}>
         <Activity size={13} color={P} />
         <Text style={s.countTxt}>
-          총 <Text style={{ color: P, fontFamily: "Pretendard-Bold" }}>{allLogs.length}</Text>건 기록됨
+          총 <Text style={{ color: P, fontFamily: "Pretendard-SemiBold" }}>{allLogs.length}</Text>건 기록됨
           {activeTab !== "전체" && <Text> · 필터: {logs.length}건</Text>}
         </Text>
       </View>
@@ -263,14 +263,14 @@ const s = StyleSheet.create({
   logIcon:      { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0 },
   logBody:      { flex: 1, gap: 5 },
   logTop:       { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A", lineHeight: 19 },
+  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A", lineHeight: 19 },
   logSubDesc:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   logTime:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", flexShrink: 0 },
   logMeta:      { flexDirection: "row", alignItems: "center", gap: 5 },
   catBadge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  catTxt:       { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  catTxt:       { fontSize: 10, fontFamily: "Pretendard-Medium" },
   impactBadge:  { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6 },
-  impactTxt:    { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  impactTxt:    { fontSize: 10, fontFamily: "Pretendard-Medium" },
   logMetaTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   logMetaDot:   { fontSize: 10, color: "#D1D5DB" },
   logDetail:    { backgroundColor: "#F1F5F9", borderRadius: 8, padding: 10, gap: 5 },

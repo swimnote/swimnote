@@ -38,7 +38,7 @@ export function MemberPaymentTab({ data, themeColor, weeklyCount, assignedClasse
       <View style={[ms.section, { backgroundColor: "#FFF1BF" }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Info size={16} color="#D97706" />
-          <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D97706" }}>개인 결제 내역</Text>
+          <Text style={{ fontSize: 14, fontFamily: "Pretendard-Medium", color: "#D97706" }}>개인 결제 내역</Text>
         </View>
         <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", marginTop: 4, lineHeight: 18 }}>
           개인별 결제 내역은 수영장 전체 결제 관리 탭에서 확인할 수 있습니다.{"\n"}

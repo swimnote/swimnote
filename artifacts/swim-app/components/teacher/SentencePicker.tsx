@@ -296,7 +296,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingBottom: 10,
   },
-  title: { fontSize: 16, fontFamily: "Pretendard-Bold", color: C.text },
+  title: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.text },
 
   searchRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
@@ -327,7 +327,7 @@ const s = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
+  tabText: { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.textSecondary },
 
   sentenceList: { maxHeight: 274 },
   sentenceListContent: { paddingHorizontal: 16, paddingBottom: 4, gap: 4 },
@@ -339,7 +339,7 @@ const s = StyleSheet.create({
   },
   sentenceText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 19 },
   levelBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  levelBadgeText: { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  levelBadgeText: { fontSize: 10, fontFamily: "Pretendard-Medium" },
   emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 },
   emptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
 
@@ -354,7 +354,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: C.tintLight,
   },
   previewLabel: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Medium" },
-  previewCount: { fontSize: 11, color: PRIMARY, fontFamily: "Pretendard-SemiBold" },
+  previewCount: { fontSize: 11, color: PRIMARY, fontFamily: "Pretendard-Medium" },
   previewScroll: { maxHeight: 88, paddingHorizontal: 12, paddingVertical: 8 },
   previewEmpty: { fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", paddingVertical: 8 },
   previewLine: { fontSize: 12, color: C.text, fontFamily: "Pretendard-Regular", lineHeight: 20 },
@@ -377,11 +377,11 @@ const s = StyleSheet.create({
     flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1.5, borderColor: C.border,
     alignItems: "center", justifyContent: "center",
   },
-  cancelBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
+  cancelBtnText: { fontSize: 15, fontFamily: "Pretendard-Medium", color: C.textSecondary },
   insertBtn: {
     flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 13, borderRadius: 12, backgroundColor: PRIMARY,
   },
   insertBtnDisabled: { backgroundColor: C.border },
-  insertBtnText: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
+  insertBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

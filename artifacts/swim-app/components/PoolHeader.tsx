@@ -131,14 +131,14 @@ const styles = StyleSheet.create({
   logoText: {
     color: "#fff",
     fontSize: 16,
-    fontFamily: "Pretendard-Bold",
+    fontFamily: "Pretendard-SemiBold",
   },
   titles: {
     flex: 1,
   },
   title: {
     fontSize: 15,
-    fontFamily: "Pretendard-Bold",
+    fontFamily: "Pretendard-SemiBold",
     color: "#0F172A",
     letterSpacing: -0.3,
   },

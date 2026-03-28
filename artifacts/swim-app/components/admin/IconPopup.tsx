@@ -179,7 +179,7 @@ const s = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: C.text,
-    fontFamily: "Pretendard-Bold",
+    fontFamily: "Pretendard-SemiBold",
   },
   closeBtn: {
     width: 32,
@@ -216,7 +216,7 @@ const s = StyleSheet.create({
     color: C.text,
     textAlign: "center",
     lineHeight: 16,
-    fontFamily: "Pretendard-SemiBold",
+    fontFamily: "Pretendard-Medium",
   },
   badge: {
     position: "absolute",

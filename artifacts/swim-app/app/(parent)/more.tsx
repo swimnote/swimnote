@@ -171,8 +171,8 @@ const s = StyleSheet.create({
     width: 48, height: 48, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
   },
-  accountAvatarTxt: { fontSize: 20, fontFamily: "Pretendard-Bold" },
-  accountName: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  accountAvatarTxt: { fontSize: 20, fontFamily: "Pretendard-SemiBold" },
+  accountName: { fontSize: 16, fontFamily: "Pretendard-Medium" },
   accountPool: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
 
   menuItem: {

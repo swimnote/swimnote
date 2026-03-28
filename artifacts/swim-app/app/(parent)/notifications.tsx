@@ -152,7 +152,7 @@ export default function ParentNotificationsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16 },
-  title: { fontSize: 24, fontFamily: "Pretendard-Bold" },
+  title: { fontSize: 24, fontFamily: "Pretendard-SemiBold" },
   sub: { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: 2 },
   readAllBtn: { borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
   readAllText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   card: { flexDirection: "row", alignItems: "flex-start", gap: 12, borderRadius: 14, padding: 14, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2 },
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   cardContent: { flex: 1, gap: 3 },
-  cardTitle: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  cardTitle: { fontSize: 14, fontFamily: "Pretendard-Medium" },
   cardBody: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   cardTime: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   cardRight: { alignItems: "center", gap: 8 },

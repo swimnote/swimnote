@@ -165,12 +165,12 @@ export default function DataEventLogsScreen() {
 
 const s = StyleSheet.create({
   chip:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, width: 76, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
-  chipText:  { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  chipText:  { fontSize: 13, fontFamily: "Pretendard-Medium" },
   card:      { borderRadius: 16, padding: 14, gap: 6, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   evtIcon:   { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   badge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  badgeText: { fontSize: 11, fontFamily: "Pretendard-Bold" },
-  desc:      { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A", lineHeight: 20 },
+  badgeText: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
+  desc:      { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#0F172A", lineHeight: 20 },
   target:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   date:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   time:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },

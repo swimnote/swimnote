@@ -237,7 +237,7 @@ const s = StyleSheet.create({
 
   summaryRow:    { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 12 },
   summaryCard:   { borderRadius: 12, paddingVertical: 10, alignItems: "center" },
-  summaryNum:    { fontSize: 20, fontFamily: "Pretendard-Bold" },
+  summaryNum:    { fontSize: 20, fontFamily: "Pretendard-SemiBold" },
   summaryLbl:    { fontSize: 10, fontFamily: "Pretendard-Medium", marginTop: 2 },
 
   list:          { paddingHorizontal: 16, paddingTop: 8 },
@@ -248,11 +248,11 @@ const s = StyleSheet.create({
   cardInfo:      { flex: 1, gap: 3 },
 
   nameRow:       { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  targetName:    { fontSize: 15, fontFamily: "Pretendard-Bold", color: C.text },
+  targetName:    { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
   typeBadge:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 20 },
-  typeBadgeTxt:  { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
+  typeBadgeTxt:  { fontSize: 11, fontFamily: "Pretendard-Medium" },
   countBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 20 },
-  countTxt:      { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
+  countTxt:      { fontSize: 11, fontFamily: "Pretendard-Medium" },
 
   studentLine:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   metaLine:      { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary },
@@ -260,7 +260,7 @@ const s = StyleSheet.create({
 
   expandBody:    { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
   msgBox:        { borderRadius: 10, padding: 12 },
-  msgLabel:      { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: C.textMuted, marginBottom: 6 },
+  msgLabel:      { fontSize: 11, fontFamily: "Pretendard-Medium", color: C.textMuted, marginBottom: 6 },
   msgText:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 18 },
 
   senderRow:     { flexDirection: "row", gap: 8 },
@@ -269,6 +269,6 @@ const s = StyleSheet.create({
 
   reNotifyBtn:   { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
                    paddingVertical: 11, borderRadius: 10 },
-  reNotifyTxt:   { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  reNotifyTxt:   { fontSize: 13, fontFamily: "Pretendard-Medium" },
   reNotifyHint:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
 });
