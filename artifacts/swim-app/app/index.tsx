@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
 
   logoWrap: { alignItems: "center", gap: 12 },
   logoImage: { width: 230, height: 230, borderRadius: 52, overflow: "hidden", backgroundColor: "#0a2540", shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
-  logoWordmark: { fontSize: 30, fontWeight: "700", color: "#0a2540", letterSpacing: 0.5 },
+  logoWordmark: { fontSize: 36, fontWeight: "700", color: "#0a2540", letterSpacing: 0.5 },
   appSub: { fontSize: 22, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.5 },
   appDesc: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   spacer: { height: 5 },
