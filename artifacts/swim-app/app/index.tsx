@@ -3,10 +3,11 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-  ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import SwimNoteLogo from "../assets/images/swimnote-logo.svg";
 
 import Colors from "@/constants/colors";
 import { LOGIN_LABELS } from "@/constants/auth";
@@ -96,11 +97,9 @@ export default function LoginScreen() {
 
         <View style={styles.logoArea}>
           <Text style={[styles.appSub, { color: C.text, marginBottom: 36 }]}>어린이 수영레슨 올인원</Text>
-          <Image
-            source={require("../assets/images/swimnote-logo.png")}
-            style={styles.logoImage}
-            resizeMode="cover"
-          />
+          <View style={styles.logoImage}>
+            <SwimNoteLogo width={230} height={230} />
+          </View>
           <Text style={[styles.appDesc, { color: C.textMuted, marginTop: 16 }]}>
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
           </Text>
@@ -228,7 +227,7 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "center" },
   logoArea: { alignItems: "center", paddingBottom: 24 },
 
-  logoImage: { width: 230, height: 230, borderRadius: 52, shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
+  logoImage: { width: 230, height: 230, borderRadius: 52, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
   appSub: { fontSize: 22, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.5 },
   appDesc: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   spacer: { height: 5 },
