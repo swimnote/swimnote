@@ -102,8 +102,8 @@ export default function LoginScreen() {
             </View>
             <Text style={styles.logoWordmark}>SwimNote</Text>
           </View>
-          <Text style={[styles.appSub, { color: C.text, marginTop: 10 }]}>어린이 수영레슨 올인원</Text>
-          <Text style={[styles.appDesc, { color: C.textMuted, marginTop: 6 }]}>
+          <Text style={[styles.appSub, { color: C.text, marginTop: 30 }]}>어린이 수영레슨 올인원</Text>
+          <Text style={[styles.appDesc, { color: C.textMuted, marginTop: 30 }]}>
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
           </Text>
         </View>
