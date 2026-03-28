@@ -33,11 +33,11 @@ export default function ShoppingScreen() {
 const s = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingBottom: 16 },
-  title: { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
+  title: { fontSize: 22, fontFamily: "Pretendard-Regular" },
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, paddingBottom: 80 },
   icon: { width: 100, height: 100, borderRadius: 30, alignItems: "center", justifyContent: "center" },
-  heading: { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
+  heading: { fontSize: 22, fontFamily: "Pretendard-Regular" },
   sub: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 24, color: "#64748B" },
   badge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  badgeTxt: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  badgeTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });

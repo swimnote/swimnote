@@ -83,8 +83,8 @@ export default function ExtraStorageScreen() {
           <View style={s.row}><Text style={s.rowLabel}>기본 용량 (플랜)</Text><Text style={s.rowVal}>{fmtMb(planBaseMb)}</Text></View>
           <View style={s.row}><Text style={s.rowLabel}>추가 구매 용량</Text><Text style={[s.rowVal, { color: G }]}>{fmtMb(extraMb)}</Text></View>
           <View style={[s.row, { borderTopWidth: 1, borderTopColor: '#F8FAFC', paddingTop: 8, marginTop: 4 }]}>
-            <Text style={[s.rowLabel, { fontFamily: 'Pretendard-SemiBold', color: '#111827' }]}>총 사용 가능</Text>
-            <Text style={[s.rowVal, { fontFamily: 'Pretendard-SemiBold', color: '#111827' }]}>{fmtMb(totalMb)}</Text>
+            <Text style={[s.rowLabel, { fontFamily: 'Pretendard-Regular', color: '#111827' }]}>총 사용 가능</Text>
+            <Text style={[s.rowVal, { fontFamily: 'Pretendard-Regular', color: '#111827' }]}>{fmtMb(totalMb)}</Text>
           </View>
           <View style={s.row}><Text style={s.rowLabel}>현재 사용량</Text><Text style={s.rowVal}>{fmtMb(usedMb)} ({usedPct}%)</Text></View>
 
@@ -102,7 +102,7 @@ export default function ExtraStorageScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.sectionTitle}>영상 업로드</Text>
-              <Text style={[s.rowLabel, { color: videoUnlocked ? G : '#D96C6C', fontFamily: 'Pretendard-Medium' }]}>
+              <Text style={[s.rowLabel, { color: videoUnlocked ? G : '#D96C6C', fontFamily: 'Pretendard-Regular' }]}>
                 {videoUnlocked ? '잠금 해제됨' : '잠금 상태'}
               </Text>
             </View>
@@ -209,10 +209,10 @@ export default function ExtraStorageScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#DFF3EC' },
   card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E6FFFA', gap: 8 },
-  sectionTitle: { fontSize: 14, fontFamily: 'Pretendard-SemiBold', color: '#111827', marginBottom: 2 },
+  sectionTitle: { fontSize: 14, fontFamily: 'Pretendard-Regular', color: '#111827', marginBottom: 2 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   rowLabel: { fontSize: 13, fontFamily: 'Pretendard-Regular', color: '#6B7280' },
-  rowVal: { fontSize: 13, fontFamily: 'Pretendard-Medium', color: '#111827' },
+  rowVal: { fontSize: 13, fontFamily: 'Pretendard-Regular', color: '#111827' },
   barBg: { height: 8, backgroundColor: '#F8FAFC', borderRadius: 4, overflow: 'hidden', marginTop: 6 },
   barFill: { height: '100%', borderRadius: 4 },
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -221,29 +221,29 @@ const s = StyleSheet.create({
   prodRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: G, alignItems: 'center', justifyContent: 'center' },
   prodRadioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: G },
   prodIconBox: { width: 46, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  prodName: { fontSize: 15, fontFamily: 'Pretendard-SemiBold', color: '#111827' },
-  prodMb: { fontSize: 13, fontFamily: 'Pretendard-Medium', color: G, marginTop: 2 },
+  prodName: { fontSize: 15, fontFamily: 'Pretendard-Regular', color: '#111827' },
+  prodMb: { fontSize: 13, fontFamily: 'Pretendard-Regular', color: G, marginTop: 2 },
   prodNote: { fontSize: 11, fontFamily: 'Pretendard-Regular', color: '#6B7280', marginTop: 2, lineHeight: 15 },
-  prodPrice: { fontSize: 16, fontFamily: 'Pretendard-SemiBold', color: '#111827' },
+  prodPrice: { fontSize: 16, fontFamily: 'Pretendard-Regular', color: '#111827' },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: G, borderRadius: 14, padding: 16 },
   primaryBtnDisabled: { backgroundColor: '#D1D5DB' },
-  primaryBtnTxt: { fontSize: 15, fontFamily: 'Pretendard-SemiBold', color: '#fff' },
+  primaryBtnTxt: { fontSize: 15, fontFamily: 'Pretendard-Regular', color: '#fff' },
   histCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E5E7EB' },
-  histName: { fontSize: 14, fontFamily: 'Pretendard-Medium', color: '#111827' },
+  histName: { fontSize: 14, fontFamily: 'Pretendard-Regular', color: '#111827' },
   histSub: { fontSize: 12, fontFamily: 'Pretendard-Regular', color: '#9CA3AF', marginTop: 2 },
-  histPrice: { fontSize: 14, fontFamily: 'Pretendard-SemiBold', color: '#111827' },
+  histPrice: { fontSize: 14, fontFamily: 'Pretendard-Regular', color: '#111827' },
 })
 
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12, paddingBottom: 40 },
-  title: { fontSize: 18, fontFamily: 'Pretendard-SemiBold', color: '#111827' },
+  title: { fontSize: 18, fontFamily: 'Pretendard-Regular', color: '#111827' },
   sub: { fontSize: 14, fontFamily: 'Pretendard-Regular', color: '#6B7280' },
-  amount: { fontSize: 32, fontFamily: 'Pretendard-SemiBold', color: '#111827', textAlign: 'center' },
-  price: { fontSize: 20, fontFamily: 'Pretendard-Medium', color: '#2EC4B6', textAlign: 'center' },
+  amount: { fontSize: 32, fontFamily: 'Pretendard-Regular', color: '#111827', textAlign: 'center' },
+  price: { fontSize: 20, fontFamily: 'Pretendard-Regular', color: '#2EC4B6', textAlign: 'center' },
   hint: { fontSize: 12, fontFamily: 'Pretendard-Regular', color: '#6B7280', textAlign: 'center', lineHeight: 18 },
   cancelBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' },
-  cancelTxt: { fontSize: 15, fontFamily: 'Pretendard-Medium', color: '#6B7280' },
+  cancelTxt: { fontSize: 15, fontFamily: 'Pretendard-Regular', color: '#6B7280' },
   confirmBtn: { flex: 2, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2EC4B6' },
-  confirmTxt: { fontSize: 15, fontFamily: 'Pretendard-SemiBold', color: '#fff' },
+  confirmTxt: { fontSize: 15, fontFamily: 'Pretendard-Regular', color: '#fff' },
 })

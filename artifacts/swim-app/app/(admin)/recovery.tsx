@@ -100,7 +100,7 @@ function SnapshotDeleteModal({
         <View style={[rm.targetBox, { backgroundColor: "#F9DEDA" }]}>
           <Text style={rm.targetLabel}>삭제할 스냅샷</Text>
           {snap.snapshotName && (
-            <Text style={[rm.targetTime, { fontFamily: "Pretendard-Medium", marginBottom: 2 }]}>{snap.snapshotName}</Text>
+            <Text style={[rm.targetTime, { fontFamily: "Pretendard-Regular", marginBottom: 2 }]}>{snap.snapshotName}</Text>
           )}
           <Text style={rm.targetTime}>{fmtDateTime(snap.createdAt)}</Text>
           <Text style={rm.targetNote}>{snap.note ?? ""} · {fmtSize(snap.sizeMb)}</Text>
@@ -493,16 +493,16 @@ export default function RecoveryScreen() {
             <Clock size={14} color="#2EC4B6" />
             <Text style={s.autoBackupTitle}>자동 백업 정책</Text>
           </View>
-          <Text style={s.autoBackupLine}>• 자동 백업 주기: <Text style={{ fontFamily: "Pretendard-Medium" }}>1시간</Text></Text>
+          <Text style={s.autoBackupLine}>• 자동 백업 주기: <Text style={{ fontFamily: "Pretendard-Regular" }}>1시간</Text></Text>
           <Text style={s.autoBackupLine}>
             • 마지막 자동 백업:{" "}
-            <Text style={{ fontFamily: "Pretendard-Medium" }}>
+            <Text style={{ fontFamily: "Pretendard-Regular" }}>
               {latestAutoSnap ? fmtDateTime(latestAutoSnap.createdAt) : "기록 없음"}
             </Text>
           </Text>
           {latestAutoSnap?.snapshotName && (
             <Text style={s.autoBackupLine}>
-              • 스냅샷 이름: <Text style={{ fontFamily: "Pretendard-Medium" }}>{latestAutoSnap.snapshotName}</Text>
+              • 스냅샷 이름: <Text style={{ fontFamily: "Pretendard-Regular" }}>{latestAutoSnap.snapshotName}</Text>
             </Text>
           )}
           <Text style={s.autoBackupLine}>• 보존 기간: 최근 30일 자동 스냅샷 유지</Text>
@@ -630,26 +630,26 @@ const s = StyleSheet.create({
   scroll:       { padding: 16, gap: 12 },
 
   statusCard:   { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
-  statusTitle:  { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  statusTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular" },
   statusSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginTop: 2 },
   manualBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12,
                   paddingVertical: 8, borderRadius: 10 },
-  manualBtnTxt: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  manualBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   doneBanner:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 12,
                   backgroundColor: "#E6FFFA", borderRadius: 12 },
-  doneTxt:      { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#065F46", flex: 1 },
+  doneTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46", flex: 1 },
 
   infoBox:      { borderRadius: 12, padding: 14, gap: 4, flexDirection: "row" },
-  infoTitle:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginBottom: 4 },
+  infoTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4 },
   infoLine:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
 
   section:      { gap: 8 },
-  sectionTitle: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
+  sectionTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   autoBackupBox:  { marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: 12, gap: 4 },
   autoBackupRow:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  autoBackupTitle:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" },
+  autoBackupTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
   autoBackupLine: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#166534", lineHeight: 18 },
 
   snapCard:     { backgroundColor: C.card, borderRadius: 14, overflow: "hidden" },
@@ -657,34 +657,34 @@ const s = StyleSheet.create({
   snapIcon:     { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   snapInfo:     { flex: 1, gap: 3 },
   snapRow:      { flexDirection: "row", alignItems: "center", gap: 8 },
-  snapName:     { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.textSecondary },
-  snapTime:     { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.text },
+  snapName:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  snapTime:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   snapNote:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   snapMeta:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   chip:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 20 },
-  chipTxt:      { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  chipTxt:      { fontSize: 10, fontFamily: "Pretendard-Regular" },
 
   snapBody:     { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
-  includesTitle:{ fontSize: 11, fontFamily: "Pretendard-Medium", color: C.textSecondary },
+  includesTitle:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   tagsRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   tag:          { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  tagTxt:       { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#2EC4B6" },
+  tagTxt:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
   excludeBox:   { flexDirection: "row", alignItems: "center", gap: 6,
                   backgroundColor: "#FFF1BF", padding: 8, borderRadius: 8 },
-  excludeTxt:   { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#92400E" },
+  excludeTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E" },
   restoreBtn:   { flexDirection: "row", alignItems: "center", justifyContent: "center",
                   gap: 8, paddingVertical: 12, borderRadius: 12 },
-  restoreBtnTxt:{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  restoreBtnTxt:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   jobRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12 },
   jobStatus:    { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  jobStatusTxt: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
-  jobNote:      { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.text },
+  jobStatusTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  jobNote:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   jobMeta:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
 
   logRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12 },
-  logSummary:   { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.text },
+  logSummary:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   logMeta:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
 
   emptyBox:     { alignItems: "center", gap: 8, paddingVertical: 32 },
@@ -697,17 +697,17 @@ const rm = StyleSheet.create({
   sheet:        { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
                   padding: 20, gap: 10, maxHeight: "90%" },
   header:       { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
-  title:        { flex: 1, fontSize: 17, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
+  title:        { flex: 1, fontSize: 17, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 
   targetBox:    { backgroundColor: "#F9DEDA", borderRadius: 12, padding: 14, gap: 4 },
-  targetLabel:  { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#D96C6C" },
-  targetTime:   { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
+  targetLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
+  targetTime:   { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   targetNote:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#991B1B" },
 
   previewBox:   { backgroundColor: "#FFFFFF", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 14, gap: 8 },
   previewRow:   { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   previewKey:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, flexShrink: 0 },
-  previewVal:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.text, textAlign: "right", flex: 1 },
+  previewVal:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "right", flex: 1 },
 
   policyBox:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFFBEB", borderRadius: 10, borderWidth: 1, borderColor: "#FDE68A", padding: 10 },
   policyTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 17 },
@@ -715,10 +715,10 @@ const rm = StyleSheet.create({
   overwriteBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FEF2F2", borderRadius: 10, borderWidth: 1, borderColor: "#FECACA", padding: 10 },
   overwriteTxt: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#991B1B", lineHeight: 17 },
 
-  sectionTitle: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, marginTop: 4 },
+  sectionTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 4 },
   affectedRow:  { flexDirection: "row", gap: 10, paddingVertical: 6,
                   borderLeftWidth: 2, borderLeftColor: "#E6FFFA", paddingLeft: 10 },
-  affectedLabel:{ fontSize: 13, fontFamily: "Pretendard-Medium", color: C.text },
+  affectedLabel:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   affectedDetail:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 16 },
 
   checkRow:     { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4,
@@ -728,5 +728,5 @@ const rm = StyleSheet.create({
   btnRow:       { flexDirection: "row", gap: 10, marginTop: 6 },
   btn:          { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
                   gap: 8, paddingVertical: 13, borderRadius: 12 },
-  btnTxt:       { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  btnTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular" },
 });

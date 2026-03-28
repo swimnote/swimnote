@@ -109,7 +109,7 @@ const db = StyleSheet.create({
     width: 52, height: 52, borderRadius: 16, borderWidth: 1.5,
     alignItems: "center", justifyContent: "center",
   },
-  label: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  label: { fontSize: 16, fontFamily: "Pretendard-Regular" },
 });
 
 function TimeButton({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
@@ -129,7 +129,7 @@ const tb = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     backgroundColor: C.background,
   },
-  label: { fontSize: 14, fontFamily: "Pretendard-Medium" },
+  label: { fontSize: 14, fontFamily: "Pretendard-Regular" },
 });
 
 function TeacherRow({ t, selected, onPress }: { t: Teacher; selected: boolean; onPress: () => void }) {
@@ -159,10 +159,10 @@ function TeacherRow({ t, selected, onPress }: { t: Teacher; selected: boolean; o
 const tr = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5, marginBottom: 8 },
   avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  initial: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
-  name: { fontSize: 15, fontFamily: "Pretendard-Medium" },
+  initial: { fontSize: 16, fontFamily: "Pretendard-Regular" },
+  name: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   badge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: "#FFF1BF" },
-  badgeText: { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#92400E" },
+  badgeText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E" },
 });
 
 export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, onClose, initialDays, initialStep }: ClassCreateFlowProps) {
@@ -381,7 +381,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                     {oneTimeDate && getDayOfWeek(oneTimeDate) ? (
                       <View style={[s1.preview, { backgroundColor: "#E6FAF8" }]}>
                         <CircleCheck size={14} color="#7C3AED" />
-                        <Text style={{ fontSize: 14, fontFamily: "Pretendard-Medium", color: "#7C3AED" }}>
+                        <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#7C3AED" }}>
                           {oneTimeDate} ({getDayOfWeek(oneTimeDate)}요일)
                         </Text>
                       </View>
@@ -492,7 +492,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                   <View style={[s4.nameRow, { backgroundColor: selectedColor !== "#FFFFFF" ? selectedColor : (isOneTime ? "#E6FAF8" : C.tintLight) }]}>
                     {isOneTime && (
                       <View style={[ot.oneTimeBadge, { backgroundColor: "#7C3AED" }]}>
-                        <Text style={{ color: "#fff", fontSize: 10, fontFamily: "Pretendard-SemiBold" }}>1회성</Text>
+                        <Text style={{ color: "#fff", fontSize: 10, fontFamily: "Pretendard-Regular" }}>1회성</Text>
                       </View>
                     )}
                     <Layers size={20} color={isOneTime ? "#7C3AED" : C.tint} />
@@ -573,8 +573,8 @@ function InfoRow({ icon, label, value }: { icon: any; label: string; value: stri
 }
 const ir = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.border },
-  label: { width: 60, fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary },
-  value: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
+  label: { width: 60, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  value: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
 });
 
 const fl = StyleSheet.create({
@@ -582,22 +582,22 @@ const fl = StyleSheet.create({
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingTop: 16, paddingHorizontal: 24 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 6 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
-  title: { fontSize: 20, fontFamily: "Pretendard-SemiBold", color: C.text, marginBottom: 6 },
-  stepTitle: { fontSize: 16, fontFamily: "Pretendard-Medium", color: C.text, marginBottom: 4 },
+  title: { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 6 },
+  stepTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 4 },
   stepSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginBottom: 16 },
   errorRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9DEDA", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginBottom: 8 },
   errorText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.error },
   btnRow: { flexDirection: "row", gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#FFFFFF" },
   backBtn: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
   nextBtn: { height: 50, borderRadius: 14, paddingHorizontal: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  nextText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Medium" },
+  nextText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
 });
 
 const s1 = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
   preview: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
-  previewLabel: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary },
-  previewValue: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  previewLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  previewValue: { fontSize: 14, fontFamily: "Pretendard-Regular" },
 });
 
 const s2 = StyleSheet.create({
@@ -613,17 +613,17 @@ const s4 = StyleSheet.create({
   wrap: { gap: 12 },
   card: { borderRadius: 18, borderWidth: 1.5, overflow: "hidden" },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  name: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
+  name: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   rows: { paddingHorizontal: 16 },
 });
 
 const ot = StyleSheet.create({
   toggleRow: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 14, padding: 14, marginBottom: 16, gap: 12 },
-  toggleLabel: { fontSize: 15, fontFamily: "Pretendard-Medium" },
+  toggleLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   toggleSub: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   toggleSwitch: { width: 44, height: 26, borderRadius: 13, padding: 3, justifyContent: "center" },
   toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
   dateBox: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52, marginBottom: 12 },
-  dateInput: { flex: 1, fontSize: 16, fontFamily: "Pretendard-Medium", letterSpacing: 1 },
+  dateInput: { flex: 1, fontSize: 16, fontFamily: "Pretendard-Regular", letterSpacing: 1 },
   oneTimeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
 });

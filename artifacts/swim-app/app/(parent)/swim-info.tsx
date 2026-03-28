@@ -192,7 +192,7 @@ export default function SwimInfoScreen() {
                   <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
                     {selectedStudent.name}의 현재 레벨
                   </Text>
-                  <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: C.text, marginTop: 2 }}>
+                  <Text style={{ fontSize: 18, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 2 }}>
                     {levelInfo.current_level?.level_name ?? "미지정"}
                   </Text>
                   {levelInfo.current_level?.level_description ? (
@@ -205,7 +205,7 @@ export default function SwimInfoScreen() {
                   <View style={{ alignItems: "center", gap: 2 }}>
                     <Text style={{ fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textMuted }}>다음 목표</Text>
                     <LevelBadge level={levelInfo.next_level} size="sm" />
-                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Medium", color: C.textSecondary }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
                       {levelInfo.next_level.level_name}
                     </Text>
                   </View>
@@ -213,7 +213,7 @@ export default function SwimInfoScreen() {
               </View>
               {levelInfo.current_level?.promotion_test_rule ? (
                 <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border }}>
-                  <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: "#D97706" }}>승급 기준</Text>
+                  <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706" }}>승급 기준</Text>
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 4, lineHeight: 20 }}>
                     {levelInfo.current_level.promotion_test_rule}
                   </Text>
@@ -252,7 +252,7 @@ const s = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 6, elevation: 3,
   },
-  poolName: { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  poolName: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#fff" },
   poolMeta: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.85)" },
   notice: {
     borderRadius: 12, padding: 14,
@@ -279,7 +279,7 @@ const cs = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 12, padding: 16,
   },
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  cardTitle: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Medium" },
+  cardTitle: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   cardBody: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
   divider: { height: 1, marginBottom: 6 },
   content: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 23 },

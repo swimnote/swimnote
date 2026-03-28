@@ -456,15 +456,15 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  poolName:    { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: C.text },
+  poolName:    { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.text },
   greet:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   switchChip:  { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
-  switchChipTxt: { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  switchChipTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   subBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  subBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Medium" },
+  subBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular" },
   headerBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
 
-  sectionLabel:  { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textMuted, marginBottom: 10 },
+  sectionLabel:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, marginBottom: 10 },
 
   bannerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   bannerCard: {
@@ -479,8 +479,8 @@ const s = StyleSheet.create({
     elevation: 2,
   },
   bannerIcon:  { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center", marginBottom: 6 },
-  bannerValue: { fontSize: 19, fontFamily: "Pretendard-SemiBold", marginBottom: 1 },
-  bannerLabel: { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.text },
+  bannerValue: { fontSize: 19, fontFamily: "Pretendard-Regular", marginBottom: 1 },
+  bannerLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text },
   bannerSub:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
 
   alertCard: {
@@ -509,7 +509,7 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  iconLabel:   { fontSize: 11, fontFamily: "Pretendard-Medium", color: C.text, textAlign: "center" },
+  iconLabel:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" },
   directBadge: { position: "absolute", bottom: 4, right: 4, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   notiBadge:   { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 4, borderWidth: 1.5, borderColor: "#F5F6FA" },
   notiBadgeTxt:{ color: "#fff", fontSize: 9, fontWeight: "700" },
@@ -517,12 +517,12 @@ const s = StyleSheet.create({
   splitStatRow:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.card, borderRadius: 14, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   splitStatItem:   { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   splitStatIcon:   { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  splitStatNum:    { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  splitStatNum:    { fontSize: 16, fontFamily: "Pretendard-Regular" },
   splitStatLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   splitStatDivider: { width: 1, height: 32, backgroundColor: C.border },
 
   addMemberBtn:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   addMemberIconWrap: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  addMemberLabel:    { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
+  addMemberLabel:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   addMemberSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
 });

@@ -171,7 +171,7 @@ const u = StyleSheet.create({
     borderWidth: 1, borderColor: "#FDE68A",
   },
   summaryLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  summaryText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#B45309" },
+  summaryText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#B45309" },
   sortLabel: { fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular" },
 
   listContent: { paddingHorizontal: 16, paddingBottom: 40 },
@@ -182,7 +182,7 @@ const u = StyleSheet.create({
     marginTop: 8,
   },
   dateHeaderText: {
-    fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary,
+    fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary,
   },
 
   card: {
@@ -196,12 +196,12 @@ const u = StyleSheet.create({
     backgroundColor: "#F9DEDA", borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 2,
   },
-  unwrittenBadgeText: { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
-  className: { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text, marginBottom: 2 },
+  unwrittenBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
+  className: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 2 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 3 },
   metaText: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginLeft: 2 },
 
   empty: { alignItems: "center", paddingTop: 100, gap: 10 },
-  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Medium", color: C.text, textAlign: "center" },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" },
   emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
 });

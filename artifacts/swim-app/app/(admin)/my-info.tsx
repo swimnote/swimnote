@@ -196,7 +196,7 @@ export default function AdminMyInfoScreen() {
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={editPhone} onChangeText={setEditPhone} placeholder="010-0000-0000" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
             {editMsg ? (
               <View style={[s.msgBox, { backgroundColor: editMsg.includes("저장") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: editMsg.includes("저장") ? "#2EC4B6" : "#D96C6C" }}>{editMsg}</Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: editMsg.includes("저장") ? "#2EC4B6" : "#D96C6C" }}>{editMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: C.button, opacity: editSaving ? 0.7 : 1, marginTop: 16 }]} onPress={saveProfile} disabled={editSaving}>
@@ -222,7 +222,7 @@ export default function AdminMyInfoScreen() {
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwConfirm} onChangeText={setPwConfirm} placeholder="새 비밀번호 재입력" placeholderTextColor={C.textMuted} secureTextEntry />
             {pwMsg ? (
               <View style={[s.msgBox, { backgroundColor: pwMsg.includes("변경") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: pwMsg.includes("변경") ? "#2EC4B6" : "#D96C6C" }}>{pwMsg}</Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: pwMsg.includes("변경") ? "#2EC4B6" : "#D96C6C" }}>{pwMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: C.button, opacity: pwSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitPasswordChange} disabled={pwSaving}>
@@ -241,25 +241,25 @@ const s = StyleSheet.create({
   card: { backgroundColor: C.card, borderRadius: 16, shadowColor: C.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   cardRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, paddingBottom: 4 },
-  cardTitle: { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
+  cardTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   avatar: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
-  profileName: { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: C.text },
+  avatarText: { fontSize: 22, fontFamily: "Pretendard-Regular" },
+  profileName: { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.text },
   profileSub: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   editBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
-  editBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  editBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   infoLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  infoValue: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  infoValue: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   secItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14 },
-  secItemLabel: { fontSize: 14, fontFamily: "Pretendard-Medium" },
+  secItemLabel: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   modalBox: { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 6 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  modalTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: C.text },
-  inputLabel: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary, marginTop: 6 },
+  modalTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.text },
+  inputLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 6 },
   input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Pretendard-Regular", marginTop: 4 },
   msgBox: { padding: 10, borderRadius: 10, marginTop: 4 },
   confirmBtn: { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  confirmBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Medium" },
+  confirmBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
 });

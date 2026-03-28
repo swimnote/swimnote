@@ -362,8 +362,8 @@ export default function MyInfoScreen() {
           {/* 유료회원 총계 (active + suspended) */}
           <View style={[s.memRow, { borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: themeColor + "0D" }]}>
             <View style={[s.memDot, { backgroundColor: themeColor }]} />
-            <Text style={[s.memLabel, { fontFamily: "Pretendard-Medium" }]}>유료회원</Text>
-            <Text style={[s.memCount, { color: themeColor, fontFamily: "Pretendard-SemiBold" }]}>
+            <Text style={[s.memLabel, { fontFamily: "Pretendard-Regular" }]}>유료회원</Text>
+            <Text style={[s.memCount, { color: themeColor, fontFamily: "Pretendard-Regular" }]}>
               {memStatus.paid_count ?? (memStatus.active + memStatus.suspended)}명
             </Text>
           </View>
@@ -427,7 +427,7 @@ export default function MyInfoScreen() {
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={editPos} onChangeText={setEditPos} placeholder="예: 수석강사" placeholderTextColor={C.textMuted} />
             {editMsg ? (
               <View style={[s.msgBox, { backgroundColor: editMsg.includes("저장") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: editMsg.includes("저장") ? "#2EC4B6" : "#D96C6C" }}>{editMsg}</Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: editMsg.includes("저장") ? "#2EC4B6" : "#D96C6C" }}>{editMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: C.button, opacity: editSaving ? 0.7 : 1, marginTop: 16 }]} onPress={saveProfile} disabled={editSaving}>
@@ -453,7 +453,7 @@ export default function MyInfoScreen() {
             <TextInput style={[s.input, s.textArea, { borderColor: C.border, color: C.text }]} value={resignReason} onChangeText={setResignReason} placeholder="퇴직 사유 또는 권한 종료 이유를 입력해주세요..." placeholderTextColor={C.textMuted} multiline numberOfLines={4} textAlignVertical="top" />
             {resignMsg ? (
               <View style={[s.msgBox, { backgroundColor: resignMsg.includes("접수") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: resignMsg.includes("접수") ? "#2EC4B6" : "#D96C6C" }}>{resignMsg}</Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: resignMsg.includes("접수") ? "#2EC4B6" : "#D96C6C" }}>{resignMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: "#D96C6C", opacity: resignSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitResign} disabled={resignSaving}>
@@ -479,7 +479,7 @@ export default function MyInfoScreen() {
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwConfirm} onChangeText={setPwConfirm} placeholder="새 비밀번호 재입력" placeholderTextColor={C.textMuted} secureTextEntry />
             {pwMsg ? (
               <View style={[s.msgBox, { backgroundColor: pwMsg.includes("변경") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: pwMsg.includes("변경") ? "#2EC4B6" : "#D96C6C" }}>{pwMsg}</Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: pwMsg.includes("변경") ? "#2EC4B6" : "#D96C6C" }}>{pwMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: C.button, opacity: pwSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitPasswordChange} disabled={pwSaving}>
@@ -520,49 +520,49 @@ const s = StyleSheet.create({
   card:             { backgroundColor: C.card, borderRadius: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   cardRow:          { flexDirection: "row", alignItems: "center", gap: 14 },
   cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, paddingBottom: 12 },
-  cardTitle:        { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
+  cardTitle:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   avatarLg:         { width: 54, height: 54, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  avatarLgText:     { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
-  profileName:      { fontSize: 17, fontFamily: "Pretendard-SemiBold", color: C.text },
+  avatarLgText:     { fontSize: 22, fontFamily: "Pretendard-Regular" },
+  profileName:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
   profileSub:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   editBtn:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
-  editBtnText:      { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  editBtnText:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
   permRow:          { flexDirection: "row", alignItems: "center", gap: 8 },
   permLabel:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, width: 64 },
   permBadge:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  permBadgeText:    { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  permBadgeText:    { fontSize: 12, fontFamily: "Pretendard-Regular" },
   dayRow:           { flexDirection: "row", alignItems: "center", gap: 10 },
-  dayLabel:         { width: 20, fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  dayLabel:         { width: 20, fontSize: 13, fontFamily: "Pretendard-Regular" },
   dayBarWrap:       { flex: 1, height: 8, backgroundColor: C.border, borderRadius: 4, overflow: "hidden" },
   dayBar:           { height: 8, borderRadius: 4 },
-  dayCount:         { width: 36, fontSize: 12, fontFamily: "Pretendard-Medium", color: C.textSecondary, textAlign: "right" },
+  dayCount:         { width: 36, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "right" },
   memRow:           { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
   memDot:           { width: 10, height: 10, borderRadius: 5 },
-  memLabel:         { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
-  memCount:         { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  memLabel:         { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
+  memCount:         { fontSize: 16, fontFamily: "Pretendard-Regular" },
   actionBtn:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderRadius: 14, borderWidth: 1 },
-  actionBtnText:    { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium" },
+  actionBtnText:    { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   emptyBox:         { alignItems: "center", gap: 10, paddingVertical: 40 },
   emptyText:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
   memberRow:        { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 12 },
   memberAvatar:     { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  memberAvatarText: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
-  memberName:       { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
+  memberAvatarText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  memberName:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   memberSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   statusBadge:      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  statusBadgeText:  { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  statusBadgeText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   modalOverlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalBox:         { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 10 },
   modalHeader:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-  modalTitle:       { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: C.text },
-  inputLabel:       { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary },
+  modalTitle:       { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.text },
+  inputLabel:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   input:            { borderWidth: 1.5, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular" },
   textArea:         { minHeight: 90, textAlignVertical: "top" },
   msgBox:           { padding: 10, borderRadius: 10 },
   confirmBtn:       { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  confirmBtnText:   { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Medium" },
+  confirmBtnText:   { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
   warnBox:          { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#FFF1BF", padding: 10, borderRadius: 10 },
   secItem:          { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14 },
-  secItemLabel:     { fontSize: 14, fontFamily: "Pretendard-Medium" },
+  secItemLabel:     { fontSize: 14, fontFamily: "Pretendard-Regular" },
   warnText:         { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E" },
 });

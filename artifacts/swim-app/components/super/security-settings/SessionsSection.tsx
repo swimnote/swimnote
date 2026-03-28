@@ -50,10 +50,10 @@ const s = StyleSheet.create({
   sessionRow:   { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10,
                   borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   sessionIconBox:{ width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  sessionDevice: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  sessionDevice: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   sessionOwner:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B",
                    backgroundColor: "#FFFFFF", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   sessionMeta:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   terminateBtn: { backgroundColor: "#F9DEDA", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  terminateTxt: { fontSize: 11, fontFamily: "Pretendard-Medium", color: DANGER },
+  terminateTxt: { fontSize: 11, fontFamily: "Pretendard-Regular", color: DANGER },
 });

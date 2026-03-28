@@ -449,8 +449,8 @@ export default function TeacherPhotosScreen() {
               <View style={s.usageDivider} />
               <View style={[s.usageItem, { backgroundColor: themeColor + "08" }]}>
                 <Database size={14} color={themeColor} />
-                <Text style={[s.usageItemLabel, { color: themeColor, fontFamily: "Pretendard-SemiBold" }]}>총 사용량</Text>
-                <Text style={[s.usageItemBytes, { color: themeColor, fontFamily: "Pretendard-SemiBold" }]}>{fmtBytes(usage?.total_bytes ?? 0)}</Text>
+                <Text style={[s.usageItemLabel, { color: themeColor, fontFamily: "Pretendard-Regular" }]}>총 사용량</Text>
+                <Text style={[s.usageItemBytes, { color: themeColor, fontFamily: "Pretendard-Regular" }]}>{fmtBytes(usage?.total_bytes ?? 0)}</Text>
               </View>
               <Text style={s.usageMonthText}>이번 달: {fmtBytes(usage?.month_bytes ?? 0)}</Text>
             </View>
@@ -889,42 +889,42 @@ export default function TeacherPhotosScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#FFFFFF" },
   titleRow: { paddingHorizontal: 16, paddingVertical: 10 },
-  title: { fontSize: 20, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  title: { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
 
   grid: { flexDirection: "row", flexWrap: "wrap", padding: 12, gap: 12 },
   gridBtn: { width: "47%", aspectRatio: 1, borderRadius: 20, borderWidth: 1.5, alignItems: "center", justifyContent: "center", gap: 10 },
   gridIcon: { width: 60, height: 60, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  gridTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
-  gridSub: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  gridTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
+  gridSub: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   usageCard: { marginHorizontal: 12, marginTop: 4, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden" },
   usageCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  usageCardTitle: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  usageCardTitle: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   usageCardBody: { padding: 12, gap: 2 },
   usageItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 10 },
-  usageItemLabel: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
-  usageItemBytes: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  usageItemLabel: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  usageItemBytes: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   usageDivider: { height: 1, backgroundColor: "#FFFFFF", marginHorizontal: 8 },
   usageMonthText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", paddingTop: 6 },
 
   listToolbar: { height: 36, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", paddingHorizontal: 14 },
   listSelectBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
-  listSelectBtnText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  listSelectBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   selectBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F5F9", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB", gap: 4 },
   selectBarLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
-  selectBarAllText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  selectBarAllText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   selectBarCount: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
   selectBarDel: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#D96C6C", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  selectBarDelText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
+  selectBarDelText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   selectBarCancel: { paddingHorizontal: 8, paddingVertical: 7 },
-  selectBarCancelText: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  selectBarCancelText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 28 },
   centerText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
   retryBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#4EA7D8", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
-  retryBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
-  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Medium", color: "#0F172A", textAlign: "center" },
+  retryBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A", textAlign: "center" },
   emptySubText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
 
   photoCell: { overflow: "hidden", backgroundColor: "#FFFFFF", margin: 1 },
@@ -932,12 +932,12 @@ const s = StyleSheet.create({
   photoDateOverlay: { position: "absolute", top: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.28)", paddingHorizontal: 5, paddingVertical: 3 },
   photoDateText: { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
   photoLabelBar: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 5, paddingVertical: 4 },
-  photoLabelText: { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Medium" },
+  photoLabelText: { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
   checkCircle: { position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#fff", backgroundColor: "rgba(255,255,255,0.3)", alignItems: "center", justifyContent: "center" },
 
   videoRow: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 12, gap: 12 },
   videoThumb: { width: 52, height: 52, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  videoLabel: { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  videoLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   videoMeta: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   videoUploader: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
@@ -947,21 +947,21 @@ const s = StyleSheet.create({
   lbClose: { position: "absolute", left: 16, width: 44, height: 44, alignItems: "center", justifyContent: "center", zIndex: 10 },
   lbImage: { width: W, height: W * 1.1 },
   lbImagePlaceholder: { width: W, height: W * 0.8, alignItems: "center", justifyContent: "center" },
-  lbLabel: { color: "#E6FFFA", fontSize: 13, fontFamily: "Pretendard-Medium", paddingHorizontal: 24, paddingTop: 14, textAlign: "center" },
+  lbLabel: { color: "#E6FFFA", fontSize: 13, fontFamily: "Pretendard-Regular", paddingHorizontal: 24, paddingTop: 14, textAlign: "center" },
   lbMeta: { color: "rgba(255,255,255,0.45)", fontSize: 12, fontFamily: "Pretendard-Regular", paddingTop: 4, textAlign: "center" },
   lbActionBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  lbActionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
+  lbActionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   uploadCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 40 },
   uploadIcon: { width: 100, height: 100, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  uploadTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#0F172A", textAlign: "center" },
+  uploadTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A", textAlign: "center" },
   uploadSub: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 20 },
   uploadBtn: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 28, paddingVertical: 16, borderRadius: 16 },
-  uploadBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  uploadBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
 
   studentList: { padding: 12, gap: 8, paddingBottom: 100 },
   studentRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
   avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
-  studentName: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  avatarText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
+  studentName: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
 });

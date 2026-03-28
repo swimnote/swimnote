@@ -324,7 +324,7 @@ export default function ParentSignupScreen() {
         >
           <Text style={[styles.loginLinkTxt, { color: C.textSecondary }]}>
             이미 계정이 있으신가요?{" "}
-            <Text style={{ color: C.tint, fontFamily: "Pretendard-Medium" }}>로그인</Text>
+            <Text style={{ color: C.tint, fontFamily: "Pretendard-Regular" }}>로그인</Text>
           </Text>
         </Pressable>
       </ScrollView>
@@ -349,33 +349,33 @@ const styles = StyleSheet.create({
   backBtn:       { position: "absolute", left: 20, zIndex: 10, padding: 4 },
   header:        { alignItems: "center", gap: 10, paddingTop: 8 },
   iconBox:       { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  title:         { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
+  title:         { fontSize: 22, fontFamily: "Pretendard-Regular" },
   sub:           { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
   card:          { borderRadius: 20, padding: 20, gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
   errorBox:      { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10 },
   errorTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   field:         { gap: 6 },
-  label:         { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  label:         { fontSize: 12, fontFamily: "Pretendard-Regular" },
   inputBox:      { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 46 },
   input:         { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   genderRow:     { flexDirection: "row", gap: 10 },
   genderBtn:     { flex: 1, height: 42, borderRadius: 12, borderWidth: 1.5, borderColor: Colors.light.border, alignItems: "center", justifyContent: "center", backgroundColor: Colors.light.background },
-  genderTxt:     { fontSize: 14, fontFamily: "Pretendard-Medium" },
+  genderTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular" },
   phoneRow:      { flexDirection: "row", gap: 8, alignItems: "center" },
   smsBtn:        { height: 46, paddingHorizontal: 14, borderRadius: 12, alignItems: "center", justifyContent: "center", minWidth: 72 },
-  smsBtnTxt:     { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
+  smsBtnTxt:     { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   codeSection:   { gap: 6, marginTop: 2 },
   codeRow:       { flexDirection: "row", gap: 8, alignItems: "center" },
-  timerTxt:      { fontSize: 13, fontFamily: "Pretendard-Medium", marginRight: 4 },
+  timerTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", marginRight: 4 },
   codeSent:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  verifiedTxt:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#2EC4B6" },
+  verifiedTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
   smsErrTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   devCodeBox:    { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6,
                    backgroundColor: "#FFF3CD", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
-  devCodeLabel:  { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#856404" },
-  devCodeNum:    { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#856404", letterSpacing: 2 },
+  devCodeLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#856404" },
+  devCodeNum:    { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#856404", letterSpacing: 2 },
   primaryBtn:    { height: 50, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  primaryBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Medium", color: "#fff" },
+  primaryBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   loginLink:     { alignItems: "center", paddingVertical: 4 },
   loginLinkTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });

@@ -47,7 +47,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
 
         {data.invite_code && connStatus !== "linked" && (
           <View style={ms.inviteBox}>
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary, marginBottom: 4 }}>초대 코드</Text>
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 }}>초대 코드</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Text style={[ms.inviteCode, { color: themeColor }]}>{data.invite_code}</Text>
               <Pressable

@@ -171,8 +171,8 @@ const s = StyleSheet.create({
     width: 48, height: 48, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
   },
-  accountAvatarTxt: { fontSize: 20, fontFamily: "Pretendard-SemiBold" },
-  accountName: { fontSize: 16, fontFamily: "Pretendard-Medium" },
+  accountAvatarTxt: { fontSize: 20, fontFamily: "Pretendard-Regular" },
+  accountName: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   accountPool: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
 
   menuItem: {
@@ -181,7 +181,7 @@ const s = StyleSheet.create({
     shadowOpacity: 0.03, shadowRadius: 3, elevation: 1,
   },
   menuIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  menuLabel: { fontSize: 15, fontFamily: "Pretendard-Medium" },
+  menuLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   menuSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
   versionRow: { paddingVertical: 4, alignItems: "center" },

@@ -243,13 +243,13 @@ export default function StudentDetailScreen() {
                 <LevelBadge level={levelInfo?.current_level ?? null} size="md" />
                 <View>
                   <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" }}>현재 레벨</Text>
-                  <Text style={{ fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.text, marginTop: 2 }}>
+                  <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 2 }}>
                     {levelInfo?.current_level?.level_name ?? "미지정"}
                   </Text>
                   {levelInfo?.current_level?.is_active === false && (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
                       <EyeOff size={11} color="#D97706" />
-                      <Text style={{ fontSize: 11, color: "#D97706", fontFamily: "Pretendard-Medium" }}>사용 안 함 레벨</Text>
+                      <Text style={{ fontSize: 11, color: "#D97706", fontFamily: "Pretendard-Regular" }}>사용 안 함 레벨</Text>
                     </View>
                   )}
                   {levelInfo?.current_level?.level_description && levelInfo.current_level.is_active !== false ? (
@@ -530,31 +530,31 @@ const s = StyleSheet.create({
                     flexDirection: "row", alignItems: "flex-start", gap: 14,
                     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   avatarWrap:     { width: 60, height: 60, borderRadius: 18, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  avatarText:     { fontSize: 24, fontFamily: "Pretendard-SemiBold" },
-  studentName:    { fontSize: 20, fontFamily: "Pretendard-SemiBold", color: C.text },
+  avatarText:     { fontSize: 24, fontFamily: "Pretendard-Regular" },
+  studentName:    { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text },
   studentSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   statusBadge:    { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  statusText:     { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  statusText:     { fontSize: 11, fontFamily: "Pretendard-Regular" },
   weeklyBadgeBtn: { flexDirection: "row", alignItems: "center" },
 
   pickerOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 32 },
   pickerSheet:    { width: "100%", borderRadius: 20, padding: 24, gap: 16 },
-  pickerTitle:    { fontSize: 17, fontFamily: "Pretendard-SemiBold", color: "#0F172A", textAlign: "center" },
+  pickerTitle:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A", textAlign: "center" },
   pickerSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", marginTop: -8 },
   pickerOptions:  { flexDirection: "row", gap: 10 },
   pickerOption:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
                     paddingVertical: 14, borderRadius: 14, borderWidth: 2 },
-  pickerOptionText: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  pickerOptionText: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   pickerCancel:   { alignItems: "center", paddingVertical: 12, borderRadius: 12,
                     borderWidth: 1.5, borderColor: "#E5E7EB" },
-  pickerCancelText: { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  pickerCancelText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   levelPickerItem: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: C.background,
   },
-  levelPickerLabel: { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.text },
+  levelPickerLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
 
   noteInput: {
     borderWidth: 1, borderColor: C.border, borderRadius: 10,
@@ -563,7 +563,7 @@ const s = StyleSheet.create({
   },
 
   section:        { gap: 8 },
-  sectionTitle:   { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary, paddingLeft: 4 },
+  sectionTitle:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, paddingLeft: 4 },
   card:           { backgroundColor: C.card, borderRadius: 16, overflow: "hidden",
                     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
 
@@ -571,29 +571,29 @@ const s = StyleSheet.create({
                     paddingHorizontal: 16, paddingVertical: 14 },
   statusRowLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
   statusBadgeLg:  { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  statusBadgeLgText:{ fontSize: 13, fontFamily: "Pretendard-Medium" },
+  statusBadgeLgText:{ fontSize: 13, fontFamily: "Pretendard-Regular" },
   changeBtn:      { flexDirection: "row", alignItems: "center", gap: 5,
                     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
-  changeBtnText:  { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  changeBtnText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   infoRow:        { flexDirection: "row", alignItems: "center", gap: 8,
                     paddingHorizontal: 16, paddingVertical: 12,
                     borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  infoLabel:      { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary, width: 80 },
-  infoValue:      { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text, textAlign: "right" },
+  infoLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, width: 80 },
+  infoValue:      { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "right" },
 
   divider:        { height: 1, backgroundColor: "#FFFFFF", marginHorizontal: 14 },
 
   classRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
   colorBar:       { width: 4, height: 40, borderRadius: 2 },
-  className:      { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
+  className:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   classMeta:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   goBtn:          { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5 },
-  goBtnText:      { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  goBtnText:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
   attRow:         { flexDirection: "row", padding: 16 },
   attBox:         { flex: 1, alignItems: "center", gap: 4 },
-  attValue:       { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
+  attValue:       { fontSize: 18, fontFamily: "Pretendard-Regular" },
   attLabel:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   attDivider:     { width: 1, backgroundColor: C.border, marginVertical: 4 },
 

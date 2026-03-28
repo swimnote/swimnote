@@ -93,7 +93,7 @@ export default function ScheduleMemoModal({
 const sm = StyleSheet.create({
   header:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 14, borderBottomWidth: 1 },
   backBtn:     { width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: 12 },
-  headerTitle: { fontSize: 17, fontFamily: "Pretendard-SemiBold" },
+  headerTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   tipBox:      { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12 },
   tipText:     { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
 });

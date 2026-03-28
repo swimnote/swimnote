@@ -636,25 +636,25 @@ export default function ApprovalsScreen() {
 const x = StyleSheet.create({
   childBox:    { gap: 6 },
   matchRow:    { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
-  matchTxt:    { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  matchTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
   autoChip:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "#E6FFFA" },
-  autoChipTxt: { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" },
-  childTitle:  { fontSize: 11, fontFamily: "Pretendard-Medium", color: C.textSecondary, marginBottom: 2 },
+  autoChipTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  childTitle:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 2 },
   childRow:    { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
-  childName:    { fontSize: 13, fontFamily: "Pretendard-Medium", color: C.text },
+  childName:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   childYear:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   inviteHint:   { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2,
                   backgroundColor: "#ECFEFF", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  inviteHintTxt:{ fontSize: 11, fontFamily: "Pretendard-Medium", color: "#2EC4B6", flex: 1 },
+  inviteHintTxt:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flex: 1 },
 });
 
 const s = StyleSheet.create({
   list:          { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
   unlinkCard:    { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
   unlinkAvatar:  { width: 42, height: 42, borderRadius: 21, justifyContent: "center", alignItems: "center" },
-  unlinkAvatarTxt:{ fontSize: 17, fontFamily: "Pretendard-SemiBold" },
-  unlinkName:    { fontSize: 15, fontFamily: "Pretendard-Medium" },
+  unlinkAvatarTxt:{ fontSize: 17, fontFamily: "Pretendard-Regular" },
+  unlinkName:    { fontSize: 15, fontFamily: "Pretendard-Regular" },
   unlinkSub:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
   smsBtn:        { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#2EC4B6", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  smsBtnTxt:     { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
+  smsBtnTxt:     { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
 });

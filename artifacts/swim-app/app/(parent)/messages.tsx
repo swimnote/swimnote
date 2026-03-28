@@ -236,14 +236,14 @@ const s = StyleSheet.create({
 
   noDiary: { alignItems: "center", paddingTop: 60, gap: 12, paddingHorizontal: 20 },
   noDiaryEmoji: { fontSize: 56 },
-  noDiaryTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
+  noDiaryTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   noDiarySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   noDiaryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
-  noDiaryBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#fff" },
+  noDiaryBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   emptyWrap: { alignItems: "center", paddingTop: 60, gap: 8 },
   emptyEmoji: { fontSize: 48 },
-  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Medium" },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center" },
 
   msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginBottom: 4 },
@@ -252,12 +252,12 @@ const s = StyleSheet.create({
     width: 32, height: 32, borderRadius: 10, backgroundColor: C.tintLight,
     alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
-  msgSender: { fontSize: 11, fontFamily: "Pretendard-Medium", color: C.textSecondary, marginBottom: 2, paddingLeft: 2 },
+  msgSender: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 2, paddingLeft: 2 },
   msgBubble: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10 },
   msgContent: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   msgMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
   msgTime: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  msgAction: { fontSize: 11, fontFamily: "Pretendard-Medium", color: C.textSecondary },
+  msgAction: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   inputRow: {
     flexDirection: "row", alignItems: "flex-end", gap: 8,

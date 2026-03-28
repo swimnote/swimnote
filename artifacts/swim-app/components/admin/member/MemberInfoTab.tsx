@@ -50,7 +50,7 @@ export function MemberInfoTab({
           <Text style={ms.sectionTitle}>기본 정보 편집</Text>
           {infoChanged && (
             <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#FFF1BF" }}>
-              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: "#92400E" }}>변경됨</Text>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E" }}>변경됨</Text>
             </View>
           )}
         </View>

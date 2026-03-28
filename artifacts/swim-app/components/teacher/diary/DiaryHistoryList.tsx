@@ -111,13 +111,13 @@ export default function DiaryHistoryList({
             <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
               <Pressable style={[s.delBtn, { borderColor: C.border, backgroundColor: C.background, flex: 1 }]}
                 onPress={onDeleteCancel} disabled={deleteLoading}>
-                <Text style={{ color: C.textSecondary, fontFamily: "Pretendard-Medium", fontSize: 14 }}>취소</Text>
+                <Text style={{ color: C.textSecondary, fontFamily: "Pretendard-Regular", fontSize: 14 }}>취소</Text>
               </Pressable>
               <Pressable style={[s.delBtn, { backgroundColor: C.error, flex: 1, opacity: deleteLoading ? 0.6 : 1 }]}
                 onPress={onDeleteConfirm} disabled={deleteLoading}>
                 {deleteLoading
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={{ color: "#fff", fontFamily: "Pretendard-SemiBold", fontSize: 14 }}>삭제</Text>}
+                  : <Text style={{ color: "#fff", fontFamily: "Pretendard-Regular", fontSize: 14 }}>삭제</Text>}
               </Pressable>
             </View>
           </View>
@@ -133,9 +133,9 @@ const s = StyleSheet.create({
   diaryCardEditable: { borderWidth: 1.5, borderColor: "#E6FFFA" },
   badgeRow:      { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   statusBadge:   { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
-  statusBadgeText: { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  statusBadgeText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   diaryCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  diaryCardDate: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  diaryCardDate: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   diaryTeacher:  { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   diaryContent:  { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   iconBtn:       { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
@@ -144,9 +144,9 @@ const s = StyleSheet.create({
   delOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 },
   delSheet:      { width: "100%", borderRadius: 22, padding: 24, alignItems: "center", gap: 14 },
   delIconWrap:   { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  delTitle:      { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
+  delTitle:      { fontSize: 18, fontFamily: "Pretendard-Regular" },
   delDesc:       { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
   delBtn:        { height: 48, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   inlineError:   { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, borderRadius: 10 },
-  inlineErrorText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", lineHeight: 17 },
+  inlineErrorText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
 });

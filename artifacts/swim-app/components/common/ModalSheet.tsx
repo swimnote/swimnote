@@ -190,7 +190,7 @@ const s = StyleSheet.create({
   title: {
     flex: 1,
     fontSize: 16,
-    fontFamily: "Pretendard-Medium",
+    fontFamily: "Pretendard-Regular",
     color: C.text,
     textAlign: "center",
   },

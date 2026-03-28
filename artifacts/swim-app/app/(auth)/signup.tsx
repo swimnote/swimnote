@@ -648,7 +648,7 @@ export default function SignupScreen() {
         <Pressable style={({ pressed }) => [styles.loginLink, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
           <Text style={[styles.loginLinkTxt, { color: C.textSecondary }]}>
             이미 계정이 있으신가요?{" "}
-            <Text style={{ color: C.tint, fontFamily: "Pretendard-Medium" }}>로그인</Text>
+            <Text style={{ color: C.tint, fontFamily: "Pretendard-Regular" }}>로그인</Text>
           </Text>
         </Pressable>
       </ScrollView>
@@ -675,44 +675,44 @@ const styles = StyleSheet.create({
   container:   { paddingHorizontal: 20, gap: 20 },
   header:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backBtn:     { padding: 4 },
-  headerTitle: { fontSize: 17, fontFamily: "Pretendard-SemiBold" },
+  headerTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
 
   stepRow:   { flexDirection: "row", alignItems: "flex-start", justifyContent: "center", gap: 0 },
   stepItem:  { alignItems: "center", gap: 4, flex: 1 },
   stepDot:   { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  stepNum:   { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
-  stepLabel: { fontSize: 10, fontFamily: "Pretendard-Medium" },
+  stepNum:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  stepLabel: { fontSize: 10, fontFamily: "Pretendard-Regular" },
 
   card:      { borderRadius: 20, backgroundColor: "#fff", padding: 20, gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
-  cardTitle: { fontSize: 17, fontFamily: "Pretendard-SemiBold" },
+  cardTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   cardDesc:  { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: -8 },
 
   field:    { gap: 6 },
-  label:    { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  label:    { fontSize: 12, fontFamily: "Pretendard-Regular" },
   inputBox: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 48 },
   input:    { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
 
   phoneRow:    { flexDirection: "row", gap: 8, alignItems: "center" },
   smsBtn:      { height: 48, paddingHorizontal: 16, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  smsBtnTxt:   { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
+  smsBtnTxt:   { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   codeRow:     { flexDirection: "row", gap: 8, alignItems: "center" },
-  timerTxt:    { fontSize: 12, fontFamily: "Pretendard-Medium", marginLeft: 4 },
+  timerTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", marginLeft: 4 },
   verifiedRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  verifiedTxt: { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  verifiedTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   smsErrTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
   devCodeBox:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF3CD", borderRadius: 8, padding: 10 },
-  devCodeLabel:{ fontSize: 11, fontFamily: "Pretendard-Medium", color: "#856404" },
-  devCodeNum:  { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#856404", letterSpacing: 2 },
+  devCodeLabel:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#856404" },
+  devCodeNum:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#856404", letterSpacing: 2 },
 
   roleCard:  { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, padding: 14, backgroundColor: "#fff" },
   roleIcon:  { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  roleLabel: { fontSize: 15, fontFamily: "Pretendard-Medium" },
+  roleLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   roleDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
 
   selectedPool: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, backgroundColor: "#F0FAF9" },
   poolItem:     { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 4 },
   poolIconSm:   { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  poolNameSm:   { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  poolNameSm:   { fontSize: 13, fontFamily: "Pretendard-Regular" },
   poolAddrSm:   { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 1 },
   emptyTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", paddingVertical: 8 },
 
@@ -722,7 +722,7 @@ const styles = StyleSheet.create({
   errTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C", flex: 1 },
 
   primaryBtn:    { height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  primaryBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  primaryBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
   loginLink:     { alignItems: "center", paddingVertical: 4 },
   loginLinkTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });

@@ -68,11 +68,11 @@ export default function PrivacyScreen() {
 const styles = StyleSheet.create({
   header:        { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12 },
   backBtn:       { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-  headerTitle:   { flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Pretendard-Medium" },
+  headerTitle:   { flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Pretendard-Regular" },
   content:       { paddingHorizontal: 20, paddingTop: 12, gap: 20 },
   effectiveDate: { fontSize: 12, fontFamily: "Pretendard-Regular", marginBottom: 4 },
   section:       { gap: 6 },
-  sectionTitle:  { fontSize: 14, fontFamily: "Pretendard-Medium", lineHeight: 20 },
+  sectionTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   sectionBody:   { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22 },
   sectionNote:   { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18, fontStyle: "italic" },
 });

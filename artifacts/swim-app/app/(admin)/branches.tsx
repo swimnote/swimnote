@@ -162,10 +162,10 @@ export default function PoolsScreen() {
 
       <View style={[styles.countRow, { paddingHorizontal: 20 }]}>
         <Text style={[styles.countTxt, { color: C.textSecondary }]}>
-          총 <Text style={{ color: TINT, fontFamily: "Pretendard-SemiBold" }}>{pools.length}</Text>개 수영장
+          총 <Text style={{ color: TINT, fontFamily: "Pretendard-Regular" }}>{pools.length}</Text>개 수영장
         </Text>
         <Text style={[styles.activeTxt, { color: C.textMuted }]}>
-          현재: <Text style={{ color: TINT, fontFamily: "Pretendard-Medium" }}>{currentPool?.name ?? "—"}</Text>
+          현재: <Text style={{ color: TINT, fontFamily: "Pretendard-Regular" }}>{currentPool?.name ?? "—"}</Text>
         </Text>
       </View>
 
@@ -337,43 +337,43 @@ export default function PoolsScreen() {
 
 const styles = StyleSheet.create({
   addBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  addBtnTxt: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
+  addBtnTxt: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginHorizontal: 20, marginBottom: 14, padding: 12, borderRadius: 12, borderWidth: 1 },
   infoTxt: { flex: 1, fontSize: 12.5, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   countRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   countTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   activeTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   empty: { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Medium" },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   emptyDesc: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   card: { borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   cardTop: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },
   poolIcon: { width: 50, height: 50, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   poolIconEmoji: { fontSize: 24 },
   nameLine: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  poolName: { fontSize: 16, fontFamily: "Pretendard-SemiBold", flexShrink: 1 },
+  poolName: { fontSize: 16, fontFamily: "Pretendard-Regular", flexShrink: 1 },
   activeBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  activeBadgeTxt: { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Medium" },
+  activeBadgeTxt: { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
   primaryBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
-  primaryBadgeTxt: { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  primaryBadgeTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   metaRow: { flexDirection: "row", gap: 6 },
   statusPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  statusTxt: { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  statusTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   switchArrow: { alignItems: "center", gap: 3 },
-  switchTxt: { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  switchTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   cardBottom: { borderTopWidth: 1, paddingHorizontal: 16, paddingVertical: 10, gap: 5 },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   infoTxt2: { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1 },
   errTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   field: { gap: 5 },
-  fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   input: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Pretendard-Regular" },
   copySection: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
-  copyTitle: { fontSize: 14, fontFamily: "Pretendard-Medium" },
+  copyTitle: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   copyDesc: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   copyRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   copyLabel: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   saveBtn: { height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 4 },
-  saveBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Medium" },
+  saveBtnTxt: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
 });

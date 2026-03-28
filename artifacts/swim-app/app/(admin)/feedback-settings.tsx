@@ -376,7 +376,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: 8, borderWidth: 1, borderColor: "#FCA5A5", backgroundColor: "#FEF2F2",
   },
-  resetAllBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#D96C6C" },
+  resetAllBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 
   descBox: {
     flexDirection: "row", alignItems: "flex-start", gap: 8,
@@ -393,23 +393,23 @@ const s = StyleSheet.create({
     gap: 4, paddingVertical: 8, borderRadius: 12,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  tabText: { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  tabText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   tabBadge: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
-  tabBadgeText: { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  tabBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
 
   catControl: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 14, paddingVertical: 8,
     borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  countText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  countText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   catBtns: { flexDirection: "row", gap: 8 },
   catBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
     borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
-  catBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  catBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   listContent: { paddingHorizontal: 14, paddingTop: 8, gap: 8 },
 
@@ -421,7 +421,7 @@ const s = StyleSheet.create({
     width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center",
     flexShrink: 0,
   },
-  rowIndexText: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
+  rowIndexText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   rowText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
   rowActions: { flexDirection: "row", gap: 6, flexShrink: 0 },
   rowBtn: {
@@ -440,7 +440,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     height: 50, borderRadius: 14,
   },
-  addBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  addBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
 
   modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
   modalKV:  { flex: 1, justifyContent: "flex-end" },
@@ -448,7 +448,7 @@ const s = StyleSheet.create({
     backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
     paddingHorizontal: 20, paddingTop: 20, gap: 12,
   },
-  modalTitle: { fontSize: 17, fontFamily: "Pretendard-SemiBold", color: C.text },
+  modalTitle: { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
   modalSub:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -4 },
   textInput: {
     borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
@@ -457,12 +457,12 @@ const s = StyleSheet.create({
     backgroundColor: C.background,
   },
   charCount: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "right", marginTop: -6 },
-  errorText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#D96C6C" },
+  errorText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   modalBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
   modalBtn: {
     flex: 1, height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center",
   },
   modalBtnCancel: { borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
-  modalBtnCancelText: { fontSize: 15, fontFamily: "Pretendard-Medium", color: C.textSecondary },
-  modalBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  modalBtnCancelText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  modalBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

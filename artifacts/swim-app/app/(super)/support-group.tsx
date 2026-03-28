@@ -87,11 +87,11 @@ const s = StyleSheet.create({
   summaryAlertBlue:  { borderColor: "#BAE6FD", backgroundColor: "#F0F9FF" },
   summaryAlertPurple:{ borderColor: "#C4B5FD", backgroundColor: "#EEDDF5" },
   summaryAlertRed:   { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
-  summaryNum:        { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  summaryNum:        { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   summaryLabel:      { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, textAlign: "center" },
   card:              { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
                        borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
   iconBox:           { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cardTitle:         { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  cardTitle:         { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   cardSub:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3, lineHeight: 17 },
 });

@@ -169,10 +169,10 @@ export default function DiaryEditView({
                     placeholderTextColor={C.textMuted} multiline numberOfLines={3} textAlignVertical="top" autoFocus />
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                     <Pressable style={[s.noteBtn, { borderColor: C.border }]} onPress={() => { setEditAddStudent(null); setEditAddInput(""); }}>
-                      <Text style={{ color: C.textSecondary, fontFamily: "Pretendard-Medium", fontSize: 13 }}>취소</Text>
+                      <Text style={{ color: C.textSecondary, fontFamily: "Pretendard-Regular", fontSize: 13 }}>취소</Text>
                     </Pressable>
                     <Pressable style={[s.noteBtn, { backgroundColor: "#8B5CF6", borderColor: "#8B5CF6", flex: 1 }]} onPress={onEditAddNote} disabled={!editAddInput.trim()}>
-                      <Text style={{ color: "#fff", fontFamily: "Pretendard-Medium", fontSize: 13 }}>추가</Text>
+                      <Text style={{ color: "#fff", fontFamily: "Pretendard-Regular", fontSize: 13 }}>추가</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -221,36 +221,36 @@ const s = StyleSheet.create({
   form:          { padding: 14, gap: 14, paddingBottom: 80 },
   infoCard:      { borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 8 },
   infoCardRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
-  infoCardText:  { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  infoCardText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
   card:          { borderRadius: 16, padding: 14, gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   cardHeader:    { flexDirection: "row", alignItems: "center", gap: 8 },
   cardIcon:      { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  cardTitle:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", flex: 1 },
+  cardTitle:     { fontSize: 14, fontFamily: "Pretendard-Regular", flex: 1 },
   cardSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   textarea:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: "#fff" },
   textareaFooter:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
   charCount:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.tintLight, backgroundColor: "#F0F5FF" },
-  sentencePickBtnText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: Colors.light.tint },
+  sentencePickBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.tint },
   emptyStudents: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
   emptyStudentsText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  sectionLabel:  { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  sectionLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
   studentChip:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 10, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 8 },
-  studentChipText: { fontSize: 13, fontFamily: "Pretendard-Medium", flex: 1 },
+  studentChipText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   editNoteItem:  { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   editNoteHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  noteName:      { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" },
+  noteName:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
   noteContent:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
   noteInput:     { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
   noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: "#fff" },
   noteBtn:       { flex: 1, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   statusBadge:   { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
-  statusBadgeText: { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  statusBadgeText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   footer:        { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
   cancelBtnFt:   { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  cancelBtnFtText: { fontSize: 14, fontFamily: "Pretendard-Medium" },
+  cancelBtnFtText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   saveBtn:       { flexDirection: "row", height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 8 },
-  saveBtnText:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  saveBtnText:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
   inlineError:   { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, borderRadius: 10 },
-  inlineErrorText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Medium", lineHeight: 17 },
+  inlineErrorText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
 });

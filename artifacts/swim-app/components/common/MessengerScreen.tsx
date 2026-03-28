@@ -963,7 +963,7 @@ const s = StyleSheet.create({
   segBtn: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 12 },
   segBtnActive: { borderBottomWidth: 2, borderBottomColor: PRIMARY },
   segText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  segTextActive: { color: PRIMARY, fontFamily: "Pretendard-Medium" },
+  segTextActive: { color: PRIMARY, fontFamily: "Pretendard-Regular" },
   unreadDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#D96C6C", marginTop: -8 },
   staffBtn: {
     flexDirection: "row",
@@ -992,7 +992,7 @@ const s = StyleSheet.create({
   msgRowRight: { justifyContent: "flex-end" },
   avatarCol: { width: 36, marginRight: 6, alignSelf: "flex-end" },
   avatar: { width: 34, height: 34, borderRadius: 17, justifyContent: "center", alignItems: "center" },
-  avatarText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  avatarText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
   avatarPlaceholder: { width: 34, height: 34 },
   senderName: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginBottom: 2, marginLeft: 2 },
   bubbleCol: { maxWidth: "75%", flexDirection: "column" },
@@ -1037,7 +1037,7 @@ const s = StyleSheet.create({
   noticeCardWrap: { marginVertical: 6, paddingHorizontal: 4 },
   noticeCard: { backgroundColor: NOTICE_YELLOW_BG, borderWidth: 1, borderColor: NOTICE_YELLOW_BORDER, borderRadius: 12, padding: 12, gap: 6 },
   noticeCardHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
-  noticeCardSender: { fontSize: 12, fontFamily: "Pretendard-Medium", color: AMBER_TEXT, flex: 1 },
+  noticeCardSender: { fontSize: 12, fontFamily: "Pretendard-Regular", color: AMBER_TEXT, flex: 1 },
   noticeCardTime: { fontSize: 10, color: "#B45309", fontFamily: "Pretendard-Regular" },
   noticeCardContent: { fontSize: 14, color: "#1C1917", fontFamily: "Pretendard-Regular", lineHeight: 20 },
 
@@ -1056,8 +1056,8 @@ const s = StyleSheet.create({
     width: 24, height: 24, borderRadius: 12,
     backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center",
   },
-  memberCardLabel: { fontSize: 11, color: PRIMARY, fontFamily: "Pretendard-Medium" },
-  memberCardName: { fontSize: 16, color: C.text, fontFamily: "Pretendard-SemiBold" },
+  memberCardLabel: { fontSize: 11, color: PRIMARY, fontFamily: "Pretendard-Regular" },
+  memberCardName: { fontSize: 16, color: C.text, fontFamily: "Pretendard-Regular" },
   memberCardRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   memberCardMeta: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
   memberCardTap: { fontSize: 10, color: C.textMuted, fontFamily: "Pretendard-Regular", marginTop: 4, textAlign: "right" },
@@ -1077,7 +1077,7 @@ const s = StyleSheet.create({
   },
   fileIconBox: { width: 40, height: 40, borderRadius: 8, justifyContent: "center", alignItems: "center" },
   fileInfo: { flex: 1 },
-  fileName: { fontSize: 13, color: C.text, fontFamily: "Pretendard-Medium" },
+  fileName: { fontSize: 13, color: C.text, fontFamily: "Pretendard-Regular" },
   fileExt: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginTop: 2 },
 
   /* 지정 메시지 대상 배지 */
@@ -1091,7 +1091,7 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: C.tintLight,
   },
-  targetBadgeText: { flex: 1, fontSize: 12, color: PRIMARY, fontFamily: "Pretendard-Medium" },
+  targetBadgeText: { flex: 1, fontSize: 12, color: PRIMARY, fontFamily: "Pretendard-Regular" },
 
   /* 입력창 */
   inputArea: { backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8, paddingHorizontal: 8 },
@@ -1126,11 +1126,11 @@ const s = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: Platform.OS === "ios" ? 36 : 20,
   },
-  sheetTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.text, marginBottom: 12 },
+  sheetTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 12 },
   sheetItem: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12 },
   sheetIcon: { width: 48, height: 48, borderRadius: 12, justifyContent: "center", alignItems: "center" },
   sheetItemText: { flex: 1 },
-  sheetItemLabel: { fontSize: 15, fontFamily: "Pretendard-Medium", color: C.text },
+  sheetItemLabel: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   sheetItemSub: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginTop: 1 },
 
   /* 범용 모달 시트 */
@@ -1144,7 +1144,7 @@ const s = StyleSheet.create({
     maxHeight: "80%",
   },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  modalTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.text },
+  modalTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text },
   modalSub: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginBottom: 12 },
 
   /* 회원 선택 목록 */
@@ -1156,9 +1156,9 @@ const s = StyleSheet.create({
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center",
   },
-  studentAvatarText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: PRIMARY },
+  studentAvatarText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: PRIMARY },
   studentInfo: { flex: 1 },
-  studentName: { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
+  studentName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   studentMeta: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginTop: 1 },
 
   /* 스태프 목록 */
@@ -1168,9 +1168,9 @@ const s = StyleSheet.create({
   },
   staffRowSelected: { backgroundColor: C.tintLight + "80" },
   staffAvatar: { width: 38, height: 38, borderRadius: 19, justifyContent: "center", alignItems: "center" },
-  staffAvatarText: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  staffAvatarText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   staffInfoCol: { flex: 1 },
-  staffName: { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
+  staffName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   staffRole: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginTop: 1 },
 
   /* 회원카드 상세 팝업 */
@@ -1187,13 +1187,13 @@ const s = StyleSheet.create({
     width: 64, height: 64, borderRadius: 32,
     backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center", marginBottom: 8,
   },
-  cardDetailAvatarText: { fontSize: 26, fontFamily: "Pretendard-SemiBold", color: PRIMARY },
-  cardDetailName: { fontSize: 20, fontFamily: "Pretendard-SemiBold", color: C.text, marginBottom: 16 },
+  cardDetailAvatarText: { fontSize: 26, fontFamily: "Pretendard-Regular", color: PRIMARY },
+  cardDetailName: { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 16 },
   cardDetailRows: { width: "100%", gap: 10 },
   detailRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border,
   },
   detailLabel: { fontSize: 13, color: C.textSecondary, fontFamily: "Pretendard-Regular", width: 100 },
-  detailValue: { flex: 1, fontSize: 13, color: C.text, fontFamily: "Pretendard-Medium" },
+  detailValue: { flex: 1, fontSize: 13, color: C.text, fontFamily: "Pretendard-Regular" },
 });

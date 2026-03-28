@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   },
   action: {
     fontSize: 13,
-    fontFamily: "Pretendard-Medium",
+    fontFamily: "Pretendard-Regular",
     color: C.tint,
   },
 });

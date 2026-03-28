@@ -141,7 +141,7 @@ export default function ParentLevelScreen() {
             <View style={[s.nextCard, { backgroundColor: "#FFFBEB", borderColor: "#FEF3C7" }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <CircleArrowRight size={18} color="#D97706" />
-                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Medium", color: "#D97706" }}>
+                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D97706" }}>
                   다음 목표: 레벨 {levelInfo.next_level.level_name}
                 </Text>
               </View>
@@ -204,9 +204,9 @@ const s = StyleSheet.create({
     borderRadius: 24, padding: 28, alignItems: "center", gap: 8,
     shadowColor: "#0000002A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 4,
   },
-  currentLabel: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "rgba(255,255,255,0.8)" },
-  currentLevel: { fontSize: 52, fontFamily: "Pretendard-SemiBold", color: "#fff", marginTop: 4 },
-  currentLevelName: { fontSize: 20, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  currentLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.8)" },
+  currentLevel: { fontSize: 52, fontFamily: "Pretendard-Regular", color: "#fff", marginTop: 4 },
+  currentLevelName: { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#fff" },
   currentDate: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.8)" },
 
   descCard: {
@@ -215,28 +215,28 @@ const s = StyleSheet.create({
   },
   descBlock: { padding: 14 },
   descBorderTop: { borderTopWidth: 1, borderTopColor: "#F0EDE9" },
-  descTitle: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  descTitle: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   descText: { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22 },
 
   nextCard: {
     marginTop: 12, borderRadius: 14, padding: 14, borderWidth: 1,
   },
 
-  sectionTitle: { fontSize: 17, fontFamily: "Pretendard-SemiBold" },
+  sectionTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   timelineRow: { flexDirection: "row", gap: 12 },
   timelineLeft: { alignItems: "center", width: 16 },
   timelineDot: { width: 14, height: 14, borderRadius: 7, marginTop: 16 },
   timelineLine: { width: 2, flex: 1, marginTop: 4 },
   timelineCard: { borderRadius: 16, padding: 14 },
   timelineHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  timelineLevel: { fontSize: 20, fontFamily: "Pretendard-SemiBold" },
+  timelineLevel: { fontSize: 20, fontFamily: "Pretendard-Regular" },
   currentBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  currentBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#fff" },
+  currentBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#fff" },
   timelineDate: { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: 2 },
   timelineTeacher: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   timelineNote: { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: 4, lineHeight: 18 },
   empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyEmoji: { fontSize: 56 },
-  emptyTitle: { fontSize: 18, fontFamily: "Pretendard-Medium" },
+  emptyTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
 });

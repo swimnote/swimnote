@@ -75,10 +75,10 @@ export default function ParentCodeSignupScreen() {
           </View>
           <Text style={[styles.doneTitle, { color: C.text }]}>가입 완료!</Text>
           <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
-            <Text style={{ fontFamily: "Pretendard-Medium", color: C.text }}>{invite?.pool_name}</Text>
+            <Text style={{ fontFamily: "Pretendard-Regular", color: C.text }}>{invite?.pool_name}</Text>
             {" "}에 가입되었습니다.{"\n"}
             아이디{" "}
-            <Text style={{ fontFamily: "Pretendard-SemiBold", color: C.text }}>{loginId}</Text>
+            <Text style={{ fontFamily: "Pretendard-Regular", color: C.text }}>{loginId}</Text>
             {"\n"}로 로그인해주세요.
           </Text>
           <Pressable
@@ -305,36 +305,36 @@ const styles = StyleSheet.create({
   container: { paddingHorizontal: 20, gap: 24 },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backBtn: { padding: 4 },
-  screenTitle: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
+  screenTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   card: {
     borderRadius: 20, padding: 22, gap: 14,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07, shadowRadius: 12, elevation: 4,
   },
   iconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 4 },
-  cardTitle: { fontSize: 20, fontFamily: "Pretendard-SemiBold", textAlign: "center" },
+  cardTitle: { fontSize: 20, fontFamily: "Pretendard-Regular", textAlign: "center" },
   cardDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20, marginTop: -6 },
   field: { gap: 6 },
-  fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   inputRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52,
   },
-  codeInput: { flex: 1, fontSize: 18, fontFamily: "Pretendard-SemiBold", letterSpacing: 3, textAlign: "center" },
+  codeInput: { flex: 1, fontSize: 18, fontFamily: "Pretendard-Regular", letterSpacing: 3, textAlign: "center" },
   input: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   infoBox: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   infoRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 11 },
   infoLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  infoValue: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  infoValue: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   infoDivider: { height: 1 },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   errText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   submitBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
-  submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
   doneWrap: { flex: 1, alignItems: "center", paddingHorizontal: 32, gap: 16 },
   doneIcon: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  doneTitle: { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
+  doneTitle: { fontSize: 22, fontFamily: "Pretendard-Regular" },
   doneDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   doneBtn: { height: 52, borderRadius: 14, paddingHorizontal: 32, alignItems: "center", justifyContent: "center", marginTop: 12 },
-  doneBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  doneBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
 });

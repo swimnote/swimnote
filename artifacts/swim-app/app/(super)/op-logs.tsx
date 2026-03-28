@@ -112,7 +112,7 @@ export default function OpLogsScreen() {
       <View style={s.countBanner}>
         <Activity size={13} color={P} />
         <Text style={s.countTxt}>
-          총 <Text style={{ color: P, fontFamily: "Pretendard-SemiBold" }}>{allLogs.length}</Text>건 기록됨
+          총 <Text style={{ color: P, fontFamily: "Pretendard-Regular" }}>{allLogs.length}</Text>건 기록됨
           {activeTab !== "전체" && <Text> · 필터: {logs.length}건</Text>}
         </Text>
       </View>
@@ -255,27 +255,27 @@ const s = StyleSheet.create({
   tab:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7,
                   borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
   tabAllActive: { backgroundColor: P, borderColor: P },
-  tabTxt:       { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  tabTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   dateDivider:  { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
   dateLine:     { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
-  dateLabel:    { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  dateLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   logCard:      { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   logIcon:      { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0 },
   logBody:      { flex: 1, gap: 5 },
   logTop:       { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A", lineHeight: 19 },
+  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 19 },
   logSubDesc:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   logTime:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", flexShrink: 0 },
   logMeta:      { flexDirection: "row", alignItems: "center", gap: 5 },
   catBadge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  catTxt:       { fontSize: 10, fontFamily: "Pretendard-Medium" },
+  catTxt:       { fontSize: 10, fontFamily: "Pretendard-Regular" },
   impactBadge:  { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6 },
-  impactTxt:    { fontSize: 10, fontFamily: "Pretendard-Medium" },
+  impactTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular" },
   logMetaTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   logMetaDot:   { fontSize: 10, color: "#D1D5DB" },
   logDetail:    { backgroundColor: "#F1F5F9", borderRadius: 8, padding: 10, gap: 5 },
   detailRow:    { flexDirection: "row", gap: 8 },
-  detailLabel:  { width: 48, fontSize: 11, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  detailLabel:  { width: 48, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   detailVal:    { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   empty:        { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },

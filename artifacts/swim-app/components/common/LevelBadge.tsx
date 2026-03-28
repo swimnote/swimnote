@@ -73,6 +73,6 @@ const styles = StyleSheet.create({
     shadowColor: "#00000025", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 1, shadowRadius: 4, elevation: 2,
   },
-  label: { fontFamily: "Pretendard-SemiBold", textAlign: "center" },
-  name: { fontFamily: "Pretendard-Medium", color: "#3A3530" },
+  label: { fontFamily: "Pretendard-Regular", textAlign: "center" },
+  name: { fontFamily: "Pretendard-Regular", color: "#3A3530" },
 });

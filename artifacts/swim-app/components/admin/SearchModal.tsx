@@ -56,7 +56,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
             )}
           </View>
           <Pressable onPress={onClose} style={sm.closeBtn}>
-            <Text style={{ color: C.tint, fontSize: 15, fontFamily: "Pretendard-Medium" }}>취소</Text>
+            <Text style={{ color: C.tint, fontSize: 15, fontFamily: "Pretendard-Regular" }}>취소</Text>
           </Pressable>
         </View>
         {loading ? (
@@ -131,11 +131,11 @@ const sm = StyleSheet.create({
   searchBar:    { flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: C.border },
   input:        { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   closeBtn:     { paddingHorizontal: 4 },
-  sectionLabel: { fontSize: 12, fontFamily: "Pretendard-Medium", color: C.textMuted, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#F1F5F9" },
+  sectionLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#F1F5F9" },
   row:          { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },
   avatar:       { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  avatarText:   { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
-  rowTitle:     { fontSize: 15, fontFamily: "Pretendard-Medium", color: C.text },
+  avatarText:   { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  rowTitle:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   rowSub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   empty:        { alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyText:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textMuted },

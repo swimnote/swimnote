@@ -366,7 +366,7 @@ export default function MembersScreen() {
           </>
         ) : (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 4 }}>
-            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Medium", color: C.textSecondary }}>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
               선택 모드 — {sel.selectedCount}명 선택됨
             </Text>
           </View>
@@ -592,25 +592,25 @@ const ms = StyleSheet.create({
   pendingSection:     { marginHorizontal: 16, marginBottom: 10, borderRadius: 14, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#CBD5E1", padding: 12, gap: 8 },
   pendingHeader:      { flexDirection: "row", alignItems: "center", gap: 8 },
   pendingBadge:       { width: 22, height: 22, borderRadius: 11, backgroundColor: "#2EC4B6", alignItems: "center", justifyContent: "center" },
-  pendingBadgeTxt:    { color: "#fff", fontSize: 11, fontFamily: "Pretendard-SemiBold" },
-  pendingSectionTitle:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  pendingBadgeTxt:    { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
+  pendingSectionTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   pendingCard:        { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#CBD5E1" },
   pendingCardLeft:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   pendingAvatar:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" },
-  pendingAvatarTxt:   { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
-  pendingName:        { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
+  pendingAvatarTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  pendingName:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   pendingMeta:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   pendingActions:     { flexDirection: "row", gap: 6 },
   pendingBtn:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
-  pendingBtnTxt:      { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  pendingBtnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
   actionRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12 },
-  actionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
+  actionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   selBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border },
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 16, marginBottom: 4 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   list: { paddingTop: 10 },
   suspendedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FAF8", borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#CBD5E1" },
-  suspendedBannerTitle: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  suspendedBannerTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   suspendedBannerBody: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
 });

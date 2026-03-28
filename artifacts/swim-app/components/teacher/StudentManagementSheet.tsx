@@ -96,7 +96,7 @@ function DatePicker({ value, onChange }: { value: string; onChange: (d: string) 
       <TouchableOpacity onPress={() => add(-1)} style={{ padding: 8 }}>
         <ChevronLeft size={20} color={C.text} />
       </TouchableOpacity>
-      <Text style={{ fontSize: 15, fontFamily: "Pretendard-Medium", color: C.text }}>
+      <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>
         {y}년 {m}월 {d}일 ({DOW})
       </Text>
       <TouchableOpacity onPress={() => add(1)} style={{ padding: 8 }}>
@@ -652,7 +652,7 @@ const st = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: C.border,
   },
   headerTitle: {
-    flex: 1, fontSize: 17, fontFamily: "Pretendard-SemiBold", color: C.text,
+    flex: 1, fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text,
   },
   tabRow: {
     flexDirection: "row",
@@ -664,14 +664,14 @@ const st = StyleSheet.create({
     borderBottomWidth: 2, borderBottomColor: "transparent",
   },
   tabBtnText: {
-    fontSize: 13, fontFamily: "Pretendard-Medium", color: C.textSecondary,
+    fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary,
   },
   tabBadge: {
     borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1,
     minWidth: 18, alignItems: "center",
   },
   tabBadgeText: {
-    fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#fff",
+    fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff",
   },
   row: {
     flexDirection: "row", alignItems: "center",
@@ -686,28 +686,28 @@ const st = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   rowAvatarText: {
-    fontSize: 16, fontFamily: "Pretendard-SemiBold",
+    fontSize: 16, fontFamily: "Pretendard-Regular",
   },
-  rowName: { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text },
+  rowName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   rowSub:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   badge:   {
     backgroundColor: C.border, borderRadius: 6,
     paddingHorizontal: 6, paddingVertical: 2,
   },
-  badgeText: { fontSize: 11, fontFamily: "Pretendard-Medium", color: C.textSecondary },
-  remaining: { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#2EC4B6" },
+  badgeText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  remaining: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
   actionBtn: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
     alignItems: "center", justifyContent: "center",
   },
-  actionBtnText: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  actionBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   center:   { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 40 },
   emptyBox: { alignItems: "center", justifyContent: "center", paddingVertical: 40, gap: 10 },
   emptyText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   pickLabel: {
-    fontSize: 13, fontFamily: "Pretendard-Medium",
+    fontSize: 13, fontFamily: "Pretendard-Regular",
     color: C.textSecondary, marginBottom: 4,
   },
 
@@ -716,7 +716,7 @@ const st = StyleSheet.create({
     paddingVertical: 14, alignItems: "center",
     backgroundColor: "#fff",
   },
-  weeklyBtnText: { fontSize: 16, fontFamily: "Pretendard-Medium", color: C.text },
+  weeklyBtnText: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text },
 
   classRow: {
     flexDirection: "row", alignItems: "center",
@@ -724,9 +724,9 @@ const st = StyleSheet.create({
     padding: 14, borderWidth: 1, borderColor: C.border, gap: 10,
   },
   classRowFull: { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
-  className: { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.text, marginBottom: 2 },
+  className: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 2 },
   classSub:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  classCap:  { fontSize: 11, fontFamily: "Pretendard-Medium", color: C.textSecondary, marginTop: 2 },
+  classCap:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
 
   pickBadge: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6,
@@ -737,13 +737,13 @@ const st = StyleSheet.create({
     backgroundColor: "#F9DEDA",
     alignItems: "center", justifyContent: "center",
   },
-  pickBadgeText: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#fff" },
+  pickBadgeText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   confirmBtn: {
     paddingVertical: 15, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
   },
-  confirmBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  confirmBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   readOnlyBanner: {
     flexDirection: "row", alignItems: "center", gap: 6,

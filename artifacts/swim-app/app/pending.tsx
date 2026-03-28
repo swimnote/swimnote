@@ -98,7 +98,7 @@ export default function PendingScreen() {
             <Text style={[styles.title, { color: C.text }]}>수영장 승인을 기다려주세요</Text>
             <Text style={[styles.message, { color: C.textSecondary }]}>
               {"가입 요청이 접수되었습니다.\n수영장 관리자가 요청을 검토한 후 승인합니다.\n\n자녀 정보가 학생 명부와 일치하는 경우\n"}
-              <Text style={{ fontFamily: "Pretendard-Medium", color: C.text }}>자동으로 즉시 승인</Text>
+              <Text style={{ fontFamily: "Pretendard-Regular", color: C.text }}>자동으로 즉시 승인</Text>
               {"됩니다."}
             </Text>
             <View style={[styles.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   container:  { flex: 1 },
   content:    { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28, gap: 20 },
   iconBox:    { width: 96, height: 96, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  title:      { fontSize: 22, fontFamily: "Pretendard-SemiBold", textAlign: "center" },
+  title:      { fontSize: 22, fontFamily: "Pretendard-Regular", textAlign: "center" },
   message:    { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 23 },
   infoCard:   { width: "100%", borderRadius: 16, borderWidth: 1, padding: 16, gap: 12 },
   infoRow:    { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   waitBanner: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12 },
   waitTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   refreshBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 },
-  refreshText:{ fontSize: 15, fontFamily: "Pretendard-Medium" },
+  refreshText:{ fontSize: 15, fontFamily: "Pretendard-Regular" },
   logoutBtn:  { paddingVertical: 10, paddingHorizontal: 16 },
   logoutText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });

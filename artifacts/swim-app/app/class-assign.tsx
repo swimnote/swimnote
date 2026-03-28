@@ -522,14 +522,14 @@ const rt = StyleSheet.create({
   backdrop:  { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
   card:      { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: C_rt.card,
                borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, gap: 8 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-SemiBold", color: C_rt.text, textAlign: "center" },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: C_rt.text, textAlign: "center" },
   sub:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C_rt.textMuted, textAlign: "center", marginBottom: 8 },
   optList:   { gap: 8 },
   optBtn:    { backgroundColor: "#FFF1F2", borderRadius: 12, padding: 14, gap: 3 },
-  optLabel:  { fontSize: 15, fontFamily: "Pretendard-Medium", color: C_rt.error },
+  optLabel:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: C_rt.error },
   optSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C_rt.textMuted },
   cancelBtn: { marginTop: 4, paddingVertical: 14, alignItems: "center" },
-  cancelTxt: { fontSize: 15, fontFamily: "Pretendard-Medium", color: C_rt.textMuted },
+  cancelTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C_rt.textMuted },
 });
 
 // ── 학생 카드 ────────────────────────────────────────────────────
@@ -603,7 +603,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingBottom: 12,
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 18, fontFamily: "Pretendard-SemiBold" },
+  title: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   classCard: {
     flexDirection: "row", alignItems: "flex-start", gap: 12,
     marginHorizontal: 16, marginBottom: 16,
@@ -611,16 +611,16 @@ const s = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
   classIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  className: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  className: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   meta: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   countBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, alignSelf: "flex-start", marginTop: 2 },
-  countText: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  countText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   sectionHeader: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingBottom: 8,
   },
-  sectionTitle: { fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  sectionTitle: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   sectionCount: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   emptyRow: { paddingHorizontal: 16, paddingVertical: 14, alignItems: "center" },
   emptyText: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center" },
@@ -642,7 +642,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     borderRadius: 14, paddingVertical: 15,
   },
-  doneTxt: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  doneTxt: { fontSize: 16, fontFamily: "Pretendard-Regular" },
 });
 
 const r = StyleSheet.create({
@@ -652,15 +652,15 @@ const r = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
   avatar: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 16, fontFamily: "Pretendard-SemiBold" },
-  name: { fontSize: 14, fontFamily: "Pretendard-Medium" },
+  avatarText: { fontSize: 16, fontFamily: "Pretendard-Regular" },
+  name: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   sub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  progress: { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  progress: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   btn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
   },
-  btnText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  btnText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });
 
 const wp = StyleSheet.create({
@@ -672,15 +672,15 @@ const wp = StyleSheet.create({
     padding: 24, gap: 16,
     shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12,
   },
-  title: { fontSize: 18, fontFamily: "Pretendard-SemiBold", color: C.text, textAlign: "center" },
+  title: { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" },
   sub: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center", marginTop: -8 },
   btnRow: { flexDirection: "row", gap: 10 },
   optBtn: {
     flex: 1, borderRadius: 14, borderWidth: 1.5, borderColor: C.tint,
     paddingVertical: 14, alignItems: "center", gap: 4,
   },
-  optNum: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.tint },
+  optNum: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.tint },
   optSub: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
   cancelBtn: { alignItems: "center", paddingVertical: 8 },
-  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-Medium", color: C.textMuted },
+  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });

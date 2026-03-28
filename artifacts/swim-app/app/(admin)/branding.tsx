@@ -177,7 +177,7 @@ export default function BrandingScreen() {
             </View>
           </View>
           <Text style={styles.previewNote}>
-            앱스토어·구글플레이 표시명: <Text style={{ fontFamily: "Pretendard-SemiBold" }}>스윔노트</Text>
+            앱스토어·구글플레이 표시명: <Text style={{ fontFamily: "Pretendard-Regular" }}>스윔노트</Text>
           </Text>
         </Section>
 
@@ -342,23 +342,23 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const styles = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: "#FFFFFF" },
-  resetBtn:        { fontSize: 14, fontFamily: "Pretendard-Medium" },
+  resetBtn:        { fontSize: 14, fontFamily: "Pretendard-Regular" },
   content:         { padding: 16, gap: 8, paddingBottom: 100 },
 
   section:         { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, gap: 12 },
-  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#64748B", letterSpacing: 0.5, textTransform: "uppercase" },
+  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", letterSpacing: 0.5, textTransform: "uppercase" },
   sectionDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
 
   // 미리보기
   previewCard:     { borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden", backgroundColor: "#fff" },
   previewHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   previewBadge:    { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center" },
-  previewBadgeText:{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
-  previewPoolName: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
-  previewPowered:  { fontSize: 10, fontFamily: "Pretendard-Medium", marginTop: 1 },
+  previewBadgeText:{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
+  previewPoolName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  previewPowered:  { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 1 },
   previewTabBar:   { flexDirection: "row", backgroundColor: "#fff" },
   previewTab:      { flex: 1, alignItems: "center", paddingVertical: 10, gap: 3 },
-  previewTabLabel: { fontSize: 10, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  previewTabLabel: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   previewNote:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
 
   // 팔레트
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
   // Hex 입력
   hexRow:          { flexDirection: "row", alignItems: "center", gap: 10 },
   hexPreview:      { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB" },
-  hexInput:        { flex: 1, height: 40, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Medium", fontSize: 14, color: "#0F172A" },
+  hexInput:        { flex: 1, height: 40, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#0F172A" },
   hexError:        { fontSize: 12, color: "#D96C6C", fontFamily: "Pretendard-Regular" },
   hint:            { fontSize: 12, color: "#64748B", fontFamily: "Pretendard-Regular" },
 
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   emojiGrid:       { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   emojiCell:       { width: 48, height: 48, borderRadius: 10, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF", borderWidth: 2, borderColor: "transparent" },
   emoji:           { fontSize: 24 },
-  emojiNone:       { fontSize: 11, color: "#64748B", fontFamily: "Pretendard-Medium" },
+  emojiNone:       { fontSize: 11, color: "#64748B", fontFamily: "Pretendard-Regular" },
 
   // URL 입력
   urlInput:        { height: 44, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#0F172A" },
@@ -389,5 +389,5 @@ const styles = StyleSheet.create({
 
   // 저장 버튼
   saveBtn:         { height: 52, borderRadius: 14, justifyContent: "center", alignItems: "center", marginTop: 4 },
-  saveBtnText:     { color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold" },
+  saveBtnText:     { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
 });

@@ -60,7 +60,7 @@ function StatusBadge({ status }: { status: ServiceStatus }) {
 }
 const sb = StyleSheet.create({
   badge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  txt:   { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  txt:   { fontSize: 11, fontFamily: "Pretendard-Regular" },
 });
 
 function ServiceCard({ item, onToggle }: { item: ServiceItem; onToggle: (id: string) => void }) {
@@ -103,16 +103,16 @@ const sc = StyleSheet.create({
   card:       { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   top:        { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   iconWrap:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  name:       { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  name:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   category:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   metrics:    { flexDirection: "row", gap: 16, marginBottom: 6 },
   metricItem: { gap: 2 },
   metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  metricVal:  { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  metricVal:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   note:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },
   fixBtn:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, padding: 6,
                 borderRadius: 6, backgroundColor: "#F1F5F9" },
-  fixTxt:     { fontSize: 11, fontFamily: "Pretendard-Medium" },
+  fixTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular" },
 });
 
 export default function SystemStatusScreen() {
@@ -210,10 +210,10 @@ const s = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: "#F1F5F9" },
   overallBanner:  { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, margin: 16,
                     borderRadius: 14 },
-  overallTitle:   { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  overallTitle:   { fontSize: 15, fontFamily: "Pretendard-Regular" },
   overallSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   refreshBtn:     { padding: 6 },
-  categoryTitle:  { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#64748B", textTransform: "uppercase",
+  categoryTitle:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textTransform: "uppercase",
                     letterSpacing: 0.5, marginTop: 4 },
   noteBox:        { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFFFFF",
                     borderRadius: 8, padding: 10 },

@@ -222,7 +222,7 @@ export default function ChildrenScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  sectionTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", marginTop: 4 },
+  sectionTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", marginTop: 4 },
 
   emptyBox: { borderRadius: 16, padding: 28, alignItems: "center", gap: 8 },
   emptyTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
@@ -232,8 +232,8 @@ const s = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
   childAvatar: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  childAvatarTxt: { fontSize: 20, fontFamily: "Pretendard-SemiBold" },
-  childName: { fontSize: 15, fontFamily: "Pretendard-Medium" },
+  childAvatarTxt: { fontSize: 20, fontFamily: "Pretendard-Regular" },
+  childName: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   childClass: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
   reqCard: {
@@ -241,10 +241,10 @@ const s = StyleSheet.create({
   },
   reqAvatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   reqStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  reqStatusTxt: { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  reqStatusTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
   formCard: { borderRadius: 16, padding: 16, gap: 10 },
-  formLabel: { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  formLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   formNote: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   input: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
@@ -252,5 +252,5 @@ const s = StyleSheet.create({
   },
   inputMulti: { minHeight: 72, textAlignVertical: "top" },
   submitBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 4 },
-  submitBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Medium", color: "#fff" },
+  submitBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

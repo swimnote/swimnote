@@ -263,7 +263,7 @@ const wt = StyleSheet.create({
     borderRadius: 3, backgroundColor: "#FCD34D", zIndex: 10,
   },
 
-  cardName:     { fontSize: 9, fontFamily: "Pretendard-Medium", color: "#111827", lineHeight: 12 },
+  cardName:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#111827", lineHeight: 12 },
   cardStudents: { fontSize: 8, fontFamily: "Pretendard-Regular", color: "#9CA3AF", lineHeight: 11 },
   cardAtt:      { fontSize: 8, fontFamily: "Pretendard-Regular", lineHeight: 11 },
   attDone:      { color: "#059669" },

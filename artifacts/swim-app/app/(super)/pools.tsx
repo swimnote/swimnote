@@ -304,11 +304,11 @@ export default function SuperPoolsScreen() {
             )}
             <View style={s.sheetBtns}>
               <Pressable style={[s.sheetBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => setBulkModal(null)}>
-                <Text style={{ color: "#0F172A", fontFamily: "Pretendard-Medium" }}>취소</Text>
+                <Text style={{ color: "#0F172A", fontFamily: "Pretendard-Regular" }}>취소</Text>
               </Pressable>
               <Pressable style={[s.sheetBtn, { backgroundColor: BULK_ACTIONS.find(a => a.key === bulkModal)?.bg ?? "#FFFFFF" }]}
                 disabled={processing} onPress={() => executeBulk(bulkModal!)}>
-                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? "#0F172A", fontFamily: "Pretendard-Medium" }}>
+                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? "#0F172A", fontFamily: "Pretendard-Regular" }}>
                   확인
                 </Text>
               </Pressable>
@@ -354,7 +354,7 @@ export default function SuperPoolsScreen() {
       {/* 헤더: 카운트 + 다중선택 토글 */}
       <View style={s.listHeader}>
         <Text style={s.listCount}>
-          <Text style={{ color: filterChip.color, fontFamily: "Pretendard-SemiBold" }}>{sorted.length}</Text>
+          <Text style={{ color: filterChip.color, fontFamily: "Pretendard-Regular" }}>{sorted.length}</Text>
           <Text>/{useOperatorsStore.getState().operators.length}개</Text>
           {multiSelect && <Text style={{ color: P }}> · {selected.size}개 선택됨</Text>}
         </Text>
@@ -402,7 +402,7 @@ const s = StyleSheet.create({
   safe:              { flex: 1, backgroundColor: "#fff" },
   overlay:           { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
   sheet:             { backgroundColor: "#fff", borderRadius: 16, padding: 20, width: "85%", gap: 12 },
-  sheetTitle:        { fontFamily: "Pretendard-SemiBold", fontSize: 16, color: "#0F172A" },
+  sheetTitle:        { fontFamily: "Pretendard-Regular", fontSize: 16, color: "#0F172A" },
   sheetInput:        { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10, color: "#0F172A", fontFamily: "Pretendard-Regular", minHeight: 60 },
   sheetBtns:         { flexDirection: "row", gap: 10 },
   sheetBtn:          { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
@@ -412,18 +412,18 @@ const s = StyleSheet.create({
   sortChip:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#FFFFFF", marginRight: 6 },
   sortChipActive:    { backgroundColor: "#EEDDF5" },
   sortChipTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
-  sortChipTxtActive: { color: P, fontFamily: "Pretendard-Medium" },
+  sortChipTxtActive: { color: P, fontFamily: "Pretendard-Regular" },
   chipsWrap:         { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#FFFFFF" },
-  chipTxt:           { fontFamily: "Pretendard-Medium", fontSize: 12, color: "#64748B" },
+  chipTxt:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
   listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   listCount:         { fontFamily: "Pretendard-Regular", fontSize: 13, color: "#0F172A" },
   listHeaderRight:   { flexDirection: "row", alignItems: "center", gap: 8 },
   bulkBtn:           { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
-  bulkTxt:           { fontFamily: "Pretendard-Medium", fontSize: 11 },
+  bulkTxt:           { fontFamily: "Pretendard-Regular", fontSize: 11 },
   multiBtn:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#FFFFFF" },
   multiBtnActive:    { backgroundColor: "#EEDDF5" },
-  multiBtnTxt:       { fontFamily: "Pretendard-Medium", fontSize: 12, color: "#64748B" },
+  multiBtnTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
   row:               { backgroundColor: "#fff", marginHorizontal: 16, marginVertical: 4, borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "flex-start", borderWidth: 1, borderColor: "#FFFFFF" },
   rowSelected:       { borderColor: P, backgroundColor: "#EEDDF5" },
   rowDanger:         { borderColor: "#BAE6FD" },
@@ -432,9 +432,9 @@ const s = StyleSheet.create({
   checkboxChecked:   { backgroundColor: P, borderColor: P },
   rowMain:           { flex: 1, gap: 4 },
   rowTop:            { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  rowName:           { fontFamily: "Pretendard-SemiBold", fontSize: 15, color: "#0F172A", flex: 1 },
+  rowName:           { fontFamily: "Pretendard-Regular", fontSize: 15, color: "#0F172A", flex: 1 },
   badge:             { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  badgeTxt:          { fontFamily: "Pretendard-Medium", fontSize: 10 },
+  badgeTxt:          { fontFamily: "Pretendard-Regular", fontSize: 10 },
   rowMeta:           { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
   rowOwner:          { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
   rowDot:            { color: "#D1D5DB", fontSize: 10 },
@@ -442,13 +442,13 @@ const s = StyleSheet.create({
   storageRow:        { flexDirection: "row", alignItems: "center", gap: 6 },
   storageBarBg:      { flex: 1, height: 4, backgroundColor: "#FFFFFF", borderRadius: 2, overflow: "hidden" },
   storageBarFill:    { height: 4, borderRadius: 2 },
-  storagePct:        { fontFamily: "Pretendard-Medium", fontSize: 11, minWidth: 34, textAlign: "right" },
+  storagePct:        { fontFamily: "Pretendard-Regular", fontSize: 11, minWidth: 34, textAlign: "right" },
   rowBottom:         { flexDirection: "row", alignItems: "center", gap: 4 },
-  billingBadge:      { fontFamily: "Pretendard-Medium", fontSize: 11 },
+  billingBadge:      { fontFamily: "Pretendard-Regular", fontSize: 11 },
   loginDate:         { fontFamily: "Pretendard-Regular", fontSize: 11, color: "#64748B" },
   actions:           { flexDirection: "column", gap: 4, marginLeft: 8 },
   actBtn:            { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7 },
-  actTxt:            { fontFamily: "Pretendard-Medium", fontSize: 11 },
+  actTxt:            { fontFamily: "Pretendard-Regular", fontSize: 11 },
   empty:             { alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyTxt:          { fontFamily: "Pretendard-Regular", fontSize: 14, color: "#64748B" },
 });

@@ -352,29 +352,29 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
 const dc = StyleSheet.create({
   wrap:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 4 },
   header:     { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   refreshBtn: { padding: 4 },
   loadingBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB" },
   loadingTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   errorBox:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, backgroundColor: "#FDE8E8", borderRadius: 12 },
   errorTxt:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: DANGER },
-  retryTxt:   { fontSize: 12, fontFamily: "Pretendard-Medium", color: DANGER },
+  retryTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: DANGER },
   card:       { backgroundColor: "#FAFAF9", borderRadius: 10, padding: 10, gap: 2 },
   cardTop:    { flexDirection: "row", alignItems: "center", gap: 8 },
   iconWrap:   { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  cardLabel:  { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  cardLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   cardSub:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   cardSub2:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: 40 },
   statusBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
-  statusTxt:  { fontSize: 10, fontFamily: "Pretendard-Medium" },
+  statusTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular" },
   errorLine:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: DANGER, marginLeft: 40, marginTop: 2 },
   btnRow:     { flexDirection: "row", gap: 8, marginTop: 4 },
   manualBtn:  { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
                 backgroundColor: P, borderRadius: 10, paddingVertical: 10 },
-  manualBtnTxt:{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  manualBtnTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   poolBtn:    { flexDirection: "row", alignItems: "center", gap: 5,
                 backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
-  poolBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Medium", color: P },
+  poolBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: P },
   checkedAt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "right" },
 });
 
@@ -459,15 +459,15 @@ const bc = StyleSheet.create({
   card:     { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E5E7EB" },
   top:      { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   badge:    { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeTxt: { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
+  badgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular" },
   time:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
-  name:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginBottom: 8 },
+  name:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
   meta:     { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaVal:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
   actions:  { flexDirection: "row", gap: 8 },
   btn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7 },
-  btnTxt:   { fontSize: 12, fontFamily: "Pretendard-Medium" },
+  btnTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
 
 // ── 수동 백업 생성 모달 ───────────────────────────────────────────────────────
@@ -518,11 +518,11 @@ function CreateModal({
 
 const cr = StyleSheet.create({
   header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:      { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
-  label:      { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A", marginBottom: 8 },
+  title:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  label:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
   input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   confirmBtn: { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
-  confirmTxt: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  confirmTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   infoBox:    { flexDirection: "row", gap: 8, backgroundColor: "#E6FAF8", borderRadius: 8, padding: 12, alignItems: "flex-start" },
   infoTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0284C7", lineHeight: 18 },
 });
@@ -583,16 +583,16 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
 
 const rm = StyleSheet.create({
   header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:      { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  title:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   warningBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14 },
-  warningTxt: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Medium", color: "#92400E", lineHeight: 20 },
+  warningTxt: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 20 },
   infoBox:    { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 14, gap: 4 },
-  infoLabel:  { fontSize: 11, fontFamily: "Pretendard-Medium", color: "#64748B" },
-  infoVal:    { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A", marginBottom: 6 },
-  inputLabel: { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A", marginBottom: 6 },
+  infoLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  infoVal:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 6 },
+  inputLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 6 },
   input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", height: 90 },
   confirmBtn: { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
-  confirmTxt: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  confirmTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
 
 // ── 자동 백업 설정 패널 ───────────────────────────────────────────────────────
@@ -701,19 +701,19 @@ function AutoBackupPanel({ token }: { token: string | null }) {
 const ap = StyleSheet.create({
   wrap:        { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 10, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 10 },
   row:         { flexDirection: "row", alignItems: "center", gap: 10 },
-  label:       { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#0F172A", flex: 1 },
+  label:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", flex: 1 },
   sub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   divider:     { height: 1, backgroundColor: "#FFFFFF" },
   segRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
   seg:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: "#FFFFFF" },
   segActive:   { backgroundColor: P },
-  segTxt:      { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  segTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   segActiveTxt:{ color: "#fff" },
   hourPicker:  { flexDirection: "row", alignItems: "center", gap: 8 },
   hourBtn:     { width: 30, height: 30, borderRadius: 8, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
-  hourVal:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#0F172A", minWidth: 50, textAlign: "center" },
+  hourVal:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", minWidth: 50, textAlign: "center" },
   saveBtn:     { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12, marginTop: 4 },
-  saveTxt:     { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  saveTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
 
 // ── 전체 복구 모달 ────────────────────────────────────────────────────────────
@@ -861,7 +861,7 @@ function FullRestoreModal({
             {/* 확인 문구 입력 */}
             <View>
               <Text style={fr.inputLabel}>
-                확인 입력 — 아래에 <Text style={{ fontFamily: "Pretendard-SemiBold", color: DANGER }}>'전체 복구'</Text>를 입력하세요
+                확인 입력 — 아래에 <Text style={{ fontFamily: "Pretendard-Regular", color: DANGER }}>'전체 복구'</Text>를 입력하세요
               </Text>
               <TextInput style={[fr.input, confirmText === "전체 복구" && { borderColor: DANGER }]}
                 value={confirmText} onChangeText={setConfirmText}
@@ -887,28 +887,28 @@ function FullRestoreModal({
 
 const fr = StyleSheet.create({
   header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:          { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
-  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  title:          { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   backupList:     { maxHeight: 220, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10 },
   backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", flexDirection: "row", alignItems: "center", gap: 10 },
   backupItemSel:  { backgroundColor: "#F3EEFF" },
-  backupItemDate: { fontSize: 13, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  backupItemDate: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   backupItemMeta: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   backupItemNote: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   selectedBox:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
-  selectedTxt:    { fontSize: 12, fontFamily: "Pretendard-Medium", color: P, flex: 1 },
+  selectedTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: P, flex: 1 },
   warnBox:        { flexDirection: "row", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14, alignItems: "flex-start" },
-  warnTitle:      { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#92400E", marginBottom: 2 },
+  warnTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", marginBottom: 2 },
   warnTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 },
   emptyBox:       { backgroundColor: "#FFFFFF", borderRadius: 8, padding: 16, alignItems: "center" },
   emptyTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A", marginBottom: 8 },
+  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
   input:          { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   execBtn:        { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
-  execTxt:        { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  execTxt:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   resultWrap:     { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 16 },
   resultIcon:     { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
-  resultTitle:    { fontSize: 20, fontFamily: "Pretendard-SemiBold" },
+  resultTitle:    { fontSize: 20, fontFamily: "Pretendard-Regular" },
   resultMsg:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 22 },
 });
 
@@ -1081,7 +1081,7 @@ function PoolRestoreModal({
             {selectedPool && (
               <View style={pr.selectedPoolBox}>
                 <Anchor size={14} color={P} />
-                <Text style={pr.selectedPoolTxt}>선택된 수영장: <Text style={{ fontFamily: "Pretendard-SemiBold" }}>{selectedPool.name}</Text></Text>
+                <Text style={pr.selectedPoolTxt}>선택된 수영장: <Text style={{ fontFamily: "Pretendard-Regular" }}>{selectedPool.name}</Text></Text>
               </View>
             )}
 
@@ -1138,7 +1138,7 @@ function PoolRestoreModal({
               <View>
                 <Text style={pr.inputLabel}>
                   확인 입력 — 수영장명{" "}
-                  <Text style={{ fontFamily: "Pretendard-SemiBold", color: DANGER }}>'{selectedPool.name}'</Text>을 입력하세요
+                  <Text style={{ fontFamily: "Pretendard-Regular", color: DANGER }}>'{selectedPool.name}'</Text>을 입력하세요
                 </Text>
                 <TextInput style={[fr.input, confirmName === selectedPool.name && { borderColor: DANGER }]}
                   value={confirmName} onChangeText={setConfirmName}
@@ -1166,8 +1166,8 @@ function PoolRestoreModal({
 
 const pr = StyleSheet.create({
   header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:          { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
-  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  title:          { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   searchBox:      { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   searchInput:    { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   resultList:     { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, overflow: "hidden", maxHeight: 200 },
@@ -1175,14 +1175,14 @@ const pr = StyleSheet.create({
   noResultTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   poolItem:       { padding: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", flexDirection: "row", alignItems: "center", gap: 8 },
   poolItemSel:    { backgroundColor: "#F3EEFF" },
-  poolName:       { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#0F172A" },
+  poolName:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   poolSub:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
   selectedPoolBox:{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
   selectedPoolTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: P, flex: 1 },
   backupList:     { maxHeight: 200, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10 },
   backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", flexDirection: "row", alignItems: "center", gap: 10 },
   backupItemSel:  { backgroundColor: "#F3EEFF" },
-  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#0F172A", marginBottom: 8 },
+  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
 });
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
@@ -1459,18 +1459,18 @@ const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#F1F5F9" },
   summaryRow:    { flexDirection: "row", gap: 8 },
   summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 4, borderWidth: 1, borderColor: "#E5E7EB" },
-  summaryVal:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0F172A" },
+  summaryVal:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   summaryKey:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   btnRow:        { flexDirection: "row", gap: 8 },
   actionBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: P, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },
-  actionBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  actionBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   outlineBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
-  outlineBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Medium", color: P },
+  outlineBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: P },
   tab:           { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 12, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  tabTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
   tabActiveTxt:  { color: "#fff" },
   empty:         { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-Medium", color: "#64748B" },
+  emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
   emptySubTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });

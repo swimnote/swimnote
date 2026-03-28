@@ -189,7 +189,7 @@ function StepBar({ current }: { current: number }) {
 const sb = StyleSheet.create({
   row:    { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center" },
   dot:    { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  dotTxt: { fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  dotTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   line:   { flex: 1, height: 2, maxWidth: 40 },
 });
 
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
   root:       { flex: 1 },
   header:     { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 8, gap: 16 },
   content:    { flex: 1, paddingHorizontal: 20, paddingTop: 20, gap: 14 },
-  title:      { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
+  title:      { fontSize: 22, fontFamily: "Pretendard-Regular" },
   sub:        { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 21 },
   searchRow:  { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 14, height: 52 },
   searchInput:{ flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   emptyText:  { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   poolCard:   { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, padding: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
   poolIcon:   { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  poolName:   { fontSize: 15, fontFamily: "Pretendard-Medium" },
+  poolName:   { fontSize: 15, fontFamily: "Pretendard-Regular" },
   poolAddr:   { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   poolPhone:  { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 1 },
 });

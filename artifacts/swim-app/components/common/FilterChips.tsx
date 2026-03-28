@@ -162,7 +162,7 @@ const s = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    fontFamily: "Pretendard-Medium",
+    fontFamily: "Pretendard-Regular",
     includeFontPadding: false,
     lineHeight: 15,
     textAlign: "center",
@@ -172,5 +172,5 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     paddingHorizontal: 3,
   },
-  countText: { fontSize: 9, fontFamily: "Pretendard-SemiBold" },
+  countText: { fontSize: 9, fontFamily: "Pretendard-Regular" },
 });

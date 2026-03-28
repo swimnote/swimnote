@@ -91,7 +91,7 @@ const s = StyleSheet.create({
   placeholder: { width: 38, height: 38 },
   titleBlock: { flex: 1, alignItems: "center" },
   title: {
-    fontSize: 17, fontFamily: "Pretendard-Medium",
+    fontSize: 17, fontFamily: "Pretendard-Regular",
     color: C.text, textAlign: "center",
   },
   subtitle: {

@@ -34,6 +34,6 @@ const s = StyleSheet.create({
     width: 72, height: 72, borderRadius: 20,
     alignItems: "center", justifyContent: "center",
   },
-  title: { fontSize: 15, fontFamily: "Pretendard-Medium", textAlign: "center" },
+  title: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center" },
   sub:   { fontSize: 12, fontFamily: "Pretendard-Regular",  textAlign: "center", lineHeight: 18, paddingHorizontal: 30 },
 });

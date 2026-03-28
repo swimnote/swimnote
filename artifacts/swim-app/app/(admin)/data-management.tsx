@@ -156,14 +156,14 @@ export default function DataManagementScreen() {
 
 const s = StyleSheet.create({
   sectionHeader: { marginBottom: 8, gap: 2 },
-  sectionTitle:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text },
+  sectionTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   sectionDesc:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   card:          { borderRadius: 18, overflow: "hidden", shadowColor: "#00000012", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   row:           { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },
   rowBorder:     { borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   iconWrap:      { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  label:         { fontSize: 15, fontFamily: "Pretendard-Medium", color: C.text },
+  label:         { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   desc:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   badgeWrap:     { backgroundColor: "#F9DEDA", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  badgeText:     { fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" },
+  badgeText:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 });

@@ -155,7 +155,7 @@ export default function LinkChildScreen() {
             <Droplet size={16} color={C.tint} />
             <Text style={[st.selectedPoolName, { color: C.tint }]}>{selectedPool.name}</Text>
             <Pressable onPress={() => { setStep("pool"); setError(""); }}>
-              <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Medium" }}>변경</Text>
+              <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>변경</Text>
             </Pressable>
           </View>
 
@@ -255,31 +255,31 @@ export default function LinkChildScreen() {
 const st = StyleSheet.create({
   header:           { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12 },
   backBtn:          { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-  title:            { flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Pretendard-Medium" },
+  title:            { flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Pretendard-Regular" },
   content:          { paddingHorizontal: 20, paddingTop: 20, gap: 16 },
-  sectionTitle:     { fontSize: 17, fontFamily: "Pretendard-SemiBold" },
+  sectionTitle:     { fontSize: 17, fontFamily: "Pretendard-Regular" },
   sectionSub:       { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   searchRow:        { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
   searchInput:      { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   searchBtn:        { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
-  searchBtnTxt:     { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Medium" },
+  searchBtnTxt:     { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   errBox:           { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },
   errTxt:           { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular" },
   poolCard:         { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, borderWidth: 1 },
   poolIcon:         { width: 40, height: 40, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-  poolName:         { fontSize: 15, fontFamily: "Pretendard-Medium" },
+  poolName:         { fontSize: 15, fontFamily: "Pretendard-Regular" },
   poolAddr:         { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   emptyBox:         { alignItems: "center", gap: 10, marginTop: 40 },
   emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular" },
   selectedPool:     { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
-  selectedPoolName: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Medium" },
-  label:            { fontSize: 13, fontFamily: "Pretendard-Medium" },
+  selectedPoolName: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
+  label:            { fontSize: 13, fontFamily: "Pretendard-Regular" },
   inputRow:         { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
   input:            { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   submitBtn:        { height: 52, borderRadius: 12, justifyContent: "center", alignItems: "center", marginTop: 8 },
-  submitTxt:        { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Medium" },
+  submitTxt:        { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
   resultBox:        { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32, gap: 20 },
   resultIcon:       { width: 88, height: 88, borderRadius: 44, justifyContent: "center", alignItems: "center" },
-  resultTitle:      { fontSize: 22, fontFamily: "Pretendard-SemiBold" },
+  resultTitle:      { fontSize: 22, fontFamily: "Pretendard-Regular" },
   resultSub:        { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
 });
