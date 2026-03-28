@@ -349,7 +349,7 @@ export default function ParentHomeScreen() {
                 <Text style={s.infoName}>{selectedStudent.name}</Text>
                 {selectedStudent.class_group?.name
                   ? <Text style={s.infoSub}>{selectedStudent.class_group.name}</Text>
-                  : <Text style={[s.infoSub, { color: C.text }]}>반 배정 전</Text>}
+                  : <Text style={[s.infoSub, { color: C.textSecondary }]}>반 배정 전</Text>}
                 {scheduleText && <Text style={s.infoSchedule}>{scheduleText}</Text>}
               </View>
             </View>
