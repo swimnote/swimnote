@@ -1214,4 +1214,29 @@ router.post("/verify-sms-code", async (req, res) => {
   }
 });
 
+// POST /auth/find-identifier-by-phone — 전화번호로 등록된 아이디 조회 (비밀번호 찾기용)
+router.post("/find-identifier-by-phone", async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return err(res, 400, "전화번호를 입력해주세요.");
+  const cleaned = (phone as string).replace(/[-\s]/g, "");
+  try {
+    const userRows = (await superAdminDb.execute(sql`
+      SELECT email FROM users WHERE phone = ${cleaned} LIMIT 1
+    `)).rows as any[];
+    if (userRows.length > 0) {
+      return res.json({ success: true, identifier: userRows[0].email });
+    }
+    const parentRows = (await db.execute(sql`
+      SELECT phone FROM parent_accounts WHERE phone = ${cleaned} LIMIT 1
+    `)).rows as any[];
+    if (parentRows.length > 0) {
+      return res.json({ success: true, identifier: cleaned });
+    }
+    return res.json({ success: false, identifier: null });
+  } catch (e) {
+    console.error("[find-identifier-by-phone]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
 export default router;

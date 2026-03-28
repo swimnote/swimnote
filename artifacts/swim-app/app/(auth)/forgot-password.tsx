@@ -29,12 +29,17 @@ export default function ForgotPasswordScreen() {
   const [devCode, setDevCode] = useState<string | null>(null);
   const [timer, setTimer] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [resolvedIdentifier, setResolvedIdentifier] = useState<string | null>(null);
 
   const [newPw, setNewPw] = useState("");
   const [newPw2, setNewPw2] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  function isPhoneNumber(v: string) {
+    return /^01[016789][\d\s-]{7,9}$/.test(v.trim());
+  }
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
@@ -69,6 +74,9 @@ export default function ForgotPasswordScreen() {
       const data = await res.json();
       if (data.error_code === "user_not_found") {
         setError("해당 아이디로 등록된 계정이 없습니다."); return;
+      }
+      if (isPhoneNumber(identifier)) {
+        setPhone(identifier.trim());
       }
       setStep("sms");
     } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
@@ -114,6 +122,20 @@ export default function ForgotPasswordScreen() {
       if (!res.ok) throw new Error(data.message || "인증에 실패했습니다.");
       if (timerRef.current) clearInterval(timerRef.current);
       setSmsState("verified");
+
+      try {
+        const lookupRes = await fetch(`${API_BASE}/auth/find-identifier-by-phone`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: cleaned }),
+        });
+        const lookupData = await lookupRes.json();
+        if (lookupData.success && lookupData.identifier) {
+          setResolvedIdentifier(lookupData.identifier);
+          setIdentifier(lookupData.identifier);
+        }
+      } catch {}
+
       setStep("pw");
     } catch (e: any) {
       setSmsState("sent");
@@ -317,9 +339,12 @@ export default function ForgotPasswordScreen() {
               <Lock size={24} color={C.tint} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>새 비밀번호 설정</Text>
-            <View style={[styles.idBadge, { backgroundColor: C.background, borderColor: C.border }]}>
-              <User size={13} color={C.textMuted} />
-              <Text style={[styles.idBadgeText, { color: C.textSecondary }]}>{identifier}</Text>
+            <View style={{ alignItems: "center", gap: 4 }}>
+              <Text style={[styles.idBadgeLabel, { color: C.textMuted }]}>등록된 아이디</Text>
+              <View style={[styles.idBadge, { backgroundColor: C.background, borderColor: C.border }]}>
+                <User size={13} color={C.tint} />
+                <Text style={[styles.idBadgeText, { color: C.text }]}>{resolvedIdentifier || identifier}</Text>
+              </View>
             </View>
 
             <View style={styles.field}>
@@ -399,8 +424,9 @@ const styles = StyleSheet.create({
   iconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 4 },
   cardTitle: { fontSize: 20, fontFamily: "Pretendard-Regular", textAlign: "center" },
   cardDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20, marginTop: -6 },
-  idBadge: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
-  idBadgeText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  idBadge: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  idBadgeLabel: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  idBadgeText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   field: { gap: 6 },
   fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   inputRow: {
