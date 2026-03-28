@@ -100,7 +100,7 @@ export default function LoginScreen() {
           <View style={styles.logoWrap}>
             <View style={styles.logoBorder}>
               <View style={styles.logoImage}>
-                <SwimNoteLogo width={183} height={210} viewBox="160 44 185 210" />
+                <SwimNoteLogo width={146} height={168} viewBox="160 44 185 210" />
               </View>
             </View>
             <Text style={styles.logoWordmark}>SwimNote</Text>
@@ -233,8 +233,8 @@ const styles = StyleSheet.create({
   logoArea: { alignItems: "center", paddingBottom: 24 },
 
   logoWrap: { alignItems: "center", gap: 14 },
-  logoBorder: { borderRadius: 38, borderWidth: 2, borderColor: "#04111f", shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
-  logoImage: { width: 183, height: 210, borderRadius: 36, overflow: "hidden", backgroundColor: "#0a2540" },
+  logoBorder: { borderRadius: 30, borderWidth: 2, borderColor: "#04111f", shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
+  logoImage: { width: 146, height: 168, borderRadius: 29, overflow: "hidden", backgroundColor: "#0a2540" },
   logoWordmark: { fontSize: 52, fontWeight: "700", color: "#0a2540", letterSpacing: 0.5 },
   appSub: { fontSize: 22, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.5 },
   appDesc: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
