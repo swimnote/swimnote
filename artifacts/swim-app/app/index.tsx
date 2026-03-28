@@ -95,13 +95,13 @@ export default function LoginScreen() {
         <View style={styles.spacer} />
 
         <View style={styles.logoArea}>
+          <Text style={[styles.appSub, { color: C.textSecondary, marginBottom: 16 }]}>어린이 수영레슨 올인원</Text>
           <Image
             source={require("../assets/images/swimnote-logo.png")}
             style={styles.logoImage}
             resizeMode="cover"
           />
-          <Text style={[styles.appSub, { color: C.textSecondary, marginTop: 20 }]}>{LOGIN_LABELS.appSub}</Text>
-          <Text style={[styles.appDesc, { color: C.textMuted }]}>
+          <Text style={[styles.appDesc, { color: C.textMuted, marginTop: 16 }]}>
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
           </Text>
         </View>
