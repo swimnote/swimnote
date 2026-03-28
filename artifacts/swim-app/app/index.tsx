@@ -97,8 +97,11 @@ export default function LoginScreen() {
 
         <View style={styles.logoArea}>
           <Text style={[styles.appSub, { color: C.text, marginBottom: 36 }]}>어린이 수영레슨 올인원</Text>
-          <View style={styles.logoImage}>
-            <SwimNoteLogo width={230} height={230} viewBox="130 28 244 244" />
+          <View style={styles.logoWrap}>
+            <View style={styles.logoImage}>
+              <SwimNoteLogo width={230} height={230} viewBox="130 28 244 244" />
+            </View>
+            <Text style={styles.logoWordmark}>SwimNote</Text>
           </View>
           <Text style={[styles.appDesc, { color: C.textMuted, marginTop: 16 }]}>
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
@@ -227,7 +230,9 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "center" },
   logoArea: { alignItems: "center", paddingBottom: 24 },
 
+  logoWrap: { alignItems: "center", gap: 12 },
   logoImage: { width: 230, height: 230, borderRadius: 52, overflow: "hidden", backgroundColor: "#0a2540", shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
+  logoWordmark: { fontSize: 28, fontFamily: "Pretendard-Regular", color: "#0a2540", letterSpacing: 1 },
   appSub: { fontSize: 22, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.5 },
   appDesc: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   spacer: { height: 5 },
