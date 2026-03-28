@@ -63,6 +63,12 @@ export const swimmingPoolsTable = pgTable("swimming_pools", {
   payment_failed_at: timestamp("payment_failed_at", { withTimezone: true }),
   first_payment_used: boolean("first_payment_used").notNull().default(false),
 
+  introduction:       text("introduction"),
+  tuition_info:       text("tuition_info"),
+  level_test_info:    text("level_test_info"),
+  event_info:         text("event_info"),
+  equipment_info:     text("equipment_info"),
+
   make_up_expiry_type:    text("make_up_expiry_type").default("end_of_month"),
   make_up_expiry_days:    integer("make_up_expiry_days"),
   make_up_limit_weekly_1: integer("make_up_limit_weekly_1").default(2),

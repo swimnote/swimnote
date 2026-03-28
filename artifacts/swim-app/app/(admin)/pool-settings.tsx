@@ -1,4 +1,4 @@
-import { CircleAlert, DollarSign, File, Tag, Type, Users } from "lucide-react-native";
+import { CircleAlert, DollarSign, File, Tag, Type, Users, BookOpen, CreditCard, Award, Gift, ShoppingBag } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -40,12 +40,20 @@ export default function PoolSettingsScreen() {
   const [savingPricing, setSavingPricing] = useState(false);
   const [pricingMsg, setPricingMsg] = useState("");
 
+  // ── 수영정보 콘텐츠 ──────────────────────────────────
+  const [content, setContent] = useState({
+    introduction: "", tuition_info: "", level_test_info: "", event_info: "", equipment_info: "",
+  });
+  const [savingContent, setSavingContent] = useState(false);
+  const [contentMsg, setContentMsg] = useState("");
+
   useEffect(() => {
     (async () => {
       try {
-        const [settingsRes, capRes] = await Promise.all([
+        const [settingsRes, capRes, contentRes] = await Promise.all([
           apiRequest(token, "/pools/settings"),
           apiRequest(token, "/admin/class-settings"),
+          apiRequest(token, "/pools/content"),
         ]);
         if (settingsRes.ok) {
           const data = await settingsRes.json();
@@ -61,9 +69,38 @@ export default function PoolSettingsScreen() {
           const capData = await capRes.json();
           setDefaultCapacity(String(capData.default_capacity ?? 20));
         }
+        if (contentRes.ok) {
+          const cd = await contentRes.json();
+          setContent({
+            introduction: cd.introduction || "",
+            tuition_info: cd.tuition_info || "",
+            level_test_info: cd.level_test_info || "",
+            event_info: cd.event_info || "",
+            equipment_info: cd.equipment_info || "",
+          });
+        }
       } finally { setLoading(false); }
     })();
   }, [token]);
+
+  async function handleSaveContent() {
+    setSavingContent(true); setContentMsg("");
+    try {
+      const res = await apiRequest(token, "/pools/content", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(content),
+      });
+      if (res.ok) {
+        setContentMsg("저장되었습니다.");
+        setTimeout(() => setContentMsg(""), 3000);
+      } else {
+        const d = await res.json();
+        setContentMsg("저장 실패: " + (d.error || "오류"));
+      }
+    } catch { setContentMsg("저장 중 오류가 발생했습니다."); }
+    finally { setSavingContent(false); }
+  }
 
   function updatePricing(typeKey: string, field: string, value: string | number) {
     setPricingEdits(prev => ({ ...prev, [typeKey]: { ...(prev[typeKey] || {}), [field]: value } }));
@@ -324,6 +361,55 @@ export default function PoolSettingsScreen() {
             </Pressable>
           </View>
         )}
+
+        {/* ── 수영정보 콘텐츠 관리 ───────────────────────────────────────────── */}
+        <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <BookOpen size={16} color="#2EC4B6" />
+            <Text style={[styles.sectionTitle, { color: C.text }]}>수영정보 콘텐츠</Text>
+          </View>
+          <Text style={[styles.hint, { color: C.textMuted }]}>학부모 앱 → 수영정보 화면에 표시됩니다.</Text>
+
+          {[
+            { key: "introduction",    label: "수영장 소개",       Icon: BookOpen,     color: "#2EC4B6" },
+            { key: "tuition_info",    label: "수업료 안내",       Icon: CreditCard,   color: "#16A34A" },
+            { key: "level_test_info", label: "레벨 테스트 안내", Icon: Award,        color: "#7C3AED" },
+            { key: "event_info",      label: "이벤트 소식",       Icon: Gift,         color: "#D97706" },
+            { key: "equipment_info",  label: "수영용품 소개",     Icon: ShoppingBag,  color: "#0369A1" },
+          ].map(({ key, label, Icon, color }) => (
+            <View key={key} style={styles.field}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Icon size={13} color={color} />
+                <Text style={[styles.label, { color: C.textSecondary }]}>{label}</Text>
+              </View>
+              <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background, height: "auto", paddingVertical: 10, alignItems: "flex-start" }]}>
+                <TextInput
+                  style={[styles.input, { color: C.text, minHeight: 80, textAlignVertical: "top" }]}
+                  value={content[key as keyof typeof content]}
+                  onChangeText={v => setContent(prev => ({ ...prev, [key]: v }))}
+                  placeholder={`${label} 내용을 입력하세요`}
+                  placeholderTextColor={C.textMuted}
+                  multiline
+                />
+              </View>
+            </View>
+          ))}
+
+          {contentMsg ? (
+            <View style={[styles.msgBox, { backgroundColor: contentMsg === "저장되었습니다." ? "#E6FFFA" : "#F9DEDA" }]}>
+              <LucideIcon name={contentMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
+                color={contentMsg === "저장되었습니다." ? "#2EC4B6" : C.error} />
+              <Text style={[styles.errText, { color: contentMsg === "저장되었습니다." ? "#2EC4B6" : C.error }]}>{contentMsg}</Text>
+            </View>
+          ) : null}
+          <Pressable
+            style={[styles.saveBtn, { backgroundColor: "#2EC4B6", opacity: savingContent ? 0.6 : 1, alignSelf: "flex-start", marginTop: 4 }]}
+            onPress={handleSaveContent}
+            disabled={savingContent}
+          >
+            {savingContent ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>수영정보 저장</Text>}
+          </Pressable>
+        </View>
 
         {settings && (
           <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>

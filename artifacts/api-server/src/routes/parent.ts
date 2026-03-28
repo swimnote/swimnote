@@ -729,6 +729,11 @@ router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, re
       name: swimmingPoolsTable.name,
       address: swimmingPoolsTable.address,
       phone: swimmingPoolsTable.phone,
+      introduction: swimmingPoolsTable.introduction,
+      tuition_info: swimmingPoolsTable.tuition_info,
+      level_test_info: swimmingPoolsTable.level_test_info,
+      event_info: swimmingPoolsTable.event_info,
+      equipment_info: swimmingPoolsTable.equipment_info,
     }).from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, pa.swimming_pool_id)).limit(1);
 
     if (!pool) { res.status(404).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
@@ -737,11 +742,11 @@ router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, re
       pool_name: pool.name,
       address: pool.address,
       phone: pool.phone,
-      introduction: null,
-      tuition_info: null,
-      level_test_info: null,
-      event_info: null,
-      equipment_info: null,
+      introduction: pool.introduction ?? null,
+      tuition_info: pool.tuition_info ?? null,
+      level_test_info: pool.level_test_info ?? null,
+      event_info: pool.event_info ?? null,
+      equipment_info: pool.equipment_info ?? null,
     });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });

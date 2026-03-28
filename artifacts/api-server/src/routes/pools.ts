@@ -184,6 +184,46 @@ router.put("/settings", requireAuth, requireRole("pool_admin", "super_admin"),
   }
 );
 
+// ── 수영정보 콘텐츠 조회 ─────────────────────────────────────────────
+router.get("/content", requireAuth, requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [user] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!user?.swimming_pool_id) { res.status(404).json({ error: "소속 수영장 없음" }); return; }
+      const rows = await superAdminDb.execute(sql`
+        SELECT introduction, tuition_info, level_test_info, event_info, equipment_info
+        FROM swimming_pools WHERE id = ${user.swimming_pool_id} LIMIT 1
+      `);
+      res.json(rows.rows[0] ?? {});
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 수영정보 콘텐츠 수정 ─────────────────────────────────────────────
+router.put("/content", requireAuth, requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [user] = await db.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!user?.swimming_pool_id) { res.status(404).json({ error: "소속 수영장 없음" }); return; }
+      const { introduction, tuition_info, level_test_info, event_info, equipment_info } = req.body;
+      const rows = await superAdminDb.execute(sql`
+        UPDATE swimming_pools SET
+          introduction    = ${introduction    ?? null},
+          tuition_info    = ${tuition_info    ?? null},
+          level_test_info = ${level_test_info ?? null},
+          event_info      = ${event_info      ?? null},
+          equipment_info  = ${equipment_info  ?? null},
+          updated_at      = NOW()
+        WHERE id = ${user.swimming_pool_id}
+        RETURNING introduction, tuition_info, level_test_info, event_info, equipment_info
+      `);
+      res.json({ success: true, data: rows.rows[0] });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // ── 브랜딩 조회 ───────────────────────────────────────────────────────
 router.get(
   "/branding",
