@@ -138,21 +138,21 @@ export default function TodayScheduleScreen() {
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(sun); d.setDate(sun.getDate() + i); return d; });
   }, []);
 
-  const IC = "#0F172A"; const IB = "#E6FAF8";
+  const IB = "#E6FAF8";
 
   const icons: HubIcon[] = [
-    { key: "my-schedule", label: "수업관리",  icon: "layers",         color: IC, bg: IB, onPress: () => router.push("/(teacher)/my-schedule" as any) },
-    { key: "students",    label: "회원관리",  icon: "users",          color: IC, bg: IB, onPress: () => router.push("/(teacher)/students" as any) },
-    { key: "makeups",     label: "보강관리",  icon: "refresh-cw",     color: IC, bg: IB,
+    { key: "my-schedule", label: "수업관리",  icon: "layers",         color: "#16A34A", bg: IB, onPress: () => router.push("/(teacher)/my-schedule" as any) },
+    { key: "students",    label: "회원관리",  icon: "users",          color: "#1D4ED8", bg: IB, onPress: () => router.push("/(teacher)/students" as any) },
+    { key: "makeups",     label: "보강관리",  icon: "refresh-cw",     color: "#EA580C", bg: IB,
       badge: (overview?.makeup_count ?? 0) > 0 ? overview!.makeup_count : null,
       onPress: () => router.push("/(teacher)/makeups" as any) },
-    { key: "note",        label: "쪽지",     icon: "mail",           color: IC, bg: IB,
+    { key: "note",        label: "쪽지",     icon: "mail",           color: "#0369A1", bg: IB,
       badge: (overview?.unread_messages ?? 0) > 0 ? overview!.unread_messages : null,
       onPress: () => setNotePopupVisible(true) },
-    { key: "messenger",   label: "메신저",   icon: "message-circle", color: IC, bg: IB, onPress: () => router.push("/(teacher)/messenger" as any) },
-    { key: "revenue",     label: "정산",     icon: "dollar-sign",    color: IC, bg: IB, onPress: () => router.push("/(teacher)/revenue" as any) },
-    { key: "my-info",     label: "내정보",   icon: "user",           color: IC, bg: IB, onPress: () => router.push("/(teacher)/my-info" as any) },
-    { key: "settings",    label: "설정",     icon: "settings",       color: IC, bg: IB, onPress: () => router.push("/(teacher)/settings" as any) },
+    { key: "messenger",   label: "메신저",   icon: "message-circle", color: "#7C3AED", bg: IB, onPress: () => router.push("/(teacher)/messenger" as any) },
+    { key: "revenue",     label: "정산",     icon: "dollar-sign",    color: "#CA8A04", bg: IB, onPress: () => router.push("/(teacher)/revenue" as any) },
+    { key: "my-info",     label: "내정보",   icon: "user",           color: "#DB2777", bg: IB, onPress: () => router.push("/(teacher)/my-info" as any) },
+    { key: "settings",    label: "설정",     icon: "settings",       color: "#0F172A", bg: IB, onPress: () => router.push("/(teacher)/settings" as any) },
   ];
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);

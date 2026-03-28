@@ -43,8 +43,8 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
   deleted:         { label: "삭제됨",    color: "#64748B", bg: "#E5E7EB" },
 };
 
-// ── 아이콘 색상 통일 규칙: 연한 민트 박스 + 네이비 아이콘 ──────────────────
-const _IC = "#0F172A"; const _IB = "#E6FAF8";
+// ── 아이콘 배경 (민트 유지) ───────────────────────────────────────────────────
+const _IB = "#E6FAF8";
 
 // ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
 type PopupKey = "운영관리" | "수업관리" | "보강관리" | "매출관리" | "데이터관리" | "수업설정" | "운영설정";
@@ -52,55 +52,55 @@ type PopupKey = "운영관리" | "수업관리" | "보강관리" | "매출관리
 function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   const pending  = stats?.pending_requests ?? 0;
   const makeups  = stats?.pending_makeups ?? 0;
-  const ic = _IC; const ib = _IB;
+  const ib = _IB;
 
   switch (key) {
     case "운영관리": return [
-      { icon: "users",       label: "회원 명부",          color: ic, bg: ib, onPress: () => router.push("/(admin)/members") },
-      { icon: "user",        label: "학부모 계정",         color: ic, bg: ib, onPress: () => router.push("/(admin)/parents") },
-      { icon: "user-check",  label: "선생님 관리",         color: ic, bg: ib, onPress: () => router.push("/(admin)/people-teachers") },
-      { icon: "check-circle",label: "승인 관리",           color: ic, bg: ib, onPress: () => router.push("/(admin)/approvals"), badge: pending },
-      { icon: "send",        label: "초대 안내 기록",      color: ic, bg: ib, onPress: () => router.push("/(admin)/invite-records") },
-      { icon: "trending-up", label: "매출 관리",           color: ic, bg: ib, onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "users",       label: "회원 명부",          color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/members") },
+      { icon: "user",        label: "학부모 계정",         color: "#DB2777", bg: ib, onPress: () => router.push("/(admin)/parents") },
+      { icon: "user-check",  label: "선생님 관리",         color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/people-teachers") },
+      { icon: "check-circle",label: "승인 관리",           color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/approvals"), badge: pending },
+      { icon: "send",        label: "초대 안내 기록",      color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/invite-records") },
+      { icon: "trending-up", label: "매출 관리",           color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/admin-revenue") },
     ];
     case "수업관리": return [
-      { icon: "calendar",    label: "수업 스케줄",         color: ic, bg: ib, onPress: () => router.push("/(admin)/classes") },
-      { icon: "layers",      label: "반 관리",             color: ic, bg: ib, onPress: () => router.push("/(admin)/class-management") },
-      { icon: "clipboard",   label: "출결 관리",           color: ic, bg: ib, onPress: () => router.push("/(admin)/attendance") },
-      { icon: "book",        label: "수업 일지",           color: ic, bg: ib, onPress: () => router.push("/(admin)/diary-teacher-entries") },
-      { icon: "users",       label: "수강생 관리",         color: ic, bg: ib, onPress: () => router.push("/(admin)/members") },
-      { icon: "shuffle",     label: "반 이동",             color: ic, bg: ib, onPress: () => router.push("/(admin)/class-management") },
+      { icon: "calendar",    label: "수업 스케줄",         color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/classes") },
+      { icon: "layers",      label: "반 관리",             color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/class-management") },
+      { icon: "clipboard",   label: "출결 관리",           color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/attendance") },
+      { icon: "book",        label: "수업 일지",           color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/diary-teacher-entries") },
+      { icon: "users",       label: "수강생 관리",         color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/members") },
+      { icon: "shuffle",     label: "반 이동",             color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/class-management") },
     ];
     case "보강관리": return [
-      { icon: "clock",       label: "보강 대기",           color: ic, bg: ib, onPress: () => router.push("/(admin)/makeups"), badge: makeups },
-      { icon: "plus-circle", label: "보강 배정",           color: ic, bg: ib, onPress: () => router.push("/(admin)/makeups") },
-      { icon: "bar-chart-2", label: "보강 현황",           color: ic, bg: ib, onPress: () => router.push("/(admin)/makeups") },
+      { icon: "clock",       label: "보강 대기",           color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/makeups"), badge: makeups },
+      { icon: "plus-circle", label: "보강 배정",           color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/makeups") },
+      { icon: "bar-chart-2", label: "보강 현황",           color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/makeups") },
     ];
     case "매출관리": return [
-      { icon: "trending-up", label: "월별 매출",           color: ic, bg: ib, onPress: () => router.push("/(admin)/admin-revenue") },
-      { icon: "check-square",label: "정산 확인",           color: ic, bg: ib, onPress: () => router.push("/(admin)/settlement") },
-      { icon: "calendar",    label: "휴무일 관리",         color: ic, bg: ib, onPress: () => router.push("/(admin)/holidays") },
+      { icon: "trending-up", label: "월별 매출",           color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "check-square",label: "정산 확인",           color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/settlement") },
+      { icon: "calendar",    label: "휴무일 관리",         color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/holidays") },
     ];
     case "데이터관리": return [
-      { icon: "rotate-ccw",  label: "백업·복구",           color: ic, bg: ib, onPress: () => router.push("/(admin)/recovery") },
-      { icon: "list",        label: "이벤트 기록",         color: ic, bg: ib, onPress: () => router.push("/(admin)/data-event-logs") },
-      { icon: "pie-chart",   label: "저장공간 현황",       color: ic, bg: ib, onPress: () => router.push("/(admin)/data-storage-overview") },
-      { icon: "users",       label: "계정별 사용량",       color: ic, bg: ib, onPress: () => router.push("/(admin)/data-storage-by-account") },
-      { icon: "bar-chart-2", label: "카테고리별\n사용량",  color: ic, bg: ib, onPress: () => router.push("/(admin)/data-storage-by-category") },
-      { icon: "archive",     label: "삭제·보존\n정책",    color: ic, bg: ib, onPress: () => router.push("/(admin)/data-delete") },
+      { icon: "rotate-ccw",  label: "백업·복구",           color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/recovery") },
+      { icon: "list",        label: "이벤트 기록",         color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/data-event-logs") },
+      { icon: "pie-chart",   label: "저장공간 현황",       color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/data-storage-overview") },
+      { icon: "users",       label: "계정별 사용량",       color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/data-storage-by-account") },
+      { icon: "bar-chart-2", label: "카테고리별\n사용량",  color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/data-storage-by-category") },
+      { icon: "archive",     label: "삭제·보존\n정책",    color: "#DC2626", bg: ib, onPress: () => router.push("/(admin)/data-delete") },
     ];
     case "수업설정": return [
-      { icon: "refresh-cw",     label: "보강정책\n설정",   color: ic, bg: ib, onPress: () => router.push("/(admin)/makeup-policy") },
-      { icon: "shield",         label: "권한 설정",        color: ic, bg: ib, onPress: () => router.push("/(admin)/admin-grant") },
-      { icon: "bell",           label: "알림 설정",        color: ic, bg: ib, onPress: () => router.push("/(admin)/push-notification-settings") },
-      { icon: "award",          label: "레벨/테스트\n설정",color: ic, bg: ib, onPress: () => router.push("/(admin)/level-settings" as any) },
-      { icon: "message-circle", label: "피드백\n기본설정", color: ic, bg: ib, onPress: () => router.push("/(admin)/feedback-settings" as any) },
+      { icon: "refresh-cw",     label: "보강정책\n설정",   color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/makeup-policy") },
+      { icon: "shield",         label: "권한 설정",        color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/admin-grant") },
+      { icon: "bell",           label: "알림 설정",        color: "#F59E0B", bg: ib, onPress: () => router.push("/(admin)/push-notification-settings") },
+      { icon: "award",          label: "레벨/테스트\n설정",color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/level-settings" as any) },
+      { icon: "message-circle", label: "피드백\n기본설정", color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/feedback-settings" as any) },
     ];
     case "운영설정": return [
-      { icon: "sliders",   label: "브랜드 설정",           color: ic, bg: ib, onPress: () => router.push("/(admin)/branding") },
-      { icon: "tag",       label: "화이트라벨",            color: ic, bg: ib, onPress: () => router.push("/(admin)/white-label" as any) },
-      { icon: "settings",  label: "수영장 설정",           color: ic, bg: ib, onPress: () => router.push("/(admin)/pool-settings") },
-      { icon: "file-text", label: "공지사항",              color: ic, bg: ib, onPress: () => router.push("/(admin)/notices") },
+      { icon: "sliders",   label: "브랜드 설정",           color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/branding") },
+      { icon: "tag",       label: "화이트라벨",            color: "#DB2777", bg: ib, onPress: () => router.push("/(admin)/white-label" as any) },
+      { icon: "settings",  label: "수영장 설정",           color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "file-text", label: "공지사항",              color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/notices") },
     ];
     default: return [];
   }
@@ -119,14 +119,14 @@ const MAIN_ICONS: Array<{
   color: string;
   bg: string;
 }> = [
-  { key: "운영관리",  label: "운영 관리",  icon: "briefcase",     color: IC, bg: IB },
-  { key: "수업관리",  label: "수업 관리",  icon: "calendar",      color: IC, bg: IB },
-  { key: "보강관리",  label: "보강 관리",  icon: "rotate-ccw",    color: IC, bg: IB },
-  { key: "메신저",    label: "메신저",     icon: "message-circle",color: IC, bg: IB },
-  { key: "매출관리",  label: "매출 관리",  icon: "trending-up",   color: IC, bg: IB },
-  { key: "데이터관리",label: "데이터 관리",icon: "hard-drive",    color: IC, bg: IB },
-  { key: "수업설정",  label: "수업 설정",  icon: "settings",      color: IC, bg: IB },
-  { key: "운영설정",  label: "운영 설정",  icon: "sliders",       color: IC, bg: IB },
+  { key: "운영관리",  label: "운영 관리",  icon: "briefcase",     color: "#1D4ED8", bg: IB },
+  { key: "수업관리",  label: "수업 관리",  icon: "calendar",      color: "#16A34A", bg: IB },
+  { key: "보강관리",  label: "보강 관리",  icon: "rotate-ccw",    color: "#EA580C", bg: IB },
+  { key: "메신저",    label: "메신저",     icon: "message-circle",color: "#7C3AED", bg: IB },
+  { key: "매출관리",  label: "매출 관리",  icon: "trending-up",   color: "#CA8A04", bg: IB },
+  { key: "데이터관리",label: "데이터 관리",icon: "hard-drive",    color: "#0369A1", bg: IB },
+  { key: "수업설정",  label: "수업 설정",  icon: "settings",      color: "#0F172A", bg: IB },
+  { key: "운영설정",  label: "운영 설정",  icon: "sliders",       color: "#0F172A", bg: IB },
 ];
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
@@ -194,14 +194,14 @@ export default function DashboardScreen() {
     finally { setSwitching(false); }
   }
 
-  const _BIC = "#0F172A"; const _BIB = "#E6FAF8";
+  const _BIB = "#E6FAF8";
   const bannerItems = [
     {
       label: "데이터 사용량",
       value: storagePct !== null ? `${storagePct}%` : "—",
       sub: "전체 저장공간",
       icon: "hard-drive" as const,
-      color: _BIC,
+      color: "#0369A1",
       bg: _BIB,
       onPress: () => router.push("/(admin)/data-storage-overview"),
     },
@@ -210,7 +210,7 @@ export default function DashboardScreen() {
       value: stats ? formatWon(stats.monthly_revenue ?? 0) : "—",
       sub: "월 누적 매출",
       icon: "trending-up" as const,
-      color: _BIC,
+      color: "#CA8A04",
       bg: _BIB,
       onPress: () => router.push("/(admin)/admin-revenue"),
     },
@@ -219,7 +219,7 @@ export default function DashboardScreen() {
       value: stats ? String(stats.total_members) : "—",
       sub: "등록 회원 수",
       icon: "users" as const,
-      color: _BIC,
+      color: "#1D4ED8",
       bg: _BIB,
       onPress: () => router.push("/(admin)/members"),
     },
@@ -228,7 +228,7 @@ export default function DashboardScreen() {
       value: stats ? String(stats.pending_makeups ?? 0) : "—",
       sub: "처리 필요",
       icon: "rotate-ccw" as const,
-      color: _BIC,
+      color: "#EA580C",
       bg: _BIB,
       onPress: () => router.push("/(admin)/makeups"),
     },
