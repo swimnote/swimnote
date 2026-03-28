@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, Building2, CircleAlert, Key, Lock, User, Users, UserX } from "lucide-react-native";
+import { ArrowRight, BookOpen, Building2, CircleAlert, Key, Lock, User, UserPlus, Users, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -111,10 +111,11 @@ export default function LoginScreen() {
         <View style={{ flex: 1 }} />
 
         <Pressable
-          style={({ pressed }) => [styles.signupRow, { opacity: pressed ? 0.7 : 1 }]}
+          style={({ pressed }) => [styles.signupRow, { opacity: pressed ? 0.85 : 1 }]}
           onPress={() => router.push("/signup" as any)}
         >
-          <Text style={[styles.signupLabel, { color: C.tint }]}>간편 회원가입</Text>
+          <UserPlus size={15} color={C.tint} />
+          <Text style={[styles.signupLabel, { color: C.tint }]}>처음이세요?  무료로 시작하기</Text>
           <ArrowRight size={14} color={C.tint} />
         </Pressable>
 
@@ -249,7 +250,7 @@ const styles = StyleSheet.create({
   roleHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 10 },
   roleHintText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   roleHintDot: { fontSize: 12, fontFamily: "Pretendard-Regular", marginHorizontal: 2 },
-  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12 },
+  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 12, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 24, backgroundColor: "#E6FAF8", borderWidth: 1, borderColor: "#5FEEE3" },
   signupLabel: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   signupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },
   signupBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
