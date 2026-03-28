@@ -1,4 +1,4 @@
-import { ArrowRight, CircleAlert, Key, Lock, User, UserX } from "lucide-react-native";
+import { ArrowRight, BookOpen, Building2, CircleAlert, Key, Lock, User, Users, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -110,6 +110,29 @@ export default function LoginScreen() {
 
         <View style={{ flex: 1 }} />
 
+        <View style={styles.roleHintRow}>
+          <Building2 size={13} color={C.textMuted} />
+          <Text style={[styles.roleHintText, { color: C.textMuted }]}>관리자</Text>
+          <Text style={[styles.roleHintDot, { color: C.textMuted }]}>·</Text>
+          <BookOpen size={13} color={C.textMuted} />
+          <Text style={[styles.roleHintText, { color: C.textMuted }]}>선생님</Text>
+          <Text style={[styles.roleHintDot, { color: C.textMuted }]}>·</Text>
+          <Users size={13} color={C.textMuted} />
+          <Text style={[styles.roleHintText, { color: C.textMuted }]}>학부모</Text>
+          <Text style={[styles.roleHintText, { color: C.textMuted }]}> 으로 가입 가능</Text>
+        </View>
+
+        <View style={styles.signupRow}>
+          <Text style={[styles.signupLabel, { color: C.textSecondary }]}>아직 계정이 없으신가요?</Text>
+          <Pressable
+            style={({ pressed }) => [styles.signupBtn, { opacity: pressed ? 0.7 : 1 }]}
+            onPress={() => router.push("/signup" as any)}
+          >
+            <Text style={[styles.signupBtnText, { color: C.tint }]}>회원가입</Text>
+            <ArrowRight size={14} color={C.tint} />
+          </Pressable>
+        </View>
+
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디</Text>
@@ -178,16 +201,6 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.signupRow}>
-          <Text style={[styles.signupLabel, { color: C.textSecondary }]}>아직 계정이 없으신가요?</Text>
-          <Pressable
-            style={({ pressed }) => [styles.signupBtn, { opacity: pressed ? 0.7 : 1 }]}
-            onPress={() => router.push("/signup" as any)}
-          >
-            <Text style={[styles.signupBtnText, { color: C.tint }]}>회원가입</Text>
-            <ArrowRight size={14} color={C.tint} />
-          </Pressable>
-        </View>
       </ScrollView>
 
       <Modal
@@ -249,7 +262,10 @@ const styles = StyleSheet.create({
   arrowBtn: { alignItems: "center", justifyContent: "center", paddingLeft: 4 },
   forgotBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingVertical: 2 },
   forgotText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 14 },
+  roleHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 10 },
+  roleHintText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  roleHintDot: { fontSize: 12, fontFamily: "Pretendard-Regular", marginHorizontal: 2 },
+  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12 },
   signupLabel: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   signupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },
   signupBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
