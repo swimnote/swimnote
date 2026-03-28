@@ -230,7 +230,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, flex: 1, paddingHorizontal: 20, justifyContent: "flex-start" },
-  logoArea: { alignItems: "center", paddingBottom: 24 },
+  logoArea: { alignItems: "center", paddingBottom: 24, marginTop: 40 },
 
   logoWrap: { alignItems: "center", gap: 10 },
   logoBorder: { borderRadius: 21, borderWidth: 2, borderColor: "#04111f", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 10 },
