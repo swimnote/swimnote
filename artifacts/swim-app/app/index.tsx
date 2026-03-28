@@ -118,7 +118,7 @@ export default function LoginScreen() {
           style={({ pressed }) => [styles.signupRow, { opacity: pressed ? 0.7 : 1 }]}
           onPress={() => router.push("/signup" as any)}
         >
-          <Text style={[styles.signupLabel, { color: C.tint }]}>간단한 회원가입으로 스윔노트를 이용해주세요</Text>
+          <Text style={[styles.signupLabel, { color: C.tint }]}>간편 회원가입</Text>
           <ArrowRight size={14} color={C.tint} />
         </Pressable>
 
