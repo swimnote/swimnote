@@ -1,9 +1,9 @@
 import { ArrowRight, BookOpen, Building2, CircleAlert, Key, Lock, Sparkles, User, UserPlus, Users, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
+  Animated, ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -27,6 +27,30 @@ export default function LoginScreen() {
   const [error, setError]           = useState("");
   const [failCount, setFailCount]   = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
+  const [kbVisible, setKbVisible]   = useState(false);
+
+  const logoMargin  = useRef(new Animated.Value(200)).current;
+  const textOpacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const onShow = Keyboard.addListener(showEvent, () => {
+      setKbVisible(true);
+      Animated.parallel([
+        Animated.timing(logoMargin,  { toValue: 10,  duration: 250, useNativeDriver: false }),
+        Animated.timing(textOpacity, { toValue: 0,   duration: 180, useNativeDriver: false }),
+      ]).start();
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKbVisible(false);
+      Animated.parallel([
+        Animated.timing(logoMargin,  { toValue: 200, duration: 250, useNativeDriver: false }),
+        Animated.timing(textOpacity, { toValue: 1,   duration: 280, useNativeDriver: false }),
+      ]).start();
+    });
+    return () => { onShow.remove(); onHide.remove(); };
+  }, []);
 
   async function handleLogin(overrideId?: string, overridePw?: string) {
     const finalId = (overrideId ?? identifier).trim();
@@ -93,7 +117,7 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.logoArea}>
+        <Animated.View style={[styles.logoArea, { marginTop: logoMargin }]}>
           <View style={styles.logoWrap}>
             <View style={styles.logoBorder}>
               <View style={styles.logoImage}>
@@ -102,11 +126,11 @@ export default function LoginScreen() {
             </View>
             <Text style={styles.logoWordmark}>SwimNote</Text>
           </View>
-          <Text style={[styles.appSub, { color: C.text, marginTop: 50 }]}>어린이 수영레슨 올인원</Text>
-          <Text style={[styles.appDesc, { color: C.text, marginTop: 30 }]}>
+          <Animated.Text style={[styles.appSub, { color: C.text, marginTop: 50, opacity: textOpacity }]}>어린이 수영레슨 올인원</Animated.Text>
+          <Animated.Text style={[styles.appDesc, { color: C.text, marginTop: 30, opacity: textOpacity }]}>
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
-          </Text>
-        </View>
+          </Animated.Text>
+        </Animated.View>
 
         <View style={{ flex: 1 }} />
 
@@ -227,7 +251,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flexGrow: 1, flex: 1, paddingHorizontal: 20, justifyContent: "flex-start" },
-  logoArea: { alignItems: "center", paddingBottom: 24, marginTop: 200 },
+  logoArea: { alignItems: "center", paddingBottom: 24 },
 
   logoWrap: { alignItems: "center", gap: 10 },
   logoBorder: { borderRadius: 21, borderWidth: 2, borderColor: "#04111f", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 10 },
