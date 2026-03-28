@@ -110,10 +110,6 @@ export default function LoginScreen() {
 
         <View style={{ flex: 1 }} />
 
-        <Text style={[styles.roleHintText, { color: C.textMuted, textAlign: "center", marginBottom: 6 }]}>
-          가입 후 관리자 · 선생님 · 학부모 선택
-        </Text>
-
         <Pressable
           style={({ pressed }) => [styles.signupRow, { opacity: pressed ? 0.7 : 1 }]}
           onPress={() => router.push("/signup" as any)}
