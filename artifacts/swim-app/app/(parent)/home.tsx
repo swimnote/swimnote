@@ -453,7 +453,7 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   infoAvatarTxt: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#fff" },
-  infoName: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  infoName: { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
   infoSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.85)" },
   infoSchedule: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.7)" },
 
