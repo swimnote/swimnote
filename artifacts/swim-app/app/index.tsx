@@ -95,7 +95,7 @@ export default function LoginScreen() {
         <View style={styles.spacer} />
 
         <View style={styles.logoArea}>
-          <Text style={[styles.appSub, { color: C.textSecondary, marginBottom: 16 }]}>어린이 수영레슨 올인원</Text>
+          <Text style={[styles.appSub, { color: C.text, marginBottom: 36 }]}>어린이 수영레슨 올인원</Text>
           <Image
             source={require("../assets/images/swimnote-logo.png")}
             style={styles.logoImage}
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   logoArea: { alignItems: "center", paddingBottom: 24 },
 
   logoImage: { width: 230, height: 230, borderRadius: 52, shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
-  appSub: { fontSize: 18, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  appSub: { fontSize: 22, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.5 },
   appDesc: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   spacer: { height: 5 },
   card: { borderRadius: 20, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 },
