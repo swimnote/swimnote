@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "center" },
   logoArea: { alignItems: "center", paddingBottom: 24 },
 
-  logoImage: { width: 230, height: 230, borderRadius: 52, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
+  logoImage: { width: 230, height: 230, borderRadius: 52, overflow: "hidden", backgroundColor: "#0a2540", shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
   appSub: { fontSize: 22, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.5 },
   appDesc: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   spacer: { height: 5 },
