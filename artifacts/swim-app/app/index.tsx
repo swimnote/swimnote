@@ -99,7 +99,7 @@ export default function LoginScreen() {
           <Text style={[styles.appSub, { color: C.text, marginBottom: 36 }]}>어린이 수영레슨 올인원</Text>
           <View style={styles.logoWrap}>
             <View style={styles.logoImage}>
-              <SwimNoteLogo width={184} height={184} viewBox="130 28 244 244" />
+              <SwimNoteLogo width={200} height={200} viewBox="130 28 244 244" />
             </View>
             <Text style={styles.logoWordmark}>SwimNote</Text>
           </View>
@@ -230,9 +230,9 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "center" },
   logoArea: { alignItems: "center", paddingBottom: 24 },
 
-  logoWrap: { alignItems: "center", gap: 12 },
-  logoImage: { width: 184, height: 184, borderRadius: 42, overflow: "hidden", backgroundColor: "#0a2540", shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
-  logoWordmark: { fontSize: 36, fontWeight: "700", color: "#0a2540", letterSpacing: 0.5 },
+  logoWrap: { alignItems: "center", gap: 14 },
+  logoImage: { width: 200, height: 200, borderRadius: 36, overflow: "hidden", backgroundColor: "#0a2540", shadowColor: "#000", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 14 },
+  logoWordmark: { fontSize: 46, fontWeight: "700", color: "#0a2540", letterSpacing: 0.5 },
   appSub: { fontSize: 22, fontFamily: "Pretendard-Regular", textAlign: "center", letterSpacing: 0.5 },
   appDesc: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   spacer: { height: 5 },
