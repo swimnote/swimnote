@@ -108,6 +108,8 @@ export default function LoginScreen() {
           </Text>
         </View>
 
+        <View style={{ flex: 1 }} />
+
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디</Text>
@@ -227,7 +229,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "center" },
+  container: { flexGrow: 1, flex: 1, paddingHorizontal: 20, justifyContent: "flex-start" },
   logoArea: { alignItems: "center", paddingBottom: 24 },
 
   logoWrap: { alignItems: "center", gap: 10 },
