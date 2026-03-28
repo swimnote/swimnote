@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   roleHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 10 },
   roleHintText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   roleHintDot: { fontSize: 12, fontFamily: "Pretendard-Regular", marginHorizontal: 2 },
-  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 16, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#5FEEE3", shadowColor: "#5FEEE3", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 },
+  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 20, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 16, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#5FEEE3", shadowColor: "#5FEEE3", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 },
   signupLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   signupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },
   signupBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
