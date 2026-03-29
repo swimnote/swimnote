@@ -2,8 +2,7 @@
  * (teacher)/today-schedule.tsx — 오늘 스케줄 탭 (thin shell)
  * 컴포넌트: components/teacher/today-schedule/
  */
-import { ChevronRight, Layers, LogOut, Repeat, Sun, UserPlus } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
+import { ChevronRight, Layers, LogOut, Repeat, Sun } from "lucide-react-native";
 import { router } from "expo-router";
 import { Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
@@ -34,11 +33,6 @@ interface TeacherOverview {
   pending_diaries_past: number;
   makeup_count: number;
 }
-interface HubIcon {
-  key: string; label: string; icon: string; color: string; bg: string;
-  badge?: number | null; onPress: () => void;
-}
-
 export default function TodayScheduleScreen() {
   const { token, logout, adminUser, pool, switchRole, setLastUsedRole } = useAuth();
   const { themeColor } = useBrand();
@@ -162,23 +156,6 @@ export default function TodayScheduleScreen() {
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(sun); d.setDate(sun.getDate() + i); return d; });
   }, []);
 
-  const IB = "#E6FAF8";
-
-  const icons: HubIcon[] = [
-    { key: "my-schedule", label: "수업관리",  icon: "layers",         color: "#16A34A", bg: IB, onPress: () => router.push("/(teacher)/my-schedule" as any) },
-    { key: "students",    label: "회원관리",  icon: "users",          color: "#1D4ED8", bg: IB, onPress: () => router.push("/(teacher)/students" as any) },
-    { key: "makeups",     label: "보강관리",  icon: "refresh-cw",     color: "#EA580C", bg: IB,
-      badge: (overview?.makeup_count ?? 0) > 0 ? overview!.makeup_count : null,
-      onPress: () => router.push("/(teacher)/makeups" as any) },
-    { key: "note",        label: "쪽지",     icon: "mail",           color: "#0369A1", bg: IB,
-      badge: (overview?.unread_messages ?? 0) > 0 ? overview!.unread_messages : null,
-      onPress: () => setNotePopupVisible(true) },
-    { key: "messenger",   label: "메신저",   icon: "message-circle", color: "#7C3AED", bg: IB, onPress: () => router.push("/(teacher)/messenger" as any) },
-    { key: "revenue",     label: "정산",     icon: "dollar-sign",    color: "#CA8A04", bg: IB, onPress: () => router.push("/(teacher)/revenue" as any) },
-    { key: "my-info",     label: "내정보",   icon: "user",           color: "#DB2777", bg: IB, onPress: () => router.push("/(teacher)/my-info" as any) },
-    { key: "settings",    label: "설정",     icon: "settings",       color: "#0F172A", bg: IB, onPress: () => router.push("/(teacher)/settings" as any) },
-  ];
-
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
 
   return (
@@ -263,18 +240,6 @@ export default function TodayScheduleScreen() {
           </View>
         </Pressable>
 
-        <Pressable style={({ pressed }) => [h.addMemberBtn, { backgroundColor: C.card, opacity: pressed ? 0.82 : 1 }]}
-          onPress={() => setShowTeacherRegister(true)}>
-          <View style={[h.addMemberIconWrap, { backgroundColor: "#E6FAF8" }]}>
-            <UserPlus size={20} color="#0F172A" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={h.addMemberLabel}>회원추가</Text>
-            <Text style={h.addMemberSub}>등록 요청 → 관리자 승인 후 반영</Text>
-          </View>
-          <ChevronRight size={18} color={C.textMuted} />
-        </Pressable>
-
         <View style={[h.sectionCard, { backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
             <View style={[h.sectionIconBox, { backgroundColor: C.tintLight }]}>
@@ -322,23 +287,6 @@ export default function TodayScheduleScreen() {
           </View>
         </View>
 
-        <View style={[h.gridCard, { backgroundColor: C.card }]}>
-          <View style={h.grid}>
-            {icons.map(ic => (
-              <Pressable key={ic.key} style={h.gridItem} onPress={ic.onPress}>
-                <View style={[h.gridIconWrap, { backgroundColor: ic.bg }]}>
-                  <LucideIcon name={ic.icon as any} size={24} color={ic.color} />
-                  {ic.badge != null && ic.badge > 0 && (
-                    <View style={h.gridBadge}>
-                      <Text style={h.gridBadgeTxt}>{ic.badge > 99 ? "99+" : ic.badge}</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={h.gridLabel} numberOfLines={1}>{ic.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
       </ScrollView>
 
       <MemoSheet
@@ -424,15 +372,4 @@ const h = StyleSheet.create({
   miniDate:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   miniDateToday:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
   miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
-  addMemberBtn:     { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  addMemberIconWrap:{ width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  addMemberLabel:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
-  addMemberSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
-  gridCard:       { borderRadius: 18, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  grid:           { flexDirection: "row", flexWrap: "wrap" },
-  gridItem:       { width: "25%", alignItems: "center", gap: 5, paddingVertical: 8 },
-  gridIconWrap:   { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", position: "relative" },
-  gridBadge:      { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
-  gridBadgeTxt:   { color: "#fff", fontSize: 10, fontFamily: "Pretendard-Regular" },
-  gridLabel:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" },
 });
