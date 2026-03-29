@@ -1,4 +1,4 @@
-import { Home, Layers, Menu, Send, TrendingUp, Users } from "lucide-react-native";
+import { Home, Layers, Send, Settings, Users } from "lucide-react-native";
 import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
 import Colors from "@/constants/colors";
@@ -12,8 +12,6 @@ export default function AdminLayout() {
   const { themeColor } = useBrand();
   const { kind, isLoading, adminUser } = useAuth();
 
-  // 권한 보호: 슈퍼관리자 계열이 admin 화면으로 진입 시 슈퍼 홈으로 강제 리다이렉트
-  // pool_admin / sub_admin 만 admin 화면 허용
   useEffect(() => {
     if (isLoading || !kind) return;
     if (kind === "admin") {
@@ -50,24 +48,32 @@ export default function AdminLayout() {
         tabBarActiveTintColor: themeColor,
         tabBarInactiveTintColor: C.tabIconDefault,
         headerShown: false,
-        tabBarStyle: { display: "none" },
+        tabBarStyle: {
+          backgroundColor: "#fff",
+          borderTopWidth: 1,
+          borderTopColor: C.border,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: { fontSize: 10, fontFamily: "Pretendard-Regular" },
       }}
     >
-      {/* ─── 6개 메인 탭 ─── */}
+      {/* ─── 5개 메인 탭 ─── */}
       <Tabs.Screen
         name="dashboard"
         listeners={makeTabListener("dashboard")}
         options={{ title: "홈", tabBarIcon: ({ color }) => <Home size={22} color={color} /> }}
       />
       <Tabs.Screen
-        name="people"
-        listeners={makeTabListener("people")}
-        options={{ title: "인원관리", tabBarIcon: ({ color }) => <Users size={22} color={color} /> }}
-      />
-      <Tabs.Screen
         name="classes"
         listeners={makeTabListener("classes")}
-        options={{ title: "수업", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
+        options={{ title: "수업관리", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="people"
+        listeners={makeTabListener("people")}
+        options={{ title: "회원관리", tabBarIcon: ({ color }) => <Users size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="messenger"
@@ -75,60 +81,58 @@ export default function AdminLayout() {
         options={{ title: "메신저", tabBarIcon: ({ color }) => <Send size={22} color={color} /> }}
       />
       <Tabs.Screen
-        name="admin-revenue"
-        listeners={makeTabListener("admin-revenue")}
-        options={{ title: "매출관리", tabBarIcon: ({ color }) => <TrendingUp size={22} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="more"
-        listeners={makeTabListener("more")}
-        options={{ title: "더보기", tabBarIcon: ({ color }) => <Menu size={22} color={color} /> }}
+        name="settings"
+        listeners={makeTabListener("settings")}
+        options={{ title: "설정", tabBarIcon: ({ color }) => <Settings size={22} color={color} /> }}
       />
 
       {/* ─── 숨김 화면들 (탭 없이 push/navigate로 접근) ─── */}
-      <Tabs.Screen name="billing"           options={{ href: null }} />
-      <Tabs.Screen name="communication"     options={{ href: null }} />
-      <Tabs.Screen name="members"           options={{ href: null }} />
-      <Tabs.Screen name="community"         options={{ href: null }} />
-      <Tabs.Screen name="approvals"         options={{ href: null }} />
-      <Tabs.Screen name="attendance"        options={{ href: null }} />
-      <Tabs.Screen name="parents"           options={{ href: null }} />
-      <Tabs.Screen name="notices"           options={{ href: null }} />
-      <Tabs.Screen name="mode"              options={{ href: null }} />
-      <Tabs.Screen name="diary-write"            options={{ href: null }} />
-      <Tabs.Screen name="diary-teacher-entries"  options={{ href: null }} />
-      <Tabs.Screen name="photo-upload"      options={{ href: null }} />
-      <Tabs.Screen name="teachers"          options={{ href: null }} />
-      <Tabs.Screen name="pool-settings"     options={{ href: null }} />
-      <Tabs.Screen name="notifications"     options={{ href: null }} />
-      <Tabs.Screen name="branches"          options={{ href: null }} />
-      <Tabs.Screen name="withdrawn-members" options={{ href: null }} />
-      <Tabs.Screen name="branding"          options={{ href: null }} />
-      <Tabs.Screen name="white-label"       options={{ href: null }} />
-      <Tabs.Screen name="member-detail"     options={{ href: null }} />
-      <Tabs.Screen name="teacher-hub"            options={{ href: null }} />
-      <Tabs.Screen name="people-teachers"       options={{ href: null }} />
-      <Tabs.Screen name="teacher-pending-detail" options={{ href: null }} />
-      <Tabs.Screen name="people-pending"    options={{ href: null }} />
-      <Tabs.Screen name="makeups"                    options={{ href: null }} />
-      <Tabs.Screen name="makeup-policy"              options={{ href: null }} />
-      <Tabs.Screen name="level-settings"             options={{ href: null }} />
-      <Tabs.Screen name="settlement"                 options={{ href: null }} />
-      <Tabs.Screen name="holidays"                   options={{ href: null }} />
-      <Tabs.Screen name="class-management"           options={{ href: null }} />
-      <Tabs.Screen name="data-management"            options={{ href: null }} />
-      <Tabs.Screen name="data-storage-overview"      options={{ href: null }} />
-      <Tabs.Screen name="data-storage-by-account"    options={{ href: null }} />
-      <Tabs.Screen name="data-storage-by-category"   options={{ href: null }} />
-      <Tabs.Screen name="data-delete"                options={{ href: null }} />
-      <Tabs.Screen name="data-event-logs"            options={{ href: null }} />
-      <Tabs.Screen name="admin-grant"               options={{ href: null }} />
-      <Tabs.Screen name="invite-records"           options={{ href: null }} />
-      <Tabs.Screen name="extra-storage"            options={{ href: null }} />
-      <Tabs.Screen name="recovery"               options={{ href: null }} />
-      <Tabs.Screen name="feedback-settings"          options={{ href: null }} />
+      <Tabs.Screen name="more"                    options={{ href: null }} />
+      <Tabs.Screen name="admin-revenue"           options={{ href: null }} />
+      <Tabs.Screen name="billing"                 options={{ href: null }} />
+      <Tabs.Screen name="communication"           options={{ href: null }} />
+      <Tabs.Screen name="members"                 options={{ href: null }} />
+      <Tabs.Screen name="community"               options={{ href: null }} />
+      <Tabs.Screen name="approvals"               options={{ href: null }} />
+      <Tabs.Screen name="attendance"              options={{ href: null }} />
+      <Tabs.Screen name="parents"                 options={{ href: null }} />
+      <Tabs.Screen name="notices"                 options={{ href: null }} />
+      <Tabs.Screen name="mode"                    options={{ href: null }} />
+      <Tabs.Screen name="diary-write"             options={{ href: null }} />
+      <Tabs.Screen name="diary-teacher-entries"   options={{ href: null }} />
+      <Tabs.Screen name="photo-upload"            options={{ href: null }} />
+      <Tabs.Screen name="teachers"                options={{ href: null }} />
+      <Tabs.Screen name="pool-settings"           options={{ href: null }} />
+      <Tabs.Screen name="notifications"           options={{ href: null }} />
+      <Tabs.Screen name="branches"                options={{ href: null }} />
+      <Tabs.Screen name="withdrawn-members"       options={{ href: null }} />
+      <Tabs.Screen name="branding"                options={{ href: null }} />
+      <Tabs.Screen name="white-label"             options={{ href: null }} />
+      <Tabs.Screen name="member-detail"           options={{ href: null }} />
+      <Tabs.Screen name="teacher-hub"             options={{ href: null }} />
+      <Tabs.Screen name="people-teachers"         options={{ href: null }} />
+      <Tabs.Screen name="teacher-pending-detail"  options={{ href: null }} />
+      <Tabs.Screen name="people-pending"          options={{ href: null }} />
+      <Tabs.Screen name="makeups"                 options={{ href: null }} />
+      <Tabs.Screen name="makeup-policy"           options={{ href: null }} />
+      <Tabs.Screen name="level-settings"          options={{ href: null }} />
+      <Tabs.Screen name="settlement"              options={{ href: null }} />
+      <Tabs.Screen name="holidays"                options={{ href: null }} />
+      <Tabs.Screen name="class-management"        options={{ href: null }} />
+      <Tabs.Screen name="data-management"         options={{ href: null }} />
+      <Tabs.Screen name="data-storage-overview"   options={{ href: null }} />
+      <Tabs.Screen name="data-storage-by-account" options={{ href: null }} />
+      <Tabs.Screen name="data-storage-by-category" options={{ href: null }} />
+      <Tabs.Screen name="data-delete"             options={{ href: null }} />
+      <Tabs.Screen name="data-event-logs"         options={{ href: null }} />
+      <Tabs.Screen name="admin-grant"             options={{ href: null }} />
+      <Tabs.Screen name="invite-records"          options={{ href: null }} />
+      <Tabs.Screen name="extra-storage"           options={{ href: null }} />
+      <Tabs.Screen name="recovery"                options={{ href: null }} />
+      <Tabs.Screen name="feedback-settings"       options={{ href: null }} />
       <Tabs.Screen name="push-notification-settings" options={{ href: null }} />
-      <Tabs.Screen name="push-message-settings"      options={{ href: null }} />
+      <Tabs.Screen name="push-message-settings"   options={{ href: null }} />
+      <Tabs.Screen name="my-info"                 options={{ href: null }} />
     </Tabs>
   );
 }

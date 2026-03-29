@@ -24,7 +24,7 @@ import { AdminQuickRegisterModal } from "@/components/admin/AdminQuickRegisterMo
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
-const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
+const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 60 : 60;
 
 function formatWon(n: number) {
   if (n >= 100_000_000) return (n / 100_000_000).toFixed(1).replace(/\.0$/, "") + "억원";
@@ -69,7 +69,6 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "clipboard",   label: "출결 관리",           color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/attendance") },
       { icon: "book",        label: "수업 일지",           color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/diary-teacher-entries") },
       { icon: "users",       label: "수강생 관리",         color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/members") },
-      { icon: "shuffle",     label: "반 이동",             color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/class-management") },
     ];
     case "보강관리": return [
       { icon: "clock",       label: "보강 대기",           color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/makeups"), badge: makeups },
@@ -90,17 +89,18 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "archive",     label: "삭제·보존\n정책",    color: "#DC2626", bg: ib, onPress: () => router.push("/(admin)/data-delete") },
     ];
     case "수업설정": return [
-      { icon: "refresh-cw",     label: "보강정책\n설정",   color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/makeup-policy") },
       { icon: "shield",         label: "권한 설정",        color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/admin-grant") },
       { icon: "bell",           label: "알림 설정",        color: "#F59E0B", bg: ib, onPress: () => router.push("/(admin)/push-notification-settings") },
       { icon: "award",          label: "레벨/테스트\n설정",color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/level-settings" as any) },
       { icon: "message-circle", label: "피드백\n기본설정", color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/feedback-settings" as any) },
     ];
     case "운영설정": return [
-      { icon: "sliders",   label: "브랜드 설정",           color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/branding") },
-      { icon: "tag",       label: "화이트라벨",            color: "#DB2777", bg: ib, onPress: () => router.push("/(admin)/white-label" as any) },
-      { icon: "settings",  label: "수영장 설정",           color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/pool-settings") },
-      { icon: "file-text", label: "공지사항",              color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/notices") },
+      { icon: "sliders",    label: "브랜드 설정",          color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/branding") },
+      { icon: "tag",        label: "화이트라벨",           color: "#DB2777", bg: ib, onPress: () => router.push("/(admin)/white-label" as any) },
+      { icon: "settings",   label: "수영장 설정",          color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "file-text",  label: "공지사항",             color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/notices") },
+      { icon: "hard-drive", label: "데이터 관리",          color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/data-management") },
+      { icon: "credit-card",label: "구독 관리",            color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/billing") },
     ];
     default: return [];
   }
@@ -115,7 +115,7 @@ const IC = NAVY; const IB = MINT_BG;
 const MAIN_ICONS: Array<{
   key: PopupKey | "메신저";
   label: string;
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   color: string;
   bg: string;
 }> = [
@@ -195,44 +195,8 @@ export default function DashboardScreen() {
   }
 
   const _BIB = "#E6FAF8";
-  const bannerItems = [
-    {
-      label: "데이터 사용량",
-      value: storagePct !== null ? `${storagePct}%` : "—",
-      sub: "전체 저장공간",
-      icon: "hard-drive" as const,
-      color: "#0369A1",
-      bg: _BIB,
-      onPress: () => router.push("/(admin)/data-storage-overview"),
-    },
-    {
-      label: "이번 달 매출",
-      value: stats ? formatWon(stats.monthly_revenue ?? 0) : "—",
-      sub: "월 누적 매출",
-      icon: "trending-up" as const,
-      color: "#CA8A04",
-      bg: _BIB,
-      onPress: () => router.push("/(admin)/admin-revenue"),
-    },
-    {
-      label: "전체 회원",
-      value: stats ? String(stats.total_members) : "—",
-      sub: "등록 회원 수",
-      icon: "users" as const,
-      color: "#1D4ED8",
-      bg: _BIB,
-      onPress: () => router.push("/(admin)/members"),
-    },
-    {
-      label: "미처리 보강",
-      value: stats ? String(stats.pending_makeups ?? 0) : "—",
-      sub: "처리 필요",
-      icon: "rotate-ccw" as const,
-      color: "#EA580C",
-      bg: _BIB,
-      onPress: () => router.push("/(admin)/makeups"),
-    },
-  ];
+  const maxMembers = stats?.member_limit ?? 10;
+  const videoStoragePct = stats?.video_storage_pct ?? null;
 
   function handleIconPress(key: PopupKey | "메신저") {
     if (key === "메신저") {
@@ -296,25 +260,102 @@ export default function DashboardScreen() {
           <ActivityIndicator color={themeColor} size="large" style={{ marginTop: 40 }} />
         ) : (
           <>
-            {/* ── 배너: 4개 KPI 2×2 그리드 ── */}
-            <View>
+            {/* ── 운영 현황 카드 ── */}
+            <View style={{ gap: 8 }}>
               <Text style={s.sectionLabel}>운영 현황</Text>
-              <View style={s.bannerGrid}>
-                {bannerItems.map(b => (
-                  <Pressable
-                    key={b.label}
-                    style={({ pressed }) => [s.bannerCard, { opacity: pressed ? 0.85 : 1 }]}
-                    onPress={b.onPress}
-                  >
-                    <View style={[s.bannerIcon, { backgroundColor: b.bg }]}>
-                      <LucideIcon name={b.icon} size={18} color={b.color} />
-                    </View>
-                    <Text style={[s.bannerValue, { color: b.color }]}>{b.value}</Text>
-                    <Text style={s.bannerLabel}>{b.label}</Text>
-                    <Text style={s.bannerSub}>{b.sub}</Text>
-                  </Pressable>
-                ))}
+
+              {/* 1행: 이번 달 매출 + 전체 회원 */}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable
+                  style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
+                  onPress={() => router.push("/(admin)/admin-revenue")}
+                >
+                  <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
+                    <LucideIcon name="trending-up" size={18} color="#CA8A04" />
+                  </View>
+                  <Text style={[s.bannerValue, { color: "#CA8A04" }]}>
+                    {stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}
+                  </Text>
+                  <Text style={s.bannerLabel}>이번 달 매출</Text>
+                  <Text style={s.bannerSub}>월 누적 매출</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
+                  onPress={() => router.push("/(admin)/members")}
+                >
+                  <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
+                    <LucideIcon name="users" size={18} color="#1D4ED8" />
+                  </View>
+                  <Text style={[s.bannerValue, { color: "#1D4ED8" }]}>
+                    {stats ? String(stats.total_members) : "—"}명
+                  </Text>
+                  <Text style={s.bannerLabel}>전체 회원</Text>
+                  <Text style={s.bannerSub}>등록 회원 수</Text>
+                </Pressable>
               </View>
+
+              {/* 2행: 보강 상태 (full-width) */}
+              <Pressable
+                style={({ pressed }) => [s.bannerWide, { opacity: pressed ? 0.85 : 1 }]}
+                onPress={() => router.push("/(admin)/makeups")}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
+                    <LucideIcon name="rotate-ccw" size={18} color="#EA580C" />
+                  </View>
+                  <Text style={s.bannerLabel}>보강 상태</Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View style={s.wideSubItem}>
+                    <Text style={[s.wideSubVal, { color: "#16A34A" }]}>
+                      {stats ? String(stats.assigned_makeups ?? stats.remaining_makeups ?? 0) : "—"}건
+                    </Text>
+                    <Text style={s.wideSubLabel}>남은 보강</Text>
+                  </View>
+                  <View style={s.wideSubDivider} />
+                  <View style={s.wideSubItem}>
+                    <Text style={[s.wideSubVal, { color: "#EA580C" }]}>
+                      {stats ? String(stats.pending_makeups ?? 0) : "—"}건
+                    </Text>
+                    <Text style={s.wideSubLabel}>미처리 보강</Text>
+                  </View>
+                </View>
+              </Pressable>
+
+              {/* 3행: 통합 사용량 (full-width, 3지표) */}
+              <Pressable
+                style={({ pressed }) => [s.bannerWide, { opacity: pressed ? 0.85 : 1 }]}
+                onPress={() => router.push("/(admin)/data-storage-overview")}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
+                    <LucideIcon name="hard-drive" size={18} color="#0369A1" />
+                  </View>
+                  <Text style={s.bannerLabel}>통합 사용량</Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={[s.wideSubItem, { flex: 1 }]}>
+                    <Text style={[s.wideSubVal, { color: "#1D4ED8" }]}>
+                      {stats ? `${stats.total_members}/${maxMembers}` : "—"}명
+                    </Text>
+                    <Text style={s.wideSubLabel}>회원 사용량</Text>
+                  </View>
+                  <View style={s.wideSubDivider} />
+                  <View style={[s.wideSubItem, { flex: 1 }]}>
+                    <Text style={[s.wideSubVal, { color: "#0369A1" }]}>
+                      {storagePct !== null ? `${storagePct}%` : "—"}
+                    </Text>
+                    <Text style={s.wideSubLabel}>데이터 사용량</Text>
+                  </View>
+                  <View style={s.wideSubDivider} />
+                  <View style={[s.wideSubItem, { flex: 1 }]}>
+                    <Text style={[s.wideSubVal, { color: "#7C3AED" }]}>
+                      {videoStoragePct !== null ? `${videoStoragePct}%` : "—"}
+                    </Text>
+                    <Text style={s.wideSubLabel}>영상 사용량</Text>
+                  </View>
+                </View>
+              </Pressable>
             </View>
 
             {/* ── 미배정 / 학부모미연결 분리 카운트 ── */}
@@ -468,10 +509,19 @@ const s = StyleSheet.create({
 
   bannerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   bannerCard: {
-    width: "47.5%",
     backgroundColor: "#fff",
     borderRadius: 14,
-    padding: 10,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  bannerWide: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 14,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -480,8 +530,12 @@ const s = StyleSheet.create({
   },
   bannerIcon:  { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center", marginBottom: 6 },
   bannerValue: { fontSize: 19, fontFamily: "Pretendard-Regular", marginBottom: 1 },
-  bannerLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text },
+  bannerLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   bannerSub:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
+  wideSubItem:   { alignItems: "center", gap: 2 },
+  wideSubVal:    { fontSize: 17, fontFamily: "Pretendard-Regular" },
+  wideSubLabel:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  wideSubDivider: { width: 1, height: 32, backgroundColor: C.border, alignSelf: "center" },
 
   alertCard: {
     flexDirection: "row",
