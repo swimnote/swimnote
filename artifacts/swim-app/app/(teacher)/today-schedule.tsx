@@ -213,32 +213,18 @@ export default function TodayScheduleScreen() {
           </View>
         </View>
 
-        <Pressable style={[h.schedHero, { backgroundColor: "#CCFBF1" }]} onPress={() => router.push("/(teacher)/my-schedule" as any)}>
-          <View style={h.schedHeroTop}>
-            <View>
-              <Text style={h.schedHeroTitle}>스케줄러 바로 가기</Text>
-              <Text style={h.schedHeroSub}>수업 · 출결 · 일지 · 날짜메모</Text>
+        {(overview?.pending_diaries_today ?? 0) > 0 && (
+          <Pressable
+            style={[h.feedbackBanner, { backgroundColor: "#7C3AED" }]}
+            onPress={() => router.push("/(teacher)/diary" as any)}
+          >
+            <View style={h.feedbackBannerLeft}>
+              <Text style={h.feedbackBannerTitle}>미작성 일지 {overview!.pending_diaries_today}개</Text>
+              <Text style={h.feedbackBannerSub}>학부모가 기다리고 있어요 · 탭해서 작성</Text>
             </View>
-          </View>
-          <View style={h.miniWeek}>
-            {WEEK_DAYS.map((dn, i) => {
-              const d = weekDates[i];
-              const isToday = d.toDateString() === new Date().toDateString();
-              const isSun = i === 0; const isSat = i === 6;
-              return (
-                <View key={i} style={h.miniCell}>
-                  <Text style={[h.miniDayName, isSun && { color: "#D96C6C" }, isSat && { color: "#4EA7D8" }]}>{dn}</Text>
-                  <View style={[h.miniCircle, isToday && h.miniCircleToday]}>
-                    <Text style={[h.miniDate, isToday && h.miniDateToday, isSun && !isToday && { color: "#D96C6C" }, isSat && !isToday && { color: "#4EA7D8" }]}>
-                      {d.getDate()}
-                    </Text>
-                  </View>
-                  {isToday && items.length > 0 && <View style={h.miniDot} />}
-                </View>
-              );
-            })}
-          </View>
-        </Pressable>
+            <ChevronRight size={16} color="rgba(255,255,255,0.8)" />
+          </Pressable>
+        )}
 
         <View style={[h.sectionCard, { backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
@@ -358,18 +344,10 @@ const h = StyleSheet.create({
   listName:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 },
   listCount:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
   listNames:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginLeft: 50 },
-  schedHero:        { borderRadius: 18, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
-  schedHeroTop:     { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 },
-  schedHeroTitle:   { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  schedHeroSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3 },
-  schedHeroBtn:     { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  schedHeroBtnTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  miniWeek:         { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 6 },
-  miniCell:         { flex: 1, alignItems: "center", gap: 5 },
-  miniDayName:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", letterSpacing: 0.3 },
-  miniCircle:       { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
-  miniCircleToday:  { backgroundColor: "#0F172A" },
-  miniDate:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  feedbackBanner:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16 },
+  feedbackBannerLeft: { flex: 1, gap: 2 },
+  feedbackBannerTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
+  feedbackBannerSub:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.75)" },
   miniDateToday:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
   miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
 });

@@ -190,19 +190,19 @@ export default function ParentHomeScreen() {
     router.push(item.kind === "notice" ? "/(parent)/notices" as any : "/(parent)/diary" as any);
   }
 
-  // 기능 아이콘 6개: 수업일지, 출결, 앨범, 공지, 쪽지, 수영정보
+  // 기능 아이콘 6개: 수업일지 > 앨범 > 수영정보 > 공지 > 출결 > 쪽지
   const IB = "#E6FAF8";
   const icons = [
-    { icon: "bell",      label: "공지",     badge: unread.unread_notices,
-      color: "#F59E0B", bg: IB, path: "/(parent)/notices" },
     { icon: "book-open", label: "수업일지", badge: null,
       color: "#7C3AED", bg: IB, path: "/(parent)/diary" },
     { icon: "image",     label: "앨범",     badge: null,
       color: "#EA580C", bg: IB, path: "/(parent)/photos" },
-    { icon: "calendar",  label: "출결",     badge: null,
-      color: "#16A34A", bg: IB, path: "/(parent)/attendance-history" },
     { icon: "droplet",   label: "수영정보", badge: null,
       color: "#2563EB", bg: IB, path: "/(parent)/swim-info" },
+    { icon: "bell",      label: "공지",     badge: unread.unread_notices,
+      color: "#F59E0B", bg: IB, path: "/(parent)/notices" },
+    { icon: "calendar",  label: "출결",     badge: null,
+      color: "#16A34A", bg: IB, path: "/(parent)/attendance-history" },
     { icon: "mail",      label: "쪽지",     badge: unread.unread_messages,
       color: "#0369A1", bg: IB, path: "/(parent)/messages" },
   ] as const;

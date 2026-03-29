@@ -4,7 +4,7 @@
  * 메신저 외 7개 아이콘은 3열 그리드 팝업을 거쳐 페이지 이동
  * SearchModal, AdminQuickRegisterModal → components/admin/ 로 이동됨
  */
-import { ArrowRight, ChevronRight, CircleAlert, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX } from "lucide-react-native";
+import { ChevronRight, CircleAlert, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -47,7 +47,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
 const _IB = "#E6FAF8";
 
 // ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
-type PopupKey = "운영관리" | "수업관리" | "보강관리" | "매출관리" | "데이터관리" | "수업설정" | "운영설정";
+type PopupKey = "수업관리" | "보강관리" | "매출관리" | "운영관리" | "데이터관리" | "설정";
 
 function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   const pending  = stats?.pending_requests ?? 0;
@@ -55,62 +55,51 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   const ib = _IB;
 
   switch (key) {
-    case "운영관리": return [
-      { icon: "users",       label: "회원 명부",          color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/members") },
-      { icon: "user",        label: "학부모 계정",         color: "#DB2777", bg: ib, onPress: () => router.push("/(admin)/parents") },
-      { icon: "user-check",  label: "선생님 관리",         color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/people-teachers") },
-      { icon: "check-circle",label: "승인 관리",           color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/approvals"), badge: pending },
-      { icon: "send",        label: "초대 안내 기록",      color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/invite-records") },
-      { icon: "trending-up", label: "매출 관리",           color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/admin-revenue") },
-    ];
     case "수업관리": return [
-      { icon: "calendar",    label: "수업 스케줄",         color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/classes") },
-      { icon: "layers",      label: "반 관리",             color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/class-management") },
-      { icon: "clipboard",   label: "출결 관리",           color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/attendance") },
-      { icon: "book",        label: "수업 일지",           color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/diary-teacher-entries") },
-      { icon: "users",       label: "수강생 관리",         color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/members") },
+      { icon: "calendar",    label: "수업 스케줄",   color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/classes") },
+      { icon: "layers",      label: "반 관리",       color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/class-management") },
+      { icon: "clipboard",   label: "출결 관리",     color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/attendance") },
+      { icon: "book",        label: "수업 일지",     color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/diary-teacher-entries") },
+      { icon: "file-text",   label: "공지사항",      color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/notices") },
     ];
     case "보강관리": return [
-      { icon: "clock",       label: "보강 대기",           color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/makeups"), badge: makeups },
-      { icon: "plus-circle", label: "보강 배정",           color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/makeups") },
-      { icon: "bar-chart-2", label: "보강 현황",           color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/makeups") },
+      { icon: "clock",       label: "보강 대기",     color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/makeups"), badge: makeups },
+      { icon: "plus-circle", label: "보강 배정",     color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/makeups") },
+      { icon: "calendar",    label: "휴무일 관리",   color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/holidays") },
     ];
     case "매출관리": return [
-      { icon: "trending-up", label: "월별 매출",           color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/admin-revenue") },
-      { icon: "check-square",label: "정산 확인",           color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/settlement") },
-      { icon: "calendar",    label: "휴무일 관리",         color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/holidays") },
+      { icon: "trending-up", label: "월별 매출",     color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "check-square",label: "정산 확인",     color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/settlement") },
+    ];
+    case "운영관리": return [
+      { icon: "users",       label: "회원 명부",     color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/members") },
+      { icon: "user",        label: "학부모 계정",   color: "#DB2777", bg: ib, onPress: () => router.push("/(admin)/parents") },
+      { icon: "user-check",  label: "선생님 관리",   color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/people-teachers") },
+      { icon: "check-circle",label: "승인 관리",     color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/approvals"), badge: pending },
+      { icon: "send",        label: "초대 기록",     color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/invite-records") },
     ];
     case "데이터관리": return [
-      { icon: "rotate-ccw",  label: "백업·복구",           color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/recovery") },
-      { icon: "list",        label: "이벤트 기록",         color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/data-event-logs") },
-      { icon: "pie-chart",   label: "저장공간 현황",       color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/data-storage-overview") },
-      { icon: "users",       label: "계정별 사용량",       color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/data-storage-by-account") },
-      { icon: "bar-chart-2", label: "카테고리별\n사용량",  color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/data-storage-by-category") },
-      { icon: "archive",     label: "삭제·보존\n정책",    color: "#DC2626", bg: ib, onPress: () => router.push("/(admin)/data-delete") },
+      { icon: "rotate-ccw",  label: "백업·복구",     color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/recovery") },
+      { icon: "pie-chart",   label: "저장 현황",     color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/data-storage-overview") },
+      { icon: "list",        label: "이벤트 기록",   color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/data-event-logs") },
+      { icon: "archive",     label: "삭제·보존 정책",color: "#DC2626", bg: ib, onPress: () => router.push("/(admin)/data-delete") },
     ];
-    case "수업설정": return [
-      { icon: "shield",         label: "권한 설정",        color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/admin-grant") },
-      { icon: "bell",           label: "알림 설정",        color: "#F59E0B", bg: ib, onPress: () => router.push("/(admin)/push-notification-settings") },
-      { icon: "award",          label: "레벨/테스트\n설정",color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/level-settings" as any) },
-      { icon: "message-circle", label: "피드백\n기본설정", color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/feedback-settings" as any) },
-    ];
-    case "운영설정": return [
-      { icon: "sliders",    label: "브랜드 설정",          color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/branding") },
-      { icon: "tag",        label: "화이트라벨",           color: "#DB2777", bg: ib, onPress: () => router.push("/(admin)/white-label" as any) },
-      { icon: "settings",   label: "수영장 설정",          color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/pool-settings") },
-      { icon: "file-text",  label: "공지사항",             color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/notices") },
-      { icon: "hard-drive", label: "데이터 관리",          color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/data-management") },
-      { icon: "credit-card",label: "구독 관리",            color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/billing") },
+    case "설정": return [
+      { icon: "settings",       label: "수영장 설정",   color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/pool-settings") },
+      { icon: "shield",         label: "권한 설정",     color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/admin-grant") },
+      { icon: "award",          label: "레벨 설정",     color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/level-settings" as any) },
+      { icon: "message-circle", label: "피드백 설정",   color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/feedback-settings" as any) },
+      { icon: "bell",           label: "알림 설정",     color: "#F59E0B", bg: ib, onPress: () => router.push("/(admin)/push-notification-settings") },
+      { icon: "sliders",        label: "브랜드 설정",   color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/branding") },
+      { icon: "credit-card",    label: "구독 관리",     color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/billing") },
+      { icon: "hard-drive",     label: "데이터 관리",   color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/data-management") },
     ];
     default: return [];
   }
 }
 
-// ── 메인 홈 아이콘 정의 ──────────────────────────────────────────────────────
-const MINT = "#2EC4B6"; const MINT_BG = "#E6FAF8";
-const ORNG = "#F97316"; const ORNG_BG = "#FFF1E8";
-const NAVY = "#0F172A"; const NAVY_BG = "#E8EEF4";
-const IC = NAVY; const IB = MINT_BG;
+// ── 메인 홈 아이콘 정의 (6개 3×2 그리드) ────────────────────────────────────
+const IB = "#E6FAF8";
 
 const MAIN_ICONS: Array<{
   key: PopupKey | "메신저";
@@ -119,14 +108,12 @@ const MAIN_ICONS: Array<{
   color: string;
   bg: string;
 }> = [
-  { key: "운영관리",  label: "운영 관리",  icon: "briefcase",     color: "#1D4ED8", bg: IB },
-  { key: "수업관리",  label: "수업 관리",  icon: "calendar",      color: "#16A34A", bg: IB },
-  { key: "보강관리",  label: "보강 관리",  icon: "rotate-ccw",    color: "#EA580C", bg: IB },
-  { key: "메신저",    label: "메신저",     icon: "message-circle",color: "#7C3AED", bg: IB },
-  { key: "매출관리",  label: "매출 관리",  icon: "trending-up",   color: "#CA8A04", bg: IB },
-  { key: "데이터관리",label: "데이터 관리",icon: "hard-drive",    color: "#0369A1", bg: IB },
-  { key: "수업설정",  label: "수업 설정",  icon: "settings",      color: "#0F172A", bg: IB },
-  { key: "운영설정",  label: "운영 설정",  icon: "sliders",       color: "#0F172A", bg: IB },
+  { key: "수업관리",  label: "수업관리",  icon: "calendar",       color: "#16A34A", bg: IB },
+  { key: "보강관리",  label: "보강관리",  icon: "rotate-ccw",     color: "#EA580C", bg: IB },
+  { key: "매출관리",  label: "매출관리",  icon: "trending-up",    color: "#CA8A04", bg: IB },
+  { key: "운영관리",  label: "운영관리",  icon: "briefcase",      color: "#1D4ED8", bg: IB },
+  { key: "메신저",    label: "메신저",    icon: "message-circle", color: "#7C3AED", bg: IB },
+  { key: "설정",     label: "설정",      icon: "settings",       color: "#0F172A", bg: IB },
 ];
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
@@ -218,7 +205,7 @@ export default function DashboardScreen() {
     }
   }
 
-  const iconCellW = (SCREEN_W - 32 - 3 * 16) / 4;
+  const iconCellW = (SCREEN_W - 32 - 2 * 16) / 3;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F6FA" }}>
@@ -419,22 +406,41 @@ export default function DashboardScreen() {
               </View>
             )}
 
-            {/* ── 회원추가 퀵버튼 ── */}
-            <Pressable
-              style={({ pressed }) => [s.addMemberBtn, { backgroundColor: C.card, opacity: pressed ? 0.82 : 1 }]}
-              onPress={() => setShowRegister(true)}
-            >
-              <View style={[s.addMemberIconWrap, { backgroundColor: "#E6FAF8" }]}>
-                <UserPlus size={20} color="#0F172A" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.addMemberLabel}>회원추가</Text>
-                <Text style={s.addMemberSub}>어린이 즉시 등록 → 바로 반영</Text>
-              </View>
-              <ChevronRight size={18} color={C.textMuted} />
-            </Pressable>
+            {/* ── 핵심 퀵액션 3버튼 ── */}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => setShowRegister(true)}
+              >
+                <View style={[s.quickBtnIcon, { backgroundColor: "#E6FAF8" }]}>
+                  <UserPlus size={18} color="#1D4ED8" />
+                </View>
+                <Text style={s.quickBtnLabel}>회원등록</Text>
+                <Text style={s.quickBtnSub}>즉시 등록</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => router.push("/(admin)/admin-revenue")}
+              >
+                <View style={[s.quickBtnIcon, { backgroundColor: "#FFFBEB" }]}>
+                  <LucideIcon name="trending-up" size={18} color="#CA8A04" />
+                </View>
+                <Text style={s.quickBtnLabel}>매출 확인</Text>
+                <Text style={[s.quickBtnSub, { color: "#CA8A04" }]}>{stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => router.push("/(admin)/classes")}
+              >
+                <View style={[s.quickBtnIcon, { backgroundColor: "#F0FDF4" }]}>
+                  <LucideIcon name="calendar" size={18} color="#16A34A" />
+                </View>
+                <Text style={s.quickBtnLabel}>수업 일정</Text>
+                <Text style={s.quickBtnSub}>일정 관리</Text>
+              </Pressable>
+            </View>
 
-            {/* ── 메인 아이콘 8개 (4×2 그리드) ── */}
+            {/* ── 메인 아이콘 6개 (3×2 그리드) ── */}
             <View>
               <Text style={s.sectionLabel}>관리 메뉴</Text>
               <View style={s.iconGrid}>
@@ -446,11 +452,6 @@ export default function DashboardScreen() {
                   >
                     <View style={[s.iconBox, { backgroundColor: item.bg }]}>
                       <LucideIcon name={item.icon} size={26} color={item.color} />
-                      {item.key === "메신저" && (
-                        <View style={[s.directBadge, { backgroundColor: item.color }]}>
-                          <ArrowRight size={8} color="#fff" />
-                        </View>
-                      )}
                       {item.key === "보강관리" && (stats?.pending_makeups ?? 0) > 0 && (
                         <View style={s.notiBadge}>
                           <Text style={s.notiBadgeTxt}>{stats.pending_makeups}</Text>
@@ -484,8 +485,8 @@ export default function DashboardScreen() {
         onSuccess={() => { fetchStats(); }}
       />
 
-      {/* ── 팝업들 (7개, 메신저 제외) ── */}
-      {(["운영관리", "수업관리", "보강관리", "매출관리", "데이터관리", "수업설정", "운영설정"] as PopupKey[]).map(key => (
+      {/* ── 팝업들 (5개, 메신저 제외) ── */}
+      {(["수업관리", "보강관리", "매출관리", "운영관리", "데이터관리", "설정"] as PopupKey[]).map(key => (
         <IconPopup
           key={key}
           visible={activePopup === key}
@@ -587,8 +588,8 @@ const s = StyleSheet.create({
   splitStatLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   splitStatDivider: { width: 1, height: 32, backgroundColor: C.border },
 
-  addMemberBtn:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  addMemberIconWrap: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  addMemberLabel:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
-  addMemberSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
+  quickBtn:          { flex: 1, borderRadius: 14, padding: 12, alignItems: "center", gap: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  quickBtnIcon:      { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 2 },
+  quickBtnLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
+  quickBtnSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });
