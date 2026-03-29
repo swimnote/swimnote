@@ -124,7 +124,7 @@ function TimeButton({ label, selected, onPress }: { label: string; selected: boo
 }
 const tb = StyleSheet.create({
   btn: {
-    flex: 1, minWidth: 74, paddingVertical: 11,
+    width: "30%", paddingVertical: 11,
     borderRadius: 12, borderWidth: 1.5, borderColor: C.border,
     alignItems: "center", justifyContent: "center",
     backgroundColor: C.background,
@@ -218,7 +218,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
 
   function toggleDay(d: string) {
     setSelectedDays(prev =>
-      prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]
+      prev.includes(d) ? [] : [d]
     );
     setSelectedTime(null);
   }
@@ -390,7 +390,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 ) : (
                   <>
                     <Text style={fl.stepTitle}>수업 요일을 선택하세요</Text>
-                    <Text style={fl.stepSub}>복수 선택 가능합니다</Text>
+                    <Text style={fl.stepSub}>요일은 1개만 선택 가능합니다</Text>
                     <View style={s1.grid}>
                       {ALL_DAYS.map(d => (
                         <DayButton

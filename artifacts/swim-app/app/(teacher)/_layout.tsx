@@ -1,4 +1,4 @@
-import { DollarSign, Home, Layers, Menu, Send, Settings } from "lucide-react-native";
+import { Home, Layers, Send, Settings, Users } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
@@ -71,15 +71,18 @@ export default function TeacherLayout() {
         tabBarInactiveTintColor: C.tabIconDefault,
         headerShown: false,
         tabBarStyle: {
-          display: "none",
+          height: 60,
+          backgroundColor: "transparent",
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: "#E2E8F0",
         },
         tabBarLabelStyle: { fontFamily: "Pretendard-Regular", fontSize: 11 },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
-          ) : isWeb ? (
+          ) : (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: "#fff" }]} />
-          ) : null,
+          ),
       }}
     >
       {/* ─── 5개 메인 탭 ─── */}
@@ -91,7 +94,12 @@ export default function TeacherLayout() {
       <Tabs.Screen
         name="my-schedule"
         listeners={makeTabListener("my-schedule")}
-        options={{ title: "수업", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
+        options={{ title: "수업관리", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="students"
+        listeners={makeTabListener("students")}
+        options={{ title: "회원관리", tabBarIcon: ({ color }) => <Users size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="messenger"
@@ -99,27 +107,22 @@ export default function TeacherLayout() {
         options={{ title: "메신저", tabBarIcon: ({ color }) => <Send size={22} color={color} /> }}
       />
       <Tabs.Screen
-        name="revenue"
-        listeners={makeTabListener("revenue")}
-        options={{ title: "정산", tabBarIcon: ({ color }) => <DollarSign size={22} color={color} /> }}
-      />
-      <Tabs.Screen
         name="settings"
         listeners={makeTabListener("settings")}
-        options={{ title: "더보기", tabBarIcon: ({ color }) => <Menu size={22} color={color} /> }}
+        options={{ title: "설정", tabBarIcon: ({ color }) => <Settings size={22} color={color} /> }}
       />
 
-      {/* ─── 숨김 화면들 (수업 탭 내에서 router.push로 접근) ─── */}
-      <Tabs.Screen name="attendance"        options={{ href: null }} />
-      <Tabs.Screen name="diary"             options={{ href: null }} />
-      <Tabs.Screen name="diary-index"       options={{ href: null }} />
-      <Tabs.Screen name="diary-unwritten"   options={{ href: null }} />
+      {/* ─── 숨김 화면들 (router.push로 접근) ─── */}
+      <Tabs.Screen name="attendance"       options={{ href: null }} />
+      <Tabs.Screen name="diary"            options={{ href: null }} />
+      <Tabs.Screen name="diary-index"      options={{ href: null }} />
+      <Tabs.Screen name="diary-unwritten"  options={{ href: null }} />
       <Tabs.Screen name="photos"           options={{ href: null }} />
       <Tabs.Screen name="student-detail"   options={{ href: null }} />
       <Tabs.Screen name="feedback-custom"  options={{ href: null }} />
       <Tabs.Screen name="makeups"          options={{ href: null }} />
       <Tabs.Screen name="my-info"          options={{ href: null }} />
-      <Tabs.Screen name="students"         options={{ href: null }} />
+      <Tabs.Screen name="revenue"          options={{ href: null }} />
     </Tabs>
     </FeedbackTemplateProvider>
   );

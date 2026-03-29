@@ -309,7 +309,7 @@ const dy = StyleSheet.create({
   backdrop:         { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
   sheet:            { position: "absolute", bottom: 0, left: 0, right: 0,
                       backgroundColor: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22,
-                      maxHeight: "78%", paddingBottom: 8 },
+                      minHeight: "55%", maxHeight: "70%", paddingBottom: 8 },
   handle:           { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB",
                       alignSelf: "center", marginTop: 10, marginBottom: 6 },
   header:           { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 16, paddingBottom: 10 },

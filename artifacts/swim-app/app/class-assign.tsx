@@ -262,8 +262,6 @@ export default function ClassAssignScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={0}
     >
-      <Text style={{ backgroundColor: "red", color: "white", fontWeight: "bold", fontSize: 14, padding: 6, textAlign: "center" }}>
-      </Text>
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20) }]}>
         <Pressable onPress={goBack} style={s.backBtn}>
@@ -327,8 +325,15 @@ export default function ClassAssignScreen() {
                 key={item.id}
                 student={toStudentMember(item)}
                 showTeacher={false}
-                onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id } } as any)}
                 actions={[
+                  {
+                    label: "회원 정보",
+                    icon: "user",
+                    color: "#0369A1",
+                    bg: "#E0F2FE",
+                    loading: false,
+                    onPress: () => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id } } as any),
+                  },
                   {
                     label: "반 제외-미배정 이동",
                     icon: "user-minus",

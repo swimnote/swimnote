@@ -334,7 +334,7 @@ export default function MakeupsScreen() {
       {/* 탭 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         style={{ flexGrow: 0 }}
-        contentContainerStyle={{ paddingHorizontal: 14, paddingVertical: 10, gap: 8, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>
+        contentContainerStyle={{ flexDirection: "row", paddingHorizontal: 14, paddingVertical: 10, gap: 8, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>
         <Pressable
           style={[s.tabBtn, tab === "waiting" && { backgroundColor: themeColor, borderColor: themeColor }]}
           onPress={() => setTab("waiting")}

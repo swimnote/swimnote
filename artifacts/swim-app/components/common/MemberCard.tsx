@@ -143,12 +143,10 @@ export function UnifiedMemberCard({
             )}
           </View>
 
-          {/* 배정 반 */}
+          {/* 배정 반 (배정된 경우만 표시) */}
           {classNames ? (
             <Text style={s.classTxt} numberOfLines={1}>{classNames}</Text>
-          ) : (
-            <Text style={[s.classTxt, { color: C.textMuted }]}>수업 미배정</Text>
-          )}
+          ) : null}
 
           {/* 선생님 */}
           {showTeacher && instructorLabel ? (

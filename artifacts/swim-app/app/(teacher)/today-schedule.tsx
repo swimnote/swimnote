@@ -62,6 +62,7 @@ export default function TodayScheduleScreen() {
   const [activeChipGroup,    setActiveChipGroup]    = useState<TeacherClassGroup | null>(null);
   const [chipStudents,       setChipStudents]       = useState<StudentItem[]>([]);
   const [loadingChipStudents,setLoadingChipStudents]= useState(false);
+  const [itemStudentsMap,    setItemStudentsMap]    = useState<Record<string, StudentItem[]>>({});
 
   // pool_admin과 연결된 선생님 계정에만 관리자 전환 버튼 표시
   const canSwitchToAdmin = !!(adminUser?.roles?.includes("pool_admin"));
@@ -90,6 +91,29 @@ export default function TodayScheduleScreen() {
   }, [token, today]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!token || items.length === 0) return;
+    const missing = items.filter(it => !(it.id in itemStudentsMap));
+    if (missing.length === 0) return;
+    Promise.all(
+      missing.map(it =>
+        apiRequest(token, `/class-groups/${it.id}/students`)
+          .then(r => r.ok ? r.json() : [])
+          .then(data => ({
+            id: it.id,
+            students: (Array.isArray(data) ? data : (data.students ?? [])) as StudentItem[],
+          }))
+          .catch(() => ({ id: it.id, students: [] as StudentItem[] }))
+      )
+    ).then(results => {
+      setItemStudentsMap(prev => {
+        const next = { ...prev };
+        results.forEach(r => { next[r.id] = r.students; });
+        return next;
+      });
+    });
+  }, [items, token]);
 
   const pendingAtt  = items.filter(i => i.student_count > 0 && i.att_present < i.student_count).length;
   const diaryPending = items.filter(i => !i.diary_done).length;
@@ -261,26 +285,37 @@ export default function TodayScheduleScreen() {
               <Text style={[h.classCnt, { color: C.tint }]}>{sortedItems.length}개</Text>
             )}
           </View>
-          <View style={h.badgeGrid}>
+          <View style={{ gap: 0 }}>
             {loading ? (
-              <ActivityIndicator color={themeColor} style={{ flex: 1 }} />
+              <ActivityIndicator color={themeColor} style={{ paddingVertical: 24 }} />
             ) : sortedItems.length === 0 ? (
               <View style={h.badgeEmpty}>
                 <Sun size={20} color={C.textMuted} />
                 <Text style={h.emptyTxt}>오늘 수업 없음</Text>
               </View>
-            ) : sortedItems.slice(0, 12).map(item => {
-              const attDone    = item.att_present >= item.student_count && item.student_count > 0;
-              const attPartial = item.att_present > 0 && !attDone;
-              const dotColor   = item.att_total === 0 ? "transparent" : attDone ? "#2E9B6F" : attPartial ? "#E4A93A" : "#D96C6C";
+            ) : sortedItems.map((item, idx) => {
+              const students = itemStudentsMap[item.id] ?? [];
+              const names    = students.map((s: any) => s.name ?? s.user_name ?? "").filter(Boolean);
+              const MAX = 5;
+              const shown    = names.slice(0, MAX);
+              const extra    = names.length - MAX;
+              const nameStr  = shown.join(", ") + (extra > 0 ? ` 외 ${extra}명` : "");
+              const isLast   = idx === sortedItems.length - 1;
               return (
-                <Pressable key={item.id} style={[h.chip, { backgroundColor: C.tintLight }]}
+                <Pressable key={item.id}
+                  style={[h.listRow, !isLast && h.listRowBorder]}
                   onPress={() => handleChipPress(item)}>
-                  <View style={h.chipTop}>
-                    <Text style={[h.chipTime, { color: C.tint }]} numberOfLines={1}>{item.schedule_time}</Text>
-                    {item.att_total > 0 && <View style={[h.chipDot, { backgroundColor: dotColor }]} />}
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                      <Text style={[h.listTime, { color: C.tint }]}>{item.schedule_time}</Text>
+                      <Text style={h.listName}>{item.name}</Text>
+                      <Text style={[h.listCount, { color: C.textMuted }]}>({item.student_count}명)</Text>
+                    </View>
+                    {nameStr.length > 0 && (
+                      <Text style={h.listNames} numberOfLines={1}>{nameStr}</Text>
+                    )}
                   </View>
-                  <Text style={h.chipName} numberOfLines={1}>{item.name}</Text>
+                  <ChevronRight size={14} color={C.textMuted} />
                 </Pressable>
               );
             })}
@@ -367,14 +402,14 @@ const h = StyleSheet.create({
   sectionTitle:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   sectionMore:    { fontSize: 12, fontFamily: "Pretendard-Regular" },
   classCnt:       { marginLeft: "auto", fontSize: 11, fontFamily: "Pretendard-Regular" },
-  badgeGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 6, minHeight: 164, alignContent: "flex-start" },
-  badgeEmpty:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
-  chip:           { width: "23.5%", borderRadius: 10, padding: 8, gap: 4 },
-  chipTop:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  chipTime:       { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  chipDot:        { width: 6, height: 6, borderRadius: 3 },
-  chipName:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  badgeEmpty:     { alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 24 },
   emptyTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  listRow:        { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 4, gap: 6 },
+  listRowBorder:  { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border },
+  listTime:       { fontSize: 12, fontFamily: "Pretendard-Regular", minWidth: 42 },
+  listName:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 },
+  listCount:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  listNames:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginLeft: 50 },
   schedHero:        { borderRadius: 18, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   schedHeroTop:     { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 },
   schedHeroTitle:   { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
