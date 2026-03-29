@@ -138,6 +138,9 @@ export default function DashboardScreen() {
 
   const [stats, setStats] = useState<any>(null);
   const [storagePct, setStoragePct] = useState<number | null>(null);
+  const [videoStoragePct, setVideoStoragePct] = useState<number | null>(null);
+  const [memberLimit, setMemberLimit] = useState<number>(10);
+  const [makeupAssigned, setMakeupAssigned] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -149,15 +152,26 @@ export default function DashboardScreen() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const [statsRes, storageRes] = await Promise.all([
+      const [statsRes, storageRes, stats2Res, poolRes] = await Promise.all([
         apiRequest(token, "/admin/dashboard-stats"),
         apiRequest(token, "/admin/storage").catch(() => null),
+        apiRequest(token, "/admin/dashboard-stats2").catch(() => null),
+        apiRequest(token, "/pools/").catch(() => null),
       ]);
       if (statsRes.ok) setStats(await statsRes.json());
       if (storageRes?.ok) {
         const s = await storageRes.json();
         const quota = s.quota_bytes ?? 5 * 1024 ** 3;
         setStoragePct(quota > 0 ? Math.min(100, Math.round((s.total_bytes / quota) * 1000) / 10) : 0);
+        setVideoStoragePct(quota > 0 ? Math.min(100, Math.round((s.video_bytes / quota) * 1000) / 10) : 0);
+      }
+      if (stats2Res?.ok) {
+        const s2 = await stats2Res.json();
+        setMakeupAssigned(s2.makeup_assigned ?? 0);
+      }
+      if (poolRes?.ok) {
+        const p = await poolRes.json();
+        setMemberLimit(p.member_limit ?? 10);
       }
     } finally { setLoading(false); setRefreshing(false); }
   }, [token]);
@@ -195,8 +209,6 @@ export default function DashboardScreen() {
   }
 
   const _BIB = "#E6FAF8";
-  const maxMembers = stats?.member_limit ?? 10;
-  const videoStoragePct = stats?.video_storage_pct ?? null;
 
   function handleIconPress(key: PopupKey | "메신저") {
     if (key === "메신저") {
@@ -308,7 +320,7 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: "row", gap: 12 }}>
                   <View style={s.wideSubItem}>
                     <Text style={[s.wideSubVal, { color: "#16A34A" }]}>
-                      {stats ? String(stats.assigned_makeups ?? stats.remaining_makeups ?? 0) : "—"}건
+                      {stats ? String(makeupAssigned) : "—"}건
                     </Text>
                     <Text style={s.wideSubLabel}>남은 보강</Text>
                   </View>
@@ -336,7 +348,7 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <View style={[s.wideSubItem, { flex: 1 }]}>
                     <Text style={[s.wideSubVal, { color: "#1D4ED8" }]}>
-                      {stats ? `${stats.total_members}/${maxMembers}` : "—"}명
+                      {stats ? `${stats.total_members}/${memberLimit}` : "—"}명
                     </Text>
                     <Text style={s.wideSubLabel}>회원 사용량</Text>
                   </View>
