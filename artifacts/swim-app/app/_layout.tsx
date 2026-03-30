@@ -13,19 +13,13 @@ import { AuthProvider, apiRequest, useAuth, type AccountEntry, type AdminUser, t
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 
 function AppLoadingScreen() {
-  const [logoReady, setLogoReady] = useState(false);
-
   return (
     <View style={loadingStyles.container}>
-      <View style={loadingStyles.logoWrap}>
-        <Image
-          source={require("../assets/images/swimnote-logo.png")}
-          style={[loadingStyles.logo, { opacity: logoReady ? 1 : 0 }]}
-          resizeMode="contain"
-          onLoad={() => setLogoReady(true)}
-          onError={() => setLogoReady(false)}
-        />
-      </View>
+      <Image
+        source={require("../assets/images/swimnote-logo.png")}
+        style={loadingStyles.logo}
+        resizeMode="contain"
+      />
       <Text style={loadingStyles.appName}>스윔노트</Text>
       <ActivityIndicator size="small" color="#2EC4B6" style={{ marginTop: 32 }} />
     </View>
@@ -40,16 +34,9 @@ const loadingStyles = StyleSheet.create({
     justifyContent: "center",
     gap: 12,
   },
-  logoWrap: {
-    width: 100,
-    height: 100,
-    borderRadius: 24,
-    backgroundColor: "#ffffff",
-    overflow: "hidden",
-  },
   logo: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
   },
   appName: {
     fontSize: 26,
