@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1024px; height: 500px; overflow: hidden; }
+  .container {
+    width: 1024px;
+    height: 500px;
+    background: linear-gradient(135deg, #0F172A 0%, #1E3A5F 50%, #0F172A 100%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 80px;
+    position: relative;
+    overflow: hidden;
+  }
+  .bg-circle {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.08;
+    background: #4FC3F7;
+  }
+  .bg-circle-1 { width: 400px; height: 400px; top: -100px; right: -80px; }
+  .bg-circle-2 { width: 250px; height: 250px; bottom: -80px; left: 200px; }
+  .left {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    z-index: 1;
+  }
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .logo-img {
+    width: 100px;
+    height: 100px;
+    border-radius: 22px;
+  }
+  .app-name {
+    font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    font-size: 52px;
+    font-weight: 800;
+    color: #FFFFFF;
+    letter-spacing: -1px;
+  }
+  .tagline {
+    font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    font-size: 24px;
+    color: #4FC3F7;
+    font-weight: 500;
+    letter-spacing: -0.5px;
+  }
+  .features {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .feature-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    font-size: 17px;
+    color: #CBD5E1;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    background: #4ADE80;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .right {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 1;
+  }
+  .badge {
+    background: rgba(74, 222, 128, 0.15);
+    border: 1px solid rgba(74, 222, 128, 0.4);
+    border-radius: 12px;
+    padding: 14px 24px;
+    text-align: center;
+  }
+  .badge-emoji { font-size: 28px; }
+  .badge-text {
+    font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    font-size: 14px;
+    color: #4ADE80;
+    margin-top: 6px;
+    font-weight: 600;
+  }
+  .wave {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    opacity: 0.06;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="bg-circle bg-circle-1"></div>
+  <div class="bg-circle bg-circle-2"></div>
+  <svg class="wave" viewBox="0 0 1024 80" preserveAspectRatio="none" height="80">
+    <path d="M0,40 C200,80 400,0 600,40 C800,80 900,20 1024,40 L1024,80 L0,80 Z" fill="#4FC3F7"/>
+  </svg>
+  <div class="left">
+    <div class="logo-row">
+      <img src="logo.png" class="logo-img" />
+      <div class="app-name">스윔노트</div>
+    </div>
+    <div class="tagline">수영장 관리의 모든 것, 하나의 앱으로</div>
+    <div class="features">
+      <div class="feature-item"><div class="dot"></div>원장 · 선생님 · 학부모 통합 관리</div>
+      <div class="feature-item"><div class="dot"></div>실시간 출결 체크 및 알림</div>
+      <div class="feature-item"><div class="dot"></div>수강생 성장 기록 관리</div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="badge">
+      <div class="badge-emoji">🏊</div>
+      <div class="badge-text">원장용</div>
+    </div>
+    <div class="badge">
+      <div class="badge-emoji">👩‍🏫</div>
+      <div class="badge-text">선생님용</div>
+    </div>
+    <div class="badge">
+      <div class="badge-emoji">👨‍👩‍👧</div>
+      <div class="badge-text">학부모용</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

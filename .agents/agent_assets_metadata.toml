@@ -30,3 +30,21 @@ id = "DLbcraT_7Yj-nf5b6Xhv0"
 uri = "file://.local/refactoring-report.md"
 type = "text"
 title = "구조 리팩토링 분석 보고서"
+
+[[outputs]]
+id = "ZswIItPEO3wbVdzvTYfPI"
+uri = "file://screenshots/feature-graphic.jpg"
+type = "image"
+title = "그래픽 이미지 (1024x500)"
+
+[[outputs]]
+id = "qN7KwcOrw57KHT2YAKyAr"
+uri = "file://screenshots/screenshot1.jpg"
+type = "image"
+title = "스크린샷 1 - 원장 대시보드"
+
+[[outputs]]
+id = "jXlnmc-agVTy34Z4fgzjc"
+uri = "file://screenshots/screenshot2.jpg"
+type = "image"
+title = "스크린샷 2 - 학부모 화면"

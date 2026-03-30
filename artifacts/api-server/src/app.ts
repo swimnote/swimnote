@@ -1,8 +1,12 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import router from "./routes";
 import { initPushTables } from "./lib/push-service.js";
 import { startPushScheduler } from "./jobs/push-scheduler.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app: Express = express();
 
@@ -10,6 +14,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use("/api/store-assets", express.static(path.join(__dirname, "../public/store-assets")));
 app.use("/api", router);
 
 // 헬스체크 — /api/health 와 /health 모두 지원

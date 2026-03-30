@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans KR', sans-serif; }
+  body { width: 390px; height: 844px; background: #F8FAFC; overflow: hidden; }
+
+  .status-bar {
+    height: 44px;
+    background: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #0F172A;
+  }
+  .header {
+    background: #FFFFFF;
+    padding: 16px 20px 20px;
+    border-bottom: 1px solid #F1F5F9;
+  }
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .greeting { font-size: 13px; color: #64748B; }
+  .name { font-size: 20px; font-weight: 700; color: #0F172A; }
+  .pool-name { font-size: 13px; color: #4ADE80; font-weight: 600; margin-top: 2px; }
+  .bell { font-size: 22px; }
+
+  .stats-row {
+    display: flex;
+    gap: 10px;
+    padding: 16px 20px;
+  }
+  .stat-card {
+    flex: 1;
+    background: #FFFFFF;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .stat-label { font-size: 11px; color: #94A3B8; font-weight: 500; margin-bottom: 6px; }
+  .stat-value { font-size: 26px; font-weight: 800; color: #0F172A; }
+  .stat-unit { font-size: 13px; color: #64748B; font-weight: 500; margin-left: 2px; }
+  .stat-change { font-size: 11px; color: #4ADE80; font-weight: 600; margin-top: 4px; }
+
+  .section-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0F172A;
+    padding: 4px 20px 12px;
+  }
+
+  .class-list { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
+  .class-card {
+    background: #FFFFFF;
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .class-color {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .class-info { flex: 1; }
+  .class-name { font-size: 14px; font-weight: 700; color: #0F172A; }
+  .class-time { font-size: 12px; color: #64748B; margin-top: 2px; }
+  .class-count {
+    font-size: 13px;
+    font-weight: 700;
+    color: #4ADE80;
+    background: #F0FDF4;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  .quick-actions { padding: 16px 20px 0; }
+  .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .action-btn {
+    background: #FFFFFF;
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .action-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .action-text { font-size: 13px; font-weight: 600; color: #0F172A; }
+
+  .tab-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 82px;
+    background: #FFFFFF;
+    border-top: 1px solid #F1F5F9;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 10px;
+  }
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: #94A3B8;
+    font-weight: 500;
+  }
+  .tab-item.active { color: #4ADE80; }
+  .tab-icon { font-size: 22px; }
+</style>
+</head>
+<body>
+  <div class="status-bar">
+    <span>9:41</span>
+    <span>●●● 🔋</span>
+  </div>
+
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="greeting">안녕하세요 👋</div>
+        <div class="name">김원장 원장님</div>
+        <div class="pool-name">토키즈 수영클럽</div>
+      </div>
+      <div class="bell">🔔</div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">전체 수강생</div>
+      <div><span class="stat-value">48</span><span class="stat-unit">명</span></div>
+      <div class="stat-change">▲ 3 이번 달</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">오늘 출석</div>
+      <div><span class="stat-value">32</span><span class="stat-unit">명</span></div>
+      <div class="stat-change">출석률 89%</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">반 수</div>
+      <div><span class="stat-value">6</span><span class="stat-unit">개</span></div>
+      <div class="stat-change">선생님 4명</div>
+    </div>
+  </div>
+
+  <div class="section-title">오늘 수업 현황</div>
+
+  <div class="class-list">
+    <div class="class-card">
+      <div class="class-color" style="background:#EFF6FF">🏊</div>
+      <div class="class-info">
+        <div class="class-name">초급반 A</div>
+        <div class="class-time">오전 9:00 · 김선생님</div>
+      </div>
+      <div class="class-count">8/10명</div>
+    </div>
+    <div class="class-card">
+      <div class="class-color" style="background:#F0FDF4">🐬</div>
+      <div class="class-info">
+        <div class="class-name">중급반 B</div>
+        <div class="class-time">오전 10:00 · 이선생님</div>
+      </div>
+      <div class="class-count">7/8명</div>
+    </div>
+    <div class="class-card">
+      <div class="class-color" style="background:#FFF7ED">⭐</div>
+      <div class="class-info">
+        <div class="class-name">고급반</div>
+        <div class="class-time">오후 3:00 · 박선생님</div>
+      </div>
+      <div class="class-count">6/8명</div>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab-item active">
+      <div class="tab-icon">🏠</div>
+      <span>홈</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon">👥</div>
+      <span>수강생</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon">📅</div>
+      <span>일정</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon">⚙️</div>
+      <span>설정</span>
+    </div>
+  </div>
+</body>
+</html>

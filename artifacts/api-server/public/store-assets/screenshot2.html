@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans KR', sans-serif; }
+  body { width: 390px; height: 844px; background: #F8FAFC; overflow: hidden; }
+
+  .status-bar {
+    height: 44px;
+    background: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #0F172A;
+  }
+  .header {
+    background: #FFFFFF;
+    padding: 16px 20px 20px;
+    border-bottom: 1px solid #F1F5F9;
+  }
+  .greeting { font-size: 13px; color: #64748B; }
+  .name { font-size: 20px; font-weight: 700; color: #0F172A; }
+  .sub { font-size: 13px; color: #94A3B8; margin-top: 2px; }
+  .bell { font-size: 22px; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; }
+
+  .child-card {
+    margin: 16px 20px;
+    background: linear-gradient(135deg, #1E3A5F, #0F172A);
+    border-radius: 20px;
+    padding: 20px;
+    color: white;
+  }
+  .child-label { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px; }
+  .child-name { font-size: 22px; font-weight: 800; }
+  .child-class { font-size: 13px; color: #4FC3F7; margin-top: 4px; }
+  .child-row { display: flex; justify-content: space-between; margin-top: 20px; }
+  .child-stat { text-align: center; }
+  .child-stat-val { font-size: 22px; font-weight: 800; color: #4ADE80; }
+  .child-stat-label { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+
+  .section-title {
+    font-size: 15px; font-weight: 700; color: #0F172A;
+    padding: 0 20px 12px;
+  }
+
+  .attendance-list { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
+  .attendance-item {
+    background: #FFFFFF;
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .att-date {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: #F0FDF4;
+    flex-shrink: 0;
+  }
+  .att-day { font-size: 11px; color: #4ADE80; font-weight: 600; }
+  .att-num { font-size: 16px; font-weight: 800; color: #0F172A; }
+  .att-info { flex: 1; }
+  .att-title { font-size: 13px; font-weight: 600; color: #0F172A; }
+  .att-time { font-size: 12px; color: #94A3B8; margin-top: 2px; }
+  .att-badge {
+    font-size: 11px; font-weight: 700;
+    padding: 4px 10px; border-radius: 20px;
+  }
+  .att-present { background: #F0FDF4; color: #16A34A; }
+  .att-absent { background: #FFF1F2; color: #E11D48; }
+
+  .notice-section { padding: 16px 20px 0; }
+  .notice-card {
+    background: #FFFBEB;
+    border-radius: 14px;
+    padding: 14px 16px;
+    border-left: 3px solid #F59E0B;
+  }
+  .notice-title { font-size: 13px; font-weight: 700; color: #0F172A; }
+  .notice-body { font-size: 12px; color: #64748B; margin-top: 4px; line-height: 1.5; }
+
+  .tab-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 82px;
+    background: #FFFFFF;
+    border-top: 1px solid #F1F5F9;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 10px;
+  }
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: #94A3B8;
+    font-weight: 500;
+  }
+  .tab-item.active { color: #4ADE80; }
+  .tab-icon { font-size: 22px; }
+</style>
+</head>
+<body>
+  <div class="status-bar">
+    <span>9:41</span>
+    <span>●●● 🔋</span>
+  </div>
+
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="greeting">안녕하세요 👋</div>
+        <div class="name">박지수 학부모님</div>
+        <div class="sub">토키즈 수영클럽</div>
+      </div>
+      <div class="bell">🔔</div>
+    </div>
+  </div>
+
+  <div class="child-card">
+    <div class="child-label">우리 아이</div>
+    <div class="child-name">박민준</div>
+    <div class="child-class">초급반 A · 김선생님</div>
+    <div class="child-row">
+      <div class="child-stat">
+        <div class="child-stat-val">89%</div>
+        <div class="child-stat-label">이번 달 출석률</div>
+      </div>
+      <div class="child-stat">
+        <div class="child-stat-val">16</div>
+        <div class="child-stat-label">총 수업 횟수</div>
+      </div>
+      <div class="child-stat">
+        <div class="child-stat-val">2</div>
+        <div class="child-stat-label">결석</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">최근 출석 현황</div>
+
+  <div class="attendance-list">
+    <div class="attendance-item">
+      <div class="att-date">
+        <div class="att-day">월</div>
+        <div class="att-num">31</div>
+      </div>
+      <div class="att-info">
+        <div class="att-title">초급반 A 수업</div>
+        <div class="att-time">오전 9:00 - 9:50</div>
+      </div>
+      <div class="att-badge att-present">출석</div>
+    </div>
+    <div class="attendance-item">
+      <div class="att-date" style="background:#FFF1F2">
+        <div class="att-day" style="color:#E11D48">금</div>
+        <div class="att-num">28</div>
+      </div>
+      <div class="att-info">
+        <div class="att-title">초급반 A 수업</div>
+        <div class="att-time">오전 9:00 - 9:50</div>
+      </div>
+      <div class="att-badge att-absent">결석</div>
+    </div>
+    <div class="attendance-item">
+      <div class="att-date">
+        <div class="att-day">수</div>
+        <div class="att-num">26</div>
+      </div>
+      <div class="att-info">
+        <div class="att-title">초급반 A 수업</div>
+        <div class="att-time">오전 9:00 - 9:50</div>
+      </div>
+      <div class="att-badge att-present">출석</div>
+    </div>
+  </div>
+
+  <div class="notice-section">
+    <div class="notice-card">
+      <div class="notice-title">📢 공지사항</div>
+      <div class="notice-body">4월 5일(토) 수업은 어린이날 행사로 인해 휴강입니다. 참고 부탁드립니다.</div>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab-item active">
+      <div class="tab-icon">🏠</div>
+      <span>홈</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon">📋</div>
+      <span>출결</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon">📢</div>
+      <span>공지</span>
+    </div>
+    <div class="tab-item">
+      <div class="tab-icon">👤</div>
+      <span>마이</span>
+    </div>
+  </div>
+</body>
+</html>
