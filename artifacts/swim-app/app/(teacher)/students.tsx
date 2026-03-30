@@ -7,7 +7,7 @@
  * 연기/퇴원 → MemberStatusChangeModal (기존 API 재사용)
  * 반 배정 → student-detail 이동
  */
-import { ChevronRight, CircleCheck, CirclePause, LogOut, Search, UserCheck, Users, X } from "lucide-react-native";
+import { ChevronRight, CircleCheck, CirclePause, Search, UserCheck, Users, X } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -336,38 +336,26 @@ function WaitingActionSheet({
         )}
 
         <View style={sh.options}>
-          {/* 반 배정 */}
+          {/* 회원 정보보기 */}
           <Pressable style={[sh.option, { borderColor: "#2EC4B620" }]} onPress={onAssign}>
             <View style={[sh.optIcon, { backgroundColor: "#E6F9F7" }]}>
               <UserCheck size={20} color="#2EC4B6" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[sh.optLabel, { color: "#2EC4B6" }]}>반 배정</Text>
-              <Text style={sh.optSub}>학생 상세 페이지에서 반을 변경합니다</Text>
+              <Text style={[sh.optLabel, { color: "#2EC4B6" }]}>회원 정보보기</Text>
+              <Text style={sh.optSub}>학생 상세 페이지로 이동합니다</Text>
             </View>
             <ChevronRight size={16} color="#64748B" />
           </Pressable>
 
-          {/* 연기 */}
+          {/* 회원상태변경 */}
           <Pressable style={[sh.option, { borderColor: "#B4530920" }]} onPress={onStatusChange}>
             <View style={[sh.optIcon, { backgroundColor: "#FFF1BF" }]}>
               <CirclePause size={20} color="#B45309" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[sh.optLabel, { color: "#B45309" }]}>연기</Text>
-              <Text style={sh.optSub}>수강 연기 처리 — 이동 시점 선택 가능</Text>
-            </View>
-            <ChevronRight size={16} color="#64748B" />
-          </Pressable>
-
-          {/* 퇴원 */}
-          <Pressable style={[sh.option, { borderColor: "#D96C6C20" }]} onPress={onStatusChange}>
-            <View style={[sh.optIcon, { backgroundColor: "#FEF2F2" }]}>
-              <LogOut size={20} color="#D96C6C" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[sh.optLabel, { color: "#D96C6C" }]}>퇴원</Text>
-              <Text style={sh.optSub}>수강 종료 처리 — 이동 시점 선택 가능</Text>
+              <Text style={[sh.optLabel, { color: "#B45309" }]}>회원상태변경</Text>
+              <Text style={sh.optSub}>연기 · 퇴원 · 정상 복귀 등 상태 선택</Text>
             </View>
             <ChevronRight size={16} color="#64748B" />
           </Pressable>
