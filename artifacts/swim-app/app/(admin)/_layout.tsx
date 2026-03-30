@@ -52,11 +52,11 @@ export default function AdminLayout() {
           backgroundColor: "#fff",
           borderTopWidth: 1,
           borderTopColor: C.border,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 6,
+          height: 72,
+          paddingBottom: 12,
+          paddingTop: 8,
         },
-        tabBarLabelStyle: { fontSize: 10, fontFamily: "Pretendard-Regular" },
+        tabBarLabelStyle: { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 2 },
       }}
     >
       {/* ─── 5개 메인 탭 ─── */}

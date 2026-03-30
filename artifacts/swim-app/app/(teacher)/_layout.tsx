@@ -71,12 +71,14 @@ export default function TeacherLayout() {
         tabBarInactiveTintColor: C.tabIconDefault,
         headerShown: false,
         tabBarStyle: {
-          height: 60,
+          height: 72,
           backgroundColor: "transparent",
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: "#E2E8F0",
+          paddingBottom: 12,
+          paddingTop: 8,
         },
-        tabBarLabelStyle: { fontFamily: "Pretendard-Regular", fontSize: 11 },
+        tabBarLabelStyle: { fontFamily: "Pretendard-Regular", fontSize: 10, marginTop: 2 },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />

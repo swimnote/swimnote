@@ -22,7 +22,7 @@ import { SearchModal } from "@/components/admin/SearchModal";
 import { AdminQuickRegisterModal } from "@/components/admin/AdminQuickRegisterModal";
 
 const C = Colors.light;
-const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 60 : 60;
+const TAB_BAR_H = Platform.OS === "web" ? 90 : 72;
 
 function formatWon(n: number) {
   if (n >= 100_000_000) return (n / 100_000_000).toFixed(1).replace(/\.0$/, "") + "억원";
