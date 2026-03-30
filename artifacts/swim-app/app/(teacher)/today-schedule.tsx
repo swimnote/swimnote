@@ -375,7 +375,7 @@ const h = StyleSheet.create({
   listTime:       { fontSize: 12, fontFamily: "Pretendard-Regular", minWidth: 42 },
   listName:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 },
   listCount:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  listNames:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginLeft: 50 },
+  listNames:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, marginLeft: 50 },
   feedbackBanner:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16 },
   feedbackBannerLeft: { flex: 1, gap: 2 },
   feedbackBannerTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
