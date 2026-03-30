@@ -106,11 +106,10 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -129,7 +128,7 @@ export default function LoginScreen() {
           </Animated.Text>
         </Animated.View>
 
-        <View style={{ flex: 1 }} />
+        <View style={{ minHeight: 24, flexGrow: 1 }} />
 
         <Pressable
           style={({ pressed }) => [styles.signupRow, { opacity: pressed ? 0.85 : 1 }]}
@@ -247,7 +246,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: { flexGrow: 1, flex: 1, paddingHorizontal: 20, justifyContent: "flex-start" },
+  container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "flex-start" },
   logoArea: { alignItems: "center", paddingBottom: 24 },
 
   logoWrap: { alignItems: "center", gap: 10 },

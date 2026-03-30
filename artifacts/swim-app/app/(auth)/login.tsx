@@ -69,7 +69,7 @@ export default function LoginPasswordScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
         contentContainerStyle={[
