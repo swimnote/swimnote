@@ -261,7 +261,7 @@ export default function SuperDashboard() {
     <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.header}>
         <View>
-          <Text style={s.headerTitle}>운영 콘솔</Text>
+          <Text style={s.headerTitle}>슈퍼관리자</Text>
           <Text style={s.headerSub}>{today}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
@@ -495,7 +495,7 @@ export default function SuperDashboard() {
 const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#FFFFFF" },
   header:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                   paddingHorizontal: 18, paddingTop: 14, paddingBottom: 14 },
+                   paddingHorizontal: 18, paddingTop: 28, paddingBottom: 14 },
   headerTitle:   { fontSize: 22, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   headerSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
   alertPill:     { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#F9DEDA",
