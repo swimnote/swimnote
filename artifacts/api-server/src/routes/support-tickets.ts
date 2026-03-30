@@ -65,6 +65,7 @@ router.post("/support/tickets", requireAuth, async (req: AuthRequest, res) => {
     const id = `tkt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     const images: string[] = Array.isArray(image_urls) ? image_urls.slice(0, 3) : [];
+    const imagesLiteral = `{${images.map(u => `"${u.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")}}`;
 
     await db.execute(sql`
       INSERT INTO support_tickets
@@ -74,7 +75,7 @@ router.post("/support/tickets", requireAuth, async (req: AuthRequest, res) => {
         (${id}, ${type}, ${requesterType}, ${userName},
          ${pool_id ?? null}, ${subject}, ${description ?? null},
          ${slaHours}, ${userId},
-         ${images as any},
+         ${imagesLiteral}::text[],
          ${consultation_requested ? true : false}, 'open')
     `);
 

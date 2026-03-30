@@ -842,6 +842,40 @@ export async function initPoolDb(): Promise<void> {
     );
   `));
 
+  // ─── member_transfers (회원 이전 요청) ───────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS member_transfers (
+      id                text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      pool_id           text        NOT NULL,
+      student_id        text        NOT NULL,
+      student_name      text,
+      from_user_id      text,
+      from_user_name    text,
+      to_user_id        text,
+      to_user_name      text,
+      weekly_sessions   int         NOT NULL DEFAULT 0,
+      remaining_makeups int         NOT NULL DEFAULT 0,
+      notes             text,
+      status            text        NOT NULL DEFAULT 'pending',
+      work_message_id   text,
+      resolved_at       timestamptz,
+      resolved_by       text,
+      created_at        timestamptz NOT NULL DEFAULT now()
+    );
+  `));
+
+  // ─── messenger_read_state (메신저 읽음 상태) ─────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS messenger_read_state (
+      id            text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      pool_id       text        NOT NULL,
+      user_id       text        NOT NULL,
+      channel_type  text        NOT NULL DEFAULT 'notice',
+      last_read_at  timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (pool_id, user_id, channel_type)
+    );
+  `));
+
   console.log("[pool-db-init] superAdminDb 운영 테이블 초기화 완료");
 
   // 백업 DB가 분리되어 있으면 동일 스키마 초기화 (에러 무시)
