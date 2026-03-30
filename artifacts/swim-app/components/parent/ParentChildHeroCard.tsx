@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { type LevelDef } from "@/components/common/LevelBadge";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -15,12 +16,14 @@ interface Props {
   unreadPhotos: number;
   unreadDiaries: number;
   todaySchedule: string | null;
-  currentLevel: string | number | null;
+  currentLevel: LevelDef | null;
   onPress: () => void;
+  onLevelPress: () => void;
 }
 
-export function ParentChildHeroCard({ student, unreadPhotos, unreadDiaries, todaySchedule, currentLevel, onPress }: Props) {
+export function ParentChildHeroCard({ student, unreadPhotos, unreadDiaries, todaySchedule, currentLevel, onPress, onLevelPress }: Props) {
   const hasUnread = unreadPhotos > 0 || unreadDiaries > 0;
+  const levelLabel = currentLevel?.badge_label ?? (currentLevel ? String(currentLevel.level_order) : null);
 
   return (
     <Pressable
@@ -28,9 +31,22 @@ export function ParentChildHeroCard({ student, unreadPhotos, unreadDiaries, toda
       onPress={onPress}
     >
       <View style={styles.topRow}>
-        <View style={styles.avatarWrap}>
-          <Text style={styles.avatarTxt}>{student.name[0]}</Text>
-        </View>
+        {/* 아바타 → 레벨 뱃지 */}
+        <Pressable
+          style={({ pressed }) => [styles.avatarWrap, { opacity: pressed ? 0.75 : 1 }]}
+          onPress={(e) => { e.stopPropagation?.(); onLevelPress(); }}
+          hitSlop={8}
+        >
+          {levelLabel ? (
+            <>
+              <Text style={styles.levelNum}>{levelLabel}</Text>
+              <Text style={styles.levelSub}>LEVEL</Text>
+            </>
+          ) : (
+            <LucideIcon name="award" size={22} color={C.tint} />
+          )}
+        </Pressable>
+
         <View style={{ flex: 1 }}>
           <Text style={[styles.name, { color: C.text }]}>{student.name}</Text>
           <Text style={[styles.className, { color: C.textSecondary }]}>
@@ -40,7 +56,7 @@ export function ParentChildHeroCard({ student, unreadPhotos, unreadDiaries, toda
         <ChevronRight size={18} color={C.textMuted} />
       </View>
 
-      {(hasUnread || todaySchedule || currentLevel) && (
+      {(hasUnread || todaySchedule) && (
         <View style={styles.badgeRow}>
           {unreadDiaries > 0 && (
             <View style={[styles.badge, { backgroundColor: C.tintLight }]}>
@@ -58,12 +74,6 @@ export function ParentChildHeroCard({ student, unreadPhotos, unreadDiaries, toda
             <View style={[styles.badge, { backgroundColor: C.iconBlueBg }]}>
               <LucideIcon name="clock" size={11} color={C.iconBlue} />
               <Text style={[styles.badgeTxt, { color: C.iconBlue }]}>오늘 {todaySchedule}</Text>
-            </View>
-          )}
-          {currentLevel && (
-            <View style={[styles.badge, { backgroundColor: C.iconGreenBg }]}>
-              <LucideIcon name="award" size={11} color={C.iconGreen} />
-              <Text style={[styles.badgeTxt, { color: C.iconGreen }]}>레벨 {currentLevel}</Text>
             </View>
           )}
         </View>
@@ -97,7 +107,19 @@ const styles = StyleSheet.create({
     backgroundColor: C.tintLight,
     alignItems: "center", justifyContent: "center",
   },
-  avatarTxt: { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.tint },
+  levelNum: {
+    fontSize: 18,
+    fontFamily: "Pretendard-Regular",
+    color: C.tint,
+    lineHeight: 22,
+  },
+  levelSub: {
+    fontSize: 8,
+    fontFamily: "Pretendard-Regular",
+    color: C.tint,
+    letterSpacing: 0.5,
+    lineHeight: 10,
+  },
   name: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   className: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },

@@ -270,6 +270,7 @@ export default function ParentHomeScreen() {
             todaySchedule={summary.today_schedule}
             currentLevel={summary.growth?.current_level ?? null}
             onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: selectedStudent.id } })}
+            onLevelPress={() => router.push("/(parent)/level" as any)}
           />
         )}
 
