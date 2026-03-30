@@ -422,7 +422,7 @@ export default function DashboardScreen() {
             <View>
               <Text style={s.sectionLabel}>관리 메뉴</Text>
               <View style={s.iconGrid}>
-                {/* 스케줄러: 수업관리 팝업 오픈 */}
+                {/* 수업관리 팝업 */}
                 <Pressable
                   style={({ pressed }) => [s.iconCell, { width: iconCellW, opacity: pressed ? 0.7 : 1 }]}
                   onPress={() => handleIconPress("수업관리")}
@@ -435,7 +435,7 @@ export default function DashboardScreen() {
                       </View>
                     )}
                   </View>
-                  <Text style={s.iconLabel}>스케줄러</Text>
+                  <Text style={s.iconLabel}>수업관리</Text>
                 </Pressable>
 
                 {/* 팝업 아이콘들 */}
