@@ -2,7 +2,7 @@
  * (super)/dashboard.tsx — 슈퍼관리자 운영 콘솔
  * Zustand 완전 제거 → GET /super/dashboard-stats, /super/risk-summary, /super/recent-audit-logs 실 API 연동
  */
-import { Activity, ChevronRight, CircleAlert, Clipboard, LogOut, MessageCircle, Save, Shield, User } from "lucide-react-native";
+import { Activity, ChevronRight, CircleAlert, Clipboard, LogOut, MessageCircle, Save, Shield } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -458,10 +458,6 @@ export default function SuperDashboard() {
           </>
         )}
 
-        <View style={s.footer}>
-          <User size={13} color="#64748B" />
-          <Text style={s.footerTxt}>{adminUser?.name ?? "슈퍼관리자"} · 슈퍼관리자 계정</Text>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -527,6 +523,4 @@ const s = StyleSheet.create({
   auditEmpty:    { paddingVertical: 12, alignItems: "center" },
   auditEmptyTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
-  footer:        { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center", paddingTop: 24 },
-  footerTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
 });
