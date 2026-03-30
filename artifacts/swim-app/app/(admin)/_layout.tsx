@@ -68,7 +68,7 @@ export default function AdminLayout() {
       <Tabs.Screen
         name="classes"
         listeners={makeTabListener("classes")}
-        options={{ title: "수업관리", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
+        options={{ title: "스케줄러", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="people"
