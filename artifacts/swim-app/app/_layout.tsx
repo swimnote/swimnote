@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router, useSegments } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -13,13 +13,19 @@ import { AuthProvider, apiRequest, useAuth, type AccountEntry, type AdminUser, t
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 
 function AppLoadingScreen() {
+  const [logoReady, setLogoReady] = useState(false);
+
   return (
     <View style={loadingStyles.container}>
-      <Image
-        source={require("../assets/images/swimnote-logo.png")}
-        style={loadingStyles.logo}
-        resizeMode="cover"
-      />
+      <View style={loadingStyles.logoWrap}>
+        <Image
+          source={require("../assets/images/swimnote-logo.png")}
+          style={[loadingStyles.logo, { opacity: logoReady ? 1 : 0 }]}
+          resizeMode="contain"
+          onLoad={() => setLogoReady(true)}
+          onError={() => setLogoReady(false)}
+        />
+      </View>
       <Text style={loadingStyles.appName}>스윔노트</Text>
       <ActivityIndicator size="small" color="#2EC4B6" style={{ marginTop: 32 }} />
     </View>
@@ -34,10 +40,16 @@ const loadingStyles = StyleSheet.create({
     justifyContent: "center",
     gap: 12,
   },
-  logo: {
+  logoWrap: {
     width: 100,
     height: 100,
     borderRadius: 24,
+    backgroundColor: "#ffffff",
+    overflow: "hidden",
+  },
+  logo: {
+    width: 100,
+    height: 100,
   },
   appName: {
     fontSize: 26,
