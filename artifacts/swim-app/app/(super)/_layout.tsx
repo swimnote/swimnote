@@ -1,12 +1,17 @@
 /**
- * (super)/_layout.tsx — 슈퍼관리자 Stack 레이아웃
+ * (super)/_layout.tsx — 슈퍼관리자 탭 레이아웃
  *
+ * 5개 하단 탭: 운영관리·보호통제·감사리스크·지원센터·보안설정
  * 진입 가드: super_admin / platform_admin / super_manager 만 허용.
- * 그 외 역할이 직접 접근 시 올바른 홈으로 강제 리다이렉트.
  */
-import { Stack, router } from "expo-router";
+import { Activity, Briefcase, HeadphonesIcon, Lock, Shield } from "lucide-react-native";
+import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
+import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+
+const C = Colors.light;
+const ACTIVE = "#7C3AED";
 
 const SUPER_ROLES = new Set(["super_admin", "platform_admin", "super_manager"]);
 
@@ -20,7 +25,6 @@ const ROLE_HOME_MAP: Record<string, string> = {
 export default function SuperLayout() {
   const { kind, isLoading, adminUser } = useAuth();
 
-  // 권한 보호: 슈퍼관리자 계열 이외 계정이 (super) 영역 진입 시 차단
   useEffect(() => {
     if (isLoading || !kind) return;
 
@@ -32,48 +36,95 @@ export default function SuperLayout() {
     if (kind === "admin") {
       const role = adminUser?.role;
       if (!role) return;
-      if (SUPER_ROLES.has(role)) return; // OK
-
-      // 슈퍼가 아닌 관리자가 진입했을 경우 올바른 홈으로 보냄
+      if (SUPER_ROLES.has(role)) return;
       const home = ROLE_HOME_MAP[role] ?? "/";
       router.replace(home as any);
     }
   }, [isLoading, kind, adminUser?.role]);
 
   return (
-    <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
-      <Stack.Screen name="dashboard" />
-      <Stack.Screen name="pools" />
-      <Stack.Screen name="operator-detail" />
-      <Stack.Screen name="subscriptions" />
-      <Stack.Screen name="subscription-products" />
-      <Stack.Screen name="storage" />
-      <Stack.Screen name="storage-policy" />
-      <Stack.Screen name="kill-switch" />
-      <Stack.Screen name="backup" />
-      <Stack.Screen name="readonly-control" />
-      <Stack.Screen name="feature-flags" />
-      <Stack.Screen name="policy" />
-      <Stack.Screen name="support" />
-      <Stack.Screen name="op-logs" />
-      <Stack.Screen name="risk-center" />
-      <Stack.Screen name="security" />
-      <Stack.Screen name="security-settings" />
-      <Stack.Screen name="op-group" />
-      <Stack.Screen name="support-group" />
-      <Stack.Screen name="protect-group" />
-      <Stack.Screen name="audit-group" />
-      <Stack.Screen name="users" />
-      <Stack.Screen name="more" />
-      <Stack.Screen name="sync" />
-      <Stack.Screen name="revenue-analytics" />
-      <Stack.Screen name="cost-analytics" />
-      <Stack.Screen name="billing-analytics" />
-      <Stack.Screen name="system-status" />
-      <Stack.Screen name="ads" />
-      <Stack.Screen name="notices" />
-      <Stack.Screen name="pool-notices" />
-      <Stack.Screen name="db-status" />
-    </Stack>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: ACTIVE,
+        tabBarInactiveTintColor: C.tabIconDefault,
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: "#fff",
+          borderTopWidth: 1,
+          borderTopColor: C.border,
+          height: 72,
+          paddingBottom: 12,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 2 },
+      }}
+    >
+      {/* ─── 5개 메인 탭 ─── */}
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: "운영관리",
+          tabBarIcon: ({ color }) => <Briefcase size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="protect-group"
+        options={{
+          title: "보호통제",
+          tabBarIcon: ({ color }) => <Shield size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="audit-group"
+        options={{
+          title: "감사리스크",
+          tabBarIcon: ({ color }) => <Activity size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="support-group"
+        options={{
+          title: "지원센터",
+          tabBarIcon: ({ color }) => <HeadphonesIcon size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="security-settings"
+        options={{
+          title: "보안설정",
+          tabBarIcon: ({ color }) => <Lock size={22} color={color} />,
+        }}
+      />
+
+      {/* ─── 숨김 화면들 (탭 없이 push/navigate로 접근) ─── */}
+      <Tabs.Screen name="pools"                    options={{ href: null }} />
+      <Tabs.Screen name="operator-detail"          options={{ href: null }} />
+      <Tabs.Screen name="subscriptions"            options={{ href: null }} />
+      <Tabs.Screen name="subscription-products"    options={{ href: null }} />
+      <Tabs.Screen name="storage"                  options={{ href: null }} />
+      <Tabs.Screen name="storage-policy"           options={{ href: null }} />
+      <Tabs.Screen name="kill-switch"              options={{ href: null }} />
+      <Tabs.Screen name="backup"                   options={{ href: null }} />
+      <Tabs.Screen name="readonly-control"         options={{ href: null }} />
+      <Tabs.Screen name="feature-flags"            options={{ href: null }} />
+      <Tabs.Screen name="policy"                   options={{ href: null }} />
+      <Tabs.Screen name="support"                  options={{ href: null }} />
+      <Tabs.Screen name="op-logs"                  options={{ href: null }} />
+      <Tabs.Screen name="risk-center"              options={{ href: null }} />
+      <Tabs.Screen name="security"                 options={{ href: null }} />
+      <Tabs.Screen name="op-group"                 options={{ href: null }} />
+      <Tabs.Screen name="users"                    options={{ href: null }} />
+      <Tabs.Screen name="more"                     options={{ href: null }} />
+      <Tabs.Screen name="sync"                     options={{ href: null }} />
+      <Tabs.Screen name="revenue-analytics"        options={{ href: null }} />
+      <Tabs.Screen name="cost-analytics"           options={{ href: null }} />
+      <Tabs.Screen name="billing-analytics"        options={{ href: null }} />
+      <Tabs.Screen name="system-status"            options={{ href: null }} />
+      <Tabs.Screen name="ads"                      options={{ href: null }} />
+      <Tabs.Screen name="notices"                  options={{ href: null }} />
+      <Tabs.Screen name="pool-notices"             options={{ href: null }} />
+      <Tabs.Screen name="db-status"                options={{ href: null }} />
+      <Tabs.Screen name="infra-usage"              options={{ href: null }} />
+    </Tabs>
   );
 }

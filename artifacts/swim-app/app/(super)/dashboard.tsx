@@ -47,16 +47,6 @@ interface AuditLogItem {
 const MINT = "#2EC4B6"; const MINT_BG = "#E6FAF8";
 const ORNG = "#F97316"; const ORNG_BG = "#FFF1E8";
 const NAVY = "#0F172A"; const NAVY_BG = "#E8EEF4";
-const IC = NAVY; const IB = MINT_BG;
-
-const MENUS = [
-  { id: "op",       icon: "briefcase" as const,      title: "운영 관리",   sub: "운영자·구독·저장공간·공지관리",  path: "/(super)/op-group",         color: "#1D4ED8", bg: IB },
-  { id: "support",  icon: "message-circle" as const, title: "지원 센터",   sub: "고객센터·정책·초대·인증번호",    path: "/(super)/support-group",    color: "#7C3AED", bg: IB },
-  { id: "protect",  icon: "shield" as const,         title: "보호·통제",   sub: "킬스위치·백업·플래그·읽기전용", path: "/(super)/protect-group",    color: "#1D4ED8", bg: IB },
-  { id: "security", icon: "lock" as const,           title: "보안·설정",   sub: "계정·2FA·외부서비스·세션·정책", path: "/(super)/security-settings",color: "#DC2626", bg: IB },
-  { id: "audit",    icon: "activity" as const,       title: "감사·리스크", sub: "운영로그·리스크·보안·민감작업",  path: "/(super)/audit-group",      color: "#CA8A04", bg: IB },
-];
-
 const POOL_TYPE_LABELS: Record<string, string> = {
   swimming_pool: "수영장", solo_coach: "1인 코치", rental_team: "대관팀", franchise: "프랜차이즈",
 };
@@ -468,21 +458,6 @@ export default function SuperDashboard() {
           </>
         )}
 
-        {/* ── 메뉴 그리드 ── */}
-        <View style={s.menuSection}>
-          <View style={s.menuGrid}>
-            {MENUS.map(m => (
-              <Pressable key={m.id} style={s.menuCard} onPress={() => router.push(m.path as any)}>
-                <View style={[s.menuIconBox, { backgroundColor: m.bg }]}>
-                  <LucideIcon name={m.icon} size={24} color={m.color} />
-                </View>
-                <Text style={s.menuTitle}>{m.title}</Text>
-                <Text style={s.menuSub} numberOfLines={2}>{m.sub}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
         <View style={s.footer}>
           <User size={13} color="#64748B" />
           <Text style={s.footerTxt}>{adminUser?.name ?? "슈퍼관리자"} · 슈퍼관리자 계정</Text>
@@ -526,14 +501,6 @@ const s = StyleSheet.create({
                    marginBottom: 10 },
   supportTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   supportSub:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-
-  menuSection:   { paddingHorizontal: 14 },
-  menuGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  menuCard:      { width: "47.5%", backgroundColor: "#FFFFFF", borderRadius: 16, padding: 16,
-                   borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },
-  menuIconBox:   { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  menuTitle:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  menuSub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 15 },
 
   riskSection:   { marginHorizontal: 14, marginBottom: 14, backgroundColor: "#FFFFFF",
                    borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
