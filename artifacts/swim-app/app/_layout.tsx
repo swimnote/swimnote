@@ -205,6 +205,7 @@ function RootNav() {
     "org-role-select", "pool-apply", "pool-select", "pending", "rejected", "subscription-expired",
     "class-assign", "parent-onboard-pool", "parent-onboard-child", "parent-onboard-nickname",
     "pool-join-request", "signup-role", "register", "teacher-activate", "teacher-invite-join",
+    "terms", "privacy", "refund",
   ];
 
   useEffect(() => {
@@ -317,6 +318,8 @@ function RootNav() {
       <Stack.Screen name="(teacher)" />
       <Stack.Screen name="(parent)" />
       <Stack.Screen name="class-assign" />
+      <Stack.Screen name="terms" />
+      <Stack.Screen name="privacy" />
     </Stack>
   );
 }
