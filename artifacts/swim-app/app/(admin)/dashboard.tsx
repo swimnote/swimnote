@@ -162,8 +162,6 @@ export default function DashboardScreen() {
           <>
             {/* ── 운영 현황 카드 ── */}
             <View style={{ gap: 8 }}>
-              <Text style={s.sectionLabel}>운영 현황</Text>
-
               {/* 1행: 이번 달 매출 + 전체 회원 */}
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable
