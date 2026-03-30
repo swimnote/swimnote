@@ -47,7 +47,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
 const _IB = "#E6FAF8";
 
 // ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
-type PopupKey = "수업관리" | "매출관리" | "운영관리" | "데이터관리";
+type PopupKey = "수업관리" | "운영관리" | "데이터관리";
 
 function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   const pending  = stats?.pending_requests ?? 0;
@@ -65,16 +65,14 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "x-square",    label: "휴무일 관리",   color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/holidays") },
       { icon: "sliders",     label: "보강정책 설정", color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/makeup-policy") },
     ];
-    case "매출관리": return [
-      { icon: "trending-up", label: "월별 매출",     color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/admin-revenue") },
-      { icon: "check-square",label: "정산 확인",     color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/settlement") },
-    ];
     case "운영관리": return [
       { icon: "users",       label: "회원 명부",     color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/members") },
       { icon: "user",        label: "학부모 계정",   color: "#DB2777", bg: ib, onPress: () => router.push("/(admin)/parents") },
       { icon: "user-check",  label: "선생님 관리",   color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/people-teachers") },
       { icon: "check-circle",label: "승인 관리",     color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/approvals"), badge: pending },
       { icon: "send",        label: "초대 기록",     color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/invite-records") },
+      { icon: "trending-up", label: "월별 매출",     color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/admin-revenue") },
+      { icon: "check-square",label: "정산 확인",     color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/settlement") },
     ];
     case "데이터관리": return [
       { icon: "rotate-ccw",  label: "백업·복구",     color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/recovery") },
@@ -86,7 +84,7 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   }
 }
 
-// ── 메인 홈 아이콘 정의 (3개) ────────────────────────────────────────────────
+// ── 메인 홈 아이콘 정의 (2개) ────────────────────────────────────────────────
 const IB = "#E6FAF8";
 
 const MAIN_ICONS: Array<{
@@ -97,7 +95,6 @@ const MAIN_ICONS: Array<{
   bg: string;
 }> = [
   { key: "수업관리",  label: "수업관리",  icon: "calendar",       color: "#16A34A", bg: IB },
-  { key: "매출관리",  label: "매출관리",  icon: "trending-up",    color: "#CA8A04", bg: IB },
   { key: "운영관리",  label: "운영관리",  icon: "briefcase",      color: "#1D4ED8", bg: IB },
 ];
 
@@ -466,8 +463,8 @@ export default function DashboardScreen() {
         onSuccess={() => { fetchStats(); }}
       />
 
-      {/* ── 팝업들 (5개, 메신저 제외) ── */}
-      {(["수업관리", "매출관리", "운영관리", "데이터관리"] as PopupKey[]).map(key => (
+      {/* ── 팝업들 ── */}
+      {(["수업관리", "운영관리", "데이터관리"] as PopupKey[]).map(key => (
         <IconPopup
           key={key}
           visible={activePopup === key}
