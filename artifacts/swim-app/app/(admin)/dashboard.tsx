@@ -47,7 +47,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
 const _IB = "#E6FAF8";
 
 // ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
-type PopupKey = "수업관리" | "보강관리" | "매출관리" | "운영관리" | "데이터관리" | "설정";
+type PopupKey = "수업관리" | "보강관리" | "매출관리" | "운영관리" | "데이터관리";
 
 function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   const pending  = stats?.pending_requests ?? 0;
@@ -85,21 +85,11 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "list",        label: "이벤트 기록",   color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/data-event-logs") },
       { icon: "archive",     label: "삭제·보존 정책",color: "#DC2626", bg: ib, onPress: () => router.push("/(admin)/data-delete") },
     ];
-    case "설정": return [
-      { icon: "settings",       label: "수영장 설정",   color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/pool-settings") },
-      { icon: "shield",         label: "권한 설정",     color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/admin-grant") },
-      { icon: "award",          label: "레벨 설정",     color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/level-settings" as any) },
-      { icon: "message-circle", label: "피드백 설정",   color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/feedback-settings" as any) },
-      { icon: "bell",           label: "알림 설정",     color: "#F59E0B", bg: ib, onPress: () => router.push("/(admin)/push-notification-settings") },
-      { icon: "sliders",        label: "브랜드 설정",   color: "#0F172A", bg: ib, onPress: () => router.push("/(admin)/branding") },
-      { icon: "credit-card",    label: "구독 관리",     color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/billing") },
-      { icon: "hard-drive",     label: "데이터 관리",   color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/data-management") },
-    ];
     default: return [];
   }
 }
 
-// ── 메인 홈 아이콘 정의 (6개 3×2 그리드) ────────────────────────────────────
+// ── 메인 홈 아이콘 정의 (5개) ────────────────────────────────────────────────
 const IB = "#E6FAF8";
 
 const MAIN_ICONS: Array<{
@@ -114,7 +104,6 @@ const MAIN_ICONS: Array<{
   { key: "매출관리",  label: "매출관리",  icon: "trending-up",    color: "#CA8A04", bg: IB },
   { key: "운영관리",  label: "운영관리",  icon: "briefcase",      color: "#1D4ED8", bg: IB },
   { key: "메신저",    label: "메신저",    icon: "message-circle", color: "#7C3AED", bg: IB },
-  { key: "설정",     label: "설정",      icon: "settings",       color: "#0F172A", bg: IB },
 ];
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
@@ -487,7 +476,7 @@ export default function DashboardScreen() {
       />
 
       {/* ── 팝업들 (5개, 메신저 제외) ── */}
-      {(["수업관리", "보강관리", "매출관리", "운영관리", "데이터관리", "설정"] as PopupKey[]).map(key => (
+      {(["수업관리", "보강관리", "매출관리", "운영관리", "데이터관리"] as PopupKey[]).map(key => (
         <IconPopup
           key={key}
           visible={activePopup === key}
