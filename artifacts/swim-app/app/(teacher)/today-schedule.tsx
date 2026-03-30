@@ -213,6 +213,31 @@ export default function TodayScheduleScreen() {
           </View>
         </View>
 
+        {/* ── 미니 주간 캘린더 ── */}
+        <View style={[h.weekCard, { backgroundColor: C.card }]}>
+          {weekDates.map((d, i) => {
+            const dayLabel = WEEK_DAYS[i];
+            const dateNum  = d.getDate();
+            const isToday  = d.toDateString() === new Date().toDateString();
+            const hasClass = items.some(it => {
+              const days = (it.schedule_days ?? "").split(",").map((s: string) => s.trim());
+              return days.includes(dayLabel);
+            });
+            return (
+              <View key={i} style={h.weekCell}>
+                <Text style={[h.weekDay, isToday && { color: themeColor, fontWeight: "600" }]}>{dayLabel}</Text>
+                <View style={[h.weekDateBox, isToday && { backgroundColor: themeColor }]}>
+                  <Text style={[h.weekDate, isToday && { color: "#fff" }]}>{dateNum}</Text>
+                </View>
+                {hasClass
+                  ? <View style={[h.weekDot, { backgroundColor: isToday ? themeColor : C.tint }]} />
+                  : <View style={h.weekDotEmpty} />
+                }
+              </View>
+            );
+          })}
+        </View>
+
         {(overview?.pending_diaries_today ?? 0) > 0 && (
           <Pressable
             style={[h.feedbackBanner, { backgroundColor: "#7C3AED" }]}
@@ -348,6 +373,13 @@ const h = StyleSheet.create({
   feedbackBannerLeft: { flex: 1, gap: 2 },
   feedbackBannerTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
   feedbackBannerSub:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.75)" },
+  weekCard:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  weekCell:     { flex: 1, alignItems: "center", gap: 5 },
+  weekDay:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  weekDateBox:  { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  weekDate:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
+  weekDot:      { width: 5, height: 5, borderRadius: 3 },
+  weekDotEmpty: { width: 5, height: 5 },
   miniDateToday:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
   miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
 });
