@@ -7,9 +7,9 @@
 import { ChevronRight, CircleAlert, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Dimensions, Platform, Pressable,
+  ActivityIndicator, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,13 +17,11 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
-import { IconPopup, type PopupItem } from "@/components/admin/IconPopup";
 import { PaymentBanner } from "@/components/common/PaymentBanner";
 import { SearchModal } from "@/components/admin/SearchModal";
 import { AdminQuickRegisterModal } from "@/components/admin/AdminQuickRegisterModal";
 
 const C = Colors.light;
-const SCREEN_W = Dimensions.get("window").width;
 const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 60 : 60;
 
 function formatWon(n: number) {
@@ -43,48 +41,6 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
   deleted:         { label: "삭제됨",    color: "#64748B", bg: "#E5E7EB" },
 };
 
-// ── 아이콘 배경 (민트 유지) ───────────────────────────────────────────────────
-const _IB = "#E6FAF8";
-
-// ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
-type PopupKey = "운영관리" | "데이터관리";
-
-function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
-  const pending  = stats?.pending_requests ?? 0;
-  const ib = _IB;
-
-  switch (key) {
-    case "운영관리": return [
-      { icon: "users",       label: "회원 명부",     color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/members") },
-      { icon: "user",        label: "학부모 계정",   color: "#DB2777", bg: ib, onPress: () => router.push("/(admin)/parents") },
-      { icon: "user-check",  label: "선생님 관리",   color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/people-teachers") },
-      { icon: "check-circle",label: "승인 관리",     color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/approvals"), badge: pending },
-      { icon: "send",        label: "초대 기록",     color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/invite-records") },
-      { icon: "trending-up", label: "월별 매출",     color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/admin-revenue") },
-      { icon: "check-square",label: "정산 확인",     color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/settlement") },
-    ];
-    case "데이터관리": return [
-      { icon: "rotate-ccw",  label: "백업·복구",     color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/recovery") },
-      { icon: "pie-chart",   label: "저장 현황",     color: "#CA8A04", bg: ib, onPress: () => router.push("/(admin)/data-storage-overview") },
-      { icon: "list",        label: "이벤트 기록",   color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/data-event-logs") },
-      { icon: "archive",     label: "삭제·보존 정책",color: "#DC2626", bg: ib, onPress: () => router.push("/(admin)/data-delete") },
-    ];
-    default: return [];
-  }
-}
-
-// ── 메인 홈 아이콘 정의 ───────────────────────────────────────────────────────
-const IB = "#E6FAF8";
-
-const MAIN_ICONS: Array<{
-  key: PopupKey;
-  label: string;
-  icon: string;
-  color: string;
-  bg: string;
-}> = [
-  { key: "운영관리",  label: "운영관리",  icon: "briefcase",      color: "#1D4ED8", bg: IB },
-];
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 export default function DashboardScreen() {
@@ -102,10 +58,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  const [activePopup, setActivePopup] = useState<PopupKey | null>(null);
   const [switching, setSwitching] = useState(false);
-
-  const lastPopupRef = useRef<PopupKey | null>(null);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -136,20 +89,8 @@ export default function DashboardScreen() {
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
   useFocusEffect(useCallback(() => {
-    const popup = lastPopupRef.current;
-    if (popup) {
-      lastPopupRef.current = null;
-      setActivePopup(popup);
-    }
     fetchStats();
   }, [fetchStats]));
-
-  const wrapPopupItems = useCallback((key: PopupKey, items: PopupItem[]): PopupItem[] =>
-    items.map(item => ({
-      ...item,
-      onPress: () => { lastPopupRef.current = key; item.onPress(); },
-    }))
-  , []);
 
   // pool_admin이면 항상 선생님 모드 전환 가능 (자동 생성 구조 — 신규·기존 계정 모두 지원)
   const canSwitchToTeacher = adminUser?.role === "pool_admin" || !!(adminUser?.roles?.includes("teacher"));
@@ -166,12 +107,6 @@ export default function DashboardScreen() {
   }
 
   const _BIB = "#E6FAF8";
-
-  function handleIconPress(key: PopupKey) {
-    setActivePopup(key);
-  }
-
-  const iconCellW = (SCREEN_W - 32 - 2 * 16) / 3;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F6FA" }}>
@@ -421,30 +356,6 @@ export default function DashboardScreen() {
               </Pressable>
             </View>
 
-            {/* ── 관리 메뉴 ── */}
-            <View>
-              <Text style={s.sectionLabel}>관리 메뉴</Text>
-              <View style={s.iconGrid}>
-                {/* 팝업 아이콘들 */}
-                {MAIN_ICONS.map(item => (
-                  <Pressable
-                    key={item.key}
-                    style={({ pressed }) => [s.iconCell, { width: iconCellW, opacity: pressed ? 0.7 : 1 }]}
-                    onPress={() => handleIconPress(item.key)}
-                  >
-                    <View style={[s.iconBox, { backgroundColor: item.bg }]}>
-                      <LucideIcon name={item.icon} size={26} color={item.color} />
-                      {item.key === "운영관리" && (stats?.pending_requests ?? 0) > 0 && (
-                        <View style={s.notiBadge}>
-                          <Text style={s.notiBadgeTxt}>{stats!.pending_requests}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={s.iconLabel}>{item.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
 
           </>
         )}
@@ -462,16 +373,6 @@ export default function DashboardScreen() {
         onSuccess={() => { fetchStats(); }}
       />
 
-      {/* ── 팝업들 ── */}
-      {(["운영관리", "데이터관리"] as PopupKey[]).map(key => (
-        <IconPopup
-          key={key}
-          visible={activePopup === key}
-          title={key}
-          items={wrapPopupItems(key, buildPopupItems(key, stats))}
-          onClose={() => setActivePopup(null)}
-        />
-      ))}
     </View>
   );
 }

@@ -1,4 +1,4 @@
-import { Home, Layers, Send, Settings, Users } from "lucide-react-native";
+import { Briefcase, Home, Layers, Send, Settings } from "lucide-react-native";
 import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
 import Colors from "@/constants/colors";
@@ -72,10 +72,11 @@ export default function AdminLayout() {
       />
       <Tabs.Screen name="classes" options={{ href: null }} />
       <Tabs.Screen
-        name="people"
-        listeners={makeTabListener("people")}
-        options={{ title: "회원관리", tabBarIcon: ({ color }) => <Users size={22} color={color} /> }}
+        name="ops-hub"
+        listeners={makeTabListener("ops-hub")}
+        options={{ title: "운영관리", tabBarIcon: ({ color }) => <Briefcase size={22} color={color} /> }}
       />
+      <Tabs.Screen name="people" options={{ href: null }} />
       <Tabs.Screen
         name="messenger"
         listeners={makeTabListener("messenger")}
