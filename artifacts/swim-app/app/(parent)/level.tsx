@@ -154,44 +154,63 @@ export default function ParentLevelScreen() {
           )}
 
           {/* 성장 타임라인 */}
-          {records.length > 0 ? (
-            <View style={{ marginTop: 24, gap: 0 }}>
-              <Text style={[s.sectionTitle, { color: C.text }]}>성장 기록</Text>
-              <View style={{ marginTop: 12, gap: 0 }}>
-                {records.map((r, i) => {
-                  const bg = LEVEL_COLORS[i % LEVEL_COLORS.length];
-                  const accent = LEVEL_ACCENTS[i % LEVEL_ACCENTS.length];
-                  return (
-                    <View key={r.id} style={s.timelineRow}>
-                      <View style={s.timelineLeft}>
-                        <View style={[s.timelineDot, { backgroundColor: accent }]} />
-                        {i < records.length - 1 && <View style={[s.timelineLine, { backgroundColor: C.border }]} />}
-                      </View>
-                      <View style={[s.timelineCard, { backgroundColor: bg, flex: 1, marginBottom: 12 }]}>
-                        <View style={s.timelineHeader}>
-                          <Text style={[s.timelineLevel, { color: accent }]}>{r.level}</Text>
-                          {i === 0 && (
-                            <View style={[s.currentBadge, { backgroundColor: accent }]}>
-                              <Text style={s.currentBadgeTxt}>현재</Text>
-                            </View>
-                          )}
+          {(() => {
+            // 기록이 없지만 현재 레벨은 있으면 안내 항목으로 표시
+            const displayRecords: LevelRecord[] = records.length > 0
+              ? records
+              : currentLevel
+                ? [{ id: "__current__", level: currentLevel.level_name, achieved_date: "", note: null, teacher_name: null }]
+                : [];
+
+            if (displayRecords.length === 0) {
+              return (
+                <View style={s.empty}>
+                  <Text style={s.emptyEmoji}>🏅</Text>
+                  <Text style={[s.emptyTitle, { color: C.text }]}>아직 레벨 기록이 없습니다</Text>
+                  <Text style={[s.emptySub, { color: C.textSecondary }]}>선생님이 레벨을 변경하면{"\n"}날짜와 함께 자동으로 기록됩니다</Text>
+                </View>
+              );
+            }
+
+            return (
+              <View style={{ marginTop: 24, gap: 0 }}>
+                <Text style={[s.sectionTitle, { color: C.text }]}>성장 기록</Text>
+                <View style={{ marginTop: 12, gap: 0 }}>
+                  {displayRecords.map((r, i) => {
+                    const bg = LEVEL_COLORS[i % LEVEL_COLORS.length];
+                    const accent = LEVEL_ACCENTS[i % LEVEL_ACCENTS.length];
+                    const isPlaceholder = r.id === "__current__";
+                    return (
+                      <View key={r.id} style={s.timelineRow}>
+                        <View style={s.timelineLeft}>
+                          <View style={[s.timelineDot, { backgroundColor: accent }]} />
+                          {i < displayRecords.length - 1 && <View style={[s.timelineLine, { backgroundColor: C.border }]} />}
                         </View>
-                        <Text style={[s.timelineDate, { color: C.textSecondary }]}>{r.achieved_date}</Text>
-                        {r.teacher_name ? <Text style={[s.timelineTeacher, { color: C.textMuted }]}>{r.teacher_name} 선생님</Text> : null}
-                        {r.note ? <Text style={[s.timelineNote, { color: C.textSecondary }]}>{r.note}</Text> : null}
+                        <View style={[s.timelineCard, { backgroundColor: bg, flex: 1, marginBottom: 12 }]}>
+                          <View style={s.timelineHeader}>
+                            <Text style={[s.timelineLevel, { color: accent }]}>{r.level}</Text>
+                            {i === 0 && (
+                              <View style={[s.currentBadge, { backgroundColor: accent }]}>
+                                <Text style={s.currentBadgeTxt}>현재</Text>
+                              </View>
+                            )}
+                          </View>
+                          {r.achieved_date
+                            ? <Text style={[s.timelineDate, { color: C.textSecondary }]}>달성일: {r.achieved_date}</Text>
+                            : isPlaceholder
+                              ? <Text style={[s.timelineDate, { color: C.textMuted }]}>선생님이 레벨을 변경하면 날짜가 기록됩니다</Text>
+                              : null
+                          }
+                          {r.teacher_name ? <Text style={[s.timelineTeacher, { color: C.textMuted }]}>{r.teacher_name} 선생님</Text> : null}
+                          {r.note ? <Text style={[s.timelineNote, { color: C.textSecondary }]}>{r.note}</Text> : null}
+                        </View>
                       </View>
-                    </View>
-                  );
-                })}
+                    );
+                  })}
+                </View>
               </View>
-            </View>
-          ) : (
-            <View style={s.empty}>
-              <Text style={s.emptyEmoji}>🏅</Text>
-              <Text style={[s.emptyTitle, { color: C.text }]}>아직 레벨 기록이 없습니다</Text>
-              <Text style={[s.emptySub, { color: C.textSecondary }]}>선생님이 레벨을 등록하면{"\n"}여기에서 확인할 수 있어요</Text>
-            </View>
-          )}
+            );
+          })()}
         </ScrollView>
       )}
     </View>
