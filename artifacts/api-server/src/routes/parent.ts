@@ -559,11 +559,225 @@ router.get("/students/:id/unread-counts", requireAuth, requireParent, async (req
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
 
     // 안읽은 공지 수
-    const totalNotices = await db.execute(sql`SELECT COUNT(*) AS cnt FROM notices WHERE swimming_pool_id = ${pa.swimming_pool_id}`);
+    const totalNotices = await db.execute(sql`SELECT COUNT(*) AS cnt FROM notices WHERE swimming_pool_id = ${pa.swimming_pool_id} AND status = 'published'`);
     const readNotices = await db.execute(sql`SELECT COUNT(*) AS cnt FROM notice_reads nr JOIN notices n ON n.id = nr.notice_id WHERE nr.parent_id = ${pa.id} AND n.swimming_pool_id = ${pa.swimming_pool_id}`);
     const unreadNotices = Number((totalNotices.rows[0] as any).cnt) - Number((readNotices.rows[0] as any).cnt);
 
-    res.json({ unread_notices: Math.max(0, unreadNotices), unread_messages: 0 });
+    // 안읽은 수업일지 수 (마지막 확인 이후 새로 추가된 일지)
+    const [diaryRead] = (await db.execute(sql`
+      SELECT last_read_at FROM parent_content_reads
+      WHERE parent_id = ${pa.id} AND student_id = ${req.params.id} AND content_type = 'diary'
+    `)).rows as any[];
+    const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    let unreadDiaries = 0;
+    if (student?.class_group_id) {
+      const diaryBase = diaryRead?.last_read_at ? sql`AND cd.created_at > ${diaryRead.last_read_at}` : sql``;
+      const diaryCount = await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM class_diaries cd
+        WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
+        ${diaryBase}
+      `);
+      unreadDiaries = Number((diaryCount.rows[0] as any).cnt);
+    }
+
+    // 안읽은 사진 수 (마지막 확인 이후 새로 업로드된 사진)
+    const [photoRead] = (await db.execute(sql`
+      SELECT last_read_at FROM parent_content_reads
+      WHERE parent_id = ${pa.id} AND student_id = ${req.params.id} AND content_type = 'photo'
+    `)).rows as any[];
+    const photoBase = photoRead?.last_read_at ? sql`AND sp.created_at > ${photoRead.last_read_at}` : sql``;
+    let unreadPhotos = 0;
+    if (student?.class_group_id) {
+      const photoCount = await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM photo_assets_meta sp
+        WHERE (sp.class_id = ${student.class_group_id} OR sp.student_id = ${req.params.id})
+        ${photoBase}
+      `);
+      unreadPhotos = Number((photoCount.rows[0] as any).cnt);
+    }
+
+    // 안읽은 쪽지 수
+    const msgCount = await db.execute(sql`
+      SELECT COUNT(*) AS cnt FROM messages m
+      JOIN message_threads mt ON mt.id = m.thread_id
+      WHERE (mt.participant_1_id = ${pa.id} OR mt.participant_2_id = ${pa.id})
+        AND m.sender_id != ${pa.id}
+        AND (m.read_at IS NULL)
+    `).catch(() => ({ rows: [{ cnt: 0 }] }));
+    const unreadMessages = Number((msgCount.rows[0] as any).cnt ?? 0);
+
+    res.json({
+      unread_notices: Math.max(0, unreadNotices),
+      unread_diaries: unreadDiaries,
+      unread_photos: unreadPhotos,
+      unread_messages: unreadMessages,
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 읽음 처리 — 사진 ────────────────────────────────────────────────────────
+router.post("/students/:id/mark-photos-read", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(eq(parentStudentsTable.parent_id, req.user!.userId), eq(parentStudentsTable.student_id, req.params.id), eq(parentStudentsTable.status, "approved"))).limit(1);
+    if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    await db.execute(sql`
+      INSERT INTO parent_content_reads (id, parent_id, student_id, content_type, last_read_at)
+      VALUES (gen_random_uuid()::text, ${pa.id}, ${req.params.id}, 'photo', now())
+      ON CONFLICT (parent_id, student_id, content_type)
+      DO UPDATE SET last_read_at = now()
+    `);
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 읽음 처리 — 수업일지 ─────────────────────────────────────────────────────
+router.post("/students/:id/mark-diary-read", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(eq(parentStudentsTable.parent_id, req.user!.userId), eq(parentStudentsTable.student_id, req.params.id), eq(parentStudentsTable.status, "approved"))).limit(1);
+    if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    await db.execute(sql`
+      INSERT INTO parent_content_reads (id, parent_id, student_id, content_type, last_read_at)
+      VALUES (gen_random_uuid()::text, ${pa.id}, ${req.params.id}, 'diary', now())
+      ON CONFLICT (parent_id, student_id, content_type)
+      DO UPDATE SET last_read_at = now()
+    `);
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 홈 종합 요약 — 한 번에 모든 홈 데이터 ────────────────────────────────────
+router.get("/students/:id/home-summary", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(eq(parentStudentsTable.parent_id, req.user!.userId), eq(parentStudentsTable.student_id, req.params.id), eq(parentStudentsTable.status, "approved"))).limit(1);
+    if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+    const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+
+    // ── 읽음 기준 시점 ───────────────────────────────────────────────────────
+    const [diaryRead] = (await db.execute(sql`SELECT last_read_at FROM parent_content_reads WHERE parent_id = ${pa.id} AND student_id = ${req.params.id} AND content_type = 'diary'`)).rows as any[];
+    const [photoRead] = (await db.execute(sql`SELECT last_read_at FROM parent_content_reads WHERE parent_id = ${pa.id} AND student_id = ${req.params.id} AND content_type = 'photo'`)).rows as any[];
+
+    // ── unread counts ────────────────────────────────────────────────────────
+    const totalNotices = await db.execute(sql`SELECT COUNT(*) AS cnt FROM notices WHERE swimming_pool_id = ${pa.swimming_pool_id} AND status = 'published'`);
+    const readNotices  = await db.execute(sql`SELECT COUNT(*) AS cnt FROM notice_reads nr JOIN notices n ON n.id = nr.notice_id WHERE nr.parent_id = ${pa.id} AND n.swimming_pool_id = ${pa.swimming_pool_id}`);
+    const unreadNotices = Math.max(0, Number((totalNotices.rows[0] as any).cnt) - Number((readNotices.rows[0] as any).cnt));
+
+    let unreadDiaries = 0;
+    let unreadPhotos = 0;
+    if (student?.class_group_id) {
+      const dBase = diaryRead?.last_read_at ? sql`AND cd.created_at > ${diaryRead.last_read_at}` : sql``;
+      const dc = await db.execute(sql`SELECT COUNT(*) AS cnt FROM class_diaries cd WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false ${dBase}`);
+      unreadDiaries = Number((dc.rows[0] as any).cnt);
+      const pBase = photoRead?.last_read_at ? sql`AND sp.created_at > ${photoRead.last_read_at}` : sql``;
+      const pc = await db.execute(sql`SELECT COUNT(*) AS cnt FROM photo_assets_meta sp WHERE (sp.class_id = ${student.class_group_id} OR sp.student_id = ${req.params.id}) ${pBase}`);
+      unreadPhotos = Number((pc.rows[0] as any).cnt);
+    }
+
+    const msgCount = await db.execute(sql`
+      SELECT COUNT(*) AS cnt FROM messages m JOIN message_threads mt ON mt.id = m.thread_id
+      WHERE (mt.participant_1_id = ${pa.id} OR mt.participant_2_id = ${pa.id}) AND m.sender_id != ${pa.id} AND (m.read_at IS NULL)
+    `).catch(() => ({ rows: [{ cnt: 0 }] }));
+    const unreadMessages = Number((msgCount.rows[0] as any).cnt ?? 0);
+
+    // ── 최근 수업일지 2건 ────────────────────────────────────────────────────
+    let latestDiaries: any[] = [];
+    if (student?.class_group_id) {
+      const rows = await db.execute(sql`
+        SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.created_at,
+               csn.note_content AS student_note,
+               CASE WHEN ${diaryRead?.last_read_at ?? null}::timestamptz IS NULL OR cd.created_at > ${diaryRead?.last_read_at ?? null}::timestamptz THEN true ELSE false END AS is_new
+        FROM class_diaries cd
+        LEFT JOIN class_diary_student_notes csn ON csn.diary_id = cd.id AND csn.student_id = ${req.params.id} AND csn.is_deleted = false
+        WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
+        ORDER BY cd.lesson_date DESC LIMIT 2
+      `);
+      latestDiaries = rows.rows as any[];
+    }
+
+    // ── 최근 사진 4장 (썸네일용) ─────────────────────────────────────────────
+    let latestPhotos: any[] = [];
+    if (student?.class_group_id) {
+      const rows = await db.execute(sql`
+        SELECT id, caption, created_at, '/api/photos/' || id || '/file' AS file_url, album_type,
+               CASE WHEN ${photoRead?.last_read_at ?? null}::timestamptz IS NULL OR created_at > ${photoRead?.last_read_at ?? null}::timestamptz THEN true ELSE false END AS is_new
+        FROM photo_assets_meta
+        WHERE class_id = ${student.class_group_id} OR student_id = ${req.params.id}
+        ORDER BY created_at DESC LIMIT 4
+      `);
+      latestPhotos = rows.rows as any[];
+    }
+
+    // ── 최근 공지 2건 ────────────────────────────────────────────────────────
+    const readSet = new Set(((await db.execute(sql`SELECT notice_id FROM notice_reads WHERE parent_id = ${pa.id}`)).rows as any[]).map((r: any) => r.notice_id));
+    const noticeRows = await db.execute(sql`
+      SELECT id, title, content, notice_type, created_at, is_pinned
+      FROM notices WHERE swimming_pool_id = ${pa.swimming_pool_id} AND status = 'published'
+      ORDER BY is_pinned DESC, created_at DESC LIMIT 2
+    `);
+    const latestNotices = (noticeRows.rows as any[]).map(n => ({ ...n, is_read: readSet.has(n.id) }));
+
+    // ── 이번달 출석 요약 ─────────────────────────────────────────────────────
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const attRows = await db.execute(sql`
+      SELECT status FROM attendance
+      WHERE student_id = ${req.params.id}
+        AND attendance_date >= ${monthStart}::date
+      ORDER BY attendance_date DESC
+    `).catch(() => ({ rows: [] }));
+    const attList = attRows.rows as any[];
+    const attended = attList.filter((r: any) => r.status === "present").length;
+    const total = attList.length;
+    const latestStatus = attList[0]?.status ?? null;
+
+    // ── 성장 (현재 레벨) ─────────────────────────────────────────────────────
+    let growthInfo: any = null;
+    const levelRows = await db.execute(sql`
+      SELECT level, achieved_date, note, teacher_name FROM student_levels
+      WHERE student_id = ${req.params.id}
+      ORDER BY achieved_date DESC, created_at DESC LIMIT 2
+    `).catch(() => ({ rows: [] }));
+    if (levelRows.rows.length > 0) {
+      const levels = levelRows.rows as any[];
+      growthInfo = {
+        current_level: levels[0].level,
+        achieved_date: levels[0].achieved_date,
+        prev_level: levels[1]?.level ?? null,
+        note: levels[0].note,
+        teacher_name: levels[0].teacher_name,
+      };
+    }
+
+    // ── 오늘 수업 여부 ───────────────────────────────────────────────────────
+    let todaySchedule: string | null = null;
+    if (student?.class_group_id) {
+      const cgRow = await db.execute(sql`SELECT schedule_days, schedule_time FROM class_groups WHERE id = ${student.class_group_id}`).catch(() => ({ rows: [] }));
+      const cg = cgRow.rows[0] as any;
+      if (cg?.schedule_days && cg?.schedule_time) {
+        const dayMap: Record<number, string> = { 0: "일", 1: "월", 2: "화", 3: "수", 4: "목", 5: "금", 6: "토" };
+        const todayDay = dayMap[new Date().getDay()];
+        const days = cg.schedule_days.split(",").map((d: string) => d.trim());
+        if (days.some((d: string) => d.includes(todayDay))) {
+          todaySchedule = cg.schedule_time;
+        }
+      }
+    }
+
+    res.json({
+      unread_counts: { notices: unreadNotices, diaries: unreadDiaries, photos: unreadPhotos, messages: unreadMessages },
+      latest_diaries: latestDiaries,
+      latest_photos: latestPhotos,
+      latest_notices: latestNotices,
+      attendance: { attended, total, latest_status: latestStatus },
+      growth: growthInfo,
+      today_schedule: todaySchedule,
+    });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 

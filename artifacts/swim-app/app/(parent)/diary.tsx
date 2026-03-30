@@ -180,6 +180,7 @@ export default function ParentDiaryScreen() {
     try {
       const res = await apiRequest(token, `/parent/students/${selectedStudent.id}/diary`);
       if (res.ok) setEntries(await res.json());
+      apiRequest(token, `/parent/students/${selectedStudent.id}/mark-diary-read`, { method: "POST" }).catch(() => {});
     } catch { }
     finally { setLoading(false); setRefreshing(false); }
   }, [token, selectedStudent?.id]);

@@ -71,6 +71,10 @@ export default function ParentPhotosScreen() {
   const [saveErrorMsg,   setSaveErrorMsg]   = useState<string | null>(null);
 
   async function load() {
+    const sid = paramId || selectedStudent?.id;
+    if (sid) {
+      apiRequest(token, `/parent/students/${sid}/mark-photos-read`, { method: "POST" }).catch(() => {});
+    }
     try {
       const r = await apiRequest(token, "/photos/parent-view");
       const data = await safeJson(r);

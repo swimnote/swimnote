@@ -1,0 +1,109 @@
+import { LucideIcon } from "@/components/common/LucideIcon";
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
+
+interface DiaryItem {
+  id: string;
+  lesson_date?: string;
+  common_content?: string;
+  teacher_name?: string;
+  student_note?: string | null;
+  is_new?: boolean;
+}
+
+interface Props {
+  diaries: DiaryItem[];
+  onPress: () => void;
+}
+
+function fmt(d: string) {
+  const dt = new Date(d.includes("T") ? d : d + "T00:00:00");
+  return dt.toLocaleDateString("ko-KR", { month: "short", day: "numeric", weekday: "short" });
+}
+
+export function ParentLatestDiaryCard({ diaries, onPress }: Props) {
+  if (diaries.length === 0) return null;
+
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.card, { opacity: pressed ? 0.92 : 1 }]}
+      onPress={onPress}
+    >
+      <View style={styles.header}>
+        <View style={[styles.iconBg, { backgroundColor: "#EDE9FE" }]}>
+          <LucideIcon name="book-open" size={16} color="#7C3AED" />
+        </View>
+        <Text style={[styles.title, { color: C.text }]}>최근 수업일지</Text>
+        {diaries.some(d => d.is_new) && (
+          <View style={styles.newBadge}>
+            <Text style={styles.newBadgeTxt}>NEW</Text>
+          </View>
+        )}
+        <LucideIcon name="chevron-right" size={14} color={C.textMuted} />
+      </View>
+
+      {diaries.map((d, i) => (
+        <View key={d.id} style={[styles.item, i > 0 && styles.itemBorder]}>
+          <View style={styles.itemTop}>
+            <Text style={[styles.date, { color: C.textMuted }]}>
+              {d.lesson_date ? fmt(d.lesson_date) : ""}
+            </Text>
+            {d.teacher_name && (
+              <Text style={[styles.teacher, { color: C.textMuted }]}>{d.teacher_name} 선생님</Text>
+            )}
+          </View>
+          <Text style={[styles.content, { color: C.textSecondary }]} numberOfLines={2}>
+            {d.common_content || "수업 내용이 기록되지 않았습니다."}
+          </Text>
+          {d.student_note ? (
+            <View style={styles.noteBox}>
+              <LucideIcon name="user" size={11} color="#7C3AED" />
+              <Text style={[styles.noteTxt, { color: "#5B21B6" }]} numberOfLines={1}>
+                {d.student_note}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ))}
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderRadius: 16,
+    backgroundColor: C.card,
+    padding: 14,
+    gap: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  header: { flexDirection: "row", alignItems: "center", gap: 8 },
+  iconBg: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  title: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
+  newBadge: {
+    backgroundColor: "#7C3AED", borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  newBadgeTxt: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#fff" },
+  item: { gap: 5 },
+  itemBorder: { paddingTop: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  itemTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  date: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  teacher: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  content: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
+  noteBox: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "#EEDDF5", borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 5,
+  },
+  noteTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1 },
+});

@@ -40,6 +40,16 @@ export const studentRegistrationRequestsTable = pgTable("student_registration_re
   created_at: timestamp("created_at").notNull().defaultNow(),
 });
 
+// parent_content_reads: 학부모가 사진/일지를 마지막으로 확인한 시점 추적
+// content_type: 'photo' | 'diary'
+export const parentContentReadsTable = pgTable("parent_content_reads", {
+  id: text("id").primaryKey().default("gen_random_uuid()"),
+  parent_id: text("parent_id").notNull(),
+  student_id: text("student_id").notNull(),
+  content_type: text("content_type").notNull(),
+  last_read_at: timestamp("last_read_at").notNull().defaultNow(),
+});
+
 export const insertParentAccountSchema = createInsertSchema(parentAccountsTable).omit({
   created_at: true,
   updated_at: true,

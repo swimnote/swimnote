@@ -195,5 +195,22 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] revenue_logs 오류:", e.message);
   }
 
+  // parent_content_reads — 학부모 사진/일지 읽음 시점 추적
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS parent_content_reads (
+        id           text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        parent_id    text        NOT NULL,
+        student_id   text        NOT NULL,
+        content_type text        NOT NULL,
+        last_read_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (parent_id, student_id, content_type)
+      )
+    `));
+    console.log("[super-db-init] parent_content_reads 테이블 준비 완료");
+  } catch (e: any) {
+    console.warn("[super-db-init] parent_content_reads 오류:", e.message);
+  }
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }
