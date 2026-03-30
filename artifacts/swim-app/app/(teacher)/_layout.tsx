@@ -101,7 +101,7 @@ export default function TeacherLayout() {
       <Tabs.Screen
         name="students"
         listeners={makeTabListener("students")}
-        options={{ title: "회원관리", tabBarIcon: ({ color }) => <Users size={22} color={color} /> }}
+        options={{ title: "수강관리", tabBarIcon: ({ color }) => <Users size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="messenger"
