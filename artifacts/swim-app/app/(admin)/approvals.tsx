@@ -12,6 +12,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { ClassTransferModal }  from "@/components/admin/ClassTransferModal";
 import { TeacherDetailModal }  from "@/components/admin/TeacherDetailModal";
 import { ParentDetailModal }   from "@/components/admin/ParentDetailModal";
+import { ParentApproveModal }  from "@/components/admin/ParentApproveModal";
 import { ScreenLayout }  from "@/components/common/ScreenLayout";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { MainTabs }      from "@/components/common/MainTabs";
@@ -64,7 +65,7 @@ interface TeacherDetail {
 
 
 type MainTab   = "parents" | "teachers";
-type StatusFilter = "unlinked" | "approved" | "rejected";
+type StatusFilter = "unlinked" | "pending" | "approved" | "rejected";
 
 interface UnlinkedStudent {
   id: string; name: string; phone: string | null;
@@ -82,8 +83,9 @@ function parseRoles(roles: any): string[] {
 
 const _IC = "#0F172A"; const _IB = "#E6FAF8";
 const PARENT_FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
-  { key: "unlinked", label: "미연결", icon: "link",         activeColor: _IC, activeBg: _IB },
-  { key: "approved", label: "연결됨", icon: "check-circle", activeColor: _IC, activeBg: _IB },
+  { key: "pending",  label: "승인 대기", icon: "clock",        activeColor: _IC, activeBg: "#FFF1BF" },
+  { key: "unlinked", label: "미연결",   icon: "link",          activeColor: _IC, activeBg: _IB },
+  { key: "approved", label: "연결됨",   icon: "check-circle",  activeColor: _IC, activeBg: _IB },
 ];
 const TEACHER_FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
   { key: "unlinked", label: "대기",   icon: "clock",        activeColor: _IC, activeBg: _IB },
@@ -117,6 +119,8 @@ export default function ApprovalsScreen() {
 
   // 학부모 상세 팝업 — parentJoinStore 기반
   const [storeParentDetail, setStoreParentDetail] = useState<ParentJoinRequest | null>(null);
+  // 학부모 승인 팝업 (학생 정보 확인)
+  const [approveTargetReq, setApproveTargetReq] = useState<ParentJoinRequest | null>(null);
   // 학부모 거절 사유 모달
   const [storeRejectTargetId, setStoreRejectTargetId] = useState<string | null>(null);
   // 선생님 상세 팝업
@@ -176,17 +180,23 @@ export default function ApprovalsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── 학부모 승인 (API) ─────────────────────────────────────────
-  async function handleStoreApprove(reqId: string) {
+  // ── 학부모 승인 (API) ──────────────────────────────────────────
+  // childName/birthYear: 관리자가 확인/수정한 학생 정보
+  // 서버에서 이름 일치 학생 자동 연결 → 없으면 신규 생성
+  async function handleStoreApprove(reqId: string, childName?: string, birthYear?: string) {
     setProcessingId(reqId);
     try {
+      const body: any = { action: "approve", create_student: true };
+      if (childName) body.child_name = childName;
+      if (birthYear) body.child_birth_year = birthYear;
       const res = await apiRequest(token, `/admin/parent-requests/${reqId}`, {
-        method: "PATCH", body: JSON.stringify({ action: "approve" }),
+        method: "PATCH", body: JSON.stringify(body),
       });
       const d = await res.json();
       if (!res.ok) { Alert.alert("오류", d.message || "처리 중 오류가 발생했습니다."); return; }
+      setApproveTargetReq(null);
       setStoreParentDetail(null);
-      Alert.alert("승인 완료", "학부모 가입 요청이 승인되었습니다.");
+      Alert.alert("승인 완료", d.linked_student_id ? "학생 명부와 연결하여 승인했습니다." : "새 학생으로 등록하여 승인했습니다.");
       await load();
     } catch (e) { console.error(e); }
     finally { setProcessingId(null); }
@@ -302,6 +312,7 @@ export default function ApprovalsScreen() {
 
   // ── 필터링 ────────────────────────────────────────────────────
   const filteredParents = apiParentRequests.filter(r => {
+    if (filter === "pending")  return r.status === "pending" || r.status === "on_hold";
     if (filter === "approved") return r.status === "approved" || r.status === "auto_approved";
     if (filter === "rejected") return r.status === "rejected";
     return false;
@@ -313,6 +324,7 @@ export default function ApprovalsScreen() {
     return false;
   });
 
+  const pendingParentsCnt  = apiParentRequests.filter(r => r.status === "pending" || r.status === "on_hold").length;
   const unlinkedParentsCnt = unlinkedStudents.length;
   const pendingTeachersCnt = invites.filter(i => i.invite_status === "joinedPendingApproval").length;
 
@@ -321,6 +333,7 @@ export default function ApprovalsScreen() {
     return chips.map(chip => {
       let cnt = 0;
       if (mainTab === "parents") {
+        if (chip.key === "pending")  cnt = pendingParentsCnt;
         if (chip.key === "unlinked") cnt = unlinkedStudents.length;
         if (chip.key === "approved") cnt = apiParentRequests.filter(r => r.status === "approved" || r.status === "auto_approved").length;
       } else {
@@ -455,11 +468,11 @@ export default function ApprovalsScreen() {
       <SubScreenHeader title="승인 관리" />
       <MainTabs<MainTab>
         tabs={[
-          { key: "parents",  label: "학부모", badge: unlinkedParentsCnt  },
+          { key: "parents",  label: "학부모", badge: pendingParentsCnt + unlinkedParentsCnt },
           { key: "teachers", label: "선생님 승인", badge: pendingTeachersCnt },
         ]}
         active={mainTab}
-        onChange={key => { setMainTab(key); setFilter(key === "parents" ? "unlinked" : "unlinked"); }}
+        onChange={key => { setMainTab(key); setFilter(key === "parents" ? "pending" : "unlinked"); }}
       />
       <FilterChips<StatusFilter>
         chips={chipsWithCount()}
@@ -477,8 +490,9 @@ export default function ApprovalsScreen() {
     );
   }
 
-  const isParentTab   = mainTab === "parents";
-  const isUnlinkedTab = isParentTab && filter === "unlinked";
+  const isParentTab    = mainTab === "parents";
+  const isUnlinkedTab  = isParentTab && filter === "unlinked";
+  const isPendingTab   = isParentTab && filter === "pending";
   const listData: any[] = isParentTab
     ? (isUnlinkedTab ? unlinkedStudents : filteredParents)
     : filteredTeachers;
@@ -496,11 +510,16 @@ export default function ApprovalsScreen() {
             <EmptyState
               icon={isParentTab ? "users" : "send"}
               title={
-                isUnlinkedTab ? "미연결 학생이 없습니다"
-                  : filter === "approved" ? "연결된 학부모가 없습니다"
-                  : "내역이 없습니다"
+                isPendingTab  ? "승인 대기 요청이 없습니다"
+                : isUnlinkedTab ? "미연결 학생이 없습니다"
+                : filter === "approved" ? "연결된 학부모가 없습니다"
+                : "내역이 없습니다"
               }
-              subtitle={isUnlinkedTab ? "모든 학생이 학부모와 연결되었습니다" : "상단 필터에서 다른 상태를 선택해보세요"}
+              subtitle={
+                isPendingTab  ? "학부모 가입 신청이 들어오면 여기 표시됩니다"
+                : isUnlinkedTab ? "모든 학생이 학부모와 연결되었습니다"
+                : "상단 필터에서 다른 상태를 선택해보세요"
+              }
             />
           }
           renderItem={({ item }) => {
@@ -534,7 +553,7 @@ export default function ApprovalsScreen() {
                 </View>
               );
             }
-            // ── 연결된 학부모 카드 ────────────────────────────
+            // ── 학부모 카드 (승인 대기 / 연결됨) ─────────────
             if (isParentTab) {
               const req = item as ParentJoinRequest;
               const isPending = req.status === "pending" || req.status === "on_hold";
@@ -542,7 +561,7 @@ export default function ApprovalsScreen() {
                 <ApprovalCard
                   meta={buildStoreMeta(req)}
                   extra={buildStoreExtra(req)}
-                  onApprove={isPending ? () => handleStoreApprove(req.id) : undefined}
+                  onApprove={isPending ? () => setApproveTargetReq(req) : undefined}
                   onView={() => setStoreParentDetail(req)}
                 />
               );
@@ -576,16 +595,28 @@ export default function ApprovalsScreen() {
         loading={!!processingId}
       />
 
-      {/* 학부모 상세 팝업 (스토어 기반) */}
+      {/* 학부모 상세 팝업 */}
       {storeParentDetail && (
         <ParentDetailModal
           req={storeParentDetail}
           onClose={() => setStoreParentDetail(null)}
-          onApprove={() => handleStoreApprove(storeParentDetail.id)}
+          onApprove={() => { setApproveTargetReq(storeParentDetail); setStoreParentDetail(null); }}
           onHold={() => handleStoreHold(storeParentDetail.id)}
           onOpenReject={() => { setStoreParentDetail(null); setStoreRejectTargetId(storeParentDetail.id); }}
           onRevoke={() => handleStoreReApprove(storeParentDetail.id)}
           onReApprove={() => handleStoreReApprove(storeParentDetail.id)}
+        />
+      )}
+
+      {/* 학부모 학생 정보 확인 + 승인 팝업 */}
+      {approveTargetReq && (
+        <ParentApproveModal
+          req={approveTargetReq}
+          loading={processingId === approveTargetReq.id}
+          onClose={() => setApproveTargetReq(null)}
+          onConfirm={(childName, birthYear) =>
+            handleStoreApprove(approveTargetReq.id, childName, birthYear)
+          }
         />
       )}
 

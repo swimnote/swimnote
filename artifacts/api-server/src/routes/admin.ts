@@ -735,6 +735,38 @@ router.get("/withdrawn-members", requireAuth, requireRole("super_admin", "pool_a
   }
 );
 
+// ── 학생 이름 검색 (부모 승인 연결용) ─────────────────────────────────
+router.get("/students/search", requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { q } = req.query;
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      const poolId = me?.swimming_pool_id;
+      if (!poolId) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+      const nameFilter = q ? String(q).trim() : "";
+      const students = await db.execute(sql`
+        SELECT s.id, s.name, s.birth_year, s.status, s.parent_user_id,
+               cg.name AS class_name
+        FROM students s
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id
+        WHERE s.swimming_pool_id = ${poolId}
+          AND s.status NOT IN ('withdrawn', 'archived', 'deleted')
+          AND (
+            ${nameFilter.length === 0} OR
+            LOWER(REPLACE(s.name, ' ', '')) LIKE ${`%${nameFilter.toLowerCase().replace(/\s+/g, "")}%`}
+          )
+        ORDER BY s.name
+        LIMIT 30
+      `);
+      res.json({ success: true, data: students.rows });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
 router.get("/pending-connections", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {
     let poolId: string | null = null;
