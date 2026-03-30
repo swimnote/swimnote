@@ -20,7 +20,7 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "",
+        "appleId": "swimnote.admin@gmail.com",
         "ascAppId": "6761360360",
         "appleTeamId": "78G5C9G5Z4"
       },
