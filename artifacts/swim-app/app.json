@@ -14,10 +14,14 @@
       "backgroundColor": "#FFFFFF"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.swimnote.app",
+      "buildNumber": "1"
     },
     "android": {
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "pan",
+      "package": "com.swimnote.app",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/images/icon.png"
