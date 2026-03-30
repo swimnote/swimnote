@@ -32,6 +32,7 @@ import settlementRouter from "./settlement.js";
 import storageRouter from "./storage.js";
 import killSwitchRouter from "./kill-switch.js";
 import unregisteredRouter from "./unregistered.js";
+import privacyPageRouter from "./privacy-page.js";
 import superSyncRouter from "./super-sync.js";
 import superRouter from "./super.js";
 import supportTicketsRouter from "./support-tickets.js";
@@ -88,5 +89,6 @@ router.use("/super/db-status", dbStatusRouter);
 router.use("/super/infra-usage", infraUsageRouter);
 router.use("/", backupStatusRouter);
 router.use("/", restoreRouter);
+router.use("/", privacyPageRouter);
 
 export default router;
