@@ -86,11 +86,11 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   }
 }
 
-// ── 메인 홈 아이콘 정의 (5개) ────────────────────────────────────────────────
+// ── 메인 홈 아이콘 정의 (3개) ────────────────────────────────────────────────
 const IB = "#E6FAF8";
 
 const MAIN_ICONS: Array<{
-  key: PopupKey | "메신저";
+  key: PopupKey;
   label: string;
   icon: string;
   color: string;
@@ -99,7 +99,6 @@ const MAIN_ICONS: Array<{
   { key: "수업관리",  label: "수업관리",  icon: "calendar",       color: "#16A34A", bg: IB },
   { key: "매출관리",  label: "매출관리",  icon: "trending-up",    color: "#CA8A04", bg: IB },
   { key: "운영관리",  label: "운영관리",  icon: "briefcase",      color: "#1D4ED8", bg: IB },
-  { key: "메신저",    label: "메신저",    icon: "message-circle", color: "#7C3AED", bg: IB },
 ];
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
@@ -183,12 +182,8 @@ export default function DashboardScreen() {
 
   const _BIB = "#E6FAF8";
 
-  function handleIconPress(key: PopupKey | "메신저") {
-    if (key === "메신저") {
-      router.push("/(admin)/messenger");
-    } else {
-      setActivePopup(key);
-    }
+  function handleIconPress(key: PopupKey) {
+    setActivePopup(key);
   }
 
   const iconCellW = (SCREEN_W - 32 - 2 * 16) / 3;
