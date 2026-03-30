@@ -9,7 +9,7 @@
  *  5. 사진·영상 앨범 바로가기
  *  6. 기타
  */
-import { Bell, Camera, ChevronRight, FileText, HardDrive, Pencil } from "lucide-react-native";
+import { Bell, Camera, ChevronRight, FileText, HardDrive, Pencil, UserCog } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -121,6 +121,16 @@ export default function TeacherSettingsScreen() {
         >
           <Bell size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>공지함</Text>
+          <ChevronRight size={16} color="#0F172A" />
+        </Pressable>
+
+        {/* ── 선생님 설정 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
+          onPress={() => router.push("/(teacher)/my-info" as any)}
+        >
+          <UserCog size={18} color="#0F172A" />
+          <Text style={[s.actionBtnText, { color: "#0F172A" }]}>선생님 설정</Text>
           <ChevronRight size={16} color="#0F172A" />
         </Pressable>
 
