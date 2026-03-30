@@ -401,7 +401,7 @@ export default function DashboardScreen() {
                 <View style={[s.quickBtnIcon, { backgroundColor: "#F0FDF4" }]}>
                   <LucideIcon name="calendar" size={18} color="#16A34A" />
                 </View>
-                <Text style={s.quickBtnLabel}>수업 일정</Text>
+                <Text style={s.quickBtnLabel}>스케줄러</Text>
                 <Text style={s.quickBtnSub}>일정 관리</Text>
               </Pressable>
             </View>
