@@ -68,7 +68,7 @@ export default function TeacherLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: themeColor,
-        tabBarInactiveTintColor: C.tabIconDefault,
+        tabBarInactiveTintColor: C.text,
         headerShown: false,
         tabBarStyle: {
           height: 72,
