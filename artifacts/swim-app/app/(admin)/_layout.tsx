@@ -66,10 +66,11 @@ export default function AdminLayout() {
         options={{ title: "홈", tabBarIcon: ({ color }) => <Home size={22} color={color} /> }}
       />
       <Tabs.Screen
-        name="classes"
-        listeners={makeTabListener("classes")}
+        name="class-hub"
+        listeners={makeTabListener("class-hub")}
         options={{ title: "수업관리", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
       />
+      <Tabs.Screen name="classes" options={{ href: null }} />
       <Tabs.Screen
         name="people"
         listeners={makeTabListener("people")}

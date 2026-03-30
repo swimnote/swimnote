@@ -47,25 +47,13 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
 const _IB = "#E6FAF8";
 
 // ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
-type PopupKey = "수업관리" | "운영관리" | "데이터관리";
+type PopupKey = "운영관리" | "데이터관리";
 
 function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   const pending  = stats?.pending_requests ?? 0;
   const ib = _IB;
 
-  const makeups  = stats?.pending_makeups ?? 0;
-
   switch (key) {
-    case "수업관리": return [
-      { icon: "calendar",    label: "수업 스케줄",   color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/classes") },
-      { icon: "layers",      label: "반 관리",       color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/class-management") },
-      { icon: "clipboard",   label: "출결 관리",     color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/attendance") },
-      { icon: "book",        label: "수업 일지",     color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/diary-teacher-entries") },
-      { icon: "file-text",   label: "공지사항",      color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/notices") },
-      { icon: "rotate-ccw",  label: "보강 관리",     color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/makeups"), badge: makeups },
-      { icon: "x-square",    label: "휴무일 관리",   color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/holidays") },
-      { icon: "sliders",     label: "보강정책 설정", color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/makeup-policy") },
-    ];
     case "운영관리": return [
       { icon: "users",       label: "회원 명부",     color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/members") },
       { icon: "user",        label: "학부모 계정",   color: "#DB2777", bg: ib, onPress: () => router.push("/(admin)/parents") },
@@ -422,22 +410,6 @@ export default function DashboardScreen() {
             <View>
               <Text style={s.sectionLabel}>관리 메뉴</Text>
               <View style={s.iconGrid}>
-                {/* 수업관리 팝업 */}
-                <Pressable
-                  style={({ pressed }) => [s.iconCell, { width: iconCellW, opacity: pressed ? 0.7 : 1 }]}
-                  onPress={() => handleIconPress("수업관리")}
-                >
-                  <View style={[s.iconBox, { backgroundColor: IB }]}>
-                    <LucideIcon name="calendar" size={26} color="#16A34A" />
-                    {(stats?.pending_makeups ?? 0) > 0 && (
-                      <View style={s.notiBadge}>
-                        <Text style={s.notiBadgeTxt}>{stats!.pending_makeups}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={s.iconLabel}>수업관리</Text>
-                </Pressable>
-
                 {/* 팝업 아이콘들 */}
                 {MAIN_ICONS.map(item => (
                   <Pressable
@@ -476,7 +448,7 @@ export default function DashboardScreen() {
       />
 
       {/* ── 팝업들 ── */}
-      {(["수업관리", "운영관리", "데이터관리"] as PopupKey[]).map(key => (
+      {(["운영관리", "데이터관리"] as PopupKey[]).map(key => (
         <IconPopup
           key={key}
           visible={activePopup === key}
