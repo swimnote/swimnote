@@ -182,10 +182,8 @@ export default function TodayScheduleScreen() {
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}
-        contentContainerStyle={[h.scroll, { paddingBottom: insets.bottom + 40 }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}>
-
+      {/* ── 상단 고정 영역 (스탯 + 주간 + 일지 배너) ── */}
+      <View style={h.topFixed}>
         <View style={[h.todayBanner, { backgroundColor: C.card }]}>
           <Text style={h.todayDate}>{formatDate(today)}</Text>
           <View style={h.todayStatRow}>
@@ -250,8 +248,11 @@ export default function TodayScheduleScreen() {
             <ChevronRight size={16} color="rgba(255,255,255,0.8)" />
           </Pressable>
         )}
+      </View>
 
-        <View style={[h.sectionCard, { backgroundColor: C.card }]}>
+      {/* ── 오늘 수업 카드 (하단 탭바 직전까지 확장) ── */}
+      <View style={[h.classCardWrap, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[h.sectionCard, { flex: 1, backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
             <View style={[h.sectionIconBox, { backgroundColor: C.tintLight }]}>
               <Layers size={13} color={C.iconSchedule} />
@@ -261,7 +262,12 @@ export default function TodayScheduleScreen() {
               <Text style={[h.classCnt, { color: C.tint }]}>{sortedItems.length}개</Text>
             )}
           </View>
-          <View style={{ gap: 0 }}>
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
+          >
             {loading ? (
               <ActivityIndicator color={themeColor} style={{ paddingVertical: 24 }} />
             ) : sortedItems.length === 0 ? (
@@ -295,10 +301,9 @@ export default function TodayScheduleScreen() {
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
         </View>
-
-      </ScrollView>
+      </View>
 
       <MemoSheet
         visible={showMemo} item={activeItem} date={today} token={token} themeColor={themeColor}
@@ -341,6 +346,8 @@ export default function TodayScheduleScreen() {
 
 const h = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: C.background },
+  topFixed:       { paddingHorizontal: 12, paddingTop: 12, gap: 8 },
+  classCardWrap:  { flex: 1, paddingHorizontal: 12, paddingTop: 8 },
   header:         { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 14, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   poolName:       { fontSize: 18, fontFamily: "Pretendard-Regular" },
   greeting:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
