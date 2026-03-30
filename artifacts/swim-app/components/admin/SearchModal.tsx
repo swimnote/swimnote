@@ -5,6 +5,7 @@ import {
   ActivityIndicator, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
 
@@ -17,6 +18,7 @@ interface SearchModalProps {
 }
 
 export function SearchModal({ visible, onClose, token }: SearchModalProps) {
+  const insets = useSafeAreaInsets();
   const [q, setQ]           = useState("");
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -43,7 +45,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={sm.container}>
+      <View style={[sm.container, { paddingTop: insets.top + (Platform.OS === "web" ? 70 : 16) }]}>
         <View style={sm.header}>
           <View style={sm.searchBar}>
             <Search size={18} color={C.textMuted} />
@@ -126,7 +128,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
 }
 
 const sm = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: C.background, paddingTop: Platform.OS === "ios" ? 58 : 24 },
+  container:    { flex: 1, backgroundColor: C.background },
   header:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10, marginBottom: 8 },
   searchBar:    { flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: C.border },
   input:        { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
