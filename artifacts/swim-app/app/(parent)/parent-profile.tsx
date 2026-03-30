@@ -126,6 +126,13 @@ export default function ParentProfileScreen() {
               : <Text style={s.saveBtnTxt}>저장</Text>
             }
           </Pressable>
+
+          <Pressable
+            style={s.inquiryBtn}
+            onPress={() => router.push("/support-ticket-list" as any)}
+          >
+            <Text style={s.inquiryBtnTxt}>스윔노트에 문의하기</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -150,6 +157,9 @@ const s = StyleSheet.create({
   errorTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C", flex: 1 },
   saveBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
   saveBtnTxt: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },
+  inquiryBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center",
+                borderWidth: 1.5, borderColor: "#C4B5FD", backgroundColor: "#EEDDF5" },
+  inquiryBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
 });
 
 const f = StyleSheet.create({

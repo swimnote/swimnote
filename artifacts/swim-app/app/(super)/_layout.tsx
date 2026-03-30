@@ -125,6 +125,7 @@ export default function SuperLayout() {
       <Tabs.Screen name="pool-notices"             options={{ href: null }} />
       <Tabs.Screen name="db-status"                options={{ href: null }} />
       <Tabs.Screen name="infra-usage"              options={{ href: null }} />
+      <Tabs.Screen name="support-general"          options={{ href: null }} />
     </Tabs>
   );
 }

@@ -9,7 +9,7 @@
  *  5. 관리자 모드 전환 (복수 역할자만)
  *  6. 선생님 권한 탈퇴 요청
  */
-import { ChartBar, ChevronRight, Key, Lock, PenLine, Repeat, Shield, TriangleAlert, UserX, Users, X } from "lucide-react-native";
+import { ChartBar, ChevronRight, Key, Lock, MessageCircle, PenLine, Repeat, Shield, TriangleAlert, UserX, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -383,6 +383,16 @@ export default function MyInfoScreen() {
             <ChevronRight size={16} color="#2EC4B6" />
           </Pressable>
         )}
+
+        {/* ── 문의하기 ── */}
+        <Pressable
+          style={[s.actionBtn, { backgroundColor: "#EEDDF5", borderColor: "#C4B5FD" }]}
+          onPress={() => router.push("/support-ticket-list" as any)}
+        >
+          <MessageCircle size={18} color="#7C3AED" />
+          <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>스윔노트에 문의하기</Text>
+          <ChevronRight size={16} color="#7C3AED" />
+        </Pressable>
 
         {/* ── 탈퇴 요청 ── */}
         <Pressable

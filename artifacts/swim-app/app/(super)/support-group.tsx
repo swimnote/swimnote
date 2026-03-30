@@ -15,6 +15,14 @@ const C = Colors.light;
 
 const MENUS = [
   {
+    icon: "inbox" as const,
+    title: "일반 문의",
+    sub: "선생님·학부모가 보내는 일반 문의 관리",
+    path: "/(super)/support-general",
+    color: "#7C3AED",
+    bg: "#EEDDF5",
+  },
+  {
     icon: "message-circle" as const,
     title: "고객센터",
     sub: "문의 처리·SLA·환불·결제연결·에스컬레이션",

@@ -56,6 +56,7 @@ const POOL_SETTINGS: MenuItem[] = [
 
 const MY_SETTINGS: MenuItem[] = [
   { label: "내 정보",            icon: "user",            color: N,         bg: NB, route: "/(admin)/my-info",                   desc: "프로필 및 계정 정보" },
+  { label: "문의하기",           icon: "message-circle",  color: "#7C3AED", bg: "#EEDDF5", route: "/support-ticket-list",        desc: "스윔노트 고객센터 문의" },
   { label: "모드 변경",          icon: "grid",            color: N,         bg: NB, route: "/(admin)/mode",                      desc: "관리자 / 선생님 모드 전환" },
 ];
 

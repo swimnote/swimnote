@@ -218,6 +218,7 @@ function RootNav() {
     "class-assign", "parent-onboard-pool", "parent-onboard-child", "parent-onboard-nickname",
     "pool-join-request", "signup-role", "register", "teacher-activate", "teacher-invite-join",
     "terms", "privacy", "refund",
+    "support-ticket-write", "support-ticket-list", "support-ticket-detail",
   ];
 
   useEffect(() => {
@@ -330,6 +331,9 @@ function RootNav() {
       <Stack.Screen name="(teacher)" />
       <Stack.Screen name="(parent)" />
       <Stack.Screen name="class-assign" />
+      <Stack.Screen name="support-ticket-write" />
+      <Stack.Screen name="support-ticket-list" />
+      <Stack.Screen name="support-ticket-detail" />
       <Stack.Screen name="terms" />
       <Stack.Screen name="privacy" />
     </Stack>
