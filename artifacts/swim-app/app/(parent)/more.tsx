@@ -125,13 +125,6 @@ export default function ParentMoreScreen() {
           iconColor={NAVY_C} iconBg={NAVY_BG}
           onPress={() => router.push("/privacy" as any)}
         />
-        <MenuItem
-          icon="credit-card"
-          label="환불 및 결제 정책"
-          iconColor={NAVY_C} iconBg={MINT_BG}
-          onPress={() => router.push("/refund" as any)}
-        />
-
         {/* 앱 버전 */}
         <View style={[s.versionRow]}>
           <Text style={[s.versionTxt, { color: C.textMuted }]}>SwimNote v1.0.0</Text>
