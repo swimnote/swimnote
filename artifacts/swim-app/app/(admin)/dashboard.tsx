@@ -259,33 +259,48 @@ export default function DashboardScreen() {
                 </Pressable>
               </View>
 
-              {/* 2행: 보강 상태 (full-width) */}
-              <Pressable
-                style={({ pressed }) => [s.bannerWide, { opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => router.push("/(admin)/makeups")}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
-                    <LucideIcon name="rotate-ccw" size={18} color="#EA580C" />
+              {/* 2행: 보강 상태 + 인원관리 (좌우 절반) */}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                {/* 왼쪽: 보강 상태 */}
+                <Pressable
+                  style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
+                  onPress={() => router.push("/(admin)/makeups")}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
+                      <LucideIcon name="rotate-ccw" size={18} color="#EA580C" />
+                    </View>
+                    <Text style={s.bannerLabel}>보강 상태</Text>
                   </View>
-                  <Text style={s.bannerLabel}>보강 상태</Text>
-                </View>
-                <View style={{ flexDirection: "row", gap: 12 }}>
-                  <View style={s.wideSubItem}>
-                    <Text style={[s.wideSubVal, { color: "#16A34A" }]}>
-                      {stats ? String(makeupAssigned) : "—"}건
-                    </Text>
-                    <Text style={s.wideSubLabel}>남은 보강</Text>
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <View style={s.wideSubItem}>
+                      <Text style={[s.wideSubVal, { color: "#16A34A" }]}>
+                        {stats ? String(makeupAssigned) : "—"}건
+                      </Text>
+                      <Text style={s.wideSubLabel}>남은 보강</Text>
+                    </View>
+                    <View style={s.wideSubDivider} />
+                    <View style={s.wideSubItem}>
+                      <Text style={[s.wideSubVal, { color: "#EA580C" }]}>
+                        {stats ? String(stats.pending_makeups ?? 0) : "—"}건
+                      </Text>
+                      <Text style={s.wideSubLabel}>미처리 보강</Text>
+                    </View>
                   </View>
-                  <View style={s.wideSubDivider} />
-                  <View style={s.wideSubItem}>
-                    <Text style={[s.wideSubVal, { color: "#EA580C" }]}>
-                      {stats ? String(stats.pending_makeups ?? 0) : "—"}건
-                    </Text>
-                    <Text style={s.wideSubLabel}>미처리 보강</Text>
+                </Pressable>
+
+                {/* 오른쪽: 인원관리 */}
+                <Pressable
+                  style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1, justifyContent: "center", alignItems: "center", gap: 8 }]}
+                  onPress={() => router.push("/(admin)/people")}
+                >
+                  <View style={[s.bannerIcon, { backgroundColor: "#EFF6FF", marginBottom: 0 }]}>
+                    <LucideIcon name="users" size={22} color="#1D4ED8" />
                   </View>
-                </View>
-              </Pressable>
+                  <Text style={[s.bannerLabel, { fontFamily: "Pretendard-Regular" }]}>인원관리</Text>
+                  <Text style={s.bannerSub}>회원 · 선생님 · 승인</Text>
+                </Pressable>
+              </View>
 
               {/* 3행: 통합 사용량 (full-width, 3지표) */}
               <Pressable
