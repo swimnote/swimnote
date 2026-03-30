@@ -47,7 +47,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
 const _IB = "#E6FAF8";
 
 // ── 팝업 콘텐츠 정의 ─────────────────────────────────────────────────────────
-type PopupKey = "수업관리" | "보강관리" | "매출관리" | "운영관리" | "데이터관리";
+type PopupKey = "수업관리" | "매출관리" | "운영관리" | "데이터관리";
 
 function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
   const pending  = stats?.pending_requests ?? 0;
@@ -61,11 +61,8 @@ function buildPopupItems(key: PopupKey, stats: any): PopupItem[] {
       { icon: "clipboard",   label: "출결 관리",     color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/attendance") },
       { icon: "book",        label: "수업 일지",     color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/diary-teacher-entries") },
       { icon: "file-text",   label: "공지사항",      color: "#0369A1", bg: ib, onPress: () => router.push("/(admin)/notices") },
-    ];
-    case "보강관리": return [
-      { icon: "clock",       label: "보강 대기",     color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/makeups"), badge: makeups },
-      { icon: "plus-circle", label: "보강 배정",     color: "#16A34A", bg: ib, onPress: () => router.push("/(admin)/makeups") },
-      { icon: "calendar",    label: "휴무일 관리",   color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/holidays") },
+      { icon: "rotate-ccw",  label: "보강 관리",     color: "#EA580C", bg: ib, onPress: () => router.push("/(admin)/makeups"), badge: makeups },
+      { icon: "x-square",    label: "휴무일 관리",   color: "#1D4ED8", bg: ib, onPress: () => router.push("/(admin)/holidays") },
       { icon: "sliders",     label: "보강정책 설정", color: "#7C3AED", bg: ib, onPress: () => router.push("/(admin)/makeup-policy") },
     ];
     case "매출관리": return [
@@ -100,7 +97,6 @@ const MAIN_ICONS: Array<{
   bg: string;
 }> = [
   { key: "수업관리",  label: "수업관리",  icon: "calendar",       color: "#16A34A", bg: IB },
-  { key: "보강관리",  label: "보강관리",  icon: "rotate-ccw",     color: "#EA580C", bg: IB },
   { key: "매출관리",  label: "매출관리",  icon: "trending-up",    color: "#CA8A04", bg: IB },
   { key: "운영관리",  label: "운영관리",  icon: "briefcase",      color: "#1D4ED8", bg: IB },
   { key: "메신저",    label: "메신저",    icon: "message-circle", color: "#7C3AED", bg: IB },
@@ -442,7 +438,7 @@ export default function DashboardScreen() {
                   >
                     <View style={[s.iconBox, { backgroundColor: item.bg }]}>
                       <LucideIcon name={item.icon} size={26} color={item.color} />
-                      {item.key === "보강관리" && (stats?.pending_makeups ?? 0) > 0 && (
+                      {item.key === "수업관리" && (stats?.pending_makeups ?? 0) > 0 && (
                         <View style={s.notiBadge}>
                           <Text style={s.notiBadgeTxt}>{stats.pending_makeups}</Text>
                         </View>
@@ -476,7 +472,7 @@ export default function DashboardScreen() {
       />
 
       {/* ── 팝업들 (5개, 메신저 제외) ── */}
-      {(["수업관리", "보강관리", "매출관리", "운영관리", "데이터관리"] as PopupKey[]).map(key => (
+      {(["수업관리", "매출관리", "운영관리", "데이터관리"] as PopupKey[]).map(key => (
         <IconPopup
           key={key}
           visible={activePopup === key}
