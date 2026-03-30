@@ -1,0 +1,12 @@
+node_modules
+attached_assets
+screenshots
+.git
+*.log
+artifacts/api-server
+artifacts/mockup-sandbox
+artifacts/swim-app/.expo
+artifacts/swim-app/dist
+artifacts/swim-app/build
+artifacts/swim-app/android
+artifacts/swim-app/ios
