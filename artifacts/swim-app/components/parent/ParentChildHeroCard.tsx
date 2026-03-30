@@ -23,7 +23,6 @@ interface Props {
 
 export function ParentChildHeroCard({ student, unreadPhotos, unreadDiaries, todaySchedule, currentLevel, onPress, onLevelPress }: Props) {
   const hasUnread = unreadPhotos > 0 || unreadDiaries > 0;
-  const levelLabel = currentLevel?.badge_label ?? (currentLevel ? String(currentLevel.level_order) : null);
 
   return (
     <Pressable
@@ -37,11 +36,10 @@ export function ParentChildHeroCard({ student, unreadPhotos, unreadDiaries, toda
           onPress={(e) => { e.stopPropagation?.(); onLevelPress(); }}
           hitSlop={8}
         >
-          {levelLabel ? (
-            <>
-              <Text style={styles.levelNum}>{levelLabel}</Text>
-              <Text style={styles.levelSub}>LEVEL</Text>
-            </>
+          {currentLevel ? (
+            <Text style={styles.levelTxt}>
+              {"Lv." + currentLevel.level_order}
+            </Text>
           ) : (
             <LucideIcon name="award" size={22} color={C.tint} />
           )}
@@ -107,18 +105,11 @@ const styles = StyleSheet.create({
     backgroundColor: C.tintLight,
     alignItems: "center", justifyContent: "center",
   },
-  levelNum: {
-    fontSize: 18,
+  levelTxt: {
+    fontSize: 14,
     fontFamily: "Pretendard-Regular",
     color: C.tint,
-    lineHeight: 22,
-  },
-  levelSub: {
-    fontSize: 8,
-    fontFamily: "Pretendard-Regular",
-    color: C.tint,
-    letterSpacing: 0.5,
-    lineHeight: 10,
+    letterSpacing: -0.3,
   },
   name: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   className: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
