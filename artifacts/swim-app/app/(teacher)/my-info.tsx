@@ -9,7 +9,7 @@
  *  5. 관리자 모드 전환 (복수 역할자만)
  *  6. 선생님 권한 탈퇴 요청
  */
-import { ChartBar, ChevronRight, Key, Lock, PenLine, Repeat, Shield, Smartphone, TriangleAlert, UserX, Users, X } from "lucide-react-native";
+import { ChartBar, ChevronRight, Key, Lock, PenLine, Repeat, Shield, TriangleAlert, UserX, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -303,7 +303,7 @@ export default function MyInfoScreen() {
             <Text style={s.cardTitle}>보안 설정</Text>
           </View>
           <Pressable
-            style={({ pressed }) => [s.secItem, { opacity: pressed ? 0.7 : 1, borderBottomWidth: 1, borderBottomColor: C.border }]}
+            style={({ pressed }) => [s.secItem, { opacity: pressed ? 0.7 : 1 }]}
             onPress={() => { setPwCurrent(""); setPwNew(""); setPwConfirm(""); setPwMsg(""); setPwVisible(true); }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -311,19 +311,6 @@ export default function MyInfoScreen() {
               <Text style={[s.secItemLabel, { color: C.text }]}>비밀번호 변경</Text>
             </View>
             <ChevronRight size={16} color={C.textMuted} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [s.secItem, { opacity: pressed ? 0.7 : 1 }]}
-            onPress={() => router.push("/totp-setup" as any)}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Smartphone size={14} color={C.textSecondary} />
-              <Text style={[s.secItemLabel, { color: C.text }]}>Google OTP 설정</Text>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Text style={[s.permLabel, { color: C.textMuted }]}>2단계 인증</Text>
-              <ChevronRight size={16} color={C.textMuted} />
-            </View>
           </Pressable>
         </View>
 

@@ -1,4 +1,4 @@
-import { ChevronRight, Key, Lock, PenLine, Smartphone, User, X } from "lucide-react-native";
+import { ChevronRight, Key, Lock, PenLine, User, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -154,7 +154,7 @@ export default function AdminMyInfoScreen() {
             <Text style={s.cardTitle}>보안 설정</Text>
           </View>
           <Pressable
-            style={({ pressed }) => [s.secItem, { opacity: pressed ? 0.7 : 1, borderBottomWidth: 1, borderBottomColor: C.border }]}
+            style={({ pressed }) => [s.secItem, { opacity: pressed ? 0.7 : 1 }]}
             onPress={() => { setPwCurrent(""); setPwNew(""); setPwConfirm(""); setPwMsg(""); setPwVisible(true); }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -162,19 +162,6 @@ export default function AdminMyInfoScreen() {
               <Text style={[s.secItemLabel, { color: C.text }]}>비밀번호 변경</Text>
             </View>
             <ChevronRight size={16} color={C.textMuted} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [s.secItem, { opacity: pressed ? 0.7 : 1 }]}
-            onPress={() => router.push("/totp-setup" as any)}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Smartphone size={14} color={C.textSecondary} />
-              <Text style={[s.secItemLabel, { color: C.text }]}>Google OTP 설정</Text>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Text style={[s.secItemLabel, { color: C.textMuted, fontSize: 12 }]}>2단계 인증</Text>
-              <ChevronRight size={16} color={C.textMuted} />
-            </View>
           </Pressable>
         </View>
 

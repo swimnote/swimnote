@@ -56,7 +56,6 @@ const POOL_SETTINGS: MenuItem[] = [
 
 const MY_SETTINGS: MenuItem[] = [
   { label: "내 정보",            icon: "user",            color: N,         bg: NB, route: "/(admin)/my-info",                   desc: "프로필 및 계정 정보" },
-  { label: "Google OTP 설정",    icon: "smartphone",      color: "#16A34A", bg: NB, route: "/totp-setup",                        desc: "2단계 인증 관리" },
   { label: "모드 변경",          icon: "grid",            color: N,         bg: NB, route: "/(admin)/mode",                      desc: "관리자 / 선생님 모드 전환" },
 ];
 
@@ -68,17 +67,7 @@ export default function SettingsScreen() {
 
   const [switchModalVisible, setSwitchModalVisible] = useState(false);
   const [switching, setSwitching] = useState(false);
-  const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
-
   const hasMultipleRoles = (adminUser?.roles?.length ?? 0) >= 2;
-
-  useEffect(() => {
-    if (!token) return;
-    apiRequest(token, "/auth/totp/status")
-      .then(r => r.json())
-      .then((d: any) => setTotpEnabled(d.totp_enabled ?? false))
-      .catch(() => setTotpEnabled(false));
-  }, [token]);
 
   async function handleSwitchRole(role: string) {
     setSwitching(true);
@@ -154,30 +143,6 @@ export default function SettingsScreen() {
             </Pressable>
           )}
         </View>
-
-        {/* OTP 상태 배너 */}
-        {totpEnabled !== null && (
-          <Pressable
-            style={[
-              s.otpBanner,
-              { backgroundColor: totpEnabled ? "#F0FDF4" : "#FEF9EC", borderColor: totpEnabled ? "#BBF7D0" : "#FDE68A" },
-            ]}
-            onPress={() => router.push("/totp-setup" as any)}
-          >
-            <View style={[s.otpIcon, { backgroundColor: totpEnabled ? "#DCFCE7" : "#FEF3C7" }]}>
-              <LucideIcon name={totpEnabled ? "shield" : "smartphone"} size={18} color={totpEnabled ? "#16A34A" : "#D97706"} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[s.otpTitle, { color: totpEnabled ? "#15803D" : "#92400E" }]}>
-                {totpEnabled ? "Google OTP 활성화됨" : "Google OTP 미등록"}
-              </Text>
-              <Text style={[s.otpSub, { color: totpEnabled ? "#16A34A" : "#B45309" }]}>
-                {totpEnabled ? "2단계 인증이 설정되어 있습니다" : "탭하여 2단계 인증을 등록하세요"}
-              </Text>
-            </View>
-            <ChevronRight size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
-          </Pressable>
-        )}
 
         {/* 섹션들 */}
         {renderSection("수업 설정", CLASS_SETTINGS)}

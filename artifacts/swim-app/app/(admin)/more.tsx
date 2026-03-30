@@ -55,7 +55,6 @@ const SHORTCUTS = [
 
 const MISC = [
   { label: "내 정보",         icon: "user"       as const, color: N, bg: N_BG, route: "/(admin)/my-info" },
-  { label: "Google OTP 설정", icon: "smartphone" as const, color: N, bg: N_BG, route: "/totp-setup" },
   { label: "모드 변경",       icon: "grid"       as const, color: N, bg: N_BG, route: "/(admin)/mode" },
 ];
 
@@ -68,8 +67,6 @@ export default function MoreScreen() {
   const [tab, setTab] = useState<Tab>("설정 메뉴");
   const [switchModalVisible, setSwitchModalVisible] = useState(false);
   const [switching, setSwitching] = useState(false);
-  const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
-
   const hasMultipleRoles = (adminUser?.roles?.length ?? 0) >= 2;
 
   /* ─ 활동 로그 ─ */
@@ -109,14 +106,6 @@ export default function MoreScreen() {
   useEffect(() => {
     if (tab === "활동 로그") loadLogs(0);
   }, [tab]);
-
-  useEffect(() => {
-    if (!token) return;
-    apiRequest(token, "/auth/totp/status")
-      .then(r => r.json())
-      .then((d: any) => setTotpEnabled(d.totp_enabled ?? false))
-      .catch(() => setTotpEnabled(false));
-  }, [token]);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
@@ -160,30 +149,6 @@ export default function MoreScreen() {
               </Pressable>
             )}
           </View>
-
-          {/* OTP 보안 배너 */}
-          {totpEnabled !== null && (
-            <Pressable
-              style={[
-                s.otpBanner,
-                { backgroundColor: totpEnabled ? "#F0FDF4" : "#FEF9EC", borderColor: totpEnabled ? "#BBF7D0" : "#FDE68A" },
-              ]}
-              onPress={() => router.push("/totp-setup" as any)}
-            >
-              <View style={[s.otpBannerIcon, { backgroundColor: totpEnabled ? "#DCFCE7" : "#FEF3C7" }]}>
-                <LucideIcon name={totpEnabled ? "shield" : "smartphone"} size={18} color={totpEnabled ? "#16A34A" : "#D97706"} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.otpBannerTitle, { color: totpEnabled ? "#15803D" : "#92400E" }]}>
-                  {totpEnabled ? "Google OTP 활성화됨" : "Google OTP 미등록"}
-                </Text>
-                <Text style={[s.otpBannerSub, { color: totpEnabled ? "#16A34A" : "#B45309" }]}>
-                  {totpEnabled ? "2단계 인증이 설정되어 있습니다" : "탭하여 2단계 인증을 등록하세요"}
-                </Text>
-              </View>
-              <ChevronRight size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
-            </Pressable>
-          )}
 
           {/* 안내 배너 */}
           <View style={s.infoBanner}>
