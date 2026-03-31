@@ -8,3 +8,10 @@ ios
 .git
 attached_assets
 screenshots
+__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+.DS_Store
+*.md
