@@ -13,7 +13,7 @@ import { db, superAdminDb } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
-import { hashPassword } from "../lib/auth.js";
+import { hashPassword, signToken } from "../lib/auth.js";
 import { logEvent } from "../lib/event-logger.js";
 import { logChange } from "../utils/change-logger.js";
 
@@ -477,10 +477,16 @@ router.post("/public/teacher-invite/join", async (req, res) => {
       WHERE id = ${invite.id}
     `);
 
+    const jwtToken = signToken({ userId, role: "teacher", poolId: invite.swimming_pool_id });
     res.status(201).json({
       success: true,
-      message: "가입이 완료되었습니다. 수영장 관리자 승인 후 로그인 가능합니다.",
-      data: { user_id: userId }
+      message: "가입이 완료되었습니다. 수영장 관리자 승인 후 수업이 배정됩니다.",
+      token: jwtToken,
+      user: {
+        id: userId, email: email.trim().toLowerCase(),
+        name: name?.trim() || invite.name, phone: invite.phone,
+        role: "teacher", swimming_pool_id: invite.swimming_pool_id, is_activated: false,
+      },
     });
   } catch (err) {
     console.error(err);

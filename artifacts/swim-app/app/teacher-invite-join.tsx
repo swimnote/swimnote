@@ -3,7 +3,7 @@
  * - 초대 코드 입력 → 검증
  * - 이메일/비밀번호/이름 입력 → 가입 완료 → 승인 대기 안내
  */
-import { ArrowLeft, CircleAlert, CircleCheck, Droplet, Info, Key, Lock, LogIn, Send, UserPlus } from "lucide-react-native";
+import { ArrowLeft, CircleAlert, Info, Key, Lock, Send, UserPlus } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { API_BASE } from "@/context/AuthContext";
+import { API_BASE, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -21,8 +21,9 @@ interface InviteInfo { id: string; name: string; phone: string; position: string
 
 export default function TeacherInviteJoinScreen() {
   const insets = useSafeAreaInsets();
+  const { setAdminSession } = useAuth();
   const params = useLocalSearchParams();
-  const [step, setStep] = useState<"token" | "form" | "done">("token");
+  const [step, setStep] = useState<"token" | "form">("token");
   const [token, setToken] = useState(String(params.token || ""));
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -71,7 +72,9 @@ export default function TeacherInviteJoinScreen() {
       });
       const data = await res.json();
       if (!res.ok) { setFormError(data.message || "가입 중 오류가 발생했습니다."); return; }
-      setStep("done");
+      // 자동 로그인 후 선생님 홈(승인 대기 화면)으로 이동
+      await setAdminSession(data.token, data.user);
+      router.replace("/(teacher)/today-schedule" as any);
     } catch { setFormError("네트워크 오류가 발생했습니다."); }
     finally { setSubmitting(false); }
   }
@@ -230,33 +233,6 @@ export default function TeacherInviteJoinScreen() {
         </ScrollView>
       )}
 
-      {/* ── 완료 단계 ─────────────────────────────────────────── */}
-      {step === "done" && (
-        <View style={[styles.doneContainer, { paddingBottom: insets.bottom + 40 }]}>
-          <View style={[styles.doneIcon, { backgroundColor: "#E6FFFA" }]}>
-            <CircleCheck size={48} color={C.success} />
-          </View>
-          <Text style={[styles.doneTitle, { color: C.text }]}>가입이 완료됐어요!</Text>
-          {inviteInfo && (
-            <View style={[styles.donePoolBadge, { backgroundColor: C.tintLight }]}>
-              <Droplet size={16} color={C.tint} />
-              <Text style={[styles.donePoolName, { color: C.tint }]}>{inviteInfo.pool_name}</Text>
-            </View>
-          )}
-          <Text style={[styles.doneSub, { color: C.textSecondary }]}>
-            수영장 관리자 승인 후{"\n"}
-            앱 로그인이 가능합니다.{"\n\n"}
-            승인 절차는 보통 1-2일 내에{"\n"}완료됩니다.
-          </Text>
-          <Pressable
-            style={[styles.primaryBtn, { backgroundColor: C.button, width: "100%" }]}
-            onPress={() => router.replace("/login")}
-          >
-            <LogIn size={18} color="#fff" />
-            <Text style={styles.primaryBtnText}>로그인 화면으로</Text>
-          </Pressable>
-        </View>
-      )}
     </KeyboardAvoidingView>
   );
 }
@@ -285,10 +261,4 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   inputRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, height: 50 },
   textInput: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
-  doneContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40, gap: 20 },
-  doneIcon: { width: 96, height: 96, borderRadius: 30, alignItems: "center", justifyContent: "center" },
-  doneTitle: { fontSize: 24, fontFamily: "Pretendard-Regular" },
-  donePoolBadge: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  donePoolName: { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  doneSub: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 24 },
 });

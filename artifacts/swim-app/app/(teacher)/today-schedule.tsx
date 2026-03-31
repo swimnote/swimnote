@@ -158,6 +158,67 @@ export default function TodayScheduleScreen() {
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
 
+  // 미승인 선생님 → 대기 화면
+  if (adminUser && adminUser.is_activated === false) {
+    return (
+      <SafeAreaView style={h.safe} edges={[]}>
+        <View style={[h.header, { paddingTop: topPad }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[h.poolName, { color: C.text }]}>승인 대기 중</Text>
+            <Text style={h.greeting}>{adminUser.name ?? "선생님"}선생님</Text>
+          </View>
+          <Pressable onPress={logout} style={h.logoutBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <LogOut size={18} color={C.textMuted} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 20 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: "#FFF8E1", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
+            <Sun size={36} color="#F59E0B" />
+          </View>
+          <Text style={{ fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" }}>
+            수영장 관리자 승인 대기 중
+          </Text>
+          <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
+            관리자가 가입 요청을 확인하고 있어요.{"\n"}승인되면 수영장 정보가 연결되고{"\n"}스케줄을 확인할 수 있어요.
+          </Text>
+          <View style={{ borderRadius: 16, backgroundColor: C.card, padding: 16, width: "100%", gap: 10,
+            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#EFF4FF", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint }}>1</Text>
+              </View>
+              <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
+                수영장 관리자가 가입 요청을 검토해요
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#EFF4FF", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint }}>2</Text>
+              </View>
+              <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
+                승인 후 담당 수업과 학생이 연결돼요
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#EFF4FF", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint }}>3</Text>
+              </View>
+              <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
+                출석체크·일지작성·보강관리를 시작할 수 있어요
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            onPress={() => router.replace("/(teacher)/today-schedule" as any)}
+            style={({ pressed }) => ({ height: 50, borderRadius: 14, paddingHorizontal: 32, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.7 : 1, marginTop: 4 })}
+          >
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>새로고침</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={h.safe} edges={[]}>
       <View style={[h.header, { paddingTop: topPad }]}>

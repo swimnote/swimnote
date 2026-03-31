@@ -26,6 +26,7 @@ export interface AdminUser {
   role: "super_admin" | "pool_admin" | "teacher" | "sub_admin" | "platform_admin";
   swimming_pool_id?: string | null;
   roles: string[];
+  is_activated?: boolean;
 }
 
 export interface ParentAccount {
@@ -108,6 +109,7 @@ interface SessionContextType {
   adminLogin: (email: string, password: string) => Promise<void>;
   parentLogin: (identifier: string, password: string) => Promise<void>;
   setParentSession: (token: string, parent: ParentAccount) => Promise<void>;
+  setAdminSession: (token: string, user: AdminUser) => Promise<void>;
   logout: () => Promise<void>;
   refreshPool: () => Promise<void>;
   loadOwnedPools: () => Promise<void>;
@@ -351,6 +353,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setParentJoinStatus("approved");
   }
 
+  async function setAdminSession(token: string, user: AdminUser) {
+    const userWithRoles = { ...user, roles: Array.isArray((user as any).roles) ? (user as any).roles : [user.role] };
+    await AsyncStorage.multiSet([
+      ["auth_token", token], ["auth_kind", "admin"], ["auth_admin", JSON.stringify(userWithRoles)],
+    ]);
+    setToken(token);
+    setAdminUser(userWithRoles);
+    setKind("admin");
+    if (user.swimming_pool_id) await fetchPool(token);
+  }
+
   async function logout() {
     await AsyncStorage.multiRemove([
       "auth_token", "auth_kind", "auth_admin", "auth_parent",
@@ -396,7 +409,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     <SessionContext.Provider value={{
       kind, adminUser, parentAccount, token, pool, isLoading,
       allAccounts, ownedPools, parentJoinStatus, parentJoinRequestId,
-      unifiedLogin, completeTotpLogin, adminLogin, parentLogin, setParentSession,
+      unifiedLogin, completeTotpLogin, adminLogin, parentLogin, setParentSession, setAdminSession,
       logout, refreshPool, loadOwnedPools, switchPool,
       activateAccount, updateParentNickname, checkRolePermission, applyRoleSwitch,
     }}>

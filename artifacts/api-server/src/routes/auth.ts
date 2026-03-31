@@ -815,8 +815,9 @@ router.post("/teacher-self-signup", async (req, res) => {
       `);
     }
 
+    // 승인 여부에 관계없이 토큰 발급 (미승인 선생님도 제한 모드로 앱 진입 허용)
+    const token = signToken({ userId, role: "teacher", poolId: pool_id });
     if (autoApproved) {
-      const token = signToken({ userId, role: "teacher", poolId: pool_id });
       res.status(201).json({
         success: true,
         message: "가입이 완료되었습니다.",
@@ -829,9 +830,12 @@ router.post("/teacher-self-signup", async (req, res) => {
     } else {
       res.status(201).json({
         success: true,
-        message: "가입 신청이 완료되었습니다. 수영장 관리자 승인 후 로그인 가능합니다.",
+        message: "가입 신청이 완료되었습니다. 관리자 승인 후 수영장 정보가 연결됩니다.",
         pool_name: pool.name,
         status: "pending_approval",
+        auto_approved: false,
+        token,
+        user: { id: userId, email: identifier, name: name.trim(), phone: cleanedPhone, role: "teacher", swimming_pool_id: pool_id, is_activated: false },
       });
     }
   } catch (e: any) {

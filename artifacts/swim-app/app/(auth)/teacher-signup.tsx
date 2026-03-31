@@ -1,4 +1,4 @@
-import { ArrowLeft, AtSign, ChevronRight, CircleAlert, CircleCheck, Lock, MapPin, Phone, Search, User } from "lucide-react-native";
+import { ArrowLeft, AtSign, ChevronRight, CircleAlert, Lock, MapPin, Phone, Search, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { API_BASE } from "@/context/AuthContext";
+import { API_BASE, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -16,11 +16,12 @@ type Pool = { id: string; name: string; address?: string };
 
 export default function TeacherSignupScreen() {
   const insets = useSafeAreaInsets();
+  const { setAdminSession } = useAuth();
   const loginIdRef = useRef<TextInput>(null);
   const pwRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
 
-  const [step, setStep] = useState<"pool" | "info" | "done">("pool");
+  const [step, setStep] = useState<"pool" | "info">("pool");
 
   /* 수영장 검색 */
   const [query, setQuery] = useState("");
@@ -66,31 +67,10 @@ export default function TeacherSignupScreen() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
-      setStep("done");
+      // 승인 여부와 관계없이 토큰으로 세션 설정 후 선생님 홈으로 이동
+      await setAdminSession(data.token, data.user);
+      router.replace("/(teacher)/today-schedule" as any);
     } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
-  }
-
-  if (step === "done") {
-    return (
-      <View style={[styles.root, { backgroundColor: C.background }]}>
-        <View style={[styles.doneWrap, { paddingTop: insets.top + 60 }]}>
-          <View style={[styles.doneIcon, { backgroundColor: "#DFF3EC" }]}>
-            <CircleCheck size={40} color="#2E9B6F" />
-          </View>
-          <Text style={[styles.doneTitle, { color: C.text }]}>가입 요청 완료!</Text>
-          <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
-            <Text style={{ fontFamily: "Pretendard-Regular", color: C.text }}>{selectedPool?.name}</Text>
-            {" "}관리자가 요청을 확인 후 승인하면{"\n"}로그인할 수 있습니다.
-          </Text>
-          <Pressable
-            style={({ pressed }) => [styles.doneBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
-            onPress={() => router.replace("/" as any)}
-          >
-            <Text style={styles.doneBtnText}>로그인 화면으로</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
   }
 
   return (
@@ -340,11 +320,4 @@ const styles = StyleSheet.create({
   errText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   submitBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
   submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
-  /* 완료 */
-  doneWrap: { flex: 1, alignItems: "center", paddingHorizontal: 32, gap: 16 },
-  doneIcon: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  doneTitle: { fontSize: 22, fontFamily: "Pretendard-Regular" },
-  doneDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
-  doneBtn: { height: 52, borderRadius: 14, paddingHorizontal: 32, alignItems: "center", justifyContent: "center", marginTop: 12 },
-  doneBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
 });
