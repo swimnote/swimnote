@@ -24,7 +24,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 5
+      "versionCode": 11
     },
     "web": {
       "favicon": "./assets/images/icon.png"
