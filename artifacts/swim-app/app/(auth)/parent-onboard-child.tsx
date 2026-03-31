@@ -6,15 +6,14 @@
  */
 import { ArrowLeft, Calendar, Check, CircleAlert, CirclePlus, CircleX, Send, User, Zap } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState } from "react";
 import {
-  KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { apiRequest } from "@/context/AuthContext";
+import { API_BASE, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -25,6 +24,7 @@ interface ChildForm { name: string; birthDate: string; }
 
 export default function ParentOnboardChildScreen() {
   const insets = useSafeAreaInsets();
+  const { setParentSession } = useAuth();
   const params = useLocalSearchParams<{
     pool_id: string;
     pool_name: string;
@@ -76,53 +76,34 @@ export default function ParentOnboardChildScreen() {
   async function handleSubmit() {
     setError("");
     if (!validate()) return;
-    if (!params.pool_id) { setError("수영장 정보가 없습니다. 이전 단계로 돌아가 주세요."); return; }
     if (!params.loginId || !params.pw || !parentPhone) {
       setError("회원가입 정보가 없습니다. 처음부터 다시 시도해주세요."); return;
     }
 
     setSubmitting(true);
-    const validChildren = children.filter(c => c.name.trim());
-    const first = validChildren[0];
-
     try {
-      const res = await apiRequest(null, "/auth/pool-join-request", {
+      // 새 간편 가입 — 즉시 계정 생성 + 전화번호 매칭으로 자녀 자동 연결
+      const res = await fetch(`${API_BASE}/auth/simple-parent-register`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          swimming_pool_id: params.pool_id,
           parent_name: parentName,
           phone: parentPhone,
-          child_name: first.name.trim(),
-          child_birth_year: first.birthDate ? parseInt(first.birthDate.slice(0, 4)) : null,
-          children_requested: validChildren.map(c => ({
-            childName: c.name.trim(),
-            childBirthYear: c.birthDate ? parseInt(c.birthDate.slice(0, 4)) : null,
-          })),
           loginId: params.loginId,
           password: params.pw,
         }),
       });
       const json = await res.json();
 
-      if (!res.ok || !json.success) {
-        setError(json.message || "요청 중 오류가 발생했습니다.");
+      if (!res.ok) {
+        setError(json.message || "가입 중 오류가 발생했습니다.");
         return;
       }
 
-      const status: string = json.data?.status ?? "pending";
-
-      if (status === "auto_approved") {
-        router.replace("/parent-login" as any);
-      } else {
-        // pending → requestId 저장 후 대기 화면
-        const requestId: string = json.data?.id ?? "";
-        if (requestId) {
-          await AsyncStorage.setItem("parent_join_request_id", requestId);
-          await AsyncStorage.setItem("parent_join_status", "pending");
-        }
-        router.replace("/pending" as any);
-      }
-    } catch (e) {
+      // 자동 로그인 → 학부모 홈으로 바로 이동
+      await setParentSession(json.token, json.parent);
+      router.replace("/(parent)/home" as any);
+    } catch {
       setError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
       setSubmitting(false);
@@ -237,7 +218,7 @@ export default function ParentOnboardChildScreen() {
         <View style={[styles.autoHint, { backgroundColor: "#DFF3EC", borderColor: "#A7F3D0" }]}>
           <Zap size={14} color="#2EC4B6" />
           <Text style={[styles.autoHintTxt, { color: "#2EC4B6" }]}>
-            입력한 이름이 학생 명부와 일치하면 즉시 자동 승인됩니다
+            가입 즉시 학부모 모드로 입장합니다. 수영장에서 자녀를 등록하면 자동으로 연결됩니다.
           </Text>
         </View>
 
@@ -249,8 +230,10 @@ export default function ParentOnboardChildScreen() {
           onPress={handleSubmit}
           disabled={submitting}
         >
-          <Send size={16} color="#fff" />
-          <Text style={styles.submitTxt}>{submitting ? "처리 중..." : "가입 요청 보내기"}</Text>
+          {submitting
+            ? <ActivityIndicator color="#fff" size="small" />
+            : <><Send size={16} color="#fff" /><Text style={styles.submitTxt}>가입 완료</Text></>
+          }
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>

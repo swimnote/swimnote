@@ -1,4 +1,4 @@
-import { ArrowLeft, AtSign, CircleAlert, CircleCheck, Hash, Lock, UserCheck } from "lucide-react-native";
+import { ArrowLeft, AtSign, CircleAlert, Hash, Lock, UserCheck } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -8,8 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-
-import { API_BASE } from "@/context/AuthContext";
+import { API_BASE, useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 
 type InviteInfo = {
@@ -21,10 +20,11 @@ type InviteInfo = {
 
 export default function ParentCodeSignupScreen() {
   const insets = useSafeAreaInsets();
+  const { setParentSession } = useAuth();
   const pwRef = useRef<TextInput>(null);
   const pw2Ref = useRef<TextInput>(null);
 
-  const [step, setStep] = useState<"code" | "confirm" | "account" | "done">("code");
+  const [step, setStep] = useState<"code" | "confirm" | "account">("code");
   const [code, setCode] = useState("");
   const [invite, setInvite] = useState<InviteInfo | null>(null);
 
@@ -55,41 +55,27 @@ export default function ParentCodeSignupScreen() {
     if (password !== passwordConfirm) { setError("비밀번호가 일치하지 않습니다."); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/auth/parent-invite/join`, {
+      // 초대코드로 가입
+      const joinRes = await fetch(`${API_BASE}/auth/parent-invite/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: code.trim().toUpperCase(), loginId: loginId.trim(), password }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
-      setStep("done");
-    } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
-  }
+      const joinData = await joinRes.json();
+      if (!joinRes.ok) { setError(joinData.error || joinData.message || "가입 실패"); return; }
 
-  if (step === "done") {
-    return (
-      <View style={[styles.root, { backgroundColor: C.background }]}>
-        <View style={[styles.doneWrap, { paddingTop: insets.top + 60 }]}>
-          <View style={[styles.doneIcon, { backgroundColor: "#DFF3EC" }]}>
-            <CircleCheck size={40} color="#2E9B6F" />
-          </View>
-          <Text style={[styles.doneTitle, { color: C.text }]}>가입 완료!</Text>
-          <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
-            <Text style={{ fontFamily: "Pretendard-Regular", color: C.text }}>{invite?.pool_name}</Text>
-            {" "}에 가입되었습니다.{"\n"}
-            아이디{" "}
-            <Text style={{ fontFamily: "Pretendard-Regular", color: C.text }}>{loginId}</Text>
-            {"\n"}로 로그인해주세요.
-          </Text>
-          <Pressable
-            style={({ pressed }) => [styles.doneBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
-            onPress={() => router.replace("/parent-login" as any)}
-          >
-            <Text style={styles.doneBtnText}>학부모 로그인으로</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
+      // 자동 로그인
+      const loginRes = await fetch(`${API_BASE}/auth/parent-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginId: loginId.trim(), password }),
+      });
+      const loginData = await loginRes.json();
+      if (!loginRes.ok) { setError(loginData.error || "로그인 실패. 로그인 화면에서 직접 로그인해주세요."); return; }
+
+      await setParentSession(loginData.token, loginData.parent);
+      router.replace("/(parent)/home" as any);
+    } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
   }
 
   return (
@@ -331,10 +317,4 @@ const styles = StyleSheet.create({
   errText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   submitBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
   submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
-  doneWrap: { flex: 1, alignItems: "center", paddingHorizontal: 32, gap: 16 },
-  doneIcon: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  doneTitle: { fontSize: 22, fontFamily: "Pretendard-Regular" },
-  doneDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
-  doneBtn: { height: 52, borderRadius: 14, paddingHorizontal: 32, alignItems: "center", justifyContent: "center", marginTop: 12 },
-  doneBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
 });

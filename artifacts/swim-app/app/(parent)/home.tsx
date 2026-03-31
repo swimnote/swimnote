@@ -172,10 +172,11 @@ export default function ParentHomeScreen() {
     );
   }
 
-  // 자녀 미연결 — 관리자 등록 대기 화면
+  // 자녀 미연결 — 수영장 승인 대기 화면
   if (!ctxLoading && students.length === 0) {
     return (
       <View style={[s.root, { backgroundColor: C.background }]}>
+        {/* 헤더 */}
         <View style={[s.header, { paddingTop: PT }]}>
           <Text style={[s.poolName, { color: C.textMuted }]}>SwimNote</Text>
           <View style={s.headerBtns}>
@@ -187,61 +188,58 @@ export default function ParentHomeScreen() {
             </Pressable>
           </View>
         </View>
-        <ScrollView contentContainerStyle={{ flex: 1, paddingHorizontal: 20, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
-          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 20, paddingVertical: 40 }}>
-            {/* 아이콘 */}
-            <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center" }}>
-              <Link size={42} color={C.tint} />
-            </View>
-            {/* 메인 메시지 */}
-            <View style={{ alignItems: "center", gap: 10 }}>
-              <Text style={{ fontSize: 22, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" }}>
-                등록 대기 중입니다
-              </Text>
-              <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
-                수영장 관리자가 자녀를 등록하면{"\n"}이 화면에 자동으로 연결됩니다.
-              </Text>
-            </View>
-            {/* 안내 카드 */}
-            <View style={{ width: "100%", backgroundColor: C.card, borderRadius: 16, padding: 20, gap: 14, borderWidth: 1, borderColor: C.border }}>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center", marginTop: 1 }}>
-                  <Text style={{ fontSize: 14 }}>1</Text>
-                </View>
-                <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
-                  수영장에 방문하거나 전화해서 자녀 등록을 요청해 주세요.
-                </Text>
+
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: insets.bottom + 40, gap: 16 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 자녀 카드 플레이스홀더 */}
+          <View style={{ backgroundColor: C.card, borderRadius: 18, padding: 20, borderWidth: 1.5, borderColor: C.border, borderStyle: "dashed", gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center" }}>
+                <Link size={22} color={C.textMuted} />
               </View>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center", marginTop: 1 }}>
-                  <Text style={{ fontSize: 14 }}>2</Text>
-                </View>
-                <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
-                  관리자가 가입 시 입력한 전화번호로 자녀를 등록하면 자동 연결됩니다.
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
+                  수영장 승인 중
                 </Text>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center", marginTop: 1 }}>
-                  <Text style={{ fontSize: 14 }}>3</Text>
-                </View>
-                <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
-                  연결 완료 후 앱을 새로고침하면 자녀 정보를 확인할 수 있습니다.
+                <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 3 }}>
+                  관리자가 자녀를 등록하면 자동 연결됩니다
                 </Text>
               </View>
             </View>
-            {/* 새로고침 버튼 */}
-            <Pressable
-              style={{ backgroundColor: C.button, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 48 }}
-              onPress={() => refresh()}
-            >
-              <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>새로고침</Text>
-            </Pressable>
-            <Pressable onPress={() => router.push("/(parent)/more" as any)}>
-              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
-                설정 및 계정 정보 보기
-              </Text>
-            </Pressable>
           </View>
+
+          {/* 안내 카드 */}
+          <View style={{ backgroundColor: C.card, borderRadius: 16, padding: 18, gap: 14 }}>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text }}>연결 방법</Text>
+            {[
+              "수영장에 가입 사실을 알려주세요.",
+              "관리자가 가입 시 입력한 전화번호로 자녀를 등록하면 자동으로 연결됩니다.",
+              "연결 완료 후 새로고침하면 자녀 정보를 확인할 수 있습니다.",
+            ].map((txt, i) => (
+              <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center", marginTop: 1 }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.tint }}>{i + 1}</Text>
+                </View>
+                <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>{txt}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* 새로고침 버튼 */}
+          <Pressable
+            style={{ backgroundColor: C.button, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}
+            onPress={() => refresh()}
+          >
+            <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>새로고침</Text>
+          </Pressable>
+
+          <Pressable style={{ alignItems: "center", paddingTop: 4 }} onPress={() => router.push("/(parent)/more" as any)}>
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
+              설정 및 계정 정보 보기
+            </Text>
+          </Pressable>
         </ScrollView>
       </View>
     );
