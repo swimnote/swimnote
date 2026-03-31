@@ -397,13 +397,47 @@ router.post("/simple-parent-register", async (req, res) => {
 
     const pin_hash = await hashPassword(pw);
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const normPhone = ph.replace(/[^0-9]/g, "");
+
+    // 가입 전 이미 등록된 학생이 있는지 확인 (수영장 풀에서 전화번호로 매칭)
+    const matchedStudents = await db.execute(sql`
+      SELECT id, swimming_pool_id FROM students
+      WHERE REPLACE(REPLACE(parent_phone, '-', ''), ' ', '') = ${normPhone}
+        AND parent_user_id IS NULL
+        AND status NOT IN ('withdrawn', 'archived', 'deleted')
+      LIMIT 10
+    `);
+
+    // 매칭된 학생의 수영장 ID 결정 (첫 번째 매칭 기준)
+    const firstMatch = (matchedStudents.rows as any[])[0];
+    const matchedPoolId = firstMatch?.swimming_pool_id || null;
+
     await db.execute(sql`
       INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)
-      VALUES (${parentId}, NULL, ${ph}, ${pin_hash}, ${name}, ${lid || null}, true, now(), now())
+      VALUES (${parentId}, ${matchedPoolId}, ${ph}, ${pin_hash}, ${name}, ${lid || null}, true, now(), now())
     `);
+
+    // 매칭된 학생들과 자동 연결
+    for (const student of matchedStudents.rows as any[]) {
+      const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+        VALUES (${psId}, ${parentId}, ${student.id}, ${student.swimming_pool_id}, 'approved', NOW())
+        ON CONFLICT DO NOTHING
+      `);
+      await db.execute(sql`
+        UPDATE students SET parent_user_id = ${parentId}, updated_at = NOW()
+        WHERE id = ${student.id} AND parent_user_id IS NULL
+      `);
+    }
+
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
-    const token = signToken({ userId: pa.id, role: "parent_account", poolId: null });
-    res.status(201).json({ success: true, token, parent: { id: pa.id, name: pa.name, phone: pa.phone, swimming_pool_id: null } });
+    const token = signToken({ userId: pa.id, role: "parent_account", poolId: matchedPoolId });
+    res.status(201).json({
+      success: true, token,
+      parent: { id: pa.id, name: pa.name, phone: pa.phone, swimming_pool_id: matchedPoolId },
+      auto_linked: (matchedStudents.rows as any[]).length > 0,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
     if (msg.includes("unique") || msg.includes("duplicate")) return err(res, 409, "이미 사용 중인 정보입니다.");

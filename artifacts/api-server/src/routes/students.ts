@@ -273,12 +273,22 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
     // ── 초대코드 생성 ──────────────────────────────────────────────
     const invite_code = registration_path === "admin_created" ? generateInviteCode() : null;
 
-    // ── 상태 결정 ──────────────────────────────────────────────────
-    const status = parent_user_id
-      ? "active"
-      : (registration_path === "admin_created" && (parent_phone || parent_name))
-        ? "pending_parent_link"
-        : "active";
+    // ── 학부모 전화번호로 기존 계정 찾기 (자동 연결용) ──────────────
+    let resolvedParentUserId = parent_user_id || null;
+    if (!resolvedParentUserId && parent_phone) {
+      const normPhone = parent_phone.replace(/[^0-9]/g, "");
+      const matchedPa = await db.execute(sql`
+        SELECT id, swimming_pool_id FROM parent_accounts
+        WHERE REPLACE(REPLACE(phone, '-', ''), ' ', '') = ${normPhone}
+        LIMIT 1
+      `);
+      if ((matchedPa.rows as any[]).length > 0) {
+        resolvedParentUserId = (matchedPa.rows[0] as any).id;
+      }
+    }
+
+    // ── 상태 결정 (관리자 등록 학생은 반 배정 전까지 미배정) ─────────
+    const status = "unregistered";
 
     const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const [student] = await db.insert(studentsTable).values({
@@ -290,7 +300,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       birth_year: birth_year || null,
       parent_name: parent_name || null,
       parent_phone: parent_phone || null,
-      parent_user_id: parent_user_id || null,
+      parent_user_id: resolvedParentUserId,
       class_group_id: class_group_id || null,
       memo: memo || null,
       status,
@@ -300,6 +310,22 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       assigned_class_ids: [],
       schedule_labels: null,
     }).returning();
+
+    // ── 학부모 계정 자동 연결 ──────────────────────────────────────
+    if (resolvedParentUserId) {
+      const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+        VALUES (${psId}, ${resolvedParentUserId}, ${id}, ${poolId}, 'approved', NOW())
+        ON CONFLICT DO NOTHING
+      `);
+      // 학부모 계정의 수영장 연결 (미설정인 경우)
+      await db.execute(sql`
+        UPDATE parent_accounts
+        SET swimming_pool_id = ${poolId}, updated_at = NOW()
+        WHERE id = ${resolvedParentUserId} AND (swimming_pool_id IS NULL)
+      `);
+    }
 
     const enriched = await enrichWithClasses({ ...student, class_group_name: null });
     await logChange({ tenantId: poolId!, tableName: "students", recordId: student.id, changeType: "create", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id } });

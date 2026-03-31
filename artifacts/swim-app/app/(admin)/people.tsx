@@ -63,19 +63,16 @@ export default function PeopleHubScreen() {
     if (!token) return;
     setLoading(true);
     try {
-      const [statsRes, parentsRes, studentsRes, approvalsRes, unregRes] = await Promise.all([
+      const [statsRes, parentsRes, studentsRes, unregRes] = await Promise.all([
         apiRequest(token, "/admin/dashboard-stats"),
         apiRequest(token, "/admin/parents"),
         apiRequest(token, "/students"),
-        apiRequest(token, "/admin/parent-requests?status=pending"),
         apiRequest(token, "/admin/unregistered"),
       ]);
 
       const stats = statsRes.ok ? await statsRes.json() : {};
       const parents: any[] = parentsRes.ok ? await parentsRes.json() : [];
       const students: any[] = studentsRes.ok ? await studentsRes.json() : [];
-      const approvalData = approvalsRes.ok ? await approvalsRes.json() : [];
-      const approvals = Array.isArray(approvalData) ? approvalData : approvalData.data || [];
       const unreg: any[] = unregRes.ok ? await unregRes.json() : [];
 
       const linkedParents = parents.filter((p: any) =>
@@ -85,20 +82,17 @@ export default function PeopleHubScreen() {
       const activeMembers = students.filter((s: any) => s.status === "active").length;
       const inactiveMembers = students.filter((s: any) => s.status === "inactive").length;
       const withdrawnMembers = students.filter((s: any) => s.status === "withdrawn").length;
-      const unassignedMembers = students.filter((s: any) =>
-        s.status === "active" && (!s.assignedClasses || s.assignedClasses.length === 0)
-      ).length;
 
       setSummary({
         totalMembers: students.length,
         activeMembers,
         inactiveMembers,
         withdrawnMembers,
-        unassignedMembers,
+        unassignedMembers: 0,
         totalParents: parents.length,
         linkedParents,
         totalTeachers: stats.total_teachers ?? 0,
-        pendingApprovals: approvals.length,
+        pendingApprovals: 0,
         unregisteredMembers: unreg.length,
       });
     } catch {
@@ -124,17 +118,15 @@ export default function PeopleHubScreen() {
     loadSummary();
   }, [loadSummary]);
 
-  const pendingTotal = summary.pendingApprovals + summary.unregisteredMembers;
-
   return (
     <View style={s.root}>
       <SubScreenHeader
         title="인원관리"
         subtitle="회원, 학부모, 선생님, 승인 상태를 관리합니다"
         rightSlot={
-          summary.pendingApprovals > 0 ? (
+          summary.unregisteredMembers > 0 ? (
             <View style={s.badge}>
-              <Text style={s.badgeTxt}>{summary.pendingApprovals}</Text>
+              <Text style={s.badgeTxt}>{summary.unregisteredMembers}</Text>
             </View>
           ) : undefined
         }
@@ -196,18 +188,17 @@ export default function PeopleHubScreen() {
                 ]}
               />
 
-              {/* 승인·미배정 */}
+              {/* 미배정회원 */}
               <HubCard
-                icon="alert-circle"
-                title="승인·미배정"
+                icon="user-x"
+                title="미배정회원"
                 color="#D97706"
                 bg="#FFFBEB"
                 onPress={() => router.push("/(admin)/people-pending")}
                 rows={[
-                  { label: "승인대기", value: summary.pendingApprovals },
-                  { label: "미배정회원", value: summary.unregisteredMembers },
+                  { label: "미배정", value: summary.unregisteredMembers },
                 ]}
-                badge={pendingTotal > 0 ? `처리필요 ${pendingTotal}` : undefined}
+                badge={summary.unregisteredMembers > 0 ? `반 미배정 ${summary.unregisteredMembers}명` : undefined}
                 badgeColor="#D97706"
               />
 
@@ -221,13 +212,7 @@ export default function PeopleHubScreen() {
                 label="미배정회원 보기"
                 onPress={() => router.push("/(admin)/people-pending")}
                 color={themeColor}
-              />
-              <QuickBtn
-                icon="check-square"
-                label="승인 처리"
-                onPress={() => router.push("/(admin)/approvals")}
-                color={themeColor}
-                badge={summary.pendingApprovals > 0 ? summary.pendingApprovals : undefined}
+                badge={summary.unregisteredMembers > 0 ? summary.unregisteredMembers : undefined}
               />
               <QuickBtn
                 icon="upload"
@@ -239,6 +224,12 @@ export default function PeopleHubScreen() {
                 icon="send"
                 label="학부모 초대 발송"
                 onPress={() => router.push("/(admin)/people-pending")}
+                color={themeColor}
+              />
+              <QuickBtn
+                icon="users"
+                label="학부모 관리"
+                onPress={() => router.push("/(admin)/parents")}
                 color={themeColor}
               />
             </View>
