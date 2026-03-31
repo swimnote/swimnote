@@ -23,7 +23,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { API_BASE, useAuth } from "@/context/AuthContext";
+import { API_BASE, safeJson, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -114,11 +114,11 @@ export default function SignupScreen() {
     setSmsState("sending");
     try {
       const res  = await fetch(`${API_BASE}/auth/send-sms-code`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: cleaned, purpose: "signup" }) });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || "발송에 실패했습니다.");
       setSmsState("sent"); setSmsCode(""); startTimer(180);
       if (data.dev_code) setDevCode(data.dev_code);
-    } catch (e: any) { setSmsState("error"); setSmsError(e.message || "잠시 후 다시 시도해주세요."); }
+    } catch (e: any) { setSmsState("error"); setSmsError(e.message?.includes("JSON") ? "서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요." : (e.message || "잠시 후 다시 시도해주세요.")); }
   }
 
   async function handleVerifySms() {
@@ -128,7 +128,7 @@ export default function SignupScreen() {
     try {
       const cleaned = phone.replace(/[-\s]/g, "");
       const res  = await fetch(`${API_BASE}/auth/verify-sms-code`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: cleaned, code: smsCode.trim(), purpose: "signup" }) });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) { setSmsState("sent"); setSmsError(data.message || "인증번호가 올바르지 않습니다."); return; }
       if (timerRef.current) clearInterval(timerRef.current);
       setSmsState("verified");
@@ -238,7 +238,7 @@ export default function SignupScreen() {
             pool_owner_name: name.trim(),
           }),
         });
-        data = await res.json();
+        data = await safeJson(res);
         if (!res.ok) { setError(data.error || data.message || "가입에 실패했습니다."); return; }
 
       } else if (role === "teacher") {
@@ -252,7 +252,7 @@ export default function SignupScreen() {
             pool_id: selectedPool!.id,
           }),
         });
-        data = await res.json();
+        data = await safeJson(res);
         if (!res.ok) { setError(data.error || data.message || "가입에 실패했습니다."); return; }
 
         if (data.status === "pending_approval") {
@@ -275,7 +275,7 @@ export default function SignupScreen() {
             children_requested: [{ childName: childName.trim(), childBirthYear: childBirthYear.trim() ? Number(childBirthYear.trim()) : null }],
           }),
         });
-        data = await res.json();
+        data = await safeJson(res);
         if (!res.ok) { setError(data.error || data.message || "가입에 실패했습니다."); return; }
 
         if (data.data?.status !== "auto_approved") {

@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { API_BASE } from "@/context/auth/SessionContext";
+import { API_BASE, safeJson } from "@/context/auth/SessionContext";
 
 const C = Colors.light;
 type Gender = "남" | "여" | "기타";
@@ -72,7 +72,7 @@ export default function ParentSignupScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: cleaned, purpose: "parent_signup" }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || "발송에 실패했습니다.");
       setSmsState("sent");
       setSmsCode("");
@@ -96,7 +96,7 @@ export default function ParentSignupScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: cleaned, code: smsCode.trim(), purpose: "parent_signup" }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || "인증에 실패했습니다.");
       if (timerRef.current) clearInterval(timerRef.current);
       setSmsState("verified");

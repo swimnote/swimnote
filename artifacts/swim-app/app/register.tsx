@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
-import { API_BASE } from "@/context/auth/SessionContext";
+import { API_BASE, safeJson } from "@/context/auth/SessionContext";
 
 type SmsState = "idle" | "sending" | "sent" | "verifying" | "verified" | "error";
 
@@ -86,7 +86,7 @@ export default function RegisterScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: cleaned, purpose: "pool_admin_signup" }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || "발송에 실패했습니다.");
       setSmsState("sent");
       setSmsCode("");
@@ -110,7 +110,7 @@ export default function RegisterScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: cleaned, code: smsCode.trim(), purpose: "pool_admin_signup" }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || "인증에 실패했습니다.");
       if (timerRef.current) clearInterval(timerRef.current);
       setSmsState("verified");
@@ -153,7 +153,7 @@ export default function RegisterScreen() {
           pool_owner_name: form.pool_owner_name.trim(),
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || data.error || "가입에 실패했습니다.");
       await unifiedLogin(form.email.trim(), form.password);
     } catch (err: unknown) {

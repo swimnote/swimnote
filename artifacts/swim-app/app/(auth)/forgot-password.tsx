@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { API_BASE } from "@/context/AuthContext";
+import { API_BASE, safeJson } from "@/context/AuthContext";
 
 const C = Colors.light;
 type Step = "id" | "sms" | "pw" | "done";
@@ -71,7 +71,7 @@ export default function ForgotPasswordScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier: identifier.trim(), password: "____check____" }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (data.error_code === "user_not_found") {
         setError("해당 아이디로 등록된 계정이 없습니다."); return;
       }
@@ -95,7 +95,7 @@ export default function ForgotPasswordScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: cleaned, purpose: "reset_password" }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || "발송에 실패했습니다.");
       setSmsState("sent");
       setSmsCode("");
@@ -118,7 +118,7 @@ export default function ForgotPasswordScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: cleaned, code: smsCode.trim(), purpose: "reset_password" }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || "인증에 실패했습니다.");
       if (timerRef.current) clearInterval(timerRef.current);
       setSmsState("verified");
@@ -153,7 +153,7 @@ export default function ForgotPasswordScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier: identifier.trim(), new_password: newPw }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) { setError(data.error || data.message || "변경 실패"); return; }
       setStep("done");
     } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
