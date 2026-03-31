@@ -1252,25 +1252,50 @@ router.post("/verify-sms-code", async (req, res) => {
   }
 });
 
-// POST /auth/find-identifier-by-phone — 전화번호로 등록된 아이디 조회 (비밀번호 찾기용)
+// POST /auth/find-identifier-by-phone — 전화번호로 등록된 모든 계정 조회 (비밀번호 찾기용)
 router.post("/find-identifier-by-phone", async (req, res) => {
   const { phone } = req.body;
   if (!phone) return err(res, 400, "전화번호를 입력해주세요.");
   const cleaned = (phone as string).replace(/[-\s]/g, "");
   try {
+    // users 테이블 (관리자·선생님·슈퍼어드민 제외)
     const userRows = (await superAdminDb.execute(sql`
-      SELECT email FROM users WHERE phone = ${cleaned} LIMIT 1
+      SELECT u.email AS identifier, u.name, u.role, u.is_activated,
+             sp.name AS pool_name
+      FROM users u
+      LEFT JOIN swimming_pools sp ON sp.id = u.swimming_pool_id
+      WHERE u.phone = ${cleaned}
+        AND u.role NOT IN ('super_admin', 'platform_admin')
+      ORDER BY u.created_at ASC
     `)).rows as any[];
-    if (userRows.length > 0) {
-      return res.json({ success: true, identifier: userRows[0].email });
-    }
-    const parentRows = (await db.execute(sql`
-      SELECT phone FROM parent_accounts WHERE phone = ${cleaned} LIMIT 1
+
+    // parent_accounts 테이블
+    const parentRows = (await superAdminDb.execute(sql`
+      SELECT pa.phone AS identifier, pa.name, sp.name AS pool_name
+      FROM parent_accounts pa
+      LEFT JOIN swimming_pools sp ON sp.id = pa.swimming_pool_id
+      WHERE pa.phone = ${cleaned}
+      ORDER BY pa.created_at ASC
     `)).rows as any[];
-    if (parentRows.length > 0) {
-      return res.json({ success: true, identifier: cleaned });
-    }
-    return res.json({ success: false, identifier: null });
+
+    const accounts = [
+      ...userRows.map((r: any) => ({
+        type: "admin",
+        identifier: r.identifier,
+        name: r.name,
+        role: r.role,
+        pool_name: r.pool_name || null,
+        is_activated: r.is_activated,
+      })),
+      ...parentRows.map((r: any) => ({
+        type: "parent",
+        identifier: r.identifier,
+        name: r.name,
+        pool_name: r.pool_name || null,
+      })),
+    ];
+
+    return res.json({ success: true, accounts });
   } catch (e) {
     console.error("[find-identifier-by-phone]", e);
     return err(res, 500, "서버 오류가 발생했습니다.");

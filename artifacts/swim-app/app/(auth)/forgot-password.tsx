@@ -1,6 +1,6 @@
-import { ArrowLeft, CircleAlert, CircleCheck, Hash, Lock, Phone, Smartphone, Terminal, User } from "lucide-react-native";
+import { ArrowLeft, Building2, CircleAlert, GraduationCap, Hash, Lock, Phone, Terminal, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import React, { useRef, useState, useEffect } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView,
@@ -8,20 +8,34 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { API_BASE, safeJson } from "@/context/AuthContext";
+import { API_BASE, safeJson, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
-type Step = "id" | "sms" | "pw" | "done";
+type Step = "phone" | "sms" | "select" | "pw";
 type SmsState = "idle" | "sending" | "sent" | "verifying" | "verified" | "error";
+
+interface FoundAccount {
+  type: "admin" | "parent";
+  identifier: string;
+  name: string;
+  role?: string;
+  pool_name?: string | null;
+  is_activated?: boolean;
+}
+
+function roleLabel(role?: string) {
+  if (role === "teacher") return "선생님";
+  if (role === "pool_admin") return "관리자";
+  if (role === "sub_admin") return "부관리자";
+  return "관리자";
+}
 
 export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ identifier?: string }>();
-  const pwRef = useRef<TextInput>(null);
+  const { adminLogin, parentLogin } = useAuth();
   const pw2Ref = useRef<TextInput>(null);
 
-  const [step, setStep] = useState<Step>("id");
-  const [identifier, setIdentifier] = useState(params.identifier || "");
+  const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [smsState, setSmsState] = useState<SmsState>("idle");
   const [smsCode, setSmsCode] = useState("");
@@ -29,17 +43,15 @@ export default function ForgotPasswordScreen() {
   const [devCode, setDevCode] = useState<string | null>(null);
   const [timer, setTimer] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [resolvedIdentifier, setResolvedIdentifier] = useState<string | null>(null);
+
+  const [accounts, setAccounts] = useState<FoundAccount[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
   const [newPw, setNewPw] = useState("");
   const [newPw2, setNewPw2] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  function isPhoneNumber(v: string) {
-    return /^01[016789][\d\s-]{7,9}$/.test(v.trim());
-  }
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
@@ -62,30 +74,14 @@ export default function ForgotPasswordScreen() {
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   }
 
-  async function checkAccount() {
-    if (!identifier.trim()) { setError("아이디를 입력해주세요."); return; }
-    setLoading(true); setError("");
-    try {
-      const res = await fetch(`${API_BASE}/auth/unified-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: identifier.trim(), password: "____check____" }),
-      });
-      const data = await safeJson(res);
-      if (data.error_code === "user_not_found") {
-        setError("해당 아이디로 등록된 계정이 없습니다."); return;
-      }
-      if (isPhoneNumber(identifier)) {
-        setPhone(identifier.trim());
-      }
-      setStep("sms");
-    } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
+  function cleanedPhone() {
+    return phone.replace(/[-\s]/g, "");
   }
 
   async function handleSendSms() {
     setSmsError(""); setDevCode(null);
-    const cleaned = phone.replace(/[-\s]/g, "");
-    if (!/^01[016789]\d{7,8}$/.test(cleaned)) {
+    const cp = cleanedPhone();
+    if (!/^01[016789]\d{7,8}$/.test(cp)) {
       setSmsError("올바른 휴대폰 번호를 입력해주세요."); return;
     }
     setSmsState("sending");
@@ -93,13 +89,14 @@ export default function ForgotPasswordScreen() {
       const res = await fetch(`${API_BASE}/auth/send-sms-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleaned, purpose: "reset_password" }),
+        body: JSON.stringify({ phone: cp, purpose: "reset_password" }),
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || "발송에 실패했습니다.");
       setSmsState("sent");
       setSmsCode("");
       startTimer(180);
+      setStep("sms");
       if (data.dev_code) setDevCode(data.dev_code);
     } catch (e: any) {
       setSmsState("error");
@@ -112,31 +109,28 @@ export default function ForgotPasswordScreen() {
     if (smsCode.trim().length !== 6) { setSmsError("6자리 인증번호를 입력해주세요."); return; }
     setSmsState("verifying");
     try {
-      const cleaned = phone.replace(/[-\s]/g, "");
+      const cp = cleanedPhone();
       const res = await fetch(`${API_BASE}/auth/verify-sms-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleaned, code: smsCode.trim(), purpose: "reset_password" }),
+        body: JSON.stringify({ phone: cp, code: smsCode.trim(), purpose: "reset_password" }),
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || "인증에 실패했습니다.");
       if (timerRef.current) clearInterval(timerRef.current);
       setSmsState("verified");
 
-      try {
-        const lookupRes = await fetch(`${API_BASE}/auth/find-identifier-by-phone`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: cleaned }),
-        });
-        const lookupData = await lookupRes.json();
-        if (lookupData.success && lookupData.identifier) {
-          setResolvedIdentifier(lookupData.identifier);
-          setIdentifier(lookupData.identifier);
-        }
-      } catch {}
-
-      setStep("pw");
+      // 이 전화번호로 등록된 모든 계정 조회
+      const lookupRes = await fetch(`${API_BASE}/auth/find-identifier-by-phone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cp }),
+      });
+      const lookupData = await lookupRes.json();
+      const found: FoundAccount[] = lookupData.accounts || [];
+      setAccounts(found);
+      setSelectedIdx(found.length === 1 ? 0 : null);
+      setStep("select");
     } catch (e: any) {
       setSmsState("sent");
       setSmsError(e.message || "인증번호가 올바르지 않습니다.");
@@ -144,6 +138,8 @@ export default function ForgotPasswordScreen() {
   }
 
   async function resetPassword() {
+    if (selectedIdx === null) return;
+    const account = accounts[selectedIdx];
     if (!newPw || newPw.length < 4) { setError("비밀번호는 4자 이상이어야 합니다."); return; }
     if (newPw !== newPw2) { setError("비밀번호가 일치하지 않습니다."); return; }
     setLoading(true); setError("");
@@ -151,19 +147,34 @@ export default function ForgotPasswordScreen() {
       const res = await fetch(`${API_BASE}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: identifier.trim(), new_password: newPw }),
+        body: JSON.stringify({ identifier: account.identifier, new_password: newPw }),
       });
       const data = await safeJson(res);
       if (!res.ok) { setError(data.error || data.message || "변경 실패"); return; }
-      setStep("done");
-    } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
+
+      // 변경 완료 즉시 자동 로그인
+      if (account.type === "admin") {
+        await adminLogin(account.identifier, newPw);
+        const role = account.role;
+        if (role === "teacher") router.replace("/(teacher)/today-schedule" as any);
+        else router.replace("/(admin)/dashboard" as any);
+      } else {
+        await parentLogin(cleanedPhone(), newPw);
+        router.replace("/(parent)/home" as any);
+      }
+    } catch (e: any) {
+      setError(e.message || "서버 오류가 발생했습니다.");
+    } finally { setLoading(false); }
   }
 
   function goBack() {
-    if (step === "sms") setStep("id");
-    else if (step === "pw") setStep("sms");
+    if (step === "sms") { setStep("phone"); setSmsState("idle"); setSmsCode(""); setSmsError(""); }
+    else if (step === "select") setStep("sms");
+    else if (step === "pw") setStep("select");
     else router.back();
   }
+
+  const selectedAccount = selectedIdx !== null ? accounts[selectedIdx] : null;
 
   return (
     <KeyboardAvoidingView
@@ -183,144 +194,102 @@ export default function ForgotPasswordScreen() {
           <View style={{ width: 28 }} />
         </View>
 
-        {/* 완료 */}
-        {step === "done" && (
-          <View style={styles.doneWrap}>
-            <View style={[styles.doneIcon, { backgroundColor: "#E6FAF8" }]}>
-              <CircleCheck size={36} color={C.tint} />
-            </View>
-            <Text style={[styles.doneTitle, { color: C.text }]}>비밀번호 변경 완료</Text>
-            <Text style={[styles.doneDesc, { color: C.textSecondary }]}>
-              새 비밀번호로 로그인해주세요.
-            </Text>
-            <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
-              onPress={() => router.replace("/" as any)}
-            >
-              <Text style={styles.submitBtnText}>로그인 화면으로</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* 단계 1: 아이디 확인 */}
-        {step === "id" && (
+        {/* ── 단계 1: 휴대폰 번호 입력 ── */}
+        {step === "phone" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
-            <View style={[styles.iconWrap, { backgroundColor: "#E6FAF8" }]}>
-              <User size={24} color={C.tint} />
+            <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
+              <Phone size={24} color={C.tint} />
             </View>
-            <Text style={[styles.cardTitle, { color: C.text }]}>아이디 확인</Text>
+            <Text style={[styles.cardTitle, { color: C.text }]}>휴대폰 번호 입력</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
-              가입하신 아이디(또는 전화번호)를 입력해주세요.
+              가입 시 등록한 휴대폰 번호로{"\n"}인증 문자를 보내드릴게요.
             </Text>
 
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디</Text>
-              <View style={[styles.inputRow, { borderColor: identifier ? C.tint : C.border, backgroundColor: C.background }]}>
-                <User size={15} color={identifier ? C.tint : C.textMuted} />
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>휴대폰 번호</Text>
+              <View style={[styles.inputRow, { borderColor: phone ? C.tint : C.border, backgroundColor: C.background }]}>
+                <Phone size={15} color={phone ? C.tint : C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
-                  value={identifier}
-                  onChangeText={v => { setIdentifier(v); setError(""); }}
-                  placeholder="아이디 또는 전화번호"
+                  value={phone}
+                  onChangeText={v => { setPhone(v); setSmsError(""); }}
+                  placeholder="010-0000-0000"
                   placeholderTextColor={C.textMuted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
+                  keyboardType="phone-pad"
                   returnKeyType="done"
-                  onSubmitEditing={checkAccount}
+                  onSubmitEditing={handleSendSms}
                 />
               </View>
             </View>
 
-            {!!error && (
+            {!!smsError && (
               <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
                 <CircleAlert size={14} color={C.error} />
-                <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
+                <Text style={[styles.errText, { color: C.error }]}>{smsError}</Text>
               </View>
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
-              onPress={checkAccount}
-              disabled={loading}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed || smsState === "sending" ? 0.85 : 1 }]}
+              onPress={handleSendSms}
+              disabled={smsState === "sending"}
             >
-              {loading
+              {smsState === "sending"
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={styles.submitBtnText}>다음</Text>
+                : <Text style={styles.submitBtnText}>인증 문자 받기</Text>
               }
             </Pressable>
           </View>
         )}
 
-        {/* 단계 2: SMS 인증 */}
+        {/* ── 단계 2: SMS 인증 ── */}
         {step === "sms" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
-            <View style={[styles.iconWrap, { backgroundColor: "#E6FAF8" }]}>
-              <Smartphone size={24} color={C.tint} />
+            <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
+              <Hash size={24} color={C.tint} />
             </View>
-            <Text style={[styles.cardTitle, { color: C.text }]}>휴대폰 인증</Text>
+            <Text style={[styles.cardTitle, { color: C.text }]}>인증번호 입력</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
-              가입 시 등록한 휴대폰 번호로 인증해주세요.
+              <Text style={{ color: C.text }}>{phone}</Text>
+              {"\n"}로 발송된 6자리 번호를 입력해주세요.
             </Text>
 
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>휴대폰 번호</Text>
               <View style={styles.phoneRow}>
-                <View style={[styles.inputRow, { flex: 1, borderColor: phone ? C.tint : C.border, backgroundColor: C.background }]}>
-                  <Phone size={15} color={phone ? C.tint : C.textMuted} />
+                <View style={[styles.inputRow, { flex: 1, borderColor: smsCode ? C.tint : C.border, backgroundColor: C.background }]}>
+                  <Hash size={15} color={smsCode ? C.tint : C.textMuted} />
                   <TextInput
                     style={[styles.input, { color: C.text }]}
-                    value={phone}
-                    onChangeText={v => { setPhone(v); setSmsError(""); }}
-                    placeholder="010-0000-0000"
+                    value={smsCode}
+                    onChangeText={v => { setSmsCode(v.replace(/\D/g, "").slice(0, 6)); setSmsError(""); }}
+                    placeholder="인증번호 6자리"
                     placeholderTextColor={C.textMuted}
-                    keyboardType="phone-pad"
-                    returnKeyType="done"
-                    editable={smsState !== "verified"}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoFocus
                   />
+                  {timer > 0 && <Text style={[styles.timerTxt, { color: timer <= 30 ? C.error : C.textMuted }]}>{fmtTimer(timer)}</Text>}
                 </View>
                 <Pressable
-                  style={[styles.smsBtn, { backgroundColor: smsState === "verified" ? "#CBD5E1" : C.tint }]}
-                  onPress={handleSendSms}
-                  disabled={smsState === "sending" || smsState === "verified"}
+                  style={[styles.smsBtn, { backgroundColor: C.tint }]}
+                  onPress={handleVerifySms}
+                  disabled={smsState === "verifying"}
                 >
-                  {smsState === "sending"
+                  {smsState === "verifying"
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={styles.smsBtnTxt}>{smsState === "sent" || smsState === "error" ? "재발송" : "인증"}</Text>
+                    : <Text style={styles.smsBtnTxt}>확인</Text>
                   }
                 </Pressable>
               </View>
+              {!!smsError && <Text style={{ fontSize: 12, color: C.error, marginTop: 2 }}>{smsError}</Text>}
             </View>
 
-            {(smsState === "sent" || smsState === "verifying" || smsState === "error") && (
-              <View style={styles.field}>
-                <View style={styles.phoneRow}>
-                  <View style={[styles.inputRow, { flex: 1, borderColor: smsCode ? C.tint : C.border, backgroundColor: C.background }]}>
-                    <Hash size={15} color={smsCode ? C.tint : C.textMuted} />
-                    <TextInput
-                      style={[styles.input, { color: C.text }]}
-                      value={smsCode}
-                      onChangeText={v => { setSmsCode(v.replace(/\D/g, "").slice(0, 6)); setSmsError(""); }}
-                      placeholder="인증번호 6자리"
-                      placeholderTextColor={C.textMuted}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                    />
-                    {timer > 0 && <Text style={[styles.timerTxt, { color: timer <= 30 ? C.error : C.textMuted }]}>{fmtTimer(timer)}</Text>}
-                  </View>
-                  <Pressable
-                    style={[styles.smsBtn, { backgroundColor: C.tint }]}
-                    onPress={handleVerifySms}
-                    disabled={smsState === "verifying"}
-                  >
-                    {smsState === "verifying"
-                      ? <ActivityIndicator color="#fff" size="small" />
-                      : <Text style={styles.smsBtnTxt}>확인</Text>
-                    }
-                  </Pressable>
-                </View>
-                {!!smsError && <Text style={{ fontSize: 12, color: C.error, marginTop: 2 }}>{smsError}</Text>}
-              </View>
-            )}
+            <Pressable
+              style={({ pressed }) => [styles.retryBtn, { opacity: pressed ? 0.6 : 1 }]}
+              onPress={() => { setSmsState("idle"); handleSendSms(); }}
+            >
+              <Text style={[styles.retryTxt, { color: C.textMuted }]}>문자가 오지 않나요? 재발송</Text>
+            </Pressable>
 
             {devCode && (
               <View style={styles.devCodeBox}>
@@ -332,18 +301,102 @@ export default function ForgotPasswordScreen() {
           </View>
         )}
 
-        {/* 단계 3: 새 비밀번호 설정 */}
-        {step === "pw" && (
+        {/* ── 단계 3: 계정 선택 ── */}
+        {step === "select" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
-            <View style={[styles.iconWrap, { backgroundColor: "#E6FAF8" }]}>
+            <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
+              <User size={24} color={C.tint} />
+            </View>
+            <Text style={[styles.cardTitle, { color: C.text }]}>계정 선택</Text>
+            <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
+              이 번호로 등록된 계정이에요.{"\n"}비밀번호를 바꿀 계정을 선택해주세요.
+            </Text>
+
+            {accounts.length === 0 ? (
+              <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
+                <CircleAlert size={14} color={C.error} />
+                <Text style={[styles.errText, { color: C.error }]}>이 번호로 등록된 계정이 없습니다.</Text>
+              </View>
+            ) : (
+              <View style={styles.accountList}>
+                {accounts.map((acc, idx) => {
+                  const isSelected = selectedIdx === idx;
+                  return (
+                    <Pressable
+                      key={idx}
+                      style={[
+                        styles.accountItem,
+                        { borderColor: isSelected ? C.tint : C.border, backgroundColor: isSelected ? "#EFF4FF" : C.background },
+                      ]}
+                      onPress={() => setSelectedIdx(idx)}
+                    >
+                      <View style={[styles.accountIcon, { backgroundColor: isSelected ? C.tint : C.border }]}>
+                        {acc.type === "parent"
+                          ? <User size={16} color={isSelected ? "#fff" : C.textMuted} />
+                          : acc.role === "teacher"
+                            ? <GraduationCap size={16} color={isSelected ? "#fff" : C.textMuted} />
+                            : <Building2 size={16} color={isSelected ? "#fff" : C.textMuted} />
+                        }
+                      </View>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={[styles.accountName, { color: C.text }]}>{acc.name}</Text>
+                          <View style={[styles.roleBadge, { backgroundColor: isSelected ? "#D6E4FF" : "#F1F5F9" }]}>
+                            <Text style={[styles.roleBadgeTxt, { color: isSelected ? C.tint : C.textSecondary }]}>
+                              {acc.type === "parent" ? "학부모" : roleLabel(acc.role)}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.accountSub, { color: C.textMuted }]}>
+                          {acc.pool_name ? acc.pool_name + " · " : ""}
+                          {acc.identifier}
+                        </Text>
+                      </View>
+                      <View style={[styles.radioOuter, { borderColor: isSelected ? C.tint : C.border }]}>
+                        {isSelected && <View style={[styles.radioInner, { backgroundColor: C.tint }]} />}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
+            {accounts.length > 0 && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.submitBtn,
+                  { backgroundColor: selectedIdx !== null ? C.button : C.border, opacity: pressed ? 0.85 : 1 }
+                ]}
+                onPress={() => { if (selectedIdx !== null) setStep("pw"); }}
+                disabled={selectedIdx === null}
+              >
+                <Text style={styles.submitBtnText}>다음</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {/* ── 단계 4: 새 비밀번호 설정 ── */}
+        {step === "pw" && selectedAccount && (
+          <View style={[styles.card, { backgroundColor: C.card }]}>
+            <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
               <Lock size={24} color={C.tint} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>새 비밀번호 설정</Text>
-            <View style={{ alignItems: "center", gap: 4 }}>
-              <Text style={[styles.idBadgeLabel, { color: C.textMuted }]}>등록된 아이디</Text>
-              <View style={[styles.idBadge, { backgroundColor: C.background, borderColor: C.border }]}>
-                <User size={13} color={C.tint} />
-                <Text style={[styles.idBadgeText, { color: C.text }]}>{resolvedIdentifier || identifier}</Text>
+
+            {/* 선택된 계정 표시 */}
+            <View style={[styles.selectedBadge, { backgroundColor: C.background, borderColor: C.border }]}>
+              <View style={[styles.accountIcon, { backgroundColor: C.tint, width: 28, height: 28, borderRadius: 8 }]}>
+                {selectedAccount.type === "parent"
+                  ? <User size={14} color="#fff" />
+                  : selectedAccount.role === "teacher"
+                    ? <GraduationCap size={14} color="#fff" />
+                    : <Building2 size={14} color="#fff" />
+                }
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.accountName, { color: C.text }]}>{selectedAccount.name}</Text>
+                <Text style={[styles.accountSub, { color: C.textMuted }]}>{selectedAccount.identifier}</Text>
               </View>
             </View>
 
@@ -352,7 +405,6 @@ export default function ForgotPasswordScreen() {
               <View style={[styles.inputRow, { borderColor: newPw ? C.tint : C.border, backgroundColor: C.background }]}>
                 <Lock size={15} color={newPw ? C.tint : C.textMuted} />
                 <TextInput
-                  ref={pwRef}
                   style={[styles.input, { color: C.text }]}
                   value={newPw}
                   onChangeText={v => { setNewPw(v); setError(""); }}
@@ -360,6 +412,7 @@ export default function ForgotPasswordScreen() {
                   placeholderTextColor={C.textMuted}
                   secureTextEntry={!showPw}
                   returnKeyType="next"
+                  autoFocus
                   onSubmitEditing={() => pw2Ref.current?.focus()}
                 />
                 <Pressable onPress={() => setShowPw(v => !v)} hitSlop={10}>
@@ -424,9 +477,6 @@ const styles = StyleSheet.create({
   iconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 4 },
   cardTitle: { fontSize: 20, fontFamily: "Pretendard-Regular", textAlign: "center" },
   cardDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20, marginTop: -6 },
-  idBadge: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
-  idBadgeLabel: { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  idBadgeText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   field: { gap: 6 },
   fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   inputRow: {
@@ -435,9 +485,11 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
   phoneRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  smsBtn: { height: 52, paddingHorizontal: 14, borderRadius: 14, alignItems: "center", justifyContent: "center", minWidth: 70 },
+  smsBtn: { height: 52, paddingHorizontal: 16, borderRadius: 14, alignItems: "center", justifyContent: "center", minWidth: 70 },
   smsBtnTxt: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   timerTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  retryBtn: { alignSelf: "center", paddingVertical: 4 },
+  retryTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   devCodeBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF3CD", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },
   devCodeLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#856404" },
   devCodeNum: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#856404", letterSpacing: 2 },
@@ -445,8 +497,20 @@ const styles = StyleSheet.create({
   errText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   submitBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
   submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
-  doneWrap: { alignItems: "center", gap: 16, paddingTop: 40 },
-  doneIcon: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  doneTitle: { fontSize: 22, fontFamily: "Pretendard-Regular" },
-  doneDesc: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22, color: "#64748B" },
+  accountList: { gap: 10 },
+  accountItem: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderWidth: 1.5, borderRadius: 16, padding: 14,
+  },
+  accountIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  accountName: { fontSize: 15, fontFamily: "Pretendard-Regular" },
+  accountSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  roleBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  roleBadgeTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  radioInner: { width: 10, height: 10, borderRadius: 5 },
+  selectedBadge: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderWidth: 1, borderRadius: 14, padding: 12,
+  },
 });
