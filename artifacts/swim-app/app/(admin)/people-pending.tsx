@@ -6,14 +6,14 @@
 import { Check, Download, Search, Upload, X } from "lucide-react-native";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal, Platform, Pressable,
+  ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -26,13 +26,11 @@ type SubTab = "승인대기" | "미배정회원";
 interface ApprovalItem {
   id?: string;
   link_id?: string;
-  parent?: { name?: string; phone?: string };
   parent_name?: string;
   parent_phone?: string;
   phone?: string;
-  student?: { name?: string };
-  student_name?: string;
   child_name?: string;
+  children_requested?: Array<{ childName: string; childBirthYear?: number | null }>;
   requested_at?: string;
   created_at?: string;
 }
@@ -91,6 +89,13 @@ export default function PeoplePendingScreen() {
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
 
+  // 승인 확인 모달
+  const [approveModal, setApproveModal] = useState<{ visible: boolean; item: ApprovalItem | null }>({ visible: false, item: null });
+  const [approveChildName, setApproveChildName] = useState("");
+  const [approveChildBirth, setApproveChildBirth] = useState("");
+  const [approving, setApproving] = useState(false);
+  const [approveError, setApproveError] = useState("");
+
   // 미배정회원 (미등록)
   const [unreg, setUnreg] = useState<UnregItem[]>([]);
   const [loadingUnreg, setLoadingUnreg] = useState(false);
@@ -108,7 +113,7 @@ export default function PeoplePendingScreen() {
     try {
       const r = await apiRequest(token, "/admin/parent-requests?status=pending");
       if (r.ok) {
-        const d = await r.json();
+        const d = await safeJson(r);
         setApprovals(Array.isArray(d) ? d : d.data || d.items || []);
       }
     } finally { setLoadingApprovals(false); }
@@ -119,7 +124,7 @@ export default function PeoplePendingScreen() {
     setLoadingUnreg(true);
     try {
       const r = await apiRequest(token, "/admin/unregistered");
-      if (r.ok) setUnreg(await r.json());
+      if (r.ok) setUnreg(await safeJson(r));
     } finally { setLoadingUnreg(false); }
   }, [token]);
 
@@ -128,12 +133,61 @@ export default function PeoplePendingScreen() {
     loadUnreg();
   }, [loadApprovals, loadUnreg]);
 
-  const handleApprove = async (id: string, action: "approve" | "reject") => {
+  // 승인 버튼 → 팝업 표시
+  const handleApprovePress = (item: ApprovalItem) => {
+    const firstChild = item.children_requested?.[0];
+    const prefillName = firstChild?.childName || item.child_name || "";
+    const prefillBirth = firstChild?.childBirthYear ? String(firstChild.childBirthYear) : "";
+    setApproveChildName(prefillName);
+    setApproveChildBirth(prefillBirth);
+    setApproveError("");
+    setApproveModal({ visible: true, item });
+  };
+
+  // 팝업에서 최종 승인 실행
+  const handleConfirmApprove = async () => {
+    if (!approveModal.item || !token) return;
+    const childName = approveChildName.trim();
+    if (!childName) { setApproveError("어린이 이름을 입력해주세요."); return; }
+
+    const id = approveModal.item.link_id || approveModal.item.id || "";
+    setApproving(true);
+    setApproveError("");
+    try {
+      const r = await apiRequest(token, `/admin/parent-requests/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "approve",
+          create_student: true,
+          child_name: childName,
+          child_birth_year: approveChildBirth.trim() ? Number(approveChildBirth.trim()) : undefined,
+        }),
+      });
+      const d = await safeJson(r);
+      if (!r.ok) {
+        setApproveError(d.message || "승인에 실패했습니다.");
+        return;
+      }
+      // 승인 성공: 목록에서 제거 + 미배정 탭 새로고침 + 탭 전환
+      setApprovals(prev => prev.filter(a => (a.link_id || a.id) !== id));
+      setApproveModal({ visible: false, item: null });
+      await loadUnreg();
+      setSubTab("미배정회원");
+    } catch {
+      setApproveError("서버 연결에 실패했습니다.");
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  // 거절
+  const handleReject = async (item: ApprovalItem) => {
+    const id = item.link_id || item.id || "";
     await apiRequest(token, `/admin/parent-requests/${id}`, {
       method: "PATCH",
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action: "reject" }),
     });
-    loadApprovals();
+    setApprovals(prev => prev.filter(a => (a.link_id || a.id) !== id));
   };
 
   const filteredUnreg = unreg.filter(u =>
@@ -183,7 +237,7 @@ export default function PeoplePendingScreen() {
         method: "POST",
         body: JSON.stringify({ students: parsed }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       setUploading(false);
       if (res.ok && data.results) {
         setParseResults(data.results);
@@ -236,7 +290,12 @@ export default function PeoplePendingScreen() {
             refreshControl={<RefreshControl refreshing={loadingApprovals} onRefresh={loadApprovals} />}
             ListEmptyComponent={<View style={s.empty}><Text style={s.emptyTxt}>승인 대기 중인 항목이 없습니다</Text></View>}
             renderItem={({ item }) => (
-              <ApprovalCard item={item} onAction={handleApprove} themeColor={themeColor} />
+              <ApprovalCard
+                item={item}
+                themeColor={themeColor}
+                onApprove={() => handleApprovePress(item)}
+                onReject={() => handleReject(item)}
+              />
             )}
           />
         )
@@ -347,6 +406,108 @@ export default function PeoplePendingScreen() {
         </View>
       )}
 
+      {/* ── 어린이 등록 + 승인 확인 모달 ── */}
+      <Modal
+        visible={approveModal.visible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !approving && setApproveModal({ visible: false, item: null })}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable
+            style={s.modalOverlay}
+            onPress={() => !approving && setApproveModal({ visible: false, item: null })}
+          >
+            <Pressable style={s.approveSheet} onPress={e => e.stopPropagation()}>
+              {/* 헤더 */}
+              <View style={s.sheetHeader}>
+                <Text style={s.sheetTitle}>어린이 등록 후 승인</Text>
+                <Pressable onPress={() => !approving && setApproveModal({ visible: false, item: null })}>
+                  <X size={20} color={C.textSecondary} />
+                </Pressable>
+              </View>
+
+              {/* 학부모 정보 (읽기 전용) */}
+              <View style={s.infoBox}>
+                <Text style={s.infoLabel}>학부모</Text>
+                <Text style={s.infoValue}>
+                  {approveModal.item?.parent_name || "이름 없음"}
+                  {" "}
+                  <Text style={{ color: C.textSecondary }}>
+                    {approveModal.item?.phone || approveModal.item?.parent_phone || ""}
+                  </Text>
+                </Text>
+                {approveModal.item?.child_name ? (
+                  <View style={s.childRequestBadge}>
+                    <Text style={s.childRequestTxt}>가입 시 입력한 자녀 이름: {approveModal.item.child_name}</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <View style={s.divider} />
+
+              {/* 어린이 이름 입력 */}
+              <Text style={s.fieldLabel}>어린이 이름 <Text style={{ color: "#E53E3E" }}>*</Text></Text>
+              <TextInput
+                style={s.fieldInput}
+                value={approveChildName}
+                onChangeText={setApproveChildName}
+                placeholder="실제 등록할 어린이 이름"
+                placeholderTextColor={C.textSecondary}
+                autoFocus
+              />
+
+              {/* 출생연도 입력 */}
+              <Text style={[s.fieldLabel, { marginTop: 14 }]}>출생연도 <Text style={{ color: C.textSecondary, fontSize: 12 }}>(선택)</Text></Text>
+              <TextInput
+                style={s.fieldInput}
+                value={approveChildBirth}
+                onChangeText={setApproveChildBirth}
+                placeholder="예: 2018"
+                placeholderTextColor={C.textSecondary}
+                keyboardType="number-pad"
+                maxLength={4}
+              />
+
+              {/* 에러 메시지 */}
+              {!!approveError && (
+                <Text style={s.errorTxt}>{approveError}</Text>
+              )}
+
+              {/* 설명 */}
+              <Text style={s.hintTxt}>
+                승인 시 어린이가 즉시 생성되어 미배정 명단에 추가되고,{"\n"}
+                학부모 계정과 자동 연결됩니다.
+              </Text>
+
+              {/* 버튼 */}
+              <View style={s.sheetBtns}>
+                <Pressable
+                  style={s.cancelBtn}
+                  onPress={() => !approving && setApproveModal({ visible: false, item: null })}
+                  disabled={approving}
+                >
+                  <Text style={s.cancelBtnTxt}>취소</Text>
+                </Pressable>
+                <Pressable
+                  style={[s.confirmBtn, { backgroundColor: C.button }, approving && { opacity: 0.6 }]}
+                  onPress={handleConfirmApprove}
+                  disabled={approving}
+                >
+                  {approving
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={s.confirmBtnTxt}>등록하며 승인</Text>
+                  }
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* 업로드 결과 Modal */}
       <Modal visible={showValidate} transparent animationType="slide" onRequestClose={() => setShowValidate(false)}>
         <View style={s.modalOverlay}>
@@ -393,9 +554,8 @@ export default function PeoplePendingScreen() {
       <ConfirmModal
         visible={showInviteConfirm}
         title="학부모 초대 발송"
-        message={`선택한 ${selectedIds.size}명의 학부모에게 초대 문자를 발송하시겠습니까?`}
+        message={`선택한 ${selectedIds.size}명의 학부모에게 앱 초대 SMS를 발송합니다.`}
         confirmText="발송"
-        cancelText="취소"
         onConfirm={() => { setShowInviteConfirm(false); sendInvites(); }}
         onCancel={() => setShowInviteConfirm(false)}
       />
@@ -403,24 +563,34 @@ export default function PeoplePendingScreen() {
   );
 }
 
-function ApprovalCard({ item, onAction, themeColor }: {
+function ApprovalCard({ item, themeColor, onApprove, onReject }: {
   item: ApprovalItem;
-  onAction: (id: string, a: "approve" | "reject") => void;
   themeColor: string;
+  onApprove: () => void;
+  onReject: () => void;
 }) {
-  const linkId = item.link_id || item.id || "";
+  const childDisplay = (() => {
+    const first = item.children_requested?.[0];
+    if (first?.childName) return first.childName;
+    return item.child_name || "미지정";
+  })();
+
   return (
     <View style={s.card}>
-      <Text style={s.name}>
-        {item.parent?.name || item.parent_name || "학부모"} → 자녀: {item.student?.name || item.student_name || item.child_name || "미지정"}
-      </Text>
-      <Text style={s.sub}>연락처: {item.parent?.phone || item.parent_phone || item.phone || "-"}</Text>
-      <Text style={s.sub2}>{new Date(item.requested_at || item.created_at || "").toLocaleDateString("ko-KR")}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <Text style={s.name}>{item.parent_name || "학부모"}</Text>
+        <View style={[s.pill, { backgroundColor: "#FFF3E0" }]}>
+          <Text style={[s.pillTxt, { color: "#D97706" }]}>승인 대기</Text>
+        </View>
+      </View>
+      <Text style={s.sub}>연락처: {item.phone || item.parent_phone || "-"}</Text>
+      <Text style={s.sub}>자녀 이름(신청): <Text style={{ color: C.text, fontWeight: "600" }}>{childDisplay}</Text></Text>
+      <Text style={s.sub2}>{new Date(item.requested_at || item.created_at || "").toLocaleDateString("ko-KR")} 신청</Text>
       <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-        <Pressable style={[s.actionBtn, { backgroundColor: C.button }]} onPress={() => onAction(linkId, "approve")}>
-          <Text style={s.actionBtnTxt}>승인</Text>
+        <Pressable style={[s.actionBtn, { backgroundColor: C.button }]} onPress={onApprove}>
+          <Text style={s.actionBtnTxt}>어린이 등록 후 승인</Text>
         </Pressable>
-        <Pressable style={[s.actionBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => onAction(linkId, "reject")}>
+        <Pressable style={[s.actionBtn, { backgroundColor: "#F9DEDA", flex: 0, paddingHorizontal: 16 }]} onPress={onReject}>
           <Text style={[s.actionBtnTxt, { color: "#D96C6C" }]}>거절</Text>
         </Pressable>
       </View>
@@ -473,6 +643,26 @@ const s = StyleSheet.create({
   inviteBtnTxt:   { fontSize: 14, fontWeight: "700", color: "#fff" },
 
   modalOverlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+
+  approveSheet:   { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
+  sheetHeader:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  sheetTitle:     { fontSize: 18, fontWeight: "700", color: C.text },
+  infoBox:        { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, marginBottom: 16 },
+  infoLabel:      { fontSize: 11, color: C.textSecondary, fontWeight: "600", marginBottom: 4 },
+  infoValue:      { fontSize: 15, fontWeight: "700", color: C.text },
+  childRequestBadge: { marginTop: 8, backgroundColor: "#FFF3E0", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  childRequestTxt: { fontSize: 12, color: "#D97706", fontWeight: "600" },
+  divider:        { height: 1, backgroundColor: C.border, marginBottom: 16 },
+  fieldLabel:     { fontSize: 13, fontWeight: "600", color: C.text, marginBottom: 6 },
+  fieldInput:     { backgroundColor: "#F8FAFC", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.border },
+  errorTxt:       { fontSize: 12, color: "#D96C6C", marginTop: 8, fontWeight: "600" },
+  hintTxt:        { fontSize: 12, color: C.textSecondary, marginTop: 12, lineHeight: 18 },
+  sheetBtns:      { flexDirection: "row", gap: 10, marginTop: 20 },
+  cancelBtn:      { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center", backgroundColor: "#F1F5F9" },
+  cancelBtnTxt:   { fontSize: 15, fontWeight: "700", color: C.textSecondary },
+  confirmBtn:     { flex: 2, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+  confirmBtnTxt:  { fontSize: 15, fontWeight: "700", color: "#fff" },
+
   validateSheet:  { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%", paddingBottom: 32 },
   validateHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 },
   validateTitle:  { fontSize: 17, fontWeight: "700", color: C.text },

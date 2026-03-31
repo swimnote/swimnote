@@ -428,7 +428,7 @@ router.patch("/admin/parent-requests/:id", requireAuth, requireRole("pool_admin"
             parent_phone: request.phone,
             parent_user_id: parentAccountId,
             registration_path: "parent_requested",
-            status: "active",
+            status: "unregistered",
             weekly_count: 1,
             invite_code: inviteCode,
             assigned_class_ids: [],
