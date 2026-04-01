@@ -977,10 +977,18 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
     // students에 first class_group_id도 업데이트 (하위 호환)
     const firstClassId = assigned_class_ids[0] || null;
 
-    // ── 낙관적 잠금: expected_updated_at이 있으면 조건부 UPDATE ──
-    const whereClause = expected_updated_at
-      ? and(eq(studentsTable.id, req.params.id), sql`date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${new Date(expected_updated_at)}::timestamptz)`)
-      : eq(studentsTable.id, req.params.id);
+    // ── 낙관적 잠금: JS로 비교 (1초 허용 오차) ──
+    if (expected_updated_at) {
+      const expectedDate = new Date(expected_updated_at);
+      const currentUpdatedAt = (existing as any).updated_at ? new Date((existing as any).updated_at) : null;
+      if (!currentUpdatedAt || Math.abs(currentUpdatedAt.getTime() - expectedDate.getTime()) > 1000) {
+        return res.status(409).json({
+          code: "ASSIGNMENT_CONFLICT",
+          message: "다른 작업자가 먼저 배정을 변경했습니다.",
+          latest_state: existing || null,
+        });
+      }
+    }
 
     const [student] = await db.update(studentsTable)
       .set({
@@ -991,18 +999,8 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
         status: "active",
         updated_at: new Date(),
       })
-      .where(whereClause)
+      .where(eq(studentsTable.id, req.params.id))
       .returning();
-
-    // 조건 불일치 → 409 Conflict
-    if (!student && expected_updated_at) {
-      const [latest] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
-      return res.status(409).json({
-        code: "ASSIGNMENT_CONFLICT",
-        message: "다른 작업자가 먼저 배정을 변경했습니다.",
-        latest_state: latest || null,
-      });
-    }
 
     // class_groups의 student_count는 GET 때 집계이므로 별도 업데이트 불필요
     const enriched = await enrichWithClasses({ ...student, assignedClasses: validClasses });
