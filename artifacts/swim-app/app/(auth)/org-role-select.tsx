@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { CircleAlert, LogOut } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
@@ -13,7 +13,6 @@ import { useAuth, type AccountEntry } from "@/context/AuthContext";
 
 const C = Colors.light;
 
-// 역할 키 → 홈 경로
 const ROLE_HOME_MAP: Record<string, string> = {
   super_admin:    "/(super)/dashboard",
   platform_admin: "/(super)/dashboard",
@@ -25,19 +24,32 @@ const ROLE_HOME_MAP: Record<string, string> = {
   parent_account: "/(parent)/home",
 };
 
+// 역할별 아이콘/색상 매핑 (ROLE_CONFIGS 기반, 없으면 기본값)
+function getRoleDisplay(roleKey: string) {
+  const cfg = ROLE_CONFIGS[roleKey];
+  if (cfg) {
+    return { label: cfg.title, icon: cfg.icon as any, color: cfg.color, bg: cfg.bgColor };
+  }
+  if (roleKey === "parent" || roleKey === "parent_account") {
+    return { label: "학부모", icon: "heart" as any, color: "#E4A93A", bg: "#FFFBEB" };
+  }
+  return { label: roleKey, icon: "user" as any, color: "#64748B", bg: "#F1F5F9" };
+}
+
 export default function OrgRoleSelectScreen() {
   const { kind, adminUser, parentAccount, pool, logout, switchRole, allAccounts, setLastUsedRole, activateAccount } = useAuth();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
 
-  // 사용 가능한 역할 목록 구성 (전체 계정에서 추출)
   const availableRoles: Array<{ entry: AccountEntry; cfg: RoleConfig; roleKey: string }> = useMemo(() => {
     const result: Array<{ entry: AccountEntry; cfg: RoleConfig; roleKey: string }> = [];
 
     for (const entry of allAccounts) {
       if (entry.kind === "parent") {
         const cfg = ROLE_CONFIGS["parent"];
-        if (cfg) result.push({ entry, cfg, roleKey: "parent" });
+        if (cfg && !result.find(x => x.roleKey === "parent")) {
+          result.push({ entry, cfg, roleKey: "parent" });
+        }
       } else if (entry.kind === "admin" && entry.user) {
         const roles: string[] = entry.user.roles?.length ? entry.user.roles : [entry.user.role];
         for (const r of roles) {
@@ -49,7 +61,6 @@ export default function OrgRoleSelectScreen() {
       }
     }
 
-    // fallback: allAccounts 비어있으면 현재 세션에서 추출
     if (result.length === 0) {
       if (kind === "parent") {
         const cfg = ROLE_CONFIGS["parent"];
@@ -71,24 +82,19 @@ export default function OrgRoleSelectScreen() {
     parentAccount?.pool_name ||
     (adminUser?.role === "super_admin" || adminUser?.role === "platform_admin" ? "스윔노트 플랫폼" : "수영장 선택");
 
-  const orgInitial = orgName.charAt(0);
-
   async function handleSelectRole(item: typeof availableRoles[0]) {
     setLoading(true);
     try {
       const { entry, roleKey } = item;
 
-      // 다른 계정 종류면 먼저 activate
       if (entry.kind !== kind && entry.token) {
         await activateAccount(entry);
       }
 
-      // 같은 admin 계정이지만 role이 다르면 switch-role
       if (entry.kind === "admin" && adminUser && adminUser.role !== roleKey && entry.token) {
         await switchRole(roleKey);
       }
 
-      // last_used_role 저장
       await setLastUsedRole(roleKey);
 
       const homePath = ROLE_HOME_MAP[roleKey] || "/org-role-select";
@@ -100,12 +106,9 @@ export default function OrgRoleSelectScreen() {
     }
   }
 
-  async function handleLogout() {
-    await logout();
-  }
-
   return (
     <View style={[styles.root, { backgroundColor: C.background, paddingBottom: insets.bottom }]}>
+      {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 16) }]}>
         <View style={styles.headerNameWrap} pointerEvents="none">
           <View style={styles.orgNameRow}>
@@ -113,7 +116,7 @@ export default function OrgRoleSelectScreen() {
             <Text style={[styles.orgName, { color: C.text }]} numberOfLines={1}>{orgName}</Text>
           </View>
         </View>
-        <Pressable onPress={handleLogout} style={styles.logoutBtn} hitSlop={8}>
+        <Pressable onPress={logout} style={styles.logoutBtn} hitSlop={8}>
           <LogOut size={18} color={C.textMuted} />
         </Pressable>
       </View>
@@ -140,19 +143,17 @@ export default function OrgRoleSelectScreen() {
         ) : (
           <View style={styles.rolesGrid}>
             {availableRoles.map(item => {
-              const isAdmin = ["pool_admin", "sub_admin", "super_admin", "platform_admin", "super_manager"].includes(item.roleKey);
-              const icon = isAdmin ? "briefcase" : "edit-3";
-              const label = isAdmin ? "운영자" : "선생님";
+              const display = getRoleDisplay(item.roleKey);
               return (
                 <Pressable
                   key={item.roleKey}
                   style={({ pressed }) => [styles.roleCard, { backgroundColor: C.card, opacity: pressed ? 0.82 : 1 }]}
                   onPress={() => handleSelectRole(item)}
                 >
-                  <View style={styles.roleIconBox}>
-                    <LucideIcon name={icon as any} size={36} color="#0F172A" />
+                  <View style={[styles.roleIconBox, { backgroundColor: display.bg }]}>
+                    <LucideIcon name={display.icon} size={36} color={display.color} />
                   </View>
-                  <Text style={[styles.roleTitle, { color: C.text }]}>{label}</Text>
+                  <Text style={[styles.roleTitle, { color: C.text }]}>{display.label}</Text>
                 </Pressable>
               );
             })}
@@ -177,16 +178,15 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   signupBtn: { marginTop: 4, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 },
   signupBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
-  rolesGrid: { flexDirection: "row", gap: 16, justifyContent: "center" },
+  rolesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 16, justifyContent: "center" },
   roleCard: {
-    flex: 1, maxWidth: 160, borderRadius: 24, paddingVertical: 36, paddingHorizontal: 16,
+    width: 140, borderRadius: 24, paddingVertical: 36, paddingHorizontal: 16,
     alignItems: "center", gap: 16,
     shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4,
   },
   roleIconBox: {
     width: 84, height: 84, borderRadius: 26,
-    backgroundColor: "#DFF6F4",
     alignItems: "center", justifyContent: "center",
   },
-  roleTitle: { fontSize: 20, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  roleTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", textAlign: "center" },
 });

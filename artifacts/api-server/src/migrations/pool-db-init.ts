@@ -918,4 +918,23 @@ export async function initPoolDb(): Promise<void> {
   // ── 학부모 간편가입: swimming_pool_id nullable 허용 + is_active 컬럼 추가 ──
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ALTER COLUMN swimming_pool_id DROP NOT NULL`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});
+
+  // ── 학부모 수업 요청 테이블 (결석/보강/연기/퇴원/상담/문의) ──────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS parent_student_requests (
+      id               text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      swimming_pool_id text        NOT NULL,
+      student_id       text        NOT NULL,
+      parent_id        text        NOT NULL,
+      request_type     text        NOT NULL,
+      request_date     text,
+      content          text,
+      status           text        NOT NULL DEFAULT 'pending',
+      processed_by     text,
+      processed_at     timestamptz,
+      admin_note       text,
+      created_at       timestamptz NOT NULL DEFAULT now(),
+      updated_at       timestamptz NOT NULL DEFAULT now()
+    );
+  `)).catch(() => {});
 }

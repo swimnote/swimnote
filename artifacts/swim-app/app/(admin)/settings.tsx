@@ -151,7 +151,9 @@ export default function SettingsScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.profileName}>{adminUser?.name || "관리자"}</Text>
-            <Text style={s.profileRole}>수영장 관리자</Text>
+            <Text style={s.profileRole}>
+              {adminUser?.role === "pool_admin" ? "대표" : adminUser?.role === "sub_admin" ? "관리자" : "선생님"}
+            </Text>
           </View>
           {hasMultipleRoles && (
             <Pressable
@@ -225,9 +227,11 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {renderSection("수업 설정", CLASS_SETTINGS)}
-        {renderSection("운영 설정", OPS_SETTINGS)}
-        {renderSection("수영장 설정", POOL_SETTINGS)}
+        {renderSection("수업 설정", CLASS_SETTINGS.filter(m =>
+          adminUser?.role === "sub_admin" ? m.label !== "권한 설정" : true
+        ))}
+        {adminUser?.role !== "sub_admin" && renderSection("운영 설정", OPS_SETTINGS)}
+        {adminUser?.role !== "sub_admin" && renderSection("수영장 설정", POOL_SETTINGS)}
         {renderSection("계정 / 기타", MY_SETTINGS)}
       </ScrollView>
 

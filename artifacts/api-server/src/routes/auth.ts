@@ -844,6 +844,80 @@ router.post("/teacher-self-signup", async (req, res) => {
   }
 });
 
+// ── 선생님 단독 대표 가입 (개인 워크스페이스 생성) ───────────────────────
+router.post("/solo-teacher-signup", async (req, res) => {
+  const { name, loginId, password, phone, workspace_name } = req.body;
+  const identifier = (loginId?.trim() || "").toLowerCase();
+  if (!name?.trim() || !identifier || !password || !workspace_name?.trim()) {
+    return err(res, 400, "이름, 아이디, 비밀번호, 워크스페이스 이름은 필수입니다.");
+  }
+  if (password.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
+  if (identifier.length < 4) return err(res, 400, "아이디는 4자 이상이어야 합니다.");
+  try {
+    const [exist] = await superAdminDb.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.email, identifier)).limit(1);
+    if (exist) return err(res, 409, "이미 사용 중인 아이디입니다.");
+
+    const cleanPhone = phone?.replace(/[-\s]/g, "") || null;
+    const poolId = `pool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const userId = `u_solo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const wsName = workspace_name.trim();
+    const nameEn = wsName.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "").substring(0, 30) || `pool_${Date.now()}`;
+
+    await superAdminDb.execute(sql`
+      INSERT INTO swimming_pools
+        (id, name, name_en, address, phone, owner_name, owner_email,
+         admin_name, admin_email, admin_phone, approval_status, subscription_status, trial_end_at)
+      VALUES
+        (${poolId}, ${wsName}, ${nameEn}, ${"개인 워크스페이스"}, ${cleanPhone || ""},
+         ${name.trim()}, ${identifier},
+         ${name.trim()}, ${identifier}, ${cleanPhone},
+         ${"approved"}, ${"trial"}, NOW() + INTERVAL '30 days')
+    `);
+
+    const hash = await hashPassword(password);
+    await superAdminDb.execute(sql`
+      INSERT INTO users
+        (id, email, password_hash, name, phone, role,
+         swimming_pool_id, is_activated, is_admin_self_teacher,
+         phone_verified, roles, created_at, updated_at)
+      VALUES
+        (${userId}, ${identifier}, ${hash}, ${name.trim()},
+         ${cleanPhone}, ${"pool_admin"}::user_role,
+         ${poolId}, ${true}, ${true},
+         ${true}, ${"{\"pool_admin\",\"teacher\"}"}::TEXT[], now(), now())
+    `);
+
+    const inviteId = `tinv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await db.execute(sql`
+      INSERT INTO teacher_invites
+        (id, swimming_pool_id, name, phone, position,
+         invite_token, invite_status, invited_by, user_id,
+         approved_at, approved_by, approved_role, created_at, requested_at)
+      VALUES
+        (${inviteId}, ${poolId}, ${"대표선생님"}, ${cleanPhone}, ${"대표"},
+         ${inviteId}, ${"approved"}, ${userId}, ${userId},
+         now(), ${userId}, ${"teacher"}, now(), now())
+    `);
+
+    const token = signToken({ userId, role: "pool_admin", poolId });
+    res.status(201).json({
+      success: true,
+      token,
+      roles: ["pool_admin", "teacher"],
+      user: {
+        id: userId, email: identifier, name: name.trim(),
+        phone: cleanPhone, role: "pool_admin", swimming_pool_id: poolId,
+        is_activated: true, is_admin_self_teacher: true,
+        roles: ["pool_admin", "teacher"],
+      },
+    });
+  } catch (e: any) {
+    console.error("[solo-teacher-signup]", e);
+    return err(res, 500, e.message || "서버 오류가 발생했습니다.");
+  }
+});
+
 // ── 학부모 초대코드 검증 ───────────────────────────────────────────────
 router.get("/parent-invite/verify", async (req, res) => {
   const { code } = req.query as { code: string };

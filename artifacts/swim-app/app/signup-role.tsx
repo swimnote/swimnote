@@ -12,31 +12,22 @@ const C = Colors.light;
 
 const ROLES = [
   {
-    key: "admin",
-    icon: "briefcase" as const,
-    label: "수영장 운영자",
-    desc: "수영장을 등록하고 회원·선생님·수업을 관리합니다",
-    color: "#2EC4B6",
-    bg: "#EFF4FF",
-    onPress: () => router.push("/register" as any),
-  },
-  {
     key: "teacher",
     icon: "award" as const,
     label: "선생님",
-    desc: "수영장을 검색하여 가입 요청을 보냅니다",
-    color: "#2E9B6F",
-    bg: "#DFF3EC",
+    desc: "수영장에 소속되거나 개인 워크스페이스를 만들어 수업을 관리합니다",
+    color: "#2EC4B6",
+    bg: "#EFF4FF",
     onPress: () => router.push("/teacher-signup" as any),
   },
   {
     key: "parent",
     icon: "heart" as const,
     label: "학부모",
-    desc: "간편하게 가입 후 홈에서 자녀를 연결합니다",
+    desc: "선생님으로부터 초대 링크를 받아 가입합니다",
     color: "#E4A93A",
     bg: "#FFFBEB",
-    onPress: () => router.push("/pool-join-request" as any),
+    onPress: () => router.push("/parent-invite-info" as any),
   },
 ];
 
@@ -48,7 +39,6 @@ export default function SignupRoleScreen() {
       contentContainerStyle={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }]}
       showsVerticalScrollIndicator={false}
     >
-      {/* 헤더 */}
       <View style={styles.header}>
         <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
           <ArrowLeft size={20} color={C.text} />

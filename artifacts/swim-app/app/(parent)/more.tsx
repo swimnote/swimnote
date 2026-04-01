@@ -99,6 +99,13 @@ export default function ParentMoreScreen() {
           onPress={() => router.push("/(parent)/children" as any)}
         />
         <MenuItem
+          icon="clipboard-list"
+          label="수업 요청"
+          sub="결석·연기·퇴원·상담 신청"
+          iconColor={ORNG_C} iconBg={ORNG_BG}
+          onPress={() => router.push("/(parent)/requests" as any)}
+        />
+        <MenuItem
           icon="bell"
           label="공지함"
           sub="수영장 공지 전체 보기"

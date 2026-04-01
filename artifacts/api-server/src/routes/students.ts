@@ -1185,6 +1185,58 @@ router.patch("/:id/attendance/:attendanceId", requireAuth, requireRole("super_ad
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── POST /:id/purge — 퇴원 학생 개인정보 소각 (이름·부모정보 익명화) ──
+router.post("/:id/purge", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    const [existing] = await db.select().from(studentsTable)
+      .where(eq(studentsTable.id, req.params.id)).limit(1);
+    if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
+    if (req.user!.role !== "super_admin" && poolId && (existing as any).swimming_pool_id !== poolId) {
+      return err(res, 403, "접근 권한이 없습니다.");
+    }
+    const status = (existing as any).status;
+    if (!["withdrawn", "deleted"].includes(status)) {
+      return err(res, 400, `퇴원 상태인 학생만 소각할 수 있습니다. (현재 상태: ${status})`);
+    }
+    if ((existing as any).is_purged) {
+      return res.json({ success: true, message: "이미 소각된 학생입니다." });
+    }
+
+    const date = new Date().toISOString().slice(0, 7).replace("-", "");
+    await db.execute(sql`
+      UPDATE students
+      SET
+        name         = ${"탈퇴_" + date},
+        parent_name  = NULL,
+        parent_phone = NULL,
+        birth_year   = NULL,
+        memo         = NULL,
+        invite_code  = NULL,
+        parent_user_id = NULL,
+        status       = 'deleted',
+        is_purged    = true,
+        updated_at   = NOW()
+      WHERE id = ${req.params.id}
+    `).catch(() => db.execute(sql`
+      UPDATE students
+      SET
+        name         = ${"탈퇴_" + date},
+        parent_name  = NULL,
+        parent_phone = NULL,
+        birth_year   = NULL,
+        memo         = NULL,
+        invite_code  = NULL,
+        parent_user_id = NULL,
+        status       = 'deleted',
+        updated_at   = NOW()
+      WHERE id = ${req.params.id}
+    `));
+
+    res.json({ success: true, message: "개인정보가 소각되었습니다. 수업 기록은 유지됩니다." });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
 router.delete("/:id/attendance/:attendanceId", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {
     await db.delete(attendanceTable).where(eq(attendanceTable.id, req.params.attendanceId));

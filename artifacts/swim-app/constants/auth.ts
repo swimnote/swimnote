@@ -11,7 +11,7 @@ export interface RoleConfig {
 export const ROLE_CONFIGS: Record<string, RoleConfig> = {
   pool_admin: {
     key: "pool_admin",
-    title: "관리자",
+    title: "대표",
     subtitle: "수영장 운영 및 전체 관리",
     icon: "settings",
     color: "#2EC4B6",
@@ -47,7 +47,7 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
   },
   sub_admin: {
     key: "sub_admin",
-    title: "부관리자",
+    title: "관리자",
     subtitle: "수영장 운영 보조 관리",
     icon: "shield",
     color: "#2EC4B6",

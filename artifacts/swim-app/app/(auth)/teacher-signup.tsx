@@ -1,4 +1,7 @@
-import { ArrowLeft, AtSign, ChevronRight, CircleAlert, Lock, MapPin, Phone, Search, User } from "lucide-react-native";
+import {
+  ArrowLeft, AtSign, Briefcase, ChevronRight, CircleAlert,
+  Lock, MapPin, Phone, Search, User, Users,
+} from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -13,30 +16,51 @@ import { API_BASE, useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 
 type Pool = { id: string; name: string; address?: string };
+type SignupType = "affiliated" | "solo";
+type Step = "type" | "pool" | "workspace" | "info";
 
 export default function TeacherSignupScreen() {
   const insets = useSafeAreaInsets();
   const { setAdminSession } = useAuth();
+
   const loginIdRef = useRef<TextInput>(null);
-  const pwRef = useRef<TextInput>(null);
-  const phoneRef = useRef<TextInput>(null);
+  const pwRef       = useRef<TextInput>(null);
+  const phoneRef    = useRef<TextInput>(null);
+  const wsRef       = useRef<TextInput>(null);
 
-  const [step, setStep] = useState<"pool" | "info">("pool");
+  const [signupType, setSignupType] = useState<SignupType | null>(null);
+  const [step, setStep] = useState<Step>("type");
 
-  /* 수영장 검색 */
-  const [query, setQuery] = useState("");
-  const [pools, setPools] = useState<Pool[]>([]);
-  const [searching, setSearching] = useState(false);
+  /* 수영장 검색 (소속) */
+  const [query, setQuery]             = useState("");
+  const [pools, setPools]             = useState<Pool[]>([]);
+  const [searching, setSearching]     = useState(false);
   const [selectedPool, setSelectedPool] = useState<Pool | null>(null);
 
-  /* 정보 입력 */
-  const [name, setName] = useState("");
+  /* 워크스페이스 이름 (개인) */
+  const [workspaceName, setWorkspaceName] = useState("");
+
+  /* 공통 정보 */
+  const [name,    setName]    = useState("");
   const [loginId, setLoginId] = useState("");
-  const [pw, setPw] = useState("");
-  const [phone, setPhone] = useState("");
-  const [showPw, setShowPw] = useState(false);
+  const [pw,      setPw]      = useState("");
+  const [phone,   setPhone]   = useState("");
+  const [showPw,  setShowPw]  = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error,   setError]   = useState("");
+
+  /* 단계 이동 */
+  function goBack() {
+    if (step === "info") {
+      setStep(signupType === "solo" ? "workspace" : "pool");
+      setError("");
+    } else if (step === "pool" || step === "workspace") {
+      setStep("type");
+      setError("");
+    } else {
+      router.back();
+    }
+  }
 
   async function searchPools() {
     if (!query.trim()) return;
@@ -45,32 +69,69 @@ export default function TeacherSignupScreen() {
       const res = await fetch(`${API_BASE}/pools/public-search?name=${encodeURIComponent(query.trim())}`);
       const data = await res.json();
       setPools(data.data || []);
-    } catch { setPools([]); } finally { setSearching(false); }
+    } catch { setPools([]); }
+    finally { setSearching(false); }
+  }
+
+  function selectPool(p: Pool) {
+    setSelectedPool(p);
+    setStep("info");
+  }
+
+  function handleWorkspaceNext() {
+    if (!workspaceName.trim()) { setError("워크스페이스 이름을 입력해주세요."); return; }
+    setError("");
+    setStep("info");
   }
 
   async function handleSubmit() {
     if (!name.trim() || !loginId.trim() || !pw) {
       setError("이름, 아이디, 비밀번호는 필수입니다."); return;
     }
-    if (loginId.trim().length < 4) {
-      setError("아이디는 4자 이상이어야 합니다."); return;
-    }
-    if (pw.length < 4) {
-      setError("비밀번호는 4자 이상이어야 합니다."); return;
-    }
+    if (loginId.trim().length < 4) { setError("아이디는 4자 이상이어야 합니다."); return; }
+    if (pw.length < 4)             { setError("비밀번호는 4자 이상이어야 합니다."); return; }
+
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/auth/teacher-self-signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), loginId: loginId.trim().toLowerCase(), password: pw, phone: phone.trim(), pool_id: selectedPool!.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
-      // 승인 여부와 관계없이 토큰으로 세션 설정 — RootNav가 자동으로 선생님 홈으로 이동
-      await setAdminSession(data.token, data.user);
-    } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
+      if (signupType === "solo") {
+        /* ── 개인 워크스페이스 (대표) ── */
+        const res = await fetch(`${API_BASE}/auth/solo-teacher-signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(), loginId: loginId.trim().toLowerCase(),
+            password: pw, phone: phone.trim() || undefined,
+            workspace_name: workspaceName.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
+        await setAdminSession(data.token, data.user);
+        router.replace("/(admin)/dashboard" as any);
+      } else {
+        /* ── 소속 수영장 (선생님) ── */
+        const res = await fetch(`${API_BASE}/auth/teacher-self-signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(), loginId: loginId.trim().toLowerCase(),
+            password: pw, phone: phone.trim() || undefined,
+            pool_id: selectedPool!.id,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
+        await setAdminSession(data.token, data.user);
+      }
+    } catch { setError("서버 오류가 발생했습니다."); }
+    finally   { setLoading(false); }
   }
+
+  /* 단계 인디케이터 */
+  const STEPS_AFFILIATED = ["소속", "수영장", "정보"];
+  const STEPS_SOLO       = ["소속", "이름", "정보"];
+  const stepLabels = signupType === "solo" ? STEPS_SOLO : STEPS_AFFILIATED;
+  const stepIndex  = step === "type" ? 0 : step === "pool" || step === "workspace" ? 1 : 2;
 
   return (
     <KeyboardAvoidingView
@@ -84,29 +145,79 @@ export default function TeacherSignupScreen() {
       >
         {/* 헤더 */}
         <View style={styles.headerRow}>
-          <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={() => (step === "info" ? setStep("pool") : router.back())}>
+          <Pressable style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]} onPress={goBack}>
             <ArrowLeft size={20} color={C.text} />
           </Pressable>
-          <Text style={[styles.screenTitle, { color: C.text }]}>선생님 회원가입</Text>
+          <Text style={[styles.screenTitle, { color: C.text }]}>선생님 가입</Text>
           <View style={{ width: 28 }} />
         </View>
 
-        {/* 단계 인디케이터 */}
-        <View style={styles.steps}>
-          {["수영장 선택", "정보 입력"].map((s, i) => (
-            <React.Fragment key={s}>
-              <View style={styles.stepItem}>
-                <View style={[styles.stepDot, { backgroundColor: (i === 0 && step === "pool") || (i === 1 && step === "info") ? C.tint : C.border }]}>
-                  <Text style={[styles.stepNum, { color: (i === 0 && step === "pool") || (i === 1 && step === "info") ? "#fff" : C.textMuted }]}>{i + 1}</Text>
+        {/* 단계 인디케이터 (type 선택 이후에만) */}
+        {step !== "type" && (
+          <View style={styles.steps}>
+            {stepLabels.map((s, i) => (
+              <React.Fragment key={s}>
+                <View style={styles.stepItem}>
+                  <View style={[styles.stepDot, { backgroundColor: i <= stepIndex ? C.tint : C.border }]}>
+                    <Text style={[styles.stepNum, { color: i <= stepIndex ? "#fff" : C.textMuted }]}>{i + 1}</Text>
+                  </View>
+                  <Text style={[styles.stepLabel, { color: i <= stepIndex ? C.tint : C.textMuted }]}>{s}</Text>
                 </View>
-                <Text style={[styles.stepLabel, { color: (i === 0 && step === "pool") || (i === 1 && step === "info") ? C.tint : C.textMuted }]}>{s}</Text>
-              </View>
-              {i < 1 && <View style={[styles.stepLine, { backgroundColor: C.border }]} />}
-            </React.Fragment>
-          ))}
-        </View>
+                {i < stepLabels.length - 1 && (
+                  <View style={[styles.stepLine, { backgroundColor: i < stepIndex ? C.tint : C.border }]} />
+                )}
+              </React.Fragment>
+            ))}
+          </View>
+        )}
 
-        {/* 단계 1: 수영장 검색 */}
+        {/* ── 1단계: 소속 유형 선택 ── */}
+        {step === "type" && (
+          <View style={styles.typeSection}>
+            <View style={styles.typeHeader}>
+              <Text style={[styles.typeTitle, { color: C.text }]}>소속을 선택해주세요</Text>
+              <Text style={[styles.typeSub, { color: C.textSecondary }]}>
+                소속 수영장이 있으면 가입 요청을 보내고,{"\n"}없으면 나만의 워크스페이스를 만드세요
+              </Text>
+            </View>
+
+            {/* 소속 있음 */}
+            <Pressable
+              style={({ pressed }) => [styles.typeCard, { backgroundColor: C.card, opacity: pressed ? 0.88 : 1 }]}
+              onPress={() => { setSignupType("affiliated"); setStep("pool"); }}
+            >
+              <View style={[styles.typeIconBox, { backgroundColor: "#EFF4FF" }]}>
+                <Users size={28} color="#1D4ED8" />
+              </View>
+              <View style={styles.typeInfo}>
+                <Text style={[styles.typeCardTitle, { color: C.text }]}>소속 수영장 있음</Text>
+                <Text style={[styles.typeCardDesc, { color: C.textSecondary }]}>
+                  수영장을 검색하고 가입 요청을 보냅니다{"\n"}관리자 승인 후 수업을 시작할 수 있어요
+                </Text>
+              </View>
+              <ChevronRight size={18} color={C.textMuted} />
+            </Pressable>
+
+            {/* 소속 없음 (대표) */}
+            <Pressable
+              style={({ pressed }) => [styles.typeCard, { backgroundColor: C.card, opacity: pressed ? 0.88 : 1 }]}
+              onPress={() => { setSignupType("solo"); setStep("workspace"); }}
+            >
+              <View style={[styles.typeIconBox, { backgroundColor: "#E6FFFA" }]}>
+                <Briefcase size={28} color="#2EC4B6" />
+              </View>
+              <View style={styles.typeInfo}>
+                <Text style={[styles.typeCardTitle, { color: C.text }]}>소속 없음 (대표)</Text>
+                <Text style={[styles.typeCardDesc, { color: C.textSecondary }]}>
+                  나만의 워크스페이스를 만들어 대표로 시작합니다{"\n"}학생·선생님을 직접 관리할 수 있어요
+                </Text>
+              </View>
+              <ChevronRight size={18} color={C.textMuted} />
+            </Pressable>
+          </View>
+        )}
+
+        {/* ── 2단계(소속): 수영장 검색 ── */}
         {step === "pool" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <Text style={[styles.cardTitle, { color: C.text }]}>수영장 검색</Text>
@@ -123,8 +234,15 @@ export default function TeacherSignupScreen() {
                   returnKeyType="search"
                   onSubmitEditing={searchPools}
                 />
-                <Pressable style={({ pressed }) => [styles.searchBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]} onPress={searchPools} disabled={searching}>
-                  {searching ? <ActivityIndicator color="#fff" size="small" /> : <Search size={16} color="#fff" />}
+                <Pressable
+                  style={({ pressed }) => [styles.searchBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+                  onPress={searchPools}
+                  disabled={searching}
+                >
+                  {searching
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Search size={16} color="#fff" />
+                  }
                 </Pressable>
               </View>
             </View>
@@ -136,14 +254,16 @@ export default function TeacherSignupScreen() {
                     {i > 0 && <View style={[styles.poolDivider, { backgroundColor: C.border }]} />}
                     <Pressable
                       style={({ pressed }) => [styles.poolItem, { opacity: pressed ? 0.7 : 1 }]}
-                      onPress={() => { setSelectedPool(p); setStep("info"); }}
+                      onPress={() => selectPool(p)}
                     >
                       <View style={[styles.poolIcon, { backgroundColor: "#EFF4FF" }]}>
                         <MapPin size={14} color={C.tint} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.poolName, { color: C.text }]}>{p.name}</Text>
-                        {!!p.address && <Text style={[styles.poolAddr, { color: C.textMuted }]} numberOfLines={1}>{p.address}</Text>}
+                        {!!p.address && (
+                          <Text style={[styles.poolAddr, { color: C.textMuted }]} numberOfLines={1}>{p.address}</Text>
+                        )}
                       </View>
                       <ChevronRight size={16} color={C.textMuted} />
                     </Pressable>
@@ -158,13 +278,64 @@ export default function TeacherSignupScreen() {
           </View>
         )}
 
-        {/* 단계 2: 정보 입력 */}
+        {/* ── 2단계(대표): 워크스페이스 이름 ── */}
+        {step === "workspace" && (
+          <View style={[styles.card, { backgroundColor: C.card }]}>
+            <Text style={[styles.cardTitle, { color: C.text }]}>워크스페이스 이름</Text>
+            <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
+              나의 수업을 관리할 공간의 이름을 정해주세요{"\n"}나중에 변경할 수 있어요
+            </Text>
+
+            <View style={styles.field}>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>워크스페이스 이름 *</Text>
+              <View style={[styles.inputRow, { borderColor: workspaceName ? C.tint : C.border, backgroundColor: C.background }]}>
+                <Briefcase size={15} color={workspaceName ? C.tint : C.textMuted} />
+                <TextInput
+                  ref={wsRef}
+                  style={[styles.input, { color: C.text }]}
+                  value={workspaceName}
+                  onChangeText={v => { setWorkspaceName(v); setError(""); }}
+                  placeholder="예: 김코치 수영교실"
+                  placeholderTextColor={C.textMuted}
+                  returnKeyType="done"
+                  onSubmitEditing={handleWorkspaceNext}
+                />
+              </View>
+            </View>
+
+            {!!error && (
+              <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
+                <CircleAlert size={14} color={C.error} />
+                <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
+              </View>
+            )}
+
+            <Pressable
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+              onPress={handleWorkspaceNext}
+            >
+              <Text style={styles.submitBtnText}>다음</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* ── 3단계: 개인 정보 입력 ── */}
         {step === "info" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
-            <View style={[styles.poolBadge, { backgroundColor: "#EFF4FF" }]}>
-              <MapPin size={13} color={C.tint} />
-              <Text style={[styles.poolBadgeText, { color: C.tint }]}>{selectedPool?.name}</Text>
-            </View>
+            {/* 배지 */}
+            {signupType === "affiliated" && selectedPool && (
+              <View style={[styles.poolBadge, { backgroundColor: "#EFF4FF" }]}>
+                <MapPin size={13} color={C.tint} />
+                <Text style={[styles.poolBadgeText, { color: C.tint }]}>{selectedPool.name}</Text>
+              </View>
+            )}
+            {signupType === "solo" && (
+              <View style={[styles.poolBadge, { backgroundColor: "#E6FFFA" }]}>
+                <Briefcase size={13} color="#2EC4B6" />
+                <Text style={[styles.poolBadgeText, { color: "#2EC4B6" }]}>{workspaceName}</Text>
+              </View>
+            )}
+
             <Text style={[styles.cardTitle, { color: C.text }]}>기본 정보 입력</Text>
 
             {/* 이름 */}
@@ -184,9 +355,11 @@ export default function TeacherSignupScreen() {
               </View>
             </View>
 
-            {/* 사용할 아이디 (로그인 식별자) */}
+            {/* 아이디 */}
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>사용할 아이디 * <Text style={{ color: C.textMuted }}>(4자 이상)</Text></Text>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>
+                아이디 * <Text style={{ color: C.textMuted }}>(4자 이상)</Text>
+              </Text>
               <View style={[styles.inputRow, { borderColor: loginId ? C.tint : C.border, backgroundColor: C.background }]}>
                 <AtSign size={15} color={loginId ? C.tint : C.textMuted} />
                 <TextInput
@@ -206,7 +379,9 @@ export default function TeacherSignupScreen() {
 
             {/* 비밀번호 */}
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 * <Text style={{ color: C.textMuted }}>(4자 이상)</Text></Text>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>
+                비밀번호 * <Text style={{ color: C.textMuted }}>(4자 이상)</Text>
+              </Text>
               <View style={[styles.inputRow, { borderColor: pw ? C.tint : C.border, backgroundColor: C.background }]}>
                 <Lock size={15} color={pw ? C.tint : C.textMuted} />
                 <TextInput
@@ -228,7 +403,9 @@ export default function TeacherSignupScreen() {
 
             {/* 전화번호 (선택) */}
             <View style={styles.field}>
-              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>전화번호 <Text style={{ color: C.textMuted }}>(선택)</Text></Text>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>
+                전화번호 <Text style={{ color: C.textMuted }}>(선택)</Text>
+              </Text>
               <View style={[styles.inputRow, { borderColor: phone ? C.tint : C.border, backgroundColor: C.background }]}>
                 <Phone size={15} color={phone ? C.tint : C.textMuted} />
                 <TextInput
@@ -259,9 +436,17 @@ export default function TeacherSignupScreen() {
             >
               {loading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={styles.submitBtnText}>가입 요청 보내기</Text>
+                : <Text style={styles.submitBtnText}>
+                    {signupType === "solo" ? "워크스페이스 만들기" : "가입 요청 보내기"}
+                  </Text>
               }
             </Pressable>
+
+            {signupType === "affiliated" && (
+              <Text style={[styles.hintText, { color: C.textMuted }]}>
+                * 관리자 승인 후 로그인이 가능합니다
+              </Text>
+            )}
           </View>
         )}
       </ScrollView>
@@ -275,12 +460,31 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   backBtn: { padding: 4 },
   screenTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
+
   steps: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 0 },
   stepItem: { alignItems: "center", gap: 4 },
   stepDot: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   stepNum: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   stepLabel: { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  stepLine: { width: 60, height: 2, marginBottom: 18, marginHorizontal: 8 },
+  stepLine: { width: 48, height: 2, marginBottom: 18, marginHorizontal: 6 },
+
+  /* 타입 선택 */
+  typeSection: { gap: 14 },
+  typeHeader: { gap: 6 },
+  typeTitle: { fontSize: 20, fontFamily: "Pretendard-Regular" },
+  typeSub: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20, color: Colors.light.textSecondary },
+  typeCard: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 18, padding: 18,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 10, elevation: 3,
+  },
+  typeIconBox: { width: 60, height: 60, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  typeInfo: { flex: 1, gap: 4 },
+  typeCardTitle: { fontSize: 16, fontFamily: "Pretendard-Regular" },
+  typeCardDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
+
+  /* 카드 */
   card: {
     borderRadius: 20, padding: 22, gap: 14,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
@@ -289,7 +493,9 @@ const styles = StyleSheet.create({
   poolBadge: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   poolBadgeText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   cardTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  cardDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: -8 },
+  cardDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: -8, lineHeight: 19 },
+
+  /* 공통 입력 */
   field: { gap: 6 },
   fieldLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   searchRow: {
@@ -302,21 +508,20 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 52,
   },
   input: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular" },
-  poolList: {
-    borderWidth: 1, borderRadius: 14, overflow: "hidden",
-  },
+
+  /* 수영장 리스트 */
+  poolList: { borderWidth: 1, borderRadius: 14, overflow: "hidden" },
   poolDivider: { height: 1 },
-  poolItem: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 14, paddingVertical: 13,
-  },
+  poolItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 13 },
   poolIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   poolName: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   poolAddr: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 1 },
   emptyText: { textAlign: "center", fontSize: 13, fontFamily: "Pretendard-Regular", paddingVertical: 8 },
-  hintText: { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 },
+
+  /* 에러 / 버튼 */
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   errText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   submitBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },
   submitBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
+  hintText: { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "center", marginTop: -6 },
 });

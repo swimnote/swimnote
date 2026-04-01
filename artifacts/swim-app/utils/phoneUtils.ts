@@ -31,6 +31,18 @@ export function sendSms(phone: string | null | undefined) {
   Linking.openURL(`sms:${cleaned}`).catch(() => {});
 }
 
+/**
+ * SMS 앱 실행 (번호 + 메시지 내용 자동 입력)
+ * iOS:     sms:PHONE&body=MESSAGE
+ * Android: sms:PHONE?body=MESSAGE
+ */
+export function sendSmsWithBody(phone: string | null | undefined, body: string) {
+  if (!isValidPhone(phone)) return;
+  const cleaned = phone!.replace(/[^0-9]/g, "");
+  const encoded = encodeURIComponent(body);
+  Linking.openURL(`sms:${cleaned}?body=${encoded}`).catch(() => {});
+}
+
 /** 전화번호 포맷: 01012345678 → 010-1234-5678 */
 export function formatPhone(phone: string | null | undefined): string {
   if (!phone) return "";
