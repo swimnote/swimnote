@@ -194,6 +194,106 @@ router.delete("/teacher-requests/:id/reject", requireAuth, requireRole("pool_adm
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
+// ── POST /batch — 학생 일괄 등록 ─────────────────────────────────
+router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  const items: Array<{
+    name: string;
+    birth_year?: string | null;
+    parent_name?: string | null;
+    parent_phone?: string | null;
+    weekly_count?: number;
+    memo?: string | null;
+  }> = req.body;
+
+  if (!Array.isArray(items) || items.length === 0)
+    return err(res, 400, "등록할 학생 데이터가 없습니다.");
+
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
+
+    // 회원 수 한도 체크 (배치 전체)
+    const [planRow] = (await superAdminDb.execute(sql`
+      SELECT sp.member_limit FROM swimming_pools p
+      JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+      WHERE p.id = ${poolId} LIMIT 1
+    `)).rows as any[];
+    const [cntRow] = (await db.execute(sql`
+      SELECT COUNT(*) AS cnt FROM students
+      WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
+    `)).rows as any[];
+    const limit   = Number(planRow?.member_limit ?? 5);
+    const current = Number(cntRow?.cnt ?? 0);
+    if (current + items.length > limit) {
+      return res.status(403).json({
+        success: false,
+        error: `등록 가능 인원(${limit}명) 초과. 현재 ${current}명, 추가 요청 ${items.length}명.`,
+        code: "MEMBER_LIMIT_EXCEEDED",
+      });
+    }
+
+    const succeeded: string[] = [];
+    const failed: Array<{ name: string; reason: string }> = [];
+
+    for (const s of items) {
+      if (!s.name?.trim()) {
+        failed.push({ name: "(이름없음)", reason: "이름 누락" });
+        continue;
+      }
+      try {
+        const normPhone = s.parent_phone ? s.parent_phone.replace(/[^0-9]/g, "") : null;
+        let resolvedParentUserId: string | null = null;
+        if (normPhone) {
+          const matched = await db.execute(sql`
+            SELECT id FROM parent_accounts
+            WHERE REPLACE(REPLACE(phone,'-',''),' ','') = ${normPhone} LIMIT 1
+          `);
+          if ((matched.rows as any[]).length > 0)
+            resolvedParentUserId = (matched.rows[0] as any).id;
+        }
+
+        const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const invite_code = generateInviteCode();
+        await db.insert(studentsTable).values({
+          id,
+          swimming_pool_id: poolId,
+          name: s.name.trim(),
+          birth_year: s.birth_year || null,
+          parent_name: s.parent_name || null,
+          parent_phone: normPhone ? normPhone : null,
+          parent_user_id: resolvedParentUserId,
+          memo: s.memo || null,
+          status: "unregistered",
+          registration_path: "admin_created",
+          weekly_count: Number(s.weekly_count) > 0 ? Number(s.weekly_count) : 1,
+          invite_code,
+          assigned_class_ids: [],
+          schedule_labels: null,
+          class_group_id: null,
+          phone: null,
+          birth_date: null,
+        });
+
+        if (resolvedParentUserId) {
+          const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await db.execute(sql`
+            INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+            VALUES (${psId}, ${resolvedParentUserId}, ${id}, ${poolId}, 'approved', NOW())
+            ON CONFLICT DO NOTHING
+          `);
+        }
+
+        logPoolEvent({ pool_id: poolId, event_type: "student.create", entity_type: "student", entity_id: id, actor_id: req.user!.userId, payload: { name: s.name.trim() } }).catch(() => {});
+        succeeded.push(s.name.trim());
+      } catch (innerErr: any) {
+        failed.push({ name: s.name.trim(), reason: innerErr?.message ?? "오류" });
+      }
+    }
+
+    return res.json({ success: true, succeeded: succeeded.length, failed });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
 // ── POST / — 학생 등록 ────────────────────────────────────────────
 router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const {
