@@ -152,15 +152,11 @@ export default function ForgotPasswordScreen() {
       const data = await safeJson(res);
       if (!res.ok) { setError(data.error || data.message || "변경 실패"); return; }
 
-      // 변경 완료 즉시 자동 로그인
+      // 변경 완료 즉시 자동 로그인 — RootNav가 role에 맞게 자동 이동
       if (account.type === "admin") {
         await adminLogin(account.identifier, newPw);
-        const role = account.role;
-        if (role === "teacher") router.replace("/(teacher)/today-schedule" as any);
-        else router.replace("/(admin)/dashboard" as any);
       } else {
         await parentLogin(cleanedPhone(), newPw);
-        router.replace("/(parent)/home" as any);
       }
     } catch (e: any) {
       setError(e.message || "서버 오류가 발생했습니다.");

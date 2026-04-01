@@ -100,9 +100,8 @@ export default function ParentOnboardChildScreen() {
         return;
       }
 
-      // 자동 로그인 → 학부모 홈으로 바로 이동
+      // 자동 로그인 — 세션 저장 후 RootNav가 자동으로 학부모 홈으로 이동
       await setParentSession(json.token, json.parent);
-      router.replace("/(parent)/home" as any);
     } catch {
       setError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
     } finally {

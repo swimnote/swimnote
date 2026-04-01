@@ -67,9 +67,8 @@ export default function TeacherSignupScreen() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || data.message || "가입 실패"); return; }
-      // 승인 여부와 관계없이 토큰으로 세션 설정 후 선생님 홈으로 이동
+      // 승인 여부와 관계없이 토큰으로 세션 설정 — RootNav가 자동으로 선생님 홈으로 이동
       await setAdminSession(data.token, data.user);
-      router.replace("/(teacher)/today-schedule" as any);
     } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
   }
 
