@@ -6,12 +6,12 @@
  *   parent_conn_status : 학부모미연결 여부 → 우측 별도 배지
  * → 두 배지는 동시에 표시 가능 (미배정 + 학부모미연결)
  */
-import { Check, CircleAlert, Clock, Eye, Mail, Phone, UserX } from "lucide-react-native";
+import { Check, CircleAlert, Clock, Eye, Mail, MessageSquare, Phone, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
-import { callPhone, formatPhone, CALL_COLOR } from "@/utils/phoneUtils";
+import { callPhone, sendSms, formatPhone, CALL_COLOR, SMS_COLOR } from "@/utils/phoneUtils";
 import {
   StudentMember,
   getPrimaryStatus,
@@ -160,14 +160,19 @@ export function UnifiedMemberCard({
                 <Text style={s.subTxt}>{student.parent_name}</Text>
               ) : null}
               {student.parent_phone ? (
-                <Pressable
-                  style={{ flexDirection: "row", alignItems: "center", gap: 2 }}
-                  onPress={() => callPhone(student.parent_phone)}
-                  hitSlop={6}
-                >
-                  <Phone size={11} color={CALL_COLOR} />
-                  <Text style={[s.subTxt, { color: CALL_COLOR }]}>{formatPhone(student.parent_phone)}</Text>
-                </Pressable>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Pressable
+                    style={{ flexDirection: "row", alignItems: "center", gap: 2 }}
+                    onPress={() => callPhone(student.parent_phone)}
+                    hitSlop={6}
+                  >
+                    <Phone size={11} color={CALL_COLOR} />
+                    <Text style={[s.subTxt, { color: CALL_COLOR }]}>{formatPhone(student.parent_phone)}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => sendSms(student.parent_phone)} hitSlop={8}>
+                    <MessageSquare size={12} color={SMS_COLOR} />
+                  </Pressable>
+                </View>
               ) : null}
             </View>
           ) : null}

@@ -4,7 +4,7 @@
  * - rejected → teacher-pending-detail (승인관리 상세, 재승인 가능)
  * - approved → teacher-hub (일반 상세)
  */
-import { ArrowRight, Check, ChevronRight, CircleX, Clock, Phone, Search, Users, X } from "lucide-react-native";
+import { ArrowRight, Check, ChevronRight, CircleX, Clock, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { callPhone, formatPhone, isValidPhone, CALL_COLOR } from "@/utils/phoneUtils";
+import { callPhone, sendSms, formatPhone, isValidPhone, CALL_COLOR, SMS_COLOR } from "@/utils/phoneUtils";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -195,17 +195,24 @@ export default function PeopleTeachersScreen() {
                       )}
                     </View>
                     {!!item.phone && (
-                      <Pressable
-                        style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}
-                        onPress={(e) => { e.stopPropagation?.(); callPhone(item.phone); }}
-                        disabled={!isValidPhone(item.phone)}
-                        hitSlop={6}
-                      >
-                        <Phone size={11} color={isValidPhone(item.phone) ? CALL_COLOR : C.textMuted} />
-                        <Text style={[s.sub, isValidPhone(item.phone) ? { color: CALL_COLOR } : {}]}>
-                          {formatPhone(item.phone)}
-                        </Text>
-                      </Pressable>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
+                        <Pressable
+                          style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                          onPress={(e) => { e.stopPropagation?.(); callPhone(item.phone); }}
+                          disabled={!isValidPhone(item.phone)}
+                          hitSlop={6}
+                        >
+                          <Phone size={11} color={isValidPhone(item.phone) ? CALL_COLOR : C.textMuted} />
+                          <Text style={[s.sub, isValidPhone(item.phone) ? { color: CALL_COLOR } : {}]}>
+                            {formatPhone(item.phone)}
+                          </Text>
+                        </Pressable>
+                        {isValidPhone(item.phone) && (
+                          <Pressable onPress={(e) => { e.stopPropagation?.(); sendSms(item.phone); }} hitSlop={8}>
+                            <MessageSquare size={13} color={SMS_COLOR} />
+                          </Pressable>
+                        )}
+                      </View>
                     )}
                     {!!item.email && <Text style={s.sub2}>{item.email}</Text>}
                     <View style={s.statsRow}>

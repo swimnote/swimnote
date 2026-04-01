@@ -1,11 +1,11 @@
-import { Copy, Phone, Share2, User } from "lucide-react-native";
+import { Copy, MessageSquare, Phone, Share2, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as Clipboard from "expo-clipboard";
 import { Share } from "react-native";
 import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
-import { callPhone, formatPhone, CALL_COLOR } from "@/utils/phoneUtils";
+import { callPhone, sendSms, formatPhone, CALL_COLOR, SMS_COLOR } from "@/utils/phoneUtils";
 import { buildInviteMessage } from "@/utils/studentUtils";
 import { ms } from "./memberDetailStyles";
 import type { DetailData } from "./memberDetailTypes";
@@ -91,13 +91,18 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
               <Phone size={13} color={hasPhone ? CALL_COLOR : C.textMuted} />
               <Text style={ms.infoLabel}>{label}</Text>
               {hasPhone ? (
-                <Pressable
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                  onPress={() => callPhone(ph)}
-                  hitSlop={8}
-                >
-                  <Text style={[ms.infoValue, { color: CALL_COLOR }]}>{formatPhone(ph)}</Text>
-                </Pressable>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, justifyContent: "flex-end" }}>
+                  <Pressable
+                    style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                    onPress={() => callPhone(ph)}
+                    hitSlop={8}
+                  >
+                    <Text style={[ms.infoValue, { color: CALL_COLOR, flex: 0 }]}>{formatPhone(ph)}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => sendSms(ph)} hitSlop={8}>
+                    <MessageSquare size={13} color={SMS_COLOR} />
+                  </Pressable>
+                </View>
               ) : (
                 <Text style={ms.infoValue}>미입력</Text>
               )}

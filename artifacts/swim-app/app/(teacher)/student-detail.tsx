@@ -11,7 +11,7 @@
  * - 상태 변경 버튼 → MemberStatusChangeModal 공통 팝업
  * - 레벨 뱃지 + 레벨 변경 기능
  */
-import { Check, EyeOff, Layers, PenLine, Phone, Plus, UserX } from "lucide-react-native";
+import { Check, EyeOff, Layers, MessageSquare, PenLine, Phone, Plus, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -20,7 +20,7 @@ import {
   StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
-import { callPhone, formatPhone, CALL_COLOR } from "@/utils/phoneUtils";
+import { callPhone, sendSms, formatPhone, CALL_COLOR, SMS_COLOR } from "@/utils/phoneUtils";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -323,14 +323,20 @@ export default function StudentDetailScreen() {
               <InfoRow icon="user" label="보호자" value={student.parent_name} />
             )}
             {student.parent_phone && (
-              <Pressable
-                style={s.infoRow}
-                onPress={() => callPhone(student.parent_phone)}
-              >
+              <View style={s.infoRow}>
                 <Phone size={14} color={CALL_COLOR} style={{ marginTop: 1 }} />
                 <Text style={s.infoLabel}>연락처</Text>
-                <Text style={[s.infoValue, { color: CALL_COLOR }]}>{formatPhone(student.parent_phone)}</Text>
-              </Pressable>
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12 }}>
+                  <Pressable onPress={() => callPhone(student.parent_phone)} hitSlop={8}>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: CALL_COLOR }}>
+                      {formatPhone(student.parent_phone)}
+                    </Text>
+                  </Pressable>
+                  <Pressable onPress={() => sendSms(student.parent_phone)} hitSlop={8}>
+                    <MessageSquare size={14} color={SMS_COLOR} />
+                  </Pressable>
+                </View>
+              </View>
             )}
           </View>
         </View>

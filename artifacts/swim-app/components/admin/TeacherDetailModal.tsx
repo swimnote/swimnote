@@ -1,10 +1,10 @@
-import { Check, Phone, Repeat, UserMinus, X } from "lucide-react-native";
+import { Check, MessageSquare, Phone, Repeat, UserMinus, X } from "lucide-react-native";
 import React from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
-import { callPhone, formatPhone, isValidPhone, CALL_COLOR } from "@/utils/phoneUtils";
+import { callPhone, sendSms, formatPhone, isValidPhone, CALL_COLOR, SMS_COLOR } from "@/utils/phoneUtils";
 
 const C = Colors.light;
 
@@ -53,20 +53,27 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 function PhoneRow({ label, phone }: { label: string; phone: string | null | undefined }) {
   const valid = isValidPhone(phone);
   return (
-    <Pressable
-      style={dm.infoRow}
-      onPress={() => callPhone(phone)}
-      disabled={!valid}
-      hitSlop={6}
-    >
+    <View style={dm.infoRow}>
       <Text style={dm.infoLabel}>{label}</Text>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-        <Phone size={13} color={valid ? CALL_COLOR : C.textMuted} />
-        <Text style={[dm.infoValue, valid ? { color: CALL_COLOR } : { color: C.textSecondary }]}>
-          {phone ? formatPhone(phone) : "미입력"}
-        </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Pressable
+          style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
+          onPress={() => callPhone(phone)}
+          disabled={!valid}
+          hitSlop={6}
+        >
+          <Phone size={13} color={valid ? CALL_COLOR : C.textMuted} />
+          <Text style={[dm.infoValue, valid ? { color: CALL_COLOR } : { color: C.textSecondary }]}>
+            {phone ? formatPhone(phone) : "미입력"}
+          </Text>
+        </Pressable>
+        {valid && (
+          <Pressable onPress={() => sendSms(phone)} hitSlop={8}>
+            <MessageSquare size={13} color={SMS_COLOR} />
+          </Pressable>
+        )}
       </View>
-    </Pressable>
+    </View>
   );
 }
 
