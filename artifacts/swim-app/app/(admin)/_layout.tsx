@@ -135,6 +135,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="push-notification-settings" options={{ href: null }} />
       <Tabs.Screen name="push-message-settings"   options={{ href: null }} />
       <Tabs.Screen name="my-info"                 options={{ href: null }} />
+      <Tabs.Screen name="bulk-register"           options={{ href: null }} />
     </Tabs>
   );
 }
