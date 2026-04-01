@@ -1258,25 +1258,34 @@ router.post("/find-identifier-by-phone", async (req, res) => {
   if (!phone) return err(res, 400, "전화번호를 입력해주세요.");
   const cleaned = (phone as string).replace(/[-\s]/g, "");
   try {
-    // users 테이블 (관리자·선생님·슈퍼어드민 제외)
+    // users 테이블 (superAdminDb) — 관리자·선생님 계정
     const userRows = (await superAdminDb.execute(sql`
       SELECT u.email AS identifier, u.name, u.role, u.is_activated,
              sp.name AS pool_name
       FROM users u
       LEFT JOIN swimming_pools sp ON sp.id = u.swimming_pool_id
       WHERE u.phone = ${cleaned}
-        AND u.role NOT IN ('super_admin', 'platform_admin')
+        AND u.role != 'super_admin'
       ORDER BY u.created_at ASC
     `)).rows as any[];
 
-    // parent_accounts 테이블
-    const parentRows = (await superAdminDb.execute(sql`
-      SELECT pa.phone AS identifier, pa.name, sp.name AS pool_name
+    // parent_accounts 테이블 (db — pool별 DB)
+    const parentRows = (await db.execute(sql`
+      SELECT pa.phone AS identifier, pa.name, pa.swimming_pool_id
       FROM parent_accounts pa
-      LEFT JOIN swimming_pools sp ON sp.id = pa.swimming_pool_id
       WHERE pa.phone = ${cleaned}
       ORDER BY pa.created_at ASC
     `)).rows as any[];
+
+    // 학부모 계정 pool_name: pool_id 목록을 쉼표 구분 IN 절로 조회
+    const poolMap: Record<string, string> = {};
+    const parentPoolIds = [...new Set(parentRows.map((r: any) => r.swimming_pool_id).filter(Boolean))];
+    for (const pid of parentPoolIds) {
+      const poolRows = (await superAdminDb.execute(
+        sql`SELECT id, name FROM swimming_pools WHERE id = ${pid} LIMIT 1`
+      )).rows as any[];
+      if (poolRows.length > 0) poolMap[pid] = poolRows[0].name;
+    }
 
     const accounts = [
       ...userRows.map((r: any) => ({
@@ -1291,7 +1300,7 @@ router.post("/find-identifier-by-phone", async (req, res) => {
         type: "parent",
         identifier: r.identifier,
         name: r.name,
-        pool_name: r.pool_name || null,
+        pool_name: poolMap[r.swimming_pool_id] || null,
       })),
     ];
 
