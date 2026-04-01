@@ -186,7 +186,6 @@ export default function ClassAssignScreen() {
         body: JSON.stringify({
           assigned_class_ids: newIds,
           weekly_count: weeklyCount,
-          expected_updated_at: student.updated_at ?? undefined,
         }),
       });
       if (res.status === 409) {
