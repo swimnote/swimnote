@@ -25,6 +25,7 @@ const SECTIONS: { title: string; items: MenuItem[] }[] = [
       { label: "선생님 관리",   icon: "user-check",   color: "#16A34A", route: "/(admin)/people-teachers",   desc: "선생님 등록 및 권한 설정" },
       { label: "승인 관리",     icon: "check-circle", color: "#16A34A", route: "/(admin)/approvals",         desc: "가입 · 보강 승인 처리" },
       { label: "초대 기록",     icon: "send",         color: "#7C3AED", route: "/(admin)/invite-records",    desc: "초대 링크 발송 이력" },
+      { label: "명단 한번에 올리기", icon: "upload",   color: "#16A34A", route: "/(admin)/bulk-register",     desc: "CSV 파일로 여러 회원 일괄 등록" },
     ],
   },
   {

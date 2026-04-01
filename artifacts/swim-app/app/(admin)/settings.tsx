@@ -46,7 +46,6 @@ const OPS_SETTINGS: MenuItem[] = [
   { label: "공지사항",           icon: "file-text",       color: "#0369A1", bg: NB, route: "/(admin)/notices",                   desc: "학부모 / 선생님 공지 관리" },
   { label: "활동 로그",          icon: "activity",        color: "#16A34A", bg: NB, route: "/(admin)/data-event-logs",           desc: "관리자 / 선생님 활동 기록" },
   { label: "초대 기록",          icon: "send",            color: N,         bg: NB, route: "/(admin)/invite-records",            desc: "회원 초대 발송 내역" },
-  { label: "명단 한번에 올리기", icon: "upload",          color: "#16A34A", bg: NB, route: "/(admin)/bulk-register",             desc: "CSV 파일로 여러 회원 일괄 등록" },
   { label: "휴무일 관리",        icon: "x-square",        color: N,         bg: NB, route: "/(admin)/holidays",                  desc: "수영장 휴무 / 공휴일 설정" },
   { label: "푸시 발송 설정",     icon: "send",            color: N,         bg: NB, route: "/(admin)/push-message-settings",     desc: "단체 푸시 발송 규칙" },
 ];
