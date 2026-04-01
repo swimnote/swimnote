@@ -75,7 +75,14 @@ interface BatchProgress {
 
 // ── 전화번호 정규화 ──────────────────────────────────────────────
 function normalizePhone(raw: string): string {
-  return raw.replace(/[^0-9]/g, "");
+  // ="010..." 엑셀 수식 형식 제거
+  const stripped = raw.replace(/^="?|"?$/g, "").replace(/^=/, "");
+  let n = stripped.replace(/[^0-9]/g, "");
+  // 엑셀이 앞 0을 제거한 경우 복원: 10자리이고 10/11/16/17/18/19 시작이면 0 추가
+  if (n.length === 10 && /^1[0-9]/.test(n)) {
+    n = "0" + n;
+  }
+  return n;
 }
 function isValidPhone(phone: string): boolean {
   const n = normalizePhone(phone);
@@ -160,13 +167,14 @@ function parseWorkbook(wb: XLSX.WorkBook): ParsedRow[] {
 // ── 양식 CSV 생성 & 공유 ─────────────────────────────────────────
 async function downloadTemplate() {
   const BOM = "\uFEFF";
+  // 전화번호를 ="010..." 형식으로 감싸야 Excel이 앞자리 0을 유지함
   const lines = [
     "이름,출생년도,보호자이름,보호자전화번호",
-    "홍길동,2015,홍부모,01012345678",
-    "김수영,2016,김학부모,01098765432",
-    "이민준,2014,이부모,01033334444",
-    "박서연,2013,박부모,01055556666",
-    "최지우,2017,최학부모,01066667777",
+    `홍길동,2015,홍부모,="01012345678"`,
+    `김수영,2016,김학부모,="01098765432"`,
+    `이민준,2014,이부모,="01033334444"`,
+    `박서연,2013,박부모,="01055556666"`,
+    `최지우,2017,최학부모,="01066667777"`,
   ];
   const csv = BOM + lines.join("\n");
 
