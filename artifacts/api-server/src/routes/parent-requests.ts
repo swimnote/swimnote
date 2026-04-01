@@ -111,24 +111,20 @@ router.post("/auth/pool-join-request", async (req, res) => {
     const pwHash = await hashPassword(pw);
 
     // ── 학생 명부 매칭 → 자동 승인 체크 ────────────────────────────────
-    // 이름(공백제거+소문자) + 생년 조합으로 매칭. 생년 없으면 이름만으로 매칭.
-    // 학생 DB에 있으면 무조건 자동승인 (없을 때만 수동 대기)
+    // 이름(공백제거+소문자) + 학부모 전화번호 일치 → 자동승인
     let matchedStudents: Array<{ id: string; name: string }> = [];
 
-    // 자녀별 매칭 조건: (이름 일치) AND (생년 일치 OR 생년 미입력 OR DB에 생년 없음)
+    const normPhone = phone.trim().replace(/[^0-9]/g, "");
+
     const perChildConditions = childrenData
       .map((c: any) => {
         const rawName = (c.childName || "").trim();
         if (!rawName) return null;
         const normName = rawName.replace(/\s+/g, "").toLowerCase();
-        const byear = c.childBirthYear ? String(c.childBirthYear) : null;
-
-        const nameMatch = sql`REPLACE(LOWER(${studentsTable.name}), ' ', '') = ${normName}`;
-        if (byear) {
-          // 이름 일치 AND (생년 일치 OR 학생 생년 미입력)
-          return sql`(${nameMatch} AND (${studentsTable.birth_year} = ${byear} OR ${studentsTable.birth_year} IS NULL))`;
-        }
-        return nameMatch;
+        return sql`(
+          REPLACE(LOWER(${studentsTable.name}), ' ', '') = ${normName}
+          AND REGEXP_REPLACE(COALESCE(${studentsTable.parent_phone}, ''), '[^0-9]', '', 'g') = ${normPhone}
+        )`;
       })
       .filter(Boolean) as any[];
 
@@ -139,7 +135,6 @@ router.post("/auth/pool-join-request", async (req, res) => {
         .where(
           and(
             eq(studentsTable.swimming_pool_id, swimming_pool_id),
-            // 탈퇴/삭제 제외한 모든 상태 포함 (pending_approval 포함)
             sql`${studentsTable.status} NOT IN ('withdrawn', 'archived', 'deleted')`,
             isNull(studentsTable.parent_user_id),
             or(...perChildConditions),

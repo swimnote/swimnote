@@ -169,12 +169,12 @@ async function downloadTemplate() {
   const BOM = "\uFEFF";
   // 전화번호를 ="010..." 형식으로 감싸야 Excel이 앞자리 0을 유지함
   const lines = [
-    "이름,출생년도,보호자이름,보호자전화번호",
-    `홍길동,2015,홍부모,="01012345678"`,
-    `김수영,2016,김학부모,="01098765432"`,
-    `이민준,2014,이부모,="01033334444"`,
-    `박서연,2013,박부모,="01055556666"`,
-    `최지우,2017,최학부모,="01066667777"`,
+    "이름,보호자전화번호",
+    `홍길동,="01012345678"`,
+    `김수영,="01098765432"`,
+    `이민준,="01033334444"`,
+    `박서연,="01055556666"`,
+    `최지우,="01066667777"`,
   ];
   const csv = BOM + lines.join("\n");
 
@@ -290,7 +290,7 @@ export default function BulkRegisterScreen() {
       if (!parsed.length) {
         setParseError(
           "파일에서 데이터를 읽을 수 없습니다.\n" +
-          "양식을 다운로드해서 열 이름(이름, 출생년도 등)이 정확한지 확인해주세요."
+          "양식을 다운로드해서 열 이름(이름, 보호자전화번호)이 정확한지 확인해주세요."
         );
         return;
       }
@@ -480,12 +480,8 @@ export default function BulkRegisterScreen() {
                   {/* 열 안내 테이블 */}
                   <View style={[s.colTable, { borderColor: C.border, marginTop: 10 }]}>
                     {[
-                      { col: "이름",          req: true,  alt: "",                       ex: "홍길동" },
-                      { col: "출생년도",       req: false, alt: "생년, 출생연도",          ex: "2015" },
-                      { col: "보호자이름",     req: false, alt: "보호자, 학부모",          ex: "홍부모" },
-                      { col: "보호자전화번호", req: false, alt: "보호자연락처, 전화번호",  ex: "01012345678" },
-                      { col: "주횟수",         req: false, alt: "횟수, 수업횟수",          ex: "3" },
-                      { col: "메모",           req: false, alt: "비고, 특이사항",          ex: "알레르기 있음" },
+                      { col: "이름",          req: true,  alt: "성명",                   ex: "홍길동" },
+                      { col: "보호자전화번호", req: true,  alt: "전화번호, 보호자연락처", ex: "01012345678" },
                     ].map((item, i, arr) => (
                       <View
                         key={item.col}
@@ -496,35 +492,22 @@ export default function BulkRegisterScreen() {
                       >
                         <View style={s.colLeft}>
                           <Text style={[s.colName, { color: C.text }]}>{item.col}</Text>
-                          <View style={[
-                            s.reqBadge,
-                            { backgroundColor: item.req ? "#FEE2E2" : C.border },
-                          ]}>
-                            <Text style={[
-                              s.reqTxt,
-                              { color: item.req ? "#DC2626" : C.textMuted },
-                            ]}>
-                              {item.req ? "필수" : "선택"}
-                            </Text>
+                          <View style={[s.reqBadge, { backgroundColor: "#FEE2E2" }]}>
+                            <Text style={[s.reqTxt, { color: "#DC2626" }]}>필수</Text>
                           </View>
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[s.colEx, { color: C.text }]}>예: {item.ex}</Text>
-                          {item.alt ? (
-                            <Text style={[s.colAlt, { color: C.textMuted }]}>
-                              또는: {item.alt}
-                            </Text>
-                          ) : null}
+                          <Text style={[s.colAlt, { color: C.textMuted }]}>또는: {item.alt}</Text>
                         </View>
                       </View>
                     ))}
                   </View>
 
                   <Text style={[s.noteText, { color: C.textMuted, marginTop: 10 }]}>
-                    • 첫 번째 행에 위 열 이름 중 하나가 있어야 합니다{"\n"}
+                    • 전화번호: 010-1234-5678 또는 01012345678 모두 OK{"\n"}
                     • 빈 행은 자동으로 건너뜁니다{"\n"}
-                    • 전화번호: 숫자만 또는 010-1234-5678 형식 모두 OK{"\n"}
-                    • 학부모가 이미 앱에 가입된 경우 자동으로 연결됩니다
+                    • 이름 + 전화번호가 일치하면 학부모 앱 가입 시 자동 승인됩니다
                   </Text>
                 </>
               )}
@@ -609,7 +592,7 @@ export default function BulkRegisterScreen() {
               <View style={[s.alertBanner, { backgroundColor: "#FFFBEB" }]}>
                 <AlertTriangle size={14} color="#D97706" />
                 <Text style={[s.alertTxt, { color: "#D97706" }]}>
-                  전화번호·출생년도 확인이 필요한 항목 {warnRows.length}명 (등록은 가능)
+                  전화번호 확인이 필요한 항목 {warnRows.length}명 (등록은 가능)
                 </Text>
               </View>
             )}
@@ -618,10 +601,7 @@ export default function BulkRegisterScreen() {
             <View style={[s.tableWrap, { backgroundColor: C.card }]}>
               <View style={[s.tableHeader, { borderBottomColor: C.border }]}>
                 <Text style={[s.thTxt, { flex: 2, textAlign: "left", paddingLeft: 4 }]}>이름</Text>
-                <Text style={[s.thTxt, { flex: 1 }]}>출생</Text>
-                <Text style={[s.thTxt, { flex: 2 }]}>보호자</Text>
-                <Text style={[s.thTxt, { flex: 2 }]}>연락처</Text>
-                <Text style={[s.thTxt, { flex: 1 }]}>횟수</Text>
+                <Text style={[s.thTxt, { flex: 3 }]}>보호자 전화번호</Text>
               </View>
 
               {rows.map((row, i) => {
@@ -662,17 +642,8 @@ export default function BulkRegisterScreen() {
                         <Text style={[s.tdSub, { color: "#7C3AED" }]}>중복</Text>
                       )}
                     </View>
-                    <Text style={[s.tdTxt, { flex: 1, color: C.textSecondary }]} numberOfLines={1}>
-                      {row.birth_year ?? "-"}
-                    </Text>
-                    <Text style={[s.tdTxt, { flex: 2, color: C.textSecondary }]} numberOfLines={1}>
-                      {row.parent_name ?? "-"}
-                    </Text>
-                    <Text style={[s.tdTxt, { flex: 2, color: C.textSecondary }]} numberOfLines={1}>
+                    <Text style={[s.tdTxt, { flex: 3, color: C.textSecondary }]} numberOfLines={1}>
                       {row.parent_phone ? formatPhone(row.parent_phone) : "-"}
-                    </Text>
-                    <Text style={[s.tdTxt, { flex: 1, color: C.textSecondary }]} numberOfLines={1}>
-                      {(row.weekly_count ?? 1)}회
                     </Text>
                   </View>
                 );
