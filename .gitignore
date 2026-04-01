@@ -47,3 +47,28 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# 환경변수 (절대 Git에 올리지 말 것)
+.env
+.env.*
+!.env.example
+!.env.template
+
+# 인증서 및 키 파일
+*.pem
+*.key
+*.p12
+*.p8
+*.mobileprovision
+google-service-account.json
+GoogleService-Info.plist
+
+# 로그
+*.log
+logs/
+
+# 임시/빌드
+build/
+android/
+ios/
+
