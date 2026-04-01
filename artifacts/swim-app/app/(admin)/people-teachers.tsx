@@ -106,7 +106,7 @@ export default function PeopleTeachersScreen() {
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
-      <SubScreenHeader title="선생님관리" onBack={() => router.back()} />
+      <SubScreenHeader title="선생님관리" />
 
       {/* 검색 */}
       <View style={s.searchBar}>

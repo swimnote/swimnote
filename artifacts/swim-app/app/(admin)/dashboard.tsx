@@ -166,7 +166,7 @@ export default function DashboardScreen() {
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable
                   style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
-                  onPress={() => router.push("/(admin)/admin-revenue")}
+                  onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
                 >
                   <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
                     <LucideIcon name="trending-up" size={18} color="#CA8A04" />
@@ -179,7 +179,7 @@ export default function DashboardScreen() {
                 </Pressable>
                 <Pressable
                   style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
-                  onPress={() => router.push("/(admin)/members")}
+                  onPress={() => router.push("/(admin)/members?backTo=dashboard")}
                 >
                   <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
                     <LucideIcon name="users" size={18} color="#1D4ED8" />
@@ -197,7 +197,7 @@ export default function DashboardScreen() {
                 {/* 왼쪽: 보강 상태 */}
                 <Pressable
                   style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
-                  onPress={() => router.push("/(admin)/makeups")}
+                  onPress={() => router.push("/(admin)/makeups?backTo=dashboard")}
                 >
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
                     <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
@@ -225,7 +225,7 @@ export default function DashboardScreen() {
                 {/* 오른쪽: 인원관리 */}
                 <Pressable
                   style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1, justifyContent: "center", alignItems: "center", gap: 8 }]}
-                  onPress={() => router.push("/(admin)/people")}
+                  onPress={() => router.push("/(admin)/people?backTo=dashboard")}
                 >
                   <View style={[s.bannerIcon, { backgroundColor: "#EFF6FF", marginBottom: 0 }]}>
                     <LucideIcon name="users" size={22} color="#1D4ED8" />
@@ -238,7 +238,7 @@ export default function DashboardScreen() {
               {/* 3행: 통합 사용량 (full-width, 3지표) */}
               <Pressable
                 style={({ pressed }) => [s.bannerWide, { opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => router.push("/(admin)/data-storage-overview")}
+                onPress={() => router.push("/(admin)/data-storage-overview?backTo=dashboard")}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
                   <View style={[s.bannerIcon, { backgroundColor: _BIB }]}>
@@ -273,7 +273,7 @@ export default function DashboardScreen() {
 
             {/* ── 미배정 / 학부모미연결 분리 카운트 ── */}
             {stats && (
-              <Pressable style={s.splitStatRow} onPress={() => router.push("/(admin)/members")}>
+              <Pressable style={s.splitStatRow} onPress={() => router.push("/(admin)/members?backTo=dashboard")}>
                 <View style={s.splitStatItem}>
                   <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
                     <CircleAlert size={14} color="#0F172A" />
@@ -303,14 +303,14 @@ export default function DashboardScreen() {
                 <TriangleAlert size={15} color="#D97706" />
                 <View style={{ flex: 1, gap: 4 }}>
                   {stats.pending_requests > 0 && (
-                    <Pressable onPress={() => router.push("/(admin)/approvals")}>
+                    <Pressable onPress={() => router.push("/(admin)/approvals?backTo=dashboard")}>
                       <Text style={s.alertTxt}>
                         승인 대기 <Text style={{ fontWeight: "700", color: "#D97706" }}>{stats.pending_requests}건</Text> — 탭하여 처리
                       </Text>
                     </Pressable>
                   )}
                   {(stats.pending_makeups ?? 0) > 0 && (
-                    <Pressable onPress={() => router.push("/(admin)/makeups")}>
+                    <Pressable onPress={() => router.push("/(admin)/makeups?backTo=dashboard")}>
                       <Text style={s.alertTxt}>
                         보강 미처리 <Text style={{ fontWeight: "700", color: "#D96C6C" }}>{stats.pending_makeups}건</Text> — 탭하여 처리
                       </Text>
@@ -334,7 +334,7 @@ export default function DashboardScreen() {
               </Pressable>
               <Pressable
                 style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
-                onPress={() => router.push("/(admin)/admin-revenue")}
+                onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
               >
                 <View style={[s.quickBtnIcon, { backgroundColor: "#FFFBEB" }]}>
                   <LucideIcon name="trending-up" size={18} color="#CA8A04" />
@@ -344,7 +344,7 @@ export default function DashboardScreen() {
               </Pressable>
               <Pressable
                 style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
-                onPress={() => router.push("/(admin)/classes")}
+                onPress={() => router.push("/(admin)/classes?backTo=dashboard")}
               >
                 <View style={[s.quickBtnIcon, { backgroundColor: "#F0FDF4" }]}>
                   <LucideIcon name="calendar" size={18} color="#16A34A" />

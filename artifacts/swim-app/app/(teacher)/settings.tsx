@@ -117,7 +117,7 @@ export default function TeacherSettingsScreen() {
         {/* ── 공지함 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
-          onPress={() => router.push("/(teacher)/notices" as any)}
+          onPress={() => router.push("/(teacher)/notices?backTo=settings" as any)}
         >
           <Bell size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>공지함</Text>
@@ -127,7 +127,7 @@ export default function TeacherSettingsScreen() {
         {/* ── 선생님 설정 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
-          onPress={() => router.push("/(teacher)/my-info" as any)}
+          onPress={() => router.push("/(teacher)/my-info?backTo=settings" as any)}
         >
           <UserCog size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>선생님 설정</Text>
@@ -137,7 +137,7 @@ export default function TeacherSettingsScreen() {
         {/* ── 피드백 기본 설정 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
-          onPress={() => router.push("/(teacher)/feedback-custom" as any)}
+          onPress={() => router.push("/(teacher)/feedback-custom?backTo=settings" as any)}
         >
           <Pencil size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>피드백 기본 설정</Text>
@@ -147,7 +147,7 @@ export default function TeacherSettingsScreen() {
         {/* ── 사진·영상 앨범 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#E6FAF8", borderColor: "#0F172A" }]}
-          onPress={() => router.push("/(teacher)/photos" as any)}
+          onPress={() => router.push("/(teacher)/photos?backTo=settings" as any)}
         >
           <Camera size={18} color="#0F172A" />
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>사진·영상 앨범</Text>

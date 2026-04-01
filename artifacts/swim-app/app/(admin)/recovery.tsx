@@ -454,7 +454,7 @@ export default function RecoveryScreen() {
 
   return (
     <ScreenLayout>
-      <SubScreenHeader title="백업·복구" onBack={() => router.back()} />
+      <SubScreenHeader title="백업·복구" />
 
       <ScrollView
         contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 24 }]}

@@ -265,7 +265,7 @@ export default function WaitingListScreen() {
           onClose={() => setSheetTarget(null)}
           onAssign={() => {
             setSheetTarget(null);
-            router.push({ pathname: "/(teacher)/student-detail", params: { id: sheetTarget.id } } as any);
+            router.push({ pathname: "/(teacher)/student-detail", params: { id: sheetTarget.id, backTo: "students" } } as any);
           }}
           onStatusChange={() => {
             setStatusTarget(sheetTarget);

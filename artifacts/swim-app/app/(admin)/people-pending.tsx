@@ -154,7 +154,7 @@ export default function PeoplePendingScreen() {
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
-      <SubScreenHeader title="미배정회원 관리" onBack={() => router.back()} />
+      <SubScreenHeader title="미배정회원 관리" />
 
       {/* 액션 버튼 */}
       <View style={s.uploadRow}>

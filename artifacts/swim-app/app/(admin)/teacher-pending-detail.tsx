@@ -151,7 +151,7 @@ export default function TeacherPendingDetailScreen() {
   if (loading) {
     return (
       <View style={[s.root, { paddingTop: insets.top }]}>
-        <SubScreenHeader title="선생님 승인 처리" onBack={() => router.back()} />
+        <SubScreenHeader title="선생님 승인 처리" />
         <ActivityIndicator style={{ flex: 1 }} color={themeColor} />
       </View>
     );
@@ -161,7 +161,7 @@ export default function TeacherPendingDetailScreen() {
   if (notFound || !data) {
     return (
       <View style={[s.root, { paddingTop: insets.top }]}>
-        <SubScreenHeader title="선생님 승인 처리" onBack={() => router.back()} />
+        <SubScreenHeader title="선생님 승인 처리" />
         <View style={s.errorState}>
           <CircleAlert size={48} color={C.textMuted} />
           <Text style={s.errorTitle}>존재하지 않는 선생님입니다</Text>
@@ -187,7 +187,7 @@ export default function TeacherPendingDetailScreen() {
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
-      <SubScreenHeader title="선생님 승인 처리" onBack={() => router.back()} />
+      <SubScreenHeader title="선생님 승인 처리" />
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 

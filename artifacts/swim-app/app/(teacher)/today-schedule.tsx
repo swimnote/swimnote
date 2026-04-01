@@ -114,7 +114,7 @@ export default function TodayScheduleScreen() {
   const sortedItems  = [...items].sort((a, b) => a.schedule_time.localeCompare(b.schedule_time));
 
   function handleOpenDiaryFromMsg(_diaryId: string) {
-    router.push("/(teacher)/diary" as any);
+    router.push("/(teacher)/diary?backTo=today-schedule" as any);
   }
 
   function updateItem(id: string, updated: Partial<ScheduleItem>) {
@@ -248,22 +248,22 @@ export default function TodayScheduleScreen() {
         <View style={[h.todayBanner, { backgroundColor: C.card }]}>
           <Text style={h.todayDate}>{formatDate(today)}</Text>
           <View style={h.todayStatRow}>
-            <Pressable style={h.todayStat} onPress={() => router.push({ pathname:"/(teacher)/my-schedule", params:{openDate:today} } as any)}>
+            <Pressable style={h.todayStat} onPress={() => router.push({ pathname:"/(teacher)/my-schedule", params:{openDate:today, backTo:"today-schedule"} } as any)}>
               <Text style={h.todayStatNum}>{loading ? "-" : items.length}</Text>
               <Text style={h.todayStatLabel}>오늘 수업</Text>
             </Pressable>
             <View style={h.todayDivider} />
-            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/attendance" as any)}>
+            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/attendance?backTo=today-schedule" as any)}>
               <Text style={[h.todayStatNum, pendingAtt > 0 && { color: C.error }]}>{loading ? "-" : pendingAtt}</Text>
               <Text style={h.todayStatLabel}>출석 미체크</Text>
             </Pressable>
             <View style={h.todayDivider} />
-            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/diary" as any)}>
+            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/diary?backTo=today-schedule" as any)}>
               <Text style={[h.todayStatNum, diaryPending > 0 && { color: C.error }]}>{loading ? "-" : diaryPending}</Text>
               <Text style={h.todayStatLabel}>미작성 일지</Text>
             </Pressable>
             <View style={h.todayDivider} />
-            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/makeups" as any)}>
+            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/makeups?backTo=today-schedule" as any)}>
               <Text style={[h.todayStatNum, (overview?.makeup_count ?? 0) > 0 && { color: C.error }]}>
                 {loading ? "-" : (overview?.makeup_count ?? 0)}
               </Text>
@@ -300,7 +300,7 @@ export default function TodayScheduleScreen() {
         {(overview?.pending_diaries_today ?? 0) > 0 && (
           <Pressable
             style={[h.feedbackBanner, { backgroundColor: "#7C3AED" }]}
-            onPress={() => router.push("/(teacher)/diary" as any)}
+            onPress={() => router.push("/(teacher)/diary?backTo=today-schedule" as any)}
           >
             <View style={h.feedbackBannerLeft}>
               <Text style={h.feedbackBannerTitle}>미작성 일지 {overview!.pending_diaries_today}개</Text>

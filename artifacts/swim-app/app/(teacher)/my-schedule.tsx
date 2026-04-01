@@ -200,7 +200,7 @@ export default function MyScheduleScreen() {
   }
 
   function handleDaySheetMakeup() {
-    navigateFromSheet(() => router.push("/(teacher)/makeups" as any));
+    navigateFromSheet(() => router.push("/(teacher)/makeups?backTo=my-schedule" as any));
   }
 
   useFocusEffect(useCallback(() => {
@@ -322,7 +322,7 @@ export default function MyScheduleScreen() {
             <Text style={[s.subActionText, { color: C.tint }]}>반배정</Text>
           </Pressable>
           <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
-            onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name} } as any)}>
+            onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name, backTo:"my-schedule"} } as any)}>
             <Pencil size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
             <Text style={[s.subActionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
           </Pressable>
@@ -398,7 +398,7 @@ export default function MyScheduleScreen() {
                   </Pressable>
                 </View>
 
-                <Pressable onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id} } as any)}
+                <Pressable onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule"} } as any)}
                   style={{ padding: 4 }}>
                   <ChevronRight size={16} color={C.textMuted} />
                 </Pressable>
@@ -504,7 +504,7 @@ export default function MyScheduleScreen() {
             })}
           </View>
           <Pressable style={[s.diaryIndexBtn, { borderColor: C.tint, backgroundColor: C.tintLight }]}
-            onPress={() => router.push("/(teacher)/diary-index" as any)}>
+            onPress={() => router.push("/(teacher)/diary-index?backTo=my-schedule" as any)}>
             <BookOpen size={13} color={C.tint} />
             <Text style={[s.diaryIndexBtnText, { color: C.tint }]}>수업 일지</Text>
           </Pressable>
