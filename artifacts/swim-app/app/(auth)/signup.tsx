@@ -82,8 +82,9 @@ export default function SignupScreen() {
   const [childBirthYear, setChildBirthYear] = useState("");
 
   /* ── General ── */
-  const [error, setError]       = useState("");
-  const [loading, setLoading]   = useState(false);
+  const [error, setError]           = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [isPendingTeacher, setIsPendingTeacher] = useState(false);
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
@@ -256,7 +257,7 @@ export default function SignupScreen() {
         if (!res.ok) { setError(data.error || data.message || "가입에 실패했습니다."); return; }
 
         if (data.status === "pending_approval") {
-          setError("가입 요청이 완료되었습니다. 수영장 관리자 승인 후 로그인 가능합니다.");
+          setIsPendingTeacher(true);
           setLoading(false);
           return;
         }
@@ -595,6 +596,60 @@ export default function SignupScreen() {
   /*  Main render                                      */
   /* ──────────────────────────────────────────────── */
   const isLastStep = step === 4;
+
+  /* ── 선생님 승인 대기 화면 ── */
+  if (isPendingTeacher) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.background, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }}>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 아이콘 */}
+          <View style={{ alignItems: "center", marginBottom: 28 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" }}>
+              <CircleCheck size={42} color={C.tint} />
+            </View>
+          </View>
+
+          {/* 텍스트 */}
+          <Text style={{ fontSize: 22, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center", marginBottom: 12 }}>
+            가입 요청 완료
+          </Text>
+          <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 24, marginBottom: 8 }}>
+            수영장 관리자가 승인하면{"\n"}앱을 이용할 수 있습니다.
+          </Text>
+          <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center", lineHeight: 20, marginBottom: 36 }}>
+            승인 완료 후 로그인 화면에서{"\n"}가입하신 아이디로 로그인해 주세요.
+          </Text>
+
+          {/* 안내 카드 */}
+          <View style={{ backgroundColor: C.card, borderRadius: 16, padding: 18, gap: 12, marginBottom: 32, borderWidth: 1, borderColor: C.border }}>
+            {[
+              "수영장 관리자가 가입 요청을 검토합니다.",
+              "승인이 완료되면 로그인이 가능합니다.",
+              "문의는 가입한 수영장에 직접 연락해 주세요.",
+            ].map((txt, i) => (
+              <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+                <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.tint }}>{i + 1}</Text>
+                </View>
+                <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>{txt}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* 첫 화면으로 돌아가기 버튼 */}
+          <Pressable
+            style={({ pressed }) => ({ backgroundColor: C.tint, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.8 : 1 })}
+            onPress={() => router.replace("/" as any)}
+          >
+            <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>첫 화면으로 돌아가기</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>

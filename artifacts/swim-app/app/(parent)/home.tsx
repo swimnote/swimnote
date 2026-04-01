@@ -64,6 +64,7 @@ export default function ParentHomeScreen() {
   const [summary, setSummary] = useState<HomeSummary>(EMPTY_SUMMARY);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingRefreshing, setPendingRefreshing] = useState(false);
 
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== "web") {
@@ -229,10 +230,17 @@ export default function ParentHomeScreen() {
 
           {/* 새로고침 버튼 */}
           <Pressable
-            style={{ backgroundColor: C.button, borderRadius: 14, paddingVertical: 15, alignItems: "center" }}
-            onPress={() => refresh()}
+            style={{ backgroundColor: C.button, borderRadius: 14, paddingVertical: 15, alignItems: "center", opacity: pendingRefreshing ? 0.7 : 1 }}
+            disabled={pendingRefreshing}
+            onPress={async () => {
+              setPendingRefreshing(true);
+              await refresh();
+              setPendingRefreshing(false);
+            }}
           >
-            <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>새로고침</Text>
+            {pendingRefreshing
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>새로고침</Text>}
           </Pressable>
 
           <Pressable style={{ alignItems: "center", paddingTop: 4 }} onPress={() => router.push("/(parent)/more" as any)}>
