@@ -263,7 +263,7 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
           parent_phone: normPhone ? normPhone : null,
           parent_user_id: resolvedParentUserId,
           memo: s.memo || null,
-          status: "unregistered",
+          status: resolvedParentUserId ? "active" : "unregistered",
           registration_path: "admin_created",
           weekly_count: Number(s.weekly_count) > 0 ? Number(s.weekly_count) : 1,
           invite_code,
@@ -387,8 +387,8 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       }
     }
 
-    // ── 상태 결정 (관리자 등록 학생은 반 배정 전까지 미배정) ─────────
-    const status = "unregistered";
+    // ── 상태 결정: 학부모 계정이 이미 연결되면 바로 active ─────────
+    const status = resolvedParentUserId ? "active" : "unregistered";
 
     const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const [student] = await db.insert(studentsTable).values({
@@ -883,7 +883,7 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
 
     // ── 낙관적 잠금: expected_updated_at이 있으면 조건부 UPDATE ──
     const moveWhereClause = expected_updated_at
-      ? and(eq(studentsTable.id, req.params.id), sql`updated_at = ${new Date(expected_updated_at)}`)
+      ? and(eq(studentsTable.id, req.params.id), sql`date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${new Date(expected_updated_at)}::timestamptz)`)
       : eq(studentsTable.id, req.params.id);
 
     const [moved] = await db.update(studentsTable).set({
@@ -978,7 +978,7 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
 
     // ── 낙관적 잠금: expected_updated_at이 있으면 조건부 UPDATE ──
     const whereClause = expected_updated_at
-      ? and(eq(studentsTable.id, req.params.id), sql`updated_at = ${new Date(expected_updated_at)}`)
+      ? and(eq(studentsTable.id, req.params.id), sql`date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${new Date(expected_updated_at)}::timestamptz)`)
       : eq(studentsTable.id, req.params.id);
 
     const [student] = await db.update(studentsTable)

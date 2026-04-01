@@ -161,7 +161,7 @@ router.post("/auth/pool-join-request", async (req, res) => {
                 ${child_name?.trim() || null}, ${child_birth_year || null},
                 ${JSON.stringify(childrenData)}, ${lid}, ${pwHash}, 'auto_approved', ${paId}, NOW(), NOW())
       `);
-      // 매칭된 학생들과 연결
+      // 매칭된 학생들과 연결 + 학생 status를 active로 전환
       for (const student of matchedStudents) {
         const psId = genId("ps");
         await db.execute(sql`
@@ -170,7 +170,13 @@ router.post("/auth/pool-join-request", async (req, res) => {
           ON CONFLICT DO NOTHING
         `);
         await db.execute(sql`
-          UPDATE students SET parent_user_id = ${paId}, updated_at = NOW()
+          UPDATE students
+          SET parent_user_id = ${paId},
+              status = CASE
+                WHEN status IN ('unregistered', 'pending_approval') THEN 'active'
+                ELSE status
+              END,
+              updated_at = NOW()
           WHERE id = ${student.id} AND parent_user_id IS NULL
         `);
       }
