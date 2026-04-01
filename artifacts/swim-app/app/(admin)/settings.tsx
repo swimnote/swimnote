@@ -35,6 +35,7 @@ const CLASS_SETTINGS: MenuItem[] = [
 ];
 
 const OPS_SETTINGS: MenuItem[] = [
+  { label: "학부모 QR 초대",     icon: "qr-code",        color: "#0EA5E9", bg: NB, route: "/(admin)/invite-qr",                 desc: "QR 코드로 학부모·선생님 초대" },
   { label: "구독 관리",          icon: "credit-card",    color: "#7C3AED", bg: NB, route: "/(admin)/billing",                   desc: "현재 플랜 및 사용량 확인" },
   { label: "데이터 관리",        icon: "hard-drive",     color: "#0369A1", bg: NB, route: "/(admin)/data-management",           desc: "저장공간 현황 및 정책" },
   { label: "브랜드 설정",        icon: "sliders",        color: N,         bg: NB, route: "/(admin)/branding",                  desc: "앱 이름 / 색상 / 로고" },
@@ -52,6 +53,7 @@ const POOL_SETTINGS: MenuItem[] = [
 
 const MY_SETTINGS: MenuItem[] = [
   { label: "내 정보",            icon: "user",           color: N,         bg: NB, route: "/(admin)/my-info",                   desc: "프로필 및 계정 정보" },
+  { label: "앱 사용 도움말",     icon: "life-buoy",      color: "#0EA5E9", bg: NB, route: "/(admin)/help",                      desc: "FAQ 및 기능 사용 가이드" },
   { label: "문의하기",           icon: "message-circle", color: "#7C3AED", bg: "#EEDDF5", route: "/support-ticket-list",        desc: "스윔노트 고객센터 문의" },
 ];
 

@@ -21,6 +21,7 @@ import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { PaymentBanner } from "@/components/common/PaymentBanner";
 import { SearchModal } from "@/components/admin/SearchModal";
 import { AdminQuickRegisterModal } from "@/components/admin/AdminQuickRegisterModal";
+import OnboardingTooltip from "@/components/common/OnboardingTooltip";
 
 const WIZARD_DISMISSED_KEY = "@swimnote:setup_wizard_dismissed";
 const WIZARD_CELEBRATED_KEY = "@swimnote:setup_wizard_celebrated";
@@ -229,6 +230,16 @@ export default function DashboardScreen() {
             </View>
           );
         })()}
+
+        {/* 첫 방문 툴팁: 대시보드 안내 */}
+        {!loading && (
+          <OnboardingTooltip
+            storageKey="@swimnote:tooltip_dashboard_v1"
+            title="대시보드 사용법"
+            message="아래 숫자 카드를 탭하면 해당 메뉴로 바로 이동합니다. 처리할 일이 생기면 알림 카드로 표시됩니다."
+            accentColor={themeColor}
+          />
+        )}
 
         {loading ? (
           <ActivityIndicator color={themeColor} size="large" style={{ marginTop: 40 }} />

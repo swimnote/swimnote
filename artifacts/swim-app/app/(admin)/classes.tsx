@@ -21,6 +21,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import OnboardingTooltip from "@/components/common/OnboardingTooltip";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
 import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
@@ -367,6 +368,9 @@ export default function ClassesScreen() {
   // 반 상세 시트
   const [detailGroup, setDetailGroup] = useState<TeacherClassGroup | null>(null);
 
+  // 주간 뷰용 학생 목록
+  const [allStudents, setAllStudents] = useState<any[]>([]);
+
   // 주간 시간표 네비게이션
   const [weeklyViewStart, setWeeklyViewStart] = useState(() => getMondayStr(todayDateStr()));
 
@@ -378,9 +382,10 @@ export default function ClassesScreen() {
   const load = useCallback(async () => {
     const today = todayDateStr();
     try {
-      const [cgRes, attRes] = await Promise.all([
+      const [cgRes, attRes, stuRes] = await Promise.all([
         apiRequest(token, "/class-groups"),
         apiRequest(token, `/attendance?date=${today}`),
+        apiRequest(token, "/students?pool_all=true").catch(() => null),
       ]);
       if (cgRes.ok) setGroups(await cgRes.json());
       if (attRes.ok) {
@@ -388,6 +393,10 @@ export default function ClassesScreen() {
         const map: Record<string, number> = {};
         arr.forEach(a => { const cid = a.class_group_id || a.class_id; if (cid) map[cid] = (map[cid] || 0) + 1; });
         setTodayAttMap(map);
+      }
+      if (stuRes?.ok) {
+        const all = await stuRes.json();
+        setAllStudents(Array.isArray(all) ? all.filter((s: any) => s.status === "active" || !s.status) : []);
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
@@ -557,6 +566,14 @@ export default function ClassesScreen() {
               <Text style={s.emptyHintText}>등록된 수업이 없습니다</Text>
             </View>
           )}
+          <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+            <OnboardingTooltip
+              storageKey="@swimnote:tooltip_weekly_v1"
+              title="주간 시간표 보기"
+              message="각 칸을 탭하면 반 상세 정보와 학생 명단을 확인할 수 있습니다. 오늘 출결 현황도 함께 표시됩니다."
+              accentColor="#7C3AED"
+            />
+          </View>
           <WeeklyTimetableV2
             groups={groups}
             onSelectClass={setDetailGroup}
@@ -568,6 +585,7 @@ export default function ClassesScreen() {
             onPrevWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, -7))}
             onNextWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, 7))}
             statusMap={statusMap}
+            students={allStudents}
           />
         </View>
       )}
