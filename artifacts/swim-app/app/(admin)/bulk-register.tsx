@@ -22,7 +22,7 @@ import * as XLSX from "xlsx";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator, Alert, Pressable,
+  ActivityIndicator, Alert, Platform, Pressable,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -169,19 +169,42 @@ async function downloadTemplate() {
     "최지우,2017,최학부모,01055556666,2,",
   ];
   const csv = BOM + lines.join("\n");
-  const path = (FileSystem.cacheDirectory ?? "") + "스윔노트_회원등록_양식.csv";
-  await FileSystem.writeAsStringAsync(path, csv, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
-  const canShare = await Sharing.isAvailableAsync();
-  if (canShare) {
-    await Sharing.shareAsync(path, {
-      mimeType: "text/csv",
-      dialogTitle: "회원 등록 양식 저장",
-      UTI: "public.comma-separated-values-text",
-    });
-  } else {
-    Alert.alert("양식 저장 완료", `파일 위치:\n${path}`);
+
+  if (Platform.OS === "web") {
+    // 웹: 브라우저 다운로드
+    try {
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "스윔노트_회원등록_양식.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      Alert.alert("안내", "브라우저에서 직접 다운로드를 지원하지 않습니다.\n앱에서 사용해주세요.");
+    }
+    return;
+  }
+
+  // 네이티브(iOS/Android): FileSystem + Sharing
+  try {
+    const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? "";
+    const path = baseDir + "스윔노트_회원등록_양식.csv";
+    await FileSystem.writeAsStringAsync(path, csv);
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(path, {
+        mimeType: "text/csv",
+        dialogTitle: "회원 등록 양식 저장",
+        UTI: "public.comma-separated-values-text",
+      });
+    } else {
+      Alert.alert("양식 저장 완료", `파일이 저장됐습니다:\n${path}`);
+    }
+  } catch (e: any) {
+    Alert.alert("오류", "양식 파일 생성에 실패했습니다.\n" + (e?.message ?? ""));
   }
 }
 
