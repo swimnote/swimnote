@@ -224,20 +224,20 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
     `)).rows as any[];
     const limit   = Number(planRow?.member_limit ?? 5);
     const current = Number(cntRow?.cnt ?? 0);
-    if (current + items.length > limit) {
-      return res.status(403).json({
-        success: false,
-        error: `등록 가능 인원(${limit}명) 초과. 현재 ${current}명, 추가 요청 ${items.length}명.`,
-        code: "MEMBER_LIMIT_EXCEEDED",
-      });
-    }
+    const available = Math.max(0, limit - current);
 
     const succeeded: string[] = [];
-    const failed: Array<{ name: string; reason: string }> = [];
+    const failed: Array<{ name: string; reason: string; code?: string }> = [];
 
+    let registeredCount = 0;
     for (const s of items) {
       if (!s.name?.trim()) {
         failed.push({ name: "(이름없음)", reason: "이름 누락" });
+        continue;
+      }
+      // 한도 초과 시 개별 실패 처리 (전체 차단 대신)
+      if (registeredCount >= available) {
+        failed.push({ name: s.name.trim(), reason: `회원 수 한도 초과 (플랜 최대 ${limit}명)`, code: "MEMBER_LIMIT_EXCEEDED" });
         continue;
       }
       try {
@@ -285,12 +285,13 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
 
         logPoolEvent({ pool_id: poolId, event_type: "student.create", entity_type: "student", entity_id: id, actor_id: req.user!.userId, payload: { name: s.name.trim() } }).catch(() => {});
         succeeded.push(s.name.trim());
+        registeredCount++;
       } catch (innerErr: any) {
         failed.push({ name: s.name.trim(), reason: innerErr?.message ?? "오류" });
       }
     }
 
-    return res.json({ success: true, succeeded: succeeded.length, failed });
+    return res.json({ success: true, succeeded: succeeded.length, failed, available, limit, current });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 

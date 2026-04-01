@@ -1,36 +1,59 @@
 /**
- * bulk-register — CSV 파일로 회원 일괄 등록
- * 지원 형식: CSV (쉼표/세미콜론/탭 구분)
- * 엑셀에서 "CSV (UTF-8)" 로 저장 후 업로드
+ * bulk-register — 명단 한번에 올리기 (명품 버전)
+ *
+ * 지원 파일: Excel(.xlsx / .xls / .xlsm), CSV(UTF-8 / UTF-8 BOM / EUC-KR)
+ * 기능:
+ *   1. 양식 CSV 다운로드 (샘플 데이터 포함)
+ *   2. 파일 파싱 (SheetJS — Excel/CSV 모두 처리)
+ *   3. 미리보기: 등록 가능 / 경고 / 중복 / 오류 행 구분
+ *   4. 진행률 표시 (30명씩 청크 처리)
+ *   5. 한도 초과 개별 실패 처리
+ *   6. 학부모 계정 자동 연결
  */
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, FileText, Upload, X } from "lucide-react-native";
+import {
+  AlertCircle, AlertTriangle, CheckCircle2,
+  ChevronDown, ChevronUp, Download,
+  FileSpreadsheet, FileText, Upload,
+} from "lucide-react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import * as XLSX from "xlsx";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Pressable,
+  ActivityIndicator, Alert, Pressable,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
+const CHUNK_SIZE = 30;
 
-// ── 컬럼 헤더 별칭 매핑 ─────────────────────────────────────────
+// ── 컬럼 헤더 별칭 매핑 (최대한 관대하게) ─────────────────────────
 const COL_MAP: Record<string, string> = {
-  "이름": "name",         "name": "name",
-  "출생년도": "birth_year", "birth_year": "birth_year", "생년": "birth_year", "출생연도": "birth_year",
+  "이름": "name",           "name": "name",           "성명": "name",
+  "출생년도": "birth_year", "birth_year": "birth_year", "생년": "birth_year",
+  "출생연도": "birth_year", "태어난해": "birth_year",
   "보호자이름": "parent_name", "parent_name": "parent_name", "보호자": "parent_name",
+  "보호자성명": "parent_name", "학부모": "parent_name", "학부모이름": "parent_name",
+  "부모이름": "parent_name",
   "보호자전화번호": "parent_phone", "parent_phone": "parent_phone",
-  "보호자연락처": "parent_phone", "전화번호": "parent_phone", "연락처": "parent_phone",
-  "주횟수": "weekly_count", "weekly_count": "weekly_count", "횟수": "weekly_count",
-  "메모": "memo",          "memo": "memo",
+  "보호자연락처": "parent_phone", "전화번호": "parent_phone",
+  "연락처": "parent_phone", "학부모전화": "parent_phone",
+  "학부모연락처": "parent_phone", "보호자휴대폰": "parent_phone",
+  "주횟수": "weekly_count", "weekly_count": "weekly_count",
+  "횟수": "weekly_count",  "주수업횟수": "weekly_count", "수업횟수": "weekly_count",
+  "메모": "memo",           "memo": "memo",
+  "비고": "memo",           "특이사항": "memo",        "참고": "memo",
 };
 
 interface ParsedRow {
+  _idx: number;
   name: string;
   birth_year?: string;
   parent_name?: string;
@@ -38,185 +61,400 @@ interface ParsedRow {
   weekly_count?: number;
   memo?: string;
   _rowError?: string;
+  _rowWarn?: string;
+  _isDuplicate?: boolean;
 }
 
-// ── CSV 파서 ────────────────────────────────────────────────────
-function parseCsv(text: string): ParsedRow[] {
-  // BOM 제거
-  const clean = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = clean.split("\n").filter(l => l.trim());
-  if (lines.length < 2) return [];
+interface BatchProgress {
+  total: number;
+  done: number;
+  succeeded: number;
+  failed: Array<{ name: string; reason: string; code?: string }>;
+  limitReached?: boolean;
+}
 
-  // 구분자 감지 (첫 줄 기준)
-  const first = lines[0];
-  const delim = first.includes("\t") ? "\t" : first.includes(";") ? ";" : ",";
+// ── 전화번호 정규화 ──────────────────────────────────────────────
+function normalizePhone(raw: string): string {
+  return raw.replace(/[^0-9]/g, "");
+}
+function isValidPhone(phone: string): boolean {
+  const n = normalizePhone(phone);
+  return /^(010|011|016|017|018|019)\d{7,8}$/.test(n);
+}
+function formatPhone(phone: string): string {
+  const n = normalizePhone(phone);
+  if (n.length === 11) return `${n.slice(0, 3)}-${n.slice(3, 7)}-${n.slice(7)}`;
+  if (n.length === 10) return `${n.slice(0, 3)}-${n.slice(3, 6)}-${n.slice(6)}`;
+  return n;
+}
 
-  const splitLine = (line: string): string[] => {
-    const result: string[] = [];
-    let cur = "";
-    let inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { inQ = !inQ; }
-      else if (ch === delim && !inQ) { result.push(cur.trim()); cur = ""; }
-      else { cur += ch; }
-    }
-    result.push(cur.trim());
-    return result;
-  };
+// ── SheetJS 워크북 → ParsedRow[] ───────────────────────────────
+function parseWorkbook(wb: XLSX.WorkBook): ParsedRow[] {
+  const sheetName = wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
+  // 헤더 포함 raw 배열 (빈 셀은 "" 로)
+  const raw: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  if (raw.length < 2) return [];
 
-  const headers = splitLine(lines[0]).map(h => h.replace(/"/g, "").trim());
+  // 처음 5행 중 열 이름이 가장 많이 맵핑되는 행을 헤더로 선택
+  let headerIdx = 0;
+  let bestScore = -1;
+  for (let i = 0; i < Math.min(6, raw.length); i++) {
+    const score = raw[i].filter((c: any) => COL_MAP[String(c ?? "").trim()]).length;
+    if (score > bestScore) { bestScore = score; headerIdx = i; }
+  }
+  if (bestScore === 0) return []; // 인식 가능한 열 없음
+
+  const headers = (raw[headerIdx] as any[]).map(h => String(h ?? "").trim());
   const colKeys = headers.map(h => COL_MAP[h] ?? null);
 
   const rows: ParsedRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = splitLine(lines[i]);
-    const obj: any = {};
+  for (let i = headerIdx + 1; i < raw.length; i++) {
+    const cells = raw[i] as any[];
+    const obj: Record<string, string> = {};
     colKeys.forEach((key, ci) => {
-      if (key && cells[ci] !== undefined) {
-        const val = cells[ci].replace(/"/g, "").trim();
-        if (val) obj[key] = val;
+      if (key && cells[ci] !== undefined && cells[ci] !== "") {
+        const v = String(cells[ci]).trim();
+        if (v) obj[key] = v;
       }
     });
-    if (!obj.name && !Object.keys(obj).length) continue; // 빈 줄 무시
+    if (!Object.values(obj).some(Boolean)) continue; // 완전 빈 행
+
+    const rawPhone = obj.parent_phone ?? "";
+    const normPhone = rawPhone ? normalizePhone(rawPhone) : "";
+    const byear = obj.birth_year?.replace(/[^0-9]/g, "") ?? "";
+
     const row: ParsedRow = {
+      _idx: rows.length,
       name: obj.name ?? "",
-      birth_year: obj.birth_year ?? undefined,
-      parent_name: obj.parent_name ?? undefined,
-      parent_phone: obj.parent_phone ?? undefined,
-      weekly_count: obj.weekly_count ? Number(obj.weekly_count) : undefined,
-      memo: obj.memo ?? undefined,
+      birth_year: byear || undefined,
+      parent_name: obj.parent_name || undefined,
+      parent_phone: normPhone || undefined,
+      weekly_count: obj.weekly_count ? Math.max(1, Math.min(7, Number(obj.weekly_count) || 1)) : undefined,
+      memo: obj.memo || undefined,
     };
-    if (!row.name) row._rowError = "이름 없음";
+
+    // 오류 (등록 불가)
+    if (!row.name) { row._rowError = "이름 없음"; }
+
+    // 경고 (등록은 가능하나 확인 필요)
+    const warns: string[] = [];
+    if (normPhone && !isValidPhone(normPhone)) warns.push("전화번호 형식 이상");
+    if (byear) {
+      const yr = Number(byear);
+      if (isNaN(yr) || yr < 1990 || yr > 2025) warns.push("출생년도 확인 필요");
+    }
+    if (warns.length) row._rowWarn = warns.join(" · ");
+
     rows.push(row);
   }
+
+  // 파일 내 중복 이름 표시
+  const cnt: Record<string, number> = {};
+  rows.forEach(r => { if (r.name) cnt[r.name] = (cnt[r.name] ?? 0) + 1; });
+  rows.forEach(r => { if (r.name && cnt[r.name] > 1) r._isDuplicate = true; });
+
   return rows;
 }
 
-// ── 결과 타입 ───────────────────────────────────────────────────
-interface BatchResult {
-  succeeded: number;
-  failed: Array<{ name: string; reason: string }>;
+// ── 양식 CSV 생성 & 공유 ─────────────────────────────────────────
+async function downloadTemplate() {
+  const BOM = "\uFEFF";
+  const lines = [
+    "이름,출생년도,보호자이름,보호자전화번호,주횟수,메모",
+    "홍길동,2015,홍부모,01012345678,3,",
+    "김수영,2016,김학부모,01098765432,5,알레르기 있음",
+    "이민준,2014,이부모,01033334444,3,",
+    "박서연,2013,,,,특이사항 없음",
+    "최지우,2017,최학부모,01055556666,2,",
+  ];
+  const csv = BOM + lines.join("\n");
+  const path = (FileSystem.cacheDirectory ?? "") + "스윔노트_회원등록_양식.csv";
+  await FileSystem.writeAsStringAsync(path, csv, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) {
+    await Sharing.shareAsync(path, {
+      mimeType: "text/csv",
+      dialogTitle: "회원 등록 양식 저장",
+      UTI: "public.comma-separated-values-text",
+    });
+  } else {
+    Alert.alert("양식 저장 완료", `파일 위치:\n${path}`);
+  }
 }
 
 // ────────────────────────────────────────────────────────────────
 export default function BulkRegisterScreen() {
   const { token } = useAuth();
+  const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep]         = useState<"pick" | "preview" | "done">("pick");
-  const [rows, setRows]         = useState<ParsedRow[]>([]);
-  const [fileName, setFileName] = useState<string>("");
-  const [parseError, setParseError] = useState<string>("");
-  const [loading, setLoading]   = useState(false);
-  const [result, setResult]     = useState<BatchResult | null>(null);
-  const [showTemplate, setShowTemplate] = useState(true);
+  const [step, setStep] = useState<"pick" | "preview" | "processing" | "done">("pick");
+  const [rows, setRows] = useState<ParsedRow[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [parseError, setParseError] = useState("");
+  const [loadingFile, setLoadingFile] = useState(false);
+  const [showGuide, setShowGuide] = useState(true);
+  const [progress, setProgress] = useState<BatchProgress>({
+    total: 0, done: 0, succeeded: 0, failed: [],
+  });
 
-  // ── 파일 선택 ─────────────────────────────────────────────────
-  async function pickFile() {
+  const validRows  = rows.filter(r => !r._rowError && r.name.trim());
+  const errorRows  = rows.filter(r => !!r._rowError);
+  const warnRows   = rows.filter(r => !r._rowError && !!r._rowWarn);
+  const dupRows    = rows.filter(r => r._isDuplicate && !r._rowError);
+  const progressPct = progress.total > 0
+    ? Math.round((progress.done / progress.total) * 100) : 0;
+
+  // ── 파일 선택 & 파싱 ────────────────────────────────────────
+  const pickFile = useCallback(async () => {
     setParseError("");
+    setLoadingFile(true);
     try {
       const res = await DocumentPicker.getDocumentAsync({
-        type: ["text/csv", "text/plain", "application/vnd.ms-excel",
-               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-               "*/*"],
+        type: [
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-excel",
+          "text/csv", "text/plain",
+          "application/octet-stream", "*/*",
+        ],
         copyToCacheDirectory: true,
       });
       if (res.canceled || !res.assets?.length) return;
 
       const asset = res.assets[0];
       const uri   = asset.uri;
-      const name  = asset.name ?? "file";
+      const name  = asset.name ?? "파일";
       setFileName(name);
 
-      const content = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      const ext = name.split(".").pop()?.toLowerCase() ?? "";
+      let wb: XLSX.WorkBook;
 
-      const parsed = parseCsv(content);
+      if (ext === "xlsx" || ext === "xls" || ext === "xlsm") {
+        // Excel: base64로 읽어 SheetJS 파싱
+        const b64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        wb = XLSX.read(b64, { type: "base64" });
+      } else {
+        // CSV: UTF-8 먼저, 실패 시 base64로 SheetJS 처리
+        let text = "";
+        try {
+          text = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          const clean = text.replace(/^\uFEFF/, ""); // BOM 제거
+          wb = XLSX.read(clean, { type: "string" });
+        } catch {
+          const b64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          wb = XLSX.read(b64, { type: "base64" });
+        }
+      }
+
+      const parsed = parseWorkbook(wb);
       if (!parsed.length) {
-        setParseError("파일에서 데이터를 찾을 수 없습니다. CSV 형식과 헤더를 확인해주세요.");
+        setParseError(
+          "파일에서 데이터를 읽을 수 없습니다.\n" +
+          "양식을 다운로드해서 열 이름(이름, 출생년도 등)이 정확한지 확인해주세요."
+        );
         return;
       }
       setRows(parsed);
       setStep("preview");
     } catch (e: any) {
-      setParseError("파일을 읽는 중 오류가 발생했습니다: " + (e?.message ?? ""));
+      setParseError(
+        "파일을 읽는 중 오류가 발생했습니다.\n지원 형식: xlsx, xls, csv\n" +
+        (e?.message ?? "")
+      );
+    } finally {
+      setLoadingFile(false);
     }
-  }
+  }, []);
 
-  // ── 배치 등록 요청 ─────────────────────────────────────────────
-  async function handleSubmit() {
-    const validRows = rows.filter(r => !r._rowError && r.name.trim());
+  // ── 등록 실행 (청크 처리) ───────────────────────────────────
+  const handleSubmit = useCallback(async () => {
     if (!validRows.length) {
       Alert.alert("오류", "등록할 수 있는 유효한 회원이 없습니다.");
       return;
     }
-    setLoading(true);
-    try {
-      const res = await apiRequest("/api/students/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validRows),
-      }, token ?? "");
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        Alert.alert("등록 실패", body?.error ?? "서버 오류가 발생했습니다.");
-        return;
-      }
-      const data: BatchResult = await res.json();
-      setResult(data);
-      setStep("done");
-    } catch (e: any) {
-      Alert.alert("오류", e?.message ?? "네트워크 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
+    // 중복 포함 시 확인
+    if (dupRows.length > 0) {
+      const ok = await new Promise<boolean>(resolve =>
+        Alert.alert(
+          "중복 이름 있음",
+          `파일 내에 같은 이름이 ${dupRows.length}명 포함되어 있습니다.\n모두 등록하시겠습니까?`,
+          [
+            { text: "취소", style: "cancel", onPress: () => resolve(false) },
+            { text: "모두 등록", onPress: () => resolve(true) },
+          ]
+        )
+      );
+      if (!ok) return;
     }
-  }
 
-  const validCount   = rows.filter(r => !r._rowError && r.name.trim()).length;
-  const invalidCount = rows.filter(r => !!r._rowError).length;
+    const prog: BatchProgress = {
+      total: validRows.length, done: 0, succeeded: 0, failed: [],
+    };
+    setProgress(prog);
+    setStep("processing");
 
+    let totalSucceeded = 0;
+    const totalFailed: typeof prog.failed = [];
+    let limitReached = false;
+
+    for (let i = 0; i < validRows.length; i += CHUNK_SIZE) {
+      const chunk = validRows.slice(i, i + CHUNK_SIZE);
+      try {
+        const apiRes = await apiRequest("/api/students/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(chunk.map(r => ({
+            name: r.name,
+            birth_year:   r.birth_year   ?? null,
+            parent_name:  r.parent_name  ?? null,
+            parent_phone: r.parent_phone ?? null,
+            weekly_count: r.weekly_count ?? 1,
+            memo:         r.memo         ?? null,
+          }))),
+        }, token ?? "");
+
+        if (apiRes.ok) {
+          const data = await apiRes.json();
+          totalSucceeded += data.succeeded ?? 0;
+          const chunkFailed: typeof totalFailed = data.failed ?? [];
+          totalFailed.push(...chunkFailed);
+          if (chunkFailed.some((f: any) => f.code === "MEMBER_LIMIT_EXCEEDED")) {
+            limitReached = true;
+          }
+        } else {
+          const body = await apiRes.json().catch(() => ({}));
+          totalFailed.push(...chunk.map(r => ({
+            name: r.name,
+            reason: body?.error ?? "서버 오류",
+            code: body?.code,
+          })));
+          if (body?.code === "MEMBER_LIMIT_EXCEEDED") limitReached = true;
+        }
+      } catch (e: any) {
+        totalFailed.push(...chunk.map(r => ({
+          name: r.name,
+          reason: "네트워크 오류",
+        })));
+      }
+
+      const done = Math.min(i + CHUNK_SIZE, validRows.length);
+      setProgress({
+        total: validRows.length,
+        done,
+        succeeded: totalSucceeded,
+        failed: [...totalFailed],
+        limitReached,
+      });
+    }
+
+    setProgress({
+      total: validRows.length,
+      done: validRows.length,
+      succeeded: totalSucceeded,
+      failed: totalFailed,
+      limitReached,
+    });
+    setStep("done");
+  }, [validRows, dupRows, token]);
+
+  const resetAll = () => {
+    setStep("pick");
+    setRows([]);
+    setFileName("");
+    setParseError("");
+    setProgress({ total: 0, done: 0, succeeded: 0, failed: [] });
+  };
+
+  // ══════════════════════════════════════════════════════════════
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="명단 한번에 올리기" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
+        contentContainerStyle={{
+          padding: 16, paddingBottom: insets.bottom + 40, gap: 12,
+        }}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {/* ── STEP: 파일 선택 ───────────────────────────────────── */}
+        {/* ═══ STEP 1: 파일 선택 ════════════════════════════════ */}
         {step === "pick" && (
           <>
-            {/* 템플릿 안내 */}
+            {/* 양식 다운로드 */}
+            <View style={[s.card, {
+              backgroundColor: themeColor + "10",
+              borderWidth: 1, borderColor: themeColor + "30",
+            }]}>
+              <View style={s.cardRow}>
+                <FileSpreadsheet size={22} color={themeColor} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.cardTitle, { color: C.text }]}>
+                    양식 파일을 먼저 다운로드하세요
+                  </Text>
+                  <Text style={[s.cardDesc, { color: C.textMuted }]}>
+                    양식에 이름·연락처 입력 후 그대로 업로드하면 자동 등록됩니다.
+                    엑셀에서 저장하거나 CSV 그대로 사용하세요.
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                style={[s.downloadBtn, { backgroundColor: themeColor }]}
+                onPress={downloadTemplate}
+              >
+                <Download size={15} color="#fff" />
+                <Text style={s.downloadBtnTxt}>양식 다운로드 (.csv)</Text>
+              </Pressable>
+            </View>
+
+            {/* 형식 안내 (접기/펼치기) */}
             <Pressable
-              style={[s.templateBox, { backgroundColor: C.card }]}
-              onPress={() => setShowTemplate(v => !v)}
+              style={[s.card, { backgroundColor: C.card }]}
+              onPress={() => setShowGuide(v => !v)}
             >
-              <View style={s.templateHeader}>
+              <View style={[s.cardRow, { marginBottom: 0 }]}>
                 <FileText size={16} color={C.tint} />
-                <Text style={[s.templateTitle, { color: C.text }]}>CSV 파일 형식 안내</Text>
-                {showTemplate
+                <Text style={[s.cardTitle, { flex: 1, color: C.text }]}>
+                  파일 형식 및 열 이름 안내
+                </Text>
+                {showGuide
                   ? <ChevronUp size={16} color={C.textMuted} />
                   : <ChevronDown size={16} color={C.textMuted} />}
               </View>
-              {showTemplate && (
+
+              {showGuide && (
                 <>
-                  <Text style={[s.templateDesc, { color: C.textSecondary }]}>
-                    엑셀(Excel)에서 파일을 작성한 후 {"\n"}
-                    <Text style={{ fontWeight: "bold" }}>다른 이름으로 저장 → CSV (UTF-8)</Text>
-                    {"\n"}로 저장해서 업로드해주세요.
-                  </Text>
-                  <View style={[s.colTable, { borderColor: C.border }]}>
+                  {/* 지원 형식 뱃지 */}
+                  <View style={[s.badgeRow, { marginTop: 12 }]}>
+                    {[".xlsx", ".xls", ".csv"].map(f => (
+                      <View key={f} style={[s.badge, { backgroundColor: C.tint + "15" }]}>
+                        <Text style={[s.badgeTxt, { color: C.tint }]}>{f}</Text>
+                      </View>
+                    ))}
+                    <Text style={[s.badgeNote, { color: C.textMuted }]}>
+                      UTF-8 / EUC-KR 모두 자동 처리
+                    </Text>
+                  </View>
+
+                  {/* 열 안내 테이블 */}
+                  <View style={[s.colTable, { borderColor: C.border, marginTop: 10 }]}>
                     {[
-                      { col: "이름",          req: true,  ex: "홍길동" },
-                      { col: "출생년도",       req: false, ex: "2015" },
-                      { col: "보호자이름",     req: false, ex: "홍부모" },
-                      { col: "보호자전화번호", req: false, ex: "01012345678" },
-                      { col: "주횟수",         req: false, ex: "3" },
-                      { col: "메모",           req: false, ex: "특이사항" },
+                      { col: "이름",          req: true,  alt: "",                       ex: "홍길동" },
+                      { col: "출생년도",       req: false, alt: "생년, 출생연도",          ex: "2015" },
+                      { col: "보호자이름",     req: false, alt: "보호자, 학부모",          ex: "홍부모" },
+                      { col: "보호자전화번호", req: false, alt: "보호자연락처, 전화번호",  ex: "01012345678" },
+                      { col: "주횟수",         req: false, alt: "횟수, 수업횟수",          ex: "3" },
+                      { col: "메모",           req: false, alt: "비고, 특이사항",          ex: "알레르기 있음" },
                     ].map((item, i, arr) => (
                       <View
                         key={item.col}
@@ -225,163 +463,314 @@ export default function BulkRegisterScreen() {
                           i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border },
                         ]}
                       >
-                        <View style={s.colNameWrap}>
+                        <View style={s.colLeft}>
                           <Text style={[s.colName, { color: C.text }]}>{item.col}</Text>
-                          {item.req && (
-                            <View style={s.reqBadge}>
-                              <Text style={s.reqTxt}>필수</Text>
-                            </View>
-                          )}
+                          <View style={[
+                            s.reqBadge,
+                            { backgroundColor: item.req ? "#FEE2E2" : C.border },
+                          ]}>
+                            <Text style={[
+                              s.reqTxt,
+                              { color: item.req ? "#DC2626" : C.textMuted },
+                            ]}>
+                              {item.req ? "필수" : "선택"}
+                            </Text>
+                          </View>
                         </View>
-                        <Text style={[s.colEx, { color: C.textMuted }]}>예: {item.ex}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.colEx, { color: C.text }]}>예: {item.ex}</Text>
+                          {item.alt ? (
+                            <Text style={[s.colAlt, { color: C.textMuted }]}>
+                              또는: {item.alt}
+                            </Text>
+                          ) : null}
+                        </View>
                       </View>
                     ))}
                   </View>
-                  <Text style={[s.templateNote, { color: C.textMuted }]}>
-                    * 첫 번째 행은 반드시 위 열 이름을 그대로 사용해주세요.{"\n"}
-                    * 이름이 없는 행은 자동으로 건너뜁니다.
+
+                  <Text style={[s.noteText, { color: C.textMuted, marginTop: 10 }]}>
+                    • 첫 번째 행에 위 열 이름 중 하나가 있어야 합니다{"\n"}
+                    • 빈 행은 자동으로 건너뜁니다{"\n"}
+                    • 전화번호: 숫자만 또는 010-1234-5678 형식 모두 OK{"\n"}
+                    • 학부모가 이미 앱에 가입된 경우 자동으로 연결됩니다
                   </Text>
                 </>
               )}
             </Pressable>
 
+            {/* 파싱 오류 메시지 */}
             {parseError ? (
-              <View style={[s.errorBox, { backgroundColor: "#FEE2E2" }]}>
+              <View style={s.errorBox}>
                 <AlertCircle size={15} color="#DC2626" />
-                <Text style={[s.errorTxt, { color: "#DC2626" }]}>{parseError}</Text>
+                <Text style={s.errorTxt}>{parseError}</Text>
               </View>
             ) : null}
 
-            <Pressable style={[s.pickBtn, { backgroundColor: C.tint }]} onPress={pickFile}>
-              <Upload size={18} color="#fff" />
-              <Text style={s.pickBtnTxt}>CSV 파일 선택</Text>
+            {/* 파일 선택 버튼 */}
+            <Pressable
+              style={[s.uploadBtn, { backgroundColor: C.tint, opacity: loadingFile ? 0.7 : 1 }]}
+              onPress={pickFile}
+              disabled={loadingFile}
+            >
+              {loadingFile
+                ? <ActivityIndicator size="small" color="#fff" />
+                : (
+                  <>
+                    <Upload size={18} color="#fff" />
+                    <Text style={s.uploadBtnTxt}>파일 선택 (.xlsx / .xls / .csv)</Text>
+                  </>
+                )}
             </Pressable>
           </>
         )}
 
-        {/* ── STEP: 미리보기 ───────────────────────────────────── */}
+        {/* ═══ STEP 2: 미리보기 ════════════════════════════════ */}
         {step === "preview" && (
           <>
-            <View style={[s.fileRow, { backgroundColor: C.card }]}>
-              <FileText size={14} color={C.tint} />
-              <Text style={[s.fileNameTxt, { color: C.text }]} numberOfLines={1}>{fileName}</Text>
-              <Pressable
-                style={s.changeBtn}
-                onPress={() => { setStep("pick"); setRows([]); setFileName(""); }}
-              >
+            {/* 파일명 + 다시선택 */}
+            <View style={[s.card, s.cardRow, { backgroundColor: C.card }]}>
+              <FileSpreadsheet size={16} color={C.tint} />
+              <Text style={[s.cardTitle, { flex: 1, color: C.text }]} numberOfLines={1}>
+                {fileName}
+              </Text>
+              <Pressable onPress={resetAll} style={s.changeBtn}>
                 <Text style={[s.changeBtnTxt, { color: C.tint }]}>다시 선택</Text>
               </Pressable>
             </View>
 
+            {/* 요약 통계 */}
             <View style={[s.summaryRow, { backgroundColor: C.card }]}>
               <View style={s.summaryItem}>
-                <Text style={[s.summaryNum, { color: "#16A34A" }]}>{validCount}</Text>
+                <Text style={[s.summaryNum, { color: "#16A34A" }]}>{validRows.length}</Text>
                 <Text style={[s.summaryLabel, { color: C.textSecondary }]}>등록 가능</Text>
               </View>
-              {invalidCount > 0 && (
-                <View style={[s.summaryItem, { borderLeftWidth: 1, borderLeftColor: C.border }]}>
-                  <Text style={[s.summaryNum, { color: "#DC2626" }]}>{invalidCount}</Text>
-                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>오류 (건너뜀)</Text>
+              {warnRows.length > 0 && (
+                <View style={[s.summaryItem, s.summaryDivider]}>
+                  <Text style={[s.summaryNum, { color: "#D97706" }]}>{warnRows.length}</Text>
+                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>확인 필요</Text>
+                </View>
+              )}
+              {dupRows.length > 0 && (
+                <View style={[s.summaryItem, s.summaryDivider]}>
+                  <Text style={[s.summaryNum, { color: "#7C3AED" }]}>{dupRows.length}</Text>
+                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>중복 이름</Text>
+                </View>
+              )}
+              {errorRows.length > 0 && (
+                <View style={[s.summaryItem, s.summaryDivider]}>
+                  <Text style={[s.summaryNum, { color: "#DC2626" }]}>{errorRows.length}</Text>
+                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>오류 제외</Text>
                 </View>
               )}
             </View>
+
+            {/* 경고 배너들 */}
+            {dupRows.length > 0 && (
+              <View style={[s.alertBanner, { backgroundColor: "#FAF5FF" }]}>
+                <AlertTriangle size={14} color="#7C3AED" />
+                <Text style={[s.alertTxt, { color: "#7C3AED" }]}>
+                  파일 내 같은 이름 {dupRows.length}명 — 등록 시 확인 요청됩니다
+                </Text>
+              </View>
+            )}
+            {warnRows.length > 0 && (
+              <View style={[s.alertBanner, { backgroundColor: "#FFFBEB" }]}>
+                <AlertTriangle size={14} color="#D97706" />
+                <Text style={[s.alertTxt, { color: "#D97706" }]}>
+                  전화번호·출생년도 확인이 필요한 항목 {warnRows.length}명 (등록은 가능)
+                </Text>
+              </View>
+            )}
 
             {/* 미리보기 테이블 */}
             <View style={[s.tableWrap, { backgroundColor: C.card }]}>
-              {/* 헤더 */}
               <View style={[s.tableHeader, { borderBottomColor: C.border }]}>
-                {["이름", "출생", "보호자", "연락처", "주횟수"].map(h => (
-                  <Text key={h} style={[s.thTxt, { color: C.textSecondary }]}>{h}</Text>
-                ))}
+                <Text style={[s.thTxt, { flex: 2, textAlign: "left", paddingLeft: 4 }]}>이름</Text>
+                <Text style={[s.thTxt, { flex: 1 }]}>출생</Text>
+                <Text style={[s.thTxt, { flex: 2 }]}>보호자</Text>
+                <Text style={[s.thTxt, { flex: 2 }]}>연락처</Text>
+                <Text style={[s.thTxt, { flex: 1 }]}>횟수</Text>
               </View>
-              {rows.map((row, i) => (
-                <View
-                  key={i}
-                  style={[
-                    s.tableRow,
-                    i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border },
-                    row._rowError && { backgroundColor: "#FEF2F2" },
-                  ]}
-                >
-                  <Text
-                    style={[s.tdTxt, { color: row._rowError ? "#DC2626" : C.text }]}
-                    numberOfLines={1}
+
+              {rows.map((row, i) => {
+                const hasErr = !!row._rowError;
+                const hasWarn = !hasErr && !!row._rowWarn;
+                const isDup  = !hasErr && !!row._isDuplicate;
+                const bg = hasErr ? "#FEF2F2"
+                  : isDup ? "#FAF5FF"
+                  : hasWarn ? "#FFFBEB"
+                  : "transparent";
+
+                return (
+                  <View
+                    key={row._idx}
+                    style={[
+                      s.tableRow,
+                      i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border },
+                      { backgroundColor: bg },
+                    ]}
                   >
-                    {row.name || "(없음)"}
-                  </Text>
-                  <Text style={[s.tdTxt, { color: C.textSecondary }]} numberOfLines={1}>
-                    {row.birth_year ?? "-"}
-                  </Text>
-                  <Text style={[s.tdTxt, { color: C.textSecondary }]} numberOfLines={1}>
-                    {row.parent_name ?? "-"}
-                  </Text>
-                  <Text style={[s.tdTxt, { color: C.textSecondary }]} numberOfLines={1}>
-                    {row.parent_phone ?? "-"}
-                  </Text>
-                  <Text style={[s.tdTxt, { color: C.textSecondary }]} numberOfLines={1}>
-                    {row.weekly_count ?? 1}회
-                  </Text>
-                </View>
-              ))}
+                    <View style={{ flex: 2, justifyContent: "center", paddingLeft: 4 }}>
+                      <Text
+                        style={[s.tdTxt, {
+                          color: hasErr ? "#DC2626" : isDup ? "#7C3AED" : C.text,
+                          textAlign: "left",
+                        }]}
+                        numberOfLines={1}
+                      >
+                        {row.name || "(없음)"}
+                      </Text>
+                      {hasErr && (
+                        <Text style={[s.tdSub, { color: "#DC2626" }]}>{row._rowError}</Text>
+                      )}
+                      {!hasErr && hasWarn && (
+                        <Text style={[s.tdSub, { color: "#D97706" }]}>{row._rowWarn}</Text>
+                      )}
+                      {isDup && !hasErr && (
+                        <Text style={[s.tdSub, { color: "#7C3AED" }]}>중복</Text>
+                      )}
+                    </View>
+                    <Text style={[s.tdTxt, { flex: 1, color: C.textSecondary }]} numberOfLines={1}>
+                      {row.birth_year ?? "-"}
+                    </Text>
+                    <Text style={[s.tdTxt, { flex: 2, color: C.textSecondary }]} numberOfLines={1}>
+                      {row.parent_name ?? "-"}
+                    </Text>
+                    <Text style={[s.tdTxt, { flex: 2, color: C.textSecondary }]} numberOfLines={1}>
+                      {row.parent_phone ? formatPhone(row.parent_phone) : "-"}
+                    </Text>
+                    <Text style={[s.tdTxt, { flex: 1, color: C.textSecondary }]} numberOfLines={1}>
+                      {(row.weekly_count ?? 1)}회
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
 
+            {/* 등록 버튼 */}
             <Pressable
-              style={[s.submitBtn, { backgroundColor: validCount > 0 ? C.tint : C.border }]}
+              style={[
+                s.uploadBtn,
+                { backgroundColor: validRows.length > 0 ? themeColor : C.border },
+              ]}
               onPress={handleSubmit}
-              disabled={loading || validCount === 0}
+              disabled={validRows.length === 0}
             >
-              {loading
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <>
-                    <Upload size={16} color="#fff" />
-                    <Text style={s.submitBtnTxt}>{validCount}명 회원 등록하기</Text>
-                  </>
-              }
+              <Upload size={16} color="#fff" />
+              <Text style={s.uploadBtnTxt}>{validRows.length}명 일괄 등록하기</Text>
             </Pressable>
+
+            {errorRows.length > 0 && (
+              <Text style={[s.noteText, { color: C.textMuted, textAlign: "center" }]}>
+                오류 {errorRows.length}명은 건너뛰고 유효한 {validRows.length}명만 등록됩니다
+              </Text>
+            )}
           </>
         )}
 
-        {/* ── STEP: 완료 ───────────────────────────────────────── */}
-        {step === "done" && result && (
-          <View style={{ alignItems: "center", paddingTop: 24 }}>
-            <CheckCircle2 size={56} color="#16A34A" />
-            <Text style={[s.doneTitle, { color: C.text }]}>등록 완료</Text>
+        {/* ═══ STEP 3: 처리 중 ═════════════════════════════════ */}
+        {step === "processing" && (
+          <View style={[s.card, {
+            backgroundColor: C.card, alignItems: "center", paddingVertical: 40,
+          }]}>
+            <ActivityIndicator size="large" color={themeColor} />
+            <Text style={[s.processingTitle, { color: C.text }]}>등록 처리 중...</Text>
+            <Text style={[s.processingCount, { color: C.textSecondary }]}>
+              {progress.done} / {progress.total}명
+            </Text>
 
-            <View style={[s.doneCard, { backgroundColor: C.card }]}>
-              <View style={s.doneStatRow}>
-                <Text style={[s.doneStatLabel, { color: C.textSecondary }]}>등록 성공</Text>
-                <Text style={[s.doneStatNum, { color: "#16A34A" }]}>{result.succeeded}명</Text>
+            {/* 진행률 바 */}
+            <View style={[s.progressTrack, { backgroundColor: C.border }]}>
+              <View
+                style={[
+                  s.progressFill,
+                  { width: `${progressPct}%` as any, backgroundColor: themeColor },
+                ]}
+              />
+            </View>
+            <Text style={[s.progressPct, { color: themeColor }]}>{progressPct}%</Text>
+
+            {progress.failed.length > 0 && (
+              <Text style={[s.noteText, { color: "#D97706", marginTop: 10 }]}>
+                처리 중 실패 {progress.failed.length}명 (계속 진행 중)
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* ═══ STEP 4: 완료 ════════════════════════════════════ */}
+        {step === "done" && (
+          <View style={{ alignItems: "center", paddingTop: 8 }}>
+            {progress.succeeded > 0
+              ? <CheckCircle2 size={64} color="#16A34A" />
+              : <AlertCircle size={64} color="#DC2626" />}
+
+            <Text style={[s.doneTitle, { color: C.text }]}>
+              {progress.succeeded > 0
+                ? `${progress.succeeded}명 등록 완료!`
+                : "등록 실패"}
+            </Text>
+
+            {/* 결과 카드 */}
+            <View style={[s.doneCard, { backgroundColor: C.card, width: "100%" }]}>
+              <View style={s.doneRow}>
+                <Text style={[s.doneLabel, { color: C.textSecondary }]}>총 처리</Text>
+                <Text style={[s.doneVal, { color: C.text }]}>{progress.total}명</Text>
               </View>
-              {result.failed.length > 0 && (
-                <View style={[s.doneStatRow, { borderTopWidth: 1, borderTopColor: C.border }]}>
-                  <Text style={[s.doneStatLabel, { color: C.textSecondary }]}>실패</Text>
-                  <Text style={[s.doneStatNum, { color: "#DC2626" }]}>{result.failed.length}명</Text>
+              <View style={[s.doneRow, { borderTopWidth: 1, borderTopColor: C.border }]}>
+                <Text style={[s.doneLabel, { color: C.textSecondary }]}>✅ 성공</Text>
+                <Text style={[s.doneVal, { color: "#16A34A" }]}>{progress.succeeded}명</Text>
+              </View>
+              {progress.failed.length > 0 && (
+                <View style={[s.doneRow, { borderTopWidth: 1, borderTopColor: C.border }]}>
+                  <Text style={[s.doneLabel, { color: C.textSecondary }]}>❌ 실패</Text>
+                  <Text style={[s.doneVal, { color: "#DC2626" }]}>{progress.failed.length}명</Text>
                 </View>
               )}
             </View>
 
-            {result.failed.length > 0 && (
-              <View style={[s.failList, { backgroundColor: "#FEF2F2", width: "100%" }]}>
-                <Text style={[s.failListTitle, { color: "#DC2626" }]}>실패 항목</Text>
-                {result.failed.map((f, i) => (
-                  <Text key={i} style={[s.failItem, { color: "#DC2626" }]}>
-                    • {f.name}: {f.reason}
-                  </Text>
+            {/* 한도 초과 안내 */}
+            {progress.limitReached && (
+              <View style={[s.alertBanner, { backgroundColor: "#FEF3C7", width: "100%" }]}>
+                <AlertTriangle size={14} color="#D97706" />
+                <Text style={[s.alertTxt, { color: "#92400E" }]}>
+                  일부 회원이 플랜 한도 초과로 등록되지 않았습니다.
+                  구독을 업그레이드하면 더 많은 회원을 등록할 수 있습니다.
+                </Text>
+              </View>
+            )}
+
+            {/* 실패 목록 */}
+            {progress.failed.length > 0 && (
+              <View style={[s.failList, { width: "100%" }]}>
+                <Text style={s.failListTitle}>미등록 항목</Text>
+                {progress.failed.map((f, i) => (
+                  <View key={i} style={s.failItem}>
+                    <Text style={[s.failName, { color: "#DC2626" }]} numberOfLines={1}>
+                      {f.name}
+                    </Text>
+                    <Text style={[s.failReason, { color: C.textMuted }]} numberOfLines={1}>
+                      {f.reason}
+                    </Text>
+                  </View>
                 ))}
               </View>
             )}
 
             <Pressable
-              style={[s.doneBtn, { backgroundColor: C.tint }]}
-              onPress={() => router.back()}
+              style={[s.uploadBtn, { backgroundColor: themeColor, width: "100%", marginTop: 8 }]}
+              onPress={() => router.push("/(admin)/members?backTo=ops-hub" as any)}
             >
-              <Text style={s.doneBtnTxt}>회원 목록으로 이동</Text>
+              <Text style={s.uploadBtnTxt}>회원 목록 확인하기</Text>
             </Pressable>
             <Pressable
-              style={[s.doneBtnOutline, { borderColor: C.border }]}
-              onPress={() => { setStep("pick"); setRows([]); setFileName(""); setResult(null); }}
+              style={[s.outlineBtn, { borderColor: C.border, width: "100%" }]}
+              onPress={resetAll}
             >
-              <Text style={[s.doneBtnOutlineTxt, { color: C.textSecondary }]}>추가 업로드</Text>
+              <Text style={[s.outlineBtnTxt, { color: C.textSecondary }]}>
+                추가 파일 올리기
+              </Text>
             </Pressable>
           </View>
         )}
@@ -391,47 +780,72 @@ export default function BulkRegisterScreen() {
 }
 
 const s = StyleSheet.create({
-  templateBox:    { borderRadius: 14, padding: 14, marginBottom: 14 },
-  templateHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 0 },
-  templateTitle:  { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
-  templateDesc:   { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: 10, marginBottom: 10, lineHeight: 20 },
-  templateNote:   { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 10, lineHeight: 17 },
-  colTable:       { borderRadius: 8, borderWidth: 1, overflow: "hidden" },
-  colRow:         { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 7 },
-  colNameWrap:    { flexDirection: "row", alignItems: "center", gap: 5, width: 120 },
+  card:           { borderRadius: 16, padding: 14 },
+  cardRow:        { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 },
+  cardTitle:      { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  cardDesc:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2, lineHeight: 17 },
+  downloadBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center",
+                    gap: 6, paddingVertical: 10, borderRadius: 10, marginTop: 10 },
+  downloadBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
+  badgeRow:       { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  badge:          { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  badgeTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  badgeNote:      { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  colTable:       { borderRadius: 10, borderWidth: 1, overflow: "hidden" },
+  colRow:         { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 9 },
+  colLeft:        { flexDirection: "row", alignItems: "center", gap: 5, width: 130 },
   colName:        { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  colEx:          { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular" },
-  reqBadge:       { backgroundColor: "#FEE2E2", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
-  reqTxt:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#DC2626" },
-  errorBox:       { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 10, marginBottom: 12 },
-  errorTxt:       { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 18 },
-  pickBtn:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12, marginTop: 4 },
-  pickBtnTxt:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
-  fileRow:        { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, marginBottom: 12 },
-  fileNameTxt:    { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular" },
+  colEx:          { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  colAlt:         { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 1 },
+  reqBadge:       { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+  reqTxt:         { fontSize: 10, fontFamily: "Pretendard-Regular" },
+  noteText:       { fontSize: 11, fontFamily: "Pretendard-Regular", lineHeight: 18 },
+  errorBox:       { flexDirection: "row", alignItems: "flex-start", gap: 8,
+                    padding: 12, borderRadius: 10, backgroundColor: "#FEE2E2" },
+  errorTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular",
+                    color: "#DC2626", lineHeight: 18 },
+  uploadBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center",
+                    gap: 8, padding: 15, borderRadius: 13 },
+  uploadBtnTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   changeBtn:      { paddingHorizontal: 8, paddingVertical: 4 },
   changeBtnTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  summaryRow:     { flexDirection: "row", borderRadius: 10, marginBottom: 12, overflow: "hidden" },
-  summaryItem:    { flex: 1, alignItems: "center", paddingVertical: 12 },
-  summaryNum:     { fontSize: 22, fontFamily: "Pretendard-Regular" },
-  summaryLabel:   { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
-  tableWrap:      { borderRadius: 12, overflow: "hidden", marginBottom: 16 },
-  tableHeader:    { flexDirection: "row", paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1 },
-  thTxt:          { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "center" },
-  tableRow:       { flexDirection: "row", paddingHorizontal: 10, paddingVertical: 9 },
-  tdTxt:          { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center" },
-  submitBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12 },
-  submitBtnTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
-  doneTitle:      { fontSize: 20, fontFamily: "Pretendard-Regular", marginTop: 16, marginBottom: 20 },
-  doneCard:       { width: "100%", borderRadius: 12, padding: 4, marginBottom: 16 },
-  doneStatRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  doneStatLabel:  { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  doneStatNum:    { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  failList:       { borderRadius: 10, padding: 12, marginBottom: 16 },
-  failListTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 6 },
-  failItem:       { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 20 },
-  doneBtn:        { width: "100%", alignItems: "center", padding: 14, borderRadius: 12, marginBottom: 10 },
-  doneBtnTxt:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
-  doneBtnOutline: { width: "100%", alignItems: "center", padding: 14, borderRadius: 12, borderWidth: 1 },
-  doneBtnOutlineTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  summaryRow:     { flexDirection: "row", borderRadius: 14, overflow: "hidden" },
+  summaryItem:    { flex: 1, alignItems: "center", paddingVertical: 14 },
+  summaryDivider: { borderLeftWidth: 1, borderLeftColor: Colors.light.border },
+  summaryNum:     { fontSize: 26, fontFamily: "Pretendard-Regular" },
+  summaryLabel:   { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  alertBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 6,
+                    padding: 10, borderRadius: 10 },
+  alertTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
+  tableWrap:      { borderRadius: 14, overflow: "hidden" },
+  tableHeader:    { flexDirection: "row", paddingHorizontal: 8, paddingVertical: 8,
+                    borderBottomWidth: 1 },
+  thTxt:          { fontSize: 11, fontFamily: "Pretendard-Regular",
+                    color: Colors.light.textMuted, textAlign: "center" },
+  tableRow:       { flexDirection: "row", alignItems: "center",
+                    paddingHorizontal: 8, paddingVertical: 8 },
+  tdTxt:          { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  tdSub:          { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 1 },
+  processingTitle:{ fontSize: 18, fontFamily: "Pretendard-Regular", marginTop: 16 },
+  processingCount:{ fontSize: 14, fontFamily: "Pretendard-Regular", marginTop: 6 },
+  progressTrack:  { width: "80%", height: 8, borderRadius: 4, marginTop: 16, overflow: "hidden" },
+  progressFill:   { height: "100%", borderRadius: 4 },
+  progressPct:    { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: 6 },
+  doneTitle:      { fontSize: 22, fontFamily: "Pretendard-Regular", marginTop: 16, marginBottom: 20 },
+  doneCard:       { borderRadius: 14, padding: 4, marginBottom: 14 },
+  doneRow:        { flexDirection: "row", alignItems: "center",
+                    justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
+  doneLabel:      { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  doneVal:        { fontSize: 18, fontFamily: "Pretendard-Regular" },
+  failList:       { borderRadius: 12, padding: 12, marginBottom: 14,
+                    backgroundColor: "#FEF2F2" },
+  failListTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular",
+                    color: "#DC2626", marginBottom: 8 },
+  failItem:       { flexDirection: "row", justifyContent: "space-between",
+                    alignItems: "center", paddingVertical: 4 },
+  failName:       { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
+  failReason:     { fontSize: 11, fontFamily: "Pretendard-Regular", maxWidth: "50%" },
+  outlineBtn:     { alignItems: "center", padding: 14, borderRadius: 13,
+                    borderWidth: 1, marginTop: 10 },
+  outlineBtnTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular" },
 });
