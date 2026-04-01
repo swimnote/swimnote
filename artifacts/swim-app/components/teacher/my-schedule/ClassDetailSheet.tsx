@@ -44,17 +44,14 @@ export default function ClassDetailSheet({
   const [studentAttState, setStudentAttState] = useState<Record<string, "present" | "absent">>({});
   const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
 
-  // 반이동 모달 상태
   const [moveStudent, setMoveStudent] = useState<StudentItem | null>(null);
   const [movingToClassId, setMovingToClassId] = useState<string | null>(null);
   const [movingStudent, setMovingStudent] = useState(false);
 
-  // 미배정 이동 상태
   const [unassignStudent,    setUnassignStudent]    = useState<StudentItem | null>(null);
   const [showUnassignTiming, setShowUnassignTiming] = useState(false);
   const [unassigningStudent, setUnassigningStudent] = useState(false);
 
-  // 반 색상 (draft: 즉시 프리뷰, 저장은 팝업 닫힐 때)
   const originalColorRef = useRef<string>(group.color || "#FFFFFF");
   const [draftColor, setDraftColor] = useState<string>(group.color || "#FFFFFF");
   const [colorSaving, setColorSaving] = useState(false);
@@ -94,9 +91,8 @@ export default function ClassDetailSheet({
       .catch(() => {});
   }, [group.id, effectiveDate, token]);
 
-  // 출석/결석: 직접 지정 (toggle 아님)
   async function markAtt(studentId: string, newStatus: "present" | "absent") {
-    if (studentAttState[studentId] === newStatus) return; // 이미 해당 상태면 무시
+    if (studentAttState[studentId] === newStatus) return;
     setSavingStudentId(studentId);
     try {
       await apiRequest(token, "/attendance", {
@@ -114,7 +110,6 @@ export default function ClassDetailSheet({
     setSavingStudentId(null);
   }
 
-  // 반이동 실행
   async function doMoveStudent() {
     if (!moveStudent || !movingToClassId) return;
     setMovingStudent(true);
@@ -125,7 +120,6 @@ export default function ClassDetailSheet({
         body: JSON.stringify({
           from_class_id: group.id,
           to_class_id: movingToClassId,
-          expected_updated_at: moveStudent.updated_at ?? undefined,
         }),
       });
       if (res.ok) {
@@ -136,7 +130,6 @@ export default function ClassDetailSheet({
     setMovingStudent(false);
   }
 
-  // 미배정으로 이동
   async function doUnassignStudent(timing: "now" | "next_week" | "week_after") {
     if (!unassignStudent) return;
     setUnassigningStudent(true);
@@ -147,7 +140,6 @@ export default function ClassDetailSheet({
         body: JSON.stringify({
           class_group_id: group.id,
           effective_timing: timing,
-          expected_updated_at: unassignStudent.updated_at ?? undefined,
         }),
       });
       if (res.ok) {
@@ -159,7 +151,6 @@ export default function ClassDetailSheet({
     setUnassigningStudent(false);
   }
 
-  // 결석 학생 상단 정렬 → 결석 먼저, 이후 이름순
   const groupStudents = students
     .filter(st =>
       (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(group.id))
@@ -173,8 +164,6 @@ export default function ClassDetailSheet({
     });
 
   const diarDone = diarySet.has(group.id);
-
-  // 반이동 대상 반 목록 (현재 반 제외)
   const moveTargetClasses = (classGroups || []).filter(g => g.id !== group.id);
 
   return (
@@ -210,7 +199,6 @@ export default function ClassDetailSheet({
                 <Text style={[cds.actionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
               </Pressable>
             </View>
-            {/* 반 색상 */}
             <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
             <Text style={cds.sectionLabel}>학생 목록 · {effectiveDate}</Text>
             <ScrollView style={cds.studentScroll} showsVerticalScrollIndicator={false}>
@@ -237,21 +225,18 @@ export default function ClassDetailSheet({
                       <ActivityIndicator size="small" color={themeColor} style={{ marginHorizontal: 8 }} />
                     ) : (
                       <View style={{ flexDirection: "row", gap: 4 }}>
-                        {/* 출석: 직접 present 설정, 페이지 이동 없음 */}
                         <Pressable
                           style={[cds.stBtn, isPresent && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]}
                           onPress={() => markAtt(st.id, "present")}
                         >
                           <Text style={[cds.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>
                         </Pressable>
-                        {/* 결석: 직접 absent 설정 → API가 makeup_session 자동 생성, 페이지 이동 없음 */}
                         <Pressable
                           style={[cds.stBtn, isAbsent && { backgroundColor: "#F9DEDA", borderColor: "#D96C6C" }]}
                           onPress={() => markAtt(st.id, "absent")}
                         >
                           <Text style={[cds.stBtnTxt, { color: isAbsent ? "#D96C6C" : C.textMuted }]}>결석</Text>
                         </Pressable>
-                        {/* 반이동: 모달 열기, 상세 이동 없음 */}
                         <Pressable
                           style={[cds.stBtn, { backgroundColor: "#F0F0FF" }]}
                           onPress={() => setMoveStudent(st)}
@@ -260,7 +245,6 @@ export default function ClassDetailSheet({
                         </Pressable>
                       </View>
                     )}
-                    {/* [>] 학생 상세 이동 */}
                     <Pressable
                       onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/student-detail", params:{id: st.id} } as any))}
                       style={{ padding: 4 }}
@@ -295,7 +279,6 @@ export default function ClassDetailSheet({
         </Pressable>
       </Modal>
 
-      {/* 반이동 모달: 학생 상세 이동 없이 반 선택 → API 호출 */}
       {moveStudent && (
         <Modal visible animationType="slide" transparent onRequestClose={() => setMoveStudent(null)} statusBarTranslucent>
           <Pressable style={cds.backdrop} onPress={() => setMoveStudent(null)}>
@@ -310,7 +293,6 @@ export default function ClassDetailSheet({
                   <X size={20} color={C.textSecondary} />
                 </Pressable>
               </View>
-              {/* 미배정으로 이동 버튼 — 리스트 상단 고정 */}
               <Pressable
                 style={cds.unassignBtn}
                 onPress={() => { setUnassignStudent(moveStudent); setShowUnassignTiming(true); }}
@@ -367,7 +349,6 @@ export default function ClassDetailSheet({
         </Modal>
       )}
 
-      {/* 미배정 적용 시점 선택 팝업 */}
       {showUnassignTiming && unassignStudent && (
         <Modal visible animationType="slide" transparent onRequestClose={() => setShowUnassignTiming(false)} statusBarTranslucent>
           <Pressable style={cds.backdrop} onPress={() => setShowUnassignTiming(false)}>

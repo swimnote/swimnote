@@ -528,12 +528,11 @@ function _addDays(dateStr: string, n: number): string {
 //   next_week/week_after → change_log 예약만(is_applied=false), 실제 제거는 effective_date에 자동 적용
 // new_status / effective_mode: 기존 호환용 (레거시)
 router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { class_group_id, new_status, effective_mode, effective_timing, expected_updated_at } = req.body as {
+  const { class_group_id, new_status, effective_mode, effective_timing } = req.body as {
     class_group_id: string;
     new_status?: string;
     effective_mode?: "immediate" | "next_month";
     effective_timing?: "now" | "next_week" | "week_after";
-    expected_updated_at?: string;
   };
   if (!class_group_id) return err(res, 400, "class_group_id 필요");
 
@@ -656,20 +655,6 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
     // 즉시 제거: 특정 반만 제거
     const newIds = currentIds.filter((id: string) => id !== class_group_id);
     const newPrimaryId = newIds[0] || null;
-
-    // ── 낙관적 잠금: expected_updated_at이 있으면 먼저 충돌 검사 ──
-    if (expected_updated_at) {
-      const expectedDate = new Date(expected_updated_at);
-      const currentUpdatedAt = (existing as any).updated_at ? new Date((existing as any).updated_at) : null;
-      if (!currentUpdatedAt || Math.abs(currentUpdatedAt.getTime() - expectedDate.getTime()) > 1000) {
-        const [latest] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
-        return res.status(409).json({
-          code: "ASSIGNMENT_CONFLICT",
-          message: "다른 작업자가 먼저 반 배정을 변경했습니다.",
-          latest_state: latest || null,
-        });
-      }
-    }
 
     let labels = "";
     if (newIds.length > 0) {
@@ -833,7 +818,7 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
 });
 
 router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { from_class_id, to_class_id, expected_updated_at } = req.body as { from_class_id: string; to_class_id: string; expected_updated_at?: string };
+  const { from_class_id, to_class_id } = req.body as { from_class_id: string; to_class_id: string };
   if (!from_class_id || !to_class_id) return err(res, 400, "from_class_id, to_class_id 모두 필요");
   if (from_class_id === to_class_id) return err(res, 400, "출발반과 도착반이 같습니다");
 
@@ -911,7 +896,7 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
 
 // ── PATCH /:id/assign — 반 배정 (관리자 + 선생님 허용) ─────────────
 router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
-  const { assigned_class_ids: rawIds, weekly_count, expected_updated_at } = req.body;
+  const { assigned_class_ids: rawIds, weekly_count } = req.body;
   if (!Array.isArray(rawIds)) return err(res, 400, "assigned_class_ids는 배열이어야 합니다.");
 
   // null·undefined 제거 + 중복 제거
@@ -961,19 +946,6 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
 
     // students에 first class_group_id도 업데이트 (하위 호환)
     const firstClassId = assigned_class_ids[0] || null;
-
-    // ── 낙관적 잠금: JS로 비교 (1초 허용 오차) ──
-    if (expected_updated_at) {
-      const expectedDate = new Date(expected_updated_at);
-      const currentUpdatedAt = (existing as any).updated_at ? new Date((existing as any).updated_at) : null;
-      if (!currentUpdatedAt || Math.abs(currentUpdatedAt.getTime() - expectedDate.getTime()) > 1000) {
-        return res.status(409).json({
-          code: "ASSIGNMENT_CONFLICT",
-          message: "다른 작업자가 먼저 배정을 변경했습니다.",
-          latest_state: existing || null,
-        });
-      }
-    }
 
     const [student] = await db.update(studentsTable)
       .set({
