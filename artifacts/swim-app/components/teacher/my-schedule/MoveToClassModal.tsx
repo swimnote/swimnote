@@ -27,7 +27,6 @@ export default function MoveToClassModal({
   const [selected, setSelected] = useState<StudentItem | null>(null);
   const [fromClassId, setFromClassId] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
-  const [conflictVisible, setConflictVisible] = useState(false);
 
   const teacherClassIds = new Set(classGroups.map(g => g.id));
   const eligible = students.filter(st => {
@@ -59,11 +58,9 @@ export default function MoveToClassModal({
       method: "POST", body: JSON.stringify({
         from_class_id: fromClassId,
         to_class_id: classGroup.id,
-        expected_updated_at: selected.updated_at ?? undefined,
       }),
     });
     setMoving(false);
-    if (res.status === 409) { setConflictVisible(true); return; }
     onMoved();
   }
 
@@ -145,22 +142,6 @@ export default function MoveToClassModal({
         title="반이동 확인" message={confirmMsg} confirmText="이동" cancelText="취소"
         onConfirm={() => { setStep("list"); doMove(); }}
         onCancel={() => setStep(selected && teacherClassesOf(selected).length > 1 ? "pick-class" : "list")} />
-
-      {conflictVisible && (
-        <Modal visible animationType="fade" transparent onRequestClose={() => { setConflictVisible(false); onMoved(); }}>
-          <Pressable style={rm.backdrop} onPress={() => { setConflictVisible(false); onMoved(); }} />
-          <View style={{ position: "absolute", left: 24, right: 24, top: "35%", backgroundColor: "#fff", borderRadius: 14, padding: 24, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 12, elevation: 10 }}>
-            <Text style={{ fontSize: 17, fontWeight: "700", color: "#222", marginBottom: 8 }}>배정 상태가 변경되었습니다</Text>
-            <Text style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>다른 작업자가 먼저 처리했습니다.{"\n"}최신 목록으로 돌아갑니다.</Text>
-            <Pressable
-              onPress={() => { setConflictVisible(false); onMoved(); }}
-              style={{ backgroundColor: themeColor, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
-            >
-              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>확인</Text>
-            </Pressable>
-          </View>
-        </Modal>
-      )}
     </>
   );
 }

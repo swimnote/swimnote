@@ -882,28 +882,13 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
       return days.map((d: string) => `${d}${hour}`).join("·");
     }).join("·");
 
-    // ── 낙관적 잠금: expected_updated_at이 있으면 조건부 UPDATE ──
-    const moveWhereClause = expected_updated_at
-      ? and(eq(studentsTable.id, req.params.id), sql`date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${new Date(expected_updated_at)}::timestamptz)`)
-      : eq(studentsTable.id, req.params.id);
-
     const [moved] = await db.update(studentsTable).set({
       assigned_class_ids: newIds as any,
       class_group_id: newIds[0] || null,
       schedule_labels: labels || null,
       status: "active",
       updated_at: new Date(),
-    }).where(moveWhereClause).returning({ id: studentsTable.id });
-
-    // 조건 불일치 → 409 Conflict
-    if (!moved && expected_updated_at) {
-      const [latest] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
-      return res.status(409).json({
-        code: "ASSIGNMENT_CONFLICT",
-        message: "다른 작업자가 먼저 반이동을 처리했습니다.",
-        latest_state: latest || null,
-      });
-    }
+    }).where(eq(studentsTable.id, req.params.id)).returning({ id: studentsTable.id });
 
     // 출발반/도착반 이름 조회 (메신저 메시지용)
     const [fromCls] = await db.select({ name: classGroupsTable.name })

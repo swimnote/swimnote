@@ -1,11 +1,6 @@
 /**
  * AdminClassDetailSheet.tsx
  * 관리자 반 상세 바텀시트
- * - 반 정보 표시 (이름, 요일, 시간, 담당선생님, 정원)
- * - 학생 목록
- * - 버튼: 반배정, 미등록, 반이동
- * - 담당선생님 지정/변경
- * - 서브뷰: 미등록시트, 반이동시트, 선생님선택시트
  */
 import { Check, ChevronLeft, CircleCheck, PenLine, Repeat, Search, User, UserPlus, UserX, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
@@ -21,7 +16,6 @@ import PastelColorPicker from "@/components/common/PastelColorPicker";
 
 const C = Colors.light;
 
-/* ── 타입 ────────────────────────────────────────── */
 export interface ClassGroupDetail {
   id: string;
   name: string;
@@ -66,18 +60,16 @@ interface Props {
   onColorChange?: (id: string, color: string) => void;
 }
 
-/* ══════════════════════════════════════════════════ */
 export default function AdminClassDetailSheet({ group, token, themeColor, onClose, onReload, onColorChange }: Props) {
   const [detail, setDetail]       = useState<ClassGroupDetail | null>(null);
-  const [students, setStudents]   = useState<StudentItem[]>([]);  // 이 반 학생
-  const [allStudents, setAll]     = useState<StudentItem[]>([]);   // 풀 전체 학생
+  const [students, setStudents]   = useState<StudentItem[]>([]);
+  const [allStudents, setAll]     = useState<StudentItem[]>([]);
   const [teachers, setTeachers]   = useState<TeacherItem[]>([]);
   const [loading, setLoading]     = useState(true);
   const [subView, setSubView]     = useState<SubView>(null);
   const [saving, setSaving]       = useState<string | null>(null);
   const [search, setSearch]       = useState("");
   const [teacherSaving, setTeacherSaving] = useState(false);
-  const [conflictVisible, setConflictVisible] = useState(false);
   const [colorSaving, setColorSaving] = useState(false);
 
   const originalColorRef = useRef<string>(group.color || "#FFFFFF");
@@ -106,7 +98,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     onClose();
   }
 
-  /* ── 데이터 로드 ── */
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -136,7 +127,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
 
   useEffect(() => { load(); }, [load]);
 
-  /* ── 선생님 목록 로드 (서브뷰 teacher 진입 시) ── */
   async function loadTeachers() {
     if (teachers.length > 0) return;
     try {
@@ -145,7 +135,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     } catch (e) { console.error(e); }
   }
 
-  /* ── 담당선생님 지정 ── */
   async function handleAssignTeacher(teacher: TeacherItem) {
     setTeacherSaving(true);
     const instrName = teacher.name || null;
@@ -164,7 +153,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     finally { setTeacherSaving(false); }
   }
 
-  /* ── 미등록 배정: assign 엔드포인트 ── */
   async function handleAddUnregistered(student: StudentItem) {
     if (!detail) return;
     setSaving(student.id);
@@ -186,7 +174,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     finally { setSaving(null); }
   }
 
-  /* ── 반이동: move-class 엔드포인트 ── */
   async function handleTransfer(student: StudentItem) {
     const ids: string[] = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : [];
     const fromClassId = ids.find(id => id !== group.id) || student.class_group_id;
@@ -198,13 +185,8 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
         body: JSON.stringify({
           from_class_id: fromClassId,
           to_class_id: group.id,
-          expected_updated_at: student.updated_at ?? undefined,
         }),
       });
-      if (res.status === 409) {
-        setConflictVisible(true);
-        return;
-      }
       if (res.ok) {
         await load();
         onReload();
@@ -213,13 +195,11 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     finally { setSaving(null); }
   }
 
-  /* ── 필터 ── */
   const capacityLabel = detail?.capacity != null
     ? `${students.length} / ${detail.capacity}명`
     : `${students.length}명`;
   const capacityFull = detail?.capacity != null && students.length >= detail.capacity;
 
-  // 미등록: assigned_class_ids 비어있고 class_group_id도 없는 학생
   const unregistered = allStudents.filter(s => {
     const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
     if (ids.includes(group.id) || s.class_group_id === group.id) return false;
@@ -227,7 +207,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     return true;
   }).filter(s => !search.trim() || s.name.includes(search.trim()) || (s.parent_phone || "").includes(search.trim()));
 
-  // 반이동: 다른 반에 속한 학생
   const transferable = allStudents.filter(s => {
     const ids: string[] = Array.isArray(s.assigned_class_ids) ? s.assigned_class_ids : [];
     if (ids.includes(group.id) || s.class_group_id === group.id) return false;
@@ -238,12 +217,10 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
   const days = (detail?.schedule_days || group.schedule_days).split(",").map(d => d.trim()).join("·");
   const instructorLabel = detail?.instructor || "미지정";
 
-  /* ── 서브뷰 진입 ── */
   function enterTeacher() { loadTeachers(); setSearch(""); setSubView("teacher"); }
   function enterUnregistered() { setSearch(""); setSubView("unregistered"); }
   function enterTransfer() { setSearch(""); setSubView("transfer"); }
 
-  /* ── 반배정 → class-assign 화면으로 이동 ── */
   function handleAssign() {
     onClose();
     setTimeout(() => {
@@ -251,14 +228,12 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
     }, 150);
   }
 
-  /* ──────────────────────────────────────────────── */
   return (
     <Modal visible animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={sh.backdrop} onPress={handleClose} />
       <View style={sh.sheet}>
         <View style={sh.handle} />
 
-        {/* ── 공통 헤더 ── */}
         <View style={sh.header}>
           {subView ? (
             <Pressable onPress={() => { setSubView(null); setSearch(""); }} style={sh.backBtn}>
@@ -285,13 +260,11 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           </Pressable>
         </View>
 
-        {/* ── 메인 뷰 ── */}
         {!subView && (
           loading ? (
             <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />
           ) : (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-              {/* 반 요약 카드 */}
               <View style={sh.summaryCard}>
                 <View style={sh.summaryRow}>
                   <User size={14} color={C.textMuted} />
@@ -307,11 +280,9 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                   <Text style={sh.summaryVal}>{capacityLabel}</Text>
                   {capacityFull && <View style={sh.fullBadge}><Text style={sh.fullBadgeText}>정원 마감</Text></View>}
                 </View>
-                {/* 반 색상 */}
                 <PastelColorPicker selected={draftColor} onSelect={handleColorSelect} />
               </View>
 
-              {/* 액션 버튼 */}
               <View style={sh.actionRow}>
                 <Pressable style={[sh.actionBtn, { backgroundColor: themeColor }]} onPress={handleAssign}>
                   <UserPlus size={14} color="#fff" />
@@ -327,7 +298,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
                 </Pressable>
               </View>
 
-              {/* 학생 목록 */}
               <View style={sh.sectionHeader}>
                 <Text style={sh.sectionTitle}>학생 목록</Text>
                 <Text style={sh.sectionCount}>{students.length}명</Text>
@@ -354,7 +324,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           )
         )}
 
-        {/* ── 미등록 서브뷰 ── */}
         {subView === "unregistered" && (
           <View style={{ flex: 1 }}>
             <View style={sh.searchBox}>
@@ -408,7 +377,6 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           </View>
         )}
 
-        {/* ── 반이동 서브뷰 ── */}
         {subView === "transfer" && (
           <View style={{ flex: 1 }}>
             <View style={sh.searchBox}>
@@ -463,13 +431,11 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           </View>
         )}
 
-        {/* ── 담당선생님 서브뷰 ── */}
         {subView === "teacher" && (
           <View style={{ flex: 1 }}>
             {teacherSaving && (
               <ActivityIndicator color={themeColor} style={{ marginTop: 20 }} />
             )}
-            {/* 선생님 미지정 옵션 */}
             <Pressable
               style={[sh.teacherRow, { borderBottomWidth: 1, borderBottomColor: C.border }]}
               onPress={() => handleAssignTeacher({ id: "", name: "" } as any)}
@@ -514,28 +480,10 @@ export default function AdminClassDetailSheet({ group, token, themeColor, onClos
           </View>
         )}
       </View>
-
-      {/* ── 동시성 충돌 팝업 ── */}
-      {conflictVisible && (
-        <Modal visible animationType="fade" transparent onRequestClose={() => { setConflictVisible(false); load(); }}>
-          <Pressable style={sh.backdrop} onPress={() => { setConflictVisible(false); load(); }} />
-          <View style={{ position: "absolute", left: 24, right: 24, top: "35%", backgroundColor: "#fff", borderRadius: 14, padding: 24, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 12, elevation: 10 }}>
-            <Text style={{ fontSize: 17, fontWeight: "700", color: "#222", marginBottom: 8 }}>배정 상태가 변경되었습니다</Text>
-            <Text style={{ fontSize: 14, color: "#555", textAlign: "center", marginBottom: 20 }}>다른 작업자가 먼저 처리했습니다.{"\n"}최신 목록을 다시 불러옵니다.</Text>
-            <Pressable
-              onPress={() => { setConflictVisible(false); load(); }}
-              style={{ backgroundColor: themeColor, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
-            >
-              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>확인</Text>
-            </Pressable>
-          </View>
-        </Modal>
-      )}
     </Modal>
   );
 }
 
-/* ── 스타일 ─────────────────────────────────────── */
 const sh = StyleSheet.create({
   backdrop:   { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" },
   sheet:      { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
