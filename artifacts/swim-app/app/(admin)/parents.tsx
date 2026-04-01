@@ -576,9 +576,25 @@ export default function ParentsScreen() {
         >
           {parents.length === 0 ? (
             <View style={s.empty}>
-              <Users size={48} color={C.textMuted} />
-              <Text style={[s.emptyTitle, { color: C.text }]}>등록된 학부모가 없습니다</Text>
-              <Text style={[s.emptySub, { color: C.textSecondary }]}>승인 메뉴에서 가입 요청을 승인하거나 직접 추가하세요</Text>
+              <View style={[s.emptyIconWrap, { backgroundColor: C.tintLight }]}>
+                <Users size={36} color={C.tint} />
+              </View>
+              <Text style={[s.emptyTitle, { color: C.text }]}>연결된 학부모가 없습니다</Text>
+              <Text style={[s.emptySub, { color: C.textSecondary }]}>학부모가 앱에서 자녀를 찾아 연결하거나{"\n"}아래 버튼으로 직접 추가할 수 있습니다</Text>
+              <Pressable
+                style={[s.emptyBtn, { backgroundColor: C.button }]}
+                onPress={() => setShowAddParent(true)}
+              >
+                <Plus size={15} color="#fff" />
+                <Text style={s.emptyBtnText}>학부모 직접 추가</Text>
+              </Pressable>
+              <Pressable
+                style={[s.emptyBtnOutline, { borderColor: C.tint }]}
+                onPress={() => router.push("/(admin)/approvals" as any)}
+              >
+                <UserCheck size={15} color={C.tint} />
+                <Text style={[s.emptyBtnOutlineText, { color: C.tint }]}>가입 요청 확인하기</Text>
+              </Pressable>
             </View>
           ) : parents.map(pa => {
             const isSelected = sel.isSelected(pa.id);
@@ -722,8 +738,13 @@ const s = StyleSheet.create({
 
   // 빈 상태
   empty: { alignItems: "center", paddingTop: 80, gap: 12 },
+  emptyIconWrap: { width: 72, height: 72, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  emptySub: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
+  emptyBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
+  emptyBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
+  emptyBtnOutline: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5 },
+  emptyBtnOutlineText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
 
   // 카드
   checkWrap: { justifyContent: "center", marginRight: 4 },

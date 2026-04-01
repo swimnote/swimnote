@@ -865,6 +865,15 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
 
       const parentPendingRow = { parent_pending: 0 };
 
+      // 학부모 수 (해당 풀 학생과 연결된 고유 parent_accounts)
+      const [parentCountRow] = (await db.execute(sql`
+        SELECT COUNT(DISTINCT parent_user_id)::int AS total_parents
+        FROM students
+        WHERE swimming_pool_id = ${poolId}
+          AND parent_user_id IS NOT NULL
+          AND status NOT IN ('withdrawn','deleted')
+      `)).rows as any[];
+
       const [diaryRow] = (await db.execute(sql`
         SELECT COUNT(DISTINCT cg.id)::int AS total_classes,
                COUNT(DISTINCT cd.class_group_id) FILTER (WHERE cd.lesson_date = ${today})::int AS diary_done_today
@@ -925,6 +934,7 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         total_classes:   diaryRow?.total_classes ?? 0,
         diary_done_today: diaryRow?.diary_done_today ?? 0,
         total_teachers:  teacherRow?.total_teachers ?? 0,
+        total_parents:   parentCountRow?.total_parents ?? 0,
         pending_makeups:  makeupRow?.pending_makeups ?? 0,
         monthly_revenue:  Number(revenueRow?.monthly_revenue ?? 0),
         expiring_soon:    0,

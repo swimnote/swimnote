@@ -1,8 +1,8 @@
 import { Briefcase, Home, Layers, Send, Settings } from "lucide-react-native";
-import { Tabs, router } from "expo-router";
-import React, { useEffect } from "react";
+import { Tabs, router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { emitTabReset } from "@/utils/tabReset";
 
@@ -10,7 +10,28 @@ const C = Colors.light;
 
 export default function AdminLayout() {
   const { themeColor } = useBrand();
-  const { kind, isLoading, adminUser } = useAuth();
+  const { kind, isLoading, adminUser, token } = useAuth();
+
+  // K: 처리 필요 배지 — pending 카운트 폴링
+  const [pendingBadge, setPendingBadge] = useState<number | undefined>(undefined);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchBadge = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await apiRequest(token, "/admin/dashboard-stats");
+      if (!res.ok) return;
+      const d = await res.json();
+      const total = (d.pending_requests ?? 0) + (d.pending_makeups ?? 0);
+      setPendingBadge(total > 0 ? total : undefined);
+    } catch { /* 무시 */ }
+  }, [token]);
+
+  useFocusEffect(useCallback(() => {
+    fetchBadge();
+    timerRef.current = setInterval(fetchBadge, 60_000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [fetchBadge]));
 
   useEffect(() => {
     if (isLoading || !kind) return;
@@ -63,7 +84,12 @@ export default function AdminLayout() {
       <Tabs.Screen
         name="dashboard"
         listeners={makeTabListener("dashboard")}
-        options={{ title: "홈", tabBarIcon: ({ color }) => <Home size={22} color={color} /> }}
+        options={{
+          title: "홈",
+          tabBarIcon: ({ color }) => <Home size={22} color={color} />,
+          tabBarBadge: pendingBadge,
+          tabBarBadgeStyle: { backgroundColor: "#D96C6C", fontSize: 10, minWidth: 16, height: 16, lineHeight: 16 },
+        }}
       />
       <Tabs.Screen
         name="class-hub"

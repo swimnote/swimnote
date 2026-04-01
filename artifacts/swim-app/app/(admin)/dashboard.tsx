@@ -4,12 +4,13 @@
  * 메신저 외 7개 아이콘은 3열 그리드 팝업을 거쳐 페이지 이동
  * SearchModal, AdminQuickRegisterModal → components/admin/ 로 이동됨
  */
-import { ChevronRight, CircleAlert, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX } from "lucide-react-native";
+import { Check, ChevronRight, CircleAlert, LogOut, Repeat, Search, TriangleAlert, UserPlus, UserX, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, Pressable,
+  ActivityIndicator, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,6 +21,9 @@ import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { PaymentBanner } from "@/components/common/PaymentBanner";
 import { SearchModal } from "@/components/admin/SearchModal";
 import { AdminQuickRegisterModal } from "@/components/admin/AdminQuickRegisterModal";
+
+const WIZARD_DISMISSED_KEY = "@swimnote:setup_wizard_dismissed";
+const WIZARD_CELEBRATED_KEY = "@swimnote:setup_wizard_celebrated";
 
 const C = Colors.light;
 const TAB_BAR_H = Platform.OS === "web" ? 90 : 72;
@@ -59,6 +63,37 @@ export default function DashboardScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [switching, setSwitching] = useState(false);
+
+  // B: 시작 가이드 마법사
+  const [wizardDismissed, setWizardDismissed] = useState(true);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(WIZARD_DISMISSED_KEY).then(v => {
+      setWizardDismissed(v === "1");
+    }).catch(() => {});
+  }, []);
+
+  async function dismissWizard() {
+    setWizardDismissed(true);
+    await AsyncStorage.setItem(WIZARD_DISMISSED_KEY, "1").catch(() => {});
+  }
+
+  // W: 모든 설정 완료 시 축하 팝업 (한 번만)
+  useEffect(() => {
+    if (!stats) return;
+    const hasMembers  = (stats.total_members ?? 0) > 0;
+    const hasTeachers = (stats.total_teachers ?? 0) > 0;
+    const hasParents  = (stats.total_parents ?? 0) > 0;
+    if (hasMembers && hasTeachers && hasParents) {
+      AsyncStorage.getItem(WIZARD_CELEBRATED_KEY).then(v => {
+        if (!v) {
+          setShowCelebration(true);
+          AsyncStorage.setItem(WIZARD_CELEBRATED_KEY, "1").catch(() => {});
+        }
+      }).catch(() => {});
+    }
+  }, [stats]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -155,6 +190,45 @@ export default function DashboardScreen() {
         }
       >
         <PaymentBanner />
+
+        {/* B: 시작 가이드 마법사 — 학생/선생님/학부모 미완료 시 표시 */}
+        {!loading && !wizardDismissed && stats && (() => {
+          const steps = [
+            { label: "학생 등록",    done: (stats.total_members  ?? 0) > 0, route: "/(admin)/members",        icon: "users" },
+            { label: "선생님 초대",  done: (stats.total_teachers ?? 0) > 0, route: "/(admin)/teachers",       icon: "user-check" },
+            { label: "학부모 초대",  done: (stats.total_parents  ?? 0) > 0, route: "/(admin)/parents",        icon: "user" },
+          ];
+          const allDone = steps.every(s => s.done);
+          if (allDone) return null;
+          return (
+            <View style={wz.card}>
+              <View style={wz.header}>
+                <Text style={wz.title}>시작 가이드</Text>
+                <Pressable onPress={dismissWizard} hitSlop={8}>
+                  <X size={16} color={C.textMuted} />
+                </Pressable>
+              </View>
+              <Text style={wz.sub}>아래 3단계를 완료하면 운영 준비가 끝납니다</Text>
+              {steps.map((step, idx) => (
+                <Pressable
+                  key={step.label}
+                  style={[wz.step, idx < steps.length - 1 && wz.stepBorder]}
+                  onPress={() => router.push(step.route as any)}
+                >
+                  <View style={[wz.stepIcon, { backgroundColor: step.done ? "#D1FAE5" : "#F1F5F9" }]}>
+                    {step.done
+                      ? <Check size={16} color="#16A34A" />
+                      : <LucideIcon name={step.icon as any} size={16} color={C.textMuted} />
+                    }
+                  </View>
+                  <Text style={[wz.stepLabel, step.done && wz.stepDone]}>{step.label}</Text>
+                  {!step.done && <ChevronRight size={14} color={C.textMuted} style={{ marginLeft: "auto" }} />}
+                  {step.done && <Text style={wz.doneTag}>완료</Text>}
+                </Pressable>
+              ))}
+            </View>
+          );
+        })()}
 
         {loading ? (
           <ActivityIndicator color={themeColor} size="large" style={{ marginTop: 40 }} />
@@ -297,28 +371,66 @@ export default function DashboardScreen() {
               </Pressable>
             )}
 
-            {/* ── 처리 필요 알림 ── */}
-            {stats && (stats.pending_requests > 0 || (stats.pending_makeups ?? 0) > 0) && (
-              <View style={s.alertCard}>
-                <TriangleAlert size={15} color="#D97706" />
-                <View style={{ flex: 1, gap: 4 }}>
-                  {stats.pending_requests > 0 && (
-                    <Pressable onPress={() => router.push("/(admin)/approvals?backTo=dashboard")}>
-                      <Text style={s.alertTxt}>
-                        승인 대기 <Text style={{ fontWeight: "700", color: "#D97706" }}>{stats.pending_requests}건</Text> — 탭하여 처리
-                      </Text>
+            {/* X: 스마트 처리 알림 — 처리 필요 항목 한눈에 */}
+            {stats && (() => {
+              const alerts = [
+                stats.pending_requests > 0 && {
+                  icon: "user-check" as const,
+                  color: "#D97706",
+                  bg: "#FFFBEB",
+                  label: `승인 대기 ${stats.pending_requests}건`,
+                  sub: "탭하여 처리",
+                  route: "/(admin)/approvals?backTo=dashboard",
+                },
+                (stats.pending_makeups ?? 0) > 0 && {
+                  icon: "rotate-ccw" as const,
+                  color: "#D96C6C",
+                  bg: "#FEF2F2",
+                  label: `보강 미처리 ${stats.pending_makeups}건`,
+                  sub: "배정 필요",
+                  route: "/(admin)/makeups?backTo=dashboard",
+                },
+                (stats.unassigned ?? 0) > 0 && {
+                  icon: "alert-circle" as const,
+                  color: "#DC2626",
+                  bg: "#FEE2E2",
+                  label: `수업 미배정 ${stats.unassigned}명`,
+                  sub: "반 배정 필요",
+                  route: "/(admin)/members?filter=unassigned&backTo=dashboard",
+                },
+                (stats.unlinked_members ?? 0) > 0 && {
+                  icon: "user-x" as const,
+                  color: "#EA580C",
+                  bg: "#FFF7ED",
+                  label: `학부모 미연결 ${stats.unlinked_members}명`,
+                  sub: "초대 발송 권장",
+                  route: "/(admin)/members?filter=unlinked&backTo=dashboard",
+                },
+              ].filter(Boolean) as { icon: string; color: string; bg: string; label: string; sub: string; route: string }[];
+              if (alerts.length === 0) return null;
+              return (
+                <View style={s.alertCard}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <TriangleAlert size={13} color="#D97706" />
+                    <Text style={[s.alertTxt, { fontWeight: "700", color: "#D97706" }]}>처리 필요 {alerts.length}건</Text>
+                  </View>
+                  {alerts.map(a => (
+                    <Pressable
+                      key={a.label}
+                      style={[s.alertRow, { backgroundColor: a.bg }]}
+                      onPress={() => router.push(a.route as any)}
+                    >
+                      <LucideIcon name={a.icon as any} size={13} color={a.color} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.alertTxt, { color: a.color }]}>{a.label}</Text>
+                        <Text style={[s.alertSub]}>{a.sub}</Text>
+                      </View>
+                      <ChevronRight size={12} color={a.color} />
                     </Pressable>
-                  )}
-                  {(stats.pending_makeups ?? 0) > 0 && (
-                    <Pressable onPress={() => router.push("/(admin)/makeups?backTo=dashboard")}>
-                      <Text style={s.alertTxt}>
-                        보강 미처리 <Text style={{ fontWeight: "700", color: "#D96C6C" }}>{stats.pending_makeups}건</Text> — 탭하여 처리
-                      </Text>
-                    </Pressable>
-                  )}
+                  ))}
                 </View>
-              </View>
-            )}
+              );
+            })()}
 
             {/* ── 핵심 퀵액션 3버튼 ── */}
             <View style={{ flexDirection: "row", gap: 8 }}>
@@ -370,6 +482,23 @@ export default function DashboardScreen() {
         onClose={() => setShowRegister(false)}
         onSuccess={() => { fetchStats(); }}
       />
+
+      {/* W: 설정 완료 축하 모달 */}
+      <Modal visible={showCelebration} transparent animationType="fade" onRequestClose={() => setShowCelebration(false)}>
+        <Pressable style={cel.overlay} onPress={() => setShowCelebration(false)}>
+          <Pressable style={cel.sheet} onPress={e => e.stopPropagation()}>
+            <Text style={cel.emoji}>🎉</Text>
+            <Text style={cel.title}>준비 완료!</Text>
+            <Text style={cel.sub}>학생, 선생님, 학부모가 모두 연결됐습니다.{"\n"}이제 스윔노트를 본격적으로 운영하세요.</Text>
+            <Pressable
+              style={[cel.btn, { backgroundColor: themeColor }]}
+              onPress={() => setShowCelebration(false)}
+            >
+              <Text style={cel.btnTxt}>시작하기</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
     </View>
   );
@@ -427,16 +556,22 @@ const s = StyleSheet.create({
   wideSubDivider: { width: 1, height: 32, backgroundColor: C.border, alignSelf: "center" },
 
   alertCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
     backgroundColor: "#FFFBEB",
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
     borderColor: "#FDE68A",
+    gap: 6,
+  },
+  alertRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 8,
+    padding: 8,
   },
   alertTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
+  alertSub: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
 
   iconGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 16 },
   iconCell:  { alignItems: "center", gap: 8 },
@@ -468,4 +603,29 @@ const s = StyleSheet.create({
   quickBtnIcon:      { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 2 },
   quickBtnLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   quickBtnSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+});
+
+// B: 시작 가이드 마법사 스타일
+const wz = StyleSheet.create({
+  card:      { backgroundColor: "#EFF6FF", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#BFDBFE", gap: 4 },
+  header:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
+  title:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#1D4ED8" },
+  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 8 },
+  step:      { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  stepBorder:{ borderBottomWidth: 1, borderBottomColor: "#BFDBFE" },
+  stepIcon:  { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  stepLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 },
+  stepDone:  { color: "#64748B", textDecorationLine: "line-through" },
+  doneTag:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#16A34A", backgroundColor: "#D1FAE5", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+});
+
+// W: 설정 완료 축하 스타일
+const cel = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 32 },
+  sheet:   { backgroundColor: "#fff", borderRadius: 24, padding: 28, width: "100%", alignItems: "center", gap: 12 },
+  emoji:   { fontSize: 48 },
+  title:   { fontSize: 22, fontFamily: "Pretendard-Regular", color: C.text },
+  sub:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 },
+  btn:     { marginTop: 8, width: "100%", height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  btnTxt:  { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
 });

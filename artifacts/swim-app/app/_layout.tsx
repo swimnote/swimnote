@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router, useSegments } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -283,6 +284,23 @@ function RootNav() {
           didRoute.current = true;
           await setActiveRole(roleKey);
           router.replace(homePath as any);
+          return;
+        }
+      }
+
+      // 복수 역할: 저장된 기본 진입 모드 확인 → 없으면 관리자 우선
+      if (roleKeys.length > 1) {
+        const ADMIN_ROLES = ["pool_admin", "sub_admin"];
+        const storedDefault = await AsyncStorage.getItem("@swimnote:default_login_mode").catch(() => null);
+        const adminRole = roleKeys.find(r => ADMIN_ROLES.includes(r));
+        const teacherRole = roleKeys.find(r => r === "teacher");
+        const chosen = storedDefault === "teacher"
+          ? (teacherRole || adminRole)
+          : (adminRole || teacherRole);
+        if (chosen) {
+          didRoute.current = true;
+          await setActiveRole(chosen);
+          router.replace(ROLE_HOME_MAP[chosen] as any);
           return;
         }
       }

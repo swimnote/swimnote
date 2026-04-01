@@ -98,7 +98,13 @@ export function UnifiedMemberCard({
 
   return (
     <Pressable
-      style={[s.card, { backgroundColor: C.card }, isSelected && { borderWidth: 2, borderColor: themeColor }]}
+      style={[
+        s.card,
+        { backgroundColor: C.card },
+        // L: 상태 색상 왼쪽 테두리 — 한 눈에 상태 파악
+        { borderLeftWidth: 3, borderLeftColor: psBadge.color },
+        isSelected && { borderWidth: 2, borderColor: themeColor, borderLeftWidth: 2 },
+      ]}
       onPress={handlePress}
     >
       {/* ── 상단 영역 ── */}

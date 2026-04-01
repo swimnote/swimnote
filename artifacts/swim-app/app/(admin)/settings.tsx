@@ -1,14 +1,15 @@
 /**
- * 설정 탭 — 수업설정 / 운영설정 / 수영장설정 3섹션 구조
- * 구독 관리(billing)는 운영설정 하위에 위치, 업그레이드 UI는 앱 심사 후 활성화
+ * 설정 탭 — 수업설정 / 운영설정 / 수영장설정 / 계정
+ * U: 복수 역할 보유 시 "로그인 기본 모드" 토글 표시
  */
-import { Activity, ChevronRight, Repeat } from "lucide-react-native";
+import { ChevronRight, Check, Repeat } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView,
-  StyleSheet, Text, View,
+  StyleSheet, Switch, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -21,54 +22,71 @@ const C = Colors.light;
 const N = "#0F172A";
 const NB = "#E6FAF8";
 
-type MenuItem = {
-  label: string;
-  icon: string;
-  color: string;
-  bg: string;
-  route: string;
-  desc?: string;
-};
+const DEFAULT_LOGIN_MODE_KEY = "@swimnote:default_login_mode";
+
+type MenuItem = { label: string; icon: string; color: string; bg: string; route: string; desc?: string };
 
 const CLASS_SETTINGS: MenuItem[] = [
-  { label: "레벨 / 테스트 설정", icon: "award",          color: "#CA8A04", bg: NB, route: "/(admin)/level-settings",             desc: "수영 레벨 기준 및 테스트 관리" },
-  { label: "알림 설정",          icon: "bell",            color: "#F59E0B", bg: NB, route: "/(admin)/push-notification-settings", desc: "푸시 알림 수신 설정" },
-  { label: "피드백 기본설정",    icon: "message-circle",  color: "#7C3AED", bg: NB, route: "/(admin)/feedback-settings",          desc: "수업 일지 피드백 기본값" },
-  { label: "권한 설정",          icon: "shield",          color: "#1D4ED8", bg: NB, route: "/(admin)/admin-grant",                desc: "부관리자 / 선생님 권한" },
-  { label: "보강 정책",          icon: "refresh-cw",      color: "#EA580C", bg: NB, route: "/(admin)/makeup-policy",             desc: "보강 가능 기간 및 규칙" },
+  { label: "레벨 / 테스트 설정", icon: "award",         color: "#CA8A04", bg: NB, route: "/(admin)/level-settings",             desc: "수영 레벨 기준 및 테스트 관리" },
+  { label: "알림 설정",          icon: "bell",           color: "#F59E0B", bg: NB, route: "/(admin)/push-notification-settings", desc: "푸시 알림 수신 설정" },
+  { label: "피드백 기본설정",    icon: "message-circle", color: "#7C3AED", bg: NB, route: "/(admin)/feedback-settings",          desc: "수업 일지 피드백 기본값" },
+  { label: "권한 설정",          icon: "shield",         color: "#1D4ED8", bg: NB, route: "/(admin)/admin-grant",                desc: "부관리자 / 선생님 권한" },
+  { label: "보강 정책",          icon: "refresh-cw",     color: "#EA580C", bg: NB, route: "/(admin)/makeup-policy",             desc: "보강 가능 기간 및 규칙" },
 ];
 
 const OPS_SETTINGS: MenuItem[] = [
-  { label: "구독 관리",          icon: "credit-card",     color: "#7C3AED", bg: NB, route: "/(admin)/billing",                   desc: "현재 플랜 및 사용량 확인" },
-  { label: "데이터 관리",        icon: "hard-drive",      color: "#0369A1", bg: NB, route: "/(admin)/data-management",           desc: "저장공간 현황 및 정책" },
-  { label: "브랜드 설정",        icon: "sliders",         color: N,         bg: NB, route: "/(admin)/branding",                  desc: "앱 이름 / 색상 / 로고" },
-  { label: "화이트라벨",         icon: "tag",             color: "#DB2777", bg: NB, route: "/(admin)/white-label",               desc: "커스텀 브랜딩 옵션" },
-  { label: "공지사항",           icon: "file-text",       color: "#0369A1", bg: NB, route: "/(admin)/notices",                   desc: "학부모 / 선생님 공지 관리" },
-  { label: "활동 로그",          icon: "activity",        color: "#16A34A", bg: NB, route: "/(admin)/data-event-logs",           desc: "관리자 / 선생님 활동 기록" },
-  { label: "초대 기록",          icon: "send",            color: N,         bg: NB, route: "/(admin)/invite-records",            desc: "회원 초대 발송 내역" },
-  { label: "휴무일 관리",        icon: "x-square",        color: N,         bg: NB, route: "/(admin)/holidays",                  desc: "수영장 휴무 / 공휴일 설정" },
-  { label: "푸시 발송 설정",     icon: "send",            color: N,         bg: NB, route: "/(admin)/push-message-settings",     desc: "단체 푸시 발송 규칙" },
+  { label: "구독 관리",          icon: "credit-card",    color: "#7C3AED", bg: NB, route: "/(admin)/billing",                   desc: "현재 플랜 및 사용량 확인" },
+  { label: "데이터 관리",        icon: "hard-drive",     color: "#0369A1", bg: NB, route: "/(admin)/data-management",           desc: "저장공간 현황 및 정책" },
+  { label: "브랜드 설정",        icon: "sliders",        color: N,         bg: NB, route: "/(admin)/branding",                  desc: "앱 이름 / 색상 / 로고" },
+  { label: "화이트라벨",         icon: "tag",            color: "#DB2777", bg: NB, route: "/(admin)/white-label",               desc: "커스텀 브랜딩 옵션" },
+  { label: "공지사항",           icon: "file-text",      color: "#0369A1", bg: NB, route: "/(admin)/notices",                   desc: "학부모 / 선생님 공지 관리" },
+  { label: "활동 로그",          icon: "activity",       color: "#16A34A", bg: NB, route: "/(admin)/data-event-logs",           desc: "관리자 / 선생님 활동 기록" },
+  { label: "초대 기록",          icon: "send",           color: N,         bg: NB, route: "/(admin)/invite-records",            desc: "회원 초대 발송 내역" },
+  { label: "휴무일 관리",        icon: "x-square",       color: N,         bg: NB, route: "/(admin)/holidays",                  desc: "수영장 휴무 / 공휴일 설정" },
+  { label: "푸시 발송 설정",     icon: "send",           color: N,         bg: NB, route: "/(admin)/push-message-settings",     desc: "단체 푸시 발송 규칙" },
 ];
 
 const POOL_SETTINGS: MenuItem[] = [
-  { label: "수영장 기본 설정",   icon: "settings",        color: N,         bg: NB, route: "/(admin)/pool-settings",             desc: "수영장 정보 / 소개 / 수강료 등" },
+  { label: "수영장 기본 설정",   icon: "settings",       color: N,         bg: NB, route: "/(admin)/pool-settings",             desc: "수영장 정보 / 소개 / 수강료 등" },
 ];
 
 const MY_SETTINGS: MenuItem[] = [
-  { label: "내 정보",            icon: "user",            color: N,         bg: NB, route: "/(admin)/my-info",                   desc: "프로필 및 계정 정보" },
-  { label: "문의하기",           icon: "message-circle",  color: "#7C3AED", bg: "#EEDDF5", route: "/support-ticket-list",        desc: "스윔노트 고객센터 문의" },
-  { label: "모드 변경",          icon: "grid",            color: N,         bg: NB, route: "/(admin)/mode",                      desc: "관리자 / 선생님 모드 전환" },
+  { label: "내 정보",            icon: "user",           color: N,         bg: NB, route: "/(admin)/my-info",                   desc: "프로필 및 계정 정보" },
+  { label: "문의하기",           icon: "message-circle", color: "#7C3AED", bg: "#EEDDF5", route: "/support-ticket-list",        desc: "스윔노트 고객센터 문의" },
 ];
 
 export default function SettingsScreen() {
-  const { token, adminUser, switchRole } = useAuth();
+  const { adminUser, switchRole, token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("settings");
 
   const [switchModalVisible, setSwitchModalVisible] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [defaultTeacher, setDefaultTeacher] = useState(false);
+
+  // I: 설정 완성도
+  const [settingsStats, setSettingsStats] = useState<{ total_members: number; total_teachers: number; total_parents: number } | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest(token, "/admin/dashboard-stats").then(r => r.ok ? r.json() : null).then(d => {
+      if (d) setSettingsStats({ total_members: d.total_members ?? 0, total_teachers: d.total_teachers ?? 0, total_parents: d.total_parents ?? 0 });
+    }).catch(() => {});
+  }, [token]);
+
   const hasMultipleRoles = (adminUser?.roles?.length ?? 0) >= 2;
+
+  useEffect(() => {
+    AsyncStorage.getItem(DEFAULT_LOGIN_MODE_KEY).then(v => {
+      setDefaultTeacher(v === "teacher");
+    }).catch(() => {});
+  }, []);
+
+  async function toggleDefaultMode(val: boolean) {
+    setDefaultTeacher(val);
+    await AsyncStorage.setItem(DEFAULT_LOGIN_MODE_KEY, val ? "teacher" : "admin").catch(() => {});
+  }
 
   async function handleSwitchRole(role: string) {
     setSwitching(true);
@@ -113,7 +131,6 @@ export default function SettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 14 }]}>
         <Text style={s.headerTitle}>설정</Text>
       </View>
@@ -145,7 +162,67 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        {/* 섹션들 */}
+        {/* I: 설정 완성도 점수 */}
+        {(() => {
+          if (!settingsStats) return null;
+          const items = [
+            { label: "학생 등록",   done: settingsStats.total_members  > 0, route: "/(admin)/members"   },
+            { label: "선생님 초대", done: settingsStats.total_teachers > 0, route: "/(admin)/teachers"  },
+            { label: "학부모 연결", done: settingsStats.total_parents  > 0, route: "/(admin)/parents"   },
+            { label: "수영장 정보", done: true,                             route: "/(admin)/pool-settings" },
+          ];
+          const doneCount = items.filter(i => i.done).length;
+          const pct = Math.round((doneCount / items.length) * 100);
+          return (
+            <View style={[sc.card, { backgroundColor: C.card }]}>
+              <View style={sc.topRow}>
+                <Text style={sc.title}>설정 완성도</Text>
+                <Text style={[sc.pct, { color: pct === 100 ? "#16A34A" : themeColor }]}>{pct}%</Text>
+              </View>
+              <View style={[sc.barBg, { backgroundColor: C.border }]}>
+                <View style={[sc.barFill, { width: `${pct}%` as any, backgroundColor: pct === 100 ? "#16A34A" : themeColor }]} />
+              </View>
+              <View style={sc.list}>
+                {items.map(item => (
+                  <Pressable key={item.label} style={sc.row} onPress={() => router.push((item.route + "?backTo=settings") as any)}>
+                    <View style={[sc.dot, { backgroundColor: item.done ? "#D1FAE5" : C.border }]}>
+                      {item.done && <Check size={11} color="#16A34A" />}
+                    </View>
+                    <Text style={[sc.rowLabel, { color: item.done ? C.textSecondary : C.text }]}>{item.label}</Text>
+                    {!item.done && <Text style={[sc.rowTag, { color: themeColor }]}>설정하기</Text>}
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          );
+        })()}
+
+        {/* 로그인 기본 모드 (복수 역할 보유 시만 표시) */}
+        {hasMultipleRoles && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>로그인 설정</Text>
+            <View style={[s.sectionCard, { backgroundColor: C.card }]}>
+              <View style={s.toggleRow}>
+                <View style={[s.menuIcon, { backgroundColor: NB }]}>
+                  <LucideIcon name="log-in" size={18} color={N} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.menuLabel}>로그인 후 선생님 모드로 시작</Text>
+                  <Text style={s.menuDesc}>
+                    {defaultTeacher ? "로그인 시 선생님 화면으로 진입합니다" : "로그인 시 관리자 화면으로 진입합니다"}
+                  </Text>
+                </View>
+                <Switch
+                  value={defaultTeacher}
+                  onValueChange={toggleDefaultMode}
+                  trackColor={{ false: C.border, true: themeColor }}
+                  thumbColor="#fff"
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
         {renderSection("수업 설정", CLASS_SETTINGS)}
         {renderSection("운영 설정", OPS_SETTINGS)}
         {renderSection("수영장 설정", POOL_SETTINGS)}
@@ -210,34 +287,38 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  headerTitle: { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text },
-
-  profileCard: {
-    flexDirection: "row", alignItems: "center", gap: 14, padding: 16,
-    borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1, shadowRadius: 6, elevation: 2,
-  },
+  headerTitle:    { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text },
+  profileCard:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   profileAvatar:  { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   profileInitial: { fontSize: 20, fontFamily: "Pretendard-Regular" },
   profileName:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
   profileRole:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   switchBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   switchBtnText:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  section:        { gap: 8 },
+  sectionTitle:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, paddingHorizontal: 4 },
+  sectionCard:    { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
+  menuRow:        { flexDirection: "row", alignItems: "center", gap: 14, padding: 14 },
+  toggleRow:      { flexDirection: "row", alignItems: "center", gap: 14, padding: 14 },
+  menuRowBorder:  { borderBottomWidth: 1, borderBottomColor: C.border },
+  menuIcon:       { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  menuLabel:      { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
+  menuDesc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
+});
 
-  otpBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1.5, padding: 14 },
-  otpIcon:   { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  otpTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  otpSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
-
-  section:      { gap: 8 },
-  sectionTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, paddingHorizontal: 4 },
-  sectionCard:  { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
-
-  menuRow:       { flexDirection: "row", alignItems: "center", gap: 14, padding: 14 },
-  menuRowBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
-  menuIcon:      { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  menuLabel:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
-  menuDesc:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
+// I: 설정 완성도 스타일
+const sc = StyleSheet.create({
+  card:     { borderRadius: 18, padding: 16, gap: 10, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
+  topRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  title:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
+  pct:      { fontSize: 20, fontFamily: "Pretendard-Regular" },
+  barBg:    { height: 6, borderRadius: 6, overflow: "hidden" },
+  barFill:  { height: 6, borderRadius: 6 },
+  list:     { gap: 6, marginTop: 4 },
+  row:      { flexDirection: "row", alignItems: "center", gap: 10 },
+  dot:      { width: 22, height: 22, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  rowLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
+  rowTag:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
 
 const sm = StyleSheet.create({

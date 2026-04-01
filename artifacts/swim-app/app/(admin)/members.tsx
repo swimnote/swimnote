@@ -416,11 +416,37 @@ export default function MembersScreen() {
             </View>
           ) : null}
           ListEmptyComponent={
-            <EmptyState
-              icon="users"
-              title="해당하는 회원이 없습니다"
-              subtitle={search ? `"${search}" 검색 결과가 없습니다` : filter !== "all" ? "필터를 변경해보세요" : "어린이 직접 등록 버튼으로 첫 회원을 추가해보세요"}
-            />
+            (!search && filter === "all") ? (
+              <View style={{ alignItems: "center", paddingTop: 80, gap: 12 }}>
+                <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" }}>
+                  <LucideIcon name="users" size={32} color={themeColor} />
+                </View>
+                <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>등록된 학생이 없습니다</Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 }}>
+                  {"어린이 수영 회원을 등록해보세요\n엑셀 일괄 업로드도 지원합니다"}
+                </Text>
+                <Pressable
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: themeColor, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 8 }}
+                  onPress={() => setShowRegister(true)}
+                >
+                  <LucideIcon name="user-plus" size={16} color="#fff" />
+                  <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" }}>학생 직접 등록</Text>
+                </Pressable>
+                <Pressable
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: themeColor, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 }}
+                  onPress={() => router.push("/(admin)/bulk-register" as any)}
+                >
+                  <LucideIcon name="upload" size={16} color={themeColor} />
+                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: themeColor }}>엑셀로 일괄 등록</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <EmptyState
+                icon="users"
+                title="해당하는 회원이 없습니다"
+                subtitle={search ? `"${search}" 검색 결과가 없습니다` : "필터를 변경해보세요"}
+              />
+            )
           }
           renderItem={({ item }) => (
             <View style={{ marginHorizontal: 16 }}>
