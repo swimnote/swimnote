@@ -145,7 +145,6 @@ export default function FeedbackSettingsScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader
         title="피드백 기본설정"
-        onBack={() => router.back()}
         homePath="/(admin)/dashboard"
         rightSlot={
           <Pressable style={s.resetAllBtn} onPress={() => setResetAllVisible(true)}>

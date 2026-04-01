@@ -83,7 +83,7 @@ export default function AdminGrantScreen() {
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
-      <SubScreenHeader title="관리자 추가/승계" onBack={() => router.back()} />
+      <SubScreenHeader title="관리자 추가/승계" />
 
       {/* 안내 배너 */}
       <View style={s.infoBanner}>

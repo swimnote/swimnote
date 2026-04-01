@@ -91,7 +91,7 @@ export default function AdminMyInfoScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <SubScreenHeader title="내 정보" onBack={() => router.back()} />
+        <SubScreenHeader title="내 정보" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
@@ -99,7 +99,7 @@ export default function AdminMyInfoScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="내 정보" onBack={() => router.back()} />
+      <SubScreenHeader title="내 정보" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

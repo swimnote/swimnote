@@ -10,7 +10,7 @@
  * ⚠️ useAuth() 사용 (AuthContext 직접 참조 금지 — Provider 미주입으로 null 반환됨)
  */
 import { ArrowLeft, Home } from "lucide-react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -54,6 +54,7 @@ export function SubScreenHeader({
 
   // ✅ useAuth() 사용 — AuthContext 직접 참조 금지 (값 미주입으로 항상 null)
   const { kind, adminUser, parentAccount } = useAuth();
+  const params = useLocalSearchParams<{ backTo?: string }>();
 
   // homePath prop이 있으면 그대로 사용, 없으면 현재 로그인 역할로 자동 결정
   const resolvedHome: string = (() => {
@@ -74,9 +75,20 @@ export function SubScreenHeader({
   const handleBack = () => {
     if (onBack) {
       onBack();
-    } else {
-      router.back();
+      return;
     }
+    // backTo 파라미터가 있으면 해당 화면으로 명시적 이동 (Tabs 내비게이터 back 오동작 방지)
+    if (params.backTo) {
+      if (kind === "admin") {
+        router.navigate(("/(admin)/" + params.backTo) as any);
+      } else if (kind === "parent") {
+        router.navigate(("/(parent)/" + params.backTo) as any);
+      } else {
+        router.navigate(("/(super)/" + params.backTo) as any);
+      }
+      return;
+    }
+    router.back();
   };
 
   const handleHome = () => {

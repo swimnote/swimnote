@@ -94,7 +94,7 @@ export default function SettingsScreen() {
                 idx < items.length - 1 && s.menuRowBorder,
                 { opacity: pressed ? 0.7 : 1 },
               ]}
-              onPress={() => router.push(item.route as any)}
+              onPress={() => router.push((item.route + "?backTo=settings") as any)}
             >
               <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
                 <LucideIcon name={item.icon as any} size={18} color={item.color} />

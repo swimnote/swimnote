@@ -169,7 +169,7 @@ export default function InviteRecordsScreen() {
 
   return (
     <ScreenLayout>
-      <SubScreenHeader title="초대 안내 기록" onBack={() => router.back()} />
+      <SubScreenHeader title="초대 안내 기록" />
 
       {/* 안내 배너 */}
       <View style={[s.infoBanner, { backgroundColor: "#E6FAF8" }]}>
