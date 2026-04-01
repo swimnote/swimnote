@@ -264,10 +264,16 @@ export default function BulkRegisterScreen() {
       let wb: XLSX.WorkBook;
 
       if (Platform.OS === "web") {
-        // 웹: fetch로 ArrayBuffer 읽기 (FileSystem 미지원)
         const resp = await fetch(uri);
-        const buf = await resp.arrayBuffer();
-        wb = XLSX.read(buf, { type: "array" });
+        if (ext === "xlsx" || ext === "xls" || ext === "xlsm") {
+          // 웹 Excel: ArrayBuffer로 SheetJS 파싱
+          const buf = await resp.arrayBuffer();
+          wb = XLSX.read(buf, { type: "array" });
+        } else {
+          // 웹 CSV: 텍스트로 읽어야 한글 인코딩 유지됨
+          const text = await resp.text();
+          wb = XLSX.read(text.replace(/^\uFEFF/, ""), { type: "string" });
+        }
       } else if (ext === "xlsx" || ext === "xls" || ext === "xlsm") {
         // 네이티브 Excel: base64로 읽어 SheetJS 파싱
         const b64 = await FileSystem.readAsStringAsync(uri, {
