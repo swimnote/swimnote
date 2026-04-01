@@ -43,7 +43,7 @@ const ROLE_CARDS: Array<{ role: Role; label: string; desc: string; icon: any; bg
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
-  const { unifiedLogin } = useAuth();
+  const { unifiedLogin, setParentSession, setAdminSession } = useAuth();
 
   const [step, setStep] = useState<Step>(1);
 
@@ -262,27 +262,21 @@ export default function SignupScreen() {
         }
 
       } else {
-        res = await fetch(`${API_BASE}/auth/pool-join-request`, {
+        // 학부모: simple-parent-register로 즉시 가입 + 자동 로그인
+        res = await fetch(`${API_BASE}/auth/simple-parent-register`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            swimming_pool_id: selectedPool!.id,
             parent_name: name.trim(),
-            phone: cleaned,
             loginId: loginId.trim().toLowerCase(),
             password: pw,
-            child_name: childName.trim(),
-            child_birth_year: childBirthYear.trim() ? Number(childBirthYear.trim()) : undefined,
-            children_requested: [{ childName: childName.trim(), childBirthYear: childBirthYear.trim() ? Number(childBirthYear.trim()) : null }],
+            phone: cleaned,
           }),
         });
         data = await safeJson(res);
         if (!res.ok) { setError(data.error || data.message || "가입에 실패했습니다."); return; }
-
-        if (data.data?.status !== "auto_approved") {
-          setError("가입 요청이 완료되었습니다. 수영장 관리자 승인 후 로그인 가능합니다.");
-          setLoading(false);
-          return;
-        }
+        // 가입 즉시 세션 설정 — RootNav가 학부모 홈으로 자동 이동
+        await setParentSession(data.token, data.parent);
+        return;
       }
 
       await unifiedLogin(loginId.trim().toLowerCase(), pw);
