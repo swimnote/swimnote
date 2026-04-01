@@ -37,8 +37,10 @@ type Tab = typeof TABS[number];
 
 export default function MemberDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { token, pool } = useAuth();
+  const { token, pool, adminUser } = useAuth();
   const { themeColor } = useBrand();
+
+  const isPoolAdmin = adminUser?.role === "pool_admin" || (adminUser?.roles ?? []).includes("pool_admin");
 
   const [data, setData]                   = useState<DetailData | null>(null);
   const [groups, setGroups]               = useState<ClassGroup[]>([]);
@@ -52,6 +54,7 @@ export default function MemberDetailScreen() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [alertInfo, setAlertInfo]         = useState<{ title: string; msg: string } | null>(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
 
   // 편집 상태
   const [editName, setEditName]               = useState("");
@@ -187,6 +190,22 @@ export default function MemberDetailScreen() {
     finally { setSaving(false); }
   }
 
+  async function purgeMember() {
+    if (!id) return;
+    setSaving(true);
+    try {
+      const res = await apiRequest(token, `/students/${id}/purge`, { method: "POST" });
+      if (res.ok) {
+        setAlertInfo({ title: "소각 완료", msg: "회원 개인정보가 익명화되었습니다. 수업 기록은 유지됩니다." });
+        load();
+      } else {
+        const e = await res.json();
+        setAlertInfo({ title: "오류", msg: e.error || "소각에 실패했습니다." });
+      }
+    } catch { setAlertInfo({ title: "오류", msg: "네트워크 오류" }); }
+    finally { setSaving(false); setShowPurgeConfirm(false); }
+  }
+
   async function saveAssignment() {
     if (!data) return;
     setSaving(true);
@@ -271,6 +290,8 @@ export default function MemberDetailScreen() {
           onShowStatusModal={() => setShowStatusModal(true)}
           isArchived={isArchived}
           statusMeta={statusMeta}
+          isPoolAdmin={isPoolAdmin}
+          onPurgeMember={() => setShowPurgeConfirm(true)}
         />
       )}
 
@@ -367,6 +388,15 @@ export default function MemberDetailScreen() {
         cancelText="취소"
         onConfirm={doRestoreMember}
         onCancel={() => setShowRestoreConfirm(false)}
+      />
+      <ConfirmModal
+        visible={showPurgeConfirm}
+        title="⚠️ 개인정보 소각"
+        message={`${data?.name}님의 개인정보(이름·연락처·부모정보)를 완전히 익명화합니다.\n\n수업 기록은 유지되지만, 이 작업은 되돌릴 수 없습니다.\n\n정말 소각하시겠습니까?`}
+        confirmText="소각하기"
+        cancelText="취소"
+        onConfirm={purgeMember}
+        onCancel={() => setShowPurgeConfirm(false)}
       />
     </View>
   );

@@ -12,6 +12,13 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NoticePopup } from "@/components/common/NoticePopup";
 import { AuthProvider, apiRequest, useAuth, type AccountEntry, type AdminUser, type SessionKind, type ParentAccount } from "@/context/AuthContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
+import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+
+try {
+  initializeRevenueCat();
+} catch (err: any) {
+  console.warn("[RevenueCat] 초기화 실패:", err?.message ?? "Unknown error");
+}
 
 function AppLoadingScreen() {
   return (
@@ -366,11 +373,13 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <BrandProvider>
               <AuthProvider>
-                <BrandSync />
-                <PushTokenSync />
-                <PushNavSync />
-                <NoticePopup />
-                <RootNav />
+                <SubscriptionProvider>
+                  <BrandSync />
+                  <PushTokenSync />
+                  <PushNavSync />
+                  <NoticePopup />
+                  <RootNav />
+                </SubscriptionProvider>
               </AuthProvider>
             </BrandProvider>
           </GestureHandlerRootView>

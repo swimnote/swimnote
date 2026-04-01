@@ -1,4 +1,4 @@
-import { PenLine, RotateCcw, Save } from "lucide-react-native";
+import { Flame, PenLine, RotateCcw, Save } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
@@ -26,6 +26,8 @@ interface MemberInfoTabProps {
   onShowStatusModal: () => void;
   isArchived: boolean;
   statusMeta: { label: string; color: string; bg: string };
+  isPoolAdmin?: boolean;
+  onPurgeMember?: () => void;
 }
 
 export function MemberInfoTab({
@@ -35,6 +37,7 @@ export function MemberInfoTab({
   editParentPhone, setEditParentPhone, editParentPhone2, setEditParentPhone2,
   infoChanged, setInfoChanged, onSave, onRestoreMember, onShowStatusModal,
   isArchived, statusMeta,
+  isPoolAdmin = false, onPurgeMember,
 }: MemberInfoTabProps) {
   return (
     <ScrollView contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
@@ -115,6 +118,27 @@ export function MemberInfoTab({
           </View>
         ))}
       </View>
+
+      {isPoolAdmin && isArchived && data.status === "withdrawn" && onPurgeMember && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <View style={{ backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14, gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Flame size={16} color="#DC2626" />
+              <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>개인정보 소각</Text>
+            </View>
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7F1D1D", lineHeight: 18 }}>
+              퇴원 회원의 이름, 연락처, 부모 정보를 완전히 익명화합니다. 수업 기록은 유지되며, 이 작업은 되돌릴 수 없습니다.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [{ backgroundColor: "#DC2626", padding: 12, borderRadius: 10, alignItems: "center", opacity: pressed || saving ? 0.8 : 1 }]}
+              onPress={onPurgeMember}
+              disabled={saving}
+            >
+              <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" }}>소각하기</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 }

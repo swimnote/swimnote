@@ -7,9 +7,11 @@
     "hello": "tsx ./src/hello.ts",
     "seed-admin": "tsx ./src/seed-admin.ts",
     "reset-test-data": "tsx ./src/reset-test-data.ts",
+    "seed-revenuecat": "tsx ./src/seedRevenueCat.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@replit/revenuecat-sdk": "4.0.0",
     "@workspace/db": "workspace:*",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "catalog:",

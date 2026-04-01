@@ -36,7 +36,7 @@ const CLASS_SETTINGS: MenuItem[] = [
 
 const OPS_SETTINGS: MenuItem[] = [
   { label: "학부모 QR 초대",     icon: "qr-code",        color: "#0EA5E9", bg: NB, route: "/(admin)/invite-qr",                 desc: "QR 코드로 학부모·선생님 초대" },
-  { label: "구독 관리",          icon: "credit-card",    color: "#7C3AED", bg: NB, route: "/(admin)/billing",                   desc: "현재 플랜 및 사용량 확인" },
+  { label: "구독 관리",          icon: "credit-card",    color: "#7C3AED", bg: NB, route: "/(admin)/subscription",              desc: "현재 플랜 및 사용량 확인" },
   { label: "데이터 관리",        icon: "hard-drive",     color: "#0369A1", bg: NB, route: "/(admin)/data-management",           desc: "저장공간 현황 및 정책" },
   { label: "브랜드 설정",        icon: "sliders",        color: N,         bg: NB, route: "/(admin)/branding",                  desc: "앱 이름 / 색상 / 로고" },
   { label: "화이트라벨",         icon: "tag",            color: "#DB2777", bg: NB, route: "/(admin)/white-label",               desc: "커스텀 브랜딩 옵션" },
