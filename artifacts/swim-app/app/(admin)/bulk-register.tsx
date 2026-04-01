@@ -263,21 +263,24 @@ export default function BulkRegisterScreen() {
       const ext = name.split(".").pop()?.toLowerCase() ?? "";
       let wb: XLSX.WorkBook;
 
-      if (ext === "xlsx" || ext === "xls" || ext === "xlsm") {
-        // Excel: base64로 읽어 SheetJS 파싱
+      if (Platform.OS === "web") {
+        // 웹: fetch로 ArrayBuffer 읽기 (FileSystem 미지원)
+        const resp = await fetch(uri);
+        const buf = await resp.arrayBuffer();
+        wb = XLSX.read(buf, { type: "array" });
+      } else if (ext === "xlsx" || ext === "xls" || ext === "xlsm") {
+        // 네이티브 Excel: base64로 읽어 SheetJS 파싱
         const b64 = await FileSystem.readAsStringAsync(uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
         wb = XLSX.read(b64, { type: "base64" });
       } else {
-        // CSV: UTF-8 먼저, 실패 시 base64로 SheetJS 처리
-        let text = "";
+        // 네이티브 CSV: UTF-8 먼저, 실패 시 base64로 SheetJS 처리
         try {
-          text = await FileSystem.readAsStringAsync(uri, {
+          const text = await FileSystem.readAsStringAsync(uri, {
             encoding: FileSystem.EncodingType.UTF8,
           });
-          const clean = text.replace(/^\uFEFF/, ""); // BOM 제거
-          wb = XLSX.read(clean, { type: "string" });
+          wb = XLSX.read(text.replace(/^\uFEFF/, ""), { type: "string" });
         } catch {
           const b64 = await FileSystem.readAsStringAsync(uri, {
             encoding: FileSystem.EncodingType.Base64,
