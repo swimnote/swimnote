@@ -18,7 +18,7 @@ interface Profile {
 }
 
 export default function AdminMyInfoScreen() {
-  const { token, adminUser } = useAuth();
+  const { token, adminUser, updateAdminProfile } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
@@ -60,6 +60,7 @@ export default function AdminMyInfoScreen() {
       if (res.ok) {
         const d = await res.json();
         setProfile(d);
+        updateAdminProfile({ name: editName, phone: editPhone });
         setEditMsg("저장되었습니다.");
         setTimeout(() => { setEditMsg(""); setEditVisible(false); }, 1000);
       } else {

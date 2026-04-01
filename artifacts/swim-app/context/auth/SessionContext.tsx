@@ -116,6 +116,8 @@ interface SessionContextType {
   switchPool: (poolId: string) => Promise<void>;
   activateAccount: (entry: AccountEntry) => Promise<void>;
   updateParentNickname: (nickname: string) => void;
+  updateParentProfile: (fields: Partial<ParentAccount>) => void;
+  updateAdminProfile: (fields: Partial<AdminUser>) => void;
   checkRolePermission: (roleKey: string) => Promise<boolean>;
   applyRoleSwitch: (newToken: string, updatedUser: AdminUser) => Promise<void>;
 }
@@ -386,6 +388,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setParentAccount(prev => prev ? { ...prev, nickname } : prev);
   }
 
+  function updateParentProfile(fields: Partial<ParentAccount>) {
+    setParentAccount(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...fields };
+      AsyncStorage.setItem("auth_parent", JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }
+
+  function updateAdminProfile(fields: Partial<AdminUser>) {
+    setAdminUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...fields };
+      AsyncStorage.setItem("auth_admin", JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }
+
   async function checkRolePermission(roleKey: string): Promise<boolean> {
     if (!token) return false;
     try {
@@ -411,7 +431,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       allAccounts, ownedPools, parentJoinStatus, parentJoinRequestId,
       unifiedLogin, completeTotpLogin, adminLogin, parentLogin, setParentSession, setAdminSession,
       logout, refreshPool, loadOwnedPools, switchPool,
-      activateAccount, updateParentNickname, checkRolePermission, applyRoleSwitch,
+      activateAccount, updateParentNickname, updateParentProfile, updateAdminProfile, checkRolePermission, applyRoleSwitch,
     }}>
       {children}
     </SessionContext.Provider>

@@ -48,7 +48,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export default function MyInfoScreen() {
-  const { token, adminUser, switchRole } = useAuth();
+  const { token, adminUser, switchRole, updateAdminProfile } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
@@ -140,6 +140,7 @@ export default function MyInfoScreen() {
       });
       if (res.ok) {
         setProfile(prev => prev ? { ...prev, name: editName, phone: editPhone, position: editPos } : prev);
+        updateAdminProfile({ name: editName, phone: editPhone });
         setEditMsg("저장되었습니다.");
         setTimeout(() => { setEditMsg(""); setEditVisible(false); }, 1000);
       } else {

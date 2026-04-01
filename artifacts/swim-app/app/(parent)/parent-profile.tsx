@@ -19,7 +19,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 
 export default function ParentProfileScreen() {
-  const { token, parentAccount } = useAuth();
+  const { token, parentAccount, updateParentProfile } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [name, setName] = useState(parentAccount?.name ?? "");
@@ -55,6 +55,7 @@ export default function ParentProfileScreen() {
         method: "PUT", body: JSON.stringify(body),
       });
       if (r.ok) {
+        updateParentProfile({ name: name.trim(), phone: phone.trim() || undefined });
         setSaveDone(true);
         setCurrentPw(""); setNewPw(""); setNewPw2("");
       } else {

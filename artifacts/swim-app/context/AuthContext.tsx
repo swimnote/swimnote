@@ -73,6 +73,8 @@ export function useAuth() {
     switchPool: session.switchPool,
     activateAccount: session.activateAccount,
     updateParentNickname: session.updateParentNickname,
+    updateParentProfile: session.updateParentProfile,
+    updateAdminProfile: session.updateAdminProfile,
     checkRolePermission: session.checkRolePermission,
 
     switchRole: role.switchRole,
