@@ -95,23 +95,41 @@ function formatPhone(phone: string): string {
   return n;
 }
 
-// ── SheetJS 워크북 → ParsedRow[] ───────────────────────────────
-function parseWorkbook(wb: XLSX.WorkBook): ParsedRow[] {
+// ── SheetJS 워크북 → ParsedRow[] (디버그 버전) ──────────────────
+function parseWorkbookDebug(wb: XLSX.WorkBook): { rows: ParsedRow[]; debugInfo: string } {
   const sheetName = wb.SheetNames[0];
   const sheet = wb.Sheets[sheetName];
-  // 헤더 포함 raw 배열 (빈 셀은 "" 로)
   const raw: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-  if (raw.length < 2) return [];
 
-  // 처음 5행 중 열 이름이 가장 많이 맵핑되는 행을 헤더로 선택
+  if (raw.length < 2) {
+    return { rows: [], debugInfo: `행 수: ${raw.length} (데이터 없음)` };
+  }
+
   let headerIdx = 0;
   let bestScore = -1;
   for (let i = 0; i < Math.min(6, raw.length); i++) {
     const score = raw[i].filter((c: any) => COL_MAP[String(c ?? "").trim()]).length;
     if (score > bestScore) { bestScore = score; headerIdx = i; }
   }
-  if (bestScore === 0) return []; // 인식 가능한 열 없음
 
+  const firstRowSample = (raw[0] || []).slice(0, 3).map((c: any) => JSON.stringify(String(c ?? ""))).join(", ");
+  if (bestScore === 0) {
+    return {
+      rows: [],
+      debugInfo: `헤더 미인식. 총 ${raw.length}행. 첫 행: [${firstRowSample}]`,
+    };
+  }
+
+  const rows = parseRows(raw, headerIdx);
+  return { rows, debugInfo: "ok" };
+}
+
+// ── SheetJS 워크북 → ParsedRow[] ───────────────────────────────
+function parseWorkbook(wb: XLSX.WorkBook): ParsedRow[] {
+  return parseWorkbookDebug(wb).rows;
+}
+
+function parseRows(raw: any[][], headerIdx: number): ParsedRow[] {
   const headers = (raw[headerIdx] as any[]).map(h => String(h ?? "").trim());
   const colKeys = headers.map(h => COL_MAP[h] ?? null);
 
@@ -264,15 +282,35 @@ export default function BulkRegisterScreen() {
       let wb: XLSX.WorkBook;
 
       if (Platform.OS === "web") {
-        const resp = await fetch(uri);
-        if (ext === "xlsx" || ext === "xls" || ext === "xlsm") {
-          // 웹 Excel: ArrayBuffer로 SheetJS 파싱
-          const buf = await resp.arrayBuffer();
-          wb = XLSX.read(buf, { type: "array" });
+        // 웹: 파일 바이트를 읽어 형식 자동 감지
+        const nativeFile = (asset as any).file as File | undefined;
+        const bytes: Uint8Array = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = e => {
+            const ab = e.target?.result as ArrayBuffer;
+            resolve(ab ? new Uint8Array(ab) : new Uint8Array(0));
+          };
+          reader.onerror = reject;
+          if (nativeFile) {
+            reader.readAsArrayBuffer(nativeFile);
+          } else {
+            fetch(uri).then(r => r.arrayBuffer()).then(ab => {
+              reader.onload = null;
+              resolve(new Uint8Array(ab));
+            }).catch(reject);
+          }
+        });
+
+        // PK magic bytes (50 4B) = ZIP = XLSX/XLS
+        const isExcel = bytes[0] === 0x50 && bytes[1] === 0x4B;
+        // UTF-8 BOM (EF BB BF) 또는 일반 텍스트 = CSV
+        if (isExcel) {
+          wb = XLSX.read(bytes, { type: "array" });
         } else {
-          // 웹 CSV: 텍스트로 읽어야 한글 인코딩 유지됨
-          const text = await resp.text();
-          wb = XLSX.read(text.replace(/^\uFEFF/, ""), { type: "string" });
+          // 텍스트 파일: UTF-8 디코딩
+          const decoder = new TextDecoder("utf-8");
+          const text = decoder.decode(bytes).replace(/^\uFEFF/, "");
+          wb = XLSX.read(text, { type: "string" });
         }
       } else if (ext === "xlsx" || ext === "xls" || ext === "xlsm") {
         // 네이티브 Excel: base64로 읽어 SheetJS 파싱
@@ -295,11 +333,12 @@ export default function BulkRegisterScreen() {
         }
       }
 
-      const parsed = parseWorkbook(wb);
+      const { rows: parsed, debugInfo } = parseWorkbookDebug(wb);
       if (!parsed.length) {
         setParseError(
           "파일에서 데이터를 읽을 수 없습니다.\n" +
-          "양식을 다운로드해서 열 이름(이름, 보호자전화번호)이 정확한지 확인해주세요."
+          "열 이름(이름, 보호자전화번호)이 정확한지 확인해주세요.\n" +
+          `[진단] ${debugInfo}`
         );
         return;
       }
