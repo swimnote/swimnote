@@ -27,6 +27,7 @@ export default function LinkChildScreen() {
   const [selectedPool, setSelectedPool] = useState<PoolResult | null>(null);
 
   const [childName, setChildName]     = useState("");
+  const [birthYear, setBirthYear]     = useState("");
   const [submitting, setSubmitting]   = useState(false);
   const [linkedName, setLinkedName]   = useState("");
   const [error, setError]             = useState("");
