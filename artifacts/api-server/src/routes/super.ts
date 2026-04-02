@@ -296,85 +296,152 @@ router.get(
   requireAuth,
   requireRole("super_admin"),
   async (req: AuthRequest, res) => {
+    const { id } = req.params;
     try {
-      const { id } = req.params;
+      // ① 수영장 기본 정보
+      const poolRes = await superAdminDb.execute(sql`
+        SELECT id, name, address, phone, approval_status,
+          subscription_tier, subscription_status, subscription_end_at,
+          trial_end_at, member_limit, credit_balance,
+          base_storage_gb, extra_storage_gb, used_storage_bytes,
+          (COALESCE(base_storage_gb,5) + COALESCE(extra_storage_gb,0)) AS total_storage_gb,
+          is_readonly, upload_blocked, readonly_reason, rejection_reason,
+          created_at, updated_at
+        FROM swimming_pools
+        WHERE id = ${id}
+      `);
+      const poolRow = poolRes.rows[0] as any;
+      if (!poolRow) { res.status(404).json({ error: "운영자 없음" }); return; }
 
-      const [pool, teachers, recentLogs, policyRows, supportRow, planRow] = await Promise.all([
-        superAdminDb.execute(sql`
-          SELECT sp.*,
-            (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id AND st.status::text IN ('active','suspended')) AS active_member_count,
-            (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id) AS total_member_count,
-            (SELECT COUNT(*)::int FROM classes c WHERE c.swimming_pool_id = sp.id) AS total_class_count,
-            (SELECT COUNT(*)::int FROM users u WHERE u.swimming_pool_id = sp.id AND u.role::text = 'teacher') AS teacher_count,
-            (SELECT COUNT(*)::int FROM users u WHERE u.swimming_pool_id = sp.id AND u.role::text IN ('pool_admin','sub_admin','teacher')) AS staff_count,
-            CASE
-              WHEN sp.used_storage_bytes IS NOT NULL AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0
-              THEN ROUND(sp.used_storage_bytes::numeric / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) * 100)::int
-              ELSE 0
-            END AS usage_pct,
-            (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) AS total_storage_gb
-          FROM swimming_pools sp
-          WHERE sp.id = ${id}
-        `),
-        superAdminDb.execute(sql`
-          SELECT id, name, role::text AS role, email, phone, created_at, last_login_at
+      // ② 가입된 관리자/스태프 목록 (users 테이블)
+      let staffList: any[] = [];
+      try {
+        const staffRes = await superAdminDb.execute(sql`
+          SELECT id, name, email, phone, role::text AS role, created_at, last_login_at
           FROM users
           WHERE swimming_pool_id = ${id}
-            AND role::text IN ('pool_admin','sub_admin','teacher')
-          ORDER BY name
-        `).catch(() => ({ rows: [] })),
-        db.execute(sql`
+          ORDER BY created_at ASC
+        `);
+        staffList = staffRes.rows as any[];
+      } catch (e: any) {
+        console.error(`[operator-detail] staff query error:`, e?.message);
+      }
+
+      // ③ 회원 수 (students 테이블)
+      let memberStats = { active: 0, total: 0 };
+      try {
+        const mRes = await superAdminDb.execute(sql`
+          SELECT
+            COUNT(*) FILTER (WHERE status = 'active')::int AS active_count,
+            COUNT(*)::int AS total_count
+          FROM students
+          WHERE swimming_pool_id = ${id}
+        `);
+        const r = mRes.rows[0] as any;
+        memberStats = { active: r?.active_count ?? 0, total: r?.total_count ?? 0 };
+      } catch (e: any) {
+        console.error(`[operator-detail] students query error:`, e?.message);
+      }
+
+      // ④ 수업 수 (classes 테이블)
+      let classCount = 0;
+      try {
+        const cRes = await superAdminDb.execute(sql`
+          SELECT COUNT(*)::int AS cnt FROM classes WHERE swimming_pool_id = ${id}
+        `);
+        classCount = (cRes.rows[0] as any)?.cnt ?? 0;
+      } catch (e: any) {
+        console.error(`[operator-detail] classes query error:`, e?.message);
+      }
+
+      // ⑤ 구독 플랜 목록
+      let plans: any[] = [];
+      try {
+        const plRes = await superAdminDb.execute(sql`
+          SELECT plan_id, name, price_per_month AS price, member_limit, storage_mb, display_storage, is_active
+          FROM subscription_plans
+          ORDER BY price_per_month ASC
+        `);
+        plans = plRes.rows as any[];
+      } catch (e: any) {
+        console.error(`[operator-detail] plans query error:`, e?.message);
+      }
+
+      // ⑥ 활동 로그 (event_logs — db = superAdminDb)
+      let logs: any[] = [];
+      try {
+        const logRes = await db.execute(sql`
           SELECT id, category, actor_name, target, description, created_at
           FROM event_logs
           WHERE pool_id = ${id}
           ORDER BY created_at DESC
           LIMIT 50
-        `).catch(() => ({ rows: [] })),
-        superAdminDb.execute(sql`
-          SELECT policy_key, MAX(agreed_at) AS agreed_at
+        `);
+        logs = logRes.rows as any[];
+      } catch (e: any) {
+        console.error(`[operator-detail] logs query error:`, e?.message);
+      }
+
+      // ⑦ 정책 동의 현황
+      let policy: Record<string, string | null> = {};
+      try {
+        const polRes = await superAdminDb.execute(sql`
+          SELECT policy_key, MAX(agreed_at)::text AS agreed_at
           FROM policy_consents
           WHERE pool_id = ${id}
           GROUP BY policy_key
-        `).catch(() => ({ rows: [] })),
-        db.execute(sql`
+        `);
+        for (const r of polRes.rows as any[]) {
+          policy[r.policy_key] = r.agreed_at ?? null;
+        }
+      } catch (e: any) {
+        console.error(`[operator-detail] policy query error:`, e?.message);
+      }
+
+      // ⑧ 고객센터 티켓 통계
+      let support = { total_count: 0, open_count: 0, resolved_count: 0 };
+      try {
+        const supRes = await db.execute(sql`
           SELECT
             COUNT(*)::int AS total_count,
             COUNT(*) FILTER (WHERE status IN ('open','in_progress'))::int AS open_count,
             COUNT(*) FILTER (WHERE status = 'resolved')::int AS resolved_count
-          FROM support_tickets WHERE pool_id = ${id}
-        `).catch(() => ({ rows: [{ total_count: 0, open_count: 0, resolved_count: 0 }] })),
-        db.execute(sql`
-          SELECT plan_id, name, price_per_month AS price, member_limit,
-            COALESCE(storage_gb, ROUND(storage_mb::numeric / 1024, 2)) AS storage_gb
-          FROM subscription_plans
-          WHERE is_active = TRUE
-          ORDER BY price_per_month ASC
-        `).catch(() => ({ rows: [] })),
-      ]);
-
-      if (!pool.rows[0]) { res.status(404).json({ error: "운영자 없음" }); return; }
-
-      const policyMap: Record<string, string | null> = {};
-      for (const row of policyRows.rows as any[]) {
-        policyMap[row.policy_key] = row.agreed_at ?? null;
+          FROM support_tickets
+          WHERE pool_id = ${id}
+        `);
+        const r = supRes.rows[0] as any;
+        if (r) support = { total_count: r.total_count ?? 0, open_count: r.open_count ?? 0, resolved_count: r.resolved_count ?? 0 };
+      } catch (e: any) {
+        console.error(`[operator-detail] support query error:`, e?.message);
       }
 
-      const supportStats = (supportRow.rows[0] as any) ?? { total_count: 0, open_count: 0, resolved_count: 0 };
+      // 스태프 분류
+      const teachers  = staffList.filter(u => u.role === 'teacher');
+      const admins    = staffList.filter(u => u.role === 'pool_admin' || u.role === 'sub_admin');
 
       res.json({
-        pool: pool.rows[0],
-        teachers: teachers.rows,
-        logs: recentLogs.rows,
-        policy: {
-          refund_policy:   policyMap["refund_policy"]   ?? null,
-          privacy_policy:  policyMap["privacy_policy"]  ?? null,
-          terms:           policyMap["terms"]            ?? null,
+        pool: {
+          ...poolRow,
+          active_member_count: memberStats.active,
+          total_member_count:  memberStats.total,
+          total_class_count:   classCount,
+          teacher_count:       teachers.length,
+          staff_count:         staffList.length,
         },
-        support: supportStats,
-        plans: planRow.rows,
+        staff:    staffList,
+        teachers,
+        admins,
+        logs,
+        policy: {
+          refund_policy:  policy["refund_policy"]  ?? null,
+          privacy_policy: policy["privacy_policy"] ?? null,
+          terms:          policy["terms"]           ?? null,
+        },
+        support,
+        plans,
       });
     } catch (err: any) {
-      console.error(`[operator-detail] GET /super/operators/${req.params.id} error:`, err?.message ?? err);
+      console.error(`[operator-detail] fatal error for id=${id}:`, err?.message ?? err);
       res.status(500).json({ error: "서버 오류", detail: err?.message });
     }
   }
