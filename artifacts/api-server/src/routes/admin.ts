@@ -2376,33 +2376,34 @@ router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
         ORDER BY pa.created_at DESC
       `)).rows as any[];
 
-      // ── 2. 앱 미가입 + 학생에 보호자 정보 입력된 경우 ────────────────
-      // parent_phone 기준 그룹핑 (전화번호 없으면 학생 개별)
+      // ── 2. 학생 테이블에 보호자 이름·연락처가 입력된 모든 학생 ─────────
+      // parent_user_id 여부 무관 — parent_phone 기준 그룹핑 (형제자매 묶음)
       const guardianRows = (await db.execute(sql`
         SELECT
-          COALESCE(parent_phone, 'nophone_' || id::text) AS id,
-          MAX(parent_name) AS name,
-          MAX(parent_phone) AS phone,
-          NULL AS login_id,
-          MIN(created_at) AS created_at,
+          COALESCE(st.parent_phone, 'nophone_' || st.id::text) AS id,
+          MAX(st.parent_name) AS name,
+          MAX(st.parent_phone) AS phone,
+          NULL::text AS login_id,
+          MIN(st.created_at) AS created_at,
           'guardian' AS source,
-          json_agg(json_build_object('id', id, 'name', name)) AS students
-        FROM students
-        WHERE swimming_pool_id = ${poolId}
-          AND parent_user_id IS NULL
-          AND status NOT IN ('withdrawn', 'archived', 'deleted')
+          json_agg(json_build_object('id', st.id, 'name', st.name)) AS students
+        FROM students st
+        WHERE st.swimming_pool_id = ${poolId}
+          AND st.status NOT IN ('withdrawn', 'archived', 'deleted')
           AND (
-            (parent_name IS NOT NULL AND parent_name != '')
-            OR (parent_phone IS NOT NULL AND parent_phone != '')
+            (st.parent_name IS NOT NULL AND st.parent_name != '')
+            OR (st.parent_phone IS NOT NULL AND st.parent_phone != '')
           )
-        GROUP BY COALESCE(parent_phone, 'nophone_' || id::text)
-        ORDER BY MIN(created_at) DESC
+        GROUP BY COALESCE(st.parent_phone, 'nophone_' || st.id::text)
+        ORDER BY MIN(st.created_at) DESC
       `)).rows as any[];
+
+      console.log(`[/admin/parents] poolId=${poolId} appRows=${appRows.length} guardianRows=${guardianRows.length}`);
 
       // ── 3. 앱 가입 학부모의 phone 목록 (중복 제거용) ─────────────────
       const appPhones = new Set(appRows.map((r: any) => (r.phone || "").replace(/[^0-9]/g, "")).filter(Boolean));
 
-      // guardian 중 앱 가입자와 phone 중복되는 항목 제거
+      // guardian 중 앱 가입자와 phone 중복되는 항목 제거 (앱 가입자가 이미 appRows에 포함되므로)
       const filteredGuardians = guardianRows.filter((r: any) => {
         const norm = (r.phone || "").replace(/[^0-9]/g, "");
         return !norm || !appPhones.has(norm);
