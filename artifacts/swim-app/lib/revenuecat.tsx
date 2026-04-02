@@ -86,9 +86,29 @@ function getRevenueCatApiKey(): string {
 
 export function initializeRevenueCat() {
   const apiKey = getRevenueCatApiKey();
-  Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
+  Purchases.setLogLevel(__DEV__ ? Purchases.LOG_LEVEL.DEBUG : Purchases.LOG_LEVEL.ERROR);
   Purchases.configure({ apiKey });
   console.log("[RevenueCat] 초기화 완료");
+}
+
+export async function loginRevenueCat(userId: string) {
+  try {
+    const { customerInfo } = await Purchases.logIn(userId);
+    console.log("[RevenueCat] 사용자 연결:", userId);
+    return customerInfo;
+  } catch (err: any) {
+    console.warn("[RevenueCat] 사용자 연결 실패:", err?.message ?? err);
+    return null;
+  }
+}
+
+export async function logoutRevenueCat() {
+  try {
+    await Purchases.logOut();
+    console.log("[RevenueCat] 로그아웃");
+  } catch (err: any) {
+    console.warn("[RevenueCat] 로그아웃 실패:", err?.message ?? err);
+  }
 }
 
 function useSubscriptionContext() {

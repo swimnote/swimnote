@@ -1,1 +1,1 @@
-export const billingEnabled = false;
+export const billingEnabled = true;

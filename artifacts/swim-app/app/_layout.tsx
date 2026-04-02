@@ -12,7 +12,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NoticePopup } from "@/components/common/NoticePopup";
 import { AuthProvider, apiRequest, useAuth, type AccountEntry, type AdminUser, type SessionKind, type ParentAccount } from "@/context/AuthContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
-import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 
 try {
   initializeRevenueCat();
@@ -112,6 +112,25 @@ function BrandSync() {
       setBrand({ poolName: parentAccount.pool_name || null, themeColor: DEFAULT_THEME_COLOR, logoUrl: null, logoEmoji: null });
     }
   }, [kind, adminUser?.role, pool?.id, pool?.theme_color, parentAccount?.swimming_pool_id]);
+
+  return null;
+}
+
+function RcUserSync() {
+  const { kind, adminUser } = useAuth();
+  const userId = kind === "admin" ? adminUser?.id : null;
+  const prevUserId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (userId && userId !== prevUserId.current) {
+      prevUserId.current = userId;
+      loginRevenueCat(userId).catch(() => {});
+    } else if (!userId && prevUserId.current) {
+      prevUserId.current = null;
+      logoutRevenueCat().catch(() => {});
+    }
+  }, [userId]);
 
   return null;
 }
@@ -372,6 +391,7 @@ export default function RootLayout() {
               <AuthProvider>
                 <SubscriptionProvider>
                   <BrandSync />
+                  <RcUserSync />
                   <PushTokenSync />
                   <PushNavSync />
                   <NoticePopup />

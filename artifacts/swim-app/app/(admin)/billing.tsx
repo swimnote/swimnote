@@ -117,9 +117,28 @@ export default function BillingScreen() {
 
   useEffect(() => { loadBillingInfo(); }, [loadBillingInfo]);
 
+  async function syncRcSubscriptionToServer(info: any) {
+    try {
+      const entitlement = info?.entitlements?.active?.[REVENUECAT_SOLO_ENTITLEMENT];
+      if (!entitlement) return;
+      await apiRequest(token, "/billing/sync-rc-subscription", {
+        method: "POST",
+        body: JSON.stringify({
+          productId:     entitlement.productIdentifier,
+          entitlementId: REVENUECAT_SOLO_ENTITLEMENT,
+          expiresAt:     entitlement.expirationDate ? entitlement.expirationDate.slice(0, 10) : null,
+          isActive:      true,
+        }),
+      });
+    } catch (e) {
+      console.warn("[billing] 서버 동기화 실패 (무시):", e);
+    }
+  }
+
   async function handlePurchase(pkg: any) {
     try {
       const info = await purchase(pkg);
+      await syncRcSubscriptionToServer(info);
       await loadBillingInfo();
       await refreshPool();
       showConfirm("구독 완료", "구독이 성공적으로 시작되었습니다!", () => {});
@@ -131,7 +150,8 @@ export default function BillingScreen() {
 
   async function handleRestore() {
     try {
-      await restore();
+      const info = await restore();
+      await syncRcSubscriptionToServer(info);
       await loadBillingInfo();
       await refreshPool();
       showConfirm("복원 완료", "이전 구독이 복원되었습니다.", () => {});

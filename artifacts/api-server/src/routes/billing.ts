@@ -70,6 +70,254 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ── RevenueCat 제품 ID → 구독 tier 매핑 ─────────────────────────────
+const RC_PRODUCT_TIER_MAP: Record<string, string> = {
+  // RevenueCat 패키지 식별자
+  "solo_30":  "starter",
+  "solo_50":  "basic",
+  "solo_100": "standard",
+  // 앱스토어/플레이스토어 상품 ID (설정된 경우)
+  "swimnote_coach_30":  "starter",
+  "swimnote_coach_50":  "basic",
+  "swimnote_coach_100": "standard",
+  "coach_30":  "starter",
+  "coach_50":  "basic",
+  "coach_100": "standard",
+};
+
+// ── RevenueCat Webhook (인증 불필요, billingEnabled 무관) ─────────────
+router.post("/revenuecat-webhook", async (req, res) => {
+  const webhookSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
+  if (webhookSecret) {
+    const authHeader = req.headers.authorization;
+    if (authHeader !== webhookSecret) {
+      console.warn("[rc-webhook] 인증 실패");
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+  }
+
+  const event = req.body?.event;
+  if (!event) { res.json({ received: true }); return; }
+
+  const eventType  = event.type as string;
+  const appUserId  = event.app_user_id as string;
+  const productId  = (event.product_id as string) ?? "";
+  const expiresMs  = event.expiration_at_ms as number | null;
+  const expiresAt  = expiresMs ? new Date(expiresMs).toISOString().split("T")[0] : null;
+  const tier       = RC_PRODUCT_TIER_MAP[productId] ?? null;
+
+  console.log(`[rc-webhook] 이벤트: ${eventType} | 사용자: ${appUserId} | 제품: ${productId} | tier: ${tier}`);
+
+  try {
+    // 사용자 → 수영장 찾기
+    const [userRow] = (await db.execute(sql`
+      SELECT id, swimming_pool_id FROM users WHERE id = ${appUserId} LIMIT 1
+    `)).rows as any[];
+
+    if (!userRow?.swimming_pool_id) {
+      console.warn(`[rc-webhook] 사용자 또는 수영장을 찾을 수 없음: ${appUserId}`);
+      res.json({ received: true });
+      return;
+    }
+
+    const poolId = userRow.swimming_pool_id as string;
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    switch (eventType) {
+      case "INITIAL_PURCHASE":
+      case "RENEWAL":
+      case "UNCANCELLATION": {
+        if (!tier) { console.warn("[rc-webhook] 알 수 없는 제품:", productId); break; }
+        const nextBilling = expiresAt ?? addOneMonth();
+        await db.execute(sql`
+          INSERT INTO pool_subscriptions
+            (swimming_pool_id, tier, status, current_period_start, next_billing_at)
+          VALUES (${poolId}, ${tier}, 'active', ${todayStr}, ${nextBilling})
+          ON CONFLICT (swimming_pool_id) DO UPDATE
+            SET tier = ${tier}, status = 'active',
+                current_period_start = ${todayStr},
+                next_billing_at      = ${nextBilling},
+                pending_tier = NULL, downgrade_at = NULL,
+                updated_at = now()
+        `);
+        await superAdminDb.execute(sql`
+          UPDATE swimming_pools
+          SET subscription_status = 'active',
+              subscription_tier   = ${tier},
+              is_readonly         = false,
+              upload_blocked      = false,
+              readonly_reason     = null,
+              payment_failed_at   = null,
+              updated_at          = now()
+          WHERE id = ${poolId}
+        `);
+        const plan = (await db.execute(sql`SELECT name, price_per_month FROM subscription_plans WHERE tier = ${tier} LIMIT 1`)).rows[0] as any;
+        const poolInfo = (await superAdminDb.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
+        if (eventType !== "UNCANCELLATION") {
+          await recordPayment({
+            poolId, poolName: poolInfo?.name,
+            amount: plan?.price_per_month ?? 0,
+            status: "success",
+            type: eventType === "RENEWAL" ? "renewal" : "new_subscription",
+            description: `${plan?.name ?? tier} ${eventType === "RENEWAL" ? "갱신" : "신규 구독"} (RevenueCat)`,
+            planId: tier, planName: plan?.name,
+            eventType: eventType === "RENEWAL" ? "renewal" : "new_subscription",
+          });
+        }
+        logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
+          description: `${eventType}: ${productId} → ${tier}`, metadata: { eventType, productId, tier } }).catch(console.error);
+        break;
+      }
+
+      case "CANCELLATION": {
+        // 취소 예약 — 만료일까지 서비스 유지, 상태만 기록
+        await superAdminDb.execute(sql`
+          UPDATE swimming_pools SET subscription_status = 'active', updated_at = now() WHERE id = ${poolId}
+        `);
+        logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
+          description: `구독 취소 예약 (${expiresAt ?? "만료일 미상"} 이후 만료)`,
+          metadata: { eventType, productId, expiresAt } }).catch(console.error);
+        break;
+      }
+
+      case "EXPIRATION": {
+        // 구독 만료 → 무료 전환
+        await db.execute(sql`
+          INSERT INTO pool_subscriptions
+            (swimming_pool_id, tier, status, current_period_start, next_billing_at)
+          VALUES (${poolId}, 'free', 'inactive', ${todayStr}, NULL)
+          ON CONFLICT (swimming_pool_id) DO UPDATE
+            SET tier = 'free', status = 'inactive', next_billing_at = NULL, updated_at = now()
+        `);
+        await superAdminDb.execute(sql`
+          UPDATE swimming_pools
+          SET subscription_status = 'payment_failed',
+              subscription_tier   = 'free',
+              is_readonly         = true,
+              upload_blocked      = true,
+              readonly_reason     = 'expired',
+              payment_failed_at   = now(),
+              updated_at          = now()
+          WHERE id = ${poolId}
+        `);
+        logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
+          description: `구독 만료: ${productId}`, metadata: { eventType, productId } }).catch(console.error);
+        break;
+      }
+
+      case "BILLING_ISSUE": {
+        await superAdminDb.execute(sql`
+          UPDATE swimming_pools
+          SET subscription_status = 'payment_failed',
+              is_readonly         = true,
+              upload_blocked      = true,
+              readonly_reason     = 'payment_failed',
+              payment_failed_at   = now(),
+              updated_at          = now()
+          WHERE id = ${poolId}
+        `);
+        logEvent({ pool_id: poolId, category: "결제", actor_id: "revenuecat", actor_name: "RevenueCat",
+          description: `결제 실패 (RevenueCat): ${productId}`, metadata: { eventType, productId } }).catch(console.error);
+        break;
+      }
+
+      case "PRODUCT_CHANGE": {
+        const newTier = RC_PRODUCT_TIER_MAP[productId] ?? null;
+        if (newTier) {
+          await db.execute(sql`
+            UPDATE pool_subscriptions SET tier = ${newTier}, updated_at = now() WHERE swimming_pool_id = ${poolId}
+          `);
+          await superAdminDb.execute(sql`
+            UPDATE swimming_pools SET subscription_tier = ${newTier}, updated_at = now() WHERE id = ${poolId}
+          `);
+        }
+        break;
+      }
+
+      default:
+        console.log(`[rc-webhook] 처리하지 않는 이벤트 타입: ${eventType}`);
+    }
+
+    res.json({ received: true });
+  } catch (err: any) {
+    console.error("[rc-webhook] 처리 오류:", err);
+    res.status(500).json({ error: err?.message ?? "webhook 처리 오류" });
+  }
+});
+
+// ── RevenueCat 구매 완료 후 서버 DB 동기화 (앱이 호출) ────────────────
+router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+    const { productId, entitlementId, expiresAt, isActive } = req.body as {
+      productId: string;
+      entitlementId: string;
+      expiresAt: string | null;
+      isActive: boolean;
+    };
+
+    const tier = RC_PRODUCT_TIER_MAP[productId] ?? null;
+
+    if (!isActive || !tier) {
+      res.json({ synced: false, reason: "active 구독 없음" }); return;
+    }
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const nextBilling = expiresAt ?? addOneMonth();
+
+    await db.execute(sql`
+      INSERT INTO pool_subscriptions
+        (swimming_pool_id, tier, status, current_period_start, next_billing_at)
+      VALUES (${poolId}, ${tier}, 'active', ${todayStr}, ${nextBilling})
+      ON CONFLICT (swimming_pool_id) DO UPDATE
+        SET tier                 = ${tier},
+            status               = 'active',
+            current_period_start = ${todayStr},
+            next_billing_at      = ${nextBilling},
+            pending_tier         = NULL,
+            downgrade_at         = NULL,
+            updated_at           = now()
+    `);
+
+    await superAdminDb.execute(sql`
+      UPDATE swimming_pools
+      SET subscription_status = 'active',
+          subscription_tier   = ${tier},
+          is_readonly         = false,
+          upload_blocked      = false,
+          readonly_reason     = null,
+          payment_failed_at   = null,
+          updated_at          = now()
+      WHERE id = ${poolId}
+    `);
+
+    const plan = (await db.execute(sql`SELECT name, price_per_month FROM subscription_plans WHERE tier = ${tier} LIMIT 1`)).rows[0] as any;
+    const poolInfo = (await superAdminDb.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
+
+    await recordPayment({
+      poolId, poolName: poolInfo?.name,
+      amount: plan?.price_per_month ?? 0,
+      status: "success",
+      type: "new_subscription",
+      description: `${plan?.name ?? tier} 구독 (RevenueCat 앱 내 구매)`,
+      planId: tier, planName: plan?.name,
+      eventType: "new_subscription",
+    });
+
+    logEvent({ pool_id: poolId, category: "구독", actor_id: req.user!.userId, actor_name: "관리자",
+      description: `RevenueCat 구독 동기화: ${productId} → ${tier}`,
+      metadata: { productId, tier, expiresAt } }).catch(console.error);
+
+    res.json({ synced: true, tier, nextBilling });
+  } catch (err: any) {
+    console.error("[sync-rc-subscription]", err);
+    res.status(500).json({ error: err?.message ?? "동기화 오류" });
+  }
+});
+
 // ── 앱스토어 제출용: 결제 기능 비활성화 차단 ──────────────────────────────
 router.use((_req, res, next) => {
   if (!billingEnabled) {
