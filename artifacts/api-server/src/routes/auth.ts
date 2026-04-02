@@ -433,10 +433,18 @@ router.post("/simple-parent-register", async (req, res) => {
     }
 
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
+    let poolName: string | null = null;
+    if (matchedPoolId) {
+      try {
+        const [poolRow] = await superAdminDb.select({ name: swimmingPoolsTable.name })
+          .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, matchedPoolId)).limit(1);
+        poolName = poolRow?.name ?? null;
+      } catch {}
+    }
     const token = signToken({ userId: pa.id, role: "parent_account", poolId: matchedPoolId });
     res.status(201).json({
       success: true, token,
-      parent: { id: pa.id, name: pa.name, phone: pa.phone, swimming_pool_id: matchedPoolId },
+      parent: { id: pa.id, name: pa.name, phone: pa.phone, swimming_pool_id: matchedPoolId, pool_name: poolName },
       auto_linked: (matchedStudents.rows as any[]).length > 0,
     });
   } catch (e: unknown) {
