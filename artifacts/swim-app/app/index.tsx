@@ -10,7 +10,7 @@ import { router } from "expo-router";
 import Svg, { Ellipse, Path } from "react-native-svg";
 import React, { useRef, useState } from "react";
 import {
-  ActivityIndicator, Animated, Keyboard, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal,
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -300,7 +300,7 @@ const s = StyleSheet.create({
   scroll:  { flexGrow: 1, paddingHorizontal: 24, justifyContent: "flex-end" },
 
   /* 로고 */
-  logoArea:  { alignItems: "center", marginBottom: 32 },
+  logoArea:  { alignItems: "center", marginBottom: 32 + Dimensions.get("window").height * 0.07 },
   logoWrap:  { alignItems: "center", marginBottom: 10 },
   logoBorder: {
     borderRadius: 21, borderWidth: 2, borderColor: "#04111f",
