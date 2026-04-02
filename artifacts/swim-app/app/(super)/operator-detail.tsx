@@ -249,7 +249,7 @@ export default function OperatorDetailScreen() {
                 <Text style={d.cardTitle}>관리자·선생님 ({teachers.length}명)</Text>
                 {teachers.map((t: any) => (
                   <View key={t.id} style={d.infoRow}>
-                    <Text style={d.infoLabel}>{t.role === "pool_admin" ? "관리자" : "선생님"}</Text>
+                    <Text style={d.infoLabel}>{t.role === "pool_admin" ? "대표" : t.role === "sub_admin" ? "관리자" : "선생님"}</Text>
                     <Text style={d.infoVal}>{t.name} · {t.email ?? "—"}</Text>
                   </View>
                 ))}

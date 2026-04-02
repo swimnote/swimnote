@@ -123,7 +123,7 @@ export default function DataStorageByAccountScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <View>
                 <Text style={sm.title}>{selected?.name}</Text>
-                <Text style={sm.sub}>{selected?.role === "pool_admin" ? "관리자" : "선생님"} · 저장공간 상세</Text>
+                <Text style={sm.sub}>{selected?.role === "pool_admin" ? "대표" : selected?.role === "sub_admin" ? "관리자" : "선생님"} · 저장공간 상세</Text>
               </View>
               <Pressable onPress={() => setSelected(null)} hitSlop={8}>
                 <X size={22} color={C.text} />

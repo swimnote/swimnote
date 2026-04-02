@@ -42,7 +42,8 @@ const DAY_COLORS: Record<string, string> = {
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  pool_admin: "관리자",
+  pool_admin: "대표",
+  sub_admin: "관리자",
   teacher: "선생님",
   parent: "학부모",
 };

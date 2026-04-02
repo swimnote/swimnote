@@ -275,7 +275,7 @@ export default function MoreScreen() {
                 <View style={s.logFooter}>
                   <User size={11} color={C.textMuted} />
                   <Text style={s.logActor}>{log.actor_name}</Text>
-                  <Text style={s.logActorRole}>({log.actor_role === "pool_admin" ? "관리자" : "선생님"})</Text>
+                  <Text style={s.logActorRole}>({log.actor_role === "pool_admin" ? "대표" : log.actor_role === "sub_admin" ? "관리자" : "선생님"})</Text>
                 </View>
               </View>
             );
