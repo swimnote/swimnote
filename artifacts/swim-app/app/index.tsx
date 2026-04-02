@@ -214,15 +214,18 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
+        </View>{/* ── 상단 그룹 끝 ── */}
+
+        {/* ── 하단: 구분선 + 가입 버튼 ── */}
+        <View style={s.bottomSection}>
         {/* ── or 구분선 ── */}
         <View style={s.divider}>
           <View style={s.dividerLine} />
           <Text style={s.dividerLabel}>또는</Text>
           <View style={s.dividerLine} />
         </View>
-        </View>{/* ── 상단 그룹 끝 ── */}
 
-        {/* ── 가입 버튼 2개 (하단 고정) ── */}
+        {/* ── 가입 버튼 2개 ── */}
         <View style={s.signupRow}>
           {/* 카카오 가입 */}
           <Pressable
@@ -251,6 +254,7 @@ export default function LoginScreen() {
             <Text style={s.regularBtnText}>일반 가입</Text>
           </Pressable>
         </View>
+        </View>{/* ── 하단 그룹 끝 ── */}
       </ScrollView>
 
       {/* ── 계정 없음 모달 ── */}
@@ -334,8 +338,10 @@ const s = StyleSheet.create({
   forgotRow: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-end", paddingVertical: 2 },
   forgotText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
 
+  bottomSection: { gap: 0 },
+
   /* or 구분선 */
-  divider:   { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
+  divider:   { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
   dividerLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
   dividerLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
 
