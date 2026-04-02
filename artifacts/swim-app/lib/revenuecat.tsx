@@ -17,8 +17,10 @@ const REVENUECAT_TEST_API_KEY    = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_K
 const REVENUECAT_IOS_API_KEY     = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
 const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
-export const REVENUECAT_SOLO_ENTITLEMENT = "solo";
-export const SOLO_OFFERING_ID            = "solo_monthly";
+export const REVENUECAT_SOLO_ENTITLEMENT   = "solo";
+export const REVENUECAT_CENTER_ENTITLEMENT = "center";
+export const SOLO_OFFERING_ID              = "solo_monthly";
+export const CENTER_OFFERING_ID            = "center_monthly";
 
 export interface PlanMeta {
   name: string;
@@ -144,24 +146,31 @@ function useSubscriptionContext() {
     onSuccess:  () => customerInfoQuery.refetch(),
   });
 
-  const entitlements   = customerInfoQuery.data?.entitlements.active ?? {};
-  const isSubscribed   = REVENUECAT_SOLO_ENTITLEMENT in entitlements;
-  const activePackageId = isSubscribed
-    ? (customerInfoQuery.data?.entitlements.active[REVENUECAT_SOLO_ENTITLEMENT]?.productIdentifier ?? null)
-    : null;
+  const entitlements      = customerInfoQuery.data?.entitlements.active ?? {};
+  const isSoloSubscribed   = REVENUECAT_SOLO_ENTITLEMENT in entitlements;
+  const isCenterSubscribed = REVENUECAT_CENTER_ENTITLEMENT in entitlements;
+  const isSubscribed       = isSoloSubscribed || isCenterSubscribed;
+
+  const activePackageId = isCenterSubscribed
+    ? (entitlements[REVENUECAT_CENTER_ENTITLEMENT]?.productIdentifier ?? null)
+    : isSoloSubscribed
+      ? (entitlements[REVENUECAT_SOLO_ENTITLEMENT]?.productIdentifier ?? null)
+      : null;
 
   return {
-    customerInfo:     customerInfoQuery.data ?? null,
-    soloOffering:     offeringsQuery.data?.solo ?? null,
-    centerOffering:   offeringsQuery.data?.center ?? null,
+    customerInfo:       customerInfoQuery.data ?? null,
+    soloOffering:       offeringsQuery.data?.solo ?? null,
+    centerOffering:     offeringsQuery.data?.center ?? null,
     isSubscribed,
+    isSoloSubscribed,
+    isCenterSubscribed,
     activePackageId,
-    isLoading:        customerInfoQuery.isLoading || offeringsQuery.isLoading,
-    purchase:         purchaseMutation.mutateAsync,
-    restore:          restoreMutation.mutateAsync,
-    isPurchasing:     purchaseMutation.isPending,
-    isRestoring:      restoreMutation.isPending,
-    purchaseError:    purchaseMutation.error,
+    isLoading:          customerInfoQuery.isLoading || offeringsQuery.isLoading,
+    purchase:           purchaseMutation.mutateAsync,
+    restore:            restoreMutation.mutateAsync,
+    isPurchasing:       purchaseMutation.isPending,
+    isRestoring:        restoreMutation.isPending,
+    purchaseError:      purchaseMutation.error,
     refetchCustomerInfo: customerInfoQuery.refetch,
   };
 }

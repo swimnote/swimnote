@@ -72,11 +72,25 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
 
 // ── RevenueCat 제품 ID → 구독 tier 매핑 ─────────────────────────────
 const RC_PRODUCT_TIER_MAP: Record<string, string> = {
-  // RevenueCat 패키지 식별자
+  // RevenueCat 패키지 식별자 (solo 3단계)
   "solo_30":  "starter",
   "solo_50":  "basic",
   "solo_100": "standard",
-  // 앱스토어/플레이스토어 상품 ID (설정된 경우)
+  // 앱스토어/플레이스토어 상품 ID — solo 3단계
+  "swimnote_solo_30":          "starter",
+  "swimnote_solo_50":          "basic",
+  "swimnote_solo_100":         "standard",
+  "swimnote_solo_30:monthly":  "starter",
+  "swimnote_solo_50:monthly":  "basic",
+  "swimnote_solo_100:monthly": "standard",
+  // 단일 solo 월정액 (대시보드에서 직접 생성된 경우)
+  "swimnote_solo_monthly":         "basic",
+  "swimnote_solo_monthly:monthly": "basic",
+  // center 플랜
+  "swimnote_center_monthly":         "advance",
+  "swimnote_center_monthly:monthly": "advance",
+  "center_monthly":                  "advance",
+  // 구버전 coach 명칭 호환
   "swimnote_coach_30":  "starter",
   "swimnote_coach_50":  "basic",
   "swimnote_coach_100": "standard",
