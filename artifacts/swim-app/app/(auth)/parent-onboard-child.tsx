@@ -79,10 +79,13 @@ export default function ParentOnboardChildScreen() {
     if (!params.loginId || !params.pw || !parentPhone) {
       setError("회원가입 정보가 없습니다. 처음부터 다시 시도해주세요."); return;
     }
+    if (!params.pool_id) {
+      setError("수영장 정보가 없습니다. 이전 단계로 돌아가서 수영장을 선택해주세요."); return;
+    }
 
     setSubmitting(true);
     try {
-      // 새 간편 가입 — 즉시 계정 생성 + 전화번호 매칭으로 자녀 자동 연결
+      const validChildren = children.filter(c => c.name.trim()).map(c => c.name.trim());
       const res = await fetch(`${API_BASE}/auth/simple-parent-register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,12 +94,14 @@ export default function ParentOnboardChildScreen() {
           phone: parentPhone,
           loginId: params.loginId,
           password: params.pw,
+          pool_id: params.pool_id,
+          child_names: validChildren,
         }),
       });
       const json = await res.json();
 
       if (!res.ok) {
-        setError(json.message || "가입 중 오류가 발생했습니다.");
+        setError(json.error || json.message || "가입 중 오류가 발생했습니다.");
         return;
       }
 
@@ -217,7 +222,7 @@ export default function ParentOnboardChildScreen() {
         <View style={[styles.autoHint, { backgroundColor: "#DFF3EC", borderColor: "#A7F3D0" }]}>
           <Zap size={14} color="#2EC4B6" />
           <Text style={[styles.autoHintTxt, { color: "#2EC4B6" }]}>
-            가입 즉시 학부모 모드로 입장합니다. 수영장에서 자녀를 등록하면 자동으로 연결됩니다.
+            자녀 이름이 수영장 명부와 일치하면 자동으로 연결됩니다. 불일치 시에도 가입은 정상 완료되며, 수영장 담당자가 연결해 드립니다.
           </Text>
         </View>
 
