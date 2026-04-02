@@ -754,22 +754,26 @@ export async function initPoolDb(): Promise<void> {
   `)).catch(() => {});
   // subscription_plans 누락 컬럼 보완
   await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS plan_id text NOT NULL DEFAULT ''`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS member_limit integer NOT NULL DEFAULT 9999`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_mb integer NOT NULL DEFAULT 0`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage text NOT NULL DEFAULT ''`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});
-  // 기본 플랜 데이터 삽입 (Solo: 사진만 / Center: 사진+영상)
+  // 기본 플랜 데이터 삽입 (Solo: 사진만 / Center: 사진+영상) — 항상 최신값 유지
   await db.execute(sql.raw(`
-    INSERT INTO subscription_plans (tier, name, price_per_month, max_students, max_teachers, storage_mb, display_storage, features)
+    INSERT INTO subscription_plans (tier, plan_id, name, price_per_month, member_limit, storage_mb, display_storage)
     VALUES
-      ('free',       'Free',        0,      10,   1,    512,  '500MB', '["기본 출결","일지","학부모 연동"]'),
-      ('starter',    'Solo 30',     3500,   30,   1,   3072,  '3GB',   '["기본 출결","일지","학부모 연동","사진"]'),
-      ('basic',      'Solo 50',     6500,   50,   2,   5120,  '5GB',   '["기본 출결","일지","학부모 연동","사진"]'),
-      ('standard',   'Solo 100',    9500,  100,   3,  10240,  '10GB',  '["기본 출결","일지","학부모 연동","사진"]'),
-      ('center_200', 'Center 200', 69000,  200,   5,  51200,  '50GB',  '["출결","일지","학부모 연동","사진","영상"]'),
-      ('advance',    'Center 300', 99000,  300,  10,  81920,  '80GB',  '["출결","일지","학부모 연동","사진","영상"]'),
-      ('pro',        'Center 500',149000,  500,  20, 133120, '130GB',  '["출결","일지","학부모 연동","사진","영상"]'),
-      ('max',        'Center 1000',249000,1000,  50, 512000, '500GB',  '["출결","일지","학부모 연동","사진","영상","API"]')
-    ON CONFLICT (tier) DO NOTHING
+      ('free',       'free_10',    'Free',       0,      10,    512,  '500MB'),
+      ('starter',    'solo_30',    'Solo 30',    3500,   30,   3072,  '3GB'),
+      ('basic',      'solo_50',    'Solo 50',    6500,   50,   5120,  '5GB'),
+      ('standard',   'solo_100',   'Solo 100',   9500,  100,  10240,  '10GB'),
+      ('center_200', 'center_200', 'Center 200', 69000, 200,  51200,  '50GB'),
+      ('advance',    'center_300', 'Center 300', 99000, 300,  81920,  '80GB'),
+      ('pro',        'center_500', 'Center 500', 149000,500, 133120,  '130GB'),
+      ('max',        'center_1000','Center 1000',249000,1000,512000,  '500GB')
+    ON CONFLICT (tier) DO UPDATE
+      SET plan_id = EXCLUDED.plan_id, name = EXCLUDED.name,
+          price_per_month = EXCLUDED.price_per_month, member_limit = EXCLUDED.member_limit,
+          storage_mb = EXCLUDED.storage_mb, display_storage = EXCLUDED.display_storage
   `)).catch(() => {});
 
   // ─── payment_logs ────────────────────────────────────────────────────────
