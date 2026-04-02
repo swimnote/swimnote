@@ -1,7 +1,6 @@
 /**
  * 커뮤니케이션 탭
- * 서브탭: 공지사항 / 학부모 요청 / 선생님 전달
- * 실 DB: /notices, /parent-students/pending, /class-diaries
+ * 서브탭: 공지사항 / 선생님 전달
  */
 import { Bookmark, Plus, Trash2 } from "lucide-react-native";
 import { router } from "expo-router";
@@ -18,7 +17,7 @@ import { ModalSheet } from "@/components/common/ModalSheet";
 
 const C = Colors.light;
 const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
-const TABS = ["공지사항", "학부모 요청", "선생님 전달"] as const;
+const TABS = ["공지사항", "선생님 전달"] as const;
 type CommTab = typeof TABS[number];
 
 interface Notice {
@@ -32,7 +31,6 @@ export default function CommunicationScreen() {
 
   const [tab, setTab]           = useState<CommTab>("공지사항");
   const [notices, setNotices]   = useState<Notice[]>([]);
-  const [requests, setRequests] = useState<any[]>([]);
   const [diaries, setDiaries]   = useState<any[]>([]);
   const [loading, setLoading]   = useState(false);
 
@@ -42,23 +40,12 @@ export default function CommunicationScreen() {
   const [newType, setNewType]         = useState<"all" | "class" | "individual">("all");
   const [creating, setCreating]       = useState(false);
 
-  const [deleteTarget, setDeleteTarget]   = useState<string | null>(null);
-  const [approveTarget, setApproveTarget] = useState<{ id: string; action: "approve" | "reject" } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const loadNotices = useCallback(async () => {
     setLoading(true);
     const r = await apiRequest(token, "/notices");
     if (r.ok) setNotices(await r.json());
-    setLoading(false);
-  }, [token]);
-
-  const loadRequests = useCallback(async () => {
-    setLoading(true);
-    const r = await apiRequest(token, "/admin/parent-requests?status=pending");
-    if (r.ok) {
-      const d = await r.json();
-      setRequests(Array.isArray(d) ? d : d.data || d.items || []);
-    }
     setLoading(false);
   }, [token]);
 
@@ -74,7 +61,6 @@ export default function CommunicationScreen() {
 
   useEffect(() => {
     if (tab === "공지사항")  loadNotices();
-    if (tab === "학부모 요청") loadRequests();
     if (tab === "선생님 전달") loadDiaries();
   }, [tab]);
 
@@ -96,16 +82,7 @@ export default function CommunicationScreen() {
     loadNotices();
   };
 
-  const handleApprove = (id: string, action: "approve" | "reject") => setApproveTarget({ id, action });
-
-  const confirmApprove = async () => {
-    if (!approveTarget) return;
-    await apiRequest(token, `/admin/parent-requests/${approveTarget.id}`, { method: "PATCH", body: JSON.stringify({ action: approveTarget.action }) });
-    setApproveTarget(null);
-    loadRequests();
-  };
-
-  const listData = tab === "공지사항" ? notices : tab === "학부모 요청" ? requests : diaries;
+  const listData = tab === "공지사항" ? notices : diaries;
 
   return (
     <View style={s.root}>
@@ -162,21 +139,6 @@ export default function CommunicationScreen() {
                   </View>
                   <Pressable onPress={() => deleteNotice(item.id)} style={{ padding: 6 }}>
                     <Trash2 size={16} color="#D96C6C" />
-                  </Pressable>
-                </View>
-              </View>
-            );
-            if (tab === "학부모 요청") return (
-              <View style={s.card}>
-                <Text style={s.name}>{item.parent_name || "학부모"}  자녀: {item.child_name || "-"}</Text>
-                <Text style={s.sub}>연락처: {item.phone || "-"}  {new Date(item.requested_at || item.created_at).toLocaleDateString("ko-KR")}</Text>
-                {item.children_requested && <Text style={s.sub2}>요청 자녀: {item.children_requested}</Text>}
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                  <Pressable style={[s.actBtn, { backgroundColor: C.button }]} onPress={() => handleApprove(item.id, "approve")}>
-                    <Text style={s.actBtnTxt}>승인</Text>
-                  </Pressable>
-                  <Pressable style={[s.actBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => handleApprove(item.id, "reject")}>
-                    <Text style={[s.actBtnTxt, { color: "#D96C6C" }]}>거절</Text>
                   </Pressable>
                 </View>
               </View>
@@ -250,31 +212,6 @@ export default function CommunicationScreen() {
         </View>
       </Modal>
 
-      {/* 승인/거절 확인 모달 */}
-      <Modal visible={!!approveTarget} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 }}>
-          <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20, width: "100%", gap: 14 }}>
-            <Text style={{ fontSize: 17, fontWeight: "700", color: C.text, textAlign: "center" }}>
-              {approveTarget?.action === "approve" ? "학부모 요청 승인" : "학부모 요청 거절"}
-            </Text>
-            <Text style={{ color: C.textSecondary, textAlign: "center", fontSize: 14 }}>
-              {approveTarget?.action === "approve" ? "이 요청을 승인하시겠습니까?" : "이 요청을 거절하시겠습니까?"}
-            </Text>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" }}
-                onPress={() => setApproveTarget(null)}>
-                <Text style={{ fontWeight: "600", color: C.textSecondary }}>취소</Text>
-              </Pressable>
-              <Pressable style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: approveTarget?.action === "reject" ? "#D96C6C" : C.tint, alignItems: "center" }}
-                onPress={confirmApprove}>
-                <Text style={{ fontWeight: "700", color: "#fff" }}>
-                  {approveTarget?.action === "approve" ? "승인" : "거절"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

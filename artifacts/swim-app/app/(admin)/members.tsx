@@ -1,4 +1,4 @@
-import { CircleCheck, CircleX, Info, Search, SquareCheck } from "lucide-react-native";
+import { CircleX, Info, Search, SquareCheck } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -362,13 +362,6 @@ export default function MembersScreen() {
             <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? "#64748B" : "#2EC4B6" }]} onPress={handleAddMember}>
               <LucideIcon name={isMemberLimitReached ? "lock" : "user-plus"} size={14} color="#fff" />
               <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
-            </Pressable>
-            <Pressable
-              style={[ms.actionBtn, { backgroundColor: "#64748B" }]}
-              onPress={() => router.push("/(admin)/approvals" as any)}
-            >
-              <CircleCheck size={14} color="#fff" />
-              <Text style={ms.actionBtnText}>학부모 요청 승인</Text>
             </Pressable>
             <Pressable style={[ms.selBtn]} onPress={sel.enterSelectionMode}>
               <SquareCheck size={16} color={C.textSecondary} />
