@@ -400,13 +400,15 @@ router.post("/simple-parent-register", async (req, res) => {
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const normPhone = ph.replace(/[^0-9]/g, "");
 
-    // 자녀 이름 + 학부모 전화번호 두 개가 일치하면 즉시 자동 연결·승인
+    // 자녀 이름 + 수영장 ID가 일치하면 즉시 자동 연결·승인
+    // (관리자가 부모 전화번호를 미입력해도 연결 가능)
     const matchedStudents = await db.execute(sql`
       SELECT id, swimming_pool_id FROM students
       WHERE
         ${cName} != ''
+        AND ${poolId} IS NOT NULL
         AND name = ${cName}
-        AND REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
+        AND swimming_pool_id = ${poolId}
         AND parent_user_id IS NULL
         AND status NOT IN ('withdrawn', 'archived', 'deleted')
       LIMIT 10
