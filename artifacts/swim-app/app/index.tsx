@@ -7,6 +7,7 @@
 import { CircleAlert, Key, Lock, User, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
+import Svg, { Ellipse, Path } from "react-native-svg";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator, Animated, Keyboard, KeyboardAvoidingView, Modal,
@@ -22,6 +23,17 @@ import { login as kakaoLogin } from "@react-native-seoul/kakao-login";
 const C = Colors.light;
 const BRAND   = "#F97316";
 const KAKAO   = "#FEE500";
+
+function KakaoIcon({ size = 22 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M12 3C6.48 3 2 6.58 2 11C2 13.8 3.68 16.27 6.24 17.76L5.1 21.5L9.3 19.04C10.16 19.22 11.07 19.32 12 19.32C17.52 19.32 22 15.74 22 11C22 6.58 17.52 3 12 3Z"
+        fill="#3C1E1E"
+      />
+    </Svg>
+  );
+}
 
 export default function LoginScreen() {
   const { unifiedLogin, kakaoSocialLogin } = useAuth();
@@ -233,7 +245,7 @@ export default function LoginScreen() {
               ? <ActivityIndicator color="#3C1E1E" size="small" />
               : (
                 <>
-                  <Text style={s.kakaoEmoji}>💬</Text>
+                  <KakaoIcon size={22} />
                   <Text style={s.kakaoBtnText}>카카오 가입</Text>
                 </>
               )
@@ -352,7 +364,6 @@ const s = StyleSheet.create({
     shadowColor: KAKAO, shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
   },
-  kakaoEmoji:   { fontSize: 18 },
   kakaoBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#3C1E1E" },
   regularBtn:   { backgroundColor: "#F1F5F9", borderWidth: 1.5, borderColor: "#E2E8F0" },
   regularBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#475569" },
