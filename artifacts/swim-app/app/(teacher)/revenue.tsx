@@ -174,7 +174,13 @@ export default function RevenueScreen() {
     return pricing.find(p => p.type_key === key)?.type_name || key;
   }
 
-  const totalRevenue = (summary?.total_revenue || 0) + parseInt(extraAmount || "0", 10);
+  // 납부 기능 활성화 시: 납부 확정된 학생의 수령액만 매출로 계산
+  const paidOnlyRevenue = feeCheckEnabled
+    ? Object.values(feeMap as Record<string, { paid: boolean; amount: string }>)
+        .filter(e => e.paid)
+        .reduce((s, e) => s + (parseInt(e.amount || "0", 10)), 0)
+    : (summary?.total_revenue || 0);
+  const totalRevenue = paidOnlyRevenue + parseInt(extraAmount || "0", 10);
 
   return (
     <SafeAreaView style={rv.safe} edges={[]}>
@@ -219,7 +225,7 @@ export default function RevenueScreen() {
 
             {/* ─── 상단 요약 카드 ─────────────────────── */}
             <View style={[rv.summaryCard, { backgroundColor: themeColor }]}>
-              <Text style={rv.summaryLabel}>이번 달 예상 매출</Text>
+              <Text style={rv.summaryLabel}>{feeCheckEnabled ? "이번 달 납부 수령액" : "이번 달 예상 매출"}</Text>
               <Text style={rv.summaryAmount}>{formatWon(totalRevenue)}</Text>
               <View style={rv.statsRow}>
                 <View style={rv.statItem}>
@@ -334,8 +340,8 @@ export default function RevenueScreen() {
                 </View>
               ))}
               <View style={[rv.totalRow, { borderTopColor: C.border }]}>
-                <Text style={[rv.totalLabel, { color: C.text }]}>소계</Text>
-                <Text style={[rv.totalAmount, { color: C.text }]}>{formatWon(summary?.total_revenue || 0)}</Text>
+                <Text style={[rv.totalLabel, { color: C.text }]}>{feeCheckEnabled ? "납부 수령 소계" : "소계"}</Text>
+                <Text style={[rv.totalAmount, { color: C.text }]}>{formatWon(paidOnlyRevenue)}</Text>
               </View>
             </View>
 

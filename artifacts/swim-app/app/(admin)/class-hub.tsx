@@ -36,6 +36,13 @@ const SECTIONS: { title: string; items: MenuItem[] }[] = [
       { label: "보강정책 설정", icon: "sliders",     color: "#7C3AED", route: "/(admin)/makeup-policy",        desc: "보강 가능 기간 및 규칙" },
     ],
   },
+  {
+    title: "수업 정산",
+    items: [
+      { label: "수업 정산",     icon: "trending-up",  color: "#CA8A04", route: "/(admin)/admin-revenue",       desc: "월별 수업 횟수 및 선생님 정산 관리" },
+      { label: "정산 확인",     icon: "check-square", color: "#16A34A", route: "/(admin)/settlement",          desc: "선생님별 정산 내역 확인" },
+    ],
+  },
 ];
 
 export default function ClassHubScreen() {
