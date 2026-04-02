@@ -201,7 +201,6 @@ export default function LoginScreen() {
         {/* ── 아이디/비밀번호 로그인 ── */}
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: C.text }]}>관리자 · 선생님 · 학부모 로그인</Text>
             <View style={[styles.inputRow, { borderColor: identifier ? C.tint : C.border, backgroundColor: C.background }]}>
               <User size={16} color={identifier ? C.tint : C.textMuted} />
               <TextInput
