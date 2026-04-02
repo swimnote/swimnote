@@ -1392,4 +1392,146 @@ router.post("/find-identifier-by-phone", async (req, res) => {
   }
 });
 
+// ── 카카오 소셜 로그인 ────────────────────────────────────────────────
+router.post("/kakao-social-login", async (req, res) => {
+  const { accessToken } = req.body;
+  if (!accessToken) return err(res, 400, "카카오 액세스 토큰이 필요합니다.");
+
+  try {
+    // 카카오 사용자 정보 조회
+    const kakaoRes = await fetch("https://kapi.kakao.com/v2/user/me", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+      },
+    });
+    if (!kakaoRes.ok) {
+      return err(res, 401, "카카오 토큰이 유효하지 않습니다.");
+    }
+    const kakaoUser: any = await kakaoRes.json();
+    const kakaoId = String(kakaoUser.id);
+    const kakaoNickname = kakaoUser.kakao_account?.profile?.nickname || null;
+    const kakaoProfileImage = kakaoUser.kakao_account?.profile?.profile_image_url || null;
+    const kakaoPhone = kakaoUser.kakao_account?.phone_number
+      ? kakaoUser.kakao_account.phone_number.replace(/^\+82\s*/, "0").replace(/[^0-9]/g, "")
+      : null;
+
+    // 1) kakao_id로 기존 계정 조회
+    const byKakaoId = await db.execute(sql`
+      SELECT * FROM parent_accounts WHERE kakao_id = ${kakaoId} LIMIT 1
+    `);
+
+    if ((byKakaoId.rows as any[]).length > 0) {
+      const account = byKakaoId.rows[0] as any;
+      const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+      return res.json({
+        success: true,
+        token,
+        parent: {
+          id: account.id,
+          name: account.name,
+          nickname: account.nickname || null,
+          phone: account.phone,
+          login_id: account.login_id || null,
+          swimming_pool_id: account.swimming_pool_id,
+          kakao_profile_image: account.kakao_profile_image || null,
+        },
+      });
+    }
+
+    // 2) 전화번호로 기존 계정 매칭 후 kakao_id 연결
+    if (kakaoPhone) {
+      const byPhone = await db.execute(sql`
+        SELECT * FROM parent_accounts WHERE phone = ${kakaoPhone} LIMIT 1
+      `);
+      if ((byPhone.rows as any[]).length > 0) {
+        const account = byPhone.rows[0] as any;
+        await db.execute(sql`
+          UPDATE parent_accounts 
+          SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage}, updated_at = NOW()
+          WHERE id = ${account.id}
+        `);
+        const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+        return res.json({
+          success: true,
+          token,
+          parent: {
+            id: account.id,
+            name: account.name,
+            nickname: account.nickname || null,
+            phone: account.phone,
+            login_id: account.login_id || null,
+            swimming_pool_id: account.swimming_pool_id,
+            kakao_profile_image: kakaoProfileImage,
+          },
+        });
+      }
+    }
+
+    // 3) 계정 없음 → 신규 가입 유도 (kakao_id + 정보 반환)
+    return res.status(404).json({
+      success: false,
+      error_code: "kakao_no_account",
+      message: "연결된 수영장 계정이 없습니다. 수영장에서 등록된 전화번호로 계정을 연결해주세요.",
+      kakao_info: {
+        kakao_id: kakaoId,
+        name: kakaoNickname,
+        phone: kakaoPhone,
+        profile_image: kakaoProfileImage,
+      },
+    });
+  } catch (e) {
+    console.error("[kakao-social-login]", e);
+    return err(res, 500, "카카오 로그인 처리 중 오류가 발생했습니다.");
+  }
+});
+
+// ── 카카오 계정 연결 (전화번호로 본인 확인 후 kakao_id 연결) ─────────
+router.post("/kakao-link-account", async (req, res) => {
+  const { kakaoId, phone, kakaoProfileImage } = req.body;
+  if (!kakaoId || !phone) return err(res, 400, "kakaoId와 전화번호가 필요합니다.");
+
+  try {
+    const byPhone = await db.execute(sql`
+      SELECT * FROM parent_accounts WHERE phone = ${phone} LIMIT 1
+    `);
+    if ((byPhone.rows as any[]).length === 0) {
+      return err(res, 404, "입력하신 전화번호로 등록된 계정이 없습니다. 수영장 관리자에게 문의하세요.");
+    }
+    const account = byPhone.rows[0] as any;
+
+    // kakao_id가 이미 다른 계정에 연결되어 있는지 확인
+    const existing = await db.execute(sql`
+      SELECT id FROM parent_accounts WHERE kakao_id = ${kakaoId} AND id != ${account.id} LIMIT 1
+    `);
+    if ((existing.rows as any[]).length > 0) {
+      return err(res, 409, "이미 다른 계정에 연결된 카카오 계정입니다.");
+    }
+
+    await db.execute(sql`
+      UPDATE parent_accounts 
+      SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage || null}, updated_at = NOW()
+      WHERE id = ${account.id}
+    `);
+
+    const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+    return res.json({
+      success: true,
+      token,
+      parent: {
+        id: account.id,
+        name: account.name,
+        nickname: account.nickname || null,
+        phone: account.phone,
+        login_id: account.login_id || null,
+        swimming_pool_id: account.swimming_pool_id,
+        kakao_profile_image: kakaoProfileImage || null,
+      },
+    });
+  } catch (e) {
+    console.error("[kakao-link-account]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
 export default router;

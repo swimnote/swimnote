@@ -11,6 +11,8 @@ export const parentAccountsTable = pgTable("parent_accounts", {
   login_id: text("login_id"),
   nickname: text("nickname"),
   gender: text("gender"),
+  kakao_id: text("kakao_id"),
+  kakao_profile_image: text("kakao_profile_image"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

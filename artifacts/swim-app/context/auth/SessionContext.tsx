@@ -108,6 +108,7 @@ interface SessionContextType {
   completeTotpLogin: (totpSession: string, otpCode: string) => Promise<{ available_accounts: AccountEntry[] }>;
   adminLogin: (email: string, password: string) => Promise<void>;
   parentLogin: (identifier: string, password: string) => Promise<void>;
+  kakaoSocialLogin: (accessToken: string) => Promise<void>;
   setParentSession: (token: string, parent: ParentAccount) => Promise<void>;
   setAdminSession: (token: string, user: AdminUser) => Promise<void>;
   logout: () => Promise<void>;
@@ -344,6 +345,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setKind("parent");
   }
 
+  async function kakaoSocialLogin(accessToken: string) {
+    const res = await fetch(`${API_BASE}/auth/kakao-social-login`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) {
+      throw Object.assign(new Error(data.message || "카카오 로그인에 실패했습니다."), {
+        error_code: data.error_code || "unknown",
+        kakao_info: data.kakao_info || null,
+      });
+    }
+    await AsyncStorage.multiSet([
+      ["auth_token", data.token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(data.parent)],
+      ["parent_join_status", "approved"],
+    ]);
+    setToken(data.token);
+    setParentAccount(data.parent);
+    setKind("parent");
+    setParentJoinStatus("approved");
+  }
+
   async function setParentSession(token: string, parent: ParentAccount) {
     await AsyncStorage.multiSet([
       ["auth_token", token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(parent)],
@@ -429,7 +452,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     <SessionContext.Provider value={{
       kind, adminUser, parentAccount, token, pool, isLoading,
       allAccounts, ownedPools, parentJoinStatus, parentJoinRequestId,
-      unifiedLogin, completeTotpLogin, adminLogin, parentLogin, setParentSession, setAdminSession,
+      unifiedLogin, completeTotpLogin, adminLogin, parentLogin, kakaoSocialLogin, setParentSession, setAdminSession,
       logout, refreshPool, loadOwnedPools, switchPool,
       activateAccount, updateParentNickname, updateParentProfile, updateAdminProfile, checkRolePermission, applyRoleSwitch,
     }}>

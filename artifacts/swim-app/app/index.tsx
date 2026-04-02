@@ -12,11 +12,12 @@ import SwimNoteLogo from "../assets/images/swimnote-logo.svg";
 import Colors from "@/constants/colors";
 import { LOGIN_LABELS } from "@/constants/auth";
 import { useAuth } from "@/context/AuthContext";
+import { login as kakaoLogin } from "@react-native-seoul/kakao-login";
 
 const C = Colors.light;
 
 export default function LoginScreen() {
-  const { unifiedLogin } = useAuth();
+  const { unifiedLogin, kakaoSocialLogin } = useAuth();
   const insets = useSafeAreaInsets();
   const pwRef = useRef<TextInput>(null);
 
@@ -24,6 +25,7 @@ export default function LoginScreen() {
   const [password, setPassword]     = useState("");
   const [showPw, setShowPw]         = useState(false);
   const [loading, setLoading]       = useState(false);
+  const [kakaoLoading, setKakaoLoading] = useState(false);
   const [error, setError]           = useState("");
   const [failCount, setFailCount]   = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
@@ -100,6 +102,38 @@ export default function LoginScreen() {
       setError(e.message || "아이디 또는 비밀번호를 확인해주세요.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleKakaoLogin() {
+    if (Platform.OS === "web") {
+      setError("카카오 로그인은 앱에서만 가능합니다.");
+      return;
+    }
+    setKakaoLoading(true);
+    setError("");
+    try {
+      const result = await kakaoLogin();
+      await kakaoSocialLogin(result.accessToken);
+    } catch (err: unknown) {
+      const e = err as Error & { error_code?: string; kakao_info?: any };
+      if (e.error_code === "kakao_no_account" && e.kakao_info) {
+        router.push({
+          pathname: "/(auth)/kakao-link",
+          params: {
+            kakaoId: e.kakao_info.kakao_id,
+            kakaoProfileImage: e.kakao_info.profile_image || "",
+            kakaoName: e.kakao_info.name || "",
+          },
+        } as any);
+        return;
+      }
+      if ((err as any)?.code === "E_CANCELLED_OPERATION" || (e as any)?.message?.includes("cancel")) {
+        return;
+      }
+      setError(e.message || "카카오 로그인에 실패했습니다.");
+    } finally {
+      setKakaoLoading(false);
     }
   }
 
@@ -205,6 +239,30 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
+        <View style={styles.dividerRow}>
+          <View style={[styles.dividerLine, { backgroundColor: C.border }]} />
+          <Text style={[styles.dividerText, { color: C.textMuted }]}>또는</Text>
+          <View style={[styles.dividerLine, { backgroundColor: C.border }]} />
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [styles.kakaoBtn, { opacity: pressed || kakaoLoading ? 0.85 : 1 }]}
+          onPress={handleKakaoLogin}
+          disabled={kakaoLoading || loading}
+        >
+          {kakaoLoading
+            ? <ActivityIndicator color="#3C1E1E" size="small" />
+            : (
+              <>
+                <View style={styles.kakaoBtnIcon}>
+                  <Text style={styles.kakaoEmoji}>💬</Text>
+                </View>
+                <Text style={styles.kakaoBtnText}>카카오로 시작하기</Text>
+              </>
+            )
+          }
+        </Pressable>
+
       </ScrollView>
 
       <Modal
@@ -273,6 +331,17 @@ const styles = StyleSheet.create({
   signupLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   signupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },
   signupBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  kakaoBtn: {
+    height: 52, borderRadius: 14, backgroundColor: "#FEE500",
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    shadowColor: "#FEE500", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+  },
+  kakaoBtnIcon: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
+  kakaoEmoji: { fontSize: 18 },
+  kakaoBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#3C1E1E" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
   modalCard: { width: 300, borderRadius: 22, padding: 24, alignItems: "center", gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 10 },
   modalIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 4 },

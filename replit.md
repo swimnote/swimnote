@@ -91,6 +91,20 @@ API design follows RESTful principles with consistent JSON formats and strong au
 - `iconOrange #FF6F0F` (당근마켓 주황) — 경고·알림
 - 배경색: `iconBlueBg`, `iconGreenBg`, `iconOrangeBg`
 
+## 카카오 소셜 로그인 (2026-04-02 완성)
+- **패키지**: `@react-native-seoul/kakao-login` 설치 완료
+- **앱 키**: `aeafd08cc53e41b28efa52498136efa7` (EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY)
+- **Android 키 해시**: `GGOGNQSufjzrpcSzDrMZM3TtJi0=` (EAS managed keystore SHA-1 기반)
+- **iOS URL Scheme**: `kakaoaeafd08cc53e41b28efa52498136efa7` (app.json LSApplicationQueriesSchemes)
+- **app.json 플러그인**: `@react-native-seoul/kakao-login` 설정 완료
+- **DB**: `parent_accounts.kakao_id` / `kakao_profile_image` 컬럼 추가
+- **API**: `POST /api/auth/kakao-social-login` — kakao_id → 계정 매칭 → JWT 발급
+- **API**: `POST /api/auth/kakao-link-account` — 전화번호로 기존 계정과 카카오 연결
+- **UI**: `app/index.tsx` 하단 "카카오로 시작하기" 버튼 (노란색 #FEE500)
+- **화면**: `app/(auth)/kakao-link.tsx` — 미연결 계정용 전화번호 입력 화면
+- **흐름**: 카카오 로그인 → kakao_id 매칭 → 성공시 JWT / 미연결시 전화번호 입력 화면으로 이동
+- **참고**: EAS 빌드 재배포 필요 (네이티브 플러그인 변경됨)
+
 ## External Dependencies
 - **PostgreSQL**: Primary database for all application data.
 - **Drizzle ORM**: Object-relational mapper for interacting with PostgreSQL.

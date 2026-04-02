@@ -62,6 +62,7 @@ export function useAuth() {
     completeTotpLogin: session.completeTotpLogin,
     adminLogin: session.adminLogin,
     parentLogin: session.parentLogin,
+    kakaoSocialLogin: session.kakaoSocialLogin,
     setParentSession: session.setParentSession,
     setAdminSession: session.setAdminSession,
     logout: async () => {

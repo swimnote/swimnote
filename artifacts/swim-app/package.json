@@ -57,6 +57,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@react-native-seoul/kakao-login": "^5.4.2",
     "expo-av": "~16.0.8",
     "expo-clipboard": "^8.0.8",
     "expo-document-picker": "^14.0.8",
