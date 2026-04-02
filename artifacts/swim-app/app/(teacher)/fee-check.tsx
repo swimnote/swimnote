@@ -1,19 +1,19 @@
 /**
  * (teacher)/fee-check.tsx — 수업료 납부 체크
  *
- * - 설정에서 "수업료 납부 관리" 켠 경우에만 접근 가능
- * - 월 단위로 학생별 납부/미납 토글
- * - AsyncStorage 로컬 저장 (디바이스 내 보관)
- * - 수영장 전산 쓰는 선생님은 설정에서 끄면 됨
+ * - 설정에서 "납부 체크 기능 사용" 켠 경우에만 접근 가능
+ * - 학생마다 수업료 금액 입력 + 납부 버튼
+ * - 전월 금액 자동 인계 (학생별 마지막 입력 금액)
+ * - 납부 버튼 누르면 납부 확정 → revenue 탭에 합계 표시
+ * - AsyncStorage 로컬 저장 (개인 메모 성격)
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ChevronLeft, ChevronRight, CircleCheck, CircleDollarSign, CircleX, RefreshCw } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
+import { ChevronLeft, ChevronRight, CircleCheck, CircleDollarSign, CircleMinus } from "lucide-react-native";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Pressable,
-  RefreshControl, StyleSheet, Text, View,
+  ActivityIndicator, FlatList, Keyboard, KeyboardAvoidingView,
+  Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -28,22 +28,38 @@ interface Student {
   name: string;
   status: string;
   class_group_name: string | null;
-  parent_name: string | null;
 }
 
-type PayMap = Record<string, boolean>;
+export interface FeeEntry {
+  name: string;
+  amount: string;
+  paid: boolean;
+}
+export type FeeMap = Record<string, FeeEntry>;
 
-function monthStr(offset = 0): string {
+function currentMonthStr(): string {
   const d = new Date();
-  d.setMonth(d.getMonth() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
-function monthLabel(ym: string): string {
+function prevMonthStr(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function monthLabel(ym: string) {
   const [y, m] = ym.split("-");
   return `${y}년 ${Number(m)}월`;
 }
-function storageKey(userId: string, ym: string) {
+function shiftMonth(ym: string, delta: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+export function feeStorageKey(userId: string, ym: string) {
   return `@swimnote:fee:${userId}:${ym}`;
+}
+function formatWon(n: number) {
+  return n.toLocaleString("ko-KR") + "원";
 }
 
 export default function FeeCheckScreen() {
@@ -51,14 +67,15 @@ export default function FeeCheckScreen() {
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
-  const [month, setMonth]         = useState(monthStr());
+  const [month, setMonth]         = useState(currentMonthStr());
   const [students, setStudents]   = useState<Student[]>([]);
-  const [payMap, setPayMap]       = useState<PayMap>({});
+  const [feeMap, setFeeMap]       = useState<FeeMap>({});
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const userId = adminUser?.id ?? "unknown";
 
+  /* ── 학생 목록 로드 ── */
   const loadStudents = useCallback(async () => {
     try {
       const res = await apiRequest(token, "/teacher/me/members?tab=전체");
@@ -68,77 +85,89 @@ export default function FeeCheckScreen() {
           (s: Student) => s.status === "active" || s.status === "registered"
         );
         setStudents(list);
+        return list;
       }
-    } catch (e) {
-      console.error("[fee-check] loadStudents", e);
-    }
+    } catch (e) { console.error("[fee-check] loadStudents", e); }
+    return [] as Student[];
   }, [token]);
 
-  const loadPayMap = useCallback(async (ym: string) => {
+  /* ── 해당 월 납부 데이터 로드 (없으면 전월 금액 인계) ── */
+  const loadFeeMap = useCallback(async (ym: string, studentList: Student[]) => {
     try {
-      const raw = await AsyncStorage.getItem(storageKey(userId, ym));
-      setPayMap(raw ? JSON.parse(raw) : {});
+      const raw = await AsyncStorage.getItem(feeStorageKey(userId, ym));
+      if (raw) {
+        setFeeMap(JSON.parse(raw));
+        return;
+      }
+      // 해당 월 데이터 없음 → 전월 금액 자동 인계 (납부 상태는 초기화)
+      const prevRaw = await AsyncStorage.getItem(feeStorageKey(userId, prevMonthStr(ym)));
+      const prevMap: FeeMap = prevRaw ? JSON.parse(prevRaw) : {};
+      const init: FeeMap = {};
+      for (const s of studentList) {
+        init[s.id] = {
+          name: s.name,
+          amount: prevMap[s.id]?.amount ?? "",
+          paid: false,
+        };
+      }
+      setFeeMap(init);
     } catch {
-      setPayMap({});
+      setFeeMap({});
     }
   }, [userId]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (ym = month) => {
     setLoading(true);
-    await Promise.all([loadStudents(), loadPayMap(month)]);
+    const list = await loadStudents();
+    await loadFeeMap(ym, list);
     setLoading(false);
     setRefreshing(false);
-  }, [loadStudents, loadPayMap, month]);
+  }, [loadStudents, loadFeeMap, month]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(month); }, [month]); // eslint-disable-line
 
-  const changeMonth = useCallback(async (dir: -1 | 1) => {
-    const next = monthStr(
-      (() => {
-        const [y, m] = month.split("-").map(Number);
-        const d = new Date(y, m - 1 + dir, 1);
-        const now = new Date();
-        const cur = new Date(now.getFullYear(), now.getMonth(), 1);
-        const offset = (d.getFullYear() - cur.getFullYear()) * 12 + (d.getMonth() - cur.getMonth());
-        return offset;
-      })()
-    );
-    setMonth(next);
-    setLoading(true);
-    await loadPayMap(next);
-    setLoading(false);
-  }, [month, loadPayMap]);
-
-  const toggle = useCallback(async (studentId: string) => {
-    const next = { ...payMap, [studentId]: !payMap[studentId] };
-    setPayMap(next);
+  /* ── 저장 헬퍼 ── */
+  const save = useCallback(async (next: FeeMap) => {
     try {
-      await AsyncStorage.setItem(storageKey(userId, month), JSON.stringify(next));
-    } catch { /* ignore */ }
-  }, [payMap, userId, month]);
-
-  const resetMonth = useCallback(async () => {
-    const next: PayMap = {};
-    setPayMap(next);
-    try {
-      await AsyncStorage.removeItem(storageKey(userId, month));
+      await AsyncStorage.setItem(feeStorageKey(userId, month), JSON.stringify(next));
     } catch { /* ignore */ }
   }, [userId, month]);
 
-  const paidCount   = students.filter(s => payMap[s.id]).length;
-  const unpaidCount = students.length - paidCount;
+  /* ── 금액 변경 ── */
+  const onAmountChange = useCallback((studentId: string, val: string) => {
+    const cleaned = val.replace(/[^0-9]/g, "");
+    setFeeMap(prev => {
+      const next = { ...prev, [studentId]: { ...prev[studentId], amount: cleaned } };
+      save(next);
+      return next;
+    });
+  }, [save]);
+
+  /* ── 납부 토글 ── */
+  const togglePaid = useCallback((studentId: string) => {
+    setFeeMap(prev => {
+      const next = {
+        ...prev,
+        [studentId]: { ...prev[studentId], paid: !prev[studentId]?.paid },
+      };
+      save(next);
+      return next;
+    });
+  }, [save]);
+
+  /* ── 월 이동 ── */
+  const changeMonth = (dir: -1 | 1) => {
+    setMonth(m => shiftMonth(m, dir));
+  };
+
+  /* ── 요약 계산 ── */
+  const paidStudents = students.filter(s => feeMap[s.id]?.paid);
+  const totalPaid    = paidStudents.reduce((acc, s) => acc + (parseInt(feeMap[s.id]?.amount || "0", 10)), 0);
+  const unpaidCount  = students.length - paidStudents.length;
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader
-        title="수업료 납부 관리"
-        homePath="/(teacher)/settings"
-        right={
-          <Pressable style={s.resetBtn} onPress={resetMonth}>
-            <RefreshCw size={16} color={C.textMuted} />
-          </Pressable>
-        }
-      />
+      <SubScreenHeader title="수업료 납부 관리" homePath="/(teacher)/settings" />
 
       {/* 월 선택 */}
       <View style={s.monthRow}>
@@ -152,16 +181,21 @@ export default function FeeCheckScreen() {
       </View>
 
       {/* 요약 배너 */}
-      <View style={[s.summaryRow, { borderColor: themeColor + "30" }]}>
-        <View style={[s.summaryChip, { backgroundColor: themeColor + "12" }]}>
-          <CircleCheck size={14} color={themeColor} />
-          <Text style={[s.summaryText, { color: themeColor }]}>납부 {paidCount}명</Text>
+      <View style={[s.summaryBanner, { backgroundColor: themeColor + "10", borderColor: themeColor + "30" }]}>
+        <View style={s.summaryItem}>
+          <Text style={[s.summaryNum, { color: themeColor }]}>{paidStudents.length}명</Text>
+          <Text style={s.summaryLbl}>납부</Text>
         </View>
-        <View style={[s.summaryChip, { backgroundColor: "#FEF2F2" }]}>
-          <CircleX size={14} color="#DC2626" />
-          <Text style={[s.summaryText, { color: "#DC2626" }]}>미납 {unpaidCount}명</Text>
+        <View style={[s.summaryDivider, { backgroundColor: themeColor + "30" }]} />
+        <View style={s.summaryItem}>
+          <Text style={[s.summaryNum, { color: "#DC2626" }]}>{unpaidCount}명</Text>
+          <Text style={s.summaryLbl}>미납</Text>
         </View>
-        <Text style={s.summaryTotal}>전체 {students.length}명</Text>
+        <View style={[s.summaryDivider, { backgroundColor: themeColor + "30" }]} />
+        <View style={s.summaryItem}>
+          <Text style={[s.summaryNum, { color: C.text }]}>{formatWon(totalPaid)}</Text>
+          <Text style={s.summaryLbl}>총 납부액</Text>
+        </View>
       </View>
 
       {loading ? (
@@ -170,12 +204,13 @@ export default function FeeCheckScreen() {
         <FlatList
           data={students}
           keyExtractor={item => item.id}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: insets.bottom + 60 }}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: insets.bottom + 80 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); load(); }}
+              onRefresh={() => { setRefreshing(true); load(month); }}
               tintColor={themeColor}
             />
           }
@@ -185,83 +220,90 @@ export default function FeeCheckScreen() {
               <Text style={[s.emptyText, { color: C.textMuted }]}>담당 학생이 없습니다</Text>
             </View>
           }
+          ListFooterComponent={
+            <Text style={[s.footerNote, { color: C.textMuted }]}>
+              전월 수업료가 자동으로 인계됩니다 · 이 기기에만 저장됩니다
+            </Text>
+          }
           renderItem={({ item }) => {
-            const paid = !!payMap[item.id];
+            const entry  = feeMap[item.id];
+            const paid   = !!entry?.paid;
+            const amount = entry?.amount ?? "";
+
             return (
-              <Pressable
-                style={[
-                  s.card,
-                  { backgroundColor: C.card },
-                  paid && { borderColor: themeColor + "40", borderWidth: 1.5 },
-                ]}
-                onPress={() => toggle(item.id)}
-                android_ripple={{ color: themeColor + "20" }}
-              >
-                {/* 왼쪽: 이름 + 반 */}
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={[s.studentName, { color: C.text }]}>{item.name}</Text>
-                  <Text style={[s.studentSub, { color: C.textMuted }]}>
+              <View style={[
+                s.card,
+                { backgroundColor: C.card },
+                paid && { borderColor: themeColor, borderWidth: 1.5 },
+              ]}>
+                {/* 이름 · 반 */}
+                <View style={s.cardLeft}>
+                  <Text style={[s.studentName, { color: C.text }]} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={[s.studentSub, { color: C.textMuted }]} numberOfLines={1}>
                     {item.class_group_name ?? "반 미배정"}
-                    {item.parent_name ? ` · 학부모 ${item.parent_name}` : ""}
                   </Text>
                 </View>
 
-                {/* 오른쪽: 납부 상태 토글 */}
-                <View
+                {/* 금액 입력 */}
+                <TextInput
+                  style={[s.amountInput, { borderColor: paid ? themeColor + "60" : C.border, color: C.text }]}
+                  value={amount ? Number(amount).toLocaleString("ko-KR") : ""}
+                  onChangeText={v => onAmountChange(item.id, v.replace(/,/g, ""))}
+                  placeholder="수업료"
+                  placeholderTextColor={C.textMuted}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                />
+
+                {/* 납부 버튼 */}
+                <Pressable
                   style={[
-                    s.badge,
+                    s.paidBtn,
                     paid
-                      ? { backgroundColor: themeColor + "15" }
-                      : { backgroundColor: "#FEF2F2" },
+                      ? { backgroundColor: themeColor }
+                      : { backgroundColor: C.background, borderColor: C.border, borderWidth: 1.5 },
                   ]}
+                  onPress={() => togglePaid(item.id)}
                 >
                   {paid ? (
-                    <CircleCheck size={16} color={themeColor} />
+                    <CircleCheck size={15} color="#fff" />
                   ) : (
-                    <CircleX size={16} color="#DC2626" />
+                    <CircleMinus size={15} color={C.textMuted} />
                   )}
-                  <Text
-                    style={[
-                      s.badgeText,
-                      { color: paid ? themeColor : "#DC2626" },
-                    ]}
-                  >
+                  <Text style={[s.paidBtnText, { color: paid ? "#fff" : C.textMuted }]}>
                     {paid ? "납부" : "미납"}
                   </Text>
-                </View>
-              </Pressable>
+                </Pressable>
+              </View>
             );
           }}
         />
       )}
-
-      {/* 하단 안내 */}
-      <View style={[s.footer, { paddingBottom: insets.bottom + 8 }]}>
-        <Text style={s.footerText}>
-          카드를 누르면 납부/미납이 전환됩니다 · 이 기기에만 저장됩니다
-        </Text>
-      </View>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F8FAFC" },
-  resetBtn:     { padding: 8 },
-  monthRow:     { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 14, gap: 16, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
-  monthArrow:   { padding: 6 },
-  monthLabel:   { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text, minWidth: 100, textAlign: "center" },
-  summaryRow:   { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E2E8F0" },
-  summaryChip:  { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  summaryText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  summaryTotal: { marginLeft: "auto" as any, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  card:         { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 14, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1, gap: 12 },
-  studentName:  { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  studentSub:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  badge:        { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  badgeText:    { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  empty:        { alignItems: "center", gap: 12, marginTop: 80 },
-  emptyText:    { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  footer:       { paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: "#fff" },
-  footerText:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
+  safe:           { flex: 1, backgroundColor: "#F8FAFC" },
+  monthRow:       { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, gap: 16, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
+  monthArrow:     { padding: 6 },
+  monthLabel:     { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text, minWidth: 100, textAlign: "center" },
+  summaryBanner:  { flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1 },
+  summaryItem:    { alignItems: "center", gap: 2 },
+  summaryNum:     { fontSize: 16, fontFamily: "Pretendard-Regular" },
+  summaryLbl:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  summaryDivider: { width: 1, height: 28 },
+  card:           { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderRadius: 14, padding: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  cardLeft:       { flex: 1, gap: 2, minWidth: 0 },
+  studentName:    { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  studentSub:     { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  amountInput:    { width: 100, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "right" },
+  paidBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+  paidBtnText:    { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  empty:          { alignItems: "center", gap: 12, marginTop: 80 },
+  emptyText:      { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  footerNote:     { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "center", marginTop: 8, paddingBottom: 8 },
 });

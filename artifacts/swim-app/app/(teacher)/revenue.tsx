@@ -4,8 +4,10 @@
  * 이번 달 총 매출 / 회원별 수업 횟수 / 보강/체험/임시이동 카운팅
  * 기타 수기 정산 / 이번 달 정산 저장 / 다음 달 정산 시작
  */
-import { ChartBar, ChevronLeft, ChevronRight, CircleArrowRight, CirclePlus, Pencil, Save } from "lucide-react-native";
+import { ChartBar, ChevronLeft, ChevronRight, CircleArrowRight, CircleCheck, CircleDollarSign, CircleMinus, CirclePlus, Pencil, Save } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, RefreshControl,
@@ -18,6 +20,13 @@ import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { addTabResetListener } from "@/utils/tabReset";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+
+const FEE_CHECK_KEY    = "@swimnote:fee_check_enabled";
+function feeStorageKey(userId: string, ym: string) {
+  return `@swimnote:fee:${userId}:${ym}`;
+}
+interface FeeEntry { name: string; amount: string; paid: boolean; }
+type FeeMap = Record<string, FeeEntry>;
 
 const C = Colors.light;
 
@@ -71,13 +80,20 @@ export default function RevenueScreen() {
   const [nextMonthModal, setNextMonthModal] = useState(false);
 
   const poolId = (adminUser as any)?.swimming_pool_id || "";
+  const userId = adminUser?.id ?? "unknown";
+
+  /* ── 납부 체크 상태 ── */
+  const [feeCheckEnabled, setFeeCheckEnabled] = useState(false);
+  const [feeMap, setFeeMap]                   = useState<FeeMap>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [calcRes, statusRes] = await Promise.all([
+      const [calcRes, statusRes, feeEnabledRaw, feeRaw] = await Promise.all([
         apiRequest(token, `/settlement/calculator?pool_id=${poolId}&month=${month}`),
         apiRequest(token, `/settlement/my-status?pool_id=${poolId}&month=${month}`).catch(() => null),
+        AsyncStorage.getItem(FEE_CHECK_KEY),
+        AsyncStorage.getItem(feeStorageKey(userId, month)),
       ]);
       if (calcRes.ok) {
         const data = await calcRes.json();
@@ -95,9 +111,11 @@ export default function RevenueScreen() {
       } else {
         setSubmitStatus("미정산");
       }
+      setFeeCheckEnabled(feeEnabledRaw === "1");
+      setFeeMap(feeRaw ? JSON.parse(feeRaw) : {});
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [token, poolId, month]);
+  }, [token, poolId, month, userId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -249,6 +267,43 @@ export default function RevenueScreen() {
                 ))}
               </View>
             </View>
+
+            {/* ─── 납부 수령 현황 카드 (납부 기능 켰을 때만) ── */}
+            {feeCheckEnabled && (() => {
+              const entries     = Object.values(feeMap) as FeeEntry[];
+              const paidList    = entries.filter(e => e.paid);
+              const totalPaid   = paidList.reduce((s, e) => s + (parseInt(e.amount || "0", 10)), 0);
+              const unpaidCount = entries.length - paidList.length;
+              return (
+                <View style={[rv.card, { backgroundColor: C.card }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
+                    <CircleDollarSign size={15} color={themeColor} />
+                    <Text style={[rv.sectionTitle, { color: C.text }]}>납부 수령 현황</Text>
+                    <Pressable
+                      style={{ marginLeft: "auto" as any, flexDirection: "row", alignItems: "center", gap: 4 }}
+                      onPress={() => router.push("/(teacher)/fee-check" as any)}
+                    >
+                      <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: themeColor }}>관리</Text>
+                      <ChevronRight size={13} color={themeColor} />
+                    </Pressable>
+                  </View>
+                  <View style={rv.feeRow}>
+                    <View style={[rv.feeChip, { backgroundColor: themeColor + "12" }]}>
+                      <CircleCheck size={14} color={themeColor} />
+                      <Text style={[rv.feeChipText, { color: themeColor }]}>납부 {paidList.length}명</Text>
+                    </View>
+                    <View style={[rv.feeChip, { backgroundColor: "#FEF2F2" }]}>
+                      <CircleMinus size={14} color="#DC2626" />
+                      <Text style={[rv.feeChipText, { color: "#DC2626" }]}>미납 {unpaidCount}명</Text>
+                    </View>
+                  </View>
+                  <View style={[rv.feeTotalRow, { borderTopColor: C.border }]}>
+                    <Text style={[rv.feeTotalLabel, { color: C.textMuted }]}>총 납부액</Text>
+                    <Text style={[rv.feeTotalAmt, { color: themeColor }]}>{totalPaid.toLocaleString("ko-KR")}원</Text>
+                  </View>
+                </View>
+              );
+            })()}
 
             {/* ─── 회원별 리스트 ───────────────────────── */}
             <View style={[rv.card, { backgroundColor: C.card }]}>
@@ -462,4 +517,10 @@ const rv = StyleSheet.create({
   confirmSub:       { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   confirmBtn:       { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   confirmBtnText:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  feeRow:           { flexDirection: "row", gap: 8, marginBottom: 12 },
+  feeChip:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  feeChipText:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  feeTotalRow:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, paddingTop: 12 },
+  feeTotalLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  feeTotalAmt:      { fontSize: 18, fontFamily: "Pretendard-Regular" },
 });
