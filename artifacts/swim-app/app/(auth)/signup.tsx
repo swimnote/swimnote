@@ -491,7 +491,7 @@ export default function SignupScreen() {
               placeholder="실명을 입력해주세요"
               placeholderTextColor={C.textMuted}
               value={name}
-              onChangeText={v => setName(v.replace(/[^가-힣\s]/g, ""))}
+              onChangeText={v => setName(v.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z\s]/g, ""))}
               keyboardType="default"
               autoCorrect={false}
             />

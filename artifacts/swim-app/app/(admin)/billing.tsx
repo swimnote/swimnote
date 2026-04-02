@@ -140,7 +140,7 @@ export default function BillingScreen() {
     }
   }
 
-  if (loading || rcLoading) {
+  if (loading) {
     return <ActivityIndicator style={{ flex: 1 }} color={themeColor} />;
   }
 
@@ -285,11 +285,16 @@ export default function BillingScreen() {
           </View>
         </Section>
 
-        {/* ── Solo 구독 플랜 ── */}
-        <Section title="Solo 구독 플랜">
-          {soloPackages.length === 0 ? (
+        {/* ── Coach 구독 플랜 ── */}
+        <Section title="Coach 구독 플랜">
+          {rcLoading ? (
             <View style={s.emptyOffering}>
-              <Text style={s.emptyOfferingText}>구독 플랜을 불러오는 중...</Text>
+              <ActivityIndicator size="small" color={themeColor} />
+              <Text style={[s.emptyOfferingText, { marginTop: 8 }]}>플랜 불러오는 중...</Text>
+            </View>
+          ) : soloPackages.length === 0 ? (
+            <View style={s.emptyOffering}>
+              <Text style={s.emptyOfferingText}>구독 플랜을 불러올 수 없습니다.{"\n"}아래 새로고침을 당겨서 재시도해 주세요.</Text>
             </View>
           ) : (
             <View style={{ gap: 10 }}>

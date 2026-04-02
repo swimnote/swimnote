@@ -1,8 +1,8 @@
 /**
  * (admin)/subscription.tsx — 구독 플랜 선택 화면
  *
- * Solo (개인 선생님, 사진만): Free / Solo30 / Solo50 / Solo100
- * Center (수영장, 사진+영상): Center200 / Center300 / Center500 / Center1000
+ * Coach (개인 선생님, 사진만): Free / Coach30 / Coach50 / Coach100
+ * Premier (수영장, 사진+영상): Premier200 / Premier300 / Premier500 / Premier1000
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -30,17 +30,17 @@ interface PlanMeta {
 }
 
 const SOLO_PLANS: PlanMeta[] = [
-  { tier: "free",     name: "Free",     price: 0,      limit: 10,   storage: "500MB", storageMb: 512,    group: "solo" },
-  { tier: "starter",  name: "Solo 30",  price: 3500,   limit: 30,   storage: "3GB",   storageMb: 3072,   group: "solo" },
-  { tier: "basic",    name: "Solo 50",  price: 6500,   limit: 50,   storage: "5GB",   storageMb: 5120,   group: "solo" },
-  { tier: "standard", name: "Solo 100", price: 9500,   limit: 100,  storage: "10GB",  storageMb: 10240,  group: "solo", recommended: true },
+  { tier: "free",     name: "Free",       price: 0,      limit: 10,   storage: "500MB", storageMb: 512,    group: "solo" },
+  { tier: "starter",  name: "Coach 30",   price: 3900,   limit: 30,   storage: "3GB",   storageMb: 3072,   group: "solo" },
+  { tier: "basic",    name: "Coach 50",   price: 6900,   limit: 50,   storage: "5GB",   storageMb: 5120,   group: "solo" },
+  { tier: "standard", name: "Coach 100",  price: 9900,   limit: 100,  storage: "10GB",  storageMb: 10240,  group: "solo", recommended: true },
 ];
 
 const CENTER_PLANS: PlanMeta[] = [
-  { tier: "center_200", name: "Center 200",  price: 69000,  limit: 200,  storage: "50GB",  storageMb: 51200,  group: "center" },
-  { tier: "advance",    name: "Center 300",  price: 99000,  limit: 300,  storage: "80GB",  storageMb: 81920,  group: "center" },
-  { tier: "pro",        name: "Center 500",  price: 149000, limit: 500,  storage: "130GB", storageMb: 133120, group: "center" },
-  { tier: "max",        name: "Center 1000", price: 249000, limit: 1000, storage: "500GB", storageMb: 512000, group: "center", recommended: true },
+  { tier: "center_200", name: "Premier 200",  price: 69000,  limit: 200,  storage: "50GB",  storageMb: 51200,  group: "center" },
+  { tier: "advance",    name: "Premier 300",  price: 99000,  limit: 300,  storage: "80GB",  storageMb: 81920,  group: "center" },
+  { tier: "pro",        name: "Premier 500",  price: 149000, limit: 500,  storage: "130GB", storageMb: 133120, group: "center" },
+  { tier: "max",        name: "Premier 1000", price: 249000, limit: 1000, storage: "500GB", storageMb: 512000, group: "center", recommended: true },
 ];
 
 function fmt(price: number) {
@@ -81,13 +81,13 @@ export default function SubscriptionScreen() {
           contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 40 }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Solo 섹션 */}
+          {/* Coach 섹션 */}
           <View style={s.sectionHeader}>
             <View style={[s.sectionIcon, { backgroundColor: "#EDE9FE" }]}>
               <Zap size={18} color="#7C3AED" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[s.sectionTitle, { color: C.text }]}>Solo</Text>
+              <Text style={[s.sectionTitle, { color: C.text }]}>Coach</Text>
               <Text style={[s.sectionSub, { color: C.textSecondary }]}>개인 선생님</Text>
             </View>
             <View style={s.featurePill}>
@@ -112,13 +112,13 @@ export default function SubscriptionScreen() {
 
           <View style={s.divider} />
 
-          {/* Center 섹션 */}
+          {/* Premier 섹션 */}
           <View style={s.sectionHeader}>
             <View style={[s.sectionIcon, { backgroundColor: "#FEF3C7" }]}>
               <Crown size={18} color="#F59E0B" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[s.sectionTitle, { color: C.text }]}>Center</Text>
+              <Text style={[s.sectionTitle, { color: C.text }]}>Premier</Text>
               <Text style={[s.sectionSub, { color: C.textSecondary }]}>수영장/센터</Text>
             </View>
             <View style={[s.featurePill, { borderColor: "#F59E0B" }]}>

@@ -21,9 +21,9 @@ export const REVENUECAT_SOLO_ENTITLEMENT = "solo";
 export const SOLO_OFFERING_ID            = "solo_monthly";
 
 export const PACKAGE_META: Record<string, { name: string; memberLimit: number; storage: string }> = {
-  solo_30:  { name: "Solo 30",  memberLimit: 30,  storage: "3GB"  },
-  solo_50:  { name: "Solo 50",  memberLimit: 50,  storage: "5GB"  },
-  solo_100: { name: "Solo 100", memberLimit: 100, storage: "10GB" },
+  solo_30:  { name: "Coach 30",  memberLimit: 30,  storage: "3GB"  },
+  solo_50:  { name: "Coach 50",  memberLimit: 50,  storage: "5GB"  },
+  solo_100: { name: "Coach 100", memberLimit: 100, storage: "10GB" },
 };
 
 function getRevenueCatApiKey(): string {
