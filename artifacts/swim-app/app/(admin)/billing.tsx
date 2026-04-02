@@ -102,7 +102,7 @@ export default function BillingScreen() {
         subscription_status: sd.subscription_status ?? null,
         days_until_deletion: sd.days_until_deletion ?? null,
         member_count:        sd.member_count ?? 0,
-        member_limit:        sd.member_limit ?? 5,
+        member_limit:        sd.member_limit ?? 10,
         storage_used_gb:     sd.storage_used_gb ?? 0,
         storage_quota_gb:    sd.storage_quota_gb ?? 0.1,
         storage_used_pct:    sd.storage_used_pct ?? 0,
@@ -229,7 +229,7 @@ export default function BillingScreen() {
                     : (subInfo?.plan_name ?? "무료 이용")}
                 </Text>
                 <Text style={s.planMeta}>
-                  최대 {billingInfo?.member_limit ?? 5}명
+                  최대 {billingInfo?.member_limit ?? 10}명
                 </Text>
               </View>
               <View style={[s.statusBadge, isSubscribed ? s.badgeGreen : s.badgeGray]}>
@@ -241,8 +241,8 @@ export default function BillingScreen() {
             <View style={s.infoRow}>
               <Text style={s.metaLabel}>현재 회원 수</Text>
               <Text style={[s.metaValue,
-                (billingInfo?.member_count ?? 0) >= (billingInfo?.member_limit ?? 5) && { color: "#D97706" }]}>
-                {billingInfo?.member_count ?? 0}명 / {billingInfo?.member_limit ?? 5}명
+                (billingInfo?.member_count ?? 0) >= (billingInfo?.member_limit ?? 10) && { color: "#D97706" }]}>
+                {billingInfo?.member_count ?? 0}명 / {billingInfo?.member_limit ?? 10}명
               </Text>
             </View>
             {isSubscribed && customerInfo?.entitlements.active[REVENUECAT_SOLO_ENTITLEMENT]?.expirationDate && (

@@ -510,7 +510,7 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
     }
 
     const currentPlan = plans.find((p: any) => p.tier === (sub?.tier ?? poolRow?.subscription_tier));
-    const memberLimit = Number(currentPlan?.member_limit ?? 5);
+    const memberLimit = Number(currentPlan?.member_limit ?? 10);
     const storageQuotaGb = Number(currentPlan?.storage_gb ?? 0.1);
     const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
     const storageUsedPct = storageQuotaGb > 0 ? Math.round((storageUsedGb / storageQuotaGb) * 100) : 0;
