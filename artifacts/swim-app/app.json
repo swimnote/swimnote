@@ -16,16 +16,26 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.swimnote.app",
-      "buildNumber": "24",
+      "buildNumber": "25",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "LSApplicationQueriesSchemes": ["kakaokompassauth", "storekvstore", "kakaolink", "kakaotalk", "kakaostory", "kakaoplus", "kakaonavi", "kakaomail", "kakaoopen"]
+        "LSApplicationQueriesSchemes": [
+          "kakaokompassauth",
+          "storekvstore",
+          "kakaolink",
+          "kakaotalk",
+          "kakaostory",
+          "kakaoplus",
+          "kakaonavi",
+          "kakaomail",
+          "kakaoopen"
+        ]
       }
     },
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 52
+      "versionCode": 53
     },
     "web": {
       "favicon": "./assets/images/icon.png"
