@@ -2354,13 +2354,13 @@ router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
       if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
       const rows = (await db.execute(sql`
         SELECT
-          pa.id, pa.name, pa.phone, pa.email, pa.created_at,
-          json_agg(json_build_object(
-            'id', s.id, 'name', s.name, 'status', s.status,
-            'ps_status', ps.status
-          )) FILTER (WHERE s.id IS NOT NULL) AS children
+          pa.id, pa.name, pa.phone, pa.login_id, pa.created_at,
+          COALESCE(json_agg(json_build_object(
+            'id', s.id, 'name', s.name, 'link_id', ps.id,
+            'status', COALESCE(ps.status, 'approved')
+          )) FILTER (WHERE s.id IS NOT NULL), '[]') AS students
         FROM parent_accounts pa
-        LEFT JOIN parent_students ps ON ps.parent_account_id = pa.id
+        LEFT JOIN parent_students ps ON ps.parent_id = pa.id
         LEFT JOIN students s ON s.id = ps.student_id
         WHERE pa.swimming_pool_id = ${poolId}
         GROUP BY pa.id ORDER BY pa.created_at DESC
