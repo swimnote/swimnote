@@ -398,12 +398,21 @@ router.post("/simple-parent-register", async (req, res) => {
     const pin_hash = await hashPassword(pw);
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const normPhone = ph.replace(/[^0-9]/g, "");
+    const normParentName = name.replace(/\s+/g, "").toLowerCase();
 
-    // 가입 전 이미 등록된 학생이 있는지 확인 (전화번호 완전 정규화 매칭)
-    // REGEXP_REPLACE로 숫자 이외 모든 문자 제거 → 010-1234-5678 / 010.1234.5678 / 01012345678 모두 일치
+    // 가입 전 이미 등록된 학생이 있는지 확인
+    // ① 전화번호 일치 (parent_phone이 설정된 경우) — 가장 신뢰도 높은 방법
+    // ② 학부모 이름 일치 + parent_phone 미설정 (관리자가 전화번호를 입력 안 한 경우 폴백)
     const matchedStudents = await db.execute(sql`
       SELECT id, swimming_pool_id FROM students
-      WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
+      WHERE (
+        REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
+        OR (
+          parent_phone IS NULL
+          AND ${normParentName} != ''
+          AND REPLACE(LOWER(COALESCE(parent_name, '')), ' ', '') = ${normParentName}
+        )
+      )
         AND parent_user_id IS NULL
         AND status NOT IN ('withdrawn', 'archived', 'deleted')
       LIMIT 10

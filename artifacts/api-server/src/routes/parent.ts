@@ -64,16 +64,24 @@ router.put("/me", requireAuth, requireParent, async (req: AuthRequest, res) => {
 router.post("/auto-link-students", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
     const parentId = req.user!.userId;
-    const [pa] = await db.select({ phone: parentAccountsTable.phone })
+    const [pa] = await db.select({ phone: parentAccountsTable.phone, name: parentAccountsTable.name })
       .from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
     if (!pa?.phone) { res.json({ linked: 0 }); return; }
 
     const normPhone = pa.phone.replace(/[^0-9]/g, "");
     if (!normPhone) { res.json({ linked: 0 }); return; }
+    const normParentName = (pa.name || "").replace(/\s+/g, "").toLowerCase();
 
     const matchedStudents = await db.execute(sql`
       SELECT id, swimming_pool_id FROM students
-      WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
+      WHERE (
+        REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
+        OR (
+          parent_phone IS NULL
+          AND ${normParentName} != ''
+          AND REPLACE(LOWER(COALESCE(parent_name, '')), ' ', '') = ${normParentName}
+        )
+      )
         AND parent_user_id IS NULL
         AND status NOT IN ('withdrawn', 'archived', 'deleted')
       LIMIT 10

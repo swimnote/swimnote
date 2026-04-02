@@ -111,10 +111,12 @@ router.post("/auth/pool-join-request", async (req, res) => {
     const pwHash = await hashPassword(pw);
 
     // ── 학생 명부 매칭 → 자동 승인 체크 ────────────────────────────────
-    // 이름(공백제거+소문자) + 학부모 전화번호 일치 → 자동승인
+    // ① 아이 이름 + 학부모 전화번호 일치 → 자동승인 (메인)
+    // ② 학부모 이름 + 전화번호 일치 → 자동승인 (폴백: 관리자가 parent_phone 미입력 시)
     let matchedStudents: Array<{ id: string; name: string }> = [];
 
     const normPhone = phone.trim().replace(/[^0-9]/g, "");
+    const normParentName = parent_name.trim().replace(/\s+/g, "").toLowerCase();
 
     const perChildConditions = childrenData
       .map((c: any) => {
@@ -128,7 +130,17 @@ router.post("/auth/pool-join-request", async (req, res) => {
       })
       .filter(Boolean) as any[];
 
-    if (perChildConditions.length > 0) {
+    // 학부모 이름 + 전화번호 폴백 조건 (parent_phone이 NULL인 경우)
+    const parentNameFallback = normParentName
+      ? sql`(
+          ${studentsTable.parent_phone} IS NULL
+          AND REPLACE(LOWER(COALESCE(${studentsTable.parent_name}, '')), ' ', '') = ${normParentName}
+        )`
+      : null;
+
+    const allConditions = [...perChildConditions, ...(parentNameFallback ? [parentNameFallback] : [])];
+
+    if (allConditions.length > 0) {
       matchedStudents = await db
         .select({ id: studentsTable.id, name: studentsTable.name })
         .from(studentsTable)
@@ -137,7 +149,7 @@ router.post("/auth/pool-join-request", async (req, res) => {
             eq(studentsTable.swimming_pool_id, swimming_pool_id),
             sql`${studentsTable.status} NOT IN ('withdrawn', 'archived', 'deleted')`,
             isNull(studentsTable.parent_user_id),
-            or(...perChildConditions),
+            or(...allConditions),
           )
         )
         .limit(10);
