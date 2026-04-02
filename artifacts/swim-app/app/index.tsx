@@ -10,7 +10,7 @@ import { router } from "expo-router";
 import Svg, { Ellipse, Path } from "react-native-svg";
 import React, { useRef, useState } from "react";
 import {
-  ActivityIndicator, Animated, Keyboard, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal,
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -129,7 +129,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
+        contentContainerStyle={[s.scroll, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 + Dimensions.get("window").height * 0.1 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
