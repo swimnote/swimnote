@@ -354,10 +354,7 @@ function RootNav() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    "Pretendard-Regular":  require("../assets/fonts/Pretendard-Regular.otf"),
-    "Pretendard-Regular":   require("../assets/fonts/Pretendard-Regular.otf"),
     "Pretendard-Regular": require("../assets/fonts/Pretendard-Regular.otf"),
-    "Pretendard-Regular":     require("../assets/fonts/Pretendard-Regular.otf"),
   });
 
   useEffect(() => {

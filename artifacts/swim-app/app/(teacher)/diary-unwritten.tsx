@@ -5,8 +5,7 @@
  * 항목 클릭 → diary.tsx (classGroupId + lessonDate 파라미터 전달)
  */
 import { CircleAlert, CircleCheck, Clock, Pencil, Users } from "lucide-react-native";
-import { router } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Pressable,

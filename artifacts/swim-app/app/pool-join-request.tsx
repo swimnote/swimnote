@@ -189,7 +189,7 @@ export default function ParentRegisterScreen() {
               const all = termsAgreed && privacyAgreed && refundAgreed;
               setTermsAgreed(!all); setPrivacyAgreed(!all); setRefundAgreed(!all);
             }}
-            activeOpacity={0.7}
+            
           >
             <View style={[
               styles.checkbox,
@@ -206,7 +206,7 @@ export default function ParentRegisterScreen() {
           <View style={[styles.divider, { backgroundColor: C.border }]} />
 
           {/* 이용약관 */}
-          <Pressable style={styles.termsRow} onPress={() => setTermsAgreed(v => !v)} activeOpacity={0.7}>
+          <Pressable style={styles.termsRow} onPress={() => setTermsAgreed(v => !v)} >
             <View style={[
               styles.checkbox,
               { borderColor: termsAgreed ? C.tint : C.border, backgroundColor: termsAgreed ? C.tint : "transparent" }
@@ -220,7 +220,7 @@ export default function ParentRegisterScreen() {
           </Pressable>
 
           {/* 개인정보 처리방침 */}
-          <Pressable style={styles.termsRow} onPress={() => setPrivacyAgreed(v => !v)} activeOpacity={0.7}>
+          <Pressable style={styles.termsRow} onPress={() => setPrivacyAgreed(v => !v)} >
             <View style={[
               styles.checkbox,
               { borderColor: privacyAgreed ? C.tint : C.border, backgroundColor: privacyAgreed ? C.tint : "transparent" }
@@ -234,7 +234,7 @@ export default function ParentRegisterScreen() {
           </Pressable>
 
           {/* 환불 및 결제 정책 */}
-          <Pressable style={styles.termsRow} onPress={() => setRefundAgreed(v => !v)} activeOpacity={0.7}>
+          <Pressable style={styles.termsRow} onPress={() => setRefundAgreed(v => !v)} >
             <View style={[
               styles.checkbox,
               { borderColor: refundAgreed ? C.tint : C.border, backgroundColor: refundAgreed ? C.tint : "transparent" }

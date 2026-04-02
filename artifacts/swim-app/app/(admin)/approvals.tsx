@@ -372,7 +372,7 @@ export default function ApprovalsScreen() {
       requestedAt:     req.createdAt,
       statusKey:       statusMap[req.status],
       avatarInitial:   req.parentName[0],
-      rejectionReason: req.rejectReason,
+      rejectionReason: req.rejectReason ?? undefined,
       showActions:     isPending,
       processing:      processingId === req.id,
     };

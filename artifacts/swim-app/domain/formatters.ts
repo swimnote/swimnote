@@ -108,6 +108,8 @@ export const SUPPORT_TYPE_LABEL: Record<SupportType, string> = {
   refund: '환불요청',
   dispute: '분쟁대응',
   login_permission: '로그인/권한',
+  recovery: '계정복구',
+  security: '보안문의',
   etc: '기타',
 }
 

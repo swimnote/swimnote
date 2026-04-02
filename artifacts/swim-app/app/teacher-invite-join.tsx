@@ -3,7 +3,7 @@
  * - 초대 코드 입력 → 검증
  * - 이메일/비밀번호/이름 입력 → 가입 완료 → 승인 대기 안내
  */
-import { ArrowLeft, CircleAlert, Info, Key, Lock, Send, UserPlus } from "lucide-react-native";
+import { ArrowLeft, CircleAlert, CircleCheck, Droplet, Info, Key, Lock, Send, UserPlus } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
