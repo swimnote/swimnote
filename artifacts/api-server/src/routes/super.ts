@@ -1928,6 +1928,71 @@ router.get("/super/recent-audit-logs", requireAuth, requireRole("super_admin"), 
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ════════════════════════════════════════════════════════════════
+// GET  /super/platform-users  — 플랫폼 관리자 목록 (super_admin 역할 전체)
+// POST /super/platform-users  — 플랫폼 관리자 계정 생성
+// PATCH /super/platform-users/:id/permissions — 권한 수정
+// ════════════════════════════════════════════════════════════════
+router.get(
+  "/super/platform-users",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      const rows = (await db.execute(sql`
+        SELECT id, email, name, phone, role, permissions, created_at
+        FROM users
+        WHERE role = 'super_admin'
+        ORDER BY created_at ASC
+      `)).rows;
+      res.json(rows);
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+router.post(
+  "/super/platform-users",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { name, email, phone, permissions } = req.body as any;
+      if (!name || !email) { res.status(400).json({ error: "이름과 이메일은 필수입니다." }); return; }
+      const exists = (await db.execute(sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`)).rows;
+      if (exists.length > 0) { res.status(409).json({ error: "이미 등록된 이메일입니다." }); return; }
+      const bcrypt = (await import("bcryptjs")).default;
+      const tempPw = Math.random().toString(36).slice(2, 10) + "Aa1!";
+      const hash = await bcrypt.hash(tempPw, 10);
+      const id = `usr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const permsJson = permissions ? JSON.stringify(permissions) : null;
+      await db.execute(sql`
+        INSERT INTO users (id, email, password_hash, name, phone, role, permissions, is_activated)
+        VALUES (${id}, ${email}, ${hash}, ${name}, ${phone ?? null}, 'super_admin',
+                ${permsJson}::jsonb, true)
+      `);
+      res.json({ ok: true, id, temp_password: tempPw });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+router.patch(
+  "/super/platform-users/:id/permissions",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { permissions } = req.body as any;
+      const permsJson = permissions ? JSON.stringify(permissions) : null;
+      await db.execute(sql`
+        UPDATE users SET permissions = ${permsJson}::jsonb, updated_at = NOW()
+        WHERE id = ${id} AND role = 'super_admin'
+      `);
+      res.json({ ok: true });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // 앱 시작 시 비동기로 테이블/컬럼 보장
 ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));
 ensurePlansTables().catch(err => console.error("[super] ensurePlansTables 오류:", err));

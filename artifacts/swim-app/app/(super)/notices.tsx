@@ -5,15 +5,15 @@
  */
 import { Bell, BellOff, Lock, Plus, Radio, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useNoticeStore, type Notice, type NoticeTarget, type NoticeType, NOTICE_TYPE_CFG } from "@/store/noticeStore";
+import { type Notice, type NoticeTarget, type NoticeType, NOTICE_TYPE_CFG } from "@/store/noticeStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, apiRequest } from "@/context/AuthContext";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
 
 const P = "#7C3AED";
@@ -112,28 +112,56 @@ const BLANK: FormState = {
   forcedAck: true,
 };
 
+function mapApiNotice(row: any): Notice {
+  return {
+    id:         row.id,
+    title:      row.title,
+    content:    row.content,
+    target:     "all" as NoticeTarget,
+    noticeType: (row.notice_type as NoticeType) ?? "general",
+    showFrom:   row.created_at ?? new Date().toISOString(),
+    forcedAck:  false,
+    createdAt:  row.created_at ?? new Date().toISOString(),
+    createdBy:  row.author_name ?? "슈퍼관리자",
+  };
+}
+
 export default function NoticesScreen() {
   const insets = useSafeAreaInsets();
   const { adminUser, token } = useAuth();
   const actorName = adminUser?.name ?? "슈퍼관리자";
 
-  const notices      = useNoticeStore(s => s.notices);
-  const createNotice = useNoticeStore(s => s.createNotice);
-  const updateNotice = useNoticeStore(s => s.updateNotice);
-  const deleteNotice = useNoticeStore(s => s.deleteNotice);
-  const createLog    = useAuditLogStore(s => s.createLog);
+  const createLog = useAuditLogStore(s => s.createLog);
 
-  const [showModal, setShowModal] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(BLANK);
+  const [notices,    setNotices]    = useState<Notice[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
+  const [showModal,  setShowModal]  = useState(false);
+  const [editId,     setEditId]     = useState<string | null>(null);
+  const [form,       setForm]       = useState<FormState>(BLANK);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [filterTarget, setFilterTarget] = useState<"all" | NoticeTarget>("all");
+  const [filterType, setFilterType] = useState<"all" | NoticeType>("all");
   const [otpVisible, setOtpVisible] = useState(false);
 
+  const fetchNotices = useCallback(async () => {
+    try {
+      const data = await apiRequest('/notices?scope=global');
+      if (Array.isArray(data)) {
+        setNotices(data.map(mapApiNotice));
+      }
+    } catch (e) {
+      console.error('fetchNotices error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchNotices(); }, [fetchNotices]);
+
   const filtered = useMemo(() => {
-    if (filterTarget === "all") return notices;
-    return notices.filter(n => n.target === filterTarget);
-  }, [notices, filterTarget]);
+    if (filterType === "all") return notices;
+    return notices.filter(n => n.noticeType === filterType);
+  }, [notices, filterType]);
 
   function openCreate() {
     setEditId(null);
@@ -152,36 +180,58 @@ export default function NoticesScreen() {
     setShowModal(true);
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.title.trim() || !form.content.trim()) return;
-    // showFrom을 ISO 문자열로 안전 변환
-    const showFromISO = form.showFrom ? new Date(form.showFrom).toISOString() : new Date().toISOString();
-    const payload = { ...form, showFrom: showFromISO };
-    if (editId) {
-      updateNotice(editId, payload);
-      createLog({ category: "공지관리", title: `공지 수정: ${form.title}`, actorName, impact: "medium",
-        detail: `대상: ${form.target} / 유형: ${form.noticeType}` });
-    } else {
-      const n = createNotice({ ...payload, createdBy: actorName });
-      createLog({ category: "공지관리", title: `공지 등록: ${n.title}`, actorName, impact: "medium",
-        detail: `대상: ${form.target} / 유형: ${form.noticeType} / 강제확인: ${form.forcedAck}` });
+    setSaving(true);
+    try {
+      if (editId) {
+        await apiRequest(`/notices/${editId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ title: form.title, content: form.content, notice_type: form.noticeType }),
+        });
+        createLog({ category: "공지관리", title: `공지 수정: ${form.title}`, actorName, impact: "medium",
+          detail: `유형: ${form.noticeType}` });
+      } else {
+        await apiRequest("/notices", {
+          method: "POST",
+          body: JSON.stringify({
+            title:          form.title,
+            content:        form.content,
+            notice_type:    form.noticeType,
+            audience_scope: "global",
+          }),
+        });
+        createLog({ category: "공지관리", title: `공지 등록: ${form.title}`, actorName, impact: "medium",
+          detail: `유형: ${form.noticeType}` });
+      }
+      await fetchNotices();
+      setShowModal(false);
+    } catch (e) {
+      console.error("handleSave error:", e);
+    } finally {
+      setSaving(false);
     }
-    setShowModal(false);
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     const n = notices.find(x => x.id === id);
-    deleteNotice(id);
-    createLog({ category: "공지관리", title: `공지 삭제: ${n?.title ?? id}`, actorName, impact: "medium", detail: "삭제" });
-    setDeleteConfirm(null);
+    try {
+      await apiRequest(`/notices/${id}`, { method: "DELETE" });
+      createLog({ category: "공지관리", title: `공지 삭제: ${n?.title ?? id}`, actorName, impact: "medium", detail: "삭제" });
+      setNotices(prev => prev.filter(x => x.id !== id));
+    } catch (e) {
+      console.error("handleDelete error:", e);
+    } finally {
+      setDeleteConfirm(null);
+    }
   }
 
-  const FILTER_TARGETS = ["all", "all_notice", "admin", "teacher", "parent"] as const;
-  const FILTER_ITEMS: { key: "all" | NoticeTarget; label: string }[] = [
-    { key: "all",     label: "전체" },
-    { key: "admin",   label: "관리자" },
-    { key: "teacher", label: "선생님" },
-    { key: "parent",  label: "학부모" },
+  const FILTER_ITEMS: { key: "all" | NoticeType; label: string }[] = [
+    { key: "all",         label: "전체" },
+    { key: "general",     label: "일반" },
+    { key: "update",      label: "업데이트" },
+    { key: "maintenance", label: "점검/장애" },
+    { key: "special",     label: "특별" },
   ];
 
   return (
@@ -201,9 +251,9 @@ export default function NoticesScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", gap: 6 }}>
             {FILTER_ITEMS.map(f => (
-              <Pressable key={f.key} style={[s.filterBtn, filterTarget === f.key && s.filterActive]}
-                onPress={() => setFilterTarget(f.key)}>
-                <Text style={[s.filterTxt, filterTarget === f.key && s.filterActiveTxt]}>{f.label}</Text>
+              <Pressable key={f.key} style={[s.filterBtn, filterType === f.key && s.filterActive]}
+                onPress={() => setFilterType(f.key as any)}>
+                <Text style={[s.filterTxt, filterType === f.key && s.filterActiveTxt]}>{f.label}</Text>
               </Pressable>
             ))}
           </View>
@@ -225,7 +275,7 @@ export default function NoticesScreen() {
           filtered.map((n, idx) => (
             <NoticeCard key={n.id} notice={n} onEdit={openEdit}
               onDelete={(id) => setDeleteConfirm(id)}
-              isLatest={idx === 0 && filterTarget === "all"} />
+              isLatest={idx === 0 && filterType === "all"} />
           ))
         )}
       </ScrollView>

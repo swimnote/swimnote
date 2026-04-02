@@ -138,7 +138,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       author_id: req.user!.userId,
       author_name: user?.name || "관리자",
       is_pinned: is_pinned === true,
-      notice_type: notice_type === "individual" ? "individual" : "general",
+      notice_type: ["individual", "update", "maintenance", "special"].includes(notice_type) ? notice_type : "general",
       student_id: scope === "pool" && notice_type === "individual" ? (student_id || null) : null,
       student_name: studentName,
       image_urls: imgs,
@@ -257,7 +257,7 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
 
 // ── PATCH /:id — 수정 (재발송 포함) ─────────────────────────────────────────
 router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  const { title, content, is_pinned, resend_push } = req.body;
+  const { title, content, is_pinned, notice_type, resend_push } = req.body;
   try {
     const role = req.user!.role;
     const poolId = (role === "super_admin" || role === "platform_admin")
@@ -271,9 +271,10 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
     }
 
     const updates: any = { updated_at: new Date() };
-    if (title     !== undefined) updates.title     = title;
-    if (content   !== undefined) updates.content   = content;
-    if (is_pinned !== undefined) updates.is_pinned = is_pinned;
+    if (title       !== undefined) updates.title       = title;
+    if (content     !== undefined) updates.content     = content;
+    if (is_pinned   !== undefined) updates.is_pinned   = is_pinned;
+    if (notice_type !== undefined) updates.notice_type = ["individual", "update", "maintenance", "special"].includes(notice_type) ? notice_type : "general";
 
     await db.update(noticesTable).set(updates).where(eq(noticesTable.id, req.params.id));
 

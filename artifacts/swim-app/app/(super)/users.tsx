@@ -1,17 +1,17 @@
 /**
  * (super)/users.tsx — 플랫폼 관리자 계정 관리
- * 로컬 시드 데이터 — API 호출 없음
+ * 실 API 연결: GET/POST/PATCH /super/platform-users
  */
 import { Shield, SlidersHorizontal, UserPlus, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
-  FlatList, Platform, Pressable, RefreshControl,
+  ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Switch, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, apiRequest } from "@/context/AuthContext";
 import { ModalSheet } from "@/components/common/ModalSheet";
 import { useAuditLogStore } from "@/store/auditLogStore";
 
@@ -54,43 +54,6 @@ const ROLES: Record<string, { label: string; color: string; bg: string }> = {
   platform_admin: { label: "플랫폼관리자",color: "#4EA7D8", bg: "#E6FFFA" },
 };
 
-const SEED_USERS: PlatformUser[] = [
-  {
-    id:          "adm-001",
-    email:       "super@swimnote.io",
-    name:        "슈퍼관리자",
-    phone:       "010-0000-0001",
-    role:        "super_admin",
-    created_at:  "2024-01-01T09:00:00.000Z",
-  },
-  {
-    id:          "adm-002",
-    email:       "ops@swimnote.io",
-    name:        "운영팀장",
-    phone:       "010-1234-5678",
-    role:        "platform_admin",
-    permissions: { canViewPools: true, canEditPools: true, canApprovePools: true, canManageSubscriptions: false, canManagePlatformAdmins: false },
-    created_at:  "2024-03-15T09:00:00.000Z",
-  },
-  {
-    id:          "adm-003",
-    email:       "support@swimnote.io",
-    name:        "고객지원 담당",
-    phone:       "010-9876-5432",
-    role:        "platform_admin",
-    permissions: { canViewPools: true, canEditPools: false, canApprovePools: false, canManageSubscriptions: true, canManagePlatformAdmins: false },
-    created_at:  "2024-06-01T09:00:00.000Z",
-  },
-  {
-    id:          "adm-004",
-    email:       "dev@swimnote.io",
-    name:        "개발자 최민준",
-    phone:       "010-5555-6666",
-    role:        "platform_admin",
-    permissions: { ...DEFAULT_PERMS, canViewPools: true },
-    created_at:  "2025-01-10T09:00:00.000Z",
-  },
-];
 
 export default function UsersScreen() {
   const { adminUser } = useAuth();
@@ -99,36 +62,68 @@ export default function UsersScreen() {
   const insets = useSafeAreaInsets();
   const C = Colors.light;
 
-  const [users,      setUsers]      = useState<PlatformUser[]>(SEED_USERS);
+  const [users,      setUsers]      = useState<PlatformUser[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [form,       setForm]       = useState({ email: "", name: "", phone: "" });
   const [formPerms,  setFormPerms]  = useState<Permissions>({ ...DEFAULT_PERMS });
   const [error,      setError]      = useState("");
+  const [creating,   setCreating]   = useState(false);
 
-  const [editTarget, setEditTarget] = useState<PlatformUser | null>(null);
-  const [editPerms,  setEditPerms]  = useState<Permissions>({ ...DEFAULT_PERMS });
+  const [editTarget,  setEditTarget]  = useState<PlatformUser | null>(null);
+  const [editPerms,   setEditPerms]   = useState<Permissions>({ ...DEFAULT_PERMS });
+  const [savingPerms, setSavingPerms] = useState(false);
 
-  const isSuperAdmin = adminUser?.role === "super_admin" || true;
+  const isSuperAdmin = adminUser?.role === "super_admin";
 
-  function handleCreate() {
+  const fetchUsers = useCallback(async () => {
+    try {
+      const data = await apiRequest('/super/platform-users');
+      if (Array.isArray(data)) {
+        setUsers(data.map((u: any) => ({
+          id:          u.id,
+          email:       u.email,
+          name:        u.name,
+          phone:       u.phone ?? undefined,
+          role:        u.role,
+          permissions: u.permissions ? (typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions) : undefined,
+          created_at:  u.created_at,
+        })));
+      }
+    } catch (e) {
+      console.error('fetchUsers error:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  async function handleCreate() {
     if (!form.email || !form.name) { setError("이름과 이메일은 필수입니다."); return; }
-    const newUser: PlatformUser = {
-      id:          `adm-${Date.now()}`,
-      email:       form.email.trim(),
-      name:        form.name.trim(),
-      phone:       form.phone.trim() || undefined,
-      role:        "platform_admin",
-      permissions: { ...formPerms },
-      created_at:  new Date().toISOString(),
-    };
-    setUsers(prev => [newUser, ...prev]);
-    createLog({ category: '권한', title: `관리자 계정 생성: ${form.name}`, detail: form.email, actorName, impact: 'high' });
-    setShowCreate(false);
-    setForm({ email: "", name: "", phone: "" });
-    setFormPerms({ ...DEFAULT_PERMS });
+    setCreating(true);
     setError("");
+    try {
+      const result = await apiRequest('/super/platform-users', {
+        method: 'POST',
+        body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim() || undefined, permissions: formPerms }),
+      });
+      createLog({ category: '권한', title: `관리자 계정 생성: ${form.name}`, detail: form.email, actorName, impact: 'high' });
+      if (result?.temp_password) {
+        Alert.alert('계정 생성 완료', `임시 비밀번호: ${result.temp_password}\n\n해당 비밀번호를 안전하게 전달해 주세요.`);
+      }
+      setShowCreate(false);
+      setForm({ email: "", name: "", phone: "" });
+      setFormPerms({ ...DEFAULT_PERMS });
+      fetchUsers();
+    } catch (e: any) {
+      setError(e?.message ?? "계정 생성 중 오류가 발생했습니다.");
+    } finally {
+      setCreating(false);
+    }
   }
 
   function openEdit(u: PlatformUser) {
@@ -136,13 +131,24 @@ export default function UsersScreen() {
     setEditPerms({ ...DEFAULT_PERMS, ...(u.permissions || {}) });
   }
 
-  function handleSavePermissions() {
+  async function handleSavePermissions() {
     if (!editTarget) return;
-    setUsers(prev => prev.map(u =>
-      u.id === editTarget.id ? { ...u, permissions: { ...editPerms } } : u
-    ));
-    createLog({ category: '권한', title: `관리자 권한 수정: ${editTarget.name}`, detail: '권한 업데이트', actorName, impact: 'medium' });
-    setEditTarget(null);
+    setSavingPerms(true);
+    try {
+      await apiRequest(`/super/platform-users/${editTarget.id}/permissions`, {
+        method: 'PATCH',
+        body: JSON.stringify({ permissions: editPerms }),
+      });
+      setUsers(prev => prev.map(u =>
+        u.id === editTarget.id ? { ...u, permissions: { ...editPerms } } : u
+      ));
+      createLog({ category: '권한', title: `관리자 권한 수정: ${editTarget.name}`, detail: '권한 업데이트', actorName, impact: 'medium' });
+      setEditTarget(null);
+    } catch (e: any) {
+      Alert.alert('오류', e?.message ?? '권한 저장 중 오류가 발생했습니다.');
+    } finally {
+      setSavingPerms(false);
+    }
   }
 
   function PermToggle({ perms, setPerms, disabled }: {
@@ -206,13 +212,22 @@ export default function UsersScreen() {
         )}
       </View>
 
+      {loading ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="large" color="#7C3AED" />
+        </View>
+      ) : (
       <FlatList
         data={users}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 12 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing}
-          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); fetchUsers(); }}
+          />
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <Users size={40} color={C.textMuted} />
@@ -221,7 +236,7 @@ export default function UsersScreen() {
         }
         renderItem={({ item }) => {
           const rc = ROLES[item.role] || { label: item.role, color: "#666", bg: "#EEE" };
-          const isSelf = item.role === "super_admin";
+          const isSelf = item.email === adminUser?.email;
           return (
             <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
               <View style={styles.cardTop}>
@@ -257,6 +272,7 @@ export default function UsersScreen() {
           );
         }}
       />
+      )}
 
       <ModalSheet visible={showCreate} onClose={() => setShowCreate(false)} title="플랫폼 관리자 계정 생성">
         <Text style={[styles.modalSubtitle, { color: C.textSecondary }]}>역할: 플랫폼관리자 · 초기 권한을 설정해주세요</Text>
@@ -282,9 +298,11 @@ export default function UsersScreen() {
           <Text style={[styles.permSectionTitle, { color: C.text }]}>초기 권한 설정</Text>
           <PermToggle perms={formPerms} setPerms={setFormPerms} />
         </View>
-        <Pressable style={({ pressed }) => [styles.saveBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
-          onPress={handleCreate}>
-          <Text style={styles.saveBtnText}>계정 생성하기</Text>
+        <Pressable style={[styles.saveBtn, { backgroundColor: C.button, opacity: creating ? 0.6 : 0.85 }]}
+          onPress={handleCreate} disabled={creating}>
+          {creating
+            ? <ActivityIndicator color="#fff" size="small" />
+            : <Text style={styles.saveBtnText}>계정 생성하기</Text>}
         </Pressable>
       </ModalSheet>
 
@@ -298,9 +316,11 @@ export default function UsersScreen() {
             onPress={() => setEditTarget(null)}>
             <Text style={[styles.cancelBtnText, { color: C.textSecondary }]}>취소</Text>
           </Pressable>
-          <Pressable style={({ pressed }) => [styles.saveBtn, { flex: 1, backgroundColor: "#4EA7D8", opacity: pressed ? 0.85 : 1 }]}
-            onPress={handleSavePermissions}>
-            <Text style={styles.saveBtnText}>저장</Text>
+          <Pressable style={[styles.saveBtn, { flex: 1, backgroundColor: "#4EA7D8", opacity: savingPerms ? 0.6 : 1 }]}
+            onPress={handleSavePermissions} disabled={savingPerms}>
+            {savingPerms
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={styles.saveBtnText}>저장</Text>}
           </Pressable>
         </View>
       </ModalSheet>

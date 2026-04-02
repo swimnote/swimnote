@@ -14,15 +14,14 @@
 import { ChevronRight, CircleAlert, CreditCard, MessageCircle, OctagonAlert, Plus } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useSupportStore } from "@/store/supportStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SupportTicket, SupportStatus } from "@/domain/types";
 import Colors from "@/constants/colors";
@@ -133,6 +132,41 @@ function getSlaStatus(ticket: SupportTicket): { overdue: boolean; label: string 
   return { overdue: false, label: "" };
 }
 
+// ── DB → SupportTicket 매핑 ───────────────────────────────────────────────────
+
+const RISK_MAP: Record<string, string> = {
+  recovery: "critical", security: "critical",
+  payment: "high", chargeback: "high",
+  deletion: "medium", technical: "medium", storage: "medium",
+};
+
+function mapDbTicket(row: any): SupportTicket {
+  const createdAt = row.created_at as string ?? new Date().toISOString();
+  const slaHours  = Number(row.sla_hours ?? 24);
+  const slaDueAt  = new Date(new Date(createdAt).getTime() + slaHours * 3600000).toISOString();
+  const isSlaOverdue = row.status !== "resolved" && new Date(slaDueAt) < new Date();
+  const status = (row.status === "open" ? "received" : row.status) as SupportStatus;
+  return {
+    id:                row.id,
+    type:              row.ticket_type ?? "other",
+    status,
+    requesterName:     row.requester_name ?? "",
+    requesterRole:     row.requester_type ?? "operator",
+    operatorId:        row.pool_id ?? "",
+    operatorName:      row.pool_name ?? "",
+    title:             row.subject ?? "(제목 없음)",
+    body:              row.description ?? "",
+    createdAt,
+    lastAnsweredAt:    row.updated_at ?? null,
+    slaDueAt,
+    isSlaOverdue,
+    riskLevel:         (RISK_MAP[row.ticket_type] ?? "low") as any,
+    assigneeName:      row.assignee ?? "",
+    repeatedIssueFlag: false,
+    internalMemo:      "",
+  };
+}
+
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 
 export default function SupportScreen() {
@@ -167,12 +201,26 @@ export default function SupportScreen() {
     }
   }, [params.type]);
 
-  const allTickets     = useSupportStore(s => s.tickets);
-  const updateStatus   = useSupportStore(s => s.updateTicketStatus);
-  const assignTicket   = useSupportStore(s => s.assignTicket);
-  const addMemo        = useSupportStore(s => s.addInternalMemo);
-  const createTicketFn = useSupportStore(s => s.createTicket);
-  const createLog      = useAuditLogStore(s => s.createLog);
+  const createLog = useAuditLogStore(s => s.createLog);
+
+  const [allTickets, setAllTickets] = useState<SupportTicket[]>([]);
+  const [loading,    setLoading]    = useState(true);
+
+  const fetchTickets = useCallback(async () => {
+    try {
+      const data = await apiRequest('/super/support-tickets');
+      if (Array.isArray(data)) {
+        setAllTickets(data.map(mapDbTicket));
+      }
+    } catch (e) {
+      console.error('fetchTickets error:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
   // 필터 적용 → 긴급 우선 정렬
   const filtered = useMemo(() => {
@@ -204,13 +252,23 @@ export default function SupportScreen() {
     return r;
   }, [allTickets]);
 
-  function handleUpdate() {
+  async function handleUpdate() {
     if (!editTicket) return;
     setSaving(true);
     try {
-      updateStatus(editTicket.id, newStatus);
-      if (assignee.trim()) assignTicket(editTicket.id, assignee.trim());
-      if (internalMemo.trim()) addMemo(editTicket.id, internalMemo.trim());
+      await apiRequest(`/super/support-tickets/${editTicket.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status:      newStatus,
+          assignee:    assignee.trim() || undefined,
+          description: internalMemo.trim() || undefined,
+        }),
+      });
+      setAllTickets(prev => prev.map(t =>
+        t.id === editTicket.id
+          ? { ...t, status: newStatus, assigneeName: assignee.trim() || t.assigneeName }
+          : t
+      ));
       createLog({
         category: "고객센터",
         title: `티켓 상태 변경: ${editTicket.title}`,
@@ -222,26 +280,30 @@ export default function SupportScreen() {
       });
       setEditTicket(null);
       setInternalMemo("");
+    } catch (e) {
+      console.error("handleUpdate error:", e);
     } finally { setSaving(false); }
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.title.trim()) return;
     setCreating(true);
     try {
-      createTicketFn({
-        type: form.type as any,
-        requesterRole: form.requesterRole as any,
-        requesterName: form.requesterName,
-        operatorId: form.operatorId,
-        operatorName: form.operatorName,
-        title: form.title,
-        body: form.body,
-        status: "received",
-        assigneeName: "",
-        riskLevel: form.riskLevel,
-        internalMemo: "",
-        repeatedIssueFlag: false,
+      const SLA_MAP: Record<string, number> = {
+        recovery: 4, security: 4, payment: 24, chargeback: 24,
+        deletion: 48, technical: 48, storage: 48, other: 72,
+      };
+      await apiRequest("/super/support-tickets", {
+        method: "POST",
+        body: JSON.stringify({
+          ticket_type:    form.type,
+          requester_type: form.requesterRole,
+          requester_name: form.requesterName.trim() || undefined,
+          pool_id:        form.operatorId.trim() || undefined,
+          subject:        form.title,
+          description:    form.body.trim() || undefined,
+          sla_hours:      SLA_MAP[form.type] ?? 24,
+        }),
       });
       createLog({
         category: "고객센터",
@@ -250,8 +312,11 @@ export default function SupportScreen() {
         impact: "low",
         detail: `유형: ${TYPE_CFG[form.type]?.label ?? form.type}`,
       });
+      await fetchTickets();
       setCreateModal(false);
       setForm({ type: "other", requesterRole: "operator", requesterName: "", operatorId: "", operatorName: "", title: "", body: "", riskLevel: "medium" });
+    } catch (e) {
+      console.error("handleCreate error:", e);
     } finally { setCreating(false); }
   }
 
@@ -396,7 +461,7 @@ export default function SupportScreen() {
           <RefreshControl
             refreshing={refreshing}
             tintColor={P}
-            onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }}
+            onRefresh={() => { setRefreshing(true); fetchTickets(); }}
           />
         }
         contentContainerStyle={s.listContent}
