@@ -2,7 +2,7 @@
  * (teacher)/today-schedule.tsx — 오늘 스케줄 탭 (thin shell)
  * 컴포넌트: components/teacher/today-schedule/
  */
-import { ChevronRight, Layers, LogOut, Repeat, Sun } from "lucide-react-native";
+import { ChevronRight, Layers, LogOut, Repeat, Sun, Trophy } from "lucide-react-native";
 import { router } from "expo-router";
 import { Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
@@ -15,6 +15,8 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 
 import ScheduleCard from "@/components/teacher/today-schedule/ScheduleCard";
+import { ScheduleCardSkeleton } from "@/components/common/SkeletonBox";
+import { haptic } from "@/utils/haptic";
 import MemoSheet from "@/components/teacher/today-schedule/MemoSheet";
 import AbsenceModal from "@/components/teacher/today-schedule/AbsenceModal";
 import ScheduleMemoModal from "@/components/teacher/today-schedule/ScheduleMemoModal";
@@ -113,6 +115,12 @@ export default function TodayScheduleScreen() {
   const diaryPending = items.filter(i => !i.diary_done).length;
   const sortedItems  = [...items].sort((a, b) => a.schedule_time.localeCompare(b.schedule_time));
 
+  const totalTasks  = items.length * 2;
+  const doneTasks   = items.filter(i => i.student_count === 0 || i.att_present >= i.student_count).length
+                    + items.filter(i => i.diary_done).length;
+  const progressPct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+  const allDone     = totalTasks > 0 && doneTasks === totalTasks;
+
   function handleOpenDiaryFromMsg(_diaryId: string) {
     router.push("/(teacher)/diary?backTo=today-schedule" as any);
   }
@@ -122,6 +130,7 @@ export default function TodayScheduleScreen() {
   }
 
   async function handleChipPress(item: ScheduleItem) {
+    haptic.light();
     const group: TeacherClassGroup = {
       id: item.id,
       name: item.name,
@@ -246,7 +255,28 @@ export default function TodayScheduleScreen() {
       {/* ── 상단 고정 영역 (스탯 + 주간 + 일지 배너) ── */}
       <View style={h.topFixed}>
         <View style={[h.todayBanner, { backgroundColor: C.card }]}>
-          <Text style={h.todayDate}>{formatDate(today)}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <Text style={h.todayDate}>{formatDate(today)}</Text>
+            {!loading && totalTasks > 0 && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                {allDone
+                  ? <Trophy size={11} color="#F59E0B" />
+                  : null}
+                <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: allDone ? "#F59E0B" : C.textMuted }}>
+                  {allDone ? "오늘 완료!" : `${progressPct}%`}
+                </Text>
+              </View>
+            )}
+          </View>
+          {!loading && totalTasks > 0 && (
+            <View style={{ height: 3, backgroundColor: C.border, borderRadius: 2, marginBottom: 8, overflow: "hidden" }}>
+              <View style={{
+                height: 3, borderRadius: 2,
+                backgroundColor: allDone ? "#F59E0B" : themeColor,
+                width: `${progressPct}%`,
+              }} />
+            </View>
+          )}
           <View style={h.todayStatRow}>
             <Pressable style={h.todayStat} onPress={() => router.push({ pathname:"/(teacher)/my-schedule", params:{openDate:today, backTo:"today-schedule"} } as any)}>
               <Text style={h.todayStatNum}>{loading ? "-" : items.length}</Text>
@@ -330,11 +360,17 @@ export default function TodayScheduleScreen() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
           >
             {loading ? (
-              <ActivityIndicator color={themeColor} style={{ paddingVertical: 24 }} />
+              <View style={{ gap: 10, paddingTop: 4 }}>
+                <ScheduleCardSkeleton />
+                <ScheduleCardSkeleton />
+              </View>
             ) : sortedItems.length === 0 ? (
               <View style={h.badgeEmpty}>
-                <Sun size={20} color={C.textMuted} />
-                <Text style={h.emptyTxt}>오늘 수업 없음</Text>
+                <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: "#FFF8E1", alignItems: "center", justifyContent: "center", marginBottom: 2 }}>
+                  <Sun size={26} color="#F59E0B" />
+                </View>
+                <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>오늘 수업 없음</Text>
+                <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted }}>편하게 쉬어가세요</Text>
               </View>
             ) : sortedItems.map((item, idx) => {
               const students = itemStudentsMap[item.id] ?? [];

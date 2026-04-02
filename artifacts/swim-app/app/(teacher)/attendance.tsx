@@ -11,6 +11,7 @@
  * - 정렬: 결석 → 출석
  */
 import { ChevronLeft, ChevronRight, CircleCheck, Repeat, TriangleAlert, Users, X } from "lucide-react-native";
+import { haptic } from "@/utils/haptic";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -231,13 +232,21 @@ export default function TeacherAttendanceScreen() {
     const prevStatus = attState[studentId];
     if (prevStatus === status) return; // 같은 상태면 스킵
 
+    haptic.light();
     setSavingId(studentId);
     try {
       await apiRequest(token, `/attendance`, {
         method: "POST",
         body: JSON.stringify({ date, status, class_group_id: selectedGroup?.id, student_id: studentId }),
       });
-      setAttState(prev => ({ ...prev, [studentId]: status }));
+      const newAttState = { ...attState, [studentId]: status };
+      setAttState(newAttState);
+
+      // 전원 출석 완료 시 성공 햅틱
+      const allPresent = students
+        .filter(st => (Array.isArray(st.assigned_class_ids) && st.assigned_class_ids.includes(selectedGroup?.id ?? "")) || st.class_group_id === selectedGroup?.id)
+        .every(st => (newAttState[st.id] ?? "present") === "present");
+      if (allPresent && status === "present") haptic.success();
 
       // 출결 카운트 갱신
       setAttTodayMap(prev => {
@@ -477,13 +486,13 @@ export default function TeacherAttendanceScreen() {
                   ) : (
                     <>
                       <Pressable
-                        style={[s.attBtn, isPresent && { backgroundColor: "#2EC4B6", borderColor: "#2EC4B6" }]}
+                        style={({ pressed }) => [s.attBtn, isPresent && { backgroundColor: "#2EC4B6", borderColor: "#2EC4B6" }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
                         onPress={() => saveOne(item.id, "present")}
                       >
                         <Text style={[s.attBtnText, isPresent && { color: "#fff" }]}>출석</Text>
                       </Pressable>
                       <Pressable
-                        style={[s.attBtn, isAbsent && { backgroundColor: "#D96C6C", borderColor: "#D96C6C" }]}
+                        style={({ pressed }) => [s.attBtn, isAbsent && { backgroundColor: "#D96C6C", borderColor: "#D96C6C" }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
                         onPress={() => saveOne(item.id, "absent")}
                       >
                         <Text style={[s.attBtnText, isAbsent && { color: "#fff" }]}>결석</Text>

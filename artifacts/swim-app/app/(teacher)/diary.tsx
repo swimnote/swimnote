@@ -2,6 +2,7 @@
  * (teacher)/diary.tsx — 수업 일지 (thin shell)
  * 컴포넌트: components/teacher/diary/
  */
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -23,7 +24,8 @@ import {
   API_BASE, DiaryEntry, DiaryTemplate, ExistingNote,
   StudentNote, StudentOption, SubView, UploadedMedia, todayStr,
 } from "@/components/teacher/diary/types";
-import { Clock } from "lucide-react-native";
+import { Clock, RotateCcw } from "lucide-react-native";
+import { haptic } from "@/utils/haptic";
 
 const C = Colors.light;
 
@@ -78,6 +80,22 @@ export default function TeacherDiaryScreen() {
 
   const [saveMsg,       setSaveMsg]       = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [formError,     setFormError]     = useState<string | null>(null);
+
+  const [hasDraft,      setHasDraft]      = useState(false);
+
+  const draftKey = selectedGroup
+    ? `@swimnote:diary_draft:${selectedGroup.id}:${targetDate}`
+    : null;
+
+  useEffect(() => {
+    if (!draftKey || subView !== "write") return;
+    const hasContent = commonContent.trim().length > 0 || studentNotes.length > 0;
+    if (!hasContent) return;
+    const timer = setTimeout(() => {
+      AsyncStorage.setItem(draftKey, JSON.stringify({ commonContent, studentNotes })).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [commonContent, studentNotes, draftKey, subView]);
   const [deleteTarget,  setDeleteTarget]  = useState<DiaryEntry | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError,   setDeleteError]   = useState<string | null>(null);
@@ -140,8 +158,39 @@ export default function TeacherDiaryScreen() {
 
   async function openGroup(group: TeacherClassGroup) {
     setSelectedGroup(group); setSubView("write"); setCommonContent(""); setStudentNotes([]);
-    setShowTemplates(false); setGroupMedia([]); setStudentMedia({});
+    setShowTemplates(false); setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
     loadTemplates(); loadClassStudents(group.id); loadDiaries(group.id);
+    try {
+      const key = `@swimnote:diary_draft:${group.id}:${targetDate}`;
+      const saved = await AsyncStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.commonContent?.trim() || parsed.studentNotes?.length > 0) {
+          setHasDraft(true);
+        }
+      }
+    } catch {}
+  }
+
+  async function restoreDraft() {
+    if (!draftKey) return;
+    try {
+      const saved = await AsyncStorage.getItem(draftKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setCommonContent(parsed.commonContent ?? "");
+        setStudentNotes(parsed.studentNotes ?? []);
+        setHasDraft(false);
+        haptic.success();
+      }
+    } catch {}
+  }
+
+  async function discardDraft() {
+    if (!draftKey) return;
+    await AsyncStorage.removeItem(draftKey).catch(() => {});
+    setHasDraft(false);
+    haptic.light();
   }
   async function loadTemplates() {
     try { const r = await apiRequest(token, "/diary-templates"); if (r.ok) setTemplates(await r.json()); } catch {}
@@ -244,6 +293,9 @@ export default function TeacherDiaryScreen() {
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || "저장 실패");
       setDiarySet(prev => new Set([...prev, selectedGroup.id]));
+      if (draftKey) await AsyncStorage.removeItem(draftKey).catch(() => {});
+      setHasDraft(false);
+      haptic.success();
       setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
       const cameFromUnwritten = !!(params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/));
       setTimeout(() => { setSaveMsg(null); if (cameFromUnwritten) router.back(); else setSelectedGroup(null); }, 2000);
@@ -369,6 +421,21 @@ export default function TeacherDiaryScreen() {
             <Text style={[s.tabBtnText, { color: subView === "history" ? "#fff" : themeColor }]}>지난 일지</Text>
           </Pressable>
         </View>
+
+        {subView === "write" && hasDraft && (
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#EFF6FF", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 16, marginBottom: 8, gap: 10 }}>
+            <RotateCcw size={14} color="#2563EB" />
+            <Text style={{ flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#1E40AF" }}>
+              작성 중이던 드래프트가 있어요
+            </Text>
+            <Pressable onPress={restoreDraft} style={{ paddingHorizontal: 10, paddingVertical: 5, backgroundColor: "#2563EB", borderRadius: 7 }}>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff" }}>복원</Text>
+            </Pressable>
+            <Pressable onPress={discardDraft} hitSlop={8}>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#93C5FD" }}>삭제</Text>
+            </Pressable>
+          </View>
+        )}
 
         {subView === "write" ? (
           <DiaryWriteView

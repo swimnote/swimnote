@@ -33,6 +33,7 @@ import { ParentRecentPhotosCard } from "@/components/parent/ParentRecentPhotosCa
 import { ParentNoticeCard } from "@/components/parent/ParentNoticeCard";
 import { ParentGrowthCard } from "@/components/parent/ParentGrowthCard";
 import { ParentAttendanceCard } from "@/components/parent/ParentAttendanceCard";
+import { ParentHomeSkeleton } from "@/components/common/SkeletonBox";
 
 const C = Colors.light;
 
@@ -322,7 +323,7 @@ export default function ParentHomeScreen() {
         <ParentTodoCard items={todoItems} />
 
         {summaryLoading ? (
-          <ActivityIndicator color={C.tint} style={{ marginVertical: 24 }} />
+          <ParentHomeSkeleton />
         ) : (
           <>
             {/* ─── F. 최근 수업일지 ─── */}
