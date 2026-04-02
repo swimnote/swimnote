@@ -24,9 +24,9 @@ interface FoundAccount {
 }
 
 function roleLabel(role?: string) {
-  if (role === "teacher") return "선생님";
-  if (role === "pool_admin") return "관리자";
-  if (role === "sub_admin") return "부관리자";
+  if (role === "teacher")    return "선생님";
+  if (role === "pool_admin") return "대표";
+  if (role === "sub_admin")  return "관리자";
   return "관리자";
 }
 

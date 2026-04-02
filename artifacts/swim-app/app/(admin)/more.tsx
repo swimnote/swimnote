@@ -137,7 +137,7 @@ export default function MoreScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.profileName}>{adminUser?.name || "관리자"}</Text>
-              <Text style={s.profileRole}>수영장 관리자</Text>
+              <Text style={s.profileRole}>{ROLE_CONFIGS[adminUser?.role ?? ""]?.title || "관리자"}</Text>
             </View>
             {hasMultipleRoles && (
               <Pressable

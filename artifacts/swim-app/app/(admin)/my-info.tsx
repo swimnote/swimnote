@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { ROLE_CONFIGS } from "@/constants/auth";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -114,7 +115,7 @@ export default function AdminMyInfoScreen() {
             </View>
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={s.profileName}>{profile?.name || "-"}</Text>
-              <Text style={[s.profileSub, { color: C.textSecondary }]}>수영장 관리자</Text>
+              <Text style={[s.profileSub, { color: C.textSecondary }]}>{ROLE_CONFIGS[adminUser?.role ?? ""]?.title || "관리자"}</Text>
               <Text style={[s.profileSub, { color: C.textSecondary }]}>{profile?.phone || "-"}</Text>
               {profile?.email ? <Text style={[s.profileSub, { color: "#64748B" }]}>{profile.email}</Text> : null}
             </View>
@@ -138,7 +139,7 @@ export default function AdminMyInfoScreen() {
               { label: "이름", value: profile?.name || "-" },
               { label: "연락처", value: profile?.phone || "-" },
               { label: "이메일", value: profile?.email || "-" },
-              { label: "역할", value: "수영장 관리자" },
+              { label: "역할", value: ROLE_CONFIGS[adminUser?.role ?? ""]?.title || "관리자" },
             ].map(({ label, value }) => (
               <View key={label} style={s.infoRow}>
                 <Text style={[s.infoLabel, { color: C.textSecondary }]}>{label}</Text>
