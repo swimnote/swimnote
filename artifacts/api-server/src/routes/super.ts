@@ -299,12 +299,14 @@ router.get(
     try {
       const { id } = req.params;
 
-      const [pool, teachers, recentLogs, policyRows] = await Promise.all([
+      const [pool, teachers, recentLogs, policyRows, supportRow, planRow] = await Promise.all([
         superAdminDb.execute(sql`
           SELECT sp.*,
             (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id AND st.status IN ('active','suspended')) AS active_member_count,
             (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id) AS total_member_count,
             (SELECT COUNT(*)::int FROM classes c WHERE c.swimming_pool_id = sp.id) AS total_class_count,
+            (SELECT COUNT(*)::int FROM users u WHERE u.swimming_pool_id = sp.id AND u.role = 'teacher') AS teacher_count,
+            (SELECT COUNT(*)::int FROM users u WHERE u.swimming_pool_id = sp.id AND u.role IN ('pool_admin','sub_admin','teacher')) AS staff_count,
             CASE
               WHEN sp.used_storage_bytes IS NOT NULL AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0
               THEN ROUND(sp.used_storage_bytes::numeric / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) * 100)::int
@@ -315,10 +317,10 @@ router.get(
           WHERE sp.id = ${id}
         `),
         superAdminDb.execute(sql`
-          SELECT id, name, role, email, created_at, last_login_at
+          SELECT id, name, role, email, phone, created_at, last_login_at
           FROM users
           WHERE swimming_pool_id = ${id}
-            AND role IN ('pool_admin','teacher')
+            AND role IN ('pool_admin','sub_admin','teacher')
           ORDER BY role, name
         `),
         db.execute(sql`
@@ -326,13 +328,25 @@ router.get(
           FROM event_logs
           WHERE pool_id = ${id}
           ORDER BY created_at DESC
-          LIMIT 30
+          LIMIT 50
         `),
         superAdminDb.execute(sql`
           SELECT policy_key, MAX(agreed_at) AS agreed_at
           FROM policy_consents
           WHERE pool_id = ${id}
           GROUP BY policy_key
+        `).catch(() => ({ rows: [] })),
+        db.execute(sql`
+          SELECT
+            COUNT(*)::int AS total_count,
+            COUNT(*) FILTER (WHERE status IN ('open','in_progress'))::int AS open_count,
+            COUNT(*) FILTER (WHERE status = 'resolved')::int AS resolved_count
+          FROM support_tickets WHERE pool_id = ${id}
+        `).catch(() => ({ rows: [{ total_count: 0, open_count: 0, resolved_count: 0 }] })),
+        superAdminDb.execute(sql`
+          SELECT plan_id, name, price, member_limit, storage_gb
+          FROM subscription_plans
+          ORDER BY price ASC
         `).catch(() => ({ rows: [] })),
       ]);
 
@@ -343,6 +357,8 @@ router.get(
         policyMap[row.policy_key] = row.agreed_at ?? null;
       }
 
+      const supportStats = (supportRow.rows[0] as any) ?? { total_count: 0, open_count: 0, resolved_count: 0 };
+
       res.json({
         pool: pool.rows[0],
         teachers: teachers.rows,
@@ -352,10 +368,69 @@ router.get(
           privacy_policy:  policyMap["privacy_policy"]  ?? null,
           terms:           policyMap["terms"]            ?? null,
         },
+        support: supportStats,
+        plans: planRow.rows,
       });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// DELETE /super/operators/:id — 수영장(운영자) 완전 삭제
+// 슈퍼관리자 전용, 모든 관련 데이터 cascade 삭제
+// ════════════════════════════════════════════════════════════════
+router.delete(
+  "/super/operators/:id",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const actorName = req.user?.name ?? "슈퍼관리자";
+
+      const [poolCheck] = (await superAdminDb.execute(sql`
+        SELECT id, name FROM swimming_pools WHERE id = ${id}
+      `)).rows as any[];
+
+      if (!poolCheck) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
+
+      const poolName = poolCheck.name;
+
+      // 연관 데이터 순차 삭제 (FK 참조 순서 고려)
+      await superAdminDb.execute(sql`DELETE FROM attendance WHERE swimming_pool_id = ${id}`).catch(() => {});
+      await superAdminDb.execute(sql`DELETE FROM supplements WHERE swimming_pool_id = ${id}`).catch(() => {});
+      await superAdminDb.execute(sql`DELETE FROM lesson_diaries WHERE swimming_pool_id = ${id}`).catch(() => {});
+      await superAdminDb.execute(sql`DELETE FROM notices WHERE swimming_pool_id = ${id}`).catch(() => {});
+      await superAdminDb.execute(sql`DELETE FROM students WHERE swimming_pool_id = ${id}`).catch(() => {});
+      await superAdminDb.execute(sql`DELETE FROM classes WHERE swimming_pool_id = ${id}`).catch(() => {});
+      await superAdminDb.execute(sql`DELETE FROM teacher_invites WHERE swimming_pool_id = ${id}`).catch(() => {});
+      await superAdminDb.execute(sql`DELETE FROM policy_consents WHERE pool_id = ${id}`).catch(() => {});
+      await superAdminDb.execute(sql`DELETE FROM parent_accounts WHERE swimming_pool_id = ${id}`).catch(() => {});
+      await db.execute(sql`DELETE FROM support_tickets WHERE pool_id = ${id}`).catch(() => {});
+      await db.execute(sql`DELETE FROM event_logs WHERE pool_id = ${id}`).catch(() => {});
+      // 사용자(스태프) 삭제
+      await superAdminDb.execute(sql`
+        DELETE FROM users WHERE swimming_pool_id = ${id} AND role IN ('pool_admin','sub_admin','teacher')
+      `).catch(() => {});
+      // 수영장 최종 삭제
+      await superAdminDb.execute(sql`DELETE FROM swimming_pools WHERE id = ${id}`);
+
+      // 삭제 감사 로그 (슈퍼관리자 DB에 남김)
+      try {
+        await db.execute(sql`
+          INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+          VALUES (${`evt_del_${Date.now()}`}, ${id}, '삭제', ${req.user!.userId}, ${actorName},
+                  ${id}, ${`수영장 완전 삭제: ${poolName}`}, '{}'::jsonb)
+        `);
+      } catch {}
+
+      res.json({ ok: true, message: `${poolName} 삭제 완료` });
+    } catch (err) {
+      console.error("[DELETE pool]", err);
+      res.status(500).json({ error: "삭제 처리 중 오류가 발생했습니다." });
     }
   }
 );
@@ -1144,8 +1219,8 @@ router.post(
 );
 
 // ════════════════════════════════════════════════════════════════
-// PATCH /super/operators/:id/subscription — 구독상태·크레딧·읽기전용·업로드차단 수동 조정
-// Body: { subscription_status?, subscription_tier?, credit_amount?, is_readonly?, upload_blocked?, subscription_end_at? }
+// PATCH /super/operators/:id/subscription — 구독상태·크레딧·읽기전용·업로드차단·회원한도 수동 조정
+// Body: { subscription_status?, subscription_tier?, credit_amount?, is_readonly?, upload_blocked?, subscription_end_at?, member_limit? }
 // ════════════════════════════════════════════════════════════════
 router.patch(
   "/super/operators/:id/subscription",
@@ -1161,6 +1236,7 @@ router.patch(
         is_readonly,
         upload_blocked,
         subscription_end_at,
+        member_limit,
       } = req.body as any;
       const actorName = req.user?.name ?? "슈퍼관리자";
       const updates: string[] = [];
@@ -1197,7 +1273,7 @@ router.patch(
         updates.push(`업로드차단 → ${upload_blocked}`);
       }
       if (subscription_end_at !== undefined) {
-        if (subscription_end_at === null) {
+        if (subscription_end_at === null || subscription_end_at === "null") {
           await superAdminDb.execute(sql`
             UPDATE swimming_pools SET subscription_end_at = NULL WHERE id = ${id}
           `);
@@ -1208,6 +1284,17 @@ router.patch(
           `);
           updates.push(`구독만료일 → ${subscription_end_at}`);
         }
+      }
+      if (member_limit != null && !isNaN(Number(member_limit))) {
+        const ml = Number(member_limit);
+        await superAdminDb.execute(sql`
+          UPDATE swimming_pools SET member_limit = ${ml} WHERE id = ${id}
+        `).catch(async () => {
+          // member_limit 컬럼 없으면 생성 후 재시도
+          await superAdminDb.execute(sql`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS member_limit integer`).catch(() => {});
+          await superAdminDb.execute(sql`UPDATE swimming_pools SET member_limit = ${ml} WHERE id = ${id}`);
+        });
+        updates.push(`회원한도 → ${ml}명`);
       }
 
       if (updates.length === 0) { res.status(400).json({ error: "변경 항목이 없습니다." }); return; }
