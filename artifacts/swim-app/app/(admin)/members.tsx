@@ -160,6 +160,7 @@ export default function MembersScreen() {
       const res = await apiRequest(token, `/students/${id}`, { method: "DELETE" });
       if (res.ok) {
         setStudents(prev => prev.filter(s => s.id !== id));
+        load();
       } else {
         setInfoModal("삭제에 실패했습니다.");
       }
@@ -535,8 +536,8 @@ export default function MembersScreen() {
           token={token}
           poolName={poolName}
           onSuccess={(s) => {
-            setStudents(prev => [s, ...prev]);
             setShowRegister(false);
+            load();
           }}
           onClose={() => setShowRegister(false)}
         />

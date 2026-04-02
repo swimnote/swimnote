@@ -339,7 +339,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
         SELECT id, name, birth_year, parent_phone, status
         FROM students
         WHERE swimming_pool_id = ${poolId}
-          AND status != 'withdrawn'
+          AND status NOT IN ('withdrawn', 'deleted', 'archived')
           AND name = ${name.trim()}
           AND (
             ${birth_year ? sql`birth_year = ${birth_year}` : sql`FALSE`}
