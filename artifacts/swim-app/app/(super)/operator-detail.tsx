@@ -143,14 +143,22 @@ export default function OperatorDetailScreen() {
     if (!isRefresh) setLoading(true);
     try {
       const res  = await apiRequest(token, `/super/operators/${id}`);
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { console.error("[operator-detail] JSON 파싱 실패:", text.slice(0, 200)); }
+      if (!res.ok) {
+        console.error(`[operator-detail] API 오류 ${res.status}:`, data?.error, data?.detail);
+        setPool(null);
+        return;
+      }
       setPool(data.pool ?? null);
       setTeachers(data.teachers ?? []);
       setLogs(data.logs ?? []);
       setPolicy(data.policy ?? {});
       setSupport(data.support ?? { total_count: 0, open_count: 0, resolved_count: 0 });
       setPlans(data.plans ?? []);
-    } catch {
+    } catch (e: any) {
+      console.error("[operator-detail] 네트워크 오류:", e?.message);
       setPool(null);
     } finally {
       setLoading(false);

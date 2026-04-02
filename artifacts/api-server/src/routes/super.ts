@@ -298,17 +298,9 @@ router.get(
   async (req: AuthRequest, res) => {
     const { id } = req.params;
     try {
-      // ① 수영장 기본 정보
+      // ① 수영장 기본 정보 (SELECT * 로 컬럼 미존재 오류 방지)
       const poolRes = await superAdminDb.execute(sql`
-        SELECT id, name, address, phone, approval_status,
-          subscription_tier, subscription_status, subscription_end_at,
-          trial_end_at, member_limit, credit_balance,
-          base_storage_gb, extra_storage_gb, used_storage_bytes,
-          (COALESCE(base_storage_gb,5) + COALESCE(extra_storage_gb,0)) AS total_storage_gb,
-          is_readonly, upload_blocked, readonly_reason, rejection_reason,
-          created_at, updated_at
-        FROM swimming_pools
-        WHERE id = ${id}
+        SELECT * FROM swimming_pools WHERE id = ${id}
       `);
       const poolRow = poolRes.rows[0] as any;
       if (!poolRow) { res.status(404).json({ error: "운영자 없음" }); return; }
