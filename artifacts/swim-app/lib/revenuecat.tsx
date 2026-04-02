@@ -1,12 +1,11 @@
 /**
  * SwimNote RevenueCat 구독 컨텍스트
  *
- * 이용권(entitlement):
- *   - "solo"   : Solo 티어 (사진 OK, 영상 ❌, 학생수 제한)
- *   - "center" : Center 티어 (영상 OK, 학생수 무제한)
+ * 오퍼링: solo_monthly → 패키지 3개 (solo_30 / solo_50 / solo_100)
+ * 이용권: "solo" (Solo 30/50/100 모두 포함)
  *
  * 사용법:
- *   const { isSubscribed, isCenterTier, purchase, restore } = useSubscription();
+ *   const { offerings, isSubscribed, purchase, restore } = useSubscription();
  */
 import React, { createContext, useContext } from "react";
 import { Platform } from "react-native";
@@ -14,22 +13,33 @@ import Purchases from "react-native-purchases";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
 
-const REVENUECAT_TEST_API_KEY     = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
-const REVENUECAT_IOS_API_KEY      = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
-const REVENUECAT_ANDROID_API_KEY  = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
+const REVENUECAT_TEST_API_KEY    = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
+const REVENUECAT_IOS_API_KEY     = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
+const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
-export const REVENUECAT_SOLO_ENTITLEMENT   = "solo";
-export const REVENUECAT_CENTER_ENTITLEMENT = "center";
+export const REVENUECAT_SOLO_ENTITLEMENT = "solo";
+export const SOLO_OFFERING_ID            = "solo_monthly";
 
-function getRevenueCatApiKey() {
-  if (!REVENUECAT_TEST_API_KEY || !REVENUECAT_IOS_API_KEY || !REVENUECAT_ANDROID_API_KEY) {
-    throw new Error("RevenueCat API 키가 설정되지 않았습니다.");
-  }
+export const PACKAGE_META: Record<string, { name: string; memberLimit: number; storage: string }> = {
+  solo_30:  { name: "Solo 30",  memberLimit: 30,  storage: "3GB"  },
+  solo_50:  { name: "Solo 50",  memberLimit: 50,  storage: "5GB"  },
+  solo_100: { name: "Solo 100", memberLimit: 100, storage: "10GB" },
+};
+
+function getRevenueCatApiKey(): string {
   if (__DEV__ || Platform.OS === "web" || Constants.executionEnvironment === "storeClient") {
+    if (!REVENUECAT_TEST_API_KEY) throw new Error("EXPO_PUBLIC_REVENUECAT_TEST_API_KEY 미설정");
     return REVENUECAT_TEST_API_KEY;
   }
-  if (Platform.OS === "ios")     return REVENUECAT_IOS_API_KEY;
-  if (Platform.OS === "android") return REVENUECAT_ANDROID_API_KEY;
+  if (Platform.OS === "ios") {
+    if (!REVENUECAT_IOS_API_KEY) throw new Error("EXPO_PUBLIC_REVENUECAT_IOS_API_KEY 미설정");
+    return REVENUECAT_IOS_API_KEY;
+  }
+  if (Platform.OS === "android") {
+    if (!REVENUECAT_ANDROID_API_KEY) throw new Error("EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY 미설정");
+    return REVENUECAT_ANDROID_API_KEY;
+  }
+  if (!REVENUECAT_TEST_API_KEY) throw new Error("EXPO_PUBLIC_REVENUECAT_TEST_API_KEY 미설정");
   return REVENUECAT_TEST_API_KEY;
 }
 
@@ -42,59 +52,55 @@ export function initializeRevenueCat() {
 
 function useSubscriptionContext() {
   const customerInfoQuery = useQuery({
-    queryKey: ["revenuecat", "customer-info"],
-    queryFn: async () => Purchases.getCustomerInfo(),
-    staleTime: 60 * 1000,
+    queryKey: ["rc", "customerInfo"],
+    queryFn:  () => Purchases.getCustomerInfo(),
+    staleTime: 60_000,
+    retry: false,
   });
 
-  const soloOfferingQuery = useQuery({
-    queryKey: ["revenuecat", "offerings", "solo"],
-    queryFn: async () => {
+  const offeringsQuery = useQuery({
+    queryKey: ["rc", "offerings"],
+    queryFn:  async () => {
       const all = await Purchases.getOfferings();
-      return all.all["solo_monthly"] ?? null;
+      const solo   = all.all[SOLO_OFFERING_ID] ?? null;
+      const center = all.all["center_monthly"] ?? null;
+      return { solo, center, current: all.current };
     },
-    staleTime: 300 * 1000,
-  });
-
-  const centerOfferingQuery = useQuery({
-    queryKey: ["revenuecat", "offerings", "center"],
-    queryFn: async () => {
-      const all = await Purchases.getOfferings();
-      return all.all["center_monthly"] ?? null;
-    },
-    staleTime: 300 * 1000,
+    staleTime: 300_000,
+    retry: false,
   });
 
   const purchaseMutation = useMutation({
-    mutationFn: async (packageToPurchase: any) => {
-      const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
+    mutationFn: async (pkg: any) => {
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
       return customerInfo;
     },
     onSuccess: () => customerInfoQuery.refetch(),
   });
 
   const restoreMutation = useMutation({
-    mutationFn: async () => Purchases.restorePurchases(),
-    onSuccess: () => customerInfoQuery.refetch(),
+    mutationFn: () => Purchases.restorePurchases(),
+    onSuccess:  () => customerInfoQuery.refetch(),
   });
 
-  const entitlements = customerInfoQuery.data?.entitlements.active ?? {};
-  const isSoloTier   = entitlements[REVENUECAT_SOLO_ENTITLEMENT] !== undefined;
-  const isCenterTier = entitlements[REVENUECAT_CENTER_ENTITLEMENT] !== undefined;
-  const isSubscribed = isSoloTier || isCenterTier;
+  const entitlements   = customerInfoQuery.data?.entitlements.active ?? {};
+  const isSubscribed   = REVENUECAT_SOLO_ENTITLEMENT in entitlements;
+  const activePackageId = isSubscribed
+    ? (customerInfoQuery.data?.entitlements.active[REVENUECAT_SOLO_ENTITLEMENT]?.productIdentifier ?? null)
+    : null;
 
   return {
-    customerInfo:   customerInfoQuery.data,
-    soloOffering:   soloOfferingQuery.data,
-    centerOffering: centerOfferingQuery.data,
+    customerInfo:     customerInfoQuery.data ?? null,
+    soloOffering:     offeringsQuery.data?.solo ?? null,
+    centerOffering:   offeringsQuery.data?.center ?? null,
     isSubscribed,
-    isSoloTier,
-    isCenterTier,
-    isLoading: customerInfoQuery.isLoading,
-    purchase:  purchaseMutation.mutateAsync,
-    restore:   restoreMutation.mutateAsync,
-    isPurchasing: purchaseMutation.isPending,
-    isRestoring:  restoreMutation.isPending,
+    activePackageId,
+    isLoading:        customerInfoQuery.isLoading || offeringsQuery.isLoading,
+    purchase:         purchaseMutation.mutateAsync,
+    restore:          restoreMutation.mutateAsync,
+    isPurchasing:     purchaseMutation.isPending,
+    isRestoring:      restoreMutation.isPending,
+    purchaseError:    purchaseMutation.error,
     refetchCustomerInfo: customerInfoQuery.refetch,
   };
 }
