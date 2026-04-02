@@ -1,10 +1,10 @@
 /**
  * (super)/_layout.tsx — 슈퍼관리자 탭 레이아웃
  *
- * 5개 하단 탭: 운영관리·보호통제·감사리스크·지원센터·보안설정
+ * 5개 하단 탭: 운영관리·보호통제·감사리스크·지원센터·더보기
  * 진입 가드: super_admin / platform_admin / super_manager 만 허용.
  */
-import { Activity, Briefcase, HeadphonesIcon, Lock, Shield } from "lucide-react-native";
+import { Activity, Briefcase, HeadphonesIcon, MoreHorizontal, Shield } from "lucide-react-native";
 import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
 import Colors from "@/constants/colors";
@@ -89,10 +89,10 @@ export default function SuperLayout() {
         }}
       />
       <Tabs.Screen
-        name="security-settings"
+        name="more"
         options={{
-          title: "보안설정",
-          tabBarIcon: ({ color }) => <Lock size={22} color={color} />,
+          title: "더보기",
+          tabBarIcon: ({ color }) => <MoreHorizontal size={22} color={color} />,
         }}
       />
 
@@ -114,7 +114,7 @@ export default function SuperLayout() {
       <Tabs.Screen name="security"                 options={{ href: null }} />
       <Tabs.Screen name="op-group"                 options={{ href: null }} />
       <Tabs.Screen name="users"                    options={{ href: null }} />
-      <Tabs.Screen name="more"                     options={{ href: null }} />
+      <Tabs.Screen name="security-settings"        options={{ href: null }} />
       <Tabs.Screen name="sync"                     options={{ href: null }} />
       <Tabs.Screen name="revenue-analytics"        options={{ href: null }} />
       <Tabs.Screen name="cost-analytics"           options={{ href: null }} />
