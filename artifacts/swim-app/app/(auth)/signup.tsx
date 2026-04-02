@@ -382,8 +382,10 @@ export default function SignupScreen() {
                 placeholder="010-0000-0000"
                 placeholderTextColor={C.textMuted}
                 value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
+                onChangeText={v => setPhone(v.replace(/[^0-9\-]/g, ""))}
+                keyboardType="number-pad"
+                autoCorrect={false}
+                autoCapitalize="none"
                 editable={!verified}
               />
             </View>
@@ -488,12 +490,13 @@ export default function SignupScreen() {
           <InputField label="실명" icon="user">
             <TextInput
               style={[styles.input, { color: C.text }]}
-              placeholder="실명을 입력해주세요"
+              placeholder="실명을 입력해주세요 (한글)"
               placeholderTextColor={C.textMuted}
               value={name}
-              onChangeText={v => setName(v.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z\s]/g, ""))}
+              onChangeText={v => setName(v.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ\s]/g, ""))}
               keyboardType="default"
               autoCorrect={false}
+              autoCapitalize="none"
             />
           </InputField>
         </View>
