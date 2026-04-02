@@ -30,7 +30,7 @@ export default function LoginScreen() {
   const [failCount, setFailCount]   = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
 
-  const logoMargin  = useRef(new Animated.Value(60)).current;
+  const logoMargin  = useRef(new Animated.Value(24)).current;
   const textOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export default function LoginScreen() {
     });
     const onHide = Keyboard.addListener(hideEvent, () => {
       Animated.parallel([
-        Animated.timing(logoMargin,  { toValue: 60, duration: 250, useNativeDriver: false }),
+        Animated.timing(logoMargin,  { toValue: 24, duration: 250, useNativeDriver: false }),
         Animated.timing(textOpacity, { toValue: 1,   duration: 280, useNativeDriver: false }),
       ]).start();
     });
@@ -143,7 +143,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }]}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -162,7 +162,7 @@ export default function LoginScreen() {
           </Animated.Text>
         </Animated.View>
 
-        <View style={{ flexGrow: 1, minHeight: 16 }} />
+        <View style={{ height: 16 }} />
 
         {/* ── 빠른 시작 영역 ── */}
         <Pressable
