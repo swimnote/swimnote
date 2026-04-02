@@ -30,7 +30,7 @@ export default function LoginScreen() {
   const [failCount, setFailCount]   = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
 
-  const logoMargin  = useRef(new Animated.Value(200)).current;
+  const logoMargin  = useRef(new Animated.Value(60)).current;
   const textOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export default function LoginScreen() {
     });
     const onHide = Keyboard.addListener(hideEvent, () => {
       Animated.parallel([
-        Animated.timing(logoMargin,  { toValue: 200, duration: 250, useNativeDriver: false }),
+        Animated.timing(logoMargin,  { toValue: 60, duration: 250, useNativeDriver: false }),
         Animated.timing(textOpacity, { toValue: 1,   duration: 280, useNativeDriver: false }),
       ]).start();
     });
@@ -156,14 +156,15 @@ export default function LoginScreen() {
             </View>
             <Text style={styles.logoWordmark}>SwimNote</Text>
           </View>
-          <Animated.Text style={[styles.appSub, { color: C.text, marginTop: 50, opacity: textOpacity }]}>어린이 수영레슨 올인원</Animated.Text>
-          <Animated.Text style={[styles.appDesc, { color: C.text, marginTop: 30, opacity: textOpacity }]}>
+          <Animated.Text style={[styles.appSub, { color: C.text, marginTop: 20, opacity: textOpacity }]}>어린이 수영레슨 올인원</Animated.Text>
+          <Animated.Text style={[styles.appDesc, { color: C.text, marginTop: 10, opacity: textOpacity }]}>
             수영장 · 선생님 · 학부모가 하나로 연결됩니다
           </Animated.Text>
         </Animated.View>
 
-        <View style={{ minHeight: 24, flexGrow: 1 }} />
+        <View style={{ flexGrow: 1, minHeight: 16 }} />
 
+        {/* ── 빠른 시작 영역 ── */}
         <Pressable
           style={({ pressed }) => [styles.signupRow, { opacity: pressed ? 0.85 : 1 }]}
           onPress={() => router.push("/signup" as any)}
@@ -172,9 +173,35 @@ export default function LoginScreen() {
           <Text style={[styles.signupLabel, { color: C.text }]}>처음이세요?  무료로 시작하기</Text>
         </Pressable>
 
+        <Pressable
+          style={({ pressed }) => [styles.kakaoBtn, { opacity: pressed || kakaoLoading ? 0.85 : 1 }]}
+          onPress={handleKakaoLogin}
+          disabled={kakaoLoading || loading}
+        >
+          {kakaoLoading
+            ? <ActivityIndicator color="#3C1E1E" size="small" />
+            : (
+              <>
+                <View style={styles.kakaoBtnIcon}>
+                  <Text style={styles.kakaoEmoji}>💬</Text>
+                </View>
+                <Text style={styles.kakaoBtnText}>카카오로 시작하기</Text>
+              </>
+            )
+          }
+        </Pressable>
+
+        {/* ── 구분선 ── */}
+        <View style={styles.dividerRow}>
+          <View style={[styles.dividerLine, { backgroundColor: C.border }]} />
+          <Text style={[styles.dividerText, { color: C.textMuted }]}>이미 계정이 있으신가요?</Text>
+          <View style={[styles.dividerLine, { backgroundColor: C.border }]} />
+        </View>
+
+        {/* ── 아이디/비밀번호 로그인 ── */}
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: C.text }]}>로그인 후 관리자 · 선생님 · 학부모 선택</Text>
+            <Text style={[styles.fieldLabel, { color: C.text }]}>관리자 · 선생님 · 학부모 로그인</Text>
             <View style={[styles.inputRow, { borderColor: identifier ? C.tint : C.border, backgroundColor: C.background }]}>
               <User size={16} color={identifier ? C.tint : C.textMuted} />
               <TextInput
@@ -239,30 +266,6 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.dividerRow}>
-          <View style={[styles.dividerLine, { backgroundColor: C.border }]} />
-          <Text style={[styles.dividerText, { color: C.textMuted }]}>또는</Text>
-          <View style={[styles.dividerLine, { backgroundColor: C.border }]} />
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [styles.kakaoBtn, { opacity: pressed || kakaoLoading ? 0.85 : 1 }]}
-          onPress={handleKakaoLogin}
-          disabled={kakaoLoading || loading}
-        >
-          {kakaoLoading
-            ? <ActivityIndicator color="#3C1E1E" size="small" />
-            : (
-              <>
-                <View style={styles.kakaoBtnIcon}>
-                  <Text style={styles.kakaoEmoji}>💬</Text>
-                </View>
-                <Text style={styles.kakaoBtnText}>카카오로 시작하기</Text>
-              </>
-            )
-          }
-        </Pressable>
-
       </ScrollView>
 
       <Modal
@@ -304,8 +307,8 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "flex-start" },
-  logoArea: { alignItems: "center", paddingBottom: 24 },
+  container: { flexGrow: 1, paddingHorizontal: 20, justifyContent: "flex-start", gap: 10 },
+  logoArea: { alignItems: "center", paddingBottom: 16 },
 
   logoWrap: { alignItems: "center", gap: 10 },
   logoBorder: { borderRadius: 21, borderWidth: 2, borderColor: "#04111f", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 10 },
@@ -327,7 +330,7 @@ const styles = StyleSheet.create({
   roleHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 10 },
   roleHintText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   roleHintDot: { fontSize: 12, fontFamily: "Pretendard-Regular", marginHorizontal: 2 },
-  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 20, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 16, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#5FEEE3", shadowColor: "#5FEEE3", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 },
+  signupRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 16, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#5FEEE3", shadowColor: "#5FEEE3", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 },
   signupLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   signupBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },
   signupBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
