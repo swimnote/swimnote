@@ -121,6 +121,8 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* ── 상단 그룹: 로고 + 폼 + 구분선 ── */}
+        <View>
         {/* ── 로고 영역 ── */}
         <Animated.View style={[s.logoArea, { transform: [{ scale: logoScale }] }]}>
           <View style={s.logoWrap}>
@@ -218,8 +220,9 @@ export default function LoginScreen() {
           <Text style={s.dividerLabel}>또는</Text>
           <View style={s.dividerLine} />
         </View>
+        </View>{/* ── 상단 그룹 끝 ── */}
 
-        {/* ── 가입 버튼 2개 ── */}
+        {/* ── 가입 버튼 2개 (하단 고정) ── */}
         <View style={s.signupRow}>
           {/* 카카오 가입 */}
           <Pressable
@@ -290,7 +293,7 @@ export default function LoginScreen() {
 
 const s = StyleSheet.create({
   root:    { flex: 1 },
-  scroll:  { flexGrow: 1, paddingHorizontal: 24, gap: 0 },
+  scroll:  { flexGrow: 1, paddingHorizontal: 24, justifyContent: "space-between" },
 
   /* 로고 */
   logoArea:  { alignItems: "center", marginBottom: 32 },
