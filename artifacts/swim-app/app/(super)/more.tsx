@@ -76,7 +76,7 @@ interface RiskSummary {
 export default function SuperMoreScreen() {
   const insets = useSafeAreaInsets();
   const { adminUser: user, token } = useAuth();
-  const go = (path: string) => () => router.push(path as any);
+  const go = (path: string) => () => router.push((path + "?backTo=more") as any);
 
   const [risk, setRisk] = useState<RiskSummary>({
     storage_risk: 0, deletion_pending: 0, sla_overdue: 0,
@@ -192,7 +192,7 @@ export default function SuperMoreScreen() {
         {
           icon: "smartphone", label: "Google OTP",
           sub: "Google Authenticator 2단계 인증 설정",
-          color: "purple", onPress: () => router.push("/totp-setup" as any),
+          color: "purple", onPress: () => router.push("/totp-setup?backTo=more" as any),
         },
         {
           icon: "activity", label: "감사·리스크",
@@ -252,7 +252,7 @@ export default function SuperMoreScreen() {
               <Text style={s.profileName}>{user.name}님</Text>
               <Text style={s.profileRole}>슈퍼관리자</Text>
             </View>
-            <Pressable style={s.securityBtn} onPress={() => router.push("/(super)/security-settings" as any)}>
+            <Pressable style={s.securityBtn} onPress={() => router.push("/(super)/security-settings?backTo=more" as any)}>
               <Shield size={16} color="#fff" />
               <Text style={s.securityBtnTxt}>보안</Text>
             </Pressable>
@@ -266,7 +266,7 @@ export default function SuperMoreScreen() {
               s.otpBanner,
               { backgroundColor: totpEnabled ? "#F0FDF4" : "#FEF9EC", borderColor: totpEnabled ? "#BBF7D0" : "#FDE68A" },
             ]}
-            onPress={() => router.push("/totp-setup" as any)}
+            onPress={() => router.push("/totp-setup?backTo=more" as any)}
           >
             <View style={[s.otpBannerIcon, { backgroundColor: totpEnabled ? "#DCFCE7" : "#FEF3C7" }]}>
               <LucideIcon name={totpEnabled ? "shield" : "smartphone"} size={20} color={totpEnabled ? "#16A34A" : "#D97706"} />
