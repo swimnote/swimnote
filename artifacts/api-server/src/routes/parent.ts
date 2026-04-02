@@ -781,6 +781,103 @@ router.get("/students/:id/home-summary", requireAuth, requireParent, async (req:
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── 학생 3개월 성장 리포트 ────────────────────────────────────────────────
+router.get("/students/:id/growth-report", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const [link] = await db.select().from(parentStudentsTable)
+      .where(and(eq(parentStudentsTable.parent_id, req.user!.userId), eq(parentStudentsTable.student_id, req.params.id), eq(parentStudentsTable.status, "approved"))).limit(1);
+    if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
+
+    const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    if (!student) { res.status(404).json({ error: "학생 정보를 찾을 수 없습니다." }); return; }
+
+    const now = new Date();
+    // 최근 3개월 시작일 계산
+    const months: { label: string; start: string; end: string }[] = [];
+    for (let i = 2; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+      const endD = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      const end = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, "0")}-${String(endD.getDate()).padStart(2, "0")}`;
+      months.push({ label: `${d.getMonth() + 1}월`, start, end });
+    }
+
+    // ── 월별 출석 집계 ─────────────────────────────────────────────────────
+    const threeMonthsAgo = months[0].start;
+    const attRows = await db.execute(sql`
+      SELECT attendance_date, status FROM attendance
+      WHERE student_id = ${req.params.id}
+        AND attendance_date >= ${threeMonthsAgo}::date
+      ORDER BY attendance_date ASC
+    `).catch(() => ({ rows: [] }));
+    const attList = attRows.rows as any[];
+
+    const monthlyAttendance = months.map(m => {
+      const inRange = attList.filter(r => r.attendance_date >= m.start && r.attendance_date <= m.end);
+      return {
+        label: m.label,
+        present: inRange.filter(r => r.status === "present").length,
+        absent:  inRange.filter(r => r.status === "absent").length,
+        late:    inRange.filter(r => r.status === "late").length,
+        total:   inRange.length,
+      };
+    });
+
+    // ── 레벨 이력 ─────────────────────────────────────────────────────────
+    const levelRows = await db.execute(sql`
+      SELECT level, achieved_date, note, teacher_name FROM student_levels
+      WHERE student_id = ${req.params.id}
+      ORDER BY achieved_date ASC, created_at ASC
+    `).catch(() => ({ rows: [] }));
+    const levelHistory = levelRows.rows as any[];
+
+    // ── 최근 수업 일지 피드백 (최대 5건) ──────────────────────────────────
+    let recentDiaries: any[] = [];
+    if (student?.class_group_id) {
+      const diaryRows = await db.execute(sql`
+        SELECT cd.lesson_date, cd.common_content, cd.teacher_name,
+               csn.note_content AS student_note
+        FROM class_diaries cd
+        LEFT JOIN class_diary_student_notes csn ON csn.diary_id = cd.id AND csn.student_id = ${req.params.id} AND csn.is_deleted = false
+        WHERE cd.class_group_id = ${student.class_group_id}
+          AND cd.is_deleted = false
+          AND cd.lesson_date >= ${threeMonthsAgo}::date
+        ORDER BY cd.lesson_date DESC LIMIT 5
+      `).catch(() => ({ rows: [] }));
+      recentDiaries = diaryRows.rows as any[];
+    }
+
+    // ── 3개월 총 수업 일수 ────────────────────────────────────────────────
+    let totalLessons = 0;
+    if (student?.class_group_id) {
+      const lessonRows = await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM class_diaries
+        WHERE class_group_id = ${student.class_group_id}
+          AND is_deleted = false
+          AND lesson_date >= ${threeMonthsAgo}::date
+      `).catch(() => ({ rows: [{ cnt: 0 }] }));
+      totalLessons = Number((lessonRows.rows[0] as any)?.cnt ?? 0);
+    }
+
+    // ── 학생 이름 + 반 이름 ───────────────────────────────────────────────
+    let className = "";
+    if (student?.class_group_id) {
+      const cgRow = await db.execute(sql`SELECT name FROM class_groups WHERE id = ${student.class_group_id}`).catch(() => ({ rows: [] }));
+      className = (cgRow.rows[0] as any)?.name ?? "";
+    }
+
+    res.json({
+      student_name: (student as any).name,
+      class_name: className,
+      monthly_attendance: monthlyAttendance,
+      level_history: levelHistory,
+      recent_diaries: recentDiaries,
+      total_lessons: totalLessons,
+      period_label: `${months[0].label} ~ ${months[2].label}`,
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+});
+
 // ── 교육 프로그램 (수영장별 1개 문서) ─────────────────────────────────────
 router.get("/program", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {

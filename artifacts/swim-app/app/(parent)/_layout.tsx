@@ -117,6 +117,7 @@ function ParentStack() {
       <Stack.Screen name="push-settings" />
       <Stack.Screen name="link-child" />
       <Stack.Screen name="requests" />
+      <Stack.Screen name="growth-report" />
     </Stack>
   );
 }

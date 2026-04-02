@@ -349,6 +349,7 @@ export default function ParentHomeScreen() {
 
             {/* ─── I. 성장 ─── */}
             <ParentGrowthCard
+              studentId={selectedStudent?.id}
               currentLevel={summary.growth?.current_level ?? null}
               prevLevel={summary.growth?.prev_level ?? null}
               achievedDate={summary.growth?.achieved_date}
