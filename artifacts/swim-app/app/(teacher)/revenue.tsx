@@ -19,7 +19,6 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { addTabResetListener } from "@/utils/tabReset";
-import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const FEE_CHECK_KEY    = "@swimnote:fee_check_enabled";
 function feeStorageKey(userId: string, ym: string) {
@@ -184,7 +183,9 @@ export default function RevenueScreen() {
 
   return (
     <SafeAreaView style={rv.safe} edges={[]}>
-      <SubScreenHeader title="정산" homePath="/(teacher)/today-schedule" />
+      <View style={[rv.tabHeader, { paddingTop: insets.top + 14 }]}>
+        <Text style={[rv.tabHeaderTitle, { color: themeColor }]}>정산</Text>
+      </View>
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }}
@@ -469,6 +470,8 @@ export default function RevenueScreen() {
 
 const rv = StyleSheet.create({
   safe:             { flex: 1, backgroundColor: "#FFFFFF" },
+  tabHeader:        { backgroundColor: "#fff", paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
+  tabHeaderTitle:   { fontSize: 20, fontFamily: "Pretendard-Regular" },
   monthRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 12 },
   navBtn:           { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   monthText:        { fontSize: 17, fontFamily: "Pretendard-Regular" },

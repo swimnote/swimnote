@@ -1,4 +1,4 @@
-import { Home, Layers, Send, Settings, Users } from "lucide-react-native";
+import { Home, Layers, Send, Settings, TrendingUp, Users } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
@@ -104,6 +104,11 @@ export default function TeacherLayout() {
         options={{ title: "수강관리", tabBarIcon: ({ color }) => <Users size={22} color={color} /> }}
       />
       <Tabs.Screen
+        name="revenue"
+        listeners={makeTabListener("revenue")}
+        options={{ title: "정산", tabBarIcon: ({ color }) => <TrendingUp size={22} color={color} /> }}
+      />
+      <Tabs.Screen
         name="messenger"
         listeners={makeTabListener("messenger")}
         options={{ title: "메신저", tabBarIcon: ({ color }) => <Send size={22} color={color} /> }}
@@ -124,7 +129,6 @@ export default function TeacherLayout() {
       <Tabs.Screen name="feedback-custom"  options={{ href: null }} />
       <Tabs.Screen name="makeups"          options={{ href: null }} />
       <Tabs.Screen name="my-info"          options={{ href: null }} />
-      <Tabs.Screen name="revenue"          options={{ href: null }} />
       <Tabs.Screen name="notices"          options={{ href: null }} />
       <Tabs.Screen name="fee-check"        options={{ href: null }} />
     </Tabs>
