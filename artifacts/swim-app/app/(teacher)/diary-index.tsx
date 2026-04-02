@@ -7,9 +7,10 @@
  * - 최신순 정렬
  * - 항목 클릭 → diary.tsx 로 이동 (해당 반)
  */
-import { BookOpen, Calendar, Check, ChevronDown, ChevronRight, CircleX, Clock, Layers, Pencil, Search, User, Users, X } from "lucide-react-native";
+import { BookOpen, Calendar, Check, ChevronDown, ChevronRight, CircleX, Clock, Layers, Pencil, Search, Share2, User, Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shareDiaryEntry } from "@/utils/diaryShare";
 import {
   ActivityIndicator, FlatList, Pressable, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
@@ -131,6 +132,22 @@ export default function DiaryIndexScreen() {
   }, []);
 
   /* ── 렌더 ── */
+  const handleShare = useCallback((item: DiaryIndexEntry, e: any) => {
+    e.stopPropagation();
+    shareDiaryEntry({
+      studentName:  item.student_name ?? undefined,
+      className:    item.class_name,
+      teacherName:  item.teacher_name,
+      lessonDate:   item.lesson_date,
+      content:      item.entry_type === "student_note" && item.note_content
+        ? item.note_content
+        : item.content,
+      noteContent:  item.entry_type === "student_note" && item.note_content
+        ? item.content
+        : undefined,
+    });
+  }, []);
+
   const renderItem = useCallback(({ item }: { item: DiaryIndexEntry }) => {
     const isNote = item.entry_type === "student_note";
     return (
@@ -138,11 +155,21 @@ export default function DiaryIndexScreen() {
         {/* 상단 메타 */}
         <View style={di.cardTop}>
           <Text style={di.cardDate}>{formatDate(item.lesson_date)}</Text>
-          <View style={[di.typeBadge, { backgroundColor: "#E6FAF8" }]}>
-            {isNote
-              ? <><User size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>{item.student_name} 추가</Text></>
-              : <><Users size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>반 공통</Text></>
-            }
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={[di.typeBadge, { backgroundColor: "#E6FAF8" }]}>
+              {isNote
+                ? <><User size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>{item.student_name} 추가</Text></>
+                : <><Users size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>반 공통</Text></>
+              }
+            </View>
+            <Pressable
+              style={di.shareBtn}
+              hitSlop={8}
+              onPress={(e) => handleShare(item, e)}
+            >
+              <Share2 size={13} color="#4EA7D8" />
+              <Text style={di.shareBtnText}>공유</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -163,7 +190,7 @@ export default function DiaryIndexScreen() {
         <ChevronRight size={15} color={C.textMuted} style={di.chevron} />
       </Pressable>
     );
-  }, [handlePress]);
+  }, [handlePress, handleShare]);
 
   const keyExtractor = useCallback((item: DiaryIndexEntry, index: number) => `${item.diary_id}-${item.entry_type}-${item.student_id || "x"}-${index}`, []);
 
@@ -378,4 +405,12 @@ const di = StyleSheet.create({
   empty: { alignItems: "center", paddingTop: 80, gap: 8 },
   emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
+
+  shareBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 9, paddingVertical: 3,
+    borderRadius: 8, backgroundColor: "#EBF5FB",
+    borderWidth: 1, borderColor: "#B8DCF0",
+  },
+  shareBtnText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#4EA7D8" },
 });

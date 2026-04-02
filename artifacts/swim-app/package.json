@@ -65,6 +65,7 @@
     "expo-notifications": "^0.32.16",
     "expo-sharing": "^55.0.14",
     "lucide-react-native": "^1.7.0",
+    "react-native-kakao-share-link": "^1.0.12",
     "react-native-purchases": "9.7.2",
     "react-native-qrcode-svg": "^6.3.21",
     "xlsx": "^0.18.5",
