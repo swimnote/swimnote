@@ -100,6 +100,10 @@ export default function LoginScreen() {
 
   async function handleKakaoLogin() {
     if (Platform.OS === "web") { setError("카카오 로그인은 앱에서만 가능합니다."); return; }
+    if (typeof kakaoLogin !== "function") {
+      setError("카카오 로그인은 정식 앱 빌드에서만 사용 가능합니다.");
+      return;
+    }
     setKakaoLoading(true); setError("");
     try {
       const result = await kakaoLogin();
