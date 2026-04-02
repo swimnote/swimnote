@@ -2346,26 +2346,69 @@ router.get("/teachers", requireAuth, requireRole("super_admin","pool_admin"),
   }
 );
 
-// GET /admin/parents — 학부모 목록
+// GET /admin/parents — 학부모 명단
+// 1) 앱에 가입한 parent_accounts + 연결된 학생
+// 2) 앱 미가입이지만 학생 등록 시 보호자 정보가 입력된 경우 (parent_name/parent_phone)
+//    → parent_phone 기준으로 묶어서 표시 (형제자매 한 줄)
 router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
-      const rows = (await db.execute(sql`
+
+      // ── 1. 앱 가입 학부모 ──────────────────────────────────────────
+      const appRows = (await db.execute(sql`
         SELECT
-          pa.id, pa.name, pa.phone, pa.login_id, pa.created_at,
+          pa.id,
+          pa.name,
+          pa.phone,
+          pa.login_id,
+          pa.created_at,
+          'app' AS source,
           COALESCE(json_agg(json_build_object(
-            'id', s.id, 'name', s.name, 'link_id', ps.id,
-            'status', COALESCE(ps.status, 'approved')
+            'id', s.id, 'name', s.name
           )) FILTER (WHERE s.id IS NOT NULL), '[]') AS students
         FROM parent_accounts pa
         LEFT JOIN parent_students ps ON ps.parent_id = pa.id
         LEFT JOIN students s ON s.id = ps.student_id
         WHERE pa.swimming_pool_id = ${poolId}
-        GROUP BY pa.id ORDER BY pa.created_at DESC
-      `)).rows;
-      res.json(rows);
+        GROUP BY pa.id
+        ORDER BY pa.created_at DESC
+      `)).rows as any[];
+
+      // ── 2. 앱 미가입 + 학생에 보호자 정보 입력된 경우 ────────────────
+      // parent_phone 기준 그룹핑 (전화번호 없으면 학생 개별)
+      const guardianRows = (await db.execute(sql`
+        SELECT
+          COALESCE(parent_phone, 'nophone_' || id::text) AS id,
+          MAX(parent_name) AS name,
+          MAX(parent_phone) AS phone,
+          NULL AS login_id,
+          MIN(created_at) AS created_at,
+          'guardian' AS source,
+          json_agg(json_build_object('id', id, 'name', name)) AS students
+        FROM students
+        WHERE swimming_pool_id = ${poolId}
+          AND parent_user_id IS NULL
+          AND status NOT IN ('withdrawn', 'archived', 'deleted')
+          AND (
+            (parent_name IS NOT NULL AND parent_name != '')
+            OR (parent_phone IS NOT NULL AND parent_phone != '')
+          )
+        GROUP BY COALESCE(parent_phone, 'nophone_' || id::text)
+        ORDER BY MIN(created_at) DESC
+      `)).rows as any[];
+
+      // ── 3. 앱 가입 학부모의 phone 목록 (중복 제거용) ─────────────────
+      const appPhones = new Set(appRows.map((r: any) => (r.phone || "").replace(/[^0-9]/g, "")).filter(Boolean));
+
+      // guardian 중 앱 가입자와 phone 중복되는 항목 제거
+      const filteredGuardians = guardianRows.filter((r: any) => {
+        const norm = (r.phone || "").replace(/[^0-9]/g, "");
+        return !norm || !appPhones.has(norm);
+      });
+
+      res.json([...appRows, ...filteredGuardians]);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
