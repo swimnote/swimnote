@@ -8,9 +8,9 @@ import { CircleAlert, Key, Lock, User, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import Svg, { Ellipse, Path } from "react-native-svg";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Animated, Dimensions, Keyboard, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Dimensions, Keyboard, Modal,
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -48,24 +48,18 @@ export default function LoginScreen() {
   const [error,      setError]            = useState("");
   const [failCount,  setFailCount]        = useState(0);
   const [showNotFoundModal, setShowNotFoundModal] = useState(false);
+  const [keyboardHeight, setKeyboardHeight]       = useState(0);
+  const [focusedField, setFocusedField]           = useState<"id" | "pw" | null>(null);
 
-  const logoScale   = useRef(new Animated.Value(1)).current;
-  const subOpacity  = useRef(new Animated.Value(1)).current;
-
-  React.useEffect(() => {
+  useEffect(() => {
     const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const onShow = Keyboard.addListener(showEvt, () => {
-      Animated.parallel([
-        Animated.timing(logoScale,  { toValue: 0.75, duration: 220, useNativeDriver: true }),
-        Animated.timing(subOpacity, { toValue: 0,    duration: 180, useNativeDriver: true }),
-      ]).start();
+    const onShow = Keyboard.addListener(showEvt, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
     });
     const onHide = Keyboard.addListener(hideEvt, () => {
-      Animated.parallel([
-        Animated.timing(logoScale,  { toValue: 1,  duration: 250, useNativeDriver: true }),
-        Animated.timing(subOpacity, { toValue: 1,  duration: 280, useNativeDriver: true }),
-      ]).start();
+      setKeyboardHeight(0);
+      setFocusedField(null);
     });
     return () => { onShow.remove(); onHide.remove(); };
   }, []);
@@ -124,18 +118,16 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[s.root, { backgroundColor: "#fff" }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <View style={[s.root, { backgroundColor: "#fff" }]}>
       <ScrollView
         contentContainerStyle={[s.scroll, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        scrollEnabled={false}
       >
-        {/* ── 전체 콘텐츠 (로고 + 폼 + 구분선 + 가입 버튼) ── */}
+        {/* ── 전체 콘텐츠 (로고 + 폼 + 가입 버튼) ── */}
         <View style={s.bottomSection}>
-        <Animated.View style={[s.logoArea, { transform: [{ scale: logoScale }] }]}>
+        <View style={s.logoArea}>
           <View style={s.logoWrap}>
             <View style={s.logoBorder}>
               <View style={s.logoImage}>
@@ -144,9 +136,9 @@ export default function LoginScreen() {
             </View>
           </View>
           <Text style={s.wordmark}>SwimNote</Text>
-          <Animated.Text style={[s.tagline, { opacity: subOpacity }]}>어린이 수영레슨 올인원 플랫폼</Animated.Text>
-          <Animated.Text style={[s.taglineSub, { opacity: subOpacity }]}>수영장 · 선생님 · 학부모가 하나로</Animated.Text>
-        </Animated.View>
+          <Text style={s.tagline}>어린이 수영레슨 올인원 플랫폼</Text>
+          <Text style={s.taglineSub}>수영장 · 선생님 · 학부모가 하나로</Text>
+        </View>
 
         {/* ── 로그인 폼 ── */}
         <View style={s.form}>
@@ -159,6 +151,7 @@ export default function LoginScreen() {
                 style={s.input}
                 value={identifier}
                 onChangeText={v => { setIdentifier(toAsciiOnly(v)); setError(""); setFailCount(0); }}
+                onFocus={() => setFocusedField("id")}
                 placeholder="아이디를 입력하세요"
                 placeholderTextColor="#CBD5E1"
                 autoCapitalize="none"
@@ -181,6 +174,7 @@ export default function LoginScreen() {
                 style={s.input}
                 value={password}
                 onChangeText={v => { setPassword(toAsciiOnly(v)); setError(""); }}
+                onFocus={() => setFocusedField("pw")}
                 placeholder="비밀번호를 입력하세요"
                 placeholderTextColor="#CBD5E1"
                 secureTextEntry={!showPw}
@@ -291,7 +285,21 @@ export default function LoginScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </KeyboardAvoidingView>
+
+      {/* ── 키보드 위 입력 미리보기 말풍선 ── */}
+      {focusedField !== null && keyboardHeight > 0 && (
+        <View style={[s.inputBubble, { bottom: keyboardHeight + 10 }]}>
+          <Text style={s.inputBubbleLabel}>
+            {focusedField === "id" ? "아이디" : "비밀번호"}
+          </Text>
+          <Text style={s.inputBubbleValue} numberOfLines={1}>
+            {focusedField === "id"
+              ? (identifier || "입력 중…")
+              : (password ? "•".repeat(password.length) : "입력 중…")}
+          </Text>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -359,6 +367,24 @@ const s = StyleSheet.create({
   kakaoBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#3C1E1E" },
   regularBtn:   { backgroundColor: "#97cdf7", borderWidth: 1.5, borderColor: "#97cdf7" },
   regularBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0a2540" },
+
+  /* 키보드 위 입력 미리보기 */
+  inputBubble: {
+    position: "absolute", left: 24, right: 24,
+    backgroundColor: "rgba(10,37,64,0.92)",
+    borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12,
+    flexDirection: "row", alignItems: "center", gap: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 12, elevation: 8,
+  },
+  inputBubbleLabel: {
+    fontSize: 11, fontFamily: "Pretendard-Regular",
+    color: "#a1f7da", minWidth: 44,
+  },
+  inputBubbleValue: {
+    fontSize: 16, fontFamily: "Pretendard-Regular",
+    color: "#fff", flex: 1,
+  },
 
   /* 모달 */
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
