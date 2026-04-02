@@ -170,7 +170,7 @@ export default function MoreScreen() {
                     idx < SHORTCUTS.length - 1 && s.menuRowBorder,
                     { opacity: pressed ? 0.7 : 1 },
                   ]}
-                  onPress={() => router.push(item.route as any)}
+                  onPress={() => router.push((item.route + "?backTo=more") as any)}
                 >
                   <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
                     <LucideIcon name={item.icon} size={18} color={item.color} />
@@ -194,7 +194,7 @@ export default function MoreScreen() {
                     idx < MISC.length - 1 && s.menuRowBorder,
                     { opacity: pressed ? 0.7 : 1 },
                   ]}
-                  onPress={() => router.push(item.route as any)}
+                  onPress={() => router.push((item.route + "?backTo=more") as any)}
                 >
                   <View style={[s.menuIcon, { backgroundColor: item.bg }]}>
                     <LucideIcon name={item.icon} size={18} color={item.color} />
