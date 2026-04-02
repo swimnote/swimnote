@@ -36,9 +36,9 @@ interface Pool { id: string; name: string; address?: string; }
 const STEP_LABELS = ["기본정보", "휴대폰", "역할선택", "추가정보"];
 
 const ROLE_CARDS: Array<{ role: Role; label: string; desc: string; icon: any; bg: string; color: string }> = [
-  { role: "admin",   label: "수영장 운영자", desc: "수영장을 등록하고 직접 관리합니다",   icon: "briefcase", bg: "#EFF4FF", color: "#4F6EF7" },
-  { role: "teacher", label: "선생님",       desc: "수영장을 검색하여 가입합니다",         icon: "award",     bg: "#DFF3EC", color: "#2E9B6F" },
-  { role: "parent",  label: "학부모",       desc: "자녀를 등록하고 수업을 확인합니다",   icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
+  { role: "admin",   label: "수영장 대표",  desc: "수영장을 직접 운영하는 원장님·원감님\n선생님·학부모 관리 및 전체 운영 담당",     icon: "briefcase", bg: "#EFF4FF", color: "#4F6EF7" },
+  { role: "teacher", label: "선생님",       desc: "수영장 대표로부터 초대코드를 받은\n선생님만 가입 가능합니다",                    icon: "award",     bg: "#DFF3EC", color: "#2E9B6F" },
+  { role: "parent",  label: "학부모",       desc: "수영장에서 자녀 회원등록 완료 후\nQR코드·초대링크를 통해 가입합니다",          icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
 ];
 
 export default function SignupScreen() {

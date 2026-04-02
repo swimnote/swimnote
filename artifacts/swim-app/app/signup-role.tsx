@@ -10,23 +10,65 @@ import Colors from "@/constants/colors";
 
 const C = Colors.light;
 
-const ROLES = [
+interface RoleCard {
+  key: string;
+  icon: any;
+  iconColor: string;
+  iconBg: string;
+  label: string;
+  tag: string;
+  tagColor: string;
+  tagBg: string;
+  bullets: string[];
+  onPress: () => void;
+}
+
+const ROLES: RoleCard[] = [
+  {
+    key: "admin",
+    icon: "briefcase",
+    iconColor: "#4F6EF7",
+    iconBg: "#EFF4FF",
+    label: "수영장 대표",
+    tag: "원장님 · 원감님",
+    tagColor: "#4F6EF7",
+    tagBg: "#EFF4FF",
+    bullets: [
+      "수영장을 직접 운영하는 대표자",
+      "선생님·학부모 초대 및 전체 관리",
+      "수업 운영, 출결, 수업일지 통합 관리",
+    ],
+    onPress: () => router.push("/(auth)/signup" as any),
+  },
   {
     key: "teacher",
-    icon: "award" as const,
+    icon: "award",
+    iconColor: "#2E9B6F",
+    iconBg: "#DFF3EC",
     label: "선생님",
-    desc: "수영장에 소속되거나 개인 워크스페이스를 만들어 수업을 관리합니다",
-    color: "#2EC4B6",
-    bg: "#EFF4FF",
-    onPress: () => router.push("/teacher-signup" as any),
+    tag: "초대받은 선생님 전용",
+    tagColor: "#2E9B6F",
+    tagBg: "#DFF3EC",
+    bullets: [
+      "수영장 대표(관리자)로부터 초대코드를 받은 선생님만 가입 가능",
+      "초대코드가 없다면 소속 수영장 관리자에게 문의하세요",
+    ],
+    onPress: () => router.push("/teacher-invite-join" as any),
   },
   {
     key: "parent",
-    icon: "heart" as const,
+    icon: "heart",
+    iconColor: "#E4A93A",
+    iconBg: "#FFFBEB",
     label: "학부모",
-    desc: "선생님으로부터 초대 링크를 받아 가입합니다",
-    color: "#E4A93A",
-    bg: "#FFFBEB",
+    tag: "회원등록 완료 후 가입",
+    tagColor: "#D97706",
+    tagBg: "#FFF8E1",
+    bullets: [
+      "수영장에서 자녀 회원등록을 먼저 마쳐야 가입 가능",
+      "관리자가 발급한 QR코드 · 초대링크로 가입",
+      "가입 후 수업일지·사진·출결을 실시간으로 확인",
+    ],
     onPress: () => router.push("/parent-invite-info" as any),
   },
 ];
@@ -62,14 +104,29 @@ export default function SignupRoleScreen() {
             style={({ pressed }) => [styles.roleCard, { backgroundColor: C.card, opacity: pressed ? 0.9 : 1 }]}
             onPress={r.onPress}
           >
-            <View style={[styles.roleIconWrap, { backgroundColor: r.bg }]}>
-              <LucideIcon name={r.icon} size={24} color={r.color} />
+            <View style={styles.cardTop}>
+              <View style={[styles.roleIconWrap, { backgroundColor: r.iconBg }]}>
+                <LucideIcon name={r.icon} size={22} color={r.iconColor} />
+              </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={[styles.roleLabel, { color: C.text }]}>{r.label}</Text>
+                  <View style={[styles.tag, { backgroundColor: r.tagBg }]}>
+                    <Text style={[styles.tagText, { color: r.tagColor }]}>{r.tag}</Text>
+                  </View>
+                </View>
+              </View>
+              <ChevronRight size={16} color={C.textMuted} />
             </View>
-            <View style={styles.roleInfo}>
-              <Text style={[styles.roleLabel, { color: C.text }]}>{r.label}</Text>
-              <Text style={[styles.roleDesc, { color: C.textSecondary }]}>{r.desc}</Text>
+            <View style={[styles.divider, { backgroundColor: C.border }]} />
+            <View style={styles.bullets}>
+              {r.bullets.map((b, i) => (
+                <View key={i} style={styles.bulletRow}>
+                  <View style={[styles.bulletDot, { backgroundColor: r.iconColor }]} />
+                  <Text style={[styles.bulletText, { color: C.textSecondary }]}>{b}</Text>
+                </View>
+              ))}
             </View>
-            <ChevronRight size={18} color={C.textMuted} />
           </Pressable>
         ))}
       </View>
@@ -86,7 +143,7 @@ export default function SignupRoleScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  container: { paddingHorizontal: 20, gap: 28 },
+  container: { paddingHorizontal: 20, gap: 24 },
   header: { flexDirection: "row", alignItems: "center" },
   backBtn: { padding: 4 },
   titleArea: { alignItems: "center", gap: 10 },
@@ -100,15 +157,20 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   cards: { gap: 12 },
   roleCard: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    borderRadius: 18, padding: 18,
+    borderRadius: 18, padding: 18, gap: 12,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 10, elevation: 3,
   },
-  roleIconWrap: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  roleInfo: { flex: 1, gap: 3 },
+  cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  roleIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   roleLabel: { fontSize: 16, fontFamily: "Pretendard-Regular" },
-  roleDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
+  tag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  tagText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
+  divider: { height: StyleSheet.hairlineWidth },
+  bullets: { gap: 6 },
+  bulletRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  bulletDot: { width: 5, height: 5, borderRadius: 3, marginTop: 5, flexShrink: 0 },
+  bulletText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   loginLink: { alignItems: "center", paddingVertical: 8 },
   loginLinkText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });
