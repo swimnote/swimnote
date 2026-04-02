@@ -180,7 +180,9 @@ export default function ParentHomeScreen() {
       <View style={[s.root, { backgroundColor: C.background }]}>
         {/* 헤더 */}
         <View style={[s.header, { paddingTop: PT }]}>
-          <Text style={[s.poolName, { color: C.textMuted }]}>SwimNote</Text>
+          <Text style={[s.poolName, { color: C.textMuted }]} numberOfLines={1}>
+            {parentAccount?.pool_name || "수영장"}
+          </Text>
           <View style={s.headerBtns}>
             <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/notifications" as any)}>
               <Bell size={19} color={C.textSecondary} />

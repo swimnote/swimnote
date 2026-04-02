@@ -518,13 +518,15 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
             pending_tier = NULL, downgrade_at = NULL, updated_at = now()
     `);
 
-    // swimming_pools 구독 상태 동기화 + 최초 결제 사용 여부 기록
+    // swimming_pools 구독 상태 동기화 + 최초 결제 사용 여부 기록 + 화이트라벨 자동 활성화
     await superAdminDb.execute(sql`
       UPDATE swimming_pools
       SET subscription_status = 'active', subscription_tier = ${tier},
           is_readonly = false, upload_blocked = false, readonly_reason = null,
           payment_failed_at = null,
           first_payment_used = CASE WHEN ${isFirstPayment} THEN TRUE ELSE first_payment_used END,
+          white_label_enabled = true,
+          hide_platform_name = true,
           updated_at = now()
       WHERE id = ${poolId}
     `);

@@ -1,5 +1,4 @@
-import { Droplet, Lock, Tag } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
+import { CheckCircle2, Droplet, Lock, Tag } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Pressable, ScrollView,
@@ -102,14 +101,24 @@ export default function WhiteLabelScreen() {
             <Text style={[styles.poolChipName, { color: C.text }]}>{pool?.name ?? "—"}</Text>
           </View>
 
-          {/* 구독 잠금 안내 */}
-          {pool?.subscription_status === "trial" && (
+          {/* 구독 상태별 안내 */}
+          {pool?.subscription_status === "trial" ? (
             <View style={[styles.lockCard, { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }]}>
               <Lock size={16} color="#C2410C" />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.lockTitle, { color: "#C2410C" }]}>구독 전용 기능</Text>
                 <Text style={[styles.lockBody, { color: "#9A3412" }]}>
-                  화이트 라벨 옵션에 구독하실 경우 스윔노트 이름 대신 등록된 수영장 이름 또는 관리자 이름만 표시됩니다.
+                  유료 구독 시 화이트라벨이 자동으로 활성화됩니다. 스윔노트 이름 대신 수영장 브랜드만 표시됩니다.
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.lockCard, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
+              <CheckCircle2 size={16} color="#15803D" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.lockTitle, { color: "#15803D" }]}>구독 활성 — 자동 적용됨</Text>
+                <Text style={[styles.lockBody, { color: "#166534" }]}>
+                  구독 결제 시 화이트라벨이 자동 활성화되었습니다. 아래 옵션으로 세부 설정을 조정할 수 있습니다.
                 </Text>
               </View>
             </View>
