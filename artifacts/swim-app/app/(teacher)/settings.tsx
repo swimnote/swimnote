@@ -9,8 +9,9 @@
  *  5. 사진·영상 앨범 바로가기
  *  6. 기타
  */
-import { Bell, Camera, ChevronRight, FileText, HardDrive, Pencil, UserCog } from "lucide-react-native";
+import { Bell, Camera, ChevronRight, CircleDollarSign, FileText, HardDrive, Pencil, UserCog } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -23,6 +24,8 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
+
+const FEE_CHECK_KEY = "@swimnote:fee_check_enabled";
 
 const C = Colors.light;
 
@@ -60,6 +63,9 @@ export default function TeacherSettingsScreen() {
   const [notiMakeup,   setNotiMakeup]   = useState(true);
   const [notiDiary,    setNotiDiary]    = useState(true);
 
+  /* 수업료 납부 관리 */
+  const [feeCheckEnabled, setFeeCheckEnabled] = useState(false);
+
   const savePushSetting = useCallback(async (key: string, value: boolean) => {
     try {
       await apiRequest(token, "/push-settings", {
@@ -70,11 +76,19 @@ export default function TeacherSettingsScreen() {
     } catch { /* ignore */ }
   }, [token]);
 
+  const toggleFeeCheck = useCallback(async (v: boolean) => {
+    setFeeCheckEnabled(v);
+    try {
+      await AsyncStorage.setItem(FEE_CHECK_KEY, v ? "1" : "0");
+    } catch { /* ignore */ }
+  }, []);
+
   const load = useCallback(async () => {
     try {
-      const [storageRes, pushRes] = await Promise.all([
+      const [storageRes, pushRes, feeRaw] = await Promise.all([
         apiRequest(token, "/teacher/me/storage"),
         apiRequest(token, "/push-settings"),
+        AsyncStorage.getItem(FEE_CHECK_KEY),
       ]);
       if (storageRes.ok) setStorageUsage(await storageRes.json());
       if (pushRes.ok) {
@@ -83,6 +97,7 @@ export default function TeacherSettingsScreen() {
         if (settings.makeup_request !== undefined)  setNotiMakeup(Boolean(settings.makeup_request));
         if (settings.diary_reminder !== undefined)  setNotiDiary(Boolean(settings.diary_reminder));
       }
+      setFeeCheckEnabled(feeRaw === "1");
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
@@ -153,6 +168,38 @@ export default function TeacherSettingsScreen() {
           <Text style={[s.actionBtnText, { color: "#0F172A" }]}>사진·영상 앨범</Text>
           <ChevronRight size={16} color="#0F172A" />
         </Pressable>
+
+        {/* ── 수업료 납부 관리 ── */}
+        <View style={s.card}>
+          <View style={s.cardHeader}>
+            <CircleDollarSign size={15} color={themeColor} />
+            <Text style={s.cardTitle}>수업료 납부 관리</Text>
+          </View>
+          <View style={s.switchSection}>
+            <View style={s.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.switchLabel}>납부 체크 기능 사용</Text>
+                <Text style={s.switchSub}>수영장 전산 이용 시 끄세요</Text>
+              </View>
+              <Switch
+                value={feeCheckEnabled}
+                onValueChange={toggleFeeCheck}
+                trackColor={{ false: C.border, true: themeColor + "80" }}
+                thumbColor={feeCheckEnabled ? themeColor : C.textMuted}
+              />
+            </View>
+            {feeCheckEnabled && (
+              <Pressable
+                style={[s.feeBtn, { borderColor: themeColor, borderTopWidth: 1, borderTopColor: C.border }]}
+                onPress={() => router.push("/(teacher)/fee-check" as any)}
+              >
+                <CircleDollarSign size={16} color={themeColor} />
+                <Text style={[s.feeBtnText, { color: themeColor }]}>납부 현황 보기</Text>
+                <ChevronRight size={16} color={themeColor} />
+              </Pressable>
+            )}
+          </View>
+        </View>
 
         {/* ── 알림 설정 ── */}
         <View style={s.card}>
@@ -307,4 +354,6 @@ const s = StyleSheet.create({
   actionBtnText:    { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   policyRow:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 15 },
   policyLabel:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
+  feeBtn:           { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
+  feeBtnText:       { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
 });
