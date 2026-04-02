@@ -420,22 +420,6 @@ export default function ParentsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleDecision(linkId: string, parentId: string, action: "approve" | "reject") {
-    const label = action === "approve" ? "승인" : "거부";
-    Alert.alert(`연결 ${label}`, `이 연결 요청을 ${label}하시겠습니까?`, [
-      { text: "취소", style: "cancel" },
-      {
-        text: label, style: action === "reject" ? "destructive" : "default",
-        onPress: async () => {
-          const res = await apiRequest(token, `/admin/parents/${parentId}/students/${linkId}`, {
-            method: "PATCH", body: JSON.stringify({ action }),
-          });
-          if (res.ok) { await load(); }
-          else { const d = await res.json(); Alert.alert("오류", d.error || "처리 중 오류가 발생했습니다."); }
-        },
-      },
-    ]);
-  }
 
   async function handleAddParent(name: string, phone: string) {
     const res = await apiRequest(token, "/admin/parents", {
@@ -580,20 +564,13 @@ export default function ParentsScreen() {
                 <Users size={36} color={C.tint} />
               </View>
               <Text style={[s.emptyTitle, { color: C.text }]}>연결된 학부모가 없습니다</Text>
-              <Text style={[s.emptySub, { color: C.textSecondary }]}>학부모가 앱에서 자녀를 찾아 연결하거나{"\n"}아래 버튼으로 직접 추가할 수 있습니다</Text>
+              <Text style={[s.emptySub, { color: C.textSecondary }]}>학부모가 앱에서 가입하면{"\n"}자동으로 이 목록에 나타납니다</Text>
               <Pressable
                 style={[s.emptyBtn, { backgroundColor: C.button }]}
                 onPress={() => setShowAddParent(true)}
               >
                 <Plus size={15} color="#fff" />
                 <Text style={s.emptyBtnText}>학부모 직접 추가</Text>
-              </Pressable>
-              <Pressable
-                style={[s.emptyBtnOutline, { borderColor: C.tint }]}
-                onPress={() => router.push("/(admin)/approvals" as any)}
-              >
-                <UserCheck size={15} color={C.tint} />
-                <Text style={[s.emptyBtnOutlineText, { color: C.tint }]}>가입 요청 확인하기</Text>
               </Pressable>
             </View>
           ) : parents.map(pa => {
@@ -667,16 +644,6 @@ export default function ParentsScreen() {
                           <Text style={[s.studentName, { color: C.text }]}>{st.name}</Text>
                         </View>
                         <View style={s.studentRight}>
-                          {!sel.selectionMode && st.status === "pending" && (
-                            <>
-                              <Pressable onPress={() => handleDecision(st.link_id, pa.id, "approve")} style={[s.miniBtn, { backgroundColor: C.success }]}>
-                                <Check size={12} color="#fff" />
-                              </Pressable>
-                              <Pressable onPress={() => handleDecision(st.link_id, pa.id, "reject")} style={[s.miniBtn, { backgroundColor: C.error }]}>
-                                <X size={12} color="#fff" />
-                              </Pressable>
-                            </>
-                          )}
                           {!sel.selectionMode && (
                             <Pressable onPress={() => handleDeleteLink(pa.id, st.link_id)}>
                               <Trash2 size={14} color={C.textMuted} />

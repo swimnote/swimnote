@@ -1,12 +1,9 @@
-import { Copy, MessageSquare, Phone, Send, Share2, User } from "lucide-react-native";
+import { MessageSquare, Phone, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import * as Clipboard from "expo-clipboard";
-import { Share } from "react-native";
 import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
-import { callPhone, sendSms, sendSmsWithBody, isValidPhone, formatPhone, CALL_COLOR, SMS_COLOR } from "@/utils/phoneUtils";
-import { buildInviteMessage } from "@/utils/studentUtils";
+import { callPhone, sendSms, formatPhone, CALL_COLOR, SMS_COLOR } from "@/utils/phoneUtils";
 import { ms } from "./memberDetailStyles";
 import type { DetailData } from "./memberDetailTypes";
 
@@ -26,66 +23,29 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
       <View style={ms.section}>
         <Text style={ms.sectionTitle}>학부모 앱 연결</Text>
         <View style={[ms.connCard, {
-          backgroundColor: connStatus === "linked" ? "#E6FFFA" : connStatus === "pending" ? "#FFF1BF" : "#FFFFFF",
+          backgroundColor: connStatus === "linked" ? "#E6FFFA" : "#FFFFFF",
         }]}>
           <LucideIcon
-            name={connStatus === "linked" ? "check-circle" : connStatus === "pending" ? "clock" : "x-circle"}
+            name={connStatus === "linked" ? "check-circle" : "x-circle"}
             size={24}
-            color={connStatus === "linked" ? "#2EC4B6" : connStatus === "pending" ? "#D97706" : C.textMuted}
+            color={connStatus === "linked" ? "#2EC4B6" : C.textMuted}
           />
           <View style={{ flex: 1 }}>
-            <Text style={[ms.connStatus, { color: connStatus === "linked" ? "#2EC4B6" : connStatus === "pending" ? "#D97706" : C.textMuted }]}>
-              {connStatus === "linked" ? "학부모 앱 연결 완료" : connStatus === "pending" ? "연결 요청 대기 중" : "학부모미연결"}
+            <Text style={[ms.connStatus, { color: connStatus === "linked" ? "#2EC4B6" : C.textMuted }]}>
+              {connStatus === "linked" ? "학부모 앱 연결 완료" : "학부모 미연결"}
             </Text>
             {data.parent_account_name && (
               <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 }}>
                 연결 계정: {data.parent_account_name}
               </Text>
             )}
+            {connStatus !== "linked" && (
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 4 }}>
+                학부모가 앱에서 가입하면 자동으로 연결됩니다
+              </Text>
+            )}
           </View>
         </View>
-
-        {data.invite_code && connStatus !== "linked" && (
-          <View style={ms.inviteBox}>
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 }}>초대 코드</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <Text style={[ms.inviteCode, { color: themeColor }]}>{data.invite_code}</Text>
-              <Pressable
-                style={[ms.outlineBtn, { borderColor: themeColor, paddingHorizontal: 12 }]}
-                onPress={async () => {
-                  const msg = buildInviteMessage({ poolName, studentName: data.name, inviteCode: data.invite_code!, appUrl: "https://swimnote.kr" });
-                  await Clipboard.setStringAsync(msg);
-                  onAlert({ title: "복사 완료", msg: "초대 문자가 클립보드에 복사되었습니다." });
-                }}
-              >
-                <Copy size={14} color={themeColor} />
-                <Text style={[ms.outlineBtnText, { color: themeColor }]}>복사</Text>
-              </Pressable>
-              {isValidPhone(data.parent_phone) && (
-                <Pressable
-                  style={[ms.outlineBtn, { borderColor: SMS_COLOR, paddingHorizontal: 12 }]}
-                  onPress={() => {
-                    const msg = buildInviteMessage({ poolName, studentName: data.name, inviteCode: data.invite_code!, appUrl: "https://swimnote.kr" });
-                    sendSmsWithBody(data.parent_phone, msg);
-                  }}
-                >
-                  <Send size={14} color={SMS_COLOR} />
-                  <Text style={[ms.outlineBtnText, { color: SMS_COLOR }]}>문자전송</Text>
-                </Pressable>
-              )}
-              <Pressable
-                style={[ms.outlineBtn, { borderColor: "#2EC4B6", paddingHorizontal: 12 }]}
-                onPress={async () => {
-                  const msg = buildInviteMessage({ poolName, studentName: data.name, inviteCode: data.invite_code!, appUrl: "https://swimnote.kr" });
-                  await Share.share({ message: msg });
-                }}
-              >
-                <Share2 size={14} color="#2EC4B6" />
-                <Text style={[ms.outlineBtnText, { color: "#2EC4B6" }]}>공유</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
       </View>
 
       <View style={ms.section}>

@@ -25,14 +25,13 @@ import { MemberParentTab }            from "@/components/admin/member/MemberPare
 import { MemberPaymentTab }           from "@/components/admin/member/MemberPaymentTab";
 import { MemberLogTab }               from "@/components/admin/member/MemberLogTab";
 import { MemberMakeupTab }            from "@/components/admin/member/MemberMakeupTab";
-import { MemberParentRequestsTab }    from "@/components/admin/member/MemberParentRequestsTab";
 import {
   DetailData, ActivityLog, ClassGroup, LevelInfo, STATUS_META,
 } from "@/components/admin/member/memberDetailTypes";
 
 const C = Colors.light;
 
-const TABS = ["기본정보", "수업정보", "보강", "레벨/평가", "학부모공유", "학부모 요청", "결제/이용", "활동로그"] as const;
+const TABS = ["기본정보", "수업정보", "보강", "레벨/평가", "학부모공유", "결제/이용", "활동로그"] as const;
 type Tab = typeof TABS[number];
 
 export default function MemberDetailScreen() {
@@ -46,7 +45,6 @@ export default function MemberDetailScreen() {
   const [groups, setGroups]               = useState<ClassGroup[]>([]);
   const [logs, setLogs]                   = useState<ActivityLog[]>([]);
   const [makeups, setMakeups]             = useState<any[]>([]);
-  const [parentRequests, setParentRequests] = useState<any[]>([]);
   const [activeTab, setActiveTab]         = useState<Tab>("기본정보");
   const [loading, setLoading]             = useState(true);
   const [saving, setSaving]               = useState(false);
@@ -140,11 +138,6 @@ export default function MemberDetailScreen() {
   useEffect(() => {
     if (activeTab === "보강" && id) {
       apiRequest(token, `/admin/makeups/student/${id}`).then(r => r.ok ? r.json() : []).then(setMakeups);
-    }
-    if (activeTab === "학부모 요청" && id) {
-      apiRequest(token, `/parent-requests?student_id=${id}`)
-        .then(r => r.ok ? r.json() : [])
-        .then(d => setParentRequests(Array.isArray(d) ? d : d.items || []));
     }
   }, [activeTab, id, token]);
 
@@ -331,10 +324,6 @@ export default function MemberDetailScreen() {
           connStatus={connStatus} poolName={poolName}
           onAlert={setAlertInfo}
         />
-      )}
-
-      {activeTab === "학부모 요청" && (
-        <MemberParentRequestsTab parentRequests={parentRequests} />
       )}
 
       {activeTab === "결제/이용" && (
