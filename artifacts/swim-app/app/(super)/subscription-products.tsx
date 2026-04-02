@@ -1,11 +1,10 @@
 /**
  * (super)/subscription-products.tsx — 구독 상품 설정
- * 탭 1: 구독 플랜 | 탭 2: 추가 용량 상품
- * subscriptionStore + extraStorageStore — API 호출 없음
+ * 구독 플랜 관리 (Coach 30/50/100, Premier 200/300/500/1000)
+ * API 연동: GET/POST/PUT/PATCH /super/plans
  */
-import { CirclePlus, HardDrive, Info, Lock, Package, PenLine, X } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useEffect, useMemo, useState } from "react";
+import { CirclePlus, Info, Lock, Package, PenLine, X } from "lucide-react-native";
+import React, { useEffect, useState } from "react";
 import {
   Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
   Pressable, RefreshControl, ScrollView,
@@ -16,15 +15,11 @@ import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { billingEnabled } from "@/config/billing";
-import { useExtraStorageStore } from "@/store/extraStorageStore";
 import type { SubscriptionPlan } from "@/domain/types";
-import type { ExtraStorageProduct } from "@/store/extraStorageStore";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const P = "#7C3AED";
 const G = "#2EC4B6";
-
-const TABS = ["구독 플랜", "추가 용량 상품"] as const;
-type Tab = typeof TABS[number];
 
 const EMPTY_FORM = {
   name:          "",
@@ -36,14 +31,6 @@ const EMPTY_FORM = {
   note:          "",
 };
 type FormState = typeof EMPTY_FORM;
-
-const EMPTY_STORAGE_FORM = {
-  name:           "",
-  extraStorageMb: "",
-  price:          "",
-  note:           "",
-};
-type StorageFormState = typeof EMPTY_STORAGE_FORM;
 
 function fmtDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -65,19 +52,21 @@ function PlanCard({ plan, onEdit, onToggle }: {
   onToggle: (plan: SubscriptionPlan) => void;
 }) {
   const priceStr = plan.monthlyPrice === 0 ? "무료" : `₩${plan.monthlyPrice.toLocaleString()}/월`;
+  const isCenter = plan.memberLimit != null && plan.memberLimit >= 200;
+  const accentColor = isCenter ? "#F59E0B" : P;
   return (
     <View style={[pc.card, (!plan.isActive || plan.isArchived) && pc.cardInactive]}>
       <View style={pc.top}>
-        <View style={pc.tierBadge}>
-          <Text style={pc.tierTxt}>{plan.code.toUpperCase()}</Text>
+        <View style={[pc.tierBadge, { backgroundColor: isCenter ? "#FEF3C7" : "#EEDDF5" }]}>
+          <Text style={[pc.tierTxt, { color: accentColor }]}>{plan.code.toUpperCase()}</Text>
         </View>
         <Text style={[pc.name, (!plan.isActive || plan.isArchived) && { color: "#64748B" }]}>{plan.name}</Text>
-        <Text style={pc.price}>{priceStr}</Text>
+        <Text style={[pc.price, { color: accentColor }]}>{priceStr}</Text>
       </View>
       <View style={pc.row}>
         <View style={pc.infoItem}>
           <Text style={pc.infoLabel}>최대 회원</Text>
-          <Text style={pc.infoVal}>{plan.memberLimit == null ? "무제한" : `${plan.memberLimit}명`}</Text>
+          <Text style={pc.infoVal}>{plan.memberLimit == null ? "무제한" : `${plan.memberLimit.toLocaleString()}명`}</Text>
         </View>
         <View style={pc.infoItem}>
           <Text style={pc.infoLabel}>기본 용량</Text>
@@ -85,7 +74,7 @@ function PlanCard({ plan, onEdit, onToggle }: {
         </View>
         <View style={pc.infoItem}>
           <Text style={pc.infoLabel}>영상</Text>
-          <Text style={pc.infoVal}>{plan.includesVideo ? "포함" : "미포함"}</Text>
+          <Text style={[pc.infoVal, { color: plan.includesVideo ? G : "#94A3B8" }]}>{plan.includesVideo ? "포함" : "미포함"}</Text>
         </View>
         <View style={pc.infoItem}>
           <Text style={pc.infoLabel}>상태</Text>
@@ -135,69 +124,6 @@ const pc = StyleSheet.create({
   updatedAt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
 });
 
-// ── 추가 용량 상품 카드 ─────────────────────────────────────────
-function StorageProductCard({ product, onEdit, onToggle }: {
-  product: ExtraStorageProduct;
-  onEdit: (p: ExtraStorageProduct) => void;
-  onToggle: (p: ExtraStorageProduct) => void;
-}) {
-  return (
-    <View style={[ep.card, !product.isActive && ep.cardInactive]}>
-      <View style={ep.top}>
-        <View style={[ep.iconBox, { backgroundColor: product.isActive ? "#E6FFFA" : "#FFFFFF" }]}>
-          <HardDrive size={20} color={product.isActive ? G : "#64748B"} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={ep.name}>{product.name}</Text>
-          <Text style={ep.size}>{fmtMb(product.extraStorageMb)}</Text>
-        </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Text style={ep.price}>₩{product.price.toLocaleString()}</Text>
-          <View style={[ep.statusBadge, { backgroundColor: product.isActive ? "#E6FFFA" : "#F9DEDA" }]}>
-            <Text style={[ep.statusTxt, { color: product.isActive ? G : "#D96C6C" }]}>
-              {product.isActive ? "판매중" : "비활성"}
-            </Text>
-          </View>
-        </View>
-      </View>
-      {product.note ? <Text style={ep.note}>{product.note}</Text> : null}
-      <View style={ep.actions}>
-        <Pressable style={[ep.btn, { backgroundColor: "#EEDDF5" }]} onPress={() => onEdit(product)}>
-          <PenLine size={13} color={P} />
-          <Text style={[ep.btnTxt, { color: P }]}>수정</Text>
-        </Pressable>
-        <Pressable
-          style={[ep.btn, { backgroundColor: product.isActive ? "#FFF1BF" : "#E6FFFA" }]}
-          onPress={() => onToggle(product)}>
-          <LucideIcon name={product.isActive ? "pause-circle" : "play-circle"} size={13}
-            color={product.isActive ? "#D97706" : G} />
-          <Text style={[ep.btnTxt, { color: product.isActive ? "#D97706" : G }]}>
-            {product.isActive ? "비활성화" : "활성화"}
-          </Text>
-        </Pressable>
-        <Text style={ep.updatedAt}>수정: {fmtDateTime(product.updatedAt)}</Text>
-      </View>
-    </View>
-  );
-}
-
-const ep = StyleSheet.create({
-  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#E5E7EB" },
-  cardInactive:{ opacity: 0.6, borderStyle: "dashed" },
-  top:         { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
-  iconBox:     { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  name:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  size:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: G, marginTop: 2 },
-  price:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  statusBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, marginTop: 4 },
-  statusTxt:   { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  note:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 8, lineHeight: 17 },
-  actions:     { flexDirection: "row", gap: 8, alignItems: "center" },
-  btn:         { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  btnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  updatedAt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
-});
-
 // ── 구독 플랜 폼 모달 ───────────────────────────────────────────
 function PlanFormModal({ visible, initial, onClose, onSave }: {
   visible: boolean; initial?: SubscriptionPlan | null;
@@ -222,12 +148,12 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
 
   const setVal = (k: keyof FormState, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
   const textFields = [
-    { key: "name" as const,          label: "상품명",       placeholder: "예: 스탠다드" },
-    { key: "code" as const,          label: "코드 키",       placeholder: "예: pro_100" },
-    { key: "memberLimit" as const,   label: "최대 회원 수", placeholder: "빈칸이면 무제한", numeric: true },
-    { key: "baseStorageMb" as const, label: "기본 용량(MB)", placeholder: "5120", numeric: true },
-    { key: "monthlyPrice" as const,  label: "월 요금(원)",   placeholder: "0", numeric: true },
-    { key: "note" as const,          label: "메모(선택)",   placeholder: "내부 참고용" },
+    { key: "name" as const,          label: "상품명",         placeholder: "예: Coach 50" },
+    { key: "code" as const,          label: "코드 키",         placeholder: "예: basic", disabled: isEdit },
+    { key: "memberLimit" as const,   label: "최대 회원 수",   placeholder: "빈칸이면 무제한", numeric: true },
+    { key: "baseStorageMb" as const, label: "기본 용량 (MB)", placeholder: "5120 = 5GB", numeric: true },
+    { key: "monthlyPrice" as const,  label: "월 요금 (원)",   placeholder: "0", numeric: true },
+    { key: "note" as const,          label: "메모 (선택)",    placeholder: "내부 참고용" },
   ];
 
   return (
@@ -235,7 +161,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
         <View style={fm.header}>
           <Pressable onPress={onClose} style={fm.close}><X size={20} color="#64748B" /></Pressable>
-          <Text style={fm.title}>{isEdit ? "구독 상품 수정" : "구독 상품 생성"}</Text>
+          <Text style={fm.title}>{isEdit ? "구독 플랜 수정" : "구독 플랜 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -243,9 +169,15 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
             {textFields.map(f => (
               <View key={f.key}>
                 <Text style={fm.label}>{f.label}</Text>
-                <TextInput style={fm.input} value={String(form[f.key])} onChangeText={v => setVal(f.key, v)}
-                  placeholder={f.placeholder ?? ""} placeholderTextColor="#64748B"
-                  keyboardType={f.numeric ? "numeric" : "default"} />
+                <TextInput
+                  style={[fm.input, (f as any).disabled && { backgroundColor: "#F1F5F9", color: "#94A3B8" }]}
+                  value={String(form[f.key])}
+                  onChangeText={v => setVal(f.key, v)}
+                  placeholder={f.placeholder ?? ""}
+                  placeholderTextColor="#94A3B8"
+                  keyboardType={f.numeric ? "numeric" : "default"}
+                  editable={!(f as any).disabled}
+                />
               </View>
             ))}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 }}>
@@ -257,85 +189,15 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
           <View style={fm.bottomBar}>
             <Pressable style={fm.bottomSaveBtn} onPress={() => setOtpVisible(true)}>
               <Lock size={14} color="#fff" />
-              <Text style={fm.saveTxt}>수정 후 저장</Text>
+              <Text style={fm.saveTxt}>{isEdit ? "수정 후 저장" : "생성하기"}</Text>
             </Pressable>
           </View>
         </KeyboardAvoidingView>
         <OtpGateModal
           visible={otpVisible}
           token={token}
-          title={isEdit ? "구독 상품 수정 OTP 인증" : "구독 상품 생성 OTP 인증"}
-          desc="구독 상품 변경은 OTP 인증 후에 저장됩니다."
-          onSuccess={() => { setOtpVisible(false); onSave(form); }}
-          onCancel={() => setOtpVisible(false)}
-        />
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-// ── 추가 용량 상품 폼 모달 ──────────────────────────────────────
-function StorageFormModal({ visible, initial, onClose, onSave }: {
-  visible: boolean; initial?: ExtraStorageProduct | null;
-  onClose: () => void; onSave: (form: StorageFormState) => void;
-}) {
-  const { token } = useAuth();
-  const [form, setForm] = useState<StorageFormState>(EMPTY_STORAGE_FORM);
-  const [otpVisible, setOtpVisible] = useState(false);
-  const isEdit = !!initial;
-  useEffect(() => {
-    if (initial) {
-      setForm({
-        name: initial.name,
-        extraStorageMb: String(initial.extraStorageMb),
-        price: String(initial.price),
-        note: initial.note ?? "",
-      });
-    } else { setForm(EMPTY_STORAGE_FORM); }
-  }, [initial, visible]);
-
-  const setVal = (k: keyof StorageFormState, v: string) => setForm(f => ({ ...f, [k]: v }));
-
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
-        <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close}><X size={20} color="#64748B" /></Pressable>
-          <Text style={fm.title}>{isEdit ? "추가 용량 상품 수정" : "추가 용량 상품 생성"}</Text>
-          <View style={{ width: 28 }} />
-        </View>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
-            <View>
-              <Text style={fm.label}>상품명</Text>
-              <TextInput style={fm.input} value={form.name} onChangeText={v => setVal("name", v)} placeholder="예: 추가 30GB" placeholderTextColor="#64748B" />
-            </View>
-            <View>
-              <Text style={fm.label}>추가 용량 (MB)</Text>
-              <TextInput style={fm.input} value={form.extraStorageMb} onChangeText={v => setVal("extraStorageMb", v)} placeholder="30720 (30GB)" placeholderTextColor="#64748B" keyboardType="numeric" />
-              <Text style={{ fontSize: 11, color: "#64748B", marginTop: 4, fontFamily: "Pretendard-Regular" }}>1024MB = 1GB</Text>
-            </View>
-            <View>
-              <Text style={fm.label}>가격 (원)</Text>
-              <TextInput style={fm.input} value={form.price} onChangeText={v => setVal("price", v)} placeholder="24900" placeholderTextColor="#64748B" keyboardType="numeric" />
-            </View>
-            <View>
-              <Text style={fm.label}>메모 (선택)</Text>
-              <TextInput style={fm.input} value={form.note} onChangeText={v => setVal("note", v)} placeholder="내부 참고용" placeholderTextColor="#64748B" />
-            </View>
-          </ScrollView>
-          <View style={fm.bottomBar}>
-            <Pressable style={[fm.bottomSaveBtn, { backgroundColor: G }]} onPress={() => setOtpVisible(true)}>
-              <Lock size={14} color="#fff" />
-              <Text style={fm.saveTxt}>수정 후 저장</Text>
-            </Pressable>
-          </View>
-        </KeyboardAvoidingView>
-        <OtpGateModal
-          visible={otpVisible}
-          token={token}
-          title={isEdit ? "추가 용량 상품 수정 OTP 인증" : "추가 용량 상품 생성 OTP 인증"}
-          desc="추가 용량 상품 변경은 OTP 인증 후에 저장됩니다."
+          title={isEdit ? "구독 플랜 수정 OTP" : "구독 플랜 생성 OTP"}
+          desc="구독 플랜 변경은 OTP 인증 후에 저장됩니다."
           onSuccess={() => { setOtpVisible(false); onSave(form); }}
           onCancel={() => setOtpVisible(false)}
         />
@@ -355,8 +217,7 @@ const fm = StyleSheet.create({
   bottomSaveBtn: { backgroundColor: P, borderRadius: 14, height: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
 });
 
-// ── 메인 ─────────────────────────────────────────────────────────
-// API 응답 행 타입
+// ── API 응답 행 타입 ─────────────────────────────────────────────
 interface ApiPlanRow {
   tier: string; plan_id: string; name: string;
   price_per_month: number; member_limit: number;
@@ -375,7 +236,7 @@ function rowToSubscriptionPlan(row: ApiPlanRow): SubscriptionPlan {
     baseStorageMb: row.storage_mb ?? Math.round(row.storage_gb * 1024),
     displayStorage: row.display_storage ?? "",
     monthlyPrice:  row.price_per_month ?? 0,
-    includesVideo: false,
+    includesVideo: (row.member_limit ?? 0) >= 200,
     isActive:      !!row.is_active,
     isArchived:    false,
     note:          "",
@@ -384,14 +245,31 @@ function rowToSubscriptionPlan(row: ApiPlanRow): SubscriptionPlan {
   };
 }
 
+// ── 확정 플랜 정보 (DB 초기값 기준) ─────────────────────────────
+const PLAN_GUIDE = [
+  { group: "Coach (개인 선생님)", color: P, plans: [
+    { name: "Coach 30",  price: "₩3,500", members: "30명",    storage: "3GB",   video: false },
+    { name: "Coach 50",  price: "₩6,500", members: "50명",    storage: "5GB",   video: false },
+    { name: "Coach 100", price: "₩9,500", members: "100명",   storage: "10GB",  video: false },
+  ]},
+  { group: "Premier (수영장/센터)", color: "#F59E0B", plans: [
+    { name: "Premier 200",  price: "₩69,000",  members: "200명",  storage: "50GB",  video: true },
+    { name: "Premier 300",  price: "₩99,000",  members: "300명",  storage: "80GB",  video: true },
+    { name: "Premier 500",  price: "₩149,000", members: "500명",  storage: "130GB", video: true },
+    { name: "Premier 1000", price: "₩249,000", members: "1000명", storage: "500GB", video: true },
+  ]},
+];
+
+// ── 메인 ─────────────────────────────────────────────────────────
 export default function SubscriptionProductsScreen() {
   if (!billingEnabled) return null;
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
 
-  // ── 구독 플랜 — API 연동 ─────────────────────────────────────────
-  const [plans,     setPlans]     = useState<SubscriptionPlan[]>([]);
+  const [plans,        setPlans]        = useState<SubscriptionPlan[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [editPlan,     setEditPlan]     = useState<SubscriptionPlan | null>(null);
 
   async function loadPlans() {
     setPlansLoading(true);
@@ -406,45 +284,22 @@ export default function SubscriptionProductsScreen() {
 
   useEffect(() => { loadPlans(); }, []);
 
-  const products          = useExtraStorageStore(s => s.products);
-  const purchases         = useExtraStorageStore(s => s.purchases);
-  const opAccounts        = useExtraStorageStore(s => s.opAccounts);
-  const createProduct     = useExtraStorageStore(s => s.createProduct);
-  const updateProduct     = useExtraStorageStore(s => s.updateProduct);
-  const toggleProductActive = useExtraStorageStore(s => s.toggleProductActive);
-
-  const [tab,            setTab]          = useState<Tab>("구독 플랜");
-  const [refreshing,     setRefreshing]   = useState(false);
-  const [showPlanForm,   setShowPlanForm] = useState(false);
-  const [editPlan,       setEditPlan]     = useState<SubscriptionPlan | null>(null);
-  const [showStorageForm,setShowStorageForm] = useState(false);
-  const [editProduct,    setEditProduct]  = useState<ExtraStorageProduct | null>(null);
-
-  // 추가 용량 통계
-  const totalStorageSales  = useMemo(() => purchases.reduce((s, p) => s + p.price, 0), [purchases]);
-  const totalStoragePurchased = useMemo(() => purchases.length, [purchases]);
-  const unlockedCount      = useMemo(() => opAccounts.filter(a => a.videoUploadUnlocked).length, [opAccounts]);
-
   async function handlePlanSave(form: FormState) {
     if (!form.name.trim()) { Alert.alert("입력 오류", "상품명은 필수입니다."); return; }
     const body = {
-      name: form.name.trim(),
+      name:           form.name.trim(),
       price_per_month: parseInt(form.monthlyPrice) || 0,
-      member_limit: form.memberLimit ? parseInt(form.memberLimit) || 9999 : 9999,
-      storage_mb: parseInt(form.baseStorageMb) || 5120,
-      storage_gb: (parseInt(form.baseStorageMb) || 5120) / 1024,
+      member_limit:   form.memberLimit ? parseInt(form.memberLimit) || 9999 : 9999,
+      storage_mb:     parseInt(form.baseStorageMb) || 5120,
+      storage_gb:     (parseInt(form.baseStorageMb) || 5120) / 1024,
     };
     try {
       if (editPlan) {
-        const r = await apiRequest(token, `/super/plans/${editPlan.tier}`, {
-          method: "PUT", body: JSON.stringify(body),
-        });
+        const r = await apiRequest(token, `/super/plans/${editPlan.tier}`, { method: "PUT", body: JSON.stringify(body) });
         if (!r.ok) { const d = await r.json(); Alert.alert("수정 실패", d.error ?? "수정에 실패했습니다."); return; }
       } else {
         if (!form.code.trim()) { Alert.alert("입력 오류", "코드 키는 필수입니다."); return; }
-        const r = await apiRequest(token, "/super/plans", {
-          method: "POST", body: JSON.stringify({ ...body, tier: form.code.trim() }),
-        });
+        const r = await apiRequest(token, "/super/plans", { method: "POST", body: JSON.stringify({ ...body, tier: form.code.trim() }) });
         if (!r.ok) { const d = await r.json(); Alert.alert("생성 실패", d.error ?? "생성에 실패했습니다."); return; }
       }
       await loadPlans();
@@ -467,152 +322,87 @@ export default function SubscriptionProductsScreen() {
       ]);
   }
 
-  function handleStorageSave(form: StorageFormState) {
-    if (!form.name.trim()) { Alert.alert("입력 오류", "상품명을 입력하세요."); return; }
-    const extraMb = parseInt(form.extraStorageMb) || 10240;
-    const price   = parseInt(form.price) || 9500;
-    const actorName = "슈퍼관리자";
-    if (editProduct) {
-      updateProduct(editProduct.id, { name: form.name.trim(), extraStorageMb: extraMb, price, note: form.note.trim() }, actorName);
-    } else {
-      createProduct({ name: form.name.trim(), extraStorageMb: extraMb, price, isActive: true, note: form.note.trim() }, actorName);
-    }
-    setShowStorageForm(false); setEditProduct(null);
-  }
-
-  function handleStorageToggle(product: ExtraStorageProduct) {
-    const actorName = "슈퍼관리자";
-    Alert.alert(product.isActive ? "상품 비활성화" : "상품 활성화",
-      `'${product.name}'을 ${product.isActive ? "비활성화" : "활성화"}하시겠습니까?`, [
-        { text: "취소", style: "cancel" },
-        { text: "확인", onPress: () => toggleProductActive(product.id, actorName) },
-      ]);
-  }
-
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <SubScreenHeader title="구독 상품 설정" subtitle="플랜 및 추가 용량 상품 관리" homePath="/(super)/more" />
+      <SubScreenHeader title="구독 플랜 설정" subtitle="Coach · Premier 플랜 관리" homePath="/(super)/more" />
 
-      {/* 탭 */}
-      <View style={s.tabBar}>
-        {TABS.map(t => (
-          <Pressable key={t} style={[s.tabItem, tab === t && s.tabItemActive]} onPress={() => setTab(t)}>
-            <Text style={[s.tabTxt, tab === t && s.tabTxtActive]}>{t}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <Pressable style={s.createBtn} onPress={() => { setEditPlan(null); setShowPlanForm(true); }}>
+        <CirclePlus size={16} color="#fff" />
+        <Text style={s.createBtnTxt}>새 구독 플랜 생성</Text>
+      </Pressable>
 
-      {tab === "구독 플랜" ? (
-        <>
-          <Pressable style={s.createBtn} onPress={() => { setEditPlan(null); setShowPlanForm(true); }}>
-            <CirclePlus size={16} color="#fff" />
-            <Text style={s.createBtnTxt}>새 구독 플랜 생성</Text>
-          </Pressable>
-          <FlatList
-            data={plans}
-            keyExtractor={item => item.id}
-            renderItem={({ item }) => (
-              <PlanCard plan={item} onEdit={p => { setEditPlan(p); setShowPlanForm(true); }} onToggle={handlePlanToggle} />
-            )}
-            contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 16 }}
-            refreshControl={<RefreshControl refreshing={plansLoading || refreshing} tintColor={P}
-              onRefresh={async () => { setRefreshing(true); await loadPlans(); setRefreshing(false); }} />}
-            ListHeaderComponent={
-              <View style={s.infoBox}>
-                <Info size={13} color={P} />
-                <Text style={s.infoTxt}>구독 플랜과 추가 용량 상품은 별개입니다. 추가 용량 탭에서 관리하세요.</Text>
+      <FlatList
+        data={plans}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <PlanCard plan={item} onEdit={p => { setEditPlan(p); setShowPlanForm(true); }} onToggle={handlePlanToggle} />
+        )}
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}
+        refreshControl={<RefreshControl refreshing={plansLoading} tintColor={P} onRefresh={loadPlans} />}
+        ListHeaderComponent={
+          <View style={{ gap: 12, marginBottom: 4 }}>
+            {/* 플랜 가이드 */}
+            {PLAN_GUIDE.map(g => (
+              <View key={g.group} style={s.guideBox}>
+                <Text style={[s.guideGroupTxt, { color: g.color }]}>{g.group}</Text>
+                <View style={s.guideTable}>
+                  <View style={s.guideHeader}>
+                    {["상품명", "가격", "회원", "용량", "영상"].map(h => (
+                      <Text key={h} style={[s.guideHeaderTxt, h === "상품명" && { flex: 2 }]}>{h}</Text>
+                    ))}
+                  </View>
+                  {g.plans.map(p => (
+                    <View key={p.name} style={s.guideRow}>
+                      <Text style={[s.guideCellTxt, { flex: 2 }]}>{p.name}</Text>
+                      <Text style={s.guideCellTxt}>{p.price}</Text>
+                      <Text style={s.guideCellTxt}>{p.members}</Text>
+                      <Text style={s.guideCellTxt}>{p.storage}</Text>
+                      <Text style={[s.guideCellTxt, { color: p.video ? G : "#94A3B8" }]}>{p.video ? "O" : "X"}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            }
-            ListEmptyComponent={
-              <View style={s.empty}><Package size={36} color="#D1D5DB" /><Text style={s.emptyTxt}>등록된 구독 상품이 없습니다</Text></View>
-            }
-          />
-        </>
-      ) : (
-        <>
-          <Pressable style={[s.createBtn, { backgroundColor: G }]} onPress={() => { setEditProduct(null); setShowStorageForm(true); }}>
-            <CirclePlus size={16} color="#fff" />
-            <Text style={s.createBtnTxt}>새 추가 용량 상품 생성</Text>
-          </Pressable>
-
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 16 }}
-            refreshControl={<RefreshControl refreshing={refreshing} tintColor={G}
-              onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
-
-            {/* 요약 */}
-            <View style={s.storageSummary}>
-              <View style={s.storageStatCard}>
-                <Text style={s.storageStatNum}>{products.filter(p => p.isActive).length}/{products.length}</Text>
-                <Text style={s.storageStatLabel}>활성/전체 상품</Text>
-              </View>
-              <View style={s.storageStatCard}>
-                <Text style={s.storageStatNum}>{totalStoragePurchased}건</Text>
-                <Text style={s.storageStatLabel}>총 판매 건수</Text>
-              </View>
-              <View style={s.storageStatCard}>
-                <Text style={[s.storageStatNum, { color: G }]}>₩{totalStorageSales.toLocaleString()}</Text>
-                <Text style={s.storageStatLabel}>총 판매액</Text>
-              </View>
-              <View style={s.storageStatCard}>
-                <Text style={[s.storageStatNum, { color: "#2EC4B6" }]}>{unlockedCount}개</Text>
-                <Text style={s.storageStatLabel}>영상 잠금해제</Text>
-              </View>
-            </View>
-
-            {/* 구분 */}
-            <View style={s.sectionDivider}>
-              <Text style={s.sectionLabel}>추가 용량 상품 목록</Text>
-              <Text style={s.sectionHint}>구독 플랜 용량에 추가로 구매 가능</Text>
-            </View>
-
-            {products.map(product => (
-              <StorageProductCard
-                key={product.id}
-                product={product}
-                onEdit={p => { setEditProduct(p); setShowStorageForm(true); }}
-                onToggle={handleStorageToggle}
-              />
             ))}
-
-            {products.length === 0 && (
-              <View style={s.empty}><HardDrive size={36} color="#D1D5DB" /><Text style={s.emptyTxt}>등록된 추가 용량 상품이 없습니다</Text></View>
-            )}
-          </ScrollView>
-        </>
-      )}
+            <View style={s.divider} />
+            <Text style={s.sectionLabel}>DB 등록 플랜 목록</Text>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={s.empty}>
+            <Package size={36} color="#D1D5DB" />
+            <Text style={s.emptyTxt}>등록된 구독 플랜이 없습니다</Text>
+            <Text style={[s.emptyTxt, { fontSize: 12, marginTop: 4 }]}>위 "새 구독 플랜 생성"으로 추가하세요</Text>
+          </View>
+        }
+      />
 
       <PlanFormModal
-        visible={showPlanForm} initial={editPlan}
+        visible={showPlanForm}
+        initial={editPlan}
         onClose={() => { setShowPlanForm(false); setEditPlan(null); }}
         onSave={handlePlanSave}
-      />
-      <StorageFormModal
-        visible={showStorageForm} initial={editProduct}
-        onClose={() => { setShowStorageForm(false); setEditProduct(null); }}
-        onSave={handleStorageSave}
       />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F1F5F9" },
-  tabBar:           { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  tabItem:          { flex: 1, paddingVertical: 14, alignItems: "center" },
-  tabItemActive:    { borderBottomWidth: 2, borderBottomColor: P },
-  tabTxt:           { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  tabTxtActive:     { color: P },
-  createBtn:        { flexDirection: "row", alignItems: "center", gap: 6, margin: 16, marginBottom: 0, backgroundColor: P, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12 },
-  createBtnTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
-  infoBox:          { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12, marginBottom: 12 },
-  infoTxt:          { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#5B21B6", lineHeight: 17 },
-  empty:            { alignItems: "center", paddingTop: 60, gap: 12 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  storageSummary:   { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
-  storageStatCard:  { flex: 1, minWidth: "45%", backgroundColor: "#fff", borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB" },
-  storageStatNum:   { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  storageStatLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3, textAlign: "center" },
-  sectionDivider:   { borderTopWidth: 1, borderTopColor: "#E5E7EB", paddingTop: 12, marginBottom: 12 },
-  sectionLabel:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  sectionHint:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  safe:       { flex: 1, backgroundColor: "#F8F9FF" },
+  createBtn:  { flexDirection: "row", alignItems: "center", gap: 8, margin: 16, marginBottom: 0,
+                backgroundColor: P, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16 },
+  createBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
+
+  guideBox:   { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  guideGroupTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
+  guideTable: { gap: 0 },
+  guideHeader: { flexDirection: "row", paddingBottom: 6, borderBottomWidth: 1, borderColor: "#F1F5F9", gap: 4 },
+  guideHeaderTxt: { flex: 1, fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  guideRow:   { flexDirection: "row", paddingVertical: 5, borderBottomWidth: 1, borderColor: "#F8FAFC", gap: 4 },
+  guideCellTxt: { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+
+  divider:    { height: 1, backgroundColor: "#E5E7EB", marginVertical: 8 },
+  sectionLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
+
+  empty:      { alignItems: "center", paddingTop: 40, gap: 8 },
+  emptyTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
 });

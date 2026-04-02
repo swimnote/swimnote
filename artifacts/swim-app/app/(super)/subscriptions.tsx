@@ -27,15 +27,17 @@ const TABS = [
 ];
 
 const TIER_NAME: Record<string, string> = {
-  free:             "무료",
-  starter:          "스타터",
-  basic:            "베이직",
-  standard:         "스탠다드",
-  growth:           "어드밴스",
-  pro:              "프로",
-  max:              "맥스",
-  enterprise_2000:  "엔터프라이즈 2000",
-  enterprise_3000:  "엔터프라이즈 3000",
+  free:        "무료",
+  starter:     "Coach 30",
+  basic:       "Coach 50",
+  standard:    "Coach 100",
+  center_200:  "Premier 200",
+  advance:     "Premier 300",
+  center_300:  "Premier 300",
+  pro:         "Premier 500",
+  center_500:  "Premier 500",
+  max:         "Premier 1000",
+  center_1000: "Premier 1000",
 };
 
 const SUB_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
