@@ -121,7 +121,8 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 상단: 로고만 ── */}
+        {/* ── 전체 콘텐츠 (로고 + 폼 + 구분선 + 가입 버튼) ── */}
+        <View style={s.bottomSection}>
         <Animated.View style={[s.logoArea, { transform: [{ scale: logoScale }] }]}>
           <View style={s.logoWrap}>
             <View style={s.logoBorder}>
@@ -135,8 +136,6 @@ export default function LoginScreen() {
           <Animated.Text style={[s.taglineSub, { opacity: subOpacity }]}>수영장 · 선생님 · 학부모가 하나로</Animated.Text>
         </Animated.View>
 
-        {/* ── 하단: 폼 + 구분선 + 가입 버튼 ── */}
-        <View style={s.bottomSection}>
         {/* ── 로그인 폼 ── */}
         <View style={s.form}>
           {/* 아이디 */}
@@ -294,7 +293,7 @@ export default function LoginScreen() {
 
 const s = StyleSheet.create({
   root:    { flex: 1 },
-  scroll:  { flexGrow: 1, paddingHorizontal: 24, justifyContent: "space-between" },
+  scroll:  { flexGrow: 1, paddingHorizontal: 24, justifyContent: "flex-end" },
 
   /* 로고 */
   logoArea:  { alignItems: "center", marginBottom: 32 },
