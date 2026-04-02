@@ -385,7 +385,7 @@ export default function SupportScreen() {
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       {/* 고정 헤더 */}
-      <SubScreenHeader title="고객센터" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="고객센터" homePath="/(super)/support-group" />
 
       {/* SLA 초과 알림 배너 */}
       {slaCount > 0 && (

@@ -55,7 +55,7 @@ export default function OpGroupScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="운영 관리" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="운영 관리" homePath="/(super)/more" />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 60 }}>
         {/* 요약 */}
         <View style={s.summaryRow}>

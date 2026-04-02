@@ -106,7 +106,7 @@ export default function OpLogsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="운영 로그" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="운영 로그" homePath="/(super)/audit-group" />
 
       {/* 카운트 배너 */}
       <View style={s.countBanner}>

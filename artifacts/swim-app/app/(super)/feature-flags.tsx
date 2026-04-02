@@ -169,7 +169,7 @@ export default function FeatureFlagsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="기능 플래그" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="기능 플래그" homePath="/(super)/protect-group" />
 
       <ScrollView
         contentContainerStyle={{ padding: 14, gap: 16, paddingBottom: 80 }}

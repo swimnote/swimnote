@@ -179,7 +179,7 @@ export default function AdsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="광고 관리" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="광고 관리" homePath="/(super)/more" />
 
       {/* 안내 배너 */}
       <View style={s.noticeBanner}>

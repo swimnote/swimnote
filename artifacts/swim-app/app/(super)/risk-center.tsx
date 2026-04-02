@@ -189,7 +189,7 @@ export default function RiskCenterScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="장애·리스크 센터" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="장애·리스크 센터" homePath="/(super)/audit-group" />
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 60 }}

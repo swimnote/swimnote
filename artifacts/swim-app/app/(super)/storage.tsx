@@ -219,7 +219,7 @@ export default function StorageScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="저장공간 관리" homePath="/(super)/dashboard"
+      <SubScreenHeader title="저장공간 관리" homePath="/(super)/op-group"
         rightSlot={
           <Pressable onPress={() => router.push("/(super)/storage-policy" as any)}
             style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>

@@ -229,7 +229,7 @@ export default function ReadonlyControlScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <SubScreenHeader title="읽기전용 제어" subtitle="3단계 읽기전용 제어 시스템" />
+      <SubScreenHeader title="읽기전용 제어" subtitle="3단계 읽기전용 제어 시스템" homePath="/(super)/protect-group" />
 
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}

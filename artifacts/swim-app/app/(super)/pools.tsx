@@ -317,7 +317,7 @@ export default function SuperPoolsScreen() {
         </Pressable>
       </Modal>
 
-      <SubScreenHeader title="운영자 관리" />
+      <SubScreenHeader title="운영자 관리" homePath="/(super)/op-group" />
 
       {/* 검색 + 정렬 */}
       <View style={s.searchRow}>

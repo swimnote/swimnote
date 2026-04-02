@@ -240,7 +240,7 @@ export default function NoticesScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="공지 관리" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="공지 관리" homePath="/(super)/more" />
 
       {/* 안내 */}
       <View style={s.infoBanner}>

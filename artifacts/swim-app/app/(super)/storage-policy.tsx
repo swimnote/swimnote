@@ -96,7 +96,7 @@ export default function StoragePolicyScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="저장공간 정책 설정" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="저장공간 정책 설정" homePath="/(super)/op-group" />
 
       <View style={[styles.infoBanner, { marginHorizontal: 20 }]}>
         <Info size={14} color={PURPLE} />

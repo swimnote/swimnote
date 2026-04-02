@@ -127,7 +127,7 @@ export default function CostAnalyticsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="비용·지출" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="비용·지출" homePath="/(super)/more" />
 
       <View style={s.tabRow}>
         {TABS.map(t => (

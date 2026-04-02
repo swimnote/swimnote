@@ -1322,7 +1322,7 @@ export default function BackupScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <SubScreenHeader title="백업/복구" subtitle="DB 전체 백업 및 복구 관리" />
+      <SubScreenHeader title="백업/복구" subtitle="DB 전체 백업 및 복구 관리" homePath="/(super)/protect-group" />
 
       <FlatList
         data={filtered}

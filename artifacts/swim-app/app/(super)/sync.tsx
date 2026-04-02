@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
-import { PageHeader } from "@/components/common/PageHeader";
+import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAuth } from "@/context/AuthContext";
 import { useOperatorsStore } from "@/store/operatorsStore";
 import { useAuditLogStore } from "@/store/auditLogStore";
@@ -172,7 +172,7 @@ export default function SuperSyncScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <PageHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" />
+      <SubScreenHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" homePath="/(super)/more" />
 
       <ScrollView showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}

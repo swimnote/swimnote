@@ -491,7 +491,7 @@ export default function SubscriptionProductsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <SubScreenHeader title="구독 상품 설정" subtitle="플랜 및 추가 용량 상품 관리" />
+      <SubScreenHeader title="구독 상품 설정" subtitle="플랜 및 추가 용량 상품 관리" homePath="/(super)/more" />
 
       {/* 탭 */}
       <View style={s.tabBar}>

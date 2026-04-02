@@ -165,7 +165,7 @@ export default function KillSwitchScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="데이터·킬스위치" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="데이터·킬스위치" homePath="/(super)/protect-group" />
 
       {/* 경고 배너 */}
       <View style={s.dangerBanner}>

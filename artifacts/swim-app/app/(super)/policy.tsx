@@ -101,7 +101,7 @@ export default function PolicyScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="정책·컴플라이언스" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="정책·컴플라이언스" homePath="/(super)/more" />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={s.tabContent}>

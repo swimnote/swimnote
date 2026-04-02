@@ -300,7 +300,7 @@ export default function SubscriptionsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <SubScreenHeader title="구독·결제 관리" homePath="/(super)/dashboard" />
+        <SubScreenHeader title="구독·결제 관리" homePath="/(super)/more" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color={P} />
         </View>
@@ -310,7 +310,7 @@ export default function SubscriptionsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="구독·결제 관리" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="구독·결제 관리" homePath="/(super)/more" />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.summaryBar} contentContainerStyle={s.summaryContent}>

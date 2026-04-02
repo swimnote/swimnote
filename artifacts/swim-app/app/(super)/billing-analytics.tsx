@@ -187,7 +187,7 @@ export default function BillingAnalyticsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="매출·정산 관리" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="매출·정산 관리" homePath="/(super)/more" />
 
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 60 }}

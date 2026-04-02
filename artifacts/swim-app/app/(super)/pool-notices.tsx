@@ -287,7 +287,7 @@ export default function PoolNoticesScreen() {
   // ── 렌더 ─────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="공지사항 관리" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="공지사항 관리" homePath="/(super)/support-group" />
 
       {/* ── 공지 범위 탭 ── */}
       <View style={s.tabBar}>
