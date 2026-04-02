@@ -13,7 +13,7 @@
  *   I. 성장 카드
  *   J. 출석 카드
  */
-import { Bell, Link, Settings } from "lucide-react-native";
+import { Bell, Settings } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -65,7 +65,7 @@ export default function ParentHomeScreen() {
   const [summary, setSummary] = useState<HomeSummary>(EMPTY_SUMMARY);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [pendingRefreshing, setPendingRefreshing] = useState(false);
+
 
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== "web") {
@@ -174,92 +174,6 @@ export default function ParentHomeScreen() {
     );
   }
 
-  // 자녀 미연결 — 수영장 승인 대기 화면
-  if (!ctxLoading && students.length === 0) {
-    return (
-      <View style={[s.root, { backgroundColor: C.background }]}>
-        {/* 헤더 */}
-        <View style={[s.header, { paddingTop: PT }]}>
-          <Text style={[s.poolName, { color: C.textMuted }]} numberOfLines={1}>
-            {parentAccount?.pool_name || "수영장"}
-          </Text>
-          <View style={s.headerBtns}>
-            <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/notifications" as any)}>
-              <Bell size={19} color={C.textSecondary} />
-            </Pressable>
-            <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/more" as any)}>
-              <Settings size={19} color={C.textSecondary} />
-            </Pressable>
-          </View>
-        </View>
-
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: insets.bottom + 40, gap: 16 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* 자녀 카드 플레이스홀더 */}
-          <View style={{ backgroundColor: C.card, borderRadius: 18, padding: 20, borderWidth: 1.5, borderColor: C.border, borderStyle: "dashed", gap: 10 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center" }}>
-                <Link size={22} color={C.textMuted} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
-                  자녀 연결 대기 중
-                </Text>
-                <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 3 }}>
-                  새로고침 시 자동으로 연결됩니다
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* 안내 카드 */}
-          <View style={{ backgroundColor: C.card, borderRadius: 16, padding: 18, gap: 14 }}>
-            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text }}>연결 방법</Text>
-            {[
-              "수영장에서 자녀 회원등록이 완료되었다면 아래 새로고침을 눌러주세요.",
-              "가입 시 입력한 전화번호와 등록된 연락처가 일치하면 즉시 자동 연결됩니다.",
-              "연결이 안 된다면 수영장에 등록된 연락처와 가입 전화번호가 같은지 확인하세요.",
-            ].map((txt, i) => (
-              <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center", marginTop: 1 }}>
-                  <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.tint }}>{i + 1}</Text>
-                </View>
-                <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>{txt}</Text>
-              </View>
-            ))}
-          </View>
-
-          {/* 새로고침 버튼 — 전화번호 자동 매칭 재시도 포함 */}
-          <Pressable
-            style={{ backgroundColor: C.button, borderRadius: 14, paddingVertical: 15, alignItems: "center", opacity: pendingRefreshing ? 0.7 : 1 }}
-            disabled={pendingRefreshing}
-            onPress={async () => {
-              setPendingRefreshing(true);
-              try {
-                // 1) 전화번호 기반 자동 매칭 재시도
-                await apiRequest(token, "/parent/auto-link-students", { method: "POST" });
-              } catch { }
-              // 2) 학생 목록 새로고침
-              await refresh();
-              setPendingRefreshing(false);
-            }}
-          >
-            {pendingRefreshing
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>새로고침</Text>}
-          </Pressable>
-
-          <Pressable style={{ alignItems: "center", paddingTop: 4 }} onPress={() => router.push("/(parent)/more" as any)}>
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
-              설정 및 계정 정보 보기
-            </Text>
-          </Pressable>
-        </ScrollView>
-      </View>
-    );
-  }
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
