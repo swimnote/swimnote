@@ -14,6 +14,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
 import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
 
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import AuditModal from "@/components/teacher/diary/AuditModal";
 import DiaryWriteView from "@/components/teacher/diary/DiaryWriteView";
 import DiaryEditView from "@/components/teacher/diary/DiaryEditView";
@@ -81,13 +82,23 @@ export default function TeacherDiaryScreen() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError,   setDeleteError]   = useState<string | null>(null);
 
+  type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
+  const [planFeatures,       setPlanFeatures]       = useState<PlanFeatures | null>(null);
+  const [showVideoGateModal, setShowVideoGateModal] = useState(false);
+  const [showStorageModal,   setShowStorageModal]   = useState(false);
+
   const load = useCallback(async () => {
     try {
-      const [cgRes, attRes, dRes] = await Promise.all([
+      const [cgRes, attRes, dRes, featRes] = await Promise.all([
         apiRequest(token, "/class-groups"),
         apiRequest(token, `/attendance?date=${targetDate}`),
         apiRequest(token, `/diaries?lesson_date=${targetDate}`),
+        apiRequest(token, "/billing/features"),
       ]);
+      if (featRes.ok) {
+        const feat = await featRes.json().catch(() => null);
+        if (feat) setPlanFeatures(feat);
+      }
       let groupsList: TeacherClassGroup[] = [];
       if (cgRes.ok) { groupsList = await cgRes.json(); setGroups(groupsList); }
       if (attRes.ok) {
@@ -151,6 +162,8 @@ export default function TeacherDiaryScreen() {
 
   async function uploadGroupMedia(kind: "photo" | "video") {
     if (!selectedGroup) return;
+    if (kind === "video" && planFeatures && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
+    if (planFeatures && planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -176,6 +189,8 @@ export default function TeacherDiaryScreen() {
   }
 
   async function uploadStudentMedia(student: StudentOption, kind: "photo" | "video") {
+    if (kind === "video" && planFeatures && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
+    if (planFeatures && planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -391,6 +406,24 @@ export default function TeacherDiaryScreen() {
         {auditTarget && (
           <AuditModal diaryId={auditTarget} token={token!} onClose={() => setAuditTarget(null)} />
         )}
+        <ConfirmModal
+          visible={showVideoGateModal}
+          title="영상 업로드 불가"
+          message={`현재 플랜(${planFeatures?.tier ?? "Free"})은 영상 업로드를 지원하지 않습니다.\nCenter 200 이상 플랜에서 영상을 업로드할 수 있습니다.`}
+          confirmText="플랜 업그레이드"
+          cancelText="닫기"
+          onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
+          onCancel={() => setShowVideoGateModal(false)}
+        />
+        <ConfirmModal
+          visible={showStorageModal}
+          title="저장공간 초과"
+          message={`저장공간이 가득 찼습니다 (${planFeatures?.storage_used_pct ?? 100}% 사용 중).\n상위 플랜으로 업그레이드하거나 기존 파일을 삭제해주세요.`}
+          confirmText="플랜 업그레이드"
+          cancelText="닫기"
+          onConfirm={() => { setShowStorageModal(false); router.push("/(admin)/billing" as any); }}
+          onCancel={() => setShowStorageModal(false)}
+        />
       </SafeAreaView>
     );
   }

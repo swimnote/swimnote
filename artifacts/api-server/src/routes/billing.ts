@@ -20,6 +20,56 @@ import { billingEnabled } from "../config/billing.js";
 
 const router = Router();
 
+// ── 플랜 기능 조회 (billingEnabled 무관, 전 역할 접근 가능) ──────────────
+const CENTER_TIERS = new Set(["center_200", "advance", "pro", "max"]);
+
+router.get("/features", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    if (!poolId) { res.json({ video_enabled: false, storage_quota_gb: 0.5, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" }); return; }
+
+    let tier = "free";
+    let uploadBlocked = false;
+    try {
+      const [row] = (await db.execute(sql`
+        SELECT COALESCE(ps.tier, sp.subscription_tier, 'free') AS tier,
+               sp.upload_blocked
+        FROM swimming_pools sp
+        LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = sp.id AND ps.status = 'active'
+        WHERE sp.id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (row) { tier = row.tier ?? "free"; uploadBlocked = !!row.upload_blocked; }
+    } catch {}
+
+    let storageQuotaGb = 0.5;
+    try {
+      const [plan] = (await db.execute(sql`SELECT storage_gb FROM subscription_plans WHERE tier = ${tier} LIMIT 1`)).rows as any[];
+      if (plan) storageQuotaGb = Number(plan.storage_gb ?? 0.5);
+    } catch {}
+
+    let usedBytes = 0;
+    try {
+      const [r] = (await db.execute(sql`SELECT COALESCE(SUM(file_size_bytes),0) AS used_bytes FROM student_photos WHERE swimming_pool_id = ${poolId}`)).rows as any[];
+      usedBytes = Number(r?.used_bytes ?? 0);
+    } catch {}
+
+    const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
+    const storageUsedPct = storageQuotaGb > 0 ? Math.round((storageUsedGb / storageQuotaGb) * 100) : 0;
+
+    res.json({
+      video_enabled: CENTER_TIERS.has(tier),
+      storage_quota_gb: storageQuotaGb,
+      storage_used_gb: storageUsedGb,
+      storage_used_pct: storageUsedPct,
+      upload_blocked: uploadBlocked,
+      tier,
+    });
+  } catch (err) {
+    console.error("[billing/features]", err);
+    res.json({ video_enabled: false, storage_quota_gb: 0.5, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
+  }
+});
+
 // ── 앱스토어 제출용: 결제 기능 비활성화 차단 ──────────────────────────────
 router.use((_req, res, next) => {
   if (!billingEnabled) {

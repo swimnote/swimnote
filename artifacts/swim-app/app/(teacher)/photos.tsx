@@ -8,6 +8,7 @@
  *  - item.file_url 이 없을 때 → photoUri("") → "" 처리
  *  - Mock 데이터로 UI 테스트 가능
  */
+import { router } from "expo-router";
 import { Check, ChevronRight, CircleAlert, CloudUpload, Database, HardDrive, Image as ImageIcon, Plus, RefreshCw, SquareCheck, Trash2, Users, Video, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
@@ -179,6 +180,11 @@ export default function TeacherPhotosScreen() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
 
+  type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
+  const [planFeatures,       setPlanFeatures]       = useState<PlanFeatures | null>(null);
+  const [showVideoGateModal, setShowVideoGateModal] = useState(false);
+  const [showStorageModal,   setShowStorageModal]   = useState(false);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
@@ -193,11 +199,16 @@ export default function TeacherPhotosScreen() {
     let canceled = false;
     (async () => {
       try {
-        const [cgRes, stRes, usageRes] = await Promise.all([
+        const [cgRes, stRes, usageRes, featRes] = await Promise.all([
           apiRequest(token, "/class-groups"),
           apiRequest(token, "/students"),
           apiRequest(token, "/teacher/me/media-usage"),
+          apiRequest(token, "/billing/features"),
         ]);
+        if (featRes?.ok) {
+          const feat = await featRes.json().catch(() => null);
+          if (!canceled && feat) setPlanFeatures(feat);
+        }
         if (canceled) return;
         const [cls, sts] = await Promise.all([safeJson(cgRes), safeJson(stRes)]);
         if (canceled) return;
@@ -337,6 +348,8 @@ export default function TeacherPhotosScreen() {
 
   async function pickAndUpload() {
     const isVideo = mediaType === "video";
+    if (isVideo && planFeatures && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
+    if (planFeatures && planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }
@@ -766,6 +779,24 @@ export default function TeacherPhotosScreen() {
           confirmText="확인"
           onConfirm={() => setErrorMsg(null)}
         />
+        <ConfirmModal
+          visible={showVideoGateModal}
+          title="영상 업로드 불가"
+          message={`현재 플랜(${planFeatures?.tier ?? "Free"})은 영상 업로드를 지원하지 않습니다.\nCenter 200 이상 플랜에서 영상을 업로드할 수 있습니다.`}
+          confirmText="플랜 업그레이드"
+          cancelText="닫기"
+          onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
+          onCancel={() => setShowVideoGateModal(false)}
+        />
+        <ConfirmModal
+          visible={showStorageModal}
+          title="저장공간 초과"
+          message={`저장공간이 가득 찼습니다 (${planFeatures?.storage_used_pct ?? 100}% 사용 중).\n상위 플랜으로 업그레이드하거나 기존 파일을 삭제해주세요.`}
+          confirmText="플랜 업그레이드"
+          cancelText="닫기"
+          onConfirm={() => { setShowStorageModal(false); router.push("/(admin)/billing" as any); }}
+          onCancel={() => setShowStorageModal(false)}
+        />
       </SafeAreaView>
     );
   }
@@ -880,6 +911,24 @@ export default function TeacherPhotosScreen() {
         message={errorMsg ?? ""}
         confirmText="확인"
         onConfirm={() => setErrorMsg(null)}
+      />
+      <ConfirmModal
+        visible={showVideoGateModal}
+        title="영상 업로드 불가"
+        message={`현재 플랜(${planFeatures?.tier ?? "Free"})은 영상 업로드를 지원하지 않습니다.\nCenter 200 이상 플랜에서 영상을 업로드할 수 있습니다.`}
+        confirmText="플랜 업그레이드"
+        cancelText="닫기"
+        onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
+        onCancel={() => setShowVideoGateModal(false)}
+      />
+      <ConfirmModal
+        visible={showStorageModal}
+        title="저장공간 초과"
+        message={`저장공간이 가득 찼습니다 (${planFeatures?.storage_used_pct ?? 100}% 사용 중).\n상위 플랜으로 업그레이드하거나 기존 파일을 삭제해주세요.`}
+        confirmText="플랜 업그레이드"
+        cancelText="닫기"
+        onConfirm={() => { setShowStorageModal(false); router.push("/(admin)/billing" as any); }}
+        onCancel={() => setShowStorageModal(false)}
       />
     </SafeAreaView>
   );

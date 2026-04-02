@@ -30,6 +30,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
 const CHUNK_SIZE = 30;
@@ -236,7 +237,7 @@ async function downloadTemplate() {
 
 // ────────────────────────────────────────────────────────────────
 export default function BulkRegisterScreen() {
-  const { token } = useAuth();
+  const { token, pool } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
@@ -249,6 +250,7 @@ export default function BulkRegisterScreen() {
   const [progress, setProgress] = useState<BatchProgress>({
     total: 0, done: 0, succeeded: 0, failed: [],
   });
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
 
   const validRows  = rows.filter(r => !r._rowError && r.name.trim());
   const errorRows  = rows.filter(r => !!r._rowError);
@@ -361,6 +363,14 @@ export default function BulkRegisterScreen() {
       return;
     }
 
+    // 학생 수 한도 초과 사전 경고
+    const memberCount  = (pool as any)?.member_count ?? 0;
+    const memberLimit  = (pool as any)?.member_limit ?? 9999;
+    if (memberCount + validRows.length > memberLimit) {
+      setShowLimitWarning(true);
+      return;
+    }
+
     // 중복 포함 시 확인
     if (dupRows.length > 0) {
       const ok = await new Promise<boolean>(resolve =>
@@ -444,7 +454,7 @@ export default function BulkRegisterScreen() {
       limitReached,
     });
     setStep("done");
-  }, [validRows, dupRows, token]);
+  }, [validRows, dupRows, token, pool]);
 
   const resetAll = () => {
     setStep("pick");
@@ -825,6 +835,16 @@ export default function BulkRegisterScreen() {
           </View>
         )}
       </ScrollView>
+
+      <ConfirmModal
+        visible={showLimitWarning}
+        title="등록 가능 인원 초과"
+        message={`현재 플랜 한도(${(pool as any)?.member_limit ?? "?"}명)를 초과합니다.\n(현재 ${(pool as any)?.member_count ?? 0}명 + 신규 ${validRows.length}명)\n상위 플랜으로 업그레이드해주세요.`}
+        confirmText="플랜 업그레이드"
+        cancelText="닫기"
+        onConfirm={() => { setShowLimitWarning(false); router.push("/(admin)/billing" as any); }}
+        onCancel={() => setShowLimitWarning(false)}
+      />
     </View>
   );
 }
