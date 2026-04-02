@@ -327,7 +327,8 @@ export default function BillingScreen() {
                 const storage   = meta?.storage ?? "";
                 const priceStr  = pkg.product.priceString;
                 const isHigher  = !isSubscribed || (meta?.memberLimit ?? 0) > (PACKAGE_META[activePackageId ?? ""]?.memberLimit ?? 0);
-                const btnLabel  = isCurrent ? "현재 플랜" : isHigher ? "업그레이드" : "다운그레이드";
+                const store     = Platform.OS === "ios" ? "Apple" : "Google Play";
+                const btnLabel  = isCurrent ? "현재 플랜" : isHigher ? `${store}로 업그레이드` : `${store}로 변경`;
                 const btnColor  = isCurrent ? "#E5E7EB" : themeColor;
                 const btnTxtColor = isCurrent ? "#9CA3AF" : "#fff";
 

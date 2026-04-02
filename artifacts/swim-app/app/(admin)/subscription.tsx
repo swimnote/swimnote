@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, ScrollView,
+  ActivityIndicator, Platform, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
 import { router } from "expo-router";
@@ -141,11 +141,16 @@ export default function SubscriptionScreen() {
             style={({ pressed }) => [s.billingBtn, { opacity: pressed ? 0.7 : 1 }]}
             onPress={goToBilling}
           >
-            <Text style={s.billingBtnText}>결제 · 카드 관리</Text>
+            <Text style={s.billingBtnText}>
+              {Platform.OS === "ios" ? "Apple 구독 관리" : "Google Play 구독 관리"}
+            </Text>
           </Pressable>
 
           <Text style={[s.disclaimer, { color: C.textMuted }]}>
-            부가세(VAT) 포함 금액입니다. 구독은 매월 자동 갱신됩니다.
+            부가세(VAT) 포함 금액입니다. 구독은 매월 자동 갱신됩니다.{"\n"}
+            {Platform.OS === "ios"
+              ? "결제는 App Store(Apple)를 통해 처리됩니다."
+              : "결제는 Google Play를 통해 처리됩니다."}
           </Text>
         </ScrollView>
       )}
