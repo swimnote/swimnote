@@ -96,9 +96,20 @@ function KpiCard({ label, value, sub, color, small }: { label: string; value: st
 
 // ─── 메인 ─────────────────────────────────────────────────────────────────
 interface RevLog {
-  id: string; plan_id: string; plan_name?: string;
-  charged_amount: number; refunded_amount: number;
-  event_type?: string; intro_discount_amount?: number;
+  id: string;
+  pool_id?: string;
+  pool_name?: string;
+  plan_id: string;
+  plan_name?: string;
+  charged_amount: number;
+  refunded_amount: number;
+  gross_amount?: number;
+  store_fee?: number;
+  net_revenue?: number;
+  event_type?: string;
+  intro_discount_amount?: number;
+  occurred_at?: string;
+  payment_provider?: string;
 }
 interface RevSummary {
   total_charged: number; total_refunded: number;
@@ -106,6 +117,23 @@ interface RevSummary {
   total_discount: number; count: number;
 }
 interface PlanStat { plan_id: string; plan_name?: string; payment_count: number; total_amount: number; }
+interface PoolStat { pool_id: string; pool_name?: string; payment_count: number; total_amount: number; total_net_revenue: number; }
+
+const EVENT_LABEL: Record<string, string> = {
+  first_payment:    "신규 결제",
+  new_subscription: "신규 구독",
+  renewal:          "구독 갱신",
+  refund:           "환불",
+  upgrade:          "플랜 업그레이드",
+  downgrade:        "플랜 다운그레이드",
+  cancellation:     "구독 해지",
+};
+
+function fmtDate(iso?: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
 
 interface PlatformMetrics {
   total_storage_bytes: number;
@@ -129,6 +157,7 @@ export default function BillingAnalyticsScreen() {
   const [summary,       setSummary]       = useState<RevSummary | null>(null);
   const [prevSummary,   setPrevSummary]   = useState<RevSummary | null>(null);
   const [planStats,     setPlanStats]     = useState<PlanStat[]>([]);
+  const [poolStats,     setPoolStats]     = useState<PoolStat[]>([]);
   const [platformMetrics, setPlatformMetrics] = useState<PlatformMetrics | null>(null);
   const [refreshing,    setRefreshing]    = useState(false);
 
@@ -138,17 +167,19 @@ export default function BillingAnalyticsScreen() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [curRes, prevRes, planRes, metRes] = await Promise.all([
-        apiRequest(token, `/billing/revenue-logs?start=${toDateStr(start)}&end=${toDateStr(end)}`),
+      const [curRes, prevRes, planRes, poolRes, metRes] = await Promise.all([
+        apiRequest(token, `/billing/revenue-logs?start=${toDateStr(start)}&end=${toDateStr(end)}&limit=200`),
         apiRequest(token, `/billing/revenue-logs?start=${toDateStr(prevStart)}&end=${toDateStr(prevEnd)}`),
         apiRequest(token, "/billing/revenue-by-plan"),
+        apiRequest(token, "/billing/revenue-by-pool"),
         apiRequest(token, "/super/platform-metrics"),
       ]);
-      const [curData, prevData, planData] = await Promise.all([curRes.json(), prevRes.json(), planRes.json()]);
+      const [curData, prevData, planData, poolData] = await Promise.all([curRes.json(), prevRes.json(), planRes.json(), poolRes.json()]);
       setLogs(Array.isArray(curData.logs) ? curData.logs : []);
       setSummary(curData.summary ?? null);
       setPrevSummary(prevData.summary ?? null);
       setPlanStats(Array.isArray(planData) ? planData : []);
+      setPoolStats(Array.isArray(poolData) ? poolData : []);
       if (metRes.ok) setPlatformMetrics(await metRes.json());
     } catch (e) { console.error("billing-analytics fetchData:", e); }
   }, [token, start, end, prevStart, prevEnd]);
@@ -263,7 +294,7 @@ export default function BillingAnalyticsScreen() {
             Object.entries(revenue.planMap).map(([planId, info]) => (
               <View key={planId} style={s.planRow}>
                 <View style={s.planLeft}>
-                  <Text style={s.planName}>{info.planName}</Text>
+                  <Text style={s.planName}>{info.planName || planId}</Text>
                   <Text style={s.planSub}>{info.count}건 결제</Text>
                 </View>
                 <View style={s.planRight}>
@@ -272,13 +303,64 @@ export default function BillingAnalyticsScreen() {
               </View>
             ))
           )}
-          {/* 기타 플랜 — 시드에 없는 플랜 */}
-          <View style={s.planRowExtra}>
-            <Text style={s.planSubNote}>* 업그레이드 결제 건은 플랜 전환 기록으로 별도 추적됩니다.</Text>
-          </View>
         </View>
 
-        {/* ══ 섹션 3: 지출 내역 ══ */}
+        {/* ══ 섹션 3: 수영장별 결제 현황 ══ */}
+        <View style={s.section}>
+          <SectionHeader icon="layers" title="수영장별 결제 현황" />
+          {poolStats.length === 0 ? (
+            <Text style={s.emptyTxt}>결제 이력이 있는 수영장이 없습니다.</Text>
+          ) : (
+            poolStats.map((pool, i) => (
+              <View key={pool.pool_id ?? i} style={s.poolRow}>
+                <View style={s.poolLeft}>
+                  <Text style={s.poolName}>{pool.pool_name ?? pool.pool_id ?? "알 수 없음"}</Text>
+                  <Text style={s.poolSub}>총 {pool.payment_count}건 결제</Text>
+                </View>
+                <View style={s.poolRight}>
+                  <Text style={s.poolAmount}>{fmtKRW(Number(pool.total_amount))}</Text>
+                  <Text style={s.poolNet}>순수익 {fmtKRW(Number(pool.total_net_revenue))}</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* ══ 섹션 4: 개별 결제 내역 ══ */}
+        <View style={s.section}>
+          <SectionHeader icon="list" title="결제 내역" />
+          <Text style={s.estimateNote}>최근 200건 · 선택 기간 내 결제 완료 건</Text>
+          {logs.length === 0 ? (
+            <Text style={s.emptyTxt}>이 기간에 결제 내역이 없습니다.</Text>
+          ) : (
+            logs.map((log, i) => {
+              const isRefund = (log.refunded_amount ?? 0) > 0;
+              const evtLabel = EVENT_LABEL[log.event_type ?? ""] ?? log.event_type ?? "결제";
+              return (
+                <View key={log.id ?? i} style={[s.txRow, i < logs.length - 1 && s.txRowBorder]}>
+                  <View style={s.txLeft}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <Text style={s.txPool}>{log.pool_name ?? "수영장 정보 없음"}</Text>
+                      {isRefund && <View style={s.refundBadge}><Text style={s.refundBadgeTxt}>환불</Text></View>}
+                    </View>
+                    <Text style={s.txPlan}>{log.plan_name ?? log.plan_id ?? "플랜 없음"} · {evtLabel}</Text>
+                    <Text style={s.txDate}>{fmtDate(log.occurred_at)}</Text>
+                  </View>
+                  <View style={s.txRight}>
+                    <Text style={[s.txAmount, isRefund && { color: "#D96C6C" }]}>
+                      {isRefund ? `−${fmtKRW(Number(log.refunded_amount))}` : fmtKRW(Number(log.charged_amount))}
+                    </Text>
+                    {(log.net_revenue ?? 0) > 0 && (
+                      <Text style={s.txNet}>순 {fmtKRW(Number(log.net_revenue))}</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </View>
+
+        {/* ══ 섹션 5: 지출 내역 ══ */}
         <View style={s.section}>
           <SectionHeader icon="minus-circle" title="지출 항목" />
           <View style={[s.estimateNoteBanner]}>
@@ -310,7 +392,7 @@ export default function BillingAnalyticsScreen() {
           </View>
         </View>
 
-        {/* ══ 섹션 4: 순이익 ══ */}
+        {/* ══ 섹션 6: 순이익 ══ */}
         <View style={[s.section, { gap: 10 }]}>
           <SectionHeader icon="bar-chart-2" title="순이익" />
           <View style={s.profitCard}>
@@ -412,4 +494,25 @@ const s = StyleSheet.create({
   profitDivider:    { borderBottomWidth: 1, borderStyle: "dashed", borderColor: "#D1D5DB" },
   marginTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "right" },
   profitNote:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 16 },
+
+  poolRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 10,
+                      borderBottomWidth: 1, borderColor: "#F1F5F9" },
+  poolLeft:         { flex: 1, gap: 2 },
+  poolName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  poolSub:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  poolRight:        { alignItems: "flex-end", gap: 2 },
+  poolAmount:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  poolNet:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+
+  txRow:            { paddingVertical: 12, flexDirection: "row", gap: 8 },
+  txRowBorder:      { borderBottomWidth: 1, borderColor: "#F1F5F9" },
+  txLeft:           { flex: 1, gap: 3 },
+  txRight:          { alignItems: "flex-end", gap: 3 },
+  txPool:           { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  txPlan:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
+  txDate:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  txAmount:         { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  txNet:            { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  refundBadge:      { backgroundColor: "#FEE2E2", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  refundBadgeTxt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 });
