@@ -5,7 +5,7 @@
  * - TOTP 필요 시 /otp-verify?session=... 로 이동
  * - 역할 선택 → org-role-select.tsx로 분리
  */
-import { ArrowLeft, CircleAlert, Hash, Link, Lock, User } from "lucide-react-native";
+import { ArrowLeft, CircleAlert, Lock, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
@@ -31,8 +31,6 @@ export default function LoginPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [inviteCode, setInviteCode] = useState("");
-  const [showInvite, setShowInvite] = useState(false);
 
   async function handleLogin(overrideId?: string, overridePw?: string) {
     const finalId = (overrideId ?? identifier).trim();
@@ -138,40 +136,6 @@ export default function LoginPasswordScreen() {
           </Pressable>
         </View>
 
-        <Pressable
-          style={[styles.inviteToggle, { borderColor: C.border }]}
-          onPress={() => setShowInvite(v => !v)}
-        >
-          <Link size={15} color={C.textSecondary} />
-          <Text style={[styles.inviteToggleText, { color: C.textSecondary }]}>{LOGIN_LABELS.inviteCode.sectionTitle}</Text>
-          <LucideIcon name={showInvite ? "chevron-up" : "chevron-down"} size={15} color={C.textMuted} />
-        </Pressable>
-
-        {showInvite && (
-          <View style={[styles.inviteCard, { backgroundColor: C.card, borderColor: C.border }]}>
-            <Text style={[styles.inviteHelper, { color: C.textSecondary }]}>{LOGIN_LABELS.inviteCode.helper}</Text>
-            <View style={styles.inviteRow}>
-              <View style={[styles.inputRow, styles.inviteInput, { borderColor: C.border, backgroundColor: C.background }]}>
-                <Hash size={15} color={C.textMuted} />
-                <TextInput
-                  style={[styles.input, { color: C.text }]}
-                  value={inviteCode}
-                  onChangeText={setInviteCode}
-                  placeholder={LOGIN_LABELS.inviteCode.placeholder}
-                  placeholderTextColor={C.textMuted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-              <Pressable
-                style={({ pressed }) => [styles.inviteBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => router.push({ pathname: "/(auth)/parent-code-signup" as any, params: { code: inviteCode.trim().toUpperCase() } })}
-              >
-                <Text style={styles.inviteBtnText}>{LOGIN_LABELS.inviteCode.btn}</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -207,18 +171,4 @@ const styles = StyleSheet.create({
   btnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
   forgotRow: { alignItems: "center", paddingVertical: 4 },
   forgotText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  inviteToggle: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    padding: 14, borderRadius: 14, borderWidth: 1.5,
-  },
-  inviteToggleText: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
-  inviteCard: { borderRadius: 16, padding: 16, gap: 12, borderWidth: 1 },
-  inviteHelper: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  inviteRow: { flexDirection: "row", gap: 8 },
-  inviteInput: { flex: 1 },
-  inviteBtn: {
-    height: 52, paddingHorizontal: 16, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
-  },
-  inviteBtnText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
 });

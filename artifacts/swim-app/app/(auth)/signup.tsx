@@ -39,7 +39,7 @@ const STEP_LABELS = ["기본정보", "휴대폰", "역할선택", "추가정보"
 const ROLE_CARDS: Array<{ role: Role; label: string; desc: string; icon: any; bg: string; color: string }> = [
   { role: "admin",   label: "수영장 대표",  desc: "수영장을 직접 운영하는 원장님·원감님\n선생님·학부모 관리 및 전체 운영 담당",     icon: "briefcase", bg: "#EFF4FF", color: "#4F6EF7" },
   { role: "teacher", label: "선생님",       desc: "수영장 대표로부터 초대코드를 받은\n선생님만 가입 가능합니다",                    icon: "award",     bg: "#DFF3EC", color: "#2E9B6F" },
-  { role: "parent",  label: "학부모",       desc: "수영장에서 초대코드를 받으셨나요?\n초대코드로 바로 가입합니다",                  icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
+  { role: "parent",  label: "학부모",       desc: "수영장에 회원 등록이 완료된\n학부모님만 가입 가능합니다",                    icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
 ];
 
 export default function SignupScreen() {
@@ -197,10 +197,6 @@ export default function SignupScreen() {
     }
     if (step === 3) {
       const e = validateStep3(); if (e) { setError(e); return; }
-      if (role === "parent") {
-        router.push("/(auth)/parent-code-signup" as any);
-        return;
-      }
       setStep(4); return;
     }
   }
@@ -218,6 +214,8 @@ export default function SignupScreen() {
       if (!poolPhone.trim())   { setError("수영장 전화번호를 입력해주세요."); return; }
     } else if (role === "teacher") {
       if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
+    } else if (role === "parent") {
+      if (!childName.trim()) { setError("자녀 이름을 입력해주세요."); return; }
     }
 
     setLoading(true);
@@ -264,6 +262,26 @@ export default function SignupScreen() {
           return;
         }
 
+      } else if (role === "parent") {
+        res = await fetch(`${API_BASE}/auth/simple-parent-register`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            parent_name: name.trim(),
+            phone: cleaned,
+            loginId: loginId.trim().toLowerCase() || undefined,
+            password: pw,
+            child_name: childName.trim(),
+          }),
+        });
+        data = await safeJson(res);
+        if (!res.ok) {
+          setError(data.error || data.message || "가입에 실패했습니다.");
+          return;
+        }
+        if (data.token) {
+          await setParentSession(data.token, data.parent);
+          return;
+        }
       }
 
       await unifiedLogin(loginId.trim().toLowerCase(), pw);
@@ -511,6 +529,27 @@ export default function SignupScreen() {
           </View>
         )}
 
+        {/* 학부모: 자녀 정보 */}
+        {role === "parent" && (
+          <View style={styles.card}>
+            <Text style={[styles.cardTitle, { color: C.text }]}>자녀 정보</Text>
+            <Text style={[styles.cardHint, { color: C.textSecondary }]}>
+              수영장에 등록된 자녀 이름과 일치해야 합니다
+            </Text>
+            <InputField label="자녀 이름" icon="user">
+              <TextInput
+                style={[styles.input, { color: C.text }]}
+                placeholder="자녀 실명을 입력해주세요"
+                placeholderTextColor={C.textMuted}
+                value={childName}
+                onChangeText={v => setChildName(v.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ\s]/g, ""))}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+            </InputField>
+          </View>
+        )}
+
         {/* 선생님: 수영장 검색 */}
         {role === "teacher" && (
           <View style={styles.card}>
@@ -713,6 +752,7 @@ const styles = StyleSheet.create({
   card:      { borderRadius: 20, backgroundColor: "#fff", padding: 20, gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
   cardTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   cardDesc:  { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: -8 },
+  cardHint:  { fontSize: 12, fontFamily: "Pretendard-Regular", marginBottom: 4 },
 
   field:    { gap: 6 },
   label:    { fontSize: 12, fontFamily: "Pretendard-Regular" },
