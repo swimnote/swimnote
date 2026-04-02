@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
-import { useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
@@ -56,9 +56,19 @@ function MenuItem({
 
 export default function ParentMoreScreen() {
   const insets = useSafeAreaInsets();
-  const { parentAccount, logout } = useAuth();
+  const { parentAccount, logout, token } = useAuth();
   const { students } = useParent();
   const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  async function handleDeleteAccount() {
+    setDeleteLoading(true);
+    try {
+      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      if (res.ok) { setDeleteConfirm(false); await logout(); }
+    } catch { } finally { setDeleteLoading(false); }
+  }
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
@@ -143,6 +153,13 @@ export default function ParentMoreScreen() {
           danger
           onPress={() => setLogoutConfirm(true)}
         />
+        <MenuItem
+          icon="user-x"
+          label="회원 탈퇴"
+          sub="계정 및 데이터 영구 삭제"
+          danger
+          onPress={() => setDeleteConfirm(true)}
+        />
       </ScrollView>
 
       <ConfirmModal
@@ -153,6 +170,15 @@ export default function ParentMoreScreen() {
         destructive
         onConfirm={async () => { setLogoutConfirm(false); await logout(); }}
         onCancel={() => setLogoutConfirm(false)}
+      />
+      <ConfirmModal
+        visible={deleteConfirm}
+        title="회원 탈퇴"
+        message={"계정을 삭제하면 모든 데이터가 영구적으로\n삭제되며 복구할 수 없습니다.\n정말 탈퇴하시겠습니까?"}
+        confirmText={deleteLoading ? "처리 중..." : "탈퇴하기"}
+        destructive
+        onConfirm={handleDeleteAccount}
+        onCancel={() => setDeleteConfirm(false)}
       />
     </View>
   );

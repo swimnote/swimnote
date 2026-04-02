@@ -4,6 +4,7 @@
  */
 import { ChevronRight, Check, Repeat } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -58,7 +59,7 @@ const MY_SETTINGS: MenuItem[] = [
 ];
 
 export default function SettingsScreen() {
-  const { adminUser, switchRole, token } = useAuth();
+  const { adminUser, switchRole, token, logout } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("settings");
@@ -66,6 +67,16 @@ export default function SettingsScreen() {
   const [switchModalVisible, setSwitchModalVisible] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [defaultTeacher, setDefaultTeacher] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  async function handleDeleteAccount() {
+    setDeleteLoading(true);
+    try {
+      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      if (res.ok) { setDeleteConfirm(false); await logout(); }
+    } catch { } finally { setDeleteLoading(false); }
+  }
 
   // I: 설정 완성도
   const [settingsStats, setSettingsStats] = useState<{ total_members: number; total_teachers: number; total_parents: number } | null>(null);
@@ -233,7 +244,26 @@ export default function SettingsScreen() {
         {adminUser?.role !== "sub_admin" && renderSection("운영 설정", OPS_SETTINGS)}
         {adminUser?.role !== "sub_admin" && renderSection("수영장 설정", POOL_SETTINGS)}
         {renderSection("계정 / 기타", MY_SETTINGS)}
+
+        {/* 계정 삭제 */}
+        <Pressable
+          style={({ pressed }) => [s.deleteBtn, { opacity: pressed ? 0.7 : 1 }]}
+          onPress={() => setDeleteConfirm(true)}
+        >
+          <Text style={s.deleteBtnText}>회원 탈퇴</Text>
+        </Pressable>
+
       </ScrollView>
+
+      <ConfirmModal
+        visible={deleteConfirm}
+        title="회원 탈퇴"
+        message={"계정을 삭제하면 모든 데이터가 익명 처리되며\n복구할 수 없습니다. 정말 탈퇴하시겠습니까?"}
+        confirmText={deleteLoading ? "처리 중..." : "탈퇴하기"}
+        destructive
+        onConfirm={handleDeleteAccount}
+        onCancel={() => setDeleteConfirm(false)}
+      />
 
       {/* 역할 전환 모달 */}
       <Modal
@@ -310,6 +340,8 @@ const s = StyleSheet.create({
   menuIcon:       { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   menuLabel:      { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   menuDesc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
+  deleteBtn:      { alignItems: "center", paddingVertical: 14 },
+  deleteBtnText:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 });
 
 // I: 설정 완성도 스타일

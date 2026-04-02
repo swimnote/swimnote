@@ -22,6 +22,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
@@ -49,7 +50,7 @@ function fmtBytes(bytes: number): string {
 }
 
 export default function TeacherSettingsScreen() {
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("settings");
@@ -57,6 +58,16 @@ export default function TeacherSettingsScreen() {
   const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  async function handleDeleteAccount() {
+    setDeleteLoading(true);
+    try {
+      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      if (res.ok) { setDeleteConfirm(false); await logout(); }
+    } catch { } finally { setDeleteLoading(false); }
+  }
 
   /* 알림 설정 */
   const [notiMessage,  setNotiMessage]  = useState(true);
@@ -321,7 +332,25 @@ export default function TeacherSettingsScreen() {
           ))}
         </View>
 
+        {/* 회원 탈퇴 */}
+        <Pressable
+          style={({ pressed }) => [s.deleteBtn, { opacity: pressed ? 0.7 : 1 }]}
+          onPress={() => setDeleteConfirm(true)}
+        >
+          <Text style={s.deleteBtnText}>회원 탈퇴</Text>
+        </Pressable>
+
       </ScrollView>
+
+      <ConfirmModal
+        visible={deleteConfirm}
+        title="회원 탈퇴"
+        message={"계정을 삭제하면 모든 데이터가 익명 처리되며\n복구할 수 없습니다. 정말 탈퇴하시겠습니까?"}
+        confirmText={deleteLoading ? "처리 중..." : "탈퇴하기"}
+        destructive
+        onConfirm={handleDeleteAccount}
+        onCancel={() => setDeleteConfirm(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -356,4 +385,6 @@ const s = StyleSheet.create({
   policyLabel:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   feeBtn:           { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
   feeBtnText:       { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
+  deleteBtn:        { alignItems: "center", paddingVertical: 14 },
+  deleteBtnText:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 });
