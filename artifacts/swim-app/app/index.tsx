@@ -365,8 +365,8 @@ const s = StyleSheet.create({
     shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
   },
   kakaoBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#3C1E1E" },
-  regularBtn:   { backgroundColor: "#F1F5F9", borderWidth: 1.5, borderColor: "#E2E8F0" },
-  regularBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#475569" },
+  regularBtn:   { backgroundColor: "#97cdf7", borderWidth: 1.5, borderColor: "#97cdf7" },
+  regularBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0a2540" },
 
   /* 모달 */
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
