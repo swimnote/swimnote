@@ -1,304 +1,244 @@
 /**
- * (admin)/subscription.tsx — RevenueCat 구독 관리
+ * (admin)/subscription.tsx — 구독 플랜 선택 화면
  *
- * Solo 티어 / Center 티어 인앱 결제
- * - useSubscription 훅으로 현재 구독 상태 확인
- * - 오퍼링에서 실시간 가격 표시 (하드코딩 없음)
- * - 구매 / 복원 지원
+ * Solo 티어 (개인 선생님): 30명 / 50명 / 100명
+ * Center 티어 (수영장 운영): 300명 / 500명 / 1000명
+ *
+ * 결제는 기존 billing 시스템을 통해 처리됩니다.
  */
-import { Check, Crown, RefreshCw, ShieldCheck, Zap } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Modal, Platform, Pressable, ScrollView,
+  ActivityIndicator, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Crown, Users, HardDrive, Check, Zap } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useSubscription } from "@/lib/revenuecat";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
-const SOLO_FEATURES = [
-  "무제한 수업일지 작성",
-  "수업 사진 첨부",
-  "학부모 앱 연동",
-  "출결 관리",
-  "공지/쪽지 발송",
-  "학생 30명까지 (Solo 제한)",
-  "영상 첨부 ❌",
+interface PlanMeta {
+  tier: string;
+  name: string;
+  price: number;
+  limit: number;
+  storage: string;
+  group: "solo" | "center";
+  recommended?: boolean;
+}
+
+const PLANS: PlanMeta[] = [
+  { tier: "starter",  name: "스타터",  price: 2900,  limit: 30,   storage: "600MB", group: "solo" },
+  { tier: "basic",    name: "베이직",  price: 3900,  limit: 50,   storage: "1GB",   group: "solo" },
+  { tier: "standard", name: "스탠다드", price: 9900,  limit: 100,  storage: "5GB",   group: "solo", recommended: true },
+  { tier: "advance",  name: "어드밴스", price: 29000, limit: 300,  storage: "20GB",  group: "center" },
+  { tier: "pro",      name: "프로",    price: 59000, limit: 500,  storage: "40GB",  group: "center" },
+  { tier: "max",      name: "맥스",    price: 99000, limit: 1000, storage: "100GB", group: "center", recommended: true },
 ];
 
-const CENTER_FEATURES = [
-  "Solo 모든 기능 포함",
-  "학생 수 무제한",
-  "수업 영상 첨부 ✅",
-  "여러 선생님 계정",
-  "관리자(sub_admin) 권한",
-  "데이터 무제한 저장",
-  "우선 지원",
-];
+const SOLO_FEATURES  = ["수업일지 무제한", "수업 사진 첨부", "학부모 앱 연동", "출결 관리", "공지/쪽지 발송", "영상 첨부 ❌"];
+const CENTER_FEATURES = ["Solo 모든 기능 포함", "수업 영상 첨부 ✅", "여러 선생님 계정", "관리자(sub_admin) 권한"];
 
-function FeatureRow({ text, included = true }: { text: string; included?: boolean }) {
-  const isNeg = text.includes("❌");
-  return (
-    <View style={f.featureRow}>
-      <LucideIcon name={isNeg ? "x" : "check"} size={15} color={isNeg ? "#9CA3AF" : "#10B981"} />
-      <Text style={[f.featureText, isNeg && { color: "#9CA3AF" }]}>{text.replace("❌", "").replace("✅", "").trim()}</Text>
-    </View>
-  );
+function fmt(price: number) {
+  return price === 0 ? "무료" : `₩${price.toLocaleString("ko-KR")}`;
 }
 
 export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
-  const {
-    isSubscribed, isSoloTier, isCenterTier,
-    soloOffering, centerOffering,
-    isPurchasing, isRestoring, isLoading,
-    purchase, restore,
-  } = useSubscription();
+  const { token } = useAuth();
 
-  const [confirmPlan, setConfirmPlan] = useState<"solo" | "center" | null>(null);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [currentTier, setCurrentTier] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const soloPkg   = soloOffering?.availablePackages?.[0];
-  const centerPkg = centerOffering?.availablePackages?.[0];
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiRequest(token, "/billing/status");
+        if (res.ok) {
+          const d = await res.json();
+          setCurrentTier(d.plan_id ?? d.current_plan ?? d.subscription_status ?? null);
+        }
+      } catch {}
+      finally { setLoading(false); }
+    })();
+  }, []);
 
-  const soloPrice   = soloPkg?.product?.priceString   ?? "$9.99";
-  const centerPrice = centerPkg?.product?.priceString ?? "$29.99";
+  const soloPlans   = PLANS.filter(p => p.group === "solo");
+  const centerPlans = PLANS.filter(p => p.group === "center");
 
-  async function handlePurchase(plan: "solo" | "center") {
-    setErrorMsg("");
-    const pkg = plan === "solo" ? soloPkg : centerPkg;
-    if (!pkg) { setErrorMsg("구독 상품을 불러오는 중입니다. 잠시 후 다시 시도해주세요."); return; }
-    try {
-      await purchase(pkg);
-      setConfirmPlan(null);
-    } catch (e: any) {
-      if (e?.userCancelled) return;
-      setErrorMsg(e?.message ?? "구매 중 오류가 발생했습니다.");
-    }
-  }
+  return (
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <SubScreenHeader title="구독 관리" />
 
-  async function handleRestore() {
-    setErrorMsg("");
-    try {
-      await restore();
-    } catch (e: any) {
-      setErrorMsg(e?.message ?? "복원 중 오류가 발생했습니다.");
-    }
-  }
-
-  const PT = insets.top + (Platform.OS === "web" ? 68 : 0);
-
-  if (isLoading) {
-    return (
-      <View style={[s.root, { backgroundColor: C.background }]}>
-        <SubScreenHeader title="구독 관리" />
+      {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color={C.tint} size="large" />
         </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[s.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader title="구독 관리" />
-
-      <ScrollView
-        contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 40 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* 현재 상태 배너 */}
-        <View style={[s.statusBanner, { backgroundColor: isSubscribed ? "#ECFDF5" : "#F8FAFC" }]}>
-          <LucideIcon name={isSubscribed ? "shield-check" : "shield"} size={22} color={isSubscribed ? "#10B981" : C.textMuted} />
-          <View style={{ flex: 1 }}>
-            <Text style={[s.statusTitle, { color: isSubscribed ? "#065F46" : C.text }]}>
-              {isCenterTier ? "Center 티어 이용 중" : isSoloTier ? "Solo 티어 이용 중" : "무료 체험 중"}
-            </Text>
-            <Text style={[s.statusSub, { color: C.textSecondary }]}>
-              {isSubscribed ? "구독이 활성화되어 있습니다" : "구독을 시작하면 더 많은 기능을 이용할 수 있습니다"}
-            </Text>
-          </View>
-        </View>
-
-        {errorMsg ? (
-          <View style={s.errorBox}>
-            <Text style={s.errorText}>{errorMsg}</Text>
-          </View>
-        ) : null}
-
-        {/* Solo 플랜 카드 */}
-        <View style={[s.planCard, isSoloTier && s.activePlanCard, { backgroundColor: C.card }]}>
-          <View style={s.planHeader}>
-            <View style={[s.planIconBox, { backgroundColor: "#EDE9FE" }]}>
-              <Zap size={22} color="#7C3AED" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[s.planName, { color: C.text }]}>Solo</Text>
-              <Text style={[s.planSubtitle, { color: C.textSecondary }]}>개인 선생님 / 소규모</Text>
-            </View>
-            {isSoloTier && (
-              <View style={s.activeBadge}>
-                <Text style={s.activeBadgeText}>현재 플랜</Text>
-              </View>
-            )}
-            <Text style={[s.planPrice, { color: "#7C3AED" }]}>{soloPrice}<Text style={s.planPriceSub}>/월</Text></Text>
-          </View>
-          <View style={s.divider} />
-          {SOLO_FEATURES.map((f, i) => <FeatureRow key={i} text={f} />)}
-          {!isSoloTier && !isCenterTier && (
-            <Pressable
-              style={({ pressed }) => [s.planBtn, { backgroundColor: "#7C3AED", opacity: pressed || isPurchasing ? 0.8 : 1 }]}
-              onPress={() => setConfirmPlan("solo")}
-              disabled={isPurchasing}
-            >
-              <Text style={s.planBtnText}>Solo 시작하기</Text>
-            </Pressable>
-          )}
-        </View>
-
-        {/* Center 플랜 카드 */}
-        <View style={[s.planCard, isCenterTier && s.activePlanCard, { backgroundColor: C.card, borderColor: isCenterTier ? "#F59E0B" : C.border }]}>
-          <View style={[s.recommendedBadge, { backgroundColor: "#F59E0B" }]}>
-            <Crown size={12} color="#fff" />
-            <Text style={s.recommendedText}>추천</Text>
-          </View>
-          <View style={s.planHeader}>
-            <View style={[s.planIconBox, { backgroundColor: "#FEF3C7" }]}>
-              <Crown size={22} color="#F59E0B" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[s.planName, { color: C.text }]}>Center</Text>
-              <Text style={[s.planSubtitle, { color: C.textSecondary }]}>수영장 전체 운영</Text>
-            </View>
-            {isCenterTier && (
-              <View style={[s.activeBadge, { backgroundColor: "#FEF3C7" }]}>
-                <Text style={[s.activeBadgeText, { color: "#92400E" }]}>현재 플랜</Text>
-              </View>
-            )}
-            <Text style={[s.planPrice, { color: "#F59E0B" }]}>{centerPrice}<Text style={s.planPriceSub}>/월</Text></Text>
-          </View>
-          <View style={s.divider} />
-          {CENTER_FEATURES.map((f, i) => <FeatureRow key={i} text={f} />)}
-          {!isCenterTier && (
-            <Pressable
-              style={({ pressed }) => [s.planBtn, { backgroundColor: "#F59E0B", opacity: pressed || isPurchasing ? 0.8 : 1 }]}
-              onPress={() => setConfirmPlan("center")}
-              disabled={isPurchasing}
-            >
-              <Text style={s.planBtnText}>{isSoloTier ? "Center로 업그레이드" : "Center 시작하기"}</Text>
-            </Pressable>
-          )}
-        </View>
-
-        {/* 구매 복원 */}
-        <Pressable
-          style={({ pressed }) => [s.restoreBtn, { opacity: pressed || isRestoring ? 0.7 : 1 }]}
-          onPress={handleRestore}
-          disabled={isRestoring}
+      ) : (
+        <ScrollView
+          contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 40 }]}
+          showsVerticalScrollIndicator={false}
         >
-          {isRestoring ? (
-            <ActivityIndicator color={C.tint} size="small" />
-          ) : (
-            <>
-              <RefreshCw size={14} color={C.tint} />
-              <Text style={[s.restoreText, { color: C.tint }]}>구매 복원</Text>
-            </>
-          )}
-        </Pressable>
-
-        <Text style={[s.disclaimer, { color: C.textMuted }]}>
-          구독은 자동으로 갱신됩니다. 구독 관리 및 해지는 앱스토어/구글플레이에서 가능합니다.
-        </Text>
-      </ScrollView>
-
-      {/* 구매 확인 모달 */}
-      <Modal
-        visible={confirmPlan !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setConfirmPlan(null)}
-      >
-        <View style={s.modalOverlay}>
-          <View style={[s.modalBox, { backgroundColor: C.background }]}>
-            <Text style={[s.modalTitle, { color: C.text }]}>
-              {confirmPlan === "solo" ? "Solo 구독 시작" : "Center 구독 시작"}
-            </Text>
-            <Text style={[s.modalBody, { color: C.textSecondary }]}>
-              {confirmPlan === "solo"
-                ? `Solo 플랜을 ${soloPrice}/월로 구독하시겠습니까?`
-                : `Center 플랜을 ${centerPrice}/월로 구독하시겠습니까?`}
-            </Text>
-            <View style={s.modalBtns}>
-              <Pressable
-                style={({ pressed }) => [s.modalCancelBtn, { borderColor: C.border, opacity: pressed ? 0.7 : 1 }]}
-                onPress={() => setConfirmPlan(null)}
-              >
-                <Text style={{ color: C.text, fontFamily: "Pretendard-Regular", fontSize: 15 }}>취소</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [s.modalConfirmBtn, { backgroundColor: confirmPlan === "center" ? "#F59E0B" : "#7C3AED", opacity: pressed || isPurchasing ? 0.8 : 1 }]}
-                onPress={() => confirmPlan && handlePurchase(confirmPlan)}
-                disabled={isPurchasing}
-              >
-                {isPurchasing ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={{ color: "#fff", fontFamily: "Pretendard-Regular", fontSize: 15 }}>구독하기</Text>
-                )}
-              </Pressable>
+          {/* Solo 섹션 */}
+          <View style={s.groupHeader}>
+            <View style={[s.groupIcon, { backgroundColor: "#EDE9FE" }]}>
+              <Zap size={18} color="#7C3AED" />
+            </View>
+            <View>
+              <Text style={[s.groupTitle, { color: C.text }]}>Solo</Text>
+              <Text style={[s.groupSub, { color: C.textSecondary }]}>개인 선생님 / 소규모</Text>
             </View>
           </View>
-        </View>
-      </Modal>
+
+          <View style={s.featureBox}>
+            {SOLO_FEATURES.map((f, i) => {
+              const isNeg = f.includes("❌");
+              return (
+                <View key={i} style={s.featureRow}>
+                  <Text style={{ fontSize: 12, color: isNeg ? "#9CA3AF" : "#10B981" }}>{isNeg ? "✕" : "✓"}</Text>
+                  <Text style={[s.featureText, isNeg && { color: "#9CA3AF" }]}>{f.replace("❌", "").replace("✅", "").trim()}</Text>
+                </View>
+              );
+            })}
+          </View>
+
+          {soloPlans.map(plan => (
+            <PlanCard
+              key={plan.tier}
+              plan={plan}
+              isCurrent={currentTier === plan.tier}
+              accentColor="#7C3AED"
+              onSelect={() => router.push("/(admin)/billing")}
+            />
+          ))}
+
+          <View style={s.divider} />
+
+          {/* Center 섹션 */}
+          <View style={s.groupHeader}>
+            <View style={[s.groupIcon, { backgroundColor: "#FEF3C7" }]}>
+              <Crown size={18} color="#F59E0B" />
+            </View>
+            <View>
+              <Text style={[s.groupTitle, { color: C.text }]}>Center</Text>
+              <Text style={[s.groupSub, { color: C.textSecondary }]}>수영장 전체 운영</Text>
+            </View>
+          </View>
+
+          <View style={s.featureBox}>
+            {CENTER_FEATURES.map((f, i) => (
+              <View key={i} style={s.featureRow}>
+                <Text style={{ fontSize: 12, color: "#10B981" }}>✓</Text>
+                <Text style={s.featureText}>{f.replace("✅", "").trim()}</Text>
+              </View>
+            ))}
+          </View>
+
+          {centerPlans.map(plan => (
+            <PlanCard
+              key={plan.tier}
+              plan={plan}
+              isCurrent={currentTier === plan.tier}
+              accentColor="#F59E0B"
+              onSelect={() => router.push("/(admin)/billing")}
+            />
+          ))}
+
+          <Pressable
+            style={({ pressed }) => [s.billingBtn, { opacity: pressed ? 0.7 : 1 }]}
+            onPress={() => router.push("/(admin)/billing")}
+          >
+            <Text style={s.billingBtnText}>결제 · 카드 관리</Text>
+          </Pressable>
+
+          <Text style={[s.disclaimer, { color: C.textMuted }]}>
+            부가세(VAT) 포함 금액입니다. 구독은 매월 자동 갱신됩니다.
+          </Text>
+        </ScrollView>
+      )}
     </View>
   );
 }
 
-const f = StyleSheet.create({
-  featureRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 },
-  featureText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#374151", flex: 1 },
-});
+function PlanCard({
+  plan, isCurrent, accentColor, onSelect,
+}: {
+  plan: PlanMeta;
+  isCurrent: boolean;
+  accentColor: string;
+  onSelect: () => void;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        s.planCard,
+        isCurrent && { borderColor: accentColor, borderWidth: 2 },
+        { opacity: pressed ? 0.92 : 1 },
+      ]}
+      onPress={onSelect}
+    >
+      {plan.recommended && !isCurrent && (
+        <View style={[s.recBadge, { backgroundColor: accentColor }]}>
+          <Text style={s.recBadgeText}>추천</Text>
+        </View>
+      )}
+      {isCurrent && (
+        <View style={[s.recBadge, { backgroundColor: "#10B981" }]}>
+          <Check size={11} color="#fff" />
+          <Text style={s.recBadgeText}>현재 플랜</Text>
+        </View>
+      )}
+
+      <View style={s.planRow}>
+        <Text style={s.planName}>{plan.name}</Text>
+        <Text style={[s.planPrice, { color: accentColor }]}>
+          {fmt(plan.price)}<Text style={s.planPriceSub}>/월</Text>
+        </Text>
+      </View>
+
+      <View style={s.planMeta}>
+        <View style={s.metaItem}>
+          <Users size={13} color="#64748B" />
+          <Text style={s.metaText}>최대 {plan.limit.toLocaleString()}명</Text>
+        </View>
+        <View style={s.metaItem}>
+          <HardDrive size={13} color="#64748B" />
+          <Text style={s.metaText}>{plan.storage}</Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
-  content: { paddingHorizontal: 20, paddingTop: 16, gap: 16 },
-  statusBanner: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 16 },
-  statusTitle: { fontSize: 16, fontFamily: "Pretendard-Regular" },
-  statusSub: { fontSize: 13, fontFamily: "Pretendard-Regular", marginTop: 2 },
-  errorBox: { backgroundColor: "#FEF2F2", padding: 12, borderRadius: 12 },
-  errorText: { color: "#DC2626", fontSize: 13, fontFamily: "Pretendard-Regular" },
+  content: { paddingHorizontal: 20, paddingTop: 16, gap: 10 },
+  groupHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
+  groupIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  groupTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
+  groupSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  featureBox: { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 12, gap: 5 },
+  featureRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  featureText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151" },
   planCard: {
-    borderRadius: 20, padding: 20, gap: 6,
+    backgroundColor: "#fff", borderRadius: 16, padding: 16,
     borderWidth: 1.5, borderColor: "#E2E8F0",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
     overflow: "visible",
   },
-  activePlanCard: { borderColor: "#10B981", borderWidth: 2 },
-  planHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
-  planIconBox: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  planName: { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  planSubtitle: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  activeBadge: { backgroundColor: "#D1FAE5", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  activeBadgeText: { fontSize: 12, color: "#065F46", fontFamily: "Pretendard-Regular" },
-  planPrice: { fontSize: 22, fontFamily: "Pretendard-Regular" },
+  recBadge: { position: "absolute", top: -11, right: 14, flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, zIndex: 10 },
+  recBadgeText: { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
+  planRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  planName: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  planPrice: { fontSize: 20, fontFamily: "Pretendard-Regular" },
   planPriceSub: { fontSize: 13, color: "#9CA3AF" },
-  divider: { height: 1, backgroundColor: "#E2E8F0", marginVertical: 10 },
-  planBtn: { marginTop: 14, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
-  planBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
-  recommendedBadge: { position: "absolute", top: -12, right: 20, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10, zIndex: 10 },
-  recommendedText: { color: "#fff", fontSize: 12, fontFamily: "Pretendard-Regular" },
-  restoreBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14 },
-  restoreText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  disclaimer: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18, paddingHorizontal: 8 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
-  modalBox: { width: 320, borderRadius: 20, padding: 24, gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 12 },
-  modalTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", textAlign: "center" },
-  modalBody: { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
-  modalBtns: { flexDirection: "row", gap: 12, marginTop: 4 },
-  modalCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
-  modalConfirmBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: "center" },
+  planMeta: { flexDirection: "row", gap: 16, marginTop: 8 },
+  metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  metaText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  divider: { height: 1, backgroundColor: "#E2E8F0", marginVertical: 8 },
+  billingBtn: { marginTop: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#2EC4B6", alignItems: "center" },
+  billingBtnText: { color: "#2EC4B6", fontSize: 15, fontFamily: "Pretendard-Regular" },
+  disclaimer: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 },
 });
