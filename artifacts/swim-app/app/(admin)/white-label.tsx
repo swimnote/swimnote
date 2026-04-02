@@ -1,4 +1,5 @@
 import { CheckCircle2, Droplet, Lock, Tag } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Pressable, ScrollView,
@@ -205,7 +206,7 @@ export default function WhiteLabelScreen() {
 function ToggleRow({
   icon, label, description, value, onToggle, tint, disabled,
 }: {
-  icon: keyof typeof Feather.glyphMap;
+  icon: string;
   label: string;
   description: string;
   value: boolean;

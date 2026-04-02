@@ -12,7 +12,7 @@
  *      /holidays (GET, POST, DELETE)
  */
 import { Calendar, ChevronLeft, ChevronRight, CircleAlert, CircleArrowRight, DollarSign, List, RotateCcw, Save, Users } from "lucide-react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, RefreshControl,
@@ -102,6 +102,7 @@ export default function AdminRevenueScreen() {
   const [holiModal, setHoliModal]           = useState(false);
 
   const poolId = (adminUser as any)?.swimming_pool_id || "";
+  const { backTo } = useLocalSearchParams<{ backTo?: string }>();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -163,7 +164,13 @@ export default function AdminRevenueScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
-      <SubScreenHeader title="매출관리" />
+      {backTo ? (
+        <SubScreenHeader title="수업정산" />
+      ) : (
+        <View style={[s.tabHeader, { paddingTop: insets.top + 14 }]}>
+          <Text style={[s.tabHeaderTitle, { color: themeColor }]}>수업정산</Text>
+        </View>
+      )}
 
       {/* ── 월 선택 + 휴무일 지정 바 ── */}
       <View style={[s.topBar, { borderBottomColor: C.border }]}>
@@ -419,6 +426,8 @@ export default function AdminRevenueScreen() {
    Styles — AdminRevenueScreen
 ──────────────────────────────────────────────── */
 const s = StyleSheet.create({
+  tabHeader:      { backgroundColor: "#fff", paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
+  tabHeaderTitle: { fontSize: 20, fontFamily: "Pretendard-Regular" },
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1 },
   monthNav: { flexDirection: "row", alignItems: "center", gap: 8 },
   monthArrow: { padding: 4 },

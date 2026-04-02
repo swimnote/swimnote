@@ -1,4 +1,4 @@
-import { Briefcase, Home, Layers, Send, Settings } from "lucide-react-native";
+import { Briefcase, Home, Layers, Send, Settings, TrendingUp } from "lucide-react-native";
 import { Tabs, router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Colors from "@/constants/colors";
@@ -98,6 +98,11 @@ export default function AdminLayout() {
       />
       <Tabs.Screen name="classes" options={{ href: null }} />
       <Tabs.Screen
+        name="admin-revenue"
+        listeners={makeTabListener("admin-revenue")}
+        options={{ title: "수업정산", tabBarIcon: ({ color }) => <TrendingUp size={22} color={color} /> }}
+      />
+      <Tabs.Screen
         name="ops-hub"
         listeners={makeTabListener("ops-hub")}
         options={{ title: "운영관리", tabBarIcon: ({ color }) => <Briefcase size={22} color={color} /> }}
@@ -116,7 +121,6 @@ export default function AdminLayout() {
 
       {/* ─── 숨김 화면들 (탭 없이 push/navigate로 접근) ─── */}
       <Tabs.Screen name="more"                    options={{ href: null }} />
-      <Tabs.Screen name="admin-revenue"           options={{ href: null }} />
       <Tabs.Screen name="billing"                 options={{ href: null }} />
       <Tabs.Screen name="communication"           options={{ href: null }} />
       <Tabs.Screen name="members"                 options={{ href: null }} />
