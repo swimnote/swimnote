@@ -170,7 +170,7 @@ function mapDbTicket(row: any): SupportTicket {
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 
 export default function SupportScreen() {
-  const { adminUser } = useAuth();
+  const { adminUser, token } = useAuth();
   const actorName = adminUser?.name ?? "슈퍼관리자";
 
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
@@ -208,7 +208,8 @@ export default function SupportScreen() {
 
   const fetchTickets = useCallback(async () => {
     try {
-      const data = await apiRequest('/super/support-tickets');
+      const res = await apiRequest(token, '/super/support-tickets');
+      const data = await res.json();
       if (Array.isArray(data)) {
         setAllTickets(data.map(mapDbTicket));
       }
@@ -218,7 +219,7 @@ export default function SupportScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
@@ -256,7 +257,7 @@ export default function SupportScreen() {
     if (!editTicket) return;
     setSaving(true);
     try {
-      await apiRequest(`/super/support-tickets/${editTicket.id}`, {
+      const patchRes = await apiRequest(token, `/super/support-tickets/${editTicket.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           status:      newStatus,
@@ -264,6 +265,7 @@ export default function SupportScreen() {
           description: internalMemo.trim() || undefined,
         }),
       });
+      if (!patchRes.ok) throw new Error(`HTTP ${patchRes.status}`);
       setAllTickets(prev => prev.map(t =>
         t.id === editTicket.id
           ? { ...t, status: newStatus, assigneeName: assignee.trim() || t.assigneeName }
@@ -293,7 +295,7 @@ export default function SupportScreen() {
         recovery: 4, security: 4, payment: 24, chargeback: 24,
         deletion: 48, technical: 48, storage: 48, other: 72,
       };
-      await apiRequest("/super/support-tickets", {
+      const postRes = await apiRequest(token, "/super/support-tickets", {
         method: "POST",
         body: JSON.stringify({
           ticket_type:    form.type,
@@ -305,6 +307,7 @@ export default function SupportScreen() {
           sla_hours:      SLA_MAP[form.type] ?? 24,
         }),
       });
+      if (!postRes.ok) throw new Error(`HTTP ${postRes.status}`);
       createLog({
         category: "고객센터",
         title: `신규 티켓 등록: ${form.title}`,

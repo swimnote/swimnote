@@ -145,7 +145,8 @@ export default function NoticesScreen() {
 
   const fetchNotices = useCallback(async () => {
     try {
-      const data = await apiRequest('/notices?scope=global');
+      const res = await apiRequest(token, '/notices?scope=global');
+      const data = await res.json();
       if (Array.isArray(data)) {
         setNotices(data.map(mapApiNotice));
       }
@@ -154,7 +155,7 @@ export default function NoticesScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => { fetchNotices(); }, [fetchNotices]);
 
@@ -185,14 +186,15 @@ export default function NoticesScreen() {
     setSaving(true);
     try {
       if (editId) {
-        await apiRequest(`/notices/${editId}`, {
+        const pRes = await apiRequest(token, `/notices/${editId}`, {
           method: "PATCH",
           body: JSON.stringify({ title: form.title, content: form.content, notice_type: form.noticeType }),
         });
+        if (!pRes.ok) throw new Error(`HTTP ${pRes.status}`);
         createLog({ category: "공지관리", title: `공지 수정: ${form.title}`, actorName, impact: "medium",
           detail: `유형: ${form.noticeType}` });
       } else {
-        await apiRequest("/notices", {
+        const pRes = await apiRequest(token, "/notices", {
           method: "POST",
           body: JSON.stringify({
             title:          form.title,
@@ -201,6 +203,7 @@ export default function NoticesScreen() {
             audience_scope: "global",
           }),
         });
+        if (!pRes.ok) throw new Error(`HTTP ${pRes.status}`);
         createLog({ category: "공지관리", title: `공지 등록: ${form.title}`, actorName, impact: "medium",
           detail: `유형: ${form.noticeType}` });
       }
@@ -216,7 +219,8 @@ export default function NoticesScreen() {
   async function handleDelete(id: string) {
     const n = notices.find(x => x.id === id);
     try {
-      await apiRequest(`/notices/${id}`, { method: "DELETE" });
+      const dRes = await apiRequest(token, `/notices/${id}`, { method: "DELETE" });
+      if (!dRes.ok) throw new Error(`HTTP ${dRes.status}`);
       createLog({ category: "공지관리", title: `공지 삭제: ${n?.title ?? id}`, actorName, impact: "medium", detail: "삭제" });
       setNotices(prev => prev.filter(x => x.id !== id));
     } catch (e) {

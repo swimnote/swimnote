@@ -56,7 +56,7 @@ const ROLES: Record<string, { label: string; color: string; bg: string }> = {
 
 
 export default function UsersScreen() {
-  const { adminUser } = useAuth();
+  const { adminUser, token } = useAuth();
   const actorName = adminUser?.name ?? '슈퍼관리자';
   const createLog = useAuditLogStore(s => s.createLog);
   const insets = useSafeAreaInsets();
@@ -80,7 +80,8 @@ export default function UsersScreen() {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const data = await apiRequest('/super/platform-users');
+      const res = await apiRequest(token, '/super/platform-users');
+      const data = await res.json();
       if (Array.isArray(data)) {
         setUsers(data.map((u: any) => ({
           id:          u.id,
@@ -98,7 +99,7 @@ export default function UsersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
@@ -107,10 +108,12 @@ export default function UsersScreen() {
     setCreating(true);
     setError("");
     try {
-      const result = await apiRequest('/super/platform-users', {
+      const createRes = await apiRequest(token, '/super/platform-users', {
         method: 'POST',
         body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim() || undefined, permissions: formPerms }),
       });
+      const result = await createRes.json();
+      if (!createRes.ok) throw new Error(result?.message ?? `HTTP ${createRes.status}`);
       createLog({ category: '권한', title: `관리자 계정 생성: ${form.name}`, detail: form.email, actorName, impact: 'high' });
       if (result?.temp_password) {
         Alert.alert('계정 생성 완료', `임시 비밀번호: ${result.temp_password}\n\n해당 비밀번호를 안전하게 전달해 주세요.`);
@@ -135,10 +138,11 @@ export default function UsersScreen() {
     if (!editTarget) return;
     setSavingPerms(true);
     try {
-      await apiRequest(`/super/platform-users/${editTarget.id}/permissions`, {
+      const permRes = await apiRequest(token, `/super/platform-users/${editTarget.id}/permissions`, {
         method: 'PATCH',
         body: JSON.stringify({ permissions: editPerms }),
       });
+      if (!permRes.ok) { const d = await permRes.json().catch(() => ({})); throw new Error(d?.message ?? `HTTP ${permRes.status}`); }
       setUsers(prev => prev.map(u =>
         u.id === editTarget.id ? { ...u, permissions: { ...editPerms } } : u
       ));
