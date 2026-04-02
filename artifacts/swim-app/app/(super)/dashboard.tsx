@@ -188,14 +188,19 @@ export default function SuperDashboard() {
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      const [dashData, riskData, logsData] = await Promise.all([
+      const [dashRes, riskRes, logsRes] = await Promise.all([
         apiRequest(token, "/super/dashboard-stats"),
         apiRequest(token, "/super/risk-summary"),
         apiRequest(token, "/super/recent-audit-logs?limit=5"),
       ]);
+      const [dashData, riskData, logsData] = await Promise.all([
+        dashRes.json(),
+        riskRes.json(),
+        logsRes.json(),
+      ]);
       setStats(dashData.stats ?? null);
       setTodo(dashData.todo ?? null);
-      setRiskSummary(riskData ?? null);
+      setRiskSummary(riskData.risk ?? riskData ?? null);
       setRecentLogs(logsData.logs ?? []);
     } catch {
       // 네트워크 오류 시 기존 상태 유지
