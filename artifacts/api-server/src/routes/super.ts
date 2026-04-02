@@ -1463,15 +1463,16 @@ async function ensurePlansTables() {
 
   // 최종 확정 플랜 시드 (ON CONFLICT DO UPDATE로 항상 최신값 유지)
   for (const plan of [
-    { tier: "free",            plan_id: "free_5",        name: "무료",             price: 0,      limit: 5,    storage_gb: 0.09765625, storage_mb: 100,    display: "100MB" },
-    { tier: "starter",         plan_id: "swimnote_30",   name: "스타터",           price: 2900,   limit: 30,   storage_gb: 0.5859375,  storage_mb: 600,    display: "600MB" },
-    { tier: "basic",           plan_id: "swimnote_50",   name: "베이직",           price: 3900,   limit: 50,   storage_gb: 1,          storage_mb: 1024,   display: "1GB"   },
-    { tier: "standard",        plan_id: "swimnote_100",  name: "스탠다드",         price: 9900,   limit: 100,  storage_gb: 5,          storage_mb: 5120,   display: "5GB"   },
-    { tier: "advance",         plan_id: "swimnote_300",  name: "어드밴스",         price: 29000,  limit: 300,  storage_gb: 20,         storage_mb: 20480,  display: "20GB"  },
-    { tier: "pro",             plan_id: "swimnote_500",  name: "프로",             price: 59000,  limit: 500,  storage_gb: 40,         storage_mb: 40960,  display: "40GB"  },
-    { tier: "max",             plan_id: "swimnote_1000", name: "맥스",             price: 99000,  limit: 1000, storage_gb: 100,        storage_mb: 102400, display: "100GB" },
-    { tier: "enterprise_2000", plan_id: "swimnote_2000", name: "엔터프라이즈 2000", price: 179000, limit: 2000, storage_gb: 250,        storage_mb: 256000, display: "250GB" },
-    { tier: "enterprise_3000", plan_id: "swimnote_3000", name: "엔터프라이즈 3000", price: 249000, limit: 3000, storage_gb: 400,        storage_mb: 409600, display: "400GB" },
+    // ── Solo (개인 선생님, 사진만) ──────────────────────────────────────────
+    { tier: "free",       plan_id: "free_10",       name: "Free",       price: 0,      limit: 10,   storage_gb: 0.48828125, storage_mb: 512,    display: "500MB" },
+    { tier: "starter",    plan_id: "solo_30",        name: "Solo 30",    price: 3900,   limit: 30,   storage_gb: 3,          storage_mb: 3072,   display: "3GB"   },
+    { tier: "basic",      plan_id: "solo_50",        name: "Solo 50",    price: 6900,   limit: 50,   storage_gb: 5,          storage_mb: 5120,   display: "5GB"   },
+    { tier: "standard",   plan_id: "solo_100",       name: "Solo 100",   price: 9900,   limit: 100,  storage_gb: 10,         storage_mb: 10240,  display: "10GB"  },
+    // ── Center (수영장/센터, 사진+영상) ────────────────────────────────────
+    { tier: "center_200", plan_id: "center_200",     name: "Center 200", price: 69000,  limit: 200,  storage_gb: 50,         storage_mb: 51200,  display: "50GB"  },
+    { tier: "advance",    plan_id: "center_300",     name: "Center 300", price: 99000,  limit: 300,  storage_gb: 80,         storage_mb: 81920,  display: "80GB"  },
+    { tier: "pro",        plan_id: "center_500",     name: "Center 500", price: 149000, limit: 500,  storage_gb: 130,        storage_mb: 133120, display: "130GB" },
+    { tier: "max",        plan_id: "center_1000",    name: "Center 1000",price: 249000, limit: 1000, storage_gb: 500,        storage_mb: 512000, display: "500GB" },
   ]) {
     await db.execute(sql`
       INSERT INTO subscription_plans (tier, plan_id, name, price_per_month, member_limit, storage_gb, storage_mb, display_storage)

@@ -38,26 +38,24 @@ interface BillingStatus {
 }
 
 const PLAN_COLOR: Record<string, string> = {
-  free:            "#64748B",
-  starter:         "#4EA7D8",
-  basic:           "#2E9B6F",
-  standard:        "#2EC4B6",
-  advance:         "#7C3AED",
-  pro:             "#EC4899",
-  max:             "#D97706",
-  enterprise_2000: "#B45309",
-  enterprise_3000: "#991B1B",
+  free:       "#64748B",
+  starter:    "#4EA7D8",
+  basic:      "#2E9B6F",
+  standard:   "#2EC4B6",
+  center_200: "#F59E0B",
+  advance:    "#F59E0B",
+  pro:        "#F59E0B",
+  max:        "#F59E0B",
 };
 
 const PLAN_SKU: Record<string, string> = {
-  starter:         "swimnote_30",
-  basic:           "swimnote_50",
-  standard:        "swimnote_100",
-  advance:         "swimnote_300",
-  pro:             "swimnote_500",
-  max:             "swimnote_1000",
-  enterprise_2000: "swimnote_2000",
-  enterprise_3000: "swimnote_3000",
+  starter:    "solo_30",
+  basic:      "solo_50",
+  standard:   "solo_100",
+  center_200: "center_200",
+  advance:    "center_300",
+  pro:        "center_500",
+  max:        "center_1000",
 };
 
 const PAYMENT_FAILED_STATUSES = new Set(["payment_failed", "pending_deletion", "deleted"]);

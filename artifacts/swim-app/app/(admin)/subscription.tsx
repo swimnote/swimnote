@@ -1,10 +1,8 @@
 /**
  * (admin)/subscription.tsx — 구독 플랜 선택 화면
  *
- * Solo 티어 (개인 선생님): 30명 / 50명 / 100명
- * Center 티어 (수영장 운영): 300명 / 500명 / 1000명
- *
- * 결제는 기존 billing 시스템을 통해 처리됩니다.
+ * Solo (개인 선생님, 사진만): Free / Solo30 / Solo50 / Solo100
+ * Center (수영장, 사진+영상): Center200 / Center300 / Center500 / Center1000
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -13,7 +11,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Crown, Users, HardDrive, Check, Zap } from "lucide-react-native";
+import { Crown, Users, HardDrive, Check, Zap, Image as ImageIcon, Video } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -26,21 +24,24 @@ interface PlanMeta {
   price: number;
   limit: number;
   storage: string;
+  storageMb: number;
   group: "solo" | "center";
   recommended?: boolean;
 }
 
-const PLANS: PlanMeta[] = [
-  { tier: "starter",  name: "스타터",  price: 2900,  limit: 30,   storage: "600MB", group: "solo" },
-  { tier: "basic",    name: "베이직",  price: 3900,  limit: 50,   storage: "1GB",   group: "solo" },
-  { tier: "standard", name: "스탠다드", price: 9900,  limit: 100,  storage: "5GB",   group: "solo", recommended: true },
-  { tier: "advance",  name: "어드밴스", price: 29000, limit: 300,  storage: "20GB",  group: "center" },
-  { tier: "pro",      name: "프로",    price: 59000, limit: 500,  storage: "40GB",  group: "center" },
-  { tier: "max",      name: "맥스",    price: 99000, limit: 1000, storage: "100GB", group: "center", recommended: true },
+const SOLO_PLANS: PlanMeta[] = [
+  { tier: "free",     name: "Free",     price: 0,      limit: 10,   storage: "500MB", storageMb: 512,    group: "solo" },
+  { tier: "starter",  name: "Solo 30",  price: 3900,   limit: 30,   storage: "3GB",   storageMb: 3072,   group: "solo" },
+  { tier: "basic",    name: "Solo 50",  price: 6900,   limit: 50,   storage: "5GB",   storageMb: 5120,   group: "solo" },
+  { tier: "standard", name: "Solo 100", price: 9900,   limit: 100,  storage: "10GB",  storageMb: 10240,  group: "solo", recommended: true },
 ];
 
-const SOLO_FEATURES  = ["수업일지 무제한", "수업 사진 첨부", "학부모 앱 연동", "출결 관리", "공지/쪽지 발송", "영상 첨부 ❌"];
-const CENTER_FEATURES = ["Solo 모든 기능 포함", "수업 영상 첨부 ✅", "여러 선생님 계정", "관리자(sub_admin) 권한"];
+const CENTER_PLANS: PlanMeta[] = [
+  { tier: "center_200", name: "Center 200",  price: 69000,  limit: 200,  storage: "50GB",  storageMb: 51200,  group: "center" },
+  { tier: "advance",    name: "Center 300",  price: 99000,  limit: 300,  storage: "80GB",  storageMb: 81920,  group: "center" },
+  { tier: "pro",        name: "Center 500",  price: 149000, limit: 500,  storage: "130GB", storageMb: 133120, group: "center" },
+  { tier: "max",        name: "Center 1000", price: 249000, limit: 1000, storage: "500GB", storageMb: 512000, group: "center", recommended: true },
+];
 
 function fmt(price: number) {
   return price === 0 ? "무료" : `₩${price.toLocaleString("ko-KR")}`;
@@ -49,7 +50,6 @@ function fmt(price: number) {
 export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
-
   const [currentTier, setCurrentTier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -59,15 +59,14 @@ export default function SubscriptionScreen() {
         const res = await apiRequest(token, "/billing/status");
         if (res.ok) {
           const d = await res.json();
-          setCurrentTier(d.plan_id ?? d.current_plan ?? d.subscription_status ?? null);
+          setCurrentTier(d.current_plan ?? d.plan_id ?? null);
         }
       } catch {}
       finally { setLoading(false); }
     })();
   }, []);
 
-  const soloPlans   = PLANS.filter(p => p.group === "solo");
-  const centerPlans = PLANS.filter(p => p.group === "center");
+  const goToBilling = () => router.push("/(admin)/billing");
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
@@ -83,73 +82,64 @@ export default function SubscriptionScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Solo 섹션 */}
-          <View style={s.groupHeader}>
-            <View style={[s.groupIcon, { backgroundColor: "#EDE9FE" }]}>
+          <View style={s.sectionHeader}>
+            <View style={[s.sectionIcon, { backgroundColor: "#EDE9FE" }]}>
               <Zap size={18} color="#7C3AED" />
             </View>
-            <View>
-              <Text style={[s.groupTitle, { color: C.text }]}>Solo</Text>
-              <Text style={[s.groupSub, { color: C.textSecondary }]}>개인 선생님 / 소규모</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.sectionTitle, { color: C.text }]}>Solo</Text>
+              <Text style={[s.sectionSub, { color: C.textSecondary }]}>개인 선생님</Text>
+            </View>
+            <View style={s.featurePill}>
+              <ImageIcon size={12} color="#7C3AED" />
+              <Text style={[s.featurePillText, { color: "#7C3AED" }]}>사진 가능</Text>
+            </View>
+            <View style={[s.featurePill, s.featurePillGray]}>
+              <Video size={12} color="#9CA3AF" />
+              <Text style={[s.featurePillText, { color: "#9CA3AF" }]}>영상 불가</Text>
             </View>
           </View>
 
-          <View style={s.featureBox}>
-            {SOLO_FEATURES.map((f, i) => {
-              const isNeg = f.includes("❌");
-              return (
-                <View key={i} style={s.featureRow}>
-                  <Text style={{ fontSize: 12, color: isNeg ? "#9CA3AF" : "#10B981" }}>{isNeg ? "✕" : "✓"}</Text>
-                  <Text style={[s.featureText, isNeg && { color: "#9CA3AF" }]}>{f.replace("❌", "").replace("✅", "").trim()}</Text>
-                </View>
-              );
-            })}
-          </View>
-
-          {soloPlans.map(plan => (
+          {SOLO_PLANS.map(plan => (
             <PlanCard
               key={plan.tier}
               plan={plan}
               isCurrent={currentTier === plan.tier}
               accentColor="#7C3AED"
-              onSelect={() => router.push("/(admin)/billing")}
+              onSelect={plan.price === 0 ? undefined : goToBilling}
             />
           ))}
 
           <View style={s.divider} />
 
           {/* Center 섹션 */}
-          <View style={s.groupHeader}>
-            <View style={[s.groupIcon, { backgroundColor: "#FEF3C7" }]}>
+          <View style={s.sectionHeader}>
+            <View style={[s.sectionIcon, { backgroundColor: "#FEF3C7" }]}>
               <Crown size={18} color="#F59E0B" />
             </View>
-            <View>
-              <Text style={[s.groupTitle, { color: C.text }]}>Center</Text>
-              <Text style={[s.groupSub, { color: C.textSecondary }]}>수영장 전체 운영</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.sectionTitle, { color: C.text }]}>Center</Text>
+              <Text style={[s.sectionSub, { color: C.textSecondary }]}>수영장/센터</Text>
+            </View>
+            <View style={[s.featurePill, { borderColor: "#F59E0B" }]}>
+              <ImageIcon size={12} color="#F59E0B" />
+              <Text style={[s.featurePillText, { color: "#F59E0B" }]}>사진+영상</Text>
             </View>
           </View>
 
-          <View style={s.featureBox}>
-            {CENTER_FEATURES.map((f, i) => (
-              <View key={i} style={s.featureRow}>
-                <Text style={{ fontSize: 12, color: "#10B981" }}>✓</Text>
-                <Text style={s.featureText}>{f.replace("✅", "").trim()}</Text>
-              </View>
-            ))}
-          </View>
-
-          {centerPlans.map(plan => (
+          {CENTER_PLANS.map(plan => (
             <PlanCard
               key={plan.tier}
               plan={plan}
               isCurrent={currentTier === plan.tier}
               accentColor="#F59E0B"
-              onSelect={() => router.push("/(admin)/billing")}
+              onSelect={goToBilling}
             />
           ))}
 
           <Pressable
             style={({ pressed }) => [s.billingBtn, { opacity: pressed ? 0.7 : 1 }]}
-            onPress={() => router.push("/(admin)/billing")}
+            onPress={goToBilling}
           >
             <Text style={s.billingBtnText}>결제 · 카드 관리</Text>
           </Pressable>
@@ -169,43 +159,47 @@ function PlanCard({
   plan: PlanMeta;
   isCurrent: boolean;
   accentColor: string;
-  onSelect: () => void;
+  onSelect?: () => void;
 }) {
+  const isFree = plan.price === 0;
   return (
     <Pressable
       style={({ pressed }) => [
         s.planCard,
         isCurrent && { borderColor: accentColor, borderWidth: 2 },
-        { opacity: pressed ? 0.92 : 1 },
+        isFree && { borderStyle: "dashed" as const },
+        { opacity: pressed && onSelect ? 0.92 : 1 },
       ]}
       onPress={onSelect}
+      disabled={!onSelect}
     >
       {plan.recommended && !isCurrent && (
-        <View style={[s.recBadge, { backgroundColor: accentColor }]}>
-          <Text style={s.recBadgeText}>추천</Text>
+        <View style={[s.badge, { backgroundColor: accentColor }]}>
+          <Text style={s.badgeText}>추천</Text>
         </View>
       )}
       {isCurrent && (
-        <View style={[s.recBadge, { backgroundColor: "#10B981" }]}>
-          <Check size={11} color="#fff" />
-          <Text style={s.recBadgeText}>현재 플랜</Text>
+        <View style={[s.badge, { backgroundColor: "#10B981" }]}>
+          <Check size={10} color="#fff" />
+          <Text style={s.badgeText}>현재</Text>
         </View>
       )}
 
       <View style={s.planRow}>
-        <Text style={s.planName}>{plan.name}</Text>
-        <Text style={[s.planPrice, { color: accentColor }]}>
-          {fmt(plan.price)}<Text style={s.planPriceSub}>/월</Text>
+        <Text style={[s.planName, { color: isFree ? C.textSecondary : C.text }]}>{plan.name}</Text>
+        <Text style={[s.planPrice, { color: isFree ? C.textMuted : accentColor }]}>
+          {fmt(plan.price)}
+          {!isFree && <Text style={s.planPriceSub}>/월</Text>}
         </Text>
       </View>
 
       <View style={s.planMeta}>
         <View style={s.metaItem}>
-          <Users size={13} color="#64748B" />
+          <Users size={12} color="#64748B" />
           <Text style={s.metaText}>최대 {plan.limit.toLocaleString()}명</Text>
         </View>
         <View style={s.metaItem}>
-          <HardDrive size={13} color="#64748B" />
+          <HardDrive size={12} color="#64748B" />
           <Text style={s.metaText}>{plan.storage}</Text>
         </View>
       </View>
@@ -215,30 +209,30 @@ function PlanCard({
 
 const s = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 16, gap: 10 },
-  groupHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
-  groupIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  groupTitle: { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  groupSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  featureBox: { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 12, gap: 5 },
-  featureRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  featureText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151" },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4, marginBottom: 2 },
+  sectionIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  sectionTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
+  sectionSub: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  featurePill: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: "#7C3AED" },
+  featurePillGray: { borderColor: "#D1D5DB" },
+  featurePillText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   planCard: {
-    backgroundColor: "#fff", borderRadius: 16, padding: 16,
+    backgroundColor: "#fff", borderRadius: 14, padding: 14,
     borderWidth: 1.5, borderColor: "#E2E8F0",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
     overflow: "visible",
   },
-  recBadge: { position: "absolute", top: -11, right: 14, flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, zIndex: 10 },
-  recBadgeText: { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
+  badge: { position: "absolute", top: -10, right: 12, flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, zIndex: 10 },
+  badgeText: { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
   planRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  planName: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  planPrice: { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  planPriceSub: { fontSize: 13, color: "#9CA3AF" },
-  planMeta: { flexDirection: "row", gap: 16, marginTop: 8 },
+  planName: { fontSize: 15, fontFamily: "Pretendard-Regular" },
+  planPrice: { fontSize: 19, fontFamily: "Pretendard-Regular" },
+  planPriceSub: { fontSize: 12, color: "#9CA3AF" },
+  planMeta: { flexDirection: "row", gap: 14, marginTop: 6 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  divider: { height: 1, backgroundColor: "#E2E8F0", marginVertical: 8 },
-  billingBtn: { marginTop: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#2EC4B6", alignItems: "center" },
+  divider: { height: 1, backgroundColor: "#E2E8F0", marginVertical: 6 },
+  billingBtn: { marginTop: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#2EC4B6", alignItems: "center" },
   billingBtnText: { color: "#2EC4B6", fontSize: 15, fontFamily: "Pretendard-Regular" },
   disclaimer: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 },
 });

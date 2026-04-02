@@ -757,14 +757,18 @@ export async function initPoolDb(): Promise<void> {
   await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_mb integer NOT NULL DEFAULT 0`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage text NOT NULL DEFAULT ''`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});
-  // 기본 플랜 데이터 삽입
+  // 기본 플랜 데이터 삽입 (Solo: 사진만 / Center: 사진+영상)
   await db.execute(sql.raw(`
     INSERT INTO subscription_plans (tier, name, price_per_month, max_students, max_teachers, storage_mb, display_storage, features)
     VALUES
-      ('free',       '무료',         0,     30,   3,  1024,  '1GB',  '["기본 출결","일지","학부모 연동"]'),
-      ('basic',      '베이직',    29000,    100,  10,  5120,  '5GB',  '["기본 출결","일지","학부모 연동","쪽지"]'),
-      ('pro',        '프로',      59000,    300,  30, 20480, '20GB', '["기본 출결","일지","학부모 연동","쪽지","통계"]'),
-      ('enterprise', '엔터프라이즈', 99000, null, null, 51200, '50GB', '["무제한 출결","일지","학부모 연동","쪽지","통계","API"]')
+      ('free',       'Free',        0,      10,   1,    512,  '500MB', '["기본 출결","일지","학부모 연동"]'),
+      ('starter',    'Solo 30',     3900,   30,   1,   3072,  '3GB',   '["기본 출결","일지","학부모 연동","사진"]'),
+      ('basic',      'Solo 50',     6900,   50,   2,   5120,  '5GB',   '["기본 출결","일지","학부모 연동","사진"]'),
+      ('standard',   'Solo 100',    9900,  100,   3,  10240,  '10GB',  '["기본 출결","일지","학부모 연동","사진"]'),
+      ('center_200', 'Center 200', 69000,  200,   5,  51200,  '50GB',  '["출결","일지","학부모 연동","사진","영상"]'),
+      ('advance',    'Center 300', 99000,  300,  10,  81920,  '80GB',  '["출결","일지","학부모 연동","사진","영상"]'),
+      ('pro',        'Center 500',149000,  500,  20, 133120, '130GB',  '["출결","일지","학부모 연동","사진","영상"]'),
+      ('max',        'Center 1000',249000,1000,  50, 512000, '500GB',  '["출결","일지","학부모 연동","사진","영상","API"]')
     ON CONFLICT (tier) DO NOTHING
   `)).catch(() => {});
 
