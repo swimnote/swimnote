@@ -120,7 +120,37 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "② 데이터 관리",
+      title: "② 구독·결제 관리",
+      items: [
+        {
+          icon: "credit-card", label: "구독 현황",
+          sub: "전체 구독 목록·상태·만료 현황",
+          color: "violet", onPress: go("/(super)/subscriptions"),
+        },
+        {
+          icon: "tag", label: "구독 상품 관리",
+          sub: "플랜 가격·상품명·혜택 수정",
+          color: "violet", onPress: go("/(super)/subscription-products"),
+        },
+        {
+          icon: "trending-up", label: "매출 분석",
+          sub: "월간 매출·플랜별 수익 분석",
+          color: "green", onPress: go("/(super)/revenue-analytics"),
+        },
+        {
+          icon: "bar-chart-2", label: "결제 분석",
+          sub: "결제 성공률·실패 패턴·환불 현황",
+          color: "green", onPress: go("/(super)/billing-analytics"),
+        },
+        {
+          icon: "dollar-sign", label: "비용 분석",
+          sub: "인프라·운영비용·마진 분석",
+          color: "green", onPress: go("/(super)/cost-analytics"),
+        },
+      ],
+    },
+    {
+      title: "③ 데이터 관리",
       items: [
         {
           icon: "shield", label: "보호·통제",
@@ -131,7 +161,7 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "③ 고객센터",
+      title: "④ 고객센터",
       items: [
         {
           icon: "message-circle", label: "지원 센터",
@@ -142,7 +172,7 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "④ 정책·컴플라이언스",
+      title: "⑤ 정책·컴플라이언스",
       items: [
         {
           icon: "file-text", label: "정책·컴플라이언스",
@@ -152,7 +182,7 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "⑤ 보안·통제",
+      title: "⑥ 보안·통제",
       items: [
         {
           icon: "lock", label: "보안·설정",
@@ -172,7 +202,7 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "⑥ 시스템 상태",
+      title: "⑦ 시스템 상태",
       items: [
         {
           icon: "server", label: "시스템 상태",
@@ -192,7 +222,7 @@ export default function SuperMoreScreen() {
       ],
     },
     {
-      title: "⑦ 광고 관리",
+      title: "⑧ 광고 관리",
       items: [
         {
           icon: "image", label: "광고 관리",
