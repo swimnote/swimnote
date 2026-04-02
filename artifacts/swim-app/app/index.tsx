@@ -206,11 +206,12 @@ export default function LoginScreen() {
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={identifier}
-                onChangeText={v => { setIdentifier(v); setError(""); setFailCount(0); }}
+                onChangeText={v => { setIdentifier(v.replace(/[^\x00-\x7F]/g, "")); setError(""); setFailCount(0); }}
                 placeholder="아이디"
                 placeholderTextColor={C.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
+                keyboardType="ascii-capable"
                 returnKeyType="next"
                 onSubmitEditing={() => pwRef.current?.focus()}
                 editable={!loading}
@@ -225,10 +226,11 @@ export default function LoginScreen() {
                 ref={pwRef}
                 style={[styles.input, { color: C.text }]}
                 value={password}
-                onChangeText={v => { setPassword(v); setError(""); }}
+                onChangeText={v => { setPassword(v.replace(/[^\x00-\x7F]/g, "")); setError(""); }}
                 placeholder="비밀번호를 입력하세요"
                 placeholderTextColor={C.textMuted}
                 secureTextEntry={!showPw}
+                keyboardType="ascii-capable"
                 returnKeyType="done"
                 onSubmitEditing={() => handleLogin()}
                 editable={!loading}
