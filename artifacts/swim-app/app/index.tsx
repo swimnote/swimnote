@@ -323,13 +323,13 @@ const s = StyleSheet.create({
   errText:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#EF4444", flex: 1 },
 
   loginBtn:  {
-    height: 54, borderRadius: 14, backgroundColor: BRAND,
+    height: 54, borderRadius: 14, backgroundColor: "#a1f7da",
     alignItems: "center", justifyContent: "center",
-    shadowColor: BRAND, shadowOffset: { width: 0, height: 4 },
+    shadowColor: "#a1f7da", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
     marginTop: 4,
   },
-  loginBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
+  loginBtnText: { color: "#0a2540", fontSize: 16, fontFamily: "Pretendard-Regular" },
 
   forgotRow: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-end", paddingVertical: 2 },
   forgotText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
