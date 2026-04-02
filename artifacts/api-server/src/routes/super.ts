@@ -1465,9 +1465,9 @@ async function ensurePlansTables() {
   for (const plan of [
     // ── Solo (개인 선생님, 사진만) ──────────────────────────────────────────
     { tier: "free",       plan_id: "free_10",       name: "Free",       price: 0,      limit: 10,   storage_gb: 0.48828125, storage_mb: 512,    display: "500MB" },
-    { tier: "starter",    plan_id: "solo_30",        name: "Solo 30",    price: 3900,   limit: 30,   storage_gb: 3,          storage_mb: 3072,   display: "3GB"   },
-    { tier: "basic",      plan_id: "solo_50",        name: "Solo 50",    price: 6900,   limit: 50,   storage_gb: 5,          storage_mb: 5120,   display: "5GB"   },
-    { tier: "standard",   plan_id: "solo_100",       name: "Solo 100",   price: 9900,   limit: 100,  storage_gb: 10,         storage_mb: 10240,  display: "10GB"  },
+    { tier: "starter",    plan_id: "solo_30",        name: "Solo 30",    price: 3500,   limit: 30,   storage_gb: 3,          storage_mb: 3072,   display: "3GB"   },
+    { tier: "basic",      plan_id: "solo_50",        name: "Solo 50",    price: 6500,   limit: 50,   storage_gb: 5,          storage_mb: 5120,   display: "5GB"   },
+    { tier: "standard",   plan_id: "solo_100",       name: "Solo 100",   price: 9500,   limit: 100,  storage_gb: 10,         storage_mb: 10240,  display: "10GB"  },
     // ── Center (수영장/센터, 사진+영상) ────────────────────────────────────
     { tier: "center_200", plan_id: "center_200",     name: "Center 200", price: 69000,  limit: 200,  storage_gb: 50,         storage_mb: 51200,  display: "50GB"  },
     { tier: "advance",    plan_id: "center_300",     name: "Center 300", price: 99000,  limit: 300,  storage_gb: 80,         storage_mb: 81920,  display: "80GB"  },
