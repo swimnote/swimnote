@@ -12,7 +12,7 @@ interface DuplicateModalProps {
   onCancel: () => void;
 }
 
-export function DuplicateModal({ candidates, onLinkExisting, onForceCreate, onCancel }: DuplicateModalProps) {
+export function DuplicateModal({ candidates, onForceCreate, onCancel }: DuplicateModalProps) {
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onCancel}>
       <View style={dup.overlay}>
@@ -21,10 +21,10 @@ export function DuplicateModal({ candidates, onLinkExisting, onForceCreate, onCa
             <TriangleAlert size={28} color="#D97706" />
           </View>
           <Text style={dup.title}>유사한 회원이 있습니다</Text>
-          <Text style={dup.sub}>아래 회원과 동일한 학생일 수 있습니다.</Text>
+          <Text style={dup.sub}>아래 회원과 동일한 학생일 수 있습니다.{"\n"}새 회원으로 등록할지 확인해 주세요.</Text>
           <View style={dup.list}>
             {candidates.slice(0, 3).map((c: any) => (
-              <Pressable key={c.id} style={dup.row} onPress={() => onLinkExisting(c.id)}>
+              <View key={c.id} style={dup.row}>
                 <View style={[dup.avatar, { backgroundColor: C.tintLight }]}>
                   <Text style={[dup.avatarText, { color: C.tint }]}>{c.name[0]}</Text>
                 </View>
@@ -32,8 +32,7 @@ export function DuplicateModal({ candidates, onLinkExisting, onForceCreate, onCa
                   <Text style={dup.name}>{c.name}</Text>
                   <Text style={dup.info}>{c.birth_year ? `${c.birth_year}년생` : ""}{c.parent_phone ? ` · ${c.parent_phone}` : ""}</Text>
                 </View>
-                <Text style={[dup.linkBtn, { color: C.tint }]}>연결 →</Text>
-              </Pressable>
+              </View>
             ))}
           </View>
           <View style={dup.btnRow}>
@@ -62,7 +61,6 @@ const dup = StyleSheet.create({
   avatarText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   name:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   info:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  linkBtn:    { fontSize: 13, fontFamily: "Pretendard-Regular" },
   btnRow:     { flexDirection: "row", gap: 10, width: "100%" },
   btn:        { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center" },
   btnText:    { fontSize: 14, fontFamily: "Pretendard-Regular" },

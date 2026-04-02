@@ -1268,11 +1268,12 @@ router.post("/send-sms-code", async (req, res) => {
       // 개발용: 실제 발송 없이 로그 출력 + dev_code 반환
       const devCode = sendDevVerification({ phone: cleaned, code: digits, purpose });
 
-      const isDev = process.env.SMS_DEV_EXPOSE_CODE !== "false";
+      const isProduction = process.env.NODE_ENV === "production";
+      const exposeCode   = !isProduction && process.env.SMS_DEV_EXPOSE_CODE !== "false";
       return res.json({
         success:    true,
         expires_in: 180,
-        ...(isDev && { dev_code: devCode }),
+        ...(exposeCode && { dev_code: devCode }),
       });
     }
 

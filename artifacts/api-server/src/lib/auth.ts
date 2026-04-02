@@ -1,7 +1,10 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "swim-platform-secret-key-2024";
+const JWT_SECRET = process.env.JWT_SECRET ?? (() => {
+  if (process.env.NODE_ENV === "production") throw new Error("JWT_SECRET 환경변수가 설정되지 않았습니다.");
+  return "swim-platform-secret-key-dev-only";
+})();
 
 export type PlatformPermissions = {
   canViewPools: boolean;

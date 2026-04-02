@@ -10,7 +10,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app: Express = express();
 
-app.use(cors());
+// ── CORS ─────────────────────────────────────────────────────────────
+const ALLOWED_ORIGINS = [
+  // Replit 운영 도메인
+  "https://swimnote-7.replit.app",
+  // EAS 빌드 / 개발 Expo
+  /^https:\/\/.*\.expo\.dev$/,
+  /^https:\/\/.*\.replit\.dev$/,
+  /^https:\/\/.*\.sisko\.replit\.dev$/,
+  /^https:\/\/.*\.pike\.replit\.dev$/,
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (process.env.NODE_ENV !== "production") return callback(null, true);
+    const allowed = ALLOWED_ORIGINS.some(o =>
+      typeof o === "string" ? o === origin : o.test(origin)
+    );
+    if (allowed) return callback(null, true);
+    return callback(new Error(`CORS 차단: ${origin}`));
+  },
+  credentials: true,
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -27,11 +50,16 @@ app.use((_req: Request, res: Response) => {
   res.status(404).json({ success: false, message: "요청한 경로를 찾을 수 없습니다.", error: "Not Found" });
 });
 
-// 전역 에러 핸들러 — 어떤 에러도 JSON으로 반환
+// 전역 에러 핸들러 — 프로덕션에서는 내부 메시지 노출 안 함
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error("[Global Error]", err);
-  res.status(500).json({ success: false, message: err.message || "서버 오류가 발생했습니다.", error: err.message });
+  const isProd = process.env.NODE_ENV === "production";
+  res.status(500).json({
+    success: false,
+    message: isProd ? "서버 오류가 발생했습니다." : (err.message || "서버 오류가 발생했습니다."),
+    error:   isProd ? "Internal Server Error"   : err.message,
+  });
 });
 
 // 푸시 알림 시스템 초기화
