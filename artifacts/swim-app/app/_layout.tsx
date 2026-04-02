@@ -28,7 +28,6 @@ function AppLoadingScreen() {
         style={loadingStyles.logo}
         resizeMode="contain"
       />
-      <Text style={loadingStyles.appName}>스윔노트</Text>
       <ActivityIndicator size="small" color="#2EC4B6" style={{ marginTop: 32 }} />
     </View>
   );
