@@ -378,11 +378,14 @@ router.post("/parent-register", async (req, res) => {
 
 // ── 학부모 간편 가입 (수영장/자녀 없이 계정만 생성) ──────────────────────
 router.post("/simple-parent-register", async (req, res) => {
-  const { parent_name, phone, loginId, password } = req.body;
-  const name = (parent_name || "").trim();
-  const ph   = (phone || "").trim();
-  const lid  = (loginId || "").trim();
-  const pw   = (password || "").trim();
+  const { parent_name, phone, loginId, password, child_name, child_birth_year, swimming_pool_id } = req.body;
+  const name      = (parent_name || "").trim();
+  const ph        = (phone || "").trim();
+  const lid       = (loginId || "").trim();
+  const pw        = (password || "").trim();
+  const cName     = (child_name || "").trim();
+  const cYear     = child_birth_year ? Number(child_birth_year) : null;
+  const poolId    = swimming_pool_id || null;
   if (!name || !ph || !pw) return err(res, 400, "이름, 전화번호, 비밀번호는 필수입니다.");
   if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
   if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
@@ -392,8 +395,6 @@ router.post("/simple-parent-register", async (req, res) => {
       const dupId = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
       if ((dupId.rows as any[]).length > 0) return err(res, 409, "이미 사용 중인 아이디입니다.");
     }
-    // 전화번호 중복 확인 제거: 동일 학부모가 여러 수영장에 가입할 수 있으며
-    // 관리자 삭제 후 재가입도 허용해야 하므로 전화번호 전역 중복 체크를 하지 않음
 
     const pin_hash = await hashPassword(pw);
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -401,8 +402,9 @@ router.post("/simple-parent-register", async (req, res) => {
     const normParentName = name.replace(/\s+/g, "").toLowerCase();
 
     // 가입 전 이미 등록된 학생이 있는지 확인
-    // ① 전화번호 일치 (parent_phone이 설정된 경우) — 가장 신뢰도 높은 방법
-    // ② 학부모 이름 일치 + parent_phone 미설정 (관리자가 전화번호를 입력 안 한 경우 폴백)
+    // ① 전화번호 일치 (parent_phone이 설정된 경우)
+    // ② 학부모 이름 일치 + parent_phone 미설정
+    // ③ 자녀 이름 + 수영장 ID 일치 (가장 중요 — 관리자가 학생 이름으로 등록한 경우)
     const matchedStudents = await db.execute(sql`
       SELECT id, swimming_pool_id FROM students
       WHERE (
@@ -412,15 +414,22 @@ router.post("/simple-parent-register", async (req, res) => {
           AND ${normParentName} != ''
           AND REPLACE(LOWER(COALESCE(parent_name, '')), ' ', '') = ${normParentName}
         )
+        OR (
+          ${cName} != ''
+          AND ${poolId} IS NOT NULL
+          AND name = ${cName}
+          AND swimming_pool_id = ${poolId}
+          AND (${cYear}::int IS NULL OR birth_year = ${cYear}::int)
+        )
       )
         AND parent_user_id IS NULL
         AND status NOT IN ('withdrawn', 'archived', 'deleted')
       LIMIT 10
     `);
 
-    // 매칭된 학생의 수영장 ID 결정 (첫 번째 매칭 기준)
+    // 매칭된 학생의 수영장 ID 결정 (첫 번째 매칭 기준, 없으면 앱이 선택한 수영장 사용)
     const firstMatch = (matchedStudents.rows as any[])[0];
-    const matchedPoolId = firstMatch?.swimming_pool_id || null;
+    const matchedPoolId = firstMatch?.swimming_pool_id || poolId || null;
 
     await db.execute(sql`
       INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)

@@ -272,6 +272,9 @@ export default function SignupScreen() {
             loginId: loginId.trim().toLowerCase(),
             password: pw,
             phone: cleaned,
+            child_name: childName.trim() || null,
+            child_birth_year: childBirthYear.trim() ? Number(childBirthYear.trim()) : null,
+            swimming_pool_id: selectedPool?.id || null,
           }),
         });
         data = await safeJson(res);
