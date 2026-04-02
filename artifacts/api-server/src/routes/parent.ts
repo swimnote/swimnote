@@ -98,6 +98,8 @@ router.post("/auto-link-students", requireAuth, requireParent, async (req: AuthR
       const updated = await db.execute(sql`
         UPDATE students
         SET parent_user_id = ${parentId},
+            parent_phone = COALESCE(NULLIF(parent_phone, ''), ${normPhone}),
+            parent_name  = COALESCE(NULLIF(parent_name, ''), ${normParentName !== '' ? pa.name : null}),
             status = CASE
               WHEN status IN ('unregistered', 'pending_approval') THEN 'active'
               ELSE status

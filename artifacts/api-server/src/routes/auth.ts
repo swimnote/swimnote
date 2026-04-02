@@ -427,7 +427,7 @@ router.post("/simple-parent-register", async (req, res) => {
       VALUES (${parentId}, ${matchedPoolId}, ${ph}, ${pin_hash}, ${name}, ${lid || null}, true, now(), now())
     `);
 
-    // 매칭된 학생들과 자동 연결 + 학생 status active 전환
+    // 매칭된 학생들과 자동 연결 + 학생 status active 전환 + 연락처 보완
     for (const student of matchedStudents.rows as any[]) {
       const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await db.execute(sql`
@@ -438,6 +438,8 @@ router.post("/simple-parent-register", async (req, res) => {
       await db.execute(sql`
         UPDATE students
         SET parent_user_id = ${parentId},
+            parent_phone = COALESCE(NULLIF(parent_phone, ''), ${normPhone}),
+            parent_name  = COALESCE(NULLIF(parent_name, ''), ${name}),
             status = CASE
               WHEN status IN ('unregistered', 'pending_approval') THEN 'active'
               ELSE status

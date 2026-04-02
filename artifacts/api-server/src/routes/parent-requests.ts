@@ -179,6 +179,8 @@ router.post("/auth/pool-join-request", async (req, res) => {
         await db.execute(sql`
           UPDATE students
           SET parent_user_id = ${paId},
+              parent_phone = COALESCE(NULLIF(parent_phone, ''), ${phone.trim().replace(/[^0-9]/g, "")}),
+              parent_name  = COALESCE(NULLIF(parent_name, ''), ${parent_name.trim()}),
               status = CASE
                 WHEN status IN ('unregistered', 'pending_approval') THEN 'active'
                 ELSE status

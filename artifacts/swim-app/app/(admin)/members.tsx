@@ -1,7 +1,7 @@
 import { CircleCheck, CircleX, Info, Search, SquareCheck } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, Pressable, RefreshControl,
   StyleSheet, Text, TextInput, View,
@@ -137,6 +137,15 @@ export default function MembersScreen() {
   }
 
   useEffect(() => { load(); }, [load]);
+
+  // 화면 포커스 시 자동 새로고침 — 학부모 연결 상태를 실시간 반영
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) { firstFocus.current = false; return; }
+      load();
+    }, [load])
+  );
 
   function handleDelete(id: string, name: string) {
     setDeleteTarget({ id, name });
