@@ -107,7 +107,7 @@ export default function ApprovalsScreen() {
   // inviteRecordStore — 초대 이력 연동
   const inviteRecords    = useInviteRecordStore(s => s.records);
 
-  const [mainTab,  setMainTab]  = useState<MainTab>("parents");
+  const [mainTab,  setMainTab]  = useState<MainTab>("teachers");
   const [filter,   setFilter]   = useState<StatusFilter>("unlinked");
   const [invites,  setInvites]  = useState<TeacherInvite[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -468,11 +468,10 @@ export default function ApprovalsScreen() {
       <SubScreenHeader title="승인 관리" />
       <MainTabs<MainTab>
         tabs={[
-          { key: "parents",  label: "학부모", badge: pendingParentsCnt + unlinkedParentsCnt },
           { key: "teachers", label: "선생님 승인", badge: pendingTeachersCnt },
         ]}
         active={mainTab}
-        onChange={key => { setMainTab(key); setFilter(key === "parents" ? "pending" : "unlinked"); }}
+        onChange={key => { setMainTab(key); setFilter("unlinked"); }}
       />
       <FilterChips<StatusFilter>
         chips={chipsWithCount()}

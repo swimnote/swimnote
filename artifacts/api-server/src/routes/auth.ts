@@ -253,19 +253,6 @@ router.post("/parent-login", async (req, res) => {
       : [];
     const accounts: any[] = byLoginId.rows.length > 0 ? byLoginId.rows : byPhone;
     if (accounts.length === 0) {
-      const pending = await superAdminDb.execute(sql`
-        SELECT id, parent_name FROM parent_pool_requests
-        WHERE (login_id = ${id} OR phone = ${id})
-          AND request_status = 'pending'
-        LIMIT 1
-      `);
-      if ((pending.rows as any[]).length > 0) {
-        return res.status(403).json({
-          success: false,
-          error: "가입 요청이 승인 대기 중입니다. 수영장 관리자 승인 후 로그인 가능합니다.",
-          error_code: "pending_pool_request",
-        });
-      }
       return err(res, 401, "등록되지 않은 아이디 또는 전화번호입니다.");
     }
     let matched: any = null;
@@ -549,24 +536,12 @@ router.post("/unified-login", async (req, res) => {
             .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, parentRow.swimming_pool_id)).limit(1);
           poolName = pool?.name ?? null;
         } catch {}
-        // 최신 SRR 상태 조회 — pending/rejected 시 앱 게이트에 표시
-        let joinStatus: string = "approved";
-        let joinRequestId: string | null = null;
-        try {
-          const srrRows = await superAdminDb.execute(sql`
-            SELECT id, status FROM student_registration_requests
-            WHERE parent_id = ${parentRow.id}
-            ORDER BY created_at DESC LIMIT 1
-          `);
-          const srr = (srrRows.rows as any[])[0];
-          if (srr) { joinStatus = srr.status; joinRequestId = srr.id; }
-        } catch {}
         const token = signToken({ userId: parentRow.id, role: "parent_account", poolId: parentRow.swimming_pool_id });
         available_accounts.push({
           kind: "parent",
           token,
-          join_status: joinStatus,
-          join_request_id: joinRequestId,
+          join_status: "approved",
+          join_request_id: null,
           parent: { id: parentRow.id, name: parentRow.name, nickname: parentRow.nickname || null, phone: parentRow.phone, login_id: parentRow.login_id, swimming_pool_id: parentRow.swimming_pool_id, pool_name: poolName },
         });
       }
@@ -576,14 +551,6 @@ router.post("/unified-login", async (req, res) => {
     if (available_accounts.length === 0) {
       if (wrongPwCount > 0) {
         res.status(401).json({ success: false, error: "비밀번호가 일치하지 않습니다.", error_code: "wrong_password" }); return;
-      }
-      // pending 요청 확인
-      const pendingReq = await superAdminDb.execute(sql`
-        SELECT id FROM parent_pool_requests
-        WHERE (login_id = ${id} OR phone = ${id}) AND request_status = 'pending' LIMIT 1
-      `);
-      if ((pendingReq.rows as any[]).length > 0) {
-        res.status(403).json({ success: false, error: "가입 요청이 승인 대기 중입니다.", error_code: "pending_pool_request" }); return;
       }
       res.status(401).json({ success: false, error: "가입된 계정이 없습니다.", error_code: "user_not_found" }); return;
     }
