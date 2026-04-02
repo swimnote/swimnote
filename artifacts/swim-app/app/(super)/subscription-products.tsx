@@ -470,7 +470,7 @@ export default function SubscriptionProductsScreen() {
   function handleStorageSave(form: StorageFormState) {
     if (!form.name.trim()) { Alert.alert("입력 오류", "상품명을 입력하세요."); return; }
     const extraMb = parseInt(form.extraStorageMb) || 10240;
-    const price   = parseInt(form.price) || 9900;
+    const price   = parseInt(form.price) || 9500;
     const actorName = "슈퍼관리자";
     if (editProduct) {
       updateProduct(editProduct.id, { name: form.name.trim(), extraStorageMb: extraMb, price, note: form.note.trim() }, actorName);
