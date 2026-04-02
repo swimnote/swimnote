@@ -60,19 +60,19 @@ function pctColor(cur: number, prev: number): string {
   return cur >= prev ? "#2EC4B6" : "#D96C6C";
 }
 
-// ─── 지출 항목 단가 (추정치) ─────────────────────────────────────────────
-// 결제 채널: 앱스토어 / 구글플레이 인앱결제 (수수료 30%, 구독 첫 해 15% 감면 없이 30% 적용)
-// PG(PortOne) 수수료는 적용하지 않음 — 스토어 결제 전용.
-const UNIT_COSTS: { id: string; label: string; unit: string; unitCost: number; qty: number; monthly: number; note?: string }[] = [
-  { id: "appstore", label: "앱스토어/구글플레이 수수료 (30%)", unit: "매출 30%", unitCost: 0.30, qty: 1,   monthly: 0,  note: "인앱결제 스토어 수수료 30%" },
-  { id: "supabase", label: "Supabase DB (운영 포함)",          unit: "프로 플랜", unitCost: 25,  qty: 1,   monthly: 25, note: "슈퍼관리자 운영 DB 포함" },
-  { id: "r2",       label: "Cloudflare R2 스토리지",           unit: "GB당 $0.015", unitCost: 0.015, qty: 800, monthly: 18, note: "추정 800 GB" },
-  { id: "traffic",  label: "트래픽·CDN 비용",                  unit: "GB당 $0.01",  unitCost: 0.01,  qty: 500, monthly: 7,  note: "추정 500 GB 월 트래픽" },
-  { id: "backup",   label: "백업 DB/스토리지 유지",            unit: "고정",        unitCost: 20,  qty: 1,   monthly: 20, note: "백업 Supabase + R2 복제" },
-  { id: "infra",    label: "기타 인프라·모니터링",             unit: "고정",        unitCost: 15,  qty: 1,   monthly: 15, note: "Sentry, Logflare 등" },
-];
+// ─── 고정 비용 단가 (실제 계약 단가, 교체 가능) ─────────────────────────────
+// 스토어 수수료: 실결제 × 30% (실데이터)
+// R2 스토리지: 실제 DB 사용량 기반 (실데이터)
+// Supabase·백업·인프라: 실제 계약 고정 비용
+const KRW_RATE = 1350; // USD → KRW 환산
 
-const KRW_RATE = 1350; // USD → KRW 환산 (참고값)
+const FIXED_COSTS = {
+  supabase_usd:  25,  // Supabase Pro Plan/월
+  backup_usd:    20,  // 백업 DB + R2 복제/월
+  infra_usd:     15,  // Sentry, Logflare 등/월
+  r2_per_gb_usd: 0.015, // Cloudflare R2 GB당/월
+  store_fee_rate: 0.30,  // 앱스토어/구글플레이 수수료
+};
 
 // ─── 서브 컴포넌트 ─────────────────────────────────────────────────────────
 function SectionHeader({ icon, title }: { icon: React.ComponentProps<typeof Feather>["name"]; title: string }) {
@@ -107,15 +107,30 @@ interface RevSummary {
 }
 interface PlanStat { plan_id: string; plan_name?: string; payment_count: number; total_amount: number; }
 
+interface PlatformMetrics {
+  total_storage_bytes: number;
+  total_storage_gb: number;
+  total_pools: number;
+  approved_pools: number;
+  active_subscriptions: number;
+}
+
+function fmtGb(bytes: number): string {
+  const gb = bytes / (1024 ** 3);
+  if (gb < 1) return `${(bytes / (1024 ** 2)).toFixed(1)} MB`;
+  return `${gb.toFixed(2)} GB`;
+}
+
 export default function BillingAnalyticsScreen() {
   if (!billingEnabled) return null;
   const { token } = useAuth();
   const [period, setPeriod] = useState<Period>("month");
-  const [logs,        setLogs]        = useState<RevLog[]>([]);
-  const [summary,     setSummary]     = useState<RevSummary | null>(null);
-  const [prevSummary, setPrevSummary] = useState<RevSummary | null>(null);
-  const [planStats,   setPlanStats]   = useState<PlanStat[]>([]);
-  const [refreshing,  setRefreshing]  = useState(false);
+  const [logs,          setLogs]          = useState<RevLog[]>([]);
+  const [summary,       setSummary]       = useState<RevSummary | null>(null);
+  const [prevSummary,   setPrevSummary]   = useState<RevSummary | null>(null);
+  const [planStats,     setPlanStats]     = useState<PlanStat[]>([]);
+  const [platformMetrics, setPlatformMetrics] = useState<PlatformMetrics | null>(null);
+  const [refreshing,    setRefreshing]    = useState(false);
 
   const { start, end, prevStart, prevEnd, label: periodLabel } = useMemo(() => getPeriodRange(period), [period]);
 
@@ -123,16 +138,18 @@ export default function BillingAnalyticsScreen() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [curRes, prevRes, planRes] = await Promise.all([
+      const [curRes, prevRes, planRes, metRes] = await Promise.all([
         apiRequest(token, `/billing/revenue-logs?start=${toDateStr(start)}&end=${toDateStr(end)}`),
         apiRequest(token, `/billing/revenue-logs?start=${toDateStr(prevStart)}&end=${toDateStr(prevEnd)}`),
         apiRequest(token, "/billing/revenue-by-plan"),
+        apiRequest(token, "/super/platform-metrics"),
       ]);
       const [curData, prevData, planData] = await Promise.all([curRes.json(), prevRes.json(), planRes.json()]);
       setLogs(Array.isArray(curData.logs) ? curData.logs : []);
       setSummary(curData.summary ?? null);
       setPrevSummary(prevData.summary ?? null);
       setPlanStats(Array.isArray(planData) ? planData : []);
+      if (metRes.ok) setPlatformMetrics(await metRes.json());
     } catch (e) { console.error("billing-analytics fetchData:", e); }
   }, [token, start, end, prevStart, prevEnd]);
 
@@ -155,25 +172,27 @@ export default function BillingAnalyticsScreen() {
     return { total, prevTotal, successCount, failedCount, refundCount, refundAmt, newCount, renewalCount, planMap };
   }, [summary, prevSummary, logs, planStats]);
 
-  // ── 지출 집계 (앱스토어/구글플레이 수수료 30%, PG 수수료 없음) ──
+  // ── 지출 집계 ──
   const costs = useMemo(() => {
-    const storeFee = Math.round(revenue.total * UNIT_COSTS[0].unitCost); // 30% 스토어 수수료
-    const supabase = Math.round(UNIT_COSTS[1].monthly * KRW_RATE);
-    const r2       = Math.round(UNIT_COSTS[2].monthly * KRW_RATE);
-    const traffic  = Math.round(UNIT_COSTS[3].monthly * KRW_RATE);
-    const backup   = Math.round(UNIT_COSTS[4].monthly * KRW_RATE);
-    const infra    = Math.round(UNIT_COSTS[5].monthly * KRW_RATE);
-    const total    = storeFee + supabase + r2 + traffic + backup + infra;
+    const actualStorageGb = platformMetrics?.total_storage_gb ?? 0;
+    const storeFee = Math.round(revenue.total * FIXED_COSTS.store_fee_rate);
+    const supabase = Math.round(FIXED_COSTS.supabase_usd * KRW_RATE);
+    const r2       = Math.round(FIXED_COSTS.r2_per_gb_usd * actualStorageGb * KRW_RATE);
+    const backup   = Math.round(FIXED_COSTS.backup_usd * KRW_RATE);
+    const infra    = Math.round(FIXED_COSTS.infra_usd * KRW_RATE);
+    const total    = storeFee + supabase + r2 + backup + infra;
+    const storageNote = platformMetrics
+      ? `실제 ${fmtGb(platformMetrics.total_storage_bytes)} × $${FIXED_COSTS.r2_per_gb_usd}/GB`
+      : "스토리지 데이터 로딩 중...";
     return [
-      { label: "앱스토어/구글플레이 수수료 (30%)", amount: storeFee, note: "인앱결제 매출 × 30%" },
-      { label: "Supabase DB (운영 DB 포함)",        amount: supabase, note: "슈퍼관리자 DB 포함 추정치" },
-      { label: "Cloudflare R2 스토리지",            amount: r2,       note: "~800 GB 추정" },
-      { label: "트래픽·CDN",                        amount: traffic,  note: "~500 GB/월 추정" },
-      { label: "백업 DB/스토리지",                   amount: backup,   note: "백업 복제 고정비" },
-      { label: "기타 인프라·모니터링",               amount: infra,    note: "Sentry, Logflare 등" },
-      { label: "총 지출 (추정)", amount: total, note: "실제 청구서 연동 시 자동 업데이트" },
+      { label: "앱스토어/구글플레이 수수료 (30%)", amount: storeFee, note: "인앱결제 매출 × 30%", isReal: true },
+      { label: "Supabase DB (운영 DB 포함)",        amount: supabase, note: `고정비 $${FIXED_COSTS.supabase_usd}/월 × ₩${KRW_RATE}`, isFixed: true },
+      { label: "Cloudflare R2 스토리지",            amount: r2,       note: storageNote, isReal: true },
+      { label: "백업 DB/스토리지",                   amount: backup,   note: `고정비 $${FIXED_COSTS.backup_usd}/월 × ₩${KRW_RATE}`, isFixed: true },
+      { label: "기타 인프라·모니터링",               amount: infra,    note: `고정비 $${FIXED_COSTS.infra_usd}/월 × ₩${KRW_RATE}`, isFixed: true },
+      { label: "총 지출", amount: total, note: "" },
     ];
-  }, [revenue.total]);
+  }, [revenue.total, platformMetrics]);
 
   const totalCost   = costs[costs.length - 1].amount;
   const netProfit   = revenue.total - totalCost;
@@ -261,25 +280,32 @@ export default function BillingAnalyticsScreen() {
 
         {/* ══ 섹션 3: 지출 내역 ══ */}
         <View style={s.section}>
-          <SectionHeader icon="minus-circle" title="지출 항목 (추정치)" />
+          <SectionHeader icon="minus-circle" title="지출 항목" />
           <View style={[s.estimateNoteBanner]}>
-            <Info size={12} color="#D97706" />
-            <Text style={s.estimateNoteTxt}>
-              정확한 비용 API 미연동. 사용량 기반 추정치이며 실제 청구서와 차이가 있을 수 있습니다.
-              슈퍼관리자 운영 DB·백업 비용도 포함됩니다.
+            <Info size={12} color="#0369A1" />
+            <Text style={[s.estimateNoteTxt, { color: "#0369A1" }]}>
+              스토어 수수료·R2 스토리지는 실데이터 기반. DB·백업·인프라는 실제 계약 고정 비용.
             </Text>
           </View>
           {costs.slice(0, -1).map((c, i) => (
             <View key={i} style={s.costRow}>
               <View style={{ flex: 1 }}>
-                <Text style={s.costLabel}>{c.label}</Text>
-                <Text style={s.costNote}>{c.note}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                  <Text style={s.costLabel}>{c.label}</Text>
+                  {(c as any).isReal && (
+                    <View style={s.realBadge}><Text style={s.realBadgeTxt}>실데이터</Text></View>
+                  )}
+                  {(c as any).isFixed && (
+                    <View style={s.fixedBadge}><Text style={s.fixedBadgeTxt}>고정비</Text></View>
+                  )}
+                </View>
+                {c.note ? <Text style={s.costNote}>{c.note}</Text> : null}
               </View>
               <Text style={s.costAmount}>{fmtKRW(c.amount)}</Text>
             </View>
           ))}
           <View style={s.costTotalRow}>
-            <Text style={s.costTotalLabel}>총 지출 (추정)</Text>
+            <Text style={s.costTotalLabel}>총 지출</Text>
             <Text style={s.costTotalAmount}>{fmtKRW(totalCost)}</Text>
           </View>
         </View>
@@ -361,9 +387,13 @@ const s = StyleSheet.create({
   planRowExtra:     { paddingTop: 6 },
   planSubNote:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
-  estimateNoteBanner: { flexDirection: "row", gap: 6, backgroundColor: "#FFF1BF",
+  estimateNoteBanner: { flexDirection: "row", gap: 6, backgroundColor: "#E0F2FE",
                         borderRadius: 8, padding: 10, alignItems: "flex-start" },
   estimateNoteTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E", flex: 1, lineHeight: 16 },
+  realBadge:          { backgroundColor: "#E6FFFA", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  realBadgeTxt:       { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  fixedBadge:         { backgroundColor: "#F1F5F9", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  fixedBadgeTxt:      { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B" },
 
   costRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 8,
                       borderBottomWidth: 1, borderColor: "#FFFFFF" },

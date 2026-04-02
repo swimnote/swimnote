@@ -1,9 +1,9 @@
 /**
  * (super)/cost-analytics.tsx — 비용·지출 분석
- * 플랫폼 운영 비용 집계.
- * - 스토어 수수료·세금: 실 결제 API 기반
- * - 인프라 비용(DB·스토리지·트래픽·기타): 단가 기반 추정
- * 탭: 주간 / 월간 / 연간
+ * - 스토어 수수료·세금: 실 결제 API 기반 (실데이터)
+ * - 스토리지: 실제 DB 사용량 집계 (실데이터)
+ * - DB·기타: 고정 운영비 (실제 계약 비용 입력 필요)
+ * - 트래픽: 측정 불가 (₩0 표시)
  */
 import { ChartBar, CircleAlert, PieChart } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
@@ -17,25 +17,24 @@ import { billingEnabled } from "@/config/billing";
 const P = "#7C3AED";
 type Period = "week" | "month" | "year";
 
-// ─── 인프라 단가 (실제 계약 단가로 교체 가능) ──────────────────────────────
+// ─── 고정 운영 단가 (실제 계약 비용으로 교체 가능) ──────────────────────────
 const UNIT_COSTS = {
-  db_monthly:      28000,  // DB 호스팅 월 비용 (원)
-  storage_per_gb:    120,  // 스토리지 GB당 월 비용
-  traffic_per_gb:     80,  // 트래픽 GB당 비용
+  db_monthly:      33750,  // Supabase Pro $25 × ₩1350
+  storage_per_gb:     20,  // R2 $0.015/GB × ₩1350 ≈ ₩20/GB
   tax_rate:          0.10, // 세금 추정율 (10%)
-  other_monthly:   15000,  // 기타 고정 운영비
+  other_monthly:   47250,  // 백업+인프라 $35 × ₩1350
   store_fee_rate:   0.30,  // 앱스토어/구글플레이 수수료 30%
-};
-
-// 플랫폼 인프라 규모 추정
-const PLATFORM_METRICS = {
-  totalStorageGb: 850,
-  totalTrafficGb: 1200,
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
 function fmtKRW(n: number): string {
   return `₩${Math.round(n).toLocaleString("ko-KR")}`;
+}
+
+function fmtGb(bytes: number): string {
+  const gb = bytes / (1024 ** 3);
+  if (gb < 1) return `${(bytes / (1024 ** 2)).toFixed(1)} MB`;
+  return `${gb.toFixed(2)} GB`;
 }
 
 function getPeriodMultiplier(period: Period): number {
@@ -61,11 +60,20 @@ function getDateRange(period: Period): { start: string; end: string } {
 
 interface CostItem {
   label: string;
-  icon: React.ComponentProps<typeof Feather>["name"];
+  icon: string;
   amount: number;
   note: string;
   color: string;
   isReal?: boolean;
+  isFixed?: boolean;
+}
+
+interface PlatformMetrics {
+  total_storage_bytes: number;
+  total_storage_gb: number;
+  total_pools: number;
+  approved_pools: number;
+  active_subscriptions: number;
 }
 
 export default function CostAnalyticsScreen() {
@@ -74,47 +82,89 @@ export default function CostAnalyticsScreen() {
   const { token } = useAuth();
   const [period, setPeriod] = useState<Period>("month");
   const [apiRevenue, setApiRevenue] = useState(0);
-  const [loadingRev, setLoadingRev] = useState(false);
+  const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const fetchRevenue = useCallback(async (p: Period) => {
+  const fetchAll = useCallback(async (p: Period) => {
     if (!token) return;
     const { start, end } = getDateRange(p);
-    setLoadingRev(true);
+    setLoading(true);
     try {
-      const res = await apiRequest(token, `/billing/revenue-logs?start=${start}&end=${end}&limit=1000`);
-      if (res.ok) {
-        const data = await res.json();
+      const [revRes, metRes] = await Promise.all([
+        apiRequest(token, `/billing/revenue-logs?start=${start}&end=${end}&limit=1000`),
+        apiRequest(token, "/super/platform-metrics"),
+      ]);
+      if (revRes.ok) {
+        const data = await revRes.json();
         setApiRevenue(Number(data?.summary?.total_charged ?? 0));
       }
+      if (metRes.ok) {
+        setMetrics(await metRes.json());
+      }
     } catch (_) {
-      // 네트워크 오류 시 0 유지
     } finally {
-      setLoadingRev(false);
+      setLoading(false);
     }
   }, [token]);
 
   useEffect(() => {
-    fetchRevenue(period);
-  }, [period, fetchRevenue]);
+    fetchAll(period);
+  }, [period, fetchAll]);
 
   const mult = getPeriodMultiplier(period);
+  const actualStorageGb = metrics?.total_storage_gb ?? 0;
 
   const costs = useMemo((): CostItem[] => {
-    const db      = UNIT_COSTS.db_monthly * mult;
-    const storage = UNIT_COSTS.storage_per_gb * PLATFORM_METRICS.totalStorageGb * mult;
-    const traffic = UNIT_COSTS.traffic_per_gb * PLATFORM_METRICS.totalTrafficGb * mult;
+    const db       = UNIT_COSTS.db_monthly * mult;
+    const storage  = UNIT_COSTS.storage_per_gb * actualStorageGb * mult;
     const storeFee = apiRevenue * UNIT_COSTS.store_fee_rate;
-    const tax     = apiRevenue * UNIT_COSTS.tax_rate;
-    const other   = UNIT_COSTS.other_monthly * mult;
+    const tax      = apiRevenue * UNIT_COSTS.tax_rate;
+    const other    = UNIT_COSTS.other_monthly * mult;
     return [
-      { label: "데이터베이스",   icon: "database",   amount: db,       note: "DB 호스팅 비용 (추정)",                    color: "#2EC4B6" },
-      { label: "스토리지",       icon: "hard-drive", amount: storage,  note: `${PLATFORM_METRICS.totalStorageGb}GB × ${fmtKRW(UNIT_COSTS.storage_per_gb)}/GB (추정)`,  color: "#7C3AED" },
-      { label: "트래픽",         icon: "wifi",       amount: traffic,  note: `${PLATFORM_METRICS.totalTrafficGb}GB × ${fmtKRW(UNIT_COSTS.traffic_per_gb)}/GB (추정)`,  color: "#2EC4B6" },
-      { label: "스토어 수수료",  icon: "smartphone", amount: storeFee, note: "실결제 × 30% (앱스토어·구글플레이)",          color: "#D96C6C", isReal: true },
-      { label: "세금 추정",      icon: "percent",    amount: tax,      note: `실결제 × ${(UNIT_COSTS.tax_rate * 100).toFixed(0)}% 추정`,                               color: "#D97706" },
-      { label: "기타 운영비",    icon: "box",        amount: other,    note: "도메인·이메일·모니터링 등 (추정)",            color: "#64748B" },
+      {
+        label: "데이터베이스",
+        icon: "database",
+        amount: db,
+        note: `Supabase Pro 고정 비용 (${fmtKRW(UNIT_COSTS.db_monthly)}/월)`,
+        color: "#2EC4B6",
+        isFixed: true,
+      },
+      {
+        label: "스토리지 (R2)",
+        icon: "hard-drive",
+        amount: storage,
+        note: metrics
+          ? `실제 ${fmtGb(metrics.total_storage_bytes)} × ${fmtKRW(UNIT_COSTS.storage_per_gb)}/GB`
+          : "스토리지 데이터 로딩 중...",
+        color: "#7C3AED",
+        isReal: true,
+      },
+      {
+        label: "스토어 수수료",
+        icon: "smartphone",
+        amount: storeFee,
+        note: "실결제 × 30% (앱스토어·구글플레이)",
+        color: "#D96C6C",
+        isReal: true,
+      },
+      {
+        label: "세금 추정",
+        icon: "percent",
+        amount: tax,
+        note: `실결제 × ${(UNIT_COSTS.tax_rate * 100).toFixed(0)}% 추정`,
+        color: "#D97706",
+        isReal: true,
+      },
+      {
+        label: "기타 운영비",
+        icon: "box",
+        amount: other,
+        note: `백업 DB + 인프라·모니터링 고정비 (${fmtKRW(UNIT_COSTS.other_monthly)}/월)`,
+        color: "#64748B",
+        isFixed: true,
+      },
     ];
-  }, [period, mult, apiRevenue]);
+  }, [period, mult, apiRevenue, actualStorageGb, metrics]);
 
   const totalCost = useMemo(() => costs.reduce((s, c) => s + c.amount, 0), [costs]);
   const netProfit = apiRevenue - totalCost;
@@ -139,14 +189,34 @@ export default function CostAnalyticsScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 14 }}>
 
-        <View style={s.mockBanner}>
-          <CircleAlert size={12} color="#D97706" />
-          <Text style={s.mockTxt}>인프라 비용·세금은 단가 기반 추정값입니다. 스토어 수수료는 실결제 기준으로 계산됩니다.</Text>
+        <View style={s.infoBanner}>
+          <CircleAlert size={12} color="#0369A1" />
+          <Text style={s.infoTxt}>
+            스토리지·스토어수수료·세금은 실데이터 기반. DB·기타 운영비는 실제 계약 고정 비용.
+          </Text>
         </View>
 
-        {loadingRev && (
+        {loading && (
           <View style={{ alignItems: "center", paddingVertical: 8 }}>
             <ActivityIndicator size="small" color={P} />
+          </View>
+        )}
+
+        {/* 플랫폼 현황 요약 */}
+        {metrics && (
+          <View style={s.metricsRow}>
+            <View style={s.metricCard}>
+              <Text style={s.metricLabel}>전체 수영장</Text>
+              <Text style={s.metricValue}>{metrics.total_pools}개</Text>
+            </View>
+            <View style={s.metricCard}>
+              <Text style={s.metricLabel}>유료 구독</Text>
+              <Text style={s.metricValue}>{metrics.active_subscriptions}개</Text>
+            </View>
+            <View style={s.metricCard}>
+              <Text style={s.metricLabel}>실사용 용량</Text>
+              <Text style={s.metricValue}>{fmtGb(metrics.total_storage_bytes)}</Text>
+            </View>
           </View>
         )}
 
@@ -176,6 +246,11 @@ export default function CostAnalyticsScreen() {
                 {c.isReal && (
                   <View style={s.realBadge}>
                     <Text style={s.realBadgeTxt}>실데이터</Text>
+                  </View>
+                )}
+                {c.isFixed && (
+                  <View style={s.fixedBadge}>
+                    <Text style={s.fixedBadgeTxt}>고정비</Text>
                   </View>
                 )}
               </View>
@@ -219,8 +294,8 @@ export default function CostAnalyticsScreen() {
             <Text style={[s.profitVal, { color: "#D96C6C" }]}>− {fmtKRW(totalCost)}</Text>
           </View>
           <View style={[s.profitRow, { borderTopWidth: 1, borderTopColor: "#E5E7EB", marginTop: 8, paddingTop: 8 }]}>
-            <Text style={[s.profitLabel, { fontFamily: "Pretendard-Regular" }]}>순이익</Text>
-            <Text style={[s.profitVal, { fontFamily: "Pretendard-Regular", color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
+            <Text style={s.profitLabel}>순이익</Text>
+            <Text style={[s.profitVal, { color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
               {netProfit >= 0 ? "" : "−"}{fmtKRW(Math.abs(netProfit))}
             </Text>
           </View>
@@ -238,9 +313,14 @@ const s = StyleSheet.create({
   tabActive:     { backgroundColor: P },
   tabTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
   tabTxtActive:  { color: "#fff" },
-  mockBanner:    { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFF1BF",
+  infoBanner:    { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E0F2FE",
                    borderRadius: 8, padding: 10, marginTop: 4 },
-  mockTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", flex: 1 },
+  infoTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0369A1", flex: 1 },
+  metricsRow:    { flexDirection: "row", gap: 8 },
+  metricCard:    { flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 12, alignItems: "center",
+                   borderWidth: 1, borderColor: "#E5E7EB", gap: 4 },
+  metricLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metricValue:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   summaryRow:    { flexDirection: "row", gap: 10 },
   summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 14,
                    borderWidth: 1, alignItems: "center" },
@@ -257,6 +337,8 @@ const s = StyleSheet.create({
   costPct:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
   realBadge:     { backgroundColor: "#E6FFFA", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   realBadgeTxt:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  fixedBadge:    { backgroundColor: "#F1F5F9", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  fixedBadgeTxt: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B" },
   barWrap:       { flexDirection: "row", height: 14, borderRadius: 7, overflow: "hidden", backgroundColor: "#FFFFFF" },
   barSeg:        { height: 14 },
   legendRow:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },

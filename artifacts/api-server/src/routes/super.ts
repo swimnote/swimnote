@@ -2141,6 +2141,47 @@ router.patch(
   }
 );
 
+// GET /super/platform-metrics — 플랫폼 전체 실사용량 지표 (비용 분석 화면용)
+router.get(
+  "/super/platform-metrics",
+  requireAuth,
+  requireRole("super_admin", "platform_admin", "super_manager"),
+  async (_req, res) => {
+    try {
+      const storageRes = await db.execute(sql`
+        SELECT
+          COALESCE(SUM(COALESCE(used_storage_bytes, 0)), 0)::bigint AS total_used_bytes,
+          COUNT(*)::int                                              AS total_pools,
+          COUNT(*) FILTER (WHERE approval_status = 'approved')::int AS approved_pools
+        FROM swimming_pools
+      `);
+      const row = storageRes.rows[0] ?? {};
+      const totalUsedBytes = Number(row.total_used_bytes ?? 0);
+      const totalUsedGb    = totalUsedBytes / (1024 ** 3);
+
+      const subRes = await db.execute(sql`
+        SELECT COUNT(*)::int AS active_subs
+        FROM swimming_pools
+        WHERE plan_id IS NOT NULL
+          AND plan_id != 'free'
+          AND subscription_status NOT IN ('deleted','cancelled')
+      `);
+      const activeSubs = Number(subRes.rows[0]?.active_subs ?? 0);
+
+      res.json({
+        total_storage_bytes: totalUsedBytes,
+        total_storage_gb:    Math.round(totalUsedGb * 100) / 100,
+        total_pools:         Number(row.total_pools ?? 0),
+        approved_pools:      Number(row.approved_pools ?? 0),
+        active_subscriptions: activeSubs,
+      });
+    } catch (err) {
+      console.error("[super/platform-metrics]", err);
+      res.json({ total_storage_bytes: 0, total_storage_gb: 0, total_pools: 0, approved_pools: 0, active_subscriptions: 0 });
+    }
+  }
+);
+
 // 앱 시작 시 비동기로 테이블/컬럼 보장
 ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));
 ensurePlansTables().catch(err => console.error("[super] ensurePlansTables 오류:", err));
