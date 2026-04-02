@@ -6,6 +6,7 @@
  * Step 4: 역할별 추가정보 → 가입 → 자동 로그인
  */
 import { ArrowLeft, Check, CircleAlert, CircleCheck, CircleX, Hash, MapPin, Search, Smartphone, Terminal } from "lucide-react-native";
+import { toAsciiOnly } from "@/utils/koreanToQwerty";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -327,8 +328,10 @@ export default function SignupScreen() {
             placeholder="영문·숫자 4자 이상"
             placeholderTextColor={C.textMuted}
             value={loginId}
-            onChangeText={setLoginId}
+            onChangeText={v => setLoginId(toAsciiOnly(v))}
             autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="ascii-capable"
             returnKeyType="next"
           />
         </InputField>
@@ -339,8 +342,11 @@ export default function SignupScreen() {
             placeholder="4자 이상"
             placeholderTextColor={C.textMuted}
             value={pw}
-            onChangeText={setPw}
+            onChangeText={v => setPw(toAsciiOnly(v))}
             secureTextEntry={!showPw}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="ascii-capable"
             returnKeyType="next"
           />
           <Pressable onPress={() => setShowPw(v => !v)}>
@@ -354,8 +360,11 @@ export default function SignupScreen() {
             placeholder="비밀번호 재입력"
             placeholderTextColor={C.textMuted}
             value={pwc}
-            onChangeText={setPwc}
+            onChangeText={v => setPwc(toAsciiOnly(v))}
             secureTextEntry={!showPwc}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="ascii-capable"
             returnKeyType="done"
           />
           <Pressable onPress={() => setShowPwc(v => !v)}>
