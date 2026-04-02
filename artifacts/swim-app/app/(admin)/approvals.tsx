@@ -166,14 +166,8 @@ export default function ApprovalsScreen() {
   // ── 데이터 로드 ────────────────────────────────────────────────
   const load = useCallback(async () => {
     try {
-      const [iRes, pRes, uRes] = await Promise.all([
-        apiRequest(token, "/admin/teacher-invites"),
-        apiRequest(token, "/admin/parent-requests"),
-        apiRequest(token, "/admin/unlinked-students"),
-      ]);
+      const iRes = await apiRequest(token, "/admin/teacher-invites");
       if (iRes.ok) { const d = await iRes.json(); setInvites(d.data ?? []); }
-      if (pRes.ok) { const d = await pRes.json(); setApiParentRequests((d.data ?? []).map(mapApiToRequest)); }
-      if (uRes.ok) { const d = await uRes.json(); setUnlinkedStudents(d.data ?? []); }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);

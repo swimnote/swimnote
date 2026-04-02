@@ -165,6 +165,7 @@ export default function LoginPasswordScreen() {
               </View>
               <Pressable
                 style={({ pressed }) => [styles.inviteBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+                onPress={() => router.push({ pathname: "/(auth)/parent-code-signup" as any, params: { code: inviteCode.trim().toUpperCase() } })}
               >
                 <Text style={styles.inviteBtnText}>{LOGIN_LABELS.inviteCode.btn}</Text>
               </Pressable>

@@ -1,7 +1,7 @@
-import { ArrowLeft, AtSign, CircleAlert, Hash, Lock, UserCheck } from "lucide-react-native";
+import { ArrowLeft, AtSign, CircleAlert, Hash, Lock, User, UserCheck } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
-import React, { useRef, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView,
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -9,25 +9,36 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { API_BASE, useAuth } from "@/context/AuthContext";
+
 const C = Colors.light;
 
-type InviteInfo = {
-  id: string; code: string; pool_name: string;
-  parent_name: string; phone: string;
-  child_name?: string; child_birth_year?: number;
+type StudentInfo = {
+  id: string;
+  student_name: string;
+  birth_year?: string | null;
+  pool_name: string;
   swimming_pool_id: string;
 };
 
 export default function ParentCodeSignupScreen() {
   const insets = useSafeAreaInsets();
   const { setParentSession } = useAuth();
+  const params = useLocalSearchParams<{ code?: string }>();
+  const parentNameRef = useRef<TextInput>(null);
   const pwRef = useRef<TextInput>(null);
   const pw2Ref = useRef<TextInput>(null);
 
   const [step, setStep] = useState<"code" | "confirm" | "account">("code");
-  const [code, setCode] = useState("");
-  const [invite, setInvite] = useState<InviteInfo | null>(null);
+  const [code, setCode] = useState(params.code || "");
+  const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
 
+  useEffect(() => {
+    if (params.code && params.code.length >= 4) {
+      setCode(params.code.toUpperCase());
+    }
+  }, [params.code]);
+
+  const [parentName, setParentName] = useState("");
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -37,43 +48,52 @@ export default function ParentCodeSignupScreen() {
   const [error, setError] = useState("");
 
   async function verifyCode() {
-    if (code.trim().length < 6) { setError("코드를 올바르게 입력해주세요."); return; }
+    if (code.trim().length < 4) { setError("코드를 올바르게 입력해주세요."); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/auth/parent-invite/verify?code=${encodeURIComponent(code.trim().toUpperCase())}`);
+      const res = await fetch(`${API_BASE}/auth/invite/verify?code=${encodeURIComponent(code.trim().toUpperCase())}`);
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "유효하지 않은 코드입니다."); return; }
-      setInvite(data.invite);
+      if (!res.ok) {
+        if (data.error_code === "already_linked") {
+          setError("이미 가입이 완료된 코드입니다. 로그인 화면에서 로그인해주세요.");
+        } else {
+          setError(data.error || data.message || "유효하지 않은 코드입니다.");
+        }
+        return;
+      }
+      setStudentInfo(data.student);
       setStep("confirm");
     } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
   }
 
   async function joinWithCode() {
+    if (!parentName.trim()) { setError("학부모 이름을 입력해주세요."); return; }
     if (!loginId.trim()) { setError("아이디를 입력해주세요."); return; }
     if (loginId.trim().length < 3) { setError("아이디는 3자 이상이어야 합니다."); return; }
     if (!password || password.length < 4) { setError("비밀번호는 4자리 이상이어야 합니다."); return; }
     if (password !== passwordConfirm) { setError("비밀번호가 일치하지 않습니다."); return; }
     setLoading(true); setError("");
     try {
-      // 초대코드로 가입
-      const joinRes = await fetch(`${API_BASE}/auth/parent-invite/join`, {
+      const joinRes = await fetch(`${API_BASE}/auth/invite/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim().toUpperCase(), loginId: loginId.trim(), password }),
+        body: JSON.stringify({
+          code: code.trim().toUpperCase(),
+          parent_name: parentName.trim(),
+          loginId: loginId.trim(),
+          password,
+        }),
       });
       const joinData = await joinRes.json();
-      if (!joinRes.ok) { setError(joinData.error || joinData.message || "가입 실패"); return; }
-
-      // 자동 로그인
-      const loginRes = await fetch(`${API_BASE}/auth/parent-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ loginId: loginId.trim(), password }),
-      });
-      const loginData = await loginRes.json();
-      if (!loginRes.ok) { setError(loginData.error || "로그인 실패. 로그인 화면에서 직접 로그인해주세요."); return; }
-
-      await setParentSession(loginData.token, loginData.parent);
+      if (!joinRes.ok) {
+        if (joinData.error_code === "already_linked") {
+          setError("이미 가입이 완료된 코드입니다. 로그인 화면에서 로그인해주세요.");
+        } else {
+          setError(joinData.error || joinData.message || "가입 실패");
+        }
+        return;
+      }
+      await setParentSession(joinData.token, joinData.parent);
       router.replace("/(parent)/home" as any);
     } catch { setError("서버 오류가 발생했습니다."); } finally { setLoading(false); }
   }
@@ -93,26 +113,26 @@ export default function ParentCodeSignupScreen() {
           <Pressable
             style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
             onPress={() => {
-              if (step === "confirm") { setStep("code"); setInvite(null); }
+              if (step === "confirm") { setStep("code"); setStudentInfo(null); }
               else if (step === "account") setStep("confirm");
               else router.back();
             }}
           >
             <ArrowLeft size={20} color={C.text} />
           </Pressable>
-          <Text style={[styles.screenTitle, { color: C.text }]}>초대코드로 가입</Text>
+          <Text style={[styles.screenTitle, { color: C.text }]}>학부모 가입</Text>
           <View style={{ width: 28 }} />
         </View>
 
-        {/* 단계 1: 코드 입력 */}
+        {/* 단계 1: 초대코드 입력 */}
         {step === "code" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
-            <View style={[styles.iconWrap, { backgroundColor: "#DFF3EC" }]}>
-              <Hash size={24} color="#2E9B6F" />
+            <View style={[styles.iconWrap, { backgroundColor: "#FFF3E0" }]}>
+              <Hash size={24} color="#E4A93A" />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>초대코드 입력</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
-              수영장에서 받은 초대코드를 입력해주세요.
+              수영장에서 받은 초대코드를 입력해주세요.{"\n"}초대코드 없이는 가입이 불가능합니다.
             </Text>
 
             <View style={styles.field}>
@@ -122,13 +142,13 @@ export default function ParentCodeSignupScreen() {
                   style={[styles.codeInput, { color: C.text }]}
                   value={code}
                   onChangeText={v => { setCode(v.toUpperCase()); setError(""); }}
-                  placeholder="예: ABCD1234"
+                  placeholder="초대코드 입력"
                   placeholderTextColor={C.textMuted}
                   autoCapitalize="characters"
                   autoCorrect={false}
                   returnKeyType="done"
                   onSubmitEditing={verifyCode}
-                  maxLength={10}
+                  maxLength={12}
                 />
               </View>
             </View>
@@ -141,7 +161,7 @@ export default function ParentCodeSignupScreen() {
             )}
 
             <Pressable
-              style={({ pressed }) => [styles.submitBtn, { backgroundColor: "#2E9B6F", opacity: pressed || loading ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: "#E4A93A", opacity: pressed || loading ? 0.85 : 1 }]}
               onPress={verifyCode}
               disabled={loading}
             >
@@ -153,24 +173,22 @@ export default function ParentCodeSignupScreen() {
           </View>
         )}
 
-        {/* 단계 2: 정보 확인 */}
-        {step === "confirm" && invite && (
+        {/* 단계 2: 자녀 정보 확인 */}
+        {step === "confirm" && studentInfo && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#DFF3EC" }]}>
               <UserCheck size={24} color="#2E9B6F" />
             </View>
-            <Text style={[styles.cardTitle, { color: C.text }]}>정보 확인</Text>
+            <Text style={[styles.cardTitle, { color: C.text }]}>자녀 정보 확인</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
-              등록된 정보가 맞는지 확인해주세요.
+              수영장에 등록된 자녀 정보를 확인해주세요.
             </Text>
 
             <View style={[styles.infoBox, { backgroundColor: C.background, borderColor: C.border }]}>
               {[
-                { label: "수영장", value: invite.pool_name },
-                { label: "이름", value: invite.parent_name },
-                { label: "전화번호", value: invite.phone },
-                ...(invite.child_name ? [{ label: "자녀 이름", value: invite.child_name }] : []),
-                ...(invite.child_birth_year ? [{ label: "자녀 출생년도", value: String(invite.child_birth_year) }] : []),
+                { label: "수영장", value: studentInfo.pool_name || "-" },
+                { label: "자녀 이름", value: studentInfo.student_name },
+                ...(studentInfo.birth_year ? [{ label: "출생년도", value: String(studentInfo.birth_year) }] : []),
               ].map((item, i, arr) => (
                 <React.Fragment key={item.label}>
                   <View style={styles.infoRow}>
@@ -182,6 +200,10 @@ export default function ParentCodeSignupScreen() {
               ))}
             </View>
 
+            <Text style={[styles.hintText, { color: C.textMuted }]}>
+              내 자녀가 맞으면 아래 버튼을 눌러주세요.
+            </Text>
+
             <Pressable
               style={({ pressed }) => [styles.submitBtn, { backgroundColor: "#2E9B6F", opacity: pressed ? 0.85 : 1 }]}
               onPress={() => setStep("account")}
@@ -191,16 +213,34 @@ export default function ParentCodeSignupScreen() {
           </View>
         )}
 
-        {/* 단계 3: 계정 설정 */}
+        {/* 단계 3: 학부모 계정 설정 */}
         {step === "account" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
               <Lock size={24} color={C.tint} />
             </View>
-            <Text style={[styles.cardTitle, { color: C.text }]}>계정 설정</Text>
+            <Text style={[styles.cardTitle, { color: C.text }]}>학부모 계정 설정</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
-              로그인에 사용할 아이디와{"\n"}비밀번호를 설정해주세요.
+              학부모 이름과 로그인 정보를 입력해주세요.
             </Text>
+
+            <View style={styles.field}>
+              <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>학부모 이름</Text>
+              <View style={[styles.inputRow, { borderColor: parentName ? C.tint : C.border, backgroundColor: C.background }]}>
+                <User size={15} color={parentName ? C.tint : C.textMuted} />
+                <TextInput
+                  ref={parentNameRef}
+                  style={[styles.input, { color: C.text }]}
+                  value={parentName}
+                  onChangeText={v => { setParentName(v); setError(""); }}
+                  placeholder="학부모 실명"
+                  placeholderTextColor={C.textMuted}
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  onSubmitEditing={() => pwRef.current?.focus()}
+                />
+              </View>
+            </View>
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디 (3자 이상)</Text>
@@ -243,7 +283,10 @@ export default function ParentCodeSignupScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 확인</Text>
-              <View style={[styles.inputRow, { borderColor: passwordConfirm && password !== passwordConfirm ? C.error : (passwordConfirm ? C.tint : C.border), backgroundColor: C.background }]}>
+              <View style={[styles.inputRow, {
+                borderColor: passwordConfirm && password !== passwordConfirm ? C.error : (passwordConfirm ? C.tint : C.border),
+                backgroundColor: C.background,
+              }]}>
                 <Lock size={15} color={passwordConfirm ? C.tint : C.textMuted} />
                 <TextInput
                   ref={pw2Ref}
@@ -311,8 +354,9 @@ const styles = StyleSheet.create({
   infoBox: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   infoRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 11 },
   infoLabel: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  infoValue: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  infoValue: { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "500" },
   infoDivider: { height: 1 },
+  hintText: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   errText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   submitBtn: { height: 54, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 2 },

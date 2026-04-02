@@ -1000,6 +1000,85 @@ router.post("/parent-invite/join", async (req, res) => {
   } catch (e: any) { console.error(e); return err(res, 500, e.message || "서버 오류가 발생했습니다."); }
 });
 
+// ── 학생 초대코드 검증 (students.invite_code 기반, 공개 API) ─────────────
+router.get("/invite/verify", async (req, res) => {
+  const { code } = req.query as { code: string };
+  if (!code) return err(res, 400, "코드를 입력해주세요.");
+  try {
+    const rows = await db.execute(sql`
+      SELECT s.id, s.name AS student_name, s.birth_year, s.parent_phone, s.parent_user_id,
+             sp.name AS pool_name, s.swimming_pool_id
+      FROM students s
+      LEFT JOIN swimming_pools sp ON sp.id = s.swimming_pool_id
+      WHERE s.invite_code = ${code.trim().toUpperCase()} AND s.status NOT IN ('deleted', 'archived')
+      LIMIT 1
+    `);
+    const student = rows.rows[0] as any;
+    if (!student) return err(res, 404, "유효하지 않은 코드입니다.");
+    if (student.parent_user_id) {
+      return res.status(410).json({ success: false, error: "이미 가입이 완료된 코드입니다.", error_code: "already_linked" });
+    }
+    return res.json({
+      success: true,
+      student: {
+        id: student.id,
+        student_name: student.student_name,
+        birth_year: student.birth_year,
+        pool_name: student.pool_name,
+        swimming_pool_id: student.swimming_pool_id,
+      }
+    });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 학생 초대코드로 학부모 가입 ────────────────────────────────────────────
+router.post("/invite/join", async (req, res) => {
+  const { code, parent_name, loginId, password } = req.body;
+  if (!code || !parent_name?.trim() || !password) return err(res, 400, "코드, 학부모 이름, 비밀번호가 필요합니다.");
+  if (password.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
+  const lid = loginId?.trim() || null;
+  if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
+  try {
+    const rows = await db.execute(sql`
+      SELECT s.id, s.name AS student_name, s.birth_year, s.parent_phone, s.parent_user_id, s.swimming_pool_id
+      FROM students s
+      WHERE s.invite_code = ${code.trim().toUpperCase()} AND s.status NOT IN ('deleted', 'archived')
+      LIMIT 1
+    `);
+    const student = rows.rows[0] as any;
+    if (!student) return err(res, 404, "유효하지 않은 코드입니다.");
+    if (student.parent_user_id) {
+      return res.status(410).json({ success: false, error: "이미 가입이 완료된 코드입니다.", error_code: "already_linked" });
+    }
+    if (lid) {
+      const dupId = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
+      if ((dupId.rows as any[]).length > 0) return err(res, 409, "이미 사용 중인 아이디입니다.");
+    }
+    const phone = student.parent_phone || null;
+    const pwHash = await hashPassword(password);
+    const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await db.execute(sql`
+      INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, created_at, updated_at)
+      VALUES (${parentId}, ${student.swimming_pool_id}, ${phone}, ${pwHash}, ${parent_name.trim()}, ${lid}, now(), now())
+    `);
+    await db.execute(sql`
+      INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
+      VALUES (gen_random_uuid()::text, ${parentId}, ${student.id}, ${student.swimming_pool_id}, 'approved', now(), now())
+      ON CONFLICT DO NOTHING
+    `);
+    await db.execute(sql`UPDATE students SET parent_user_id = ${parentId} WHERE id = ${student.id}`);
+    const [poolRow] = await superAdminDb.select({ name: swimmingPoolsTable.name }).from(swimmingPoolsTable)
+      .where(eq(swimmingPoolsTable.id, student.swimming_pool_id)).limit(1);
+    const token = signToken({ userId: parentId, role: "parent_account", poolId: student.swimming_pool_id });
+    return res.status(201).json({
+      success: true,
+      token,
+      kind: "parent",
+      parent: { id: parentId, name: parent_name.trim(), phone, swimming_pool_id: student.swimming_pool_id, pool_name: poolRow?.name || null },
+    });
+  } catch (e: any) { console.error(e); return err(res, 500, e.message || "서버 오류가 발생했습니다."); }
+});
+
 // ══════════════════════════════════════════════════════
 // ── TOTP (Google Authenticator) 라우트 ───────────────
 // ══════════════════════════════════════════════════════

@@ -39,7 +39,7 @@ const STEP_LABELS = ["기본정보", "휴대폰", "역할선택", "추가정보"
 const ROLE_CARDS: Array<{ role: Role; label: string; desc: string; icon: any; bg: string; color: string }> = [
   { role: "admin",   label: "수영장 대표",  desc: "수영장을 직접 운영하는 원장님·원감님\n선생님·학부모 관리 및 전체 운영 담당",     icon: "briefcase", bg: "#EFF4FF", color: "#4F6EF7" },
   { role: "teacher", label: "선생님",       desc: "수영장 대표로부터 초대코드를 받은\n선생님만 가입 가능합니다",                    icon: "award",     bg: "#DFF3EC", color: "#2E9B6F" },
-  { role: "parent",  label: "학부모",       desc: "수영장에서 자녀 회원등록 완료 후\nQR코드·초대링크를 통해 가입합니다",          icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
+  { role: "parent",  label: "학부모",       desc: "수영장에서 초대코드를 받으셨나요?\n초대코드로 바로 가입합니다",                  icon: "heart",     bg: "#FFF3E0", color: "#E4A93A" },
 ];
 
 export default function SignupScreen() {
@@ -141,7 +141,7 @@ export default function SignupScreen() {
   /*  Pool search (teacher / parent)                   */
   /* ──────────────────────────────────────────────── */
   useEffect(() => {
-    if (step === 4 && (role === "teacher" || role === "parent") && !poolsLoaded) {
+    if (step === 4 && role === "teacher" && !poolsLoaded) {
       (async () => {
         try {
           const res = await fetch(`${API_BASE}/pools/public-search`);
@@ -197,6 +197,10 @@ export default function SignupScreen() {
     }
     if (step === 3) {
       const e = validateStep3(); if (e) { setError(e); return; }
+      if (role === "parent") {
+        router.push("/(auth)/parent-code-signup" as any);
+        return;
+      }
       setStep(4); return;
     }
   }
@@ -212,11 +216,8 @@ export default function SignupScreen() {
       if (!poolName.trim())    { setError("수영장 이름을 입력해주세요."); return; }
       if (!poolAddress.trim()) { setError("수영장 주소를 입력해주세요."); return; }
       if (!poolPhone.trim())   { setError("수영장 전화번호를 입력해주세요."); return; }
-    } else {
+    } else if (role === "teacher") {
       if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
-    }
-    if (role === "parent") {
-      if (!childName.trim()) { setError("자녀 이름을 입력해주세요."); return; }
     }
 
     setLoading(true);
@@ -263,25 +264,6 @@ export default function SignupScreen() {
           return;
         }
 
-      } else {
-        // 학부모: simple-parent-register로 즉시 가입 + 자동 로그인
-        res = await fetch(`${API_BASE}/auth/simple-parent-register`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            parent_name: name.trim(),
-            loginId: loginId.trim().toLowerCase(),
-            password: pw,
-            phone: cleaned,
-            child_name: childName.trim() || null,
-            child_birth_year: childBirthYear.trim() ? Number(childBirthYear.trim()) : null,
-            swimming_pool_id: selectedPool?.id || null,
-          }),
-        });
-        data = await safeJson(res);
-        if (!res.ok) { setError(data.error || data.message || "가입에 실패했습니다."); return; }
-        // 가입 즉시 세션 설정 — RootNav가 학부모 홈으로 자동 이동
-        await setParentSession(data.token, data.parent);
-        return;
       }
 
       await unifiedLogin(loginId.trim().toLowerCase(), pw);
@@ -529,8 +511,8 @@ export default function SignupScreen() {
           </View>
         )}
 
-        {/* 선생님·학부모: 수영장 검색 */}
-        {(role === "teacher" || role === "parent") && (
+        {/* 선생님: 수영장 검색 */}
+        {role === "teacher" && (
           <View style={styles.card}>
             <Text style={[styles.cardTitle, { color: C.text }]}>수영장 선택</Text>
             {selectedPool ? (
@@ -584,27 +566,6 @@ export default function SignupScreen() {
           </View>
         )}
 
-        {/* 학부모: 자녀 정보 */}
-        {role === "parent" && (
-          <View style={styles.card}>
-            <Text style={[styles.cardTitle, { color: C.text }]}>자녀 정보</Text>
-            <InputField label="자녀 이름" icon="user">
-              <TextInput style={[styles.input, { color: C.text }]} placeholder="자녀 이름" placeholderTextColor={C.textMuted} value={childName} onChangeText={setChildName} />
-            </InputField>
-            <InputField label="태어난 해 (선택)" icon="calendar">
-              <TextInput
-                style={[styles.input, { color: C.text }]}
-                placeholder="예: 2018"
-                placeholderTextColor={C.textMuted}
-                value={childBirthYear}
-                onChangeText={setChildBirthYear}
-                keyboardType="number-pad"
-                maxLength={4}
-              />
-            </InputField>
-            <Text style={[styles.hintTxt, { color: C.textMuted }]}>이름과 태어난 해가 수영장 명부와 일치하면 즉시 승인됩니다.</Text>
-          </View>
-        )}
       </View>
     );
   }
