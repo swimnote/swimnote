@@ -12,6 +12,7 @@ import SwimNoteLogo from "../assets/images/swimnote-logo.svg";
 import Colors from "@/constants/colors";
 import { LOGIN_LABELS } from "@/constants/auth";
 import { useAuth } from "@/context/AuthContext";
+import { toAsciiOnly } from "@/utils/koreanToQwerty";
 import { login as kakaoLogin } from "@react-native-seoul/kakao-login";
 
 const C = Colors.light;
@@ -206,7 +207,7 @@ export default function LoginScreen() {
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={identifier}
-                onChangeText={v => { setIdentifier(v.replace(/[^\x00-\x7F]/g, "")); setError(""); setFailCount(0); }}
+                onChangeText={v => { setIdentifier(toAsciiOnly(v)); setError(""); setFailCount(0); }}
                 placeholder="아이디"
                 placeholderTextColor={C.textMuted}
                 autoCapitalize="none"
@@ -226,7 +227,7 @@ export default function LoginScreen() {
                 ref={pwRef}
                 style={[styles.input, { color: C.text }]}
                 value={password}
-                onChangeText={v => { setPassword(v.replace(/[^\x00-\x7F]/g, "")); setError(""); }}
+                onChangeText={v => { setPassword(toAsciiOnly(v)); setError(""); }}
                 placeholder="비밀번호를 입력하세요"
                 placeholderTextColor={C.textMuted}
                 secureTextEntry={!showPw}
