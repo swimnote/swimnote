@@ -1173,6 +1173,25 @@ router.post("/send-sms-code", async (req, res) => {
     return res.status(400).json({ success: false, error: "invalid_phone", message: "올바른 휴대폰 번호를 입력해주세요. (010-0000-0000 형식)" });
   }
 
+  // ── Apple 심사용 데모 번호 우회 (01000000000 → 고정 코드 000000) ──
+  const DEMO_PHONE = "01000000000";
+  if (cleaned === DEMO_PHONE) {
+    try {
+      const demoCode = "000000";
+      const id = randomUUID();
+      const hash = createHash("sha256").update(demoCode + id).digest("hex");
+      const expiresAt = new Date(Date.now() + 3 * 60 * 60 * 1000); // 3시간
+      await superAdminDb.execute(sql`
+        INSERT INTO phone_verifications (id, phone, code, code_hash, purpose, expires_at, attempt_count, request_ip)
+        VALUES (${id}, ${cleaned}, '', ${hash}, ${purpose}, ${expiresAt.toISOString()}, 0, ${ip})
+      `);
+      return res.json({ success: true, message: "인증번호가 발송되었습니다." });
+    } catch (e) {
+      console.error("[send-sms-code demo]", e);
+      return err(res, 500, "서버 오류가 발생했습니다.");
+    }
+  }
+
   // ── provider 확인 ─────────────────────────────────────────────
   const provider = getActiveProvider();
 
@@ -1530,6 +1549,70 @@ router.post("/kakao-link-account", async (req, res) => {
     });
   } catch (e) {
     console.error("[kakao-link-account]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// DELETE /auth/account — 계정 영구 탈퇴 (Apple 5.1.1(v) 필수 요건)
+// ════════════════════════════════════════════════════════════════
+router.delete("/account", requireAuth, async (req, res) => {
+  const userId = req.user!.userId;
+  const role   = req.user!.role;
+
+  try {
+    if (role === "parent_account" || role === "parent") {
+      // 학부모 계정 영구 삭제
+      const rows = (await db.execute(sql`
+        SELECT id, login_id FROM parent_accounts WHERE id = ${userId} LIMIT 1
+      `)).rows as any[];
+
+      if (!rows.length) return err(res, 404, "계정을 찾을 수 없습니다.");
+
+      // 데모 계정 보호 (로그인 ID: demo_parent)
+      if (rows[0].login_id === "demo_parent") {
+        return err(res, 403, "데모 계정은 삭제할 수 없습니다.");
+      }
+
+      await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${userId}`);
+      return res.json({ success: true, message: "계정이 삭제되었습니다." });
+
+    } else {
+      // 관리자/선생님 계정 익명화 처리 (데이터 영구 삭제)
+      const rows = (await superAdminDb.execute(sql`
+        SELECT id, email, role FROM users WHERE id = ${userId} LIMIT 1
+      `)).rows as any[];
+
+      if (!rows.length) return err(res, 404, "계정을 찾을 수 없습니다.");
+
+      // 데모 계정 보호
+      if (rows[0].email === "demo@swimnote.app") {
+        return err(res, 403, "데모 계정은 삭제할 수 없습니다.");
+      }
+
+      // super_admin은 삭제 불가
+      if (rows[0].role === "super_admin") {
+        return err(res, 403, "슈퍼관리자 계정은 앱에서 삭제할 수 없습니다.");
+      }
+
+      const deletedId = randomUUID();
+      await superAdminDb.execute(sql`
+        UPDATE users SET
+          email        = ${`deleted_${deletedId}@deleted.local`},
+          name         = '탈퇴한 사용자',
+          phone        = NULL,
+          password_hash = '',
+          is_activated = false,
+          totp_secret  = NULL,
+          totp_enabled = false,
+          updated_at   = NOW()
+        WHERE id = ${userId}
+      `);
+
+      return res.json({ success: true, message: "계정이 삭제되었습니다." });
+    }
+  } catch (e) {
+    console.error("[DELETE /auth/account]", e);
     return err(res, 500, "서버 오류가 발생했습니다.");
   }
 });

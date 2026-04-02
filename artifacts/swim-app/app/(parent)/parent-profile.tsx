@@ -3,11 +3,11 @@
  * - 이름, 전화번호, 비밀번호 변경
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { CircleAlert } from "lucide-react-native";
+import { CircleAlert, Trash2 } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,7 +19,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 
 export default function ParentProfileScreen() {
-  const { token, parentAccount, updateParentProfile } = useAuth();
+  const { token, parentAccount, updateParentProfile, logout } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [name, setName] = useState(parentAccount?.name ?? "");
@@ -31,6 +31,11 @@ export default function ParentProfileScreen() {
   const [saveDone, setSaveDone] = useState(false);
   const [error, setError] = useState("");
 
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState("");
+
   useEffect(() => {
     (async () => {
       try {
@@ -39,6 +44,24 @@ export default function ParentProfileScreen() {
       } catch {}
     })();
   }, []);
+
+  async function deleteAccount() {
+    if (deleteConfirmText !== "탈퇴") { setDeleteMsg("'탈퇴'를 정확히 입력해주세요."); return; }
+    setDeleteLoading(true); setDeleteMsg("");
+    try {
+      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      if (res.ok) {
+        setDeleteVisible(false);
+        Alert.alert("계정 탈퇴 완료", "계정이 삭제되었습니다. 이용해 주셔서 감사합니다.", [
+          { text: "확인", onPress: () => { logout(); router.replace("/"); } },
+        ]);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setDeleteMsg(d.message || d.error || "탈퇴 처리에 실패했습니다.");
+      }
+    } catch { setDeleteMsg("오류가 발생했습니다. 다시 시도해주세요."); }
+    finally { setDeleteLoading(false); }
+  }
 
   async function handleSave() {
     setError("");
@@ -134,8 +157,63 @@ export default function ParentProfileScreen() {
           >
             <Text style={s.inquiryBtnTxt}>스윔노트에 문의하기</Text>
           </Pressable>
+
+          {/* ── 계정 탈퇴 ── */}
+          <View style={[s.section, { backgroundColor: C.card, gap: 10 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Trash2 size={14} color="#D96C6C" />
+              <Text style={[s.sectionTitle, { color: "#D96C6C" }]}>계정 탈퇴</Text>
+            </View>
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, lineHeight: 18 }}>
+              탈퇴 시 계정 및 모든 개인정보가 영구적으로 삭제되며 복구할 수 없습니다.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [s.deleteBtn, { opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => { setDeleteConfirmText(""); setDeleteMsg(""); setDeleteVisible(true); }}
+            >
+              <Text style={s.deleteBtnTxt}>계정 탈퇴하기</Text>
+            </Pressable>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ═══ 계정 탈퇴 확인 모달 ═══ */}
+      <Modal visible={deleteVisible} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={s.deleteOverlay}>
+          <View style={[s.deleteModal, { paddingBottom: insets.bottom + 16 }]}>
+            <Text style={s.deleteModalTitle}>계정 탈퇴</Text>
+            <View style={[s.deleteWarnBox]}>
+              <Text style={s.deleteWarnTxt}>⚠️ 탈퇴 시 모든 계정 정보가 즉시 삭제되며{"\n"}복구가 불가능합니다.</Text>
+            </View>
+            <Text style={s.deleteInputLabel}>확인을 위해 아래에 <Text style={{ color: "#D96C6C" }}>'탈퇴'</Text>를 입력하세요</Text>
+            <TextInput
+              style={[s.deleteInput, { color: C.text }]}
+              value={deleteConfirmText}
+              onChangeText={(t) => { setDeleteConfirmText(t); setDeleteMsg(""); }}
+              placeholder="탈퇴"
+              placeholderTextColor={C.textMuted}
+            />
+            {deleteMsg ? (
+              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>{deleteMsg}</Text>
+            ) : null}
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+              <Pressable style={[s.deleteCancelBtn]} onPress={() => setDeleteVisible(false)}>
+                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={[s.deleteConfirmBtn, { opacity: (deleteLoading || deleteConfirmText !== "탈퇴") ? 0.5 : 1 }]}
+                onPress={deleteAccount}
+                disabled={deleteLoading || deleteConfirmText !== "탈퇴"}
+              >
+                {deleteLoading
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>계정 영구 삭제</Text>
+                }
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <ConfirmModal
         visible={saveDone}
@@ -161,6 +239,17 @@ const s = StyleSheet.create({
   inquiryBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center",
                 borderWidth: 1.5, borderColor: "#C4B5FD", backgroundColor: "#EEDDF5" },
   inquiryBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
+  deleteBtn: { borderWidth: 1.5, borderColor: "#D96C6C", borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+  deleteBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
+  deleteOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  deleteModal: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12 },
+  deleteModalTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
+  deleteWarnBox: { backgroundColor: "#FEF2F2", borderRadius: 10, padding: 12 },
+  deleteWarnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C", lineHeight: 20 },
+  deleteInputLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  deleteInput: { borderWidth: 1.5, borderColor: "#D96C6C", borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Pretendard-Regular" },
+  deleteCancelBtn: { flex: 1, borderWidth: 1.5, borderColor: "#CBD5E1", borderRadius: 12, paddingVertical: 13, alignItems: "center" },
+  deleteConfirmBtn: { flex: 2, backgroundColor: "#D96C6C", borderRadius: 12, paddingVertical: 13, alignItems: "center" },
 });
 
 const f = StyleSheet.create({

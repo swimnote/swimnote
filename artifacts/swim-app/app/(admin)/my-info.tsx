@@ -1,8 +1,8 @@
-import { ChevronRight, Key, Lock, PenLine, User, X } from "lucide-react-native";
+import { ChevronRight, Key, Lock, PenLine, Trash2, User, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Modal, Pressable,
+  ActivityIndicator, Alert, Modal, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,7 +19,7 @@ interface Profile {
 }
 
 export default function AdminMyInfoScreen() {
-  const { token, adminUser, updateAdminProfile } = useAuth();
+  const { token, adminUser, updateAdminProfile, logout } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
@@ -39,6 +39,11 @@ export default function AdminMyInfoScreen() {
   const [pwConfirm, setPwConfirm] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState("");
+
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -68,6 +73,24 @@ export default function AdminMyInfoScreen() {
         const d = await res.json(); setEditMsg(d.error || "저장 실패");
       }
     } finally { setEditSaving(false); }
+  }
+
+  async function deleteAccount() {
+    if (deleteConfirmText !== "탈퇴") { setDeleteMsg("'탈퇴'를 정확히 입력해주세요."); return; }
+    setDeleteLoading(true); setDeleteMsg("");
+    try {
+      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
+      if (res.ok) {
+        setDeleteVisible(false);
+        Alert.alert("계정 탈퇴 완료", "계정이 삭제되었습니다. 이용해 주셔서 감사합니다.", [
+          { text: "확인", onPress: () => { logout(); router.replace("/"); } },
+        ]);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setDeleteMsg(d.message || d.error || "탈퇴 처리에 실패했습니다.");
+      }
+    } catch { setDeleteMsg("오류가 발생했습니다. 다시 시도해주세요."); }
+    finally { setDeleteLoading(false); }
   }
 
   async function submitPasswordChange() {
@@ -167,6 +190,25 @@ export default function AdminMyInfoScreen() {
           </Pressable>
         </View>
 
+        {/* ── 계정 탈퇴 ── */}
+        <View style={s.card}>
+          <View style={s.cardHeader}>
+            <Trash2 size={15} color="#D96C6C" />
+            <Text style={[s.cardTitle, { color: "#D96C6C" }]}>계정 탈퇴</Text>
+          </View>
+          <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 8 }}>
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 }}>
+              탈퇴 시 계정 및 모든 개인정보가 영구적으로 삭제되며 복구할 수 없습니다.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [s.deleteBtn, { opacity: pressed ? 0.7 : 1 }]}
+              onPress={() => { setDeleteConfirmText(""); setDeleteMsg(""); setDeleteVisible(true); }}
+            >
+              <Text style={s.deleteBtnText}>계정 탈퇴하기</Text>
+            </Pressable>
+          </View>
+        </View>
+
       </ScrollView>
 
       {/* ═══ 정보 편집 모달 ═══ */}
@@ -221,6 +263,45 @@ export default function AdminMyInfoScreen() {
         </View>
       </Modal>
 
+      {/* ═══ 계정 탈퇴 확인 모달 ═══ */}
+      <Modal visible={deleteVisible} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={s.overlay}>
+          <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={s.modalHeader}>
+              <Text style={[s.modalTitle, { color: "#D96C6C" }]}>계정 탈퇴</Text>
+              <Pressable onPress={() => setDeleteVisible(false)} hitSlop={8}>
+                <X size={22} color={C.text} />
+              </Pressable>
+            </View>
+            <View style={[s.msgBox, { backgroundColor: "#FEF2F2", marginBottom: 4 }]}>
+              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C", lineHeight: 20 }}>
+                ⚠️ 탈퇴 시 모든 계정 정보가 즉시 삭제되며{"\n"}복구가 불가능합니다.
+              </Text>
+            </View>
+            <Text style={s.inputLabel}>확인을 위해 아래에 <Text style={{ color: "#D96C6C" }}>'탈퇴'</Text>를 입력하세요</Text>
+            <TextInput
+              style={[s.input, { borderColor: "#D96C6C", color: C.text, marginTop: 4 }]}
+              value={deleteConfirmText}
+              onChangeText={(t) => { setDeleteConfirmText(t); setDeleteMsg(""); }}
+              placeholder="탈퇴"
+              placeholderTextColor={C.textMuted}
+            />
+            {deleteMsg ? (
+              <View style={[s.msgBox, { backgroundColor: "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>{deleteMsg}</Text>
+              </View>
+            ) : null}
+            <Pressable
+              style={[s.confirmBtn, { backgroundColor: "#D96C6C", opacity: (deleteLoading || deleteConfirmText !== "탈퇴") ? 0.5 : 1, marginTop: 16 }]}
+              onPress={deleteAccount}
+              disabled={deleteLoading || deleteConfirmText !== "탈퇴"}
+            >
+              {deleteLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnText}>계정 영구 삭제</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -242,6 +323,8 @@ const s = StyleSheet.create({
   infoValue: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   secItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14 },
   secItemLabel: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  deleteBtn: { borderWidth: 1.5, borderColor: "#D96C6C", borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+  deleteBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   modalBox: { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 6 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
