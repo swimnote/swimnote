@@ -302,11 +302,11 @@ router.get(
       const [pool, teachers, recentLogs, policyRows, supportRow, planRow] = await Promise.all([
         superAdminDb.execute(sql`
           SELECT sp.*,
-            (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id AND st.status IN ('active','suspended')) AS active_member_count,
+            (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id AND st.status::text IN ('active','suspended')) AS active_member_count,
             (SELECT COUNT(*)::int FROM students st WHERE st.swimming_pool_id = sp.id) AS total_member_count,
             (SELECT COUNT(*)::int FROM classes c WHERE c.swimming_pool_id = sp.id) AS total_class_count,
-            (SELECT COUNT(*)::int FROM users u WHERE u.swimming_pool_id = sp.id AND u.role = 'teacher') AS teacher_count,
-            (SELECT COUNT(*)::int FROM users u WHERE u.swimming_pool_id = sp.id AND u.role IN ('pool_admin','sub_admin','teacher')) AS staff_count,
+            (SELECT COUNT(*)::int FROM users u WHERE u.swimming_pool_id = sp.id AND u.role::text = 'teacher') AS teacher_count,
+            (SELECT COUNT(*)::int FROM users u WHERE u.swimming_pool_id = sp.id AND u.role::text IN ('pool_admin','sub_admin','teacher')) AS staff_count,
             CASE
               WHEN sp.used_storage_bytes IS NOT NULL AND (sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0)) > 0
               THEN ROUND(sp.used_storage_bytes::numeric / ((sp.base_storage_gb + COALESCE(sp.extra_storage_gb,0))::bigint * 1073741824) * 100)::int
@@ -317,19 +317,19 @@ router.get(
           WHERE sp.id = ${id}
         `),
         superAdminDb.execute(sql`
-          SELECT id, name, role, email, phone, created_at, last_login_at
+          SELECT id, name, role::text AS role, email, phone, created_at, last_login_at
           FROM users
           WHERE swimming_pool_id = ${id}
-            AND role IN ('pool_admin','sub_admin','teacher')
-          ORDER BY role, name
-        `),
+            AND role::text IN ('pool_admin','sub_admin','teacher')
+          ORDER BY name
+        `).catch(() => ({ rows: [] })),
         db.execute(sql`
           SELECT id, category, actor_name, target, description, created_at
           FROM event_logs
           WHERE pool_id = ${id}
           ORDER BY created_at DESC
           LIMIT 50
-        `),
+        `).catch(() => ({ rows: [] })),
         superAdminDb.execute(sql`
           SELECT policy_key, MAX(agreed_at) AS agreed_at
           FROM policy_consents
@@ -343,10 +343,12 @@ router.get(
             COUNT(*) FILTER (WHERE status = 'resolved')::int AS resolved_count
           FROM support_tickets WHERE pool_id = ${id}
         `).catch(() => ({ rows: [{ total_count: 0, open_count: 0, resolved_count: 0 }] })),
-        superAdminDb.execute(sql`
-          SELECT plan_id, name, price, member_limit, storage_gb
+        db.execute(sql`
+          SELECT plan_id, name, price_per_month AS price, member_limit,
+            COALESCE(storage_gb, ROUND(storage_mb::numeric / 1024, 2)) AS storage_gb
           FROM subscription_plans
-          ORDER BY price ASC
+          WHERE is_active = TRUE
+          ORDER BY price_per_month ASC
         `).catch(() => ({ rows: [] })),
       ]);
 
@@ -371,9 +373,9 @@ router.get(
         support: supportStats,
         plans: planRow.rows,
       });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "서버 오류" });
+    } catch (err: any) {
+      console.error(`[operator-detail] GET /super/operators/${req.params.id} error:`, err?.message ?? err);
+      res.status(500).json({ error: "서버 오류", detail: err?.message });
     }
   }
 );
