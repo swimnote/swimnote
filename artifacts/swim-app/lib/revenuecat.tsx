@@ -20,10 +20,51 @@ const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_AP
 export const REVENUECAT_SOLO_ENTITLEMENT = "solo";
 export const SOLO_OFFERING_ID            = "solo_monthly";
 
-export const PACKAGE_META: Record<string, { name: string; memberLimit: number; storage: string }> = {
-  solo_30:  { name: "Coach 30",  memberLimit: 30,  storage: "3GB"  },
-  solo_50:  { name: "Coach 50",  memberLimit: 50,  storage: "5GB"  },
-  solo_100: { name: "Coach 100", memberLimit: 100, storage: "10GB" },
+export interface PlanMeta {
+  name: string;
+  memberLimit: number;
+  storage: string;
+  includesVideo: boolean;
+  includesWhiteLabel: boolean;
+  features: string[];
+}
+
+export const PACKAGE_META: Record<string, PlanMeta> = {
+  solo_30: {
+    name: "Coach 30", memberLimit: 30, storage: "3GB",
+    includesVideo: false, includesWhiteLabel: false,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드"],
+  },
+  solo_50: {
+    name: "Coach 50", memberLimit: 50, storage: "5GB",
+    includesVideo: false, includesWhiteLabel: false,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드"],
+  },
+  solo_100: {
+    name: "Coach 100", memberLimit: 100, storage: "10GB",
+    includesVideo: false, includesWhiteLabel: false,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드"],
+  },
+  center_200: {
+    name: "Premier 200", memberLimit: 200, storage: "50GB",
+    includesVideo: true, includesWhiteLabel: true,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
+  },
+  center_300: {
+    name: "Premier 300", memberLimit: 300, storage: "80GB",
+    includesVideo: true, includesWhiteLabel: true,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
+  },
+  center_500: {
+    name: "Premier 500", memberLimit: 500, storage: "130GB",
+    includesVideo: true, includesWhiteLabel: true,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
+  },
+  center_1000: {
+    name: "Premier 1000", memberLimit: 1000, storage: "500GB",
+    includesVideo: true, includesWhiteLabel: true,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
+  },
 };
 
 function getRevenueCatApiKey(): string {

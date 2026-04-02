@@ -15,7 +15,7 @@ import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { billingEnabled } from "@/config/billing";
-import { CircleAlert, CircleX, RotateCcw, TriangleAlert } from "lucide-react-native";
+import { CircleAlert, CircleX, RotateCcw, TriangleAlert, Check, X } from "lucide-react-native";
 
 interface BillingStatus {
   is_readonly: boolean;
@@ -297,10 +297,10 @@ export default function BillingScreen() {
               <Text style={s.emptyOfferingText}>구독 플랜을 불러올 수 없습니다.{"\n"}아래 새로고침을 당겨서 재시도해 주세요.</Text>
             </View>
           ) : (
-            <View style={{ gap: 10 }}>
+            <View style={{ gap: 14 }}>
               {soloPackages.map((pkg) => {
-                const pkgId    = pkg.identifier;
-                const meta     = PACKAGE_META[pkgId];
+                const pkgId     = pkg.identifier;
+                const meta      = PACKAGE_META[pkgId];
                 const isCurrent = isSubscribed && activePackageId === pkg.product.identifier;
                 const planName  = meta?.name ?? pkg.product.title ?? pkgId;
                 const memberLim = meta?.memberLimit ?? 0;
@@ -311,31 +311,73 @@ export default function BillingScreen() {
                 const btnColor  = isCurrent ? "#E5E7EB" : themeColor;
                 const btnTxtColor = isCurrent ? "#9CA3AF" : "#fff";
 
+                const featureRows: { label: string; ok: boolean }[] = [
+                  { label: "사진 업로드",  ok: true },
+                  { label: "영상 업로드",  ok: meta?.includesVideo ?? false },
+                  { label: "출결 관리",    ok: true },
+                  { label: "수업 일지",    ok: true },
+                  { label: "학부모 연동",  ok: true },
+                  { label: "화이트라벨 (앱 이름·로고 커스텀)", ok: meta?.includesWhiteLabel ?? false },
+                ];
+
                 return (
                   <View key={pkgId} style={[s.planCard, isCurrent && { borderColor: themeColor, borderWidth: 2 }]}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Text style={[s.planCardName, { color: themeColor }]}>{planName}</Text>
-                        {isCurrent && (
-                          <View style={[s.currentTag, { backgroundColor: themeColor }]}>
-                            <Text style={s.currentTagText}>현재</Text>
-                          </View>
-                        )}
+                    {/* 헤더 */}
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <View style={{ gap: 2, flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={[s.planCardName, { color: themeColor }]}>{planName}</Text>
+                          {isCurrent && (
+                            <View style={[s.currentTag, { backgroundColor: themeColor }]}>
+                              <Text style={s.currentTagText}>현재</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={s.planCardPrice}>{priceStr}<Text style={s.planCardPriceSub}>/월</Text></Text>
                       </View>
-                      <Text style={s.planCardPrice}>{priceStr}/월</Text>
-                      <Text style={s.planCardMeta}>최대 {memberLim}명 · {storage}</Text>
                     </View>
+
+                    {/* 용량·인원 */}
+                    <View style={s.planCardInfoRow}>
+                      <View style={s.planCardInfoChip}>
+                        <Text style={s.planCardInfoChipText}>최대 {memberLim}명</Text>
+                      </View>
+                      <View style={s.planCardInfoChip}>
+                        <Text style={s.planCardInfoChipText}>저장공간 {storage}</Text>
+                      </View>
+                    </View>
+
+                    {/* 기능 목록 */}
+                    <View style={{ gap: 6, marginTop: 4 }}>
+                      {featureRows.map((f) => (
+                        <View key={f.label} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          {f.ok
+                            ? <Check size={14} color="#16A34A" strokeWidth={2.5} />
+                            : <X     size={14} color="#D1D5DB" strokeWidth={2.5} />
+                          }
+                          <Text style={[s.featureText, !f.ok && { color: "#D1D5DB" }]}>{f.label}</Text>
+                          {f.label === "영상 업로드" && !f.ok && (
+                            <Text style={s.featureNote}>(Premier 플랜 전용)</Text>
+                          )}
+                          {f.label.includes("화이트라벨") && !f.ok && (
+                            <Text style={s.featureNote}>(Premier 플랜 전용)</Text>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* 버튼 */}
                     <Pressable
                       onPress={() => {
                         if (isCurrent) return;
                         showConfirm(
                           `${planName} 구독`,
-                          `${priceStr}/월\n${Platform.OS === "ios" ? "Apple" : "Google Play"}을 통해 결제됩니다.`,
+                          `${priceStr}/월\n최대 ${memberLim}명 · 저장공간 ${storage}\n\n${Platform.OS === "ios" ? "Apple" : "Google Play"}을 통해 결제됩니다.\n구독은 다음 갱신일 전까지 언제든 해지할 수 있습니다.`,
                           () => handlePurchase(pkg),
                         );
                       }}
                       disabled={isCurrent || isPurchasing}
-                      style={[s.subscribeBtn, { backgroundColor: btnColor }]}
+                      style={[s.subscribeBtn, { backgroundColor: btnColor, marginTop: 8 }]}
                     >
                       {isPurchasing
                         ? <ActivityIndicator size="small" color="#fff" />
@@ -423,14 +465,20 @@ const s = StyleSheet.create({
   emptyOffering:     { padding: 20, alignItems: "center" },
   emptyOfferingText: { color: "#9CA3AF", fontSize: 14 },
 
-  planCard:        { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, padding: 14, gap: 12 },
-  planCardName:    { fontSize: 16, fontWeight: "700" },
-  planCardPrice:   { fontSize: 15, fontWeight: "600", color: "#111827" },
-  planCardMeta:    { fontSize: 12, color: "#64748B" },
-  currentTag:      { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
-  currentTagText:  { fontSize: 11, fontWeight: "600", color: "#fff" },
-  subscribeBtn:    { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 8, minWidth: 90, alignItems: "center" },
-  subscribeBtnText:{ fontSize: 13, fontWeight: "600" },
+  planCard:           { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 14, padding: 16, gap: 10,
+                        shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  planCardName:       { fontSize: 17, fontWeight: "700" },
+  planCardPrice:      { fontSize: 22, fontWeight: "700", color: "#111827" },
+  planCardPriceSub:   { fontSize: 13, fontWeight: "400", color: "#9CA3AF" },
+  planCardInfoRow:    { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  planCardInfoChip:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: "#F3F4F6" },
+  planCardInfoChipText:{ fontSize: 12, fontWeight: "500", color: "#374151" },
+  featureText:        { fontSize: 13, color: "#374151" },
+  featureNote:        { fontSize: 11, color: "#9CA3AF" },
+  currentTag:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
+  currentTagText:     { fontSize: 11, fontWeight: "600", color: "#fff" },
+  subscribeBtn:       { paddingVertical: 11, borderRadius: 10, alignItems: "center" },
+  subscribeBtnText:   { fontSize: 14, fontWeight: "600" },
 
   iapNote:    { fontSize: 11, color: "#9CA3AF", textAlign: "center", lineHeight: 16, marginTop: 4 },
 

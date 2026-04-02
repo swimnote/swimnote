@@ -38,7 +38,7 @@ export function ReadOnlyModal({ kind, onClose }: Props) {
       iconColor: "#D97706",
       title: "저장공간 초과",
       desc: isAdmin
-        ? "저장공간이 가득 차 업로드가 제한됩니다.\n추가 용량을 구매하거나 플랜을 업그레이드해주세요."
+        ? "저장공간이 가득 차 업로드가 제한됩니다.\n상위 플랜으로 업그레이드하거나 파일을 삭제해주세요."
         : "저장공간이 가득 차 파일 업로드가 불가합니다.\n관리자에게 문의해주세요.",
       action: isAdmin ? "결제 관리로 이동" : null,
       onAction: isAdmin
