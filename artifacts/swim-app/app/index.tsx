@@ -225,14 +225,6 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
-        {/* ── 구분선 + 가입 버튼 ── */}
-        {/* ── or 구분선 ── */}
-        <View style={s.divider}>
-          <View style={s.dividerLine} />
-          <Text style={s.dividerLabel}>또는</Text>
-          <View style={s.dividerLine} />
-        </View>
-
         {/* ── 가입 버튼 2개 ── */}
         <View style={s.signupRow}>
           {/* 카카오 가입 */}
