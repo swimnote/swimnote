@@ -399,29 +399,14 @@ router.post("/simple-parent-register", async (req, res) => {
     const pin_hash = await hashPassword(pw);
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const normPhone = ph.replace(/[^0-9]/g, "");
-    const normParentName = name.replace(/\s+/g, "").toLowerCase();
 
-    // 가입 전 이미 등록된 학생이 있는지 확인
-    // ① 전화번호 일치 (parent_phone이 설정된 경우)
-    // ② 학부모 이름 일치 + parent_phone 미설정
-    // ③ 자녀 이름 + 수영장 ID 일치 (가장 중요 — 관리자가 학생 이름으로 등록한 경우)
+    // 자녀 이름 + 학부모 전화번호 두 개가 일치하면 즉시 자동 연결·승인
     const matchedStudents = await db.execute(sql`
       SELECT id, swimming_pool_id FROM students
-      WHERE (
-        REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
-        OR (
-          parent_phone IS NULL
-          AND ${normParentName} != ''
-          AND REPLACE(LOWER(COALESCE(parent_name, '')), ' ', '') = ${normParentName}
-        )
-        OR (
-          ${cName} != ''
-          AND ${poolId} IS NOT NULL
-          AND name = ${cName}
-          AND swimming_pool_id = ${poolId}
-          AND (${cYear}::int IS NULL OR birth_year = ${cYear}::int)
-        )
-      )
+      WHERE
+        ${cName} != ''
+        AND name = ${cName}
+        AND REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
         AND parent_user_id IS NULL
         AND status NOT IN ('withdrawn', 'archived', 'deleted')
       LIMIT 10
