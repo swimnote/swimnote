@@ -60,6 +60,64 @@ router.put("/me", requireAuth, requireParent, async (req: AuthRequest, res) => {
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ── 전화번호 기반 자동 매칭 재시도 (가입 후 연결 안 된 학부모용) ──────────────
+router.post("/auto-link-students", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId = req.user!.userId;
+    const [pa] = await db.select({ phone: parentAccountsTable.phone })
+      .from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
+    if (!pa?.phone) { res.json({ linked: 0 }); return; }
+
+    const normPhone = pa.phone.replace(/[^0-9]/g, "");
+    if (!normPhone) { res.json({ linked: 0 }); return; }
+
+    const matchedStudents = await db.execute(sql`
+      SELECT id, swimming_pool_id FROM students
+      WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
+        AND parent_user_id IS NULL
+        AND status NOT IN ('withdrawn', 'archived', 'deleted')
+      LIMIT 10
+    `);
+
+    let linked = 0;
+    for (const student of matchedStudents.rows as any[]) {
+      const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+        VALUES (${psId}, ${parentId}, ${student.id}, ${student.swimming_pool_id}, 'approved', NOW())
+        ON CONFLICT DO NOTHING
+      `);
+      const updated = await db.execute(sql`
+        UPDATE students
+        SET parent_user_id = ${parentId},
+            status = CASE
+              WHEN status IN ('unregistered', 'pending_approval') THEN 'active'
+              ELSE status
+            END,
+            updated_at = NOW()
+        WHERE id = ${student.id} AND parent_user_id IS NULL
+      `);
+      if ((updated as any).rowCount > 0) linked++;
+    }
+
+    // 연결된 경우 swimming_pool_id도 업데이트
+    if (linked > 0) {
+      const firstMatch = (matchedStudents.rows as any[])[0];
+      if (firstMatch?.swimming_pool_id) {
+        await db.execute(sql`
+          UPDATE parent_accounts SET swimming_pool_id = ${firstMatch.swimming_pool_id}, updated_at = NOW()
+          WHERE id = ${parentId} AND swimming_pool_id IS NULL
+        `);
+      }
+    }
+
+    res.json({ linked });
+  } catch (e) {
+    console.error("auto-link-students error:", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
 router.get("/students", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
     const links = await db.select().from(parentStudentsTable).where(

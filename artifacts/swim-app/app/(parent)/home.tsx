@@ -203,10 +203,10 @@ export default function ParentHomeScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
-                  수영장 승인 중
+                  자녀 연결 대기 중
                 </Text>
                 <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 3 }}>
-                  관리자가 자녀를 등록하면 자동 연결됩니다
+                  새로고침 시 자동으로 연결됩니다
                 </Text>
               </View>
             </View>
@@ -216,9 +216,9 @@ export default function ParentHomeScreen() {
           <View style={{ backgroundColor: C.card, borderRadius: 16, padding: 18, gap: 14 }}>
             <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text }}>연결 방법</Text>
             {[
-              "수영장에 가입 사실을 알려주세요.",
-              "관리자가 가입 시 입력한 전화번호로 자녀를 등록하면 자동으로 연결됩니다.",
-              "연결 완료 후 새로고침하면 자녀 정보를 확인할 수 있습니다.",
+              "수영장에서 자녀 회원등록이 완료되었다면 아래 새로고침을 눌러주세요.",
+              "가입 시 입력한 전화번호와 등록된 연락처가 일치하면 즉시 자동 연결됩니다.",
+              "연결이 안 된다면 수영장에 등록된 연락처와 가입 전화번호가 같은지 확인하세요.",
             ].map((txt, i) => (
               <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
                 <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center", marginTop: 1 }}>
@@ -229,12 +229,17 @@ export default function ParentHomeScreen() {
             ))}
           </View>
 
-          {/* 새로고침 버튼 */}
+          {/* 새로고침 버튼 — 전화번호 자동 매칭 재시도 포함 */}
           <Pressable
             style={{ backgroundColor: C.button, borderRadius: 14, paddingVertical: 15, alignItems: "center", opacity: pendingRefreshing ? 0.7 : 1 }}
             disabled={pendingRefreshing}
             onPress={async () => {
               setPendingRefreshing(true);
+              try {
+                // 1) 전화번호 기반 자동 매칭 재시도
+                await apiRequest(token, "/parent/auto-link-students", { method: "POST" });
+              } catch { }
+              // 2) 학생 목록 새로고침
               await refresh();
               setPendingRefreshing(false);
             }}

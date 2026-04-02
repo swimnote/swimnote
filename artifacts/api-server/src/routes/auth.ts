@@ -399,10 +399,11 @@ router.post("/simple-parent-register", async (req, res) => {
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const normPhone = ph.replace(/[^0-9]/g, "");
 
-    // 가입 전 이미 등록된 학생이 있는지 확인 (수영장 풀에서 전화번호로 매칭)
+    // 가입 전 이미 등록된 학생이 있는지 확인 (전화번호 완전 정규화 매칭)
+    // REGEXP_REPLACE로 숫자 이외 모든 문자 제거 → 010-1234-5678 / 010.1234.5678 / 01012345678 모두 일치
     const matchedStudents = await db.execute(sql`
       SELECT id, swimming_pool_id FROM students
-      WHERE REPLACE(REPLACE(parent_phone, '-', ''), ' ', '') = ${normPhone}
+      WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${normPhone}
         AND parent_user_id IS NULL
         AND status NOT IN ('withdrawn', 'archived', 'deleted')
       LIMIT 10
@@ -417,7 +418,7 @@ router.post("/simple-parent-register", async (req, res) => {
       VALUES (${parentId}, ${matchedPoolId}, ${ph}, ${pin_hash}, ${name}, ${lid || null}, true, now(), now())
     `);
 
-    // 매칭된 학생들과 자동 연결
+    // 매칭된 학생들과 자동 연결 + 학생 status active 전환
     for (const student of matchedStudents.rows as any[]) {
       const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await db.execute(sql`
@@ -426,7 +427,13 @@ router.post("/simple-parent-register", async (req, res) => {
         ON CONFLICT DO NOTHING
       `);
       await db.execute(sql`
-        UPDATE students SET parent_user_id = ${parentId}, updated_at = NOW()
+        UPDATE students
+        SET parent_user_id = ${parentId},
+            status = CASE
+              WHEN status IN ('unregistered', 'pending_approval') THEN 'active'
+              ELSE status
+            END,
+            updated_at = NOW()
         WHERE id = ${student.id} AND parent_user_id IS NULL
       `);
     }
