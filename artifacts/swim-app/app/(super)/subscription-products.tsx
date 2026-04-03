@@ -148,7 +148,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
 
   const setVal = (k: keyof FormState, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
   const textFields = [
-    { key: "name" as const,          label: "상품명",         placeholder: "예: Coach 50" },
+    { key: "name" as const,          label: "상품명",         placeholder: "예: Coach50" },
     { key: "code" as const,          label: "코드 키",         placeholder: "예: basic", disabled: isEdit },
     { key: "memberLimit" as const,   label: "최대 회원 수",   placeholder: "빈칸이면 무제한", numeric: true },
     { key: "baseStorageMb" as const, label: "기본 용량 (MB)", placeholder: "5120 = 5GB", numeric: true },
@@ -249,7 +249,7 @@ function rowToSubscriptionPlan(row: ApiPlanRow): SubscriptionPlan {
 const PLAN_GUIDE = [
   { group: "Coach (개인 선생님)", color: P, plans: [
     { name: "Coach30",  price: "₩3,500", members: "30명",    storage: "3GB",   video: false },
-    { name: "Coach 50",  price: "₩6,500", members: "50명",    storage: "5GB",   video: false },
+    { name: "Coach50",  price: "₩6,500", members: "50명",    storage: "5GB",   video: false },
     { name: "Coach 100", price: "₩9,500", members: "100명",   storage: "10GB",  video: false },
   ]},
   { group: "Premier (수영장/센터)", color: "#F59E0B", plans: [

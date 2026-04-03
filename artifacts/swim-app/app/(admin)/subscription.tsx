@@ -32,7 +32,7 @@ interface PlanMeta {
 const SOLO_PLANS: PlanMeta[] = [
   { tier: "free",     name: "Free",       price: 0,      limit: 10,   storage: "500MB", storageMb: 512,    group: "solo" },
   { tier: "starter",  name: "Coach30",   price: 3500,   limit: 30,   storage: "3GB",   storageMb: 3072,   group: "solo" },
-  { tier: "basic",    name: "Coach 50",   price: 6500,   limit: 50,   storage: "5GB",   storageMb: 5120,   group: "solo" },
+  { tier: "basic",    name: "Coach50",   price: 6500,   limit: 50,   storage: "5GB",   storageMb: 5120,   group: "solo" },
   { tier: "standard", name: "Coach 100",  price: 9500,   limit: 100,  storage: "10GB",  storageMb: 10240,  group: "solo", recommended: true },
 ];
 
