@@ -183,7 +183,6 @@ export default function SettingsScreen() {
           const items = [
             { label: "학생 등록",   done: settingsStats.total_members  > 0, route: "/(admin)/members"   },
             { label: "선생님 초대", done: settingsStats.total_teachers > 0, route: "/(admin)/teachers"  },
-            { label: "학부모 연결", done: settingsStats.total_parents  > 0, route: "/(admin)/parents"   },
             { label: "수영장 정보", done: true,                             route: "/(admin)/pool-settings" },
           ];
           const doneCount = items.filter(i => i.done).length;

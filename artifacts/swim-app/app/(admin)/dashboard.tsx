@@ -197,7 +197,6 @@ export default function DashboardScreen() {
           const steps = [
             { label: "학생 등록",    done: (stats.total_members  ?? 0) > 0, route: "/(admin)/members",        icon: "users" },
             { label: "선생님 초대",  done: (stats.total_teachers ?? 0) > 0, route: "/(admin)/teachers",       icon: "user-check" },
-            { label: "학부모 초대",  done: (stats.total_parents  ?? 0) > 0, route: "/(admin)/parents",        icon: "user" },
           ];
           const allDone = steps.every(s => s.done);
           if (allDone) return null;

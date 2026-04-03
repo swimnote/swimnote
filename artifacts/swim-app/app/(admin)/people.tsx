@@ -31,8 +31,6 @@ interface Summary {
   inactiveMembers: number;
   withdrawnMembers: number;
   unassignedMembers: number;
-  totalParents: number;
-  linkedParents: number;
   totalTeachers: number;
   pendingApprovals: number;
   unregisteredMembers: number;
@@ -44,8 +42,6 @@ const DEFAULT_SUMMARY: Summary = {
   inactiveMembers: 0,
   withdrawnMembers: 0,
   unassignedMembers: 0,
-  totalParents: 0,
-  linkedParents: 0,
   totalTeachers: 0,
   pendingApprovals: 0,
   unregisteredMembers: 0,
@@ -63,19 +59,15 @@ export default function PeopleHubScreen() {
     if (!token) return;
     setLoading(true);
     try {
-      const [statsRes, parentsRes, studentsRes, unregRes] = await Promise.all([
+      const [statsRes, studentsRes, unregRes] = await Promise.all([
         apiRequest(token, "/admin/dashboard-stats"),
-        apiRequest(token, "/admin/parents"),
         apiRequest(token, "/students"),
         apiRequest(token, "/admin/unregistered"),
       ]);
 
       const stats = statsRes.ok ? await statsRes.json() : {};
-      const parents: any[] = parentsRes.ok ? await parentsRes.json() : [];
       const students: any[] = studentsRes.ok ? await studentsRes.json() : [];
       const unreg: any[] = unregRes.ok ? await unregRes.json() : [];
-
-      const linkedParents = parents.filter((p: any) => p.linked === true || p.source === "app").length;
 
       const activeMembers = students.filter((s: any) => s.status === "active").length;
       const inactiveMembers = students.filter((s: any) => s.status === "inactive").length;
@@ -87,8 +79,6 @@ export default function PeopleHubScreen() {
         inactiveMembers,
         withdrawnMembers,
         unassignedMembers: 0,
-        totalParents: parents.length,
-        linkedParents,
         totalTeachers: stats.total_teachers ?? 0,
         pendingApprovals: 0,
         unregisteredMembers: unreg.length,
@@ -160,20 +150,6 @@ export default function PeopleHubScreen() {
                 badgeColor="#D96C6C"
               />
 
-              {/* 학부모관리 */}
-              <HubCard
-                icon="user"
-                title="학부모관리"
-                color="#2EC4B6"
-                bg="#DFF3EC"
-                onPress={() => router.push("/(admin)/parents")}
-                rows={[
-                  { label: "전체", value: summary.totalParents },
-                  { label: "연결완료", value: summary.linkedParents },
-                  { label: "학부모미연결", value: summary.totalParents - summary.linkedParents },
-                ]}
-              />
-
               {/* 선생님관리 */}
               <HubCard
                 icon="user-check"
@@ -216,18 +192,6 @@ export default function PeopleHubScreen() {
                 icon="upload"
                 label="회원 명단 업로드"
                 onPress={() => router.push("/(admin)/people-pending")}
-                color={themeColor}
-              />
-              <QuickBtn
-                icon="send"
-                label="학부모 초대 발송"
-                onPress={() => router.push("/(admin)/people-pending")}
-                color={themeColor}
-              />
-              <QuickBtn
-                icon="users"
-                label="학부모 관리"
-                onPress={() => router.push("/(admin)/parents")}
                 color={themeColor}
               />
             </View>

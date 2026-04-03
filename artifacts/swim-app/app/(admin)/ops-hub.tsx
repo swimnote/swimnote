@@ -21,7 +21,6 @@ const SECTIONS: { title: string; items: MenuItem[] }[] = [
     title: "회원 · 계정",
     items: [
       { label: "회원 명부",     icon: "users",        color: "#1D4ED8", route: "/(admin)/members",          desc: "전체 등록 회원 목록 관리" },
-      { label: "학부모 계정",   icon: "user",         color: "#DB2777", route: "/(admin)/parents",           desc: "학부모 앱 계정 관리" },
       { label: "선생님 관리",   icon: "user-check",   color: "#16A34A", route: "/(admin)/people-teachers",   desc: "선생님 등록 및 권한 설정" },
       { label: "승인 관리",     icon: "check-circle", color: "#16A34A", route: "/(admin)/approvals",         desc: "가입 · 보강 승인 처리" },
       { label: "초대 기록",     icon: "send",         color: "#7C3AED", route: "/(admin)/invite-records",    desc: "초대 링크 발송 이력" },

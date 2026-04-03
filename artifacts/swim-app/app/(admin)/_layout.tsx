@@ -123,7 +123,6 @@ export default function AdminLayout() {
       <Tabs.Screen name="community"               options={{ href: null }} />
       <Tabs.Screen name="approvals"               options={{ href: null }} />
       <Tabs.Screen name="attendance"              options={{ href: null }} />
-      <Tabs.Screen name="parents"                 options={{ href: null }} />
       <Tabs.Screen name="notices"                 options={{ href: null }} />
       <Tabs.Screen name="mode"                    options={{ href: null }} />
       <Tabs.Screen name="diary-write"             options={{ href: null }} />
