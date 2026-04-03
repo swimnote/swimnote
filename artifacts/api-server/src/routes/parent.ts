@@ -1094,10 +1094,8 @@ router.post("/onboard-pool", requireAuth, requireParent, async (req: AuthRequest
 
     const myPhone = pa.phone;
 
-    // 이미 이 수영장에 연결되어 있으면 스킵
-    if (pa.swimming_pool_id && pa.swimming_pool_id !== swimming_pool_id) {
-      // 다른 수영장 → 거부 (현재 MVP에서 다수 수영장 미지원)
-    }
+    // 이미 동일한 수영장이면 스킵 플래그
+    const samePool = pa.swimming_pool_id === swimming_pool_id;
 
     // 해당 수영장에서 phone 일치하는 학생 검색
     const matchRows = await db.execute(sql`
@@ -1140,8 +1138,8 @@ router.post("/onboard-pool", requireAuth, requireParent, async (req: AuthRequest
       `);
     }
 
-    // 학부모 계정의 swimming_pool_id 업데이트 (없으면)
-    if (!pa.swimming_pool_id) {
+    // 학부모 계정의 swimming_pool_id 업데이트 (항상: 연결 또는 변경)
+    if (!samePool) {
       await db.execute(sql`UPDATE parent_accounts SET swimming_pool_id = ${swimming_pool_id}, updated_at = now() WHERE id = ${pa.id}`);
     }
 

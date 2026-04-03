@@ -1,22 +1,26 @@
 /**
  * 내 정보 화면
  * - 이름, 휴대폰번호, 자녀 목록, 수영장 정보, 가입일
+ * - 수영장이 없으면 직접 검색해서 연결 가능
  */
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator, FlatList, Keyboard, KeyboardAvoidingView, Modal,
+  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
 const TEAL = "#2EC4B6";
 const TEAL_BG = "#E6FAF8";
-const NAVY = "#0F172A";
-const NAVY_BG = "#EFF2F7";
+const GRAY_BG = "#F4F6FA";
 
 interface MeData {
   id: string;
@@ -29,34 +33,14 @@ interface MeData {
   created_at: string | null;
 }
 
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
-  return (
-    <View style={s.row}>
-      <View style={s.rowIcon}>
-        <LucideIcon name={icon} size={16} color={TEAL} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[s.rowLabel, { color: C.textMuted }]}>{label}</Text>
-        <Text style={[s.rowValue, { color: C.text }]}>{value}</Text>
-      </View>
-    </View>
-  );
+interface PoolResult {
+  id: string;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
 }
 
-function SectionCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
-  return (
-    <View style={[s.card, { backgroundColor: C.card }]}>
-      <View style={s.cardHeader}>
-        <View style={[s.cardIconWrap, { backgroundColor: TEAL_BG }]}>
-          <LucideIcon name={icon} size={15} color={TEAL} />
-        </View>
-        <Text style={[s.cardTitle, { color: C.text }]}>{title}</Text>
-      </View>
-      {children}
-    </View>
-  );
-}
-
+/* ─── 헬퍼 ─── */
 function formatPhone(phone: string | null) {
   if (!phone) return "—";
   const n = phone.replace(/[^0-9]/g, "");
@@ -69,32 +53,218 @@ function formatDate(dateStr: string | null) {
   if (!dateStr) return "—";
   try {
     const d = new Date(dateStr);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}년 ${m}월 ${day}일`;
+    if (isNaN(d.getTime())) return "—";
+    return `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, "0")}월 ${String(d.getDate()).padStart(2, "0")}일`;
   } catch { return "—"; }
 }
 
+/* ─── 서브 컴포넌트 ─── */
+function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+  return (
+    <View style={s.row}>
+      <View style={s.rowIcon}><LucideIcon name={icon} size={16} color={TEAL} /></View>
+      <View style={{ flex: 1 }}>
+        <Text style={[s.rowLabel, { color: C.textMuted }]}>{label}</Text>
+        <Text style={[s.rowValue, { color: C.text }]}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+function SectionCard({ title, icon, right, children }: {
+  title: string; icon: string; right?: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <View style={[s.card, { backgroundColor: C.card }]}>
+      <View style={s.cardHeader}>
+        <View style={[s.cardIconWrap, { backgroundColor: TEAL_BG }]}>
+          <LucideIcon name={icon} size={15} color={TEAL} />
+        </View>
+        <Text style={[s.cardTitle, { color: C.text }]}>{title}</Text>
+        {right ? <View style={{ marginLeft: "auto" }}>{right}</View> : null}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+/* ─── 수영장 선택 모달 ─── */
+function PoolSelectModal({
+  visible,
+  onClose,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (pool: PoolResult) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [query, setQuery] = useState("");
+  const [pools, setPools] = useState<PoolResult[]>([]);
+  const [allPools, setAllPools] = useState<PoolResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  // 모달 열릴 때 전체 목록 로드
+  useEffect(() => {
+    if (!visible) { setQuery(""); setPools([]); return; }
+    setLoading(true);
+    fetch(`${API_BASE}/pools/public-search`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { const list = Array.isArray(data) ? data : (data.pools ?? []); setAllPools(list); setPools(list); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+    setTimeout(() => inputRef.current?.focus(), 300);
+  }, [visible]);
+
+  // 검색 필터
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) { setPools(allPools); return; }
+    setPools(allPools.filter(p =>
+      p.name.toLowerCase().includes(q) || (p.address ?? "").toLowerCase().includes(q)
+    ));
+  }, [query, allPools]);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={s.modalBackdrop} onPress={onClose} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={[s.modalSheet, { paddingBottom: insets.bottom + 16 }]}
+      >
+        {/* 핸들 */}
+        <View style={s.modalHandle} />
+        <View style={s.modalHeader}>
+          <Text style={[s.modalTitle, { color: C.text }]}>수영장 선택</Text>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <LucideIcon name="x" size={20} color={C.textMuted} />
+          </Pressable>
+        </View>
+
+        {/* 검색창 */}
+        <View style={[s.searchBox, { backgroundColor: GRAY_BG }]}>
+          <LucideIcon name="search" size={16} color={C.textMuted} />
+          <TextInput
+            ref={inputRef}
+            style={[s.searchInput, { color: C.text }]}
+            placeholder="수영장 이름 검색"
+            placeholderTextColor={C.textMuted}
+            value={query}
+            onChangeText={setQuery}
+            returnKeyType="search"
+            onSubmitEditing={Keyboard.dismiss}
+          />
+          {query.length > 0 && (
+            <Pressable onPress={() => setQuery("")} hitSlop={8}>
+              <LucideIcon name="x" size={14} color={C.textMuted} />
+            </Pressable>
+          )}
+        </View>
+
+        {loading ? (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <ActivityIndicator color={TEAL} />
+          </View>
+        ) : pools.length === 0 ? (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <LucideIcon name="building-2" size={36} color={C.border} />
+            <Text style={[s.emptyTxt, { color: C.textMuted }]}>
+              {query ? "검색 결과가 없습니다." : "등록된 수영장이 없습니다."}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={pools}
+            keyExtractor={p => p.id}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8, gap: 8 }}
+            renderItem={({ item }) => (
+              <Pressable
+                style={({ pressed }) => [s.poolItem, { backgroundColor: pressed ? TEAL_BG : C.card }]}
+                onPress={() => { onSelect(item); onClose(); }}
+              >
+                <View style={[s.poolIcon, { backgroundColor: TEAL_BG }]}>
+                  <LucideIcon name="building-2" size={18} color={TEAL} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.poolName, { color: C.text }]}>{item.name}</Text>
+                  {item.address ? (
+                    <Text style={[s.poolAddr, { color: C.textMuted }]} numberOfLines={1}>{item.address}</Text>
+                  ) : null}
+                </View>
+                <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+              </Pressable>
+            )}
+          />
+        )}
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+/* ─── 메인 화면 ─── */
 export default function MyInfoScreen() {
   const insets = useSafeAreaInsets();
-  const { token, parentPoolName } = useAuth();
-  const { students } = useParent();
+  const { token, parentPoolName, pool } = useAuth();
+  const { students, refresh: refreshStudents } = useParent();
   const [me, setMe] = useState<MeData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [poolModal, setPoolModal] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [linkMsg, setLinkMsg] = useState("");
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await apiRequest(token, "/parent/me");
-        if (r.ok) setMe(await r.json());
-      } catch {} finally { setLoading(false); }
-    })();
-  }, []);
+  const loadMe = async () => {
+    try {
+      const r = await apiRequest(token, "/parent/me");
+      if (r.ok) setMe(await r.json());
+    } catch {} finally { setLoading(false); }
+  };
 
-  const poolName = me?.pool_name || parentPoolName || "—";
-  const poolAddress = me?.pool_address || "—";
-  const poolPhone = me?.pool_phone ? formatPhone(me.pool_phone) : "—";
+  useEffect(() => { loadMe(); }, []);
+
+  // 표시할 수영장 정보: API > context pool > parentPoolName
+  const poolName = me?.pool_name || pool?.name || parentPoolName || null;
+  const poolAddress = me?.pool_address || pool?.address || null;
+  const poolPhone = me?.pool_phone || pool?.phone || null;
+  const hasPool = !!(me?.swimming_pool_id || poolName);
+
+  async function handlePoolSelect(selected: PoolResult) {
+    setLinking(true);
+    setLinkMsg("");
+    try {
+      const r = await apiRequest(token, "/parent/onboard-pool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ swimming_pool_id: selected.id }),
+      });
+      const data = await r.json();
+      if (r.ok) {
+        // 로컬 상태 즉시 반영
+        setMe(prev => prev ? {
+          ...prev,
+          swimming_pool_id: selected.id,
+          pool_name: data.pool_name || selected.name,
+          pool_address: selected.address || null,
+          pool_phone: selected.phone || null,
+        } : prev);
+        // AsyncStorage에 pool_name 저장
+        AsyncStorage.setItem("parent_pool_name", data.pool_name || selected.name).catch(() => {});
+        if (data.auto_approved && data.linked_students?.length > 0) {
+          setLinkMsg(`✓ ${selected.name}에 연결되었습니다. 자녀 ${data.linked_students.length}명이 자동 연결되었습니다.`);
+          refreshStudents?.();
+        } else {
+          setLinkMsg(`✓ ${selected.name}에 연결 요청이 완료되었습니다.`);
+        }
+      } else {
+        setLinkMsg(data.error || "연결에 실패했습니다.");
+      }
+    } catch {
+      setLinkMsg("연결 중 오류가 발생했습니다.");
+    } finally {
+      setLinking(false);
+    }
+  }
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
@@ -115,8 +285,18 @@ export default function MyInfoScreen() {
               <Text style={s.avatarTxt}>{me?.name?.[0] ?? "?"}</Text>
             </View>
             <Text style={s.avatarName}>{me?.name ?? ""}님</Text>
-            <Text style={s.avatarSub}>{poolName}</Text>
+            <Text style={s.avatarSub}>{poolName ?? "수영장 미연결"}</Text>
           </View>
+
+          {/* 연결 결과 메시지 */}
+          {linkMsg ? (
+            <View style={[s.linkMsgBox, {
+              backgroundColor: linkMsg.startsWith("✓") ? TEAL_BG : "#FFF0F0",
+              borderColor: linkMsg.startsWith("✓") ? TEAL : "#F97316",
+            }]}>
+              <Text style={[s.linkMsgTxt, { color: linkMsg.startsWith("✓") ? TEAL : "#D9534F" }]}>{linkMsg}</Text>
+            </View>
+          ) : null}
 
           {/* 계정 정보 */}
           <SectionCard title="계정 정보" icon="user">
@@ -141,9 +321,9 @@ export default function MyInfoScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[s.childName, { color: C.text }]}>{st.name}</Text>
-                      {(st as any).class_name ? (
-                        <Text style={[s.childSub, { color: C.textMuted }]}>{(st as any).class_name}</Text>
-                      ) : null}
+                      {(st as any).class_name
+                        ? <Text style={[s.childSub, { color: C.textMuted }]}>{(st as any).class_name}</Text>
+                        : null}
                     </View>
                   </View>
                 </React.Fragment>
@@ -152,12 +332,43 @@ export default function MyInfoScreen() {
           </SectionCard>
 
           {/* 수영장 정보 */}
-          <SectionCard title="등록된 수영장" icon="building-2">
-            <InfoRow icon="building-2" label="수영장 이름" value={poolName} />
-            <View style={s.divider} />
-            <InfoRow icon="map-pin" label="주소" value={poolAddress} />
-            <View style={s.divider} />
-            <InfoRow icon="phone" label="전화번호" value={poolPhone} />
+          <SectionCard
+            title="등록된 수영장"
+            icon="building-2"
+            right={
+              <Pressable
+                style={({ pressed }) => [s.changePoolBtn, { opacity: pressed ? 0.7 : 1 }]}
+                onPress={() => setPoolModal(true)}
+                disabled={linking}
+              >
+                {linking
+                  ? <ActivityIndicator size="small" color={TEAL} />
+                  : <Text style={[s.changePoolTxt, { color: TEAL }]}>{hasPool ? "변경" : "수영장 연결하기"}</Text>}
+              </Pressable>
+            }
+          >
+            {hasPool ? (
+              <>
+                <InfoRow icon="building-2" label="수영장 이름" value={poolName!} />
+                <View style={s.divider} />
+                <InfoRow icon="map-pin" label="주소" value={poolAddress || "—"} />
+                <View style={s.divider} />
+                <InfoRow icon="phone" label="전화번호" value={formatPhone(poolPhone)} />
+              </>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [s.connectBtn, { backgroundColor: TEAL, opacity: pressed ? 0.8 : 1 }]}
+                onPress={() => setPoolModal(true)}
+                disabled={linking}
+              >
+                {linking
+                  ? <ActivityIndicator color="#fff" />
+                  : <>
+                    <LucideIcon name="plus" size={18} color="#fff" />
+                    <Text style={s.connectBtnTxt}>수영장 검색해서 연결하기</Text>
+                  </>}
+              </Pressable>
+            )}
           </SectionCard>
 
           {/* 내 정보 수정 버튼 */}
@@ -170,6 +381,12 @@ export default function MyInfoScreen() {
           </Pressable>
         </ScrollView>
       )}
+
+      <PoolSelectModal
+        visible={poolModal}
+        onClose={() => setPoolModal(false)}
+        onSelect={handlePoolSelect}
+      />
     </View>
   );
 }
@@ -178,8 +395,7 @@ const s = StyleSheet.create({
   root: { flex: 1 },
 
   avatarCard: {
-    borderRadius: 20, padding: 28, alignItems: "center", gap: 6,
-    marginBottom: 4,
+    borderRadius: 20, padding: 28, alignItems: "center", gap: 6, marginBottom: 4,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 3,
   },
@@ -191,6 +407,9 @@ const s = StyleSheet.create({
   avatarName: { fontSize: 20, color: "#fff", fontFamily: "Pretendard-Regular" },
   avatarSub: { fontSize: 13, color: "rgba(255,255,255,0.75)", fontFamily: "Pretendard-Regular" },
 
+  linkMsgBox: { borderRadius: 12, padding: 12, borderWidth: 1 },
+  linkMsgTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center" },
+
   card: {
     borderRadius: 16, padding: 16,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
@@ -198,7 +417,16 @@ const s = StyleSheet.create({
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   cardIconWrap: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", letterSpacing: 0.2 },
+  cardTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", letterSpacing: 0.2, flex: 1 },
+
+  changePoolBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#E6FAF8" },
+  changePoolTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+
+  connectBtn: {
+    borderRadius: 12, paddingVertical: 14, flexDirection: "row",
+    alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4,
+  },
+  connectBtnTxt: { fontSize: 14, color: "#fff", fontFamily: "Pretendard-Regular" },
 
   row: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 4 },
   rowIcon: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
@@ -220,4 +448,38 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4,
   },
   editBtnTxt: { fontSize: 15, color: "#fff", fontFamily: "Pretendard-Regular" },
+
+  // 모달
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)" },
+  modalSheet: {
+    backgroundColor: C.background, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    maxHeight: "75%", minHeight: "60%",
+    shadowColor: "#000", shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.12, shadowRadius: 12, elevation: 10,
+  },
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: "#DDD",
+    alignSelf: "center", marginTop: 10, marginBottom: 4,
+  },
+  modalHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 20, paddingVertical: 12,
+  },
+  modalTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
+
+  searchBox: {
+    flexDirection: "row", alignItems: "center", borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10, gap: 8, marginHorizontal: 20, marginBottom: 8,
+  },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", paddingVertical: 0 },
+
+  poolItem: {
+    flexDirection: "row", alignItems: "center", borderRadius: 12,
+    padding: 12, gap: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03, shadowRadius: 2, elevation: 1,
+  },
+  poolIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  poolName: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  poolAddr: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
 });
