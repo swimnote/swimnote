@@ -75,9 +75,7 @@ export default function PeopleHubScreen() {
       const students: any[] = studentsRes.ok ? await studentsRes.json() : [];
       const unreg: any[] = unregRes.ok ? await unregRes.json() : [];
 
-      const linkedParents = parents.filter((p: any) =>
-        (p.students || p.children || []).some((c: any) => c.ps_status === "active" || c.status === "approved")
-      ).length;
+      const linkedParents = parents.filter((p: any) => p.linked === true || p.source === "app").length;
 
       const activeMembers = students.filter((s: any) => s.status === "active").length;
       const inactiveMembers = students.filter((s: any) => s.status === "inactive").length;

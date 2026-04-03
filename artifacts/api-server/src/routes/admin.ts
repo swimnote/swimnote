@@ -2387,13 +2387,19 @@ router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
       // ── 3. 앱 가입 학부모의 phone 목록 (중복 제거용) ─────────────────
       const appPhones = new Set(appRows.map((r: any) => (r.phone || "").replace(/[^0-9]/g, "")).filter(Boolean));
 
-      // guardian 중 앱 가입자와 phone 중복되는 항목 제거 (앱 가입자가 이미 appRows에 포함되므로)
+      // guardian 중 앱 가입자와 phone 중복되는 항목 제거
       const filteredGuardians = guardianRows.filter((r: any) => {
         const norm = (r.phone || "").replace(/[^0-9]/g, "");
         return !norm || !appPhones.has(norm);
       });
 
-      res.json([...appRows, ...filteredGuardians]);
+      // linked 필드 추가: app = 앱 가입 완료(연결완료), guardian = 미연결
+      const result = [
+        ...appRows.map((r: any) => ({ ...r, linked: true })),
+        ...filteredGuardians.map((r: any) => ({ ...r, linked: false })),
+      ];
+
+      res.json(result);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
