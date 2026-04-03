@@ -302,9 +302,11 @@ export default function SignupScreen() {
 
       } else if (role === "parent") {
         const childIds   = parentSelected.map(s => s.id);
-        const childNames = parentSelected.length > 0
-          ? parentSelected.map(s => s.name)
-          : childName.trim() ? [childName.trim()] : [];
+        // 선택된 자녀 이름 + 직접 입력 이름 + 검색창에 입력된 이름 모두 포함
+        const selectedNames = parentSelected.map(s => s.name);
+        if (childName.trim() && !selectedNames.includes(childName.trim())) selectedNames.push(childName.trim());
+        if (parentStudentSearch.trim() && !selectedNames.includes(parentStudentSearch.trim())) selectedNames.push(parentStudentSearch.trim());
+        const childNames = selectedNames.filter(Boolean);
         res = await fetch(`${API_BASE}/auth/simple-parent-register`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -699,10 +701,10 @@ export default function SignupScreen() {
               </>
             )}
 
-            {/* 자녀 없이 가입 안내 */}
+            {/* 안내 */}
             {parentSelected.length === 0 && (
               <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", marginTop: 6 }}>
-                자녀를 찾지 못해도 가입은 가능합니다. 가입 후 관리자에게 연결 요청하세요.
+                자녀를 선택하지 않아도 가입 후 전화번호·이름 기반으로 자동 연결됩니다.
               </Text>
             )}
           </View>
