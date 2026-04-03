@@ -2467,6 +2467,20 @@ router.post("/auto-link-parents", requireAuth, requireRole("super_admin","pool_a
         linked++;
       }
 
+      // ── 보너스: parent_students 존재하지만 students.parent_user_id가 NULL인 케이스 수정
+      // (onboard-pool 구버전 버그로 인한 불일치 데이터 소급 정리)
+      await db.execute(sql`
+        UPDATE students s
+        SET parent_user_id = ps.parent_id,
+            status = CASE WHEN s.status IN ('unregistered','pending_approval') THEN 'active' ELSE s.status END,
+            updated_at = NOW()
+        FROM parent_students ps
+        WHERE ps.student_id = s.id
+          AND s.swimming_pool_id = ${poolId}
+          AND s.parent_user_id IS NULL
+          AND ps.status = 'approved'
+      `);
+
       res.json({ success: true, total_checked: unlinked.length, linked });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }

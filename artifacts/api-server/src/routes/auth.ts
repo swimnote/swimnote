@@ -466,12 +466,12 @@ router.post("/simple-parent-register", async (req, res) => {
     };
 
     // ── STEP 1: 학부모가 직접 선택한 학생 ID (최우선) ─────────────────────
-    if (childIdsArr.length > 0) {
+    if (childIdsArr.length > 0 && resolvedPoolId) {
       for (const cId of childIdsArr) {
         const r = await db.execute(sql`
           SELECT id, swimming_pool_id, name FROM students
           WHERE id = ${cId}
-            AND swimming_pool_id = ${requestedPoolId}
+            AND swimming_pool_id = ${resolvedPoolId}
             AND status NOT IN ('withdrawn', 'archived', 'deleted')
           LIMIT 1
         `);
@@ -480,20 +480,32 @@ router.post("/simple-parent-register", async (req, res) => {
       }
     }
 
-    // ── STEP 2: 전화번호로 학생 매칭 (항상 실행 — 전화번호가 있으면) ──────
+    // ── STEP 2: 전화번호로 학생 매칭 ─────────────────────────────────────
+    // pool 없으면 전체 DB에서 매칭 (실시간 연결), pool 있으면 해당 pool만
     if (ph) {
-      const r = await db.execute(sql`
-        SELECT id, swimming_pool_id, name FROM students
-        WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
-          AND swimming_pool_id = ${requestedPoolId}
-          AND status NOT IN ('withdrawn', 'archived', 'deleted')
-        LIMIT 20
-      `);
+      const r = resolvedPoolId
+        ? await db.execute(sql`
+            SELECT id, swimming_pool_id, name FROM students
+            WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
+              AND swimming_pool_id = ${resolvedPoolId}
+              AND status NOT IN ('withdrawn', 'archived', 'deleted')
+            LIMIT 20
+          `)
+        : await db.execute(sql`
+            SELECT id, swimming_pool_id, name FROM students
+            WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
+              AND status NOT IN ('withdrawn', 'archived', 'deleted')
+            LIMIT 20
+          `);
       addUnique(matched, r.rows as any[]);
       markMatchedNames(r.rows as any[]);
+      // pool 미선택 시 첫 번째 매칭 학생의 pool을 resolvedPoolId로 사용
+      if (!resolvedPoolId && (r.rows as any[]).length > 0) {
+        resolvedPoolId = (r.rows[0] as any).swimming_pool_id;
+      }
     }
 
-    // ── STEP 3: 자녀 이름으로 매칭 (항상 실행 — 이름이 있으면) ────────────
+    // ── STEP 3: 자녀 이름으로 매칭 (pool 있을 때만) ─────────────────────
     if (childNamesArr.length > 0 && resolvedPoolId) {
       for (const cName of childNamesArr) {
         const r = await db.execute(sql`
@@ -510,7 +522,7 @@ router.post("/simple-parent-register", async (req, res) => {
       }
     }
 
-    // ── STEP 3B: 학부모 이름으로 추가 매칭 (항상 실행) ──────────────────
+    // ── STEP 3B: 학부모 이름으로 추가 매칭 ──────────────────────────────
     if (name && resolvedPoolId) {
       const normName = name.replace(/\s+/g, "").toLowerCase();
       const r = await db.execute(sql`

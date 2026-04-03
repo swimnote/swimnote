@@ -1125,6 +1125,15 @@ router.post("/onboard-pool", requireAuth, requireParent, async (req: AuthRequest
           VALUES (${linkId}, ${pa.id}, ${student.id}, ${swimming_pool_id}, 'approved', now(), now())
           ON CONFLICT DO NOTHING
         `);
+        // students.parent_user_id 실시간 업데이트 — 어드민 미연결 해소
+        await db.execute(sql`
+          UPDATE students
+          SET parent_user_id = ${pa.id},
+              status = CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END,
+              updated_at = now()
+          WHERE id = ${student.id}
+            AND (parent_user_id IS NULL OR parent_user_id = ${pa.id})
+        `);
         linkedStudentNames.push(student.name);
       }
       autoApproved = true;
