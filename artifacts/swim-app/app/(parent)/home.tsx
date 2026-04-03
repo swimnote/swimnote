@@ -59,7 +59,7 @@ const IB = "#E6FAF8";
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
-  const { token, parentAccount } = useAuth();
+  const { token, parentAccount, pool } = useAuth();
   const { students, selectedStudent, setSelectedStudentId, loading: ctxLoading, refresh } = useParent();
 
   const [summary, setSummary] = useState<HomeSummary>(EMPTY_SUMMARY);
@@ -181,7 +181,7 @@ export default function ParentHomeScreen() {
       {/* ─── A. 헤더 ─── */}
       <View style={[s.header, { paddingTop: PT }]}>
         <Text style={[s.poolName, { color: C.textMuted }]} numberOfLines={1}>
-          {parentAccount?.pool_name || "수영장"}
+          {(parentAccount as any)?.pool_name || pool?.name || "수영장"}
         </Text>
         <View style={s.headerBtns}>
           <Pressable style={[s.headerBtn, { backgroundColor: C.card }]} onPress={() => router.push("/(parent)/notifications" as any)}>

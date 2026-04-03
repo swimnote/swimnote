@@ -1156,6 +1156,15 @@ router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, re
       .from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
 
+    // swimming_pool_id가 null이면 JWT 토큰의 poolId로 fallback
+    const poolId: string | null = pa.swimming_pool_id || (req.user as any).poolId || null;
+    if (!poolId) { res.status(404).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    // swimming_pool_id가 null이었던 경우 소급 업데이트
+    if (!pa.swimming_pool_id) {
+      await db.execute(sql`UPDATE parent_accounts SET swimming_pool_id = ${poolId}, updated_at = now() WHERE id = ${req.user!.userId}`).catch(() => {});
+    }
+
     const [pool] = await superAdminDb.select({
       id: swimmingPoolsTable.id,
       name: swimmingPoolsTable.name,
@@ -1166,7 +1175,7 @@ router.get("/pool-info", requireAuth, requireParent, async (req: AuthRequest, re
       level_test_info: swimmingPoolsTable.level_test_info,
       event_info: swimmingPoolsTable.event_info,
       equipment_info: swimmingPoolsTable.equipment_info,
-    }).from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, pa.swimming_pool_id)).limit(1);
+    }).from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, poolId)).limit(1);
 
     if (!pool) { res.status(404).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
 

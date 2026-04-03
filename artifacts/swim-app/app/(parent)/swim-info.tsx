@@ -127,7 +127,7 @@ function SectionCard({ section, content }: { section: Section; content?: string 
 interface LevelInfo { current_level_order: number | null; current_level: LevelDef | null; next_level: LevelDef | null; }
 
 export default function SwimInfoScreen() {
-  const { token } = useAuth();
+  const { token, pool, parentAccount } = useAuth();
   const { selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
   const [info, setInfo] = useState<PoolInfo | null>(null);
@@ -161,27 +161,31 @@ export default function SwimInfoScreen() {
           contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 12 }}
         >
           {/* 수영장 기본 정보 칩 */}
-          {(info?.pool_name || info?.address || info?.phone) && (
-            <View style={[s.poolCard, { backgroundColor: C.tint }]}>
-              {info.pool_name && (
-                <Text style={s.poolName}>{info.pool_name}</Text>
-              )}
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 4 }}>
-                {info.address && (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                    <MapPin size={13} color="rgba(255,255,255,0.8)" />
-                    <Text style={s.poolMeta}>{info.address}</Text>
-                  </View>
-                )}
-                {info.phone && (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                    <Phone size={13} color="rgba(255,255,255,0.8)" />
-                    <Text style={s.poolMeta}>{info.phone}</Text>
-                  </View>
-                )}
+          {(() => {
+            const poolName = info?.pool_name || (parentAccount as any)?.pool_name || pool?.name;
+            const address = info?.address || pool?.address;
+            const phone = info?.phone || pool?.phone;
+            if (!poolName && !address && !phone) return null;
+            return (
+              <View style={[s.poolCard, { backgroundColor: C.tint }]}>
+                {poolName && <Text style={s.poolName}>{poolName}</Text>}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 4 }}>
+                  {address && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                      <MapPin size={13} color="rgba(255,255,255,0.8)" />
+                      <Text style={s.poolMeta}>{address}</Text>
+                    </View>
+                  )}
+                  {phone && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                      <Phone size={13} color="rgba(255,255,255,0.8)" />
+                      <Text style={s.poolMeta}>{phone}</Text>
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
-          )}
+            );
+          })()}
 
           {/* 자녀 현재 레벨 카드 */}
           {selectedStudent && levelInfo && (

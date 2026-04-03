@@ -56,7 +56,7 @@ function MenuItem({
 
 export default function ParentMoreScreen() {
   const insets = useSafeAreaInsets();
-  const { parentAccount, logout, token } = useAuth();
+  const { parentAccount, logout, token, pool } = useAuth();
   const { students } = useParent();
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -87,7 +87,7 @@ export default function ParentMoreScreen() {
             <View style={{ flex: 1 }}>
               <Text style={[s.accountName, { color: C.text }]}>{parentAccount.name}님</Text>
               <Text style={[s.accountPool, { color: C.textMuted }]}>
-                {parentAccount.pool_name || "수영장"} · 자녀 {students.length}명
+                {(parentAccount as any).pool_name || pool?.name || "수영장"} · 자녀 {students.length}명
               </Text>
             </View>
           </View>
