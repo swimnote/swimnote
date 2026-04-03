@@ -319,49 +319,6 @@ router.get("/pools/:id/detail", requireAuth, requirePermission("canViewPools"), 
   }
 });
 
-router.get("/parents", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  try {
-    let poolId: string | null = null;
-    if (req.user!.role === "pool_admin") {
-      const [u] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
-      poolId = u?.swimming_pool_id || null;
-    } else {
-      poolId = req.query.pool_id as string || null;
-    }
-    if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
-    const parents = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.swimming_pool_id, poolId));
-    const enriched = await Promise.all(parents.map(async (pa) => {
-      const links = await db.select().from(parentStudentsTable).where(eq(parentStudentsTable.parent_id, pa.id));
-      const linkedStudents = await Promise.all(links.map(async (l) => {
-        const [s] = await db.select({ id: studentsTable.id, name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, l.student_id)).limit(1);
-        return s ? { ...s, link_id: l.id, status: l.status, rejection_reason: l.rejection_reason, created_at: l.created_at } : null;
-      }));
-
-      // 학부모 가입 신청 시 입력한 자녀명 조회 (전화번호 기준 매칭, 최신 approved 요청)
-      const reqRow = await superAdminDb.execute(sql`
-        SELECT child_name, children_requested FROM parent_pool_requests
-        WHERE swimming_pool_id = ${poolId} AND phone = ${pa.phone}
-        ORDER BY requested_at DESC LIMIT 1
-      `);
-      const reqData = reqRow.rows[0] as any;
-      let requested_children: Array<{ childName: string; childBirthYear?: number | null }> = [];
-      if (reqData) {
-        const cr = typeof reqData.children_requested === "string"
-          ? JSON.parse(reqData.children_requested || "[]")
-          : (reqData.children_requested || []);
-        if (cr.length > 0) {
-          requested_children = cr;
-        } else if (reqData.child_name) {
-          requested_children = [{ childName: reqData.child_name }];
-        }
-      }
-
-      return { ...pa, pin_hash: undefined, students: linkedStudents.filter(Boolean), requested_children };
-    }));
-    res.json(enriched);
-  } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
-});
-
 router.post("/parents", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const { name, phone, pin } = req.body;
   if (!name || !phone) { res.status(400).json({ error: "이름과 전화번호를 입력해주세요." }); return; }
@@ -2357,6 +2314,7 @@ router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
       if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
 
       // ── 1. 앱 가입 학부모 ──────────────────────────────────────────
+      // swimming_pool_id = null 인 경우도 해당 pool 학생 전화번호로 포함
       const appRows = (await db.execute(sql`
         SELECT
           pa.id,
@@ -2371,10 +2329,36 @@ router.get("/parents", requireAuth, requireRole("super_admin","pool_admin"),
         FROM parent_accounts pa
         LEFT JOIN parent_students ps ON ps.parent_id = pa.id
         LEFT JOIN students s ON s.id = ps.student_id
-        WHERE pa.swimming_pool_id = ${poolId}
+        WHERE (
+          pa.swimming_pool_id = ${poolId}
+          OR (
+            pa.swimming_pool_id IS NULL
+            AND REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') IN (
+              SELECT REGEXP_REPLACE(COALESCE(st.parent_phone,''),'[^0-9]','','g')
+              FROM students st
+              WHERE st.swimming_pool_id = ${poolId}
+                AND st.parent_phone IS NOT NULL AND st.parent_phone != ''
+                AND st.status NOT IN ('withdrawn','archived','deleted')
+            )
+          )
+        )
         GROUP BY pa.id
         ORDER BY pa.created_at DESC
       `)).rows as any[];
+
+      // swimming_pool_id = null 인 학부모 계정 소급 수정 (해당 pool 학생과 전화번호 매칭)
+      await db.execute(sql`
+        UPDATE parent_accounts pa
+        SET swimming_pool_id = ${poolId}, updated_at = now()
+        WHERE pa.swimming_pool_id IS NULL
+          AND REGEXP_REPLACE(COALESCE(pa.phone,''),'[^0-9]','','g') IN (
+            SELECT REGEXP_REPLACE(COALESCE(st.parent_phone,''),'[^0-9]','','g')
+            FROM students st
+            WHERE st.swimming_pool_id = ${poolId}
+              AND st.parent_phone IS NOT NULL AND st.parent_phone != ''
+              AND st.status NOT IN ('withdrawn','archived','deleted')
+          )
+      `);
 
       // ── 2. 학생 테이블에 보호자 이름·연락처가 입력된 모든 학생 ─────────
       // parent_user_id 여부 무관 — parent_phone 기준 그룹핑 (형제자매 묶음)
