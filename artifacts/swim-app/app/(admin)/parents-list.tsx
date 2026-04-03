@@ -3,13 +3,12 @@
  * - 카드 누르면 상세 모달 (학생 반·레벨 정보)
  * - 전화걸기 / 문자보내기 버튼
  */
-import { HeartHandshake, Link2, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
+import { HeartHandshake, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Linking,
   Modal,
@@ -364,7 +363,6 @@ export default function ParentsListScreen() {
   const [filter, setFilter]         = useState<FilterKey>("all");
   const [search, setSearch]         = useState("");
   const [selected, setSelected]     = useState<ParentRow | null>(null);
-  const [autoLinking, setAutoLinking] = useState(false);
 
   const fetchParents = useCallback(async () => {
     if (!token) return;
@@ -375,33 +373,22 @@ export default function ParentsListScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
 
-  const runAutoLink = useCallback(async () => {
+  // 화면 진입 시 미연결 학생 자동 매칭 (백그라운드, 무음)
+  const silentAutoLink = useCallback(async () => {
     if (!token) return;
-    setAutoLinking(true);
     try {
       const res = await apiRequest(token, "/admin/auto-link-parents", { method: "POST" });
-      const data = await res.json();
       if (res.ok) {
-        if (data.linked > 0) {
-          Alert.alert("자동 연결 완료", `${data.linked}명의 학생이 학부모와 자동 연결되었습니다.`);
-          fetchParents();
-        } else {
-          Alert.alert("연결할 대상 없음", `미연결 학생 ${data.total_checked}명을 검색했으나 일치하는 학부모 계정이 없습니다.`);
-        }
-      } else {
-        Alert.alert("오류", data.error || "자동 연결 중 오류가 발생했습니다.");
+        const data = await res.json();
+        if (data.linked > 0) fetchParents(); // 연결된 경우에만 목록 갱신
       }
-    } catch {
-      Alert.alert("오류", "서버 연결 오류");
-    } finally {
-      setAutoLinking(false);
-    }
+    } catch {}
   }, [token, fetchParents]);
 
   useFocusEffect(useCallback(() => {
     setLoading(true);
-    fetchParents();
-  }, [fetchParents]));
+    fetchParents().then(() => silentAutoLink());
+  }, [fetchParents, silentAutoLink]));
 
   const filtered = parents.filter(p => {
     if (filter === "app"      && p.source !== "app")      return false;
@@ -460,17 +447,6 @@ export default function ParentsListScreen() {
             </Text>
           </Pressable>
         ))}
-        <Pressable
-          style={[s.chip, { borderColor: TEAL, marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4 }]}
-          onPress={runAutoLink}
-          disabled={autoLinking}
-        >
-          {autoLinking
-            ? <ActivityIndicator size={11} color={TEAL} />
-            : <Link2 size={11} color={TEAL} />
-          }
-          <Text style={[s.chipTxt, { color: TEAL }]}>자동 연결</Text>
-        </Pressable>
       </View>
 
       {loading && !refreshing ? (

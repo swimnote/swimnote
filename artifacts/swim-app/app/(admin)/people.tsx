@@ -63,6 +63,9 @@ export default function PeopleHubScreen() {
     if (!token) return;
     setLoading(true);
     try {
+      // 미연결 학생 ↔ 학부모 계정 자동 매칭 (백그라운드, 무음)
+      apiRequest(token, "/admin/auto-link-parents", { method: "POST" }).catch(() => {});
+
       const [statsRes, studentsRes, unregRes, parentsRes] = await Promise.all([
         apiRequest(token, "/admin/dashboard-stats"),
         apiRequest(token, "/students"),
