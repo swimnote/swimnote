@@ -18,6 +18,25 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
 
+function Field({ label, value, onChangeText, placeholder, secureEntry = false, keyboardType = "default" as any, note }: any) {
+  return (
+    <View style={f.wrap}>
+      <Text style={[f.label, { color: C.textSecondary }]}>{label}</Text>
+      <TextInput
+        style={[f.input, { backgroundColor: "#FFFFFF", color: C.text }]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={C.textMuted}
+        secureTextEntry={secureEntry}
+        keyboardType={keyboardType}
+        autoCapitalize="none"
+      />
+      {note && <Text style={[f.note, { color: C.textMuted }]}>{note}</Text>}
+    </View>
+  );
+}
+
 export default function ParentProfileScreen() {
   const { token, parentAccount, updateParentProfile, logout } = useAuth();
   const insets = useSafeAreaInsets();
@@ -87,25 +106,6 @@ export default function ParentProfileScreen() {
       }
     } catch { setError("저장 중 오류가 발생했습니다"); }
     finally { setSaving(false); }
-  }
-
-  function Field({ label, value, onChangeText, placeholder, secureEntry = false, keyboardType = "default" as any, note }: any) {
-    return (
-      <View style={f.wrap}>
-        <Text style={[f.label, { color: C.textSecondary }]}>{label}</Text>
-        <TextInput
-          style={[f.input, { backgroundColor: "#FFFFFF", color: C.text }]}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={C.textMuted}
-          secureTextEntry={secureEntry}
-          keyboardType={keyboardType}
-          autoCapitalize="none"
-        />
-        {note && <Text style={[f.note, { color: C.textMuted }]}>{note}</Text>}
-      </View>
-    );
   }
 
   return (
