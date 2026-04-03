@@ -765,7 +765,7 @@ export async function initPoolDb(): Promise<void> {
       ('free',       'free_10',    'Free',         0,      10,    512,  '500MB'),
       ('starter',    'solo_30',    'Coach 30',     3500,   30,   3072,  '3GB'),
       ('basic',      'solo_50',    'Coach50',     6500,   50,   5120,  '5GB'),
-      ('standard',   'solo_100',   'Coach 100',    9500,  100,  10240,  '10GB'),
+      ('standard',   'solo_100',   'Coach100',    9500,  100,  10240,  '10GB'),
       ('center_200', 'center_200', 'Premier 200',  69000, 200,  51200,  '50GB'),
       ('advance',    'center_300', 'Premier 300',  99000, 300,  81920,  '80GB'),
       ('pro',        'center_500', 'Premier 500',  149000,500, 133120,  '130GB'),

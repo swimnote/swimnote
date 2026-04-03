@@ -250,7 +250,7 @@ const PLAN_GUIDE = [
   { group: "Coach (개인 선생님)", color: P, plans: [
     { name: "Coach30",  price: "₩3,500", members: "30명",    storage: "3GB",   video: false },
     { name: "Coach50",  price: "₩6,500", members: "50명",    storage: "5GB",   video: false },
-    { name: "Coach 100", price: "₩9,500", members: "100명",   storage: "10GB",  video: false },
+    { name: "Coach100", price: "₩9,500", members: "100명",   storage: "10GB",  video: false },
   ]},
   { group: "Premier (수영장/센터)", color: "#F59E0B", plans: [
     { name: "Premier 200",  price: "₩69,000",  members: "200명",  storage: "50GB",  video: true },
