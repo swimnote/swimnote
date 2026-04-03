@@ -358,8 +358,8 @@ export default function DashboardScreen() {
 
             {/* ── 미배정 / 학부모미연결 분리 카운트 ── */}
             {stats && (
-              <Pressable style={s.splitStatRow} onPress={() => router.push("/(admin)/members?backTo=dashboard")}>
-                <View style={s.splitStatItem}>
+              <View style={s.splitStatRow}>
+                <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unassigned&backTo=dashboard" as any)}>
                   <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
                     <CircleAlert size={14} color="#0F172A" />
                   </View>
@@ -367,9 +367,9 @@ export default function DashboardScreen() {
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unassigned ?? 0}명</Text>
                     <Text style={s.splitStatLabel}>수업 미배정</Text>
                   </View>
-                </View>
+                </Pressable>
                 <View style={s.splitStatDivider} />
-                <View style={s.splitStatItem}>
+                <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unlinked&backTo=dashboard" as any)}>
                   <View style={[s.splitStatIcon, { backgroundColor: "#E6FAF8" }]}>
                     <UserX size={14} color="#0F172A" />
                   </View>
@@ -377,9 +377,8 @@ export default function DashboardScreen() {
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unlinked_members ?? 0}명</Text>
                     <Text style={s.splitStatLabel}>학부모미연결</Text>
                   </View>
-                </View>
-                <ChevronRight size={14} color={C.textMuted} style={{ marginLeft: "auto" }} />
-              </Pressable>
+                </Pressable>
+              </View>
             )}
 
             {/* X: 스마트 처리 알림 — 처리 필요 항목 한눈에 */}

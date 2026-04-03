@@ -138,6 +138,13 @@ export default function MembersScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // URL 파라미터 filter가 바뀌면 필터 상태 동기화 (대시보드→멤버 필터 이동 지원)
+  useEffect(() => {
+    if (filterParam && filterParam !== filter) {
+      setFilter(filterParam as StudentFilterKey);
+    }
+  }, [filterParam]);
+
   // 화면 포커스 시 자동 새로고침 — 학부모 연결 상태를 실시간 반영
   const firstFocus = useRef(true);
   useFocusEffect(
