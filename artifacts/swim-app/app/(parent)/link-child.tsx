@@ -230,15 +230,15 @@ export default function LinkChildScreen() {
         </View>
       )}
 
-      {/* ── 대기 중: 미매칭 ──────────────────────────────────── */}
+      {/* ── 미매칭: 학생 정보 없음 ──────────────────────────── */}
       {step === "pending" && (
         <View style={st.resultBox}>
-          <View style={[st.resultIcon, { backgroundColor: "#FFF1BF" }]}>
-            <Clock size={44} color="#D97706" />
+          <View style={[st.resultIcon, { backgroundColor: "#FEF2F2" }]}>
+            <Clock size={44} color="#DC2626" />
           </View>
-          <Text style={[st.resultTitle, { color: C.text }]}>관리자 확인 중</Text>
+          <Text style={[st.resultTitle, { color: C.text }]}>학생을 찾지 못했습니다</Text>
           <Text style={[st.resultSub, { color: C.textSecondary }]}>
-            수영장에 등록된 학생을 찾지 못했습니다.{"\n"}관리자 확인 후 연결됩니다.
+            수영장에 등록된 학생 중 일치하는{"\n"}정보를 찾지 못했습니다.{"\n\n"}수영장 관리자에게 학부모 연락처가{"\n"}올바르게 등록되어 있는지 확인해주세요.
           </Text>
           <Pressable
             style={[st.submitBtn, { backgroundColor: C.button, alignSelf: "stretch", marginHorizontal: 32 }]}

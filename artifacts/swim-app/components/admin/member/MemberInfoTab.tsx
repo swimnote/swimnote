@@ -16,10 +16,8 @@ interface MemberInfoTabProps {
   saving: boolean;
   editName: string; setEditName: (v: string) => void;
   editBirth: string; setEditBirth: (v: string) => void;
-  editPhone: string; setEditPhone: (v: string) => void;
   editParentName: string; setEditParentName: (v: string) => void;
   editParentPhone: string; setEditParentPhone: (v: string) => void;
-  editParentPhone2: string; setEditParentPhone2: (v: string) => void;
   infoChanged: boolean; setInfoChanged: (v: boolean) => void;
   onSave: () => void;
   onRestoreMember: () => void;
@@ -33,12 +31,15 @@ interface MemberInfoTabProps {
 export function MemberInfoTab({
   data, themeColor, saving,
   editName, setEditName, editBirth, setEditBirth,
-  editPhone, setEditPhone, editParentName, setEditParentName,
-  editParentPhone, setEditParentPhone, editParentPhone2, setEditParentPhone2,
+  editParentName, setEditParentName,
+  editParentPhone, setEditParentPhone,
   infoChanged, setInfoChanged, onSave, onRestoreMember, onShowStatusModal,
   isArchived, statusMeta,
   isPoolAdmin = false, onPurgeMember,
 }: MemberInfoTabProps) {
+  const isParentLinked = !!(data as any).parent_user_id;
+  const parentAccountName = (data as any).parent_account_name || editParentName;
+
   return (
     <ScrollView contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
       {isArchived && (
@@ -47,6 +48,32 @@ export function MemberInfoTab({
           <Text style={ms.restoreText}>이 회원은 {statusMeta.label} 상태입니다. 탭하여 복구하기</Text>
         </Pressable>
       )}
+
+      {/* 학부모 앱 연결 상태 */}
+      <View style={{
+        marginHorizontal: 16, marginBottom: 8,
+        borderRadius: 12, padding: 12,
+        backgroundColor: isParentLinked ? "#E6FAF8" : "#F8FAFC",
+        flexDirection: "row", alignItems: "center", gap: 10,
+        borderWidth: 1, borderColor: isParentLinked ? "#2EC4B6" : "#E2E8F0",
+      }}>
+        <LucideIcon name={isParentLinked ? "link" : "unlink"} size={16} color={isParentLinked ? "#2EC4B6" : "#94A3B8"} />
+        <View style={{ flex: 1 }}>
+          {isParentLinked ? (
+            <>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>학부모 앱 연결됨</Text>
+              {parentAccountName ? (
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", marginTop: 1 }}>{parentAccountName}</Text>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" }}>학부모 앱 미연결</Text>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 1 }}>학부모 연락처 저장 시 자동 연결됩니다</Text>
+            </>
+          )}
+        </View>
+      </View>
 
       <View style={ms.section}>
         <View style={ms.sectionHeader}>
@@ -59,10 +86,14 @@ export function MemberInfoTab({
         </View>
         <EditField label="이름" value={editName} onChangeText={v => { setEditName(v); setInfoChanged(true); }} />
         <EditField label="출생년도" value={editBirth} onChangeText={v => { setEditBirth(v); setInfoChanged(true); }} keyboardType="numeric" placeholder="예: 2015" />
-        <EditField label="연락처" value={editPhone} onChangeText={v => { setEditPhone(v); setInfoChanged(true); }} keyboardType="phone-pad" />
         <EditField label="학부모 이름" value={editParentName} onChangeText={v => { setEditParentName(v); setInfoChanged(true); }} />
-        <EditField label="학부모 연락처" value={editParentPhone} onChangeText={v => { setEditParentPhone(v); setInfoChanged(true); }} keyboardType="phone-pad" />
-        <EditField label="학부모 연락처2" value={editParentPhone2} onChangeText={v => { setEditParentPhone2(v); setInfoChanged(true); }} keyboardType="phone-pad" placeholder="선택 입력" />
+        <EditField
+          label="학부모 연락처"
+          value={editParentPhone}
+          onChangeText={v => { setEditParentPhone(v); setInfoChanged(true); }}
+          keyboardType="phone-pad"
+          placeholder="010-0000-0000"
+        />
 
         <Pressable
           style={[ms.saveBtn, { backgroundColor: infoChanged ? themeColor : "#64748B" }]}

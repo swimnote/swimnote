@@ -263,11 +263,6 @@ function ParentDetailModal({
                         {i > 0 && <View style={md.divider} />}
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2 }}>
                           <Text style={{ fontSize: 14, color: C.text }}>{name}</Text>
-                          {detail?.reg_request?.status === "pending" && (
-                            <View style={[md.tag, { backgroundColor: "#FFF3CD" }]}>
-                              <Text style={[md.tagTxt, { color: "#856404" }]}>승인 대기</Text>
-                            </View>
-                          )}
                         </View>
                       </React.Fragment>
                     ))}

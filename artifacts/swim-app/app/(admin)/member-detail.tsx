@@ -57,8 +57,6 @@ export default function MemberDetailScreen() {
   const [editBirth, setEditBirth]             = useState("");
   const [editParentName, setEditParentName]   = useState("");
   const [editParentPhone, setEditParentPhone] = useState("");
-  const [editParentPhone2, setEditParentPhone2] = useState("");
-  const [editPhone, setEditPhone]             = useState("");
   const [editMemo, setEditMemo]               = useState("");
   const [editNotes, setEditNotes]             = useState("");
   const [infoChanged, setInfoChanged]         = useState(false);
@@ -87,8 +85,6 @@ export default function MemberDetailScreen() {
         setEditBirth(d.birth_year || "");
         setEditParentName(d.parent_name || "");
         setEditParentPhone(d.parent_phone || "");
-        setEditParentPhone2((d as any).parent_phone2 || "");
-        setEditPhone(d.phone || "");
         setEditMemo(d.memo || "");
         setEditNotes(d.notes || "");
         setWeeklyCount((d.weekly_count || 1) as WeeklyCount);
@@ -147,12 +143,13 @@ export default function MemberDetailScreen() {
         method: "PATCH",
         body: JSON.stringify({
           name: editName, birth_year: editBirth, parent_name: editParentName,
-          parent_phone: editParentPhone, parent_phone2: editParentPhone2, phone: editPhone,
+          parent_phone: editParentPhone,
           memo: editMemo, notes: editNotes,
         }),
       });
       if (res.ok) {
-        setData(d => d ? { ...d, name: editName, birth_year: editBirth, parent_name: editParentName, parent_phone: editParentPhone, phone: editPhone, memo: editMemo, notes: editNotes } as any : d);
+        const body = await res.json().catch(() => ({}));
+        setData(d => d ? { ...d, name: editName, birth_year: editBirth, parent_name: editParentName, parent_phone: editParentPhone, memo: editMemo, notes: editNotes, parent_user_id: body.parent_user_id ?? d.parent_user_id, parent_account_name: body.parent_account_name ?? (d as any).parent_account_name } as any : d);
         setInfoChanged(false);
         setAlertInfo({ title: "저장 완료", msg: "기본 정보가 업데이트되었습니다." });
       } else {
@@ -271,10 +268,8 @@ export default function MemberDetailScreen() {
           data={data} themeColor={themeColor} saving={saving}
           editName={editName} setEditName={setEditName}
           editBirth={editBirth} setEditBirth={setEditBirth}
-          editPhone={editPhone} setEditPhone={setEditPhone}
           editParentName={editParentName} setEditParentName={setEditParentName}
           editParentPhone={editParentPhone} setEditParentPhone={setEditParentPhone}
-          editParentPhone2={editParentPhone2} setEditParentPhone2={setEditParentPhone2}
           infoChanged={infoChanged} setInfoChanged={setInfoChanged}
           onSave={saveInfo}
           onRestoreMember={restoreMember}
