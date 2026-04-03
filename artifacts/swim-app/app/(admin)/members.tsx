@@ -464,7 +464,7 @@ export default function MembersScreen() {
                 student={item}
                 themeColor={themeColor}
                 onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id } } as any)}
-                showInvite={!!(item.invite_code && !item.parent_user_id)}
+                showInvite={!item.parent_user_id}
                 onPressInvite={() => setInviteTarget(item)}
                 selectionMode={sel.selectionMode}
                 isSelected={sel.isSelected(item.id)}

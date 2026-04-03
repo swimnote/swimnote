@@ -210,15 +210,14 @@ export function toShortScheduleLabel(classes: AssignedClassInfo[]): string {
   }).join("·");
 }
 
-/** 초대 문자 메시지 생성 */
+/** 초대 메시지 생성 */
 export function buildInviteMessage(params: {
   poolName: string;
   studentName: string;
-  inviteCode: string;
   appUrl: string;
 }): string {
-  const { poolName, studentName, inviteCode, appUrl } = params;
-  return `[스윔노트] ${poolName} 학부모 앱 초대\n\n안녕하세요! ${poolName}입니다.\n${studentName} 어린이의 수업 정보 확인을 위해 스윔노트 앱에 가입해주세요.\n\n▶ 초대코드: ${inviteCode}\n▶ 앱 다운로드/접속: ${appUrl}\n\n앱 가입 후 초대코드를 입력하면 아이의 수업 현황을 실시간으로 확인하실 수 있습니다.`;
+  const { poolName, studentName, appUrl } = params;
+  return `[스윔노트] ${poolName} 학부모 앱 초대\n\n안녕하세요! ${poolName}입니다.\n${studentName} 어린이의 수업 정보를 스윔노트 앱에서 편리하게 확인하세요.\n\n📱 앱 설치 후 '학부모'로 가입하시면 ${poolName}을 선택해 자녀와 바로 연결됩니다.\n\n▶ 앱 다운로드: ${appUrl}`;
 }
 
 /** 전화번호 정규화 */
