@@ -72,14 +72,25 @@ export async function runParentAutoLink(): Promise<{ checked: number; linked: nu
       for (const stu of students) {
         const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        // parent_students 연결
-        await db.execute(sql`
-          INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
-          VALUES (${psId}, ${pa.id}, ${stu.id}, ${stu.swimming_pool_id}, 'approved', NOW(), NOW())
-          ON CONFLICT DO NOTHING
+        // parent_students 연결 — 기존 레코드 있으면 approved로 강제 업데이트
+        const existing = await db.execute(sql`
+          SELECT id FROM parent_students
+          WHERE parent_id = ${pa.id} AND student_id = ${stu.id} LIMIT 1
         `);
+        if ((existing.rows as any[]).length > 0) {
+          await db.execute(sql`
+            UPDATE parent_students
+            SET status = 'approved', approved_at = NOW()
+            WHERE parent_id = ${pa.id} AND student_id = ${stu.id}
+          `);
+        } else {
+          await db.execute(sql`
+            INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
+            VALUES (${psId}, ${pa.id}, ${stu.id}, ${stu.swimming_pool_id}, 'approved', NOW(), NOW())
+          `);
+        }
 
-        // students.parent_user_id 즉시 업데이트
+        // students.parent_user_id 강제 업데이트
         await db.execute(sql`
           UPDATE students
           SET parent_user_id = ${pa.id},
@@ -87,7 +98,6 @@ export async function runParentAutoLink(): Promise<{ checked: number; linked: nu
               status         = CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END,
               updated_at     = NOW()
           WHERE id = ${stu.id}
-            AND (parent_user_id IS NULL OR parent_user_id = ${pa.id})
         `);
 
         // 학부모 계정에 수영장 자동 세팅 (미설정 시)
