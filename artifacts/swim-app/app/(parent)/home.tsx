@@ -36,7 +36,6 @@ import { ParentRecentPhotosCard } from "@/components/parent/ParentRecentPhotosCa
 import { ParentNoticeCard } from "@/components/parent/ParentNoticeCard";
 import { ParentGrowthCard } from "@/components/parent/ParentGrowthCard";
 import { ParentAttendanceCard } from "@/components/parent/ParentAttendanceCard";
-import { ParentHomeSkeleton } from "@/components/common/SkeletonBox";
 
 const C = Colors.light;
 
@@ -397,49 +396,49 @@ export default function ParentHomeScreen() {
         {/* ─── E. 오늘 확인할 것 ─── */}
         <ParentTodoCard items={todoItems} />
 
-        {summaryLoading ? (
-          <ParentHomeSkeleton />
-        ) : (
-          <>
-            {/* ─── F. 최근 수업일지 ─── */}
-            <ParentLatestDiaryCard
-              diaries={summary.latest_diaries}
-              onPress={() => router.push("/(parent)/diary?backTo=home" as any)}
-            />
+        {/* ─── F. 최근 수업일지 ─── */}
+        <ParentLatestDiaryCard
+          diaries={summary.latest_diaries}
+          onPress={() => router.push("/(parent)/diary?backTo=home" as any)}
+        />
 
-            {/* ─── G. 최근 사진 ─── */}
-            <ParentRecentPhotosCard
-              photos={summary.latest_photos}
-              unreadCount={unread_counts.photos}
-              token={token}
-              onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
-            />
+        {/* ─── G. 최근 사진 ─── */}
+        <ParentRecentPhotosCard
+          photos={summary.latest_photos}
+          unreadCount={unread_counts.photos}
+          token={token}
+          onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
+        />
 
-            {/* ─── H. 최근 공지 ─── */}
-            <ParentNoticeCard
-              notices={summary.latest_notices}
-              unreadCount={unread_counts.notices}
-              onPress={() => router.push("/(parent)/notices?backTo=home" as any)}
-              onViewAll={() => router.push("/(parent)/notices?backTo=home" as any)}
-            />
+        {/* ─── H. 최근 공지 ─── */}
+        <ParentNoticeCard
+          notices={summary.latest_notices}
+          unreadCount={unread_counts.notices}
+          onPress={() => router.push("/(parent)/notices?backTo=home" as any)}
+          onViewAll={() => router.push("/(parent)/notices?backTo=home" as any)}
+        />
 
-            {/* ─── I. 성장 ─── */}
-            <ParentGrowthCard
-              studentId={selectedStudent?.id}
-              currentLevel={summary.growth?.current_level ?? null}
-              prevLevel={summary.growth?.prev_level ?? null}
-              achievedDate={summary.growth?.achieved_date}
-              note={summary.growth?.note}
-              teacherName={summary.growth?.teacher_name}
-            />
+        {/* ─── I. 성장 ─── */}
+        <ParentGrowthCard
+          studentId={selectedStudent?.id}
+          currentLevel={summary.growth?.current_level ?? null}
+          prevLevel={summary.growth?.prev_level ?? null}
+          achievedDate={summary.growth?.achieved_date}
+          note={summary.growth?.note}
+          teacherName={summary.growth?.teacher_name}
+        />
 
-            {/* ─── J. 출석 ─── */}
-            <ParentAttendanceCard
-              attended={summary.attendance.attended}
-              total={summary.attendance.total}
-              latestStatus={summary.attendance.latest_status}
-            />
-          </>
+        {/* ─── J. 출석 ─── */}
+        <ParentAttendanceCard
+          attended={summary.attendance.attended}
+          total={summary.attendance.total}
+          latestStatus={summary.attendance.latest_status}
+        />
+
+        {summaryLoading && (
+          <View style={{ paddingVertical: 20, alignItems: "center" }}>
+            <ActivityIndicator color={C.tint} size="small" />
+          </View>
         )}
       </ScrollView>
     </View>
