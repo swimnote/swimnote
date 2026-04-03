@@ -1272,14 +1272,13 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
       .where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) { res.status(400).json({ success: false, message: "존재하지 않는 수영장입니다." }); return; }
 
-    // 관리자 회원목록에서 이름으로 검색 — parent_user_id 조건 없음
+    // 관리자 회원목록에서 이름으로 검색 — 상태/parent_user_id 조건 없이 순수 이름만 매칭
     const normalName = child_name.trim().replace(/\s+/g, "").toLowerCase();
+
     const found = await db.execute(sql`
-      SELECT id, name FROM students
+      SELECT id, name, status FROM students
       WHERE swimming_pool_id = ${swimming_pool_id}
         AND LOWER(REPLACE(name, ' ', '')) = ${normalName}
-        AND status NOT IN ('deleted', 'withdrawn', 'archived')
-        ${child_birth_year ? sql`AND (birth_year IS NULL OR birth_year = ${Number(child_birth_year)})` : sql``}
       ORDER BY created_at ASC
       LIMIT 1
     `);
