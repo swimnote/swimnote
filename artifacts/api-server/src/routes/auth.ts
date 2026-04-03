@@ -363,11 +363,34 @@ router.post("/parent-register", async (req, res) => {
   }
 });
 
+// ── 수영장 내 학생 검색 (학부모 가입 흐름용 — 공개 API) ───────────────────
+// GET /auth/pool-student-search?pool_id=xxx&name=yyy
+// 이름이 포함된 학생 목록 반환 (id, name, birth_year 만 — 개인정보 최소화)
+router.get("/pool-student-search", async (req, res) => {
+  const pool_id = (req.query.pool_id as string || "").trim();
+  const name    = (req.query.name    as string || "").trim();
+  if (!pool_id) return res.status(400).json({ error: "pool_id 필수" });
+  if (!name || name.length < 1) return res.json([]);
+  try {
+    const rows = await db.execute(sql`
+      SELECT id, name, birth_year
+      FROM students
+      WHERE swimming_pool_id = ${pool_id}
+        AND name ILIKE ${"%" + name + "%"}
+        AND status NOT IN ('withdrawn', 'archived', 'deleted')
+      ORDER BY name
+      LIMIT 20
+    `);
+    res.json(rows.rows);
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
+});
+
 // ── 학부모 간편 가입 (수영장/자녀 없이 계정만 생성) ──────────────────────
 router.post("/simple-parent-register", async (req, res) => {
   // child_names: string[] — 자녀 이름 배열 (선택한 수영장 내에서 이름 매칭에 사용)
+  // child_ids: string[]   — 직접 선택한 학생 ID 배열 (검색 후 확인한 경우 우선 사용)
   // pool_id: string       — 학부모가 선택한 수영장 ID
-  const { parent_name, phone, loginId, password, child_names, pool_id } = req.body;
+  const { parent_name, phone, loginId, password, child_names, child_ids, pool_id } = req.body;
   const name      = (parent_name || "").trim();
   const ph        = (phone || "").trim().replace(/[^0-9]/g, "");
   const lid       = (loginId || "").trim() || null;
@@ -376,9 +399,12 @@ router.post("/simple-parent-register", async (req, res) => {
   const childNamesArr: string[] = Array.isArray(child_names)
     ? child_names.map((s: string) => s.trim()).filter(Boolean)
     : [];
+  const childIdsArr: string[] = Array.isArray(child_ids)
+    ? child_ids.map((s: string) => s.trim()).filter(Boolean)
+    : [];
 
   if (!name || !ph || !pw) return err(res, 400, "학부모 이름, 전화번호, 비밀번호는 필수입니다.");
-  if (!requestedPoolId && childNamesArr.length === 0) return err(res, 400, "수영장을 선택하거나 자녀 이름을 입력해주세요.");
+  if (!requestedPoolId) return err(res, 400, "수영장을 선택해주세요.");
   if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
   if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
 
@@ -386,8 +412,22 @@ router.post("/simple-parent-register", async (req, res) => {
     let matched: any[] = [];
     let resolvedPoolId: string | null = requestedPoolId;
 
-    // ── STEP 1: 전화번호로 학생 매칭 (수영장 지정 시 해당 수영장 내에서만) ──
-    if (requestedPoolId) {
+    // ── STEP 1: 학부모가 직접 선택한 학생 ID로 연결 (최우선) ──────────────
+    if (childIdsArr.length > 0) {
+      for (const cId of childIdsArr) {
+        const r = await db.execute(sql`
+          SELECT id, swimming_pool_id FROM students
+          WHERE id = ${cId}
+            AND swimming_pool_id = ${requestedPoolId}
+            AND status NOT IN ('withdrawn', 'archived', 'deleted')
+          LIMIT 1
+        `);
+        matched.push(...(r.rows as any[]));
+      }
+    }
+
+    // ── STEP 2: 전화번호로 학생 매칭 (수영장 내) ────────────────────────────
+    if (matched.length === 0) {
       const r = await db.execute(sql`
         SELECT id, swimming_pool_id FROM students
         WHERE parent_phone = ${ph}
@@ -396,20 +436,10 @@ router.post("/simple-parent-register", async (req, res) => {
         LIMIT 10
       `);
       matched = r.rows as any[];
-    } else {
-      const r = await db.execute(sql`
-        SELECT id, swimming_pool_id FROM students
-        WHERE parent_phone = ${ph}
-          AND status NOT IN ('withdrawn', 'archived', 'deleted')
-        LIMIT 10
-      `);
-      matched = r.rows as any[];
-      if (matched.length > 0) resolvedPoolId = matched[0].swimming_pool_id;
     }
 
-    // ── STEP 2: 전화번호 매칭 실패 시 → 자녀 이름으로 매칭 ────────────────
+    // ── STEP 3: 이름으로 매칭 (전화번호 미입력된 학생 대상) ──────────────────
     if (matched.length === 0 && childNamesArr.length > 0 && resolvedPoolId) {
-      // SQL IN clause — child names within pool
       for (const cName of childNamesArr) {
         const r = await db.execute(sql`
           SELECT id, swimming_pool_id FROM students
@@ -420,7 +450,6 @@ router.post("/simple-parent-register", async (req, res) => {
         `);
         matched.push(...(r.rows as any[]));
       }
-      // 중복 제거
       const seen = new Set<string>();
       matched = matched.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
     }
