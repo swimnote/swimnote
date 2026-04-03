@@ -10,10 +10,8 @@ import {
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore } from "@/store/operatorsStore";
-import { useAuditLogStore } from "@/store/auditLogStore";
 import Colors from "@/constants/colors";
 const C = Colors.light;
 
@@ -56,11 +54,7 @@ function fmtDate(iso: string | null | undefined): string {
 }
 
 export default function PolicyScreen() {
-  const { adminUser } = useAuth();
-  const actorName = adminUser?.name ?? '슈퍼관리자';
-
   const operators = useOperatorsStore(s => s.operators);
-  const createLog = useAuditLogStore(s => s.createLog);
 
   const [tab,          setTab]          = useState("refund_policy");
   const [refreshing,   setRefreshing]   = useState(false);
@@ -87,13 +81,12 @@ export default function PolicyScreen() {
       version:    newVer,
       preview:    newVal.slice(0, 80),
       created_at: new Date().toISOString(),
-      created_by: actorName,
+      created_by: "슈퍼관리자",
     };
     setVersionsByKey(prev => ({
       ...prev,
       [versionKey]: [entry, ...(prev[versionKey] ?? [])],
     }));
-    createLog({ category: '정책', title: `정책 버전 저장: ${TABS.find(t => t.key === versionKey)?.label} v${newVer}`, detail: newVal.slice(0, 80), actorName, impact: 'medium' });
     setVersionModal(false); setNewVer(""); setNewVal("");
   }
 

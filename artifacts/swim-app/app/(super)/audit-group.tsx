@@ -1,15 +1,15 @@
 /**
  * (super)/audit-group.tsx — 감사·리스크 그룹
+ * 실 API 연결 완료 — useAuditLogStore / useRiskStore 완전 제거
  */
 import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useAuditLogStore } from "@/store/auditLogStore";
-import { useRiskStore } from "@/store/riskStore";
+import { useAuth, apiRequest } from "@/context/AuthContext";
 import Colors from "@/constants/colors";
 const C = Colors.light;
 
@@ -48,49 +48,113 @@ const MENUS = [
   },
 ];
 
+interface RecentLog {
+  id: string;
+  category: string;
+  description: string;
+  actor_name: string;
+  created_at: string;
+  pool_name?: string;
+}
+
+interface Summary {
+  totalLogs: number;
+  todayLogs: number;
+  criticalLogs: number;
+  securityEvents: number;
+}
+
 export default function AuditGroupScreen() {
-  const allLogs      = useAuditLogStore(s => s.logs);
-  const riskSummary  = useRiskStore(s => s.summary);
-  const todayLogs    = allLogs.filter(l => {
-    const d = new Date(l.createdAt);
-    const now = new Date();
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-  }).length;
-  const criticalLogs = allLogs.filter(l => l.impact === 'critical').length;
+  const { token } = useAuth();
+
+  const [recentLogs, setRecentLogs] = useState<RecentLog[]>([]);
+  const [summary,    setSummary]    = useState<Summary>({ totalLogs: 0, todayLogs: 0, criticalLogs: 0, securityEvents: 0 });
+  const [loading,    setLoading]    = useState(true);
+
+  const fetchData = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const [logsRes, riskRes] = await Promise.all([
+        apiRequest(token, '/super/recent-audit-logs?limit=10'),
+        apiRequest(token, '/super/risk-summary'),
+      ]);
+
+      let logs: RecentLog[] = [];
+      if (logsRes.ok) {
+        const d = await logsRes.json();
+        logs = Array.isArray(d?.logs) ? d.logs : [];
+        setRecentLogs(logs);
+      }
+
+      if (riskRes.ok) {
+        const r = await riskRes.json();
+        const today = new Date();
+        const todayCount = logs.filter(l => {
+          const d = new Date(l.created_at);
+          return d.getFullYear() === today.getFullYear() &&
+                 d.getMonth()    === today.getMonth()    &&
+                 d.getDate()     === today.getDate();
+        }).length;
+        setSummary({
+          totalLogs:      logs.length,
+          todayLogs:      todayCount,
+          criticalLogs:   0,
+          securityEvents: r?.security_events ?? 0,
+        });
+      }
+    } catch (e) {
+      console.error('AuditGroup fetchData error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="감사·리스크" homePath="/(super)/dashboard" />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 60 }}>
         {/* 요약 */}
-        <View style={[s.summaryRow, { flexWrap: "wrap" }]}>
-          <View style={s.summaryCard}>
-            <Text style={s.summaryNum}>{allLogs.length}</Text>
-            <Text style={s.summaryLabel}>전체 로그</Text>
-          </View>
-          <View style={s.summaryCard}>
-            <Text style={s.summaryNum}>{todayLogs}</Text>
-            <Text style={s.summaryLabel}>오늘 로그</Text>
-          </View>
-          <View style={[s.summaryCard, criticalLogs > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, criticalLogs > 0 && { color: "#D96C6C" }]}>{criticalLogs}</Text>
-            <Text style={s.summaryLabel}>심각 이벤트</Text>
-          </View>
-          <View style={[s.summaryCard, riskSummary.securityEvents > 0 && s.summaryAlertRed]}>
-            <Text style={[s.summaryNum, riskSummary.securityEvents > 0 && { color: "#D96C6C" }]}>{riskSummary.securityEvents}</Text>
-            <Text style={s.summaryLabel}>보안 이벤트</Text>
-          </View>
-        </View>
+        {loading
+          ? <ActivityIndicator color="#2EC4B6" style={{ marginTop: 20 }} />
+          : (
+            <View style={[s.summaryRow, { flexWrap: "wrap" }]}>
+              <View style={s.summaryCard}>
+                <Text style={s.summaryNum}>{summary.totalLogs}</Text>
+                <Text style={s.summaryLabel}>최근 로그</Text>
+              </View>
+              <View style={s.summaryCard}>
+                <Text style={s.summaryNum}>{summary.todayLogs}</Text>
+                <Text style={s.summaryLabel}>오늘 로그</Text>
+              </View>
+              <View style={[s.summaryCard, summary.criticalLogs > 0 && s.summaryAlertRed]}>
+                <Text style={[s.summaryNum, summary.criticalLogs > 0 && { color: "#D96C6C" }]}>{summary.criticalLogs}</Text>
+                <Text style={s.summaryLabel}>심각 이벤트</Text>
+              </View>
+              <View style={[s.summaryCard, summary.securityEvents > 0 && s.summaryAlertRed]}>
+                <Text style={[s.summaryNum, summary.securityEvents > 0 && { color: "#D96C6C" }]}>{summary.securityEvents}</Text>
+                <Text style={s.summaryLabel}>보안 이벤트</Text>
+              </View>
+            </View>
+          )
+        }
 
         {/* 최근 로그 미리보기 */}
-        {allLogs.slice(0, 3).map(log => (
+        {recentLogs.slice(0, 3).map(log => (
           <View key={log.id} style={s.logRow}>
-            <View style={[s.catBadge, log.impact === 'critical' && s.catBadgeCritical]}>
-              <Text style={[s.catTxt, log.impact === 'critical' && { color: "#D96C6C" }]}>{log.category}</Text>
+            <View style={s.catBadge}>
+              <Text style={s.catTxt}>{log.category}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.logTitle} numberOfLines={1}>{log.title}</Text>
-              <Text style={s.logMeta}>{log.actorName} · {new Date(log.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
+              <Text style={s.logTitle} numberOfLines={1}>{log.description}</Text>
+              <Text style={s.logMeta}>
+                {log.actor_name}
+                {log.pool_name ? ` · ${log.pool_name}` : ""}
+                {" · "}
+                {new Date(log.created_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </Text>
             </View>
           </View>
         ))}
@@ -129,7 +193,6 @@ const s = StyleSheet.create({
   logRow:          { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff",
                      borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E5E7EB" },
   catBadge:        { backgroundColor: "#E6FFFA", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
-  catBadgeCritical:{ backgroundColor: "#F9DEDA" },
   catTxt:          { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
   logTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
   logMeta:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },

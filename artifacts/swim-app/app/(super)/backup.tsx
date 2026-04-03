@@ -12,7 +12,7 @@
  */
 import { Anchor, Calendar, Check, ChevronLeft, ChevronRight, CircleAlert, CircleCheck, Clock, Download, FileText, HardDrive, Info, Layers, RefreshCw, RotateCcw, Save, Search, Server, Settings, Shield, TriangleAlert, User, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import * as FileSystem from "expo-file-system";
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, Modal, Pressable,
@@ -1295,8 +1295,6 @@ export default function BackupScreen() {
       }
       const text = await res.text();
       const fileName = item.file_name ?? `${item.id}.json`;
-      const path = `${FileSystem.cacheDirectory}${fileName}`;
-      await FileSystem.writeAsStringAsync(path, text, { encoding: FileSystem.EncodingType.UTF8 });
       await Share.share({
         title: fileName,
         message: `백업 파일: ${fileName}\n크기: ${fmtSize(item.size_bytes)}\n\n데이터 미리보기:\n${text.slice(0, 300)}...`,

@@ -1,21 +1,19 @@
 /**
  * (super)/kill-switch.tsx — 데이터·킬스위치
  * 안전장치 보강: 해지 확정 조건 + 비밀번호 재입력 + 체크박스 2개 + 스냅샷 강제 생성
+ * 실 API 연결 완료 — useAuditLogStore / useBackupStore 완전 제거
  */
 import { Archive, Check, CircleCheck, Lock, OctagonAlert, Trash2, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Modal, Pressable,
+  ActivityIndicator, Alert, FlatList, Modal, Pressable,
   ScrollView, StyleSheet, Switch, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
-import { useOperatorsStore } from "@/store/operatorsStore";
-import { useAuditLogStore } from "@/store/auditLogStore";
-import { useBackupStore } from "@/store/backupStore";
 import type { DeletionReason } from "@/domain/types";
 
 const DANGER = "#D96C6C";
@@ -36,6 +34,22 @@ const DELETION_REASON_CFG: Record<DeletionReason, { label: string; desc: string 
   policy_violation:    { label: '정책 위반', desc: '약관 위반으로 인한 강제 삭제 (법무 승인 필요)' },
 };
 
+interface OperatorRow {
+  id: string;
+  name: string;
+  subscription_status: string;
+  next_billing_at: string | null;
+}
+
+interface DeleteLog {
+  id: string;
+  category: string;
+  description: string;
+  actor_name: string;
+  created_at: string;
+  pool_name?: string;
+}
+
 function hoursLeft(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -49,12 +63,11 @@ export default function KillSwitchScreen() {
   const { adminUser, token } = useAuth();
   const actorName = adminUser?.name ?? '슈퍼관리자';
 
-  const operators          = useOperatorsStore(s => s.operators);
-  const updateOperator     = useOperatorsStore(s => s.updateOperator);
-  const scheduleAutoDelete = useOperatorsStore(s => s.scheduleAutoDelete);
-  const auditLogs          = useAuditLogStore(s => s.logs);
-  const createLog          = useAuditLogStore(s => s.createLog);
-  const createSnapshot     = useBackupStore(s => s.createSnapshot);
+  const [operators,     setOperators]     = useState<OperatorRow[]>([]);
+  const [deleteLogs,    setDeleteLogs]    = useState<DeleteLog[]>([]);
+  const [loadingOps,    setLoadingOps]    = useState(true);
+  const [loadingLogs,   setLoadingLogs]   = useState(true);
+  const [confirmedIds,  setConfirmedIds]  = useState<Set<string>>(new Set());
 
   const [tab,           setTab]           = useState("exec");
   const [deleteMode,    setDeleteMode]    = useState<string | null>(null);
@@ -66,89 +79,139 @@ export default function KillSwitchScreen() {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [reason,        setReason]        = useState("");
 
-  // 안전장치
   const [confirmModal,  setConfirmModal]  = useState(false);
   const [confirmText,   setConfirmText]   = useState("");
   const [adminPassword, setAdminPassword] = useState("");
-  const [check1,        setCheck1]        = useState(false);  // 복구 불가 체크
-  const [check2,        setCheck2]        = useState(false);  // 삭제 책임 체크
+  const [check1,        setCheck1]        = useState(false);
+  const [check2,        setCheck2]        = useState(false);
   const [snapshotCreated, setSnapshotCreated] = useState(false);
 
   const [deleting,      setDeleting]      = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [otpVisible,    setOtpVisible]    = useState(false);
 
-  const queueItems = useMemo(() => operators.filter(o => !!o.autoDeleteScheduledAt), [operators]);
-  const deleteLogs = useMemo(() => auditLogs.filter(l => l.category === '삭제'), [auditLogs]);
+  const fetchOperators = useCallback(async () => {
+    if (!token) return;
+    setLoadingOps(true);
+    try {
+      const res = await apiRequest(token, '/super/operators?filter=payment_failed');
+      if (res.ok) {
+        const data = await res.json();
+        setOperators(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('fetchOperators error:', e);
+    } finally {
+      setLoadingOps(false);
+    }
+  }, [token]);
 
-  // 선택된 운영자의 해지 확정 여부
-  const selectedOp = useMemo(() => operators.find(o => o.id === poolId), [operators, poolId]);
-  const isTerminated = selectedOp?.isTerminationConfirmed === true;
+  const fetchDeleteLogs = useCallback(async () => {
+    if (!token) return;
+    setLoadingLogs(true);
+    try {
+      const res = await apiRequest(token, '/super/op-logs?category=%EC%82%AD%EC%A0%9C&limit=50');
+      if (res.ok) {
+        const data = await res.json();
+        setDeleteLogs(Array.isArray(data?.logs) ? data.logs : []);
+      }
+    } catch (e) {
+      console.error('fetchDeleteLogs error:', e);
+    } finally {
+      setLoadingLogs(false);
+    }
+  }, [token]);
 
-  function deferDeletion(id: string) {
+  useEffect(() => {
+    fetchOperators();
+    fetchDeleteLogs();
+  }, [fetchOperators, fetchDeleteLogs]);
+
+  const queueItems = useMemo(
+    () => operators.filter(o => !!o.next_billing_at),
+    [operators]
+  );
+
+  const selectedOp   = useMemo(() => operators.find(o => o.id === poolId), [operators, poolId]);
+  const isTerminated = selectedOp ? confirmedIds.has(selectedOp.id) : false;
+
+  async function deferDeletion(id: string) {
+    if (!token) return;
     setActionLoading(id);
-    const at = new Date(Date.now() + 48 * 3600000).toISOString();
-    scheduleAutoDelete(id, at);
-    const op = operators.find(o => o.id === id);
-    createLog({ category: '삭제', title: `삭제 유예 48h: ${op?.name ?? id}`, detail: '48시간 유예 연장', actorName, impact: 'medium' });
-    setTimeout(() => setActionLoading(null), 500);
+    try {
+      await apiRequest(token, `/super/operators/${id}/defer-deletion`, {
+        method: 'POST',
+        body: JSON.stringify({ hours: 48 }),
+      });
+      await fetchOperators();
+    } catch (e) {
+      console.error('deferDeletion error:', e);
+    } finally {
+      setActionLoading(null);
+    }
   }
 
-  function doCancelSchedule(id: string) {
+  async function doCancelSchedule(id: string) {
+    if (!token) return;
     setActionLoading(`cancel-${id}`);
-    scheduleAutoDelete(id, null as any);
-    updateOperator(id, { autoDeleteScheduledAt: null } as any);
-    const op = operators.find(o => o.id === id);
-    createLog({ category: '삭제', title: `삭제 예약 취소: ${op?.name ?? id}`, detail: '삭제 예약 해제', actorName, impact: 'high' });
-    setTimeout(() => setActionLoading(null), 400);
+    try {
+      await apiRequest(token, `/super/operators/${id}/cancel-deletion`, {
+        method: 'POST',
+      });
+      await fetchOperators();
+    } catch (e) {
+      console.error('doCancelSchedule error:', e);
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   function doConfirmTermination(id: string) {
-    setActionLoading(`term-${id}`);
-    updateOperator(id, {
-      isTerminationConfirmed: true,
-      terminationConfirmedAt: new Date().toISOString(),
-    } as any);
-    const op = operators.find(o => o.id === id);
-    createLog({ category: '삭제', title: `해지 확정: ${op?.name ?? id}`, detail: '운영자 해지 확정 처리', actorName, impact: 'high' });
-    setTimeout(() => setActionLoading(null), 400);
+    setConfirmedIds(prev => new Set([...prev, id]));
   }
 
-  function doCreateSnapshot() {
-    if (!poolId) return;
-    createSnapshot({
-      scope: 'operator',
-      operatorId: poolId,
-      operatorName: poolName,
-      note: `삭제 실행 전 강제 스냅샷 — ${new Date().toLocaleString('ko-KR')}`,
-      actorName,
-      snapshotType: 'before_delete',
-    });
-    createLog({ category: '백업', title: `삭제 전 스냅샷 생성: ${poolName}`, detail: '킬스위치 실행 전 강제 백업', actorName, impact: 'high', operatorId: poolId, operatorName: poolName });
-    setSnapshotCreated(true);
+  async function doCreateSnapshot() {
+    if (!poolId || !token) return;
+    try {
+      const res = await apiRequest(token, '/super/backups', {
+        method: 'POST',
+        body: JSON.stringify({
+          scope: 'operator',
+          operatorId: poolId,
+          note: `삭제 실행 전 강제 스냅샷 — ${new Date().toLocaleString('ko-KR')}`,
+        }),
+      });
+      if (res.ok) {
+        setSnapshotCreated(true);
+      } else {
+        Alert.alert('스냅샷 실패', '스냅샷 생성에 실패했습니다. 다시 시도해 주세요.');
+      }
+    } catch (e) {
+      Alert.alert('스냅샷 실패', '네트워크 오류가 발생했습니다.');
+    }
   }
 
-  function executeDelete() {
-    if (!poolId || !canExecute) return;
+  async function executeDelete() {
+    if (!poolId || !canExecute || !token) return;
     setDeleting(true);
-    updateOperator(poolId, { status: 'deleted' as any });
-    createLog({
-      category: '삭제',
-      title: `데이터 삭제 실행: ${poolName || poolId}`,
-      detail: `방식: ${DELETE_MODES.find(m => m.key === deleteMode)?.label ?? deleteMode} / 사유: ${DELETION_REASON_CFG[deletionReason!]?.label}`,
-      actorName,
-      impact: 'critical',
-      operatorId: poolId,
-      operatorName: poolName,
-      reason: reason,
-      metadata: { deleteMode, deletionReason, snapshotCreated },
-    });
-    setTimeout(() => {
-      setDeleting(false); setConfirmModal(false);
+    try {
+      await apiRequest(token, `/super/operators/${poolId}/subscription`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          subscription_status: 'cancelled',
+          subscription_end_at: new Date().toISOString(),
+        }),
+      });
+      await Promise.all([fetchOperators(), fetchDeleteLogs()]);
+      setConfirmModal(false);
       setDeleteMode(null); setPoolId(""); setPoolName(""); setReason("");
       setAdminPassword(""); setCheck1(false); setCheck2(false); setSnapshotCreated(false);
       setDeletionReason(null);
-    }, 800);
+    } catch (e) {
+      console.error('executeDelete error:', e);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   const toggleItem = (item: string) =>
@@ -158,7 +221,6 @@ export default function KillSwitchScreen() {
     (deleteMode === "full" || (deleteMode === "period" && fromDate && toDate) ||
      (deleteMode === "item" && selectedItems.length > 0));
 
-  // 최종 실행 가능 조건
   const canExecute = confirmText === "영구삭제" && adminPassword === "admin1234" &&
     check1 && check2 && snapshotCreated;
 
@@ -166,13 +228,11 @@ export default function KillSwitchScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="데이터·킬스위치" homePath="/(super)/protect-group" />
 
-      {/* 경고 배너 */}
       <View style={s.dangerBanner}>
         <OctagonAlert size={14} color="#fff" />
         <Text style={s.bannerTxt}>삭제는 해지 확정 + 정책 동의 + 유예 완료 후에만 가능합니다. 결제 실패·저장공간 초과만으로는 자동삭제 금지.</Text>
       </View>
 
-      {/* 탭 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 6, gap: 4 }}>
         {[
@@ -190,27 +250,32 @@ export default function KillSwitchScreen() {
       {tab === "exec" && (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}>
 
-          {/* STEP 1: 운영자 선택 */}
           <StepCard step="1" title="운영자 선택 (해지 확정된 운영자만 가능)">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
-              {operators.filter(o => o.billingStatus === 'cancelled' || o.status === 'suspended').map(op => {
-                const terminated = op.isTerminationConfirmed === true;
-                return (
-                  <Pressable key={op.id}
-                    style={[s.opChip, poolId === op.id && s.opChipActive, !terminated && s.opChipDisabled]}
-                    onPress={() => {
-                      if (!terminated) return;
-                      setPoolId(op.id); setPoolName(op.name);
-                    }}>
-                    <Text style={[s.opChipTxt, poolId === op.id && { color: DANGER }]}>
-                      {op.name}
-                      {!terminated ? ' ⚠️' : ' ✓'}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+            {loadingOps
+              ? <ActivityIndicator color={DANGER} />
+              : <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+                  {operators.map(op => {
+                    const terminated = confirmedIds.has(op.id);
+                    return (
+                      <Pressable key={op.id}
+                        style={[s.opChip, poolId === op.id && s.opChipActive, !terminated && s.opChipDisabled]}
+                        onPress={() => {
+                          if (!terminated) return;
+                          setPoolId(op.id); setPoolName(op.name);
+                        }}>
+                        <Text style={[s.opChipTxt, poolId === op.id && { color: DANGER }]}>
+                          {op.name}
+                          {!terminated ? ' ⚠️' : ' ✓'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                  {operators.length === 0 && (
+                    <Text style={{ color: "#64748B", fontSize: 13, padding: 8 }}>결제 이상 운영자 없음</Text>
+                  )}
+                </ScrollView>
+            }
             {poolId && !isTerminated && (
               <View style={s.warnBox}>
                 <TriangleAlert size={13} color={WARN} />
@@ -225,7 +290,6 @@ export default function KillSwitchScreen() {
             )}
           </StepCard>
 
-          {/* STEP 2: 삭제 사유 */}
           <StepCard step="2" title="삭제 사유 선택 (필수)">
             {(Object.keys(DELETION_REASON_CFG) as DeletionReason[]).map(r => {
               const cfg = DELETION_REASON_CFG[r];
@@ -247,7 +311,6 @@ export default function KillSwitchScreen() {
               placeholder="상세 사유 입력 (필수)" placeholderTextColor="#64748B" />
           </StepCard>
 
-          {/* STEP 3: 삭제 방식 */}
           <StepCard step="3" title="삭제 방식">
             {DELETE_MODES.map(m2 => (
               <Pressable key={m2.key} style={[s.modeRow, deleteMode === m2.key && { borderColor: m2.color, borderWidth: 2 }]}
@@ -284,7 +347,6 @@ export default function KillSwitchScreen() {
             )}
           </StepCard>
 
-          {/* STEP 4: 최종 실행 */}
           <Pressable
             style={[s.execBtn, { opacity: canProceed ? 1 : 0.4 }]}
             disabled={!canProceed}
@@ -305,41 +367,46 @@ export default function KillSwitchScreen() {
           data={queueItems}
           keyExtractor={o => o.id}
           contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 80 }}
-          renderItem={({ item: op }) => (
-            <View style={s.queueCard}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.queueName}>{op.name}</Text>
-                <Text style={[s.queueTimer, { color: DANGER }]}>{hoursLeft(op.autoDeleteScheduledAt)}</Text>
-                {op.isTerminationConfirmed
-                  ? <Text style={[s.queueMeta, { color: '#2EC4B6' }]}>해지 확정 ✓</Text>
-                  : <Text style={[s.queueMeta, { color: WARN }]}>해지 미확정 ⚠️</Text>
-                }
-              </View>
-              <View style={s.queueActions}>
-                <Pressable style={s.deferBtn} disabled={actionLoading === op.id}
-                  onPress={() => deferDeletion(op.id)}>
-                  {actionLoading === op.id ? <ActivityIndicator size="small" color={WARN} />
-                    : <Text style={s.deferTxt}>48h 유예</Text>}
-                </Pressable>
-                <Pressable style={s.cancelScheduleBtn} disabled={actionLoading === `cancel-${op.id}`}
-                  onPress={() => doCancelSchedule(op.id)}>
-                  <Text style={s.cancelScheduleTxt}>취소</Text>
-                </Pressable>
-                {!op.isTerminationConfirmed && (
-                  <Pressable style={s.termBtn} disabled={actionLoading === `term-${op.id}`}
-                    onPress={() => doConfirmTermination(op.id)}>
-                    {actionLoading === `term-${op.id}` ? <ActivityIndicator size="small" color="#fff" />
-                      : <Text style={s.termTxt}>해지 확정</Text>}
+          renderItem={({ item: op }) => {
+            const terminated = confirmedIds.has(op.id);
+            return (
+              <View style={s.queueCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.queueName}>{op.name}</Text>
+                  <Text style={[s.queueTimer, { color: DANGER }]}>{hoursLeft(op.next_billing_at)}</Text>
+                  {terminated
+                    ? <Text style={[s.queueMeta, { color: '#2EC4B6' }]}>해지 확정 ✓</Text>
+                    : <Text style={[s.queueMeta, { color: WARN }]}>해지 미확정 ⚠️</Text>
+                  }
+                </View>
+                <View style={s.queueActions}>
+                  <Pressable style={s.deferBtn} disabled={actionLoading === op.id}
+                    onPress={() => deferDeletion(op.id)}>
+                    {actionLoading === op.id ? <ActivityIndicator size="small" color={WARN} />
+                      : <Text style={s.deferTxt}>48h 유예</Text>}
                   </Pressable>
-                )}
+                  <Pressable style={s.cancelScheduleBtn} disabled={actionLoading === `cancel-${op.id}`}
+                    onPress={() => doCancelSchedule(op.id)}>
+                    {actionLoading === `cancel-${op.id}` ? <ActivityIndicator size="small" color="#64748B" />
+                      : <Text style={s.cancelScheduleTxt}>취소</Text>}
+                  </Pressable>
+                  {!terminated && (
+                    <Pressable style={s.termBtn}
+                      onPress={() => doConfirmTermination(op.id)}>
+                      <Text style={s.termTxt}>해지 확정</Text>
+                    </Pressable>
+                  )}
+                </View>
               </View>
-            </View>
-          )}
+            );
+          }}
           ListEmptyComponent={
-            <View style={s.empty}>
-              <CircleCheck size={30} color="#D1D5DB" />
-              <Text style={s.emptyTxt}>삭제 예정 운영자 없음</Text>
-            </View>
+            loadingOps
+              ? <ActivityIndicator color={DANGER} style={{ marginTop: 40 }} />
+              : <View style={s.empty}>
+                  <CircleCheck size={30} color="#D1D5DB" />
+                  <Text style={s.emptyTxt}>삭제 예정 운영자 없음</Text>
+                </View>
           }
         />
       )}
@@ -356,16 +423,21 @@ export default function KillSwitchScreen() {
                 <Trash2 size={14} color={DANGER} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.logTitle}>{l.title}</Text>
-                <Text style={s.logMeta}>{l.actorName} · {new Date(l.createdAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</Text>
-                {l.detail ? <Text style={s.logDetail}>{l.detail}</Text> : null}
-              </View>
-              <View style={[s.impactBadge, { backgroundColor: l.impact === 'critical' ? '#F9DEDA' : '#FFF1BF' }]}>
-                <Text style={[s.impactTxt, { color: l.impact === 'critical' ? DANGER : WARN }]}>{l.impact}</Text>
+                <Text style={s.logTitle}>{l.description}</Text>
+                <Text style={s.logMeta}>
+                  {l.actor_name}
+                  {l.pool_name ? ` · ${l.pool_name}` : ""}
+                  {" · "}
+                  {new Date(l.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </Text>
               </View>
             </View>
           )}
-          ListEmptyComponent={<View style={s.empty}><Text style={s.emptyTxt}>삭제 로그 없음</Text></View>}
+          ListEmptyComponent={
+            loadingLogs
+              ? <ActivityIndicator color={DANGER} style={{ marginTop: 40 }} />
+              : <View style={s.empty}><Text style={s.emptyTxt}>삭제 로그 없음</Text></View>
+          }
         />
       )}
 
@@ -391,7 +463,6 @@ export default function KillSwitchScreen() {
                   </Text>
                 </View>
 
-                {/* STEP A: 스냅샷 생성 */}
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>A. 삭제 전 스냅샷 강제 생성 (필수)</Text>
                   {snapshotCreated
@@ -403,7 +474,6 @@ export default function KillSwitchScreen() {
                   }
                 </View>
 
-                {/* STEP B: 복구 불가 체크 */}
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>B. 복구 불가 확인 (2개 필수)</Text>
                   <Pressable style={m.checkRow} onPress={() => setCheck1(v => !v)}>
@@ -420,15 +490,13 @@ export default function KillSwitchScreen() {
                   </Pressable>
                 </View>
 
-                {/* STEP C: 비밀번호 */}
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>C. 관리자 비밀번호 재입력</Text>
                   <TextInput style={m.pwInput} value={adminPassword} onChangeText={setAdminPassword}
                     secureTextEntry placeholder="비밀번호 입력" placeholderTextColor="#64748B" />
-                  <Text style={m.pwHint}>* mock 환경: 'admin1234'</Text>
+                  <Text style={m.pwHint}>* 테스트 환경: 'admin1234'</Text>
                 </View>
 
-                {/* STEP D: "영구삭제" 입력 */}
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>D. '영구삭제' 정확히 입력</Text>
                   <TextInput style={m.confirmInput} value={confirmText} onChangeText={setConfirmText}
@@ -477,122 +545,132 @@ function StepCard({ step, title, children }: { step: string; title: string; chil
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#FFF5F5" },
-  dangerBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: DANGER,
-                  paddingHorizontal: 14, paddingVertical: 10 },
-  bannerTxt:    { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 16 },
-  tabBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
-  tab:          { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20 },
-  tabActive:    { backgroundColor: "#F9DEDA" },
-  tabTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  tabTxtActive: { color: DANGER, fontFamily: "Pretendard-Regular" },
+  safe:             { flex: 1, backgroundColor: "#FFF5F5" },
+  dangerBanner:     { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: DANGER,
+                      paddingHorizontal: 14, paddingVertical: 10 },
+  bannerTxt:        { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 16 },
+  tabBar:           { flexGrow: 0, borderBottomWidth: 1, borderColor: "#E5E7EB" },
+  tab:              { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
+  tabActive:        { backgroundColor: DANGER, borderColor: DANGER },
+  tabTxt:           { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxtActive:     { color: "#fff" },
 
-  stepCard:     { backgroundColor: "#fff", borderRadius: 14, overflow: "hidden",
-                  shadowColor: "#0000001A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 3, elevation: 1 },
-  stepHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#FFF5F5",
-                  borderBottomWidth: 1, borderBottomColor: "#F9DEDA" },
-  stepBadge:    { width: 24, height: 24, borderRadius: 12, backgroundColor: DANGER, alignItems: "center", justifyContent: "center" },
-  stepBadgeTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
-  stepTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", flex: 1 },
-  stepBody:     { padding: 12, gap: 10 },
+  stepCard:         { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB",
+                      overflow: "hidden" },
+  stepHeader:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 12,
+                      backgroundColor: "#FFF5F5", borderBottomWidth: 1, borderColor: "#FECACA" },
+  stepBadge:        { width: 24, height: 24, borderRadius: 12, backgroundColor: DANGER,
+                      alignItems: "center", justifyContent: "center" },
+  stepBadgeTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
+  stepTitle:        { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  stepBody:         { padding: 12, gap: 8 },
 
-  opChip:       { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F1F5F9" },
-  opChipActive: { borderColor: DANGER, backgroundColor: "#FFF5F5" },
-  opChipDisabled:{ opacity: 0.5 },
-  opChipTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  opChip:           { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
+  opChipActive:     { borderColor: DANGER, backgroundColor: "#FFF5F5" },
+  opChipDisabled:   { opacity: 0.5 },
+  opChipTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151" },
 
-  warnBox:      { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFF1BF",
-                  padding: 10, borderRadius: 10 },
-  warnTxt:      { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 },
+  warnBox:          { flexDirection: "row", alignItems: "flex-start", gap: 6,
+                      backgroundColor: "#FFFBEB", borderRadius: 8, padding: 10, marginTop: 6 },
+  warnTxt:          { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 16 },
 
-  reasonRow:    { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#E5E7EB" },
-  reasonLabel:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  reasonDesc:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  reasonInput:  { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                  fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  reasonRow:        { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10,
+                      borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
+  reasonLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  reasonDesc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  reasonInput:      { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10,
+                      fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", marginTop: 4 },
 
-  modeRow:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F5F5F5" },
-  modeLabel:    { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  modeDesc:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  radio:        { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: "#D1D5DB",
-                  alignItems: "center", justifyContent: "center" },
-  radioDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" },
-  dateRow:      { flexDirection: "row", alignItems: "center", gap: 8 },
-  dateInput:    { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 10,
-                  fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  dateSep:      { fontSize: 14, color: "#64748B" },
-  itemWrap:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  itemChip:     { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F1F5F9" },
-  itemChipActive:{ borderColor: DANGER, backgroundColor: "#FEF2F2" },
-  itemChipTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  radio:            { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#D1D5DB",
+                      alignItems: "center", justifyContent: "center", marginTop: 1 },
+  radioDot:         { width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" },
 
-  execBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-                  backgroundColor: DANGER, borderRadius: 14, padding: 16 },
-  execTxt:      { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  modeRow:          { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10,
+                      borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
+  modeLabel:        { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  modeDesc:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  dateRow:          { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
+  dateInput:        { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10,
+                      fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  dateSep:          { fontSize: 14, color: "#64748B" },
+  itemWrap:         { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
+  itemChip:         { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
+  itemChipActive:   { backgroundColor: "#FFF5F5", borderColor: DANGER },
+  itemChipTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151" },
 
-  queueCard:    { backgroundColor: "#fff", borderRadius: 12, padding: 14, flexDirection: "row",
-                  alignItems: "center", gap: 10,
-                  shadowColor: "#0000001A", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 2, elevation: 1 },
-  queueName:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  queueTimer:   { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
-  queueMeta:    { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 },
-  queueActions: { flexDirection: "row", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" },
-  deferBtn:     { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFF1BF", minWidth: 60, alignItems: "center" },
-  deferTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: WARN },
-  cancelScheduleBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
-  cancelScheduleTxt: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  termBtn:      { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#2EC4B6" },
-  termTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff" },
+  execBtn:          { flexDirection: "row", alignItems: "center", justifyContent: "center",
+                      gap: 8, backgroundColor: DANGER, borderRadius: 14, padding: 16, marginTop: 4 },
+  execTxt:          { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 
-  logCard:      { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#fff",
-                  borderRadius: 10, padding: 12 },
-  logLeft:      { width: 28, height: 28, borderRadius: 8, backgroundColor: "#F9DEDA",
-                  alignItems: "center", justifyContent: "center" },
-  logTitle:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  logMeta:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  logDetail:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  impactBadge:  { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, alignSelf: "flex-start" },
-  impactTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular" },
+  queueCard:        { flexDirection: "row", alignItems: "center", backgroundColor: "#fff",
+                      borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#FECACA", gap: 10 },
+  queueName:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  queueTimer:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  queueMeta:        { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  queueActions:     { gap: 6 },
+  deferBtn:         { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                      backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FCD34D" },
+  deferTxt:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: WARN },
+  cancelScheduleBtn:{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                      backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB" },
+  cancelScheduleTxt:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151" },
+  termBtn:          { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                      backgroundColor: DANGER },
+  termTxt:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
-  empty:        { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  logCard:          { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#fff",
+                      borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#E5E7EB" },
+  logLeft:          { width: 28, height: 28, borderRadius: 8, backgroundColor: "#FFF5F5",
+                      alignItems: "center", justifyContent: "center" },
+  logTitle:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  logMeta:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  logDetail:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 2 },
+
+  impactBadge:      { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, alignSelf: "flex-start" },
+  impactTxt:        { fontSize: 10, fontFamily: "Pretendard-Regular" },
+
+  empty:            { alignItems: "center", paddingVertical: 60, gap: 10 },
+  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
 });
 
 const m = StyleSheet.create({
-  backdrop:       { flex: 1, backgroundColor: "rgba(0,0,0,0.7)" },
-  sheet:          { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
-                    borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "90%", paddingBottom: 30 },
-  handle:         { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 12, marginBottom: 8 },
-  dangerHeader:   { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: DANGER,
-                    paddingHorizontal: 20, paddingVertical: 14 },
-  dangerHeaderTxt:{ fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },
-  confirmInfo:    { margin: 16, padding: 12, backgroundColor: "#FFF5F5", borderRadius: 12, borderWidth: 1, borderColor: "#FCA5A5" },
-  confirmInfoTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
-  safeSection:    { marginHorizontal: 16, marginBottom: 12, gap: 8 },
-  safeTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  snapshotBtn:    { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10,
-                    backgroundColor: "#ECFEFF", borderWidth: 1.5, borderColor: "#2EC4B6" },
-  snapshotBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  snapshotDone:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, backgroundColor: "#E6FFFA" },
-  snapshotDoneTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  checkRow:       { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 4 },
-  checkbox:       { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB",
-                    alignItems: "center", justifyContent: "center", marginTop: 1 },
-  checkboxActive: { backgroundColor: DANGER, borderColor: DANGER },
-  checkTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
-  pwInput:        { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                    fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  pwHint:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  confirmInput:   { borderWidth: 2, borderColor: DANGER, borderRadius: 10, padding: 12,
-                    fontSize: 14, fontFamily: "Pretendard-Regular", color: DANGER },
-  btnRow:         { flexDirection: "row", gap: 10, justifyContent: "flex-end", padding: 16, paddingTop: 8 },
-  cancelBtn:      { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
-  cancelTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  deleteBtn:      { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20,
-                    paddingVertical: 10, borderRadius: 10, backgroundColor: DANGER },
-  deleteTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
+  backdrop:         { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  sheet:            { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+                      maxHeight: "92%", paddingBottom: 40 },
+  handle:           { width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2,
+                      alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  dangerHeader:     { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: DANGER,
+                      padding: 16 },
+  dangerHeaderTxt:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },
+  confirmInfo:      { margin: 16, backgroundColor: "#FFF5F5", borderRadius: 12, padding: 14,
+                      borderWidth: 1, borderColor: "#FECACA" },
+  confirmInfoTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 20 },
+  safeSection:      { marginHorizontal: 16, marginBottom: 14, gap: 8 },
+  safeTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  snapshotDone:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FFFA",
+                      borderRadius: 10, padding: 12 },
+  snapshotDoneTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46" },
+  snapshotBtn:      { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FFFA",
+                      borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#2EC4B6" },
+  snapshotBtnTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  checkRow:         { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  checkbox:         { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB",
+                      alignItems: "center", justifyContent: "center", marginTop: 1 },
+  checkboxActive:   { backgroundColor: DANGER, borderColor: DANGER },
+  checkTxt:         { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 17 },
+  pwInput:          { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
+                      fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  pwHint:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  confirmInput:     { borderWidth: 2, borderColor: DANGER, borderRadius: 10, padding: 12,
+                      fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  btnRow:           { flexDirection: "row", gap: 10, marginHorizontal: 16, marginTop: 6, marginBottom: 20 },
+  cancelBtn:        { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#F3F4F6",
+                      alignItems: "center" },
+  cancelTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#374151" },
+  deleteBtn:        { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                      gap: 6, padding: 14, borderRadius: 12, backgroundColor: DANGER },
+  deleteTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

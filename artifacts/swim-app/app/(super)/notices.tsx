@@ -12,7 +12,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { type Notice, type NoticeTarget, type NoticeType, NOTICE_TYPE_CFG } from "@/store/noticeStore";
-import { useAuditLogStore } from "@/store/auditLogStore";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
 
@@ -128,10 +127,7 @@ function mapApiNotice(row: any): Notice {
 
 export default function NoticesScreen() {
   const insets = useSafeAreaInsets();
-  const { adminUser, token } = useAuth();
-  const actorName = adminUser?.name ?? "슈퍼관리자";
-
-  const createLog = useAuditLogStore(s => s.createLog);
+  const { token } = useAuth();
 
   const [notices,    setNotices]    = useState<Notice[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -191,8 +187,6 @@ export default function NoticesScreen() {
           body: JSON.stringify({ title: form.title, content: form.content, notice_type: form.noticeType }),
         });
         if (!pRes.ok) throw new Error(`HTTP ${pRes.status}`);
-        createLog({ category: "공지관리", title: `공지 수정: ${form.title}`, actorName, impact: "medium",
-          detail: `유형: ${form.noticeType}` });
       } else {
         const pRes = await apiRequest(token, "/notices", {
           method: "POST",
@@ -204,8 +198,6 @@ export default function NoticesScreen() {
           }),
         });
         if (!pRes.ok) throw new Error(`HTTP ${pRes.status}`);
-        createLog({ category: "공지관리", title: `공지 등록: ${form.title}`, actorName, impact: "medium",
-          detail: `유형: ${form.noticeType}` });
       }
       await fetchNotices();
       setShowModal(false);
@@ -221,7 +213,6 @@ export default function NoticesScreen() {
     try {
       const dRes = await apiRequest(token, `/notices/${id}`, { method: "DELETE" });
       if (!dRes.ok) throw new Error(`HTTP ${dRes.status}`);
-      createLog({ category: "공지관리", title: `공지 삭제: ${n?.title ?? id}`, actorName, impact: "medium", detail: "삭제" });
       setNotices(prev => prev.filter(x => x.id !== id));
     } catch (e) {
       console.error("handleDelete error:", e);
