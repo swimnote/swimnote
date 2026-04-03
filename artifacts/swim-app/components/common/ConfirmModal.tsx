@@ -24,7 +24,7 @@
  */
 import React from "react";
 import {
-  Modal, Platform, Pressable,
+  ActivityIndicator, Modal, Platform, Pressable,
   StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -39,6 +39,7 @@ interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   destructive?: boolean;
+  loading?: boolean;
   onConfirm: () => void;
   onCancel?: () => void;
 }
@@ -50,6 +51,7 @@ export function ConfirmModal({
   confirmText = "확인",
   cancelText = "취소",
   destructive = false,
+  loading = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -84,14 +86,17 @@ export function ConfirmModal({
                 s.btn,
                 {
                   backgroundColor: destructive ? C.error : C.tint,
-                  opacity: pressed ? 0.85 : 1,
+                  opacity: loading ? 0.7 : pressed ? 0.85 : 1,
                   flex: onCancel ? 1 : undefined,
                   minWidth: onCancel ? undefined : 120,
                 },
               ]}
-              onPress={onConfirm}
+              onPress={loading ? undefined : onConfirm}
             >
-              <Text style={[s.btnTxt, { color: "#fff" }]}>{confirmText}</Text>
+              {loading
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Text style={[s.btnTxt, { color: "#fff" }]}>{confirmText}</Text>
+              }
             </Pressable>
           </View>
         </Pressable>
