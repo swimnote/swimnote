@@ -254,7 +254,7 @@ const PLAN_GUIDE = [
   ]},
   { group: "Premier (수영장/센터)", color: "#F59E0B", plans: [
     { name: "Premier200",  price: "₩69,000",  members: "200명",  storage: "50GB",  video: true },
-    { name: "Premier 300",  price: "₩99,000",  members: "300명",  storage: "80GB",  video: true },
+    { name: "Premier300",  price: "₩99,000",  members: "300명",  storage: "80GB",  video: true },
     { name: "Premier 500",  price: "₩149,000", members: "500명",  storage: "130GB", video: true },
     { name: "Premier 1000", price: "₩249,000", members: "1000명", storage: "500GB", video: true },
   ]},

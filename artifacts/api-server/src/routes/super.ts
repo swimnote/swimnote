@@ -1618,7 +1618,7 @@ async function ensurePlansTables() {
     { tier: "standard",   plan_id: "solo_100",       name: "Coach100",    price: 9500,   limit: 100,  storage_gb: 10,         storage_mb: 10240,  display: "10GB"  },
     // ── Premier (수영장/센터, 사진+영상) ────────────────────────────────────
     { tier: "center_200", plan_id: "center_200",     name: "Premier200",  price: 69000,  limit: 200,  storage_gb: 50,         storage_mb: 51200,  display: "50GB"  },
-    { tier: "advance",    plan_id: "center_300",     name: "Premier 300",  price: 99000,  limit: 300,  storage_gb: 80,         storage_mb: 81920,  display: "80GB"  },
+    { tier: "advance",    plan_id: "center_300",     name: "Premier300",  price: 99000,  limit: 300,  storage_gb: 80,         storage_mb: 81920,  display: "80GB"  },
     { tier: "pro",        plan_id: "center_500",     name: "Premier 500",  price: 149000, limit: 500,  storage_gb: 130,        storage_mb: 133120, display: "130GB" },
     { tier: "max",        plan_id: "center_1000",    name: "Premier 1000", price: 249000, limit: 1000, storage_gb: 500,        storage_mb: 512000, display: "500GB" },
   ]) {
