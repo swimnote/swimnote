@@ -1,24 +1,56 @@
 /**
  * (super)/readonly-control.tsx — 읽기전용 제어
  * 3단계: 플랫폼 전체 / 운영자별 / 기능별
- * readonlyStore + operatorsStore + auditLogStore — API 호출 없음
+ * /super/readonly-control API 실데이터 연결
  */
 import { Activity, Globe, ToggleLeft, TriangleAlert, Unlock, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  Alert, Modal, Pressable,
+  ActivityIndicator, Alert, Modal, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useReadonlyStore } from "@/store/readonlyStore";
-import { useOperatorsStore } from "@/store/operatorsStore";
-import { useFeatureFlagStore } from "@/store/featureFlagStore";
-import { useAuditLogStore } from "@/store/auditLogStore";
 
 const P = "#7C3AED";
+
+interface OperatorReadonly {
+  id: string;
+  name: string;
+  owner_name: string | null;
+  is_readonly: boolean;
+  readonly_reason: string | null;
+  subscription_status: string | null;
+}
+
+interface FeatureReadonly {
+  key: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  global_enabled: boolean;
+}
+
+interface ReadonlyLog {
+  id: string;
+  scope: string;
+  target_id: string | null;
+  target_name: string | null;
+  feature_key: string | null;
+  enabled: boolean;
+  reason: string | null;
+  actor_name: string;
+  created_at: string;
+}
+
+interface ReadonlyData {
+  platform_readonly: boolean;
+  operators_readonly: OperatorReadonly[];
+  feature_readonly: FeatureReadonly[];
+  recent_logs: ReadonlyLog[];
+}
 
 function fmtRelative(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -32,18 +64,16 @@ function fmtRelative(iso: string | null | undefined): string {
   return `${Math.floor(h / 24)}일 전`;
 }
 
-// ── 플랫폼 전체 읽기전용 섹션 ────────────────────────────────────
 function PlatformSection({
   enabled,
-  reason,
   onToggle,
 }: {
   enabled: boolean;
-  reason: string | null;
-  onToggle: (reason: string) => void;
+  onToggle: (reason: string) => Promise<void>;
 }) {
   const [showModal, setShowModal] = useState(false);
   const [inputReason, setInputReason] = useState("");
+  const [saving, setSaving] = useState(false);
 
   return (
     <View style={[ps.card, enabled && ps.cardActive]}>
@@ -63,13 +93,10 @@ function PlatformSection({
       </View>
 
       {enabled && (
-        <>
-          <View style={ps.warningBanner}>
-            <TriangleAlert size={14} color="#D96C6C" />
-            <Text style={ps.warningTxt}>플랫폼 전체가 읽기전용 상태입니다. 모든 운영자의 데이터 입력이 차단됩니다.</Text>
-          </View>
-          {reason && <Text style={ps.reasonTxt}>사유: {reason}</Text>}
-        </>
+        <View style={ps.warningBanner}>
+          <TriangleAlert size={14} color="#D96C6C" />
+          <Text style={ps.warningTxt}>플랫폼 전체가 읽기전용 상태입니다. 모든 운영자의 데이터 입력이 차단됩니다.</Text>
+        </View>
       )}
 
       <Pressable
@@ -108,15 +135,20 @@ function PlatformSection({
               </Pressable>
               <Pressable
                 style={[pm.actionBtn, { flex: 1, backgroundColor: enabled ? "#2EC4B6" : "#D96C6C" },
-                  !inputReason.trim() && { opacity: 0.4 }]}
-                onPress={() => {
-                  if (!inputReason.trim()) return;
-                  onToggle(inputReason);
+                  (!inputReason.trim() || saving) && { opacity: 0.4 }]}
+                onPress={async () => {
+                  if (!inputReason.trim() || saving) return;
+                  setSaving(true);
+                  await onToggle(inputReason);
+                  setSaving(false);
                   setShowModal(false);
                   setInputReason("");
                 }}
-                disabled={!inputReason.trim()}>
-                <Text style={{ color: "#fff", fontFamily: "Pretendard-Regular" }}>확인</Text>
+                disabled={!inputReason.trim() || saving}>
+                {saving
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={{ color: "#fff", fontFamily: "Pretendard-Regular" }}>확인</Text>
+                }
               </Pressable>
             </View>
           </Pressable>
@@ -137,7 +169,6 @@ const ps = StyleSheet.create({
   badgeTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular" },
   warningBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#F9DEDA", borderRadius: 8, padding: 10, marginBottom: 8 },
   warningTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#991B1B", lineHeight: 18 },
-  reasonTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D97706", marginBottom: 8 },
   btn:           { borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12 },
   btnTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });
@@ -153,50 +184,52 @@ const pm = StyleSheet.create({
   actionBtn:  { borderRadius: 8, padding: 12, alignItems: "center" },
 });
 
-// ── 메인 컴포넌트 ─────────────────────────────────────────────────
 export default function ReadonlyControlScreen() {
-  const { adminUser } = useAuth();
-  const actorName = adminUser?.name ?? '슈퍼관리자';
+  const { adminUser, token } = useAuth();
+  const [data, setData]       = useState<ReadonlyData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
 
-  const platformReadonly        = useReadonlyStore(s => s.platformReadonly);
-  const platformReadonlyReason  = useReadonlyStore(s => s.platformReadonlyReason);
-  const setPlatformReadonly     = useReadonlyStore(s => s.setPlatformReadonly);
-  const setOpReadonly           = useReadonlyStore(s => s.setOperatorReadonly);
-  const createLog               = useAuditLogStore(s => s.createLog);
-  const auditLogs               = useAuditLogStore(s => s.logs);
-  const operators               = useOperatorsStore(s => s.operators);
-  const allFeatureFlags     = useFeatureFlagStore(s => s.flags);
-  const globalFlags         = useMemo(() => allFeatureFlags.filter(f => f.scope === 'global'), [allFeatureFlags]);
+  const fetchData = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await apiRequest(token, "/super/readonly-control");
+      if (res?.error) { setError(res.error); return; }
+      setData(res as ReadonlyData);
+      setError(null);
+    } catch {
+      setError("데이터를 불러오지 못했습니다");
+    }
+  }, [token]);
 
-  const readonlyOperators = useMemo(() =>
-    operators.filter(o => o.status === 'readonly'),
-    [operators]
-  );
+  useEffect(() => {
+    setLoading(true);
+    fetchData().finally(() => setLoading(false));
+  }, [fetchData]);
 
-  const readonlyFeatureFlags = useMemo(() =>
-    globalFlags.filter(f => !f.enabled && f.key.includes('write') || f.key.includes('readonly')),
-    [globalFlags]
-  );
-
-  const recentLogs = useMemo(() =>
-    auditLogs.filter(l => l.category === '읽기전용 전환').slice(0, 10),
-    [auditLogs]
-  );
-
-  function togglePlatform(reason: string) {
-    const newEnabled = !platformReadonly;
-    setPlatformReadonly(newEnabled, reason, 'active', actorName);
-    createLog({
-      category: '읽기전용 전환',
-      title: `플랫폼 전체 읽기전용 ${newEnabled ? "활성화" : "해제"}`,
-      actorName,
-      impact: 'critical',
-      detail: reason,
-    });
+  async function onRefresh() {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
   }
 
-  function releaseOperator(op: { id: string; name: string }) {
+  async function togglePlatform(reason: string) {
+    if (!token || !data) return;
+    const newEnabled = !data.platform_readonly;
+    const res = await apiRequest(token, "/super/readonly-control", {
+      method: "POST",
+      body: JSON.stringify({ scope: "platform", enabled: newEnabled, reason }),
+    });
+    if (res?.ok) {
+      setData(prev => prev ? { ...prev, platform_readonly: newEnabled } : prev);
+      await fetchData();
+    } else {
+      Alert.alert("오류", res?.error ?? "변경에 실패했습니다");
+    }
+  }
+
+  async function releaseOperator(op: OperatorReadonly) {
     Alert.alert(
       "읽기전용 해제",
       `'${op.name}'의 읽기전용을 해제하시겠습니까?`,
@@ -204,17 +237,14 @@ export default function ReadonlyControlScreen() {
         { text: "취소", style: "cancel" },
         {
           text: "해제",
-          onPress: () => {
-            setOpReadonly({ operatorId: op.id, operatorName: op.name, enabled: false, reason: '수동 해제', level: 'active', actorName });
-            createLog({
-              category: '읽기전용 전환',
-              title: `${op.name} 읽기전용 해제`,
-              operatorId: op.id,
-              operatorName: op.name,
-              actorName,
-              impact: 'medium',
-              detail: '수동 해제',
+          onPress: async () => {
+            if (!token) return;
+            const res = await apiRequest(token, "/super/readonly-control", {
+              method: "POST",
+              body: JSON.stringify({ scope: "operator", target_id: op.id, enabled: false, reason: "수동 해제" }),
             });
+            if (res?.ok) { await fetchData(); }
+            else { Alert.alert("오류", res?.error ?? "해제에 실패했습니다"); }
           },
         },
       ]
@@ -227,16 +257,31 @@ export default function ReadonlyControlScreen() {
     { scope: "기능별",      color: "#2EC4B6", bg: "#E6FFFA", icon: "toggle-left" as const, desc: "기능 플래그와 연동. 특정 기능 읽기전용 전환." },
   ];
 
+  if (loading) {
+    return (
+      <SafeAreaView style={s.safe} edges={["top"]}>
+        <SubScreenHeader title="읽기전용 제어" subtitle="3단계 읽기전용 제어 시스템" homePath="/(super)/protect-group" />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={P} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <SubScreenHeader title="읽기전용 제어" subtitle="3단계 읽기전용 제어 시스템" homePath="/(super)/protect-group" />
 
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}
-        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
-          onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={onRefresh} />}>
 
-        {/* 3단계 설명 */}
+        {error && (
+          <View style={{ backgroundColor: "#F9DEDA", padding: 12, borderRadius: 10 }}>
+            <Text style={{ color: "#D96C6C", fontSize: 13, fontFamily: "Pretendard-Regular" }}>{error}</Text>
+          </View>
+        )}
+
         <View style={s.scopeRow}>
           {SCOPE_INFO.map(info => (
             <View key={info.scope} style={[s.scopeCard, { borderTopColor: info.color, borderTopWidth: 3 }]}>
@@ -249,37 +294,35 @@ export default function ReadonlyControlScreen() {
           ))}
         </View>
 
-        {/* 플랫폼 전체 */}
         <PlatformSection
-          enabled={platformReadonly}
-          reason={platformReadonlyReason}
+          enabled={data?.platform_readonly ?? false}
           onToggle={togglePlatform}
         />
 
-        {/* 운영자별 읽기전용 목록 */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
             <Users size={15} color="#D97706" />
             <Text style={s.sectionTitle}>운영자별 읽기전용</Text>
-            <View style={[s.countBadge, { backgroundColor: readonlyOperators.length > 0 ? "#FFF1BF" : "#FFFFFF" }]}>
-              <Text style={[s.countTxt, { color: readonlyOperators.length > 0 ? "#D97706" : "#64748B" }]}>
-                {readonlyOperators.length}개
+            <View style={[s.countBadge, { backgroundColor: (data?.operators_readonly?.length ?? 0) > 0 ? "#FFF1BF" : "#FFFFFF" }]}>
+              <Text style={[s.countTxt, { color: (data?.operators_readonly?.length ?? 0) > 0 ? "#D97706" : "#64748B" }]}>
+                {data?.operators_readonly?.length ?? 0}개
               </Text>
             </View>
           </View>
 
-          {readonlyOperators.length === 0 ? (
+          {!data?.operators_readonly?.length ? (
             <View style={s.emptyRow}>
               <Text style={s.emptyTxt}>읽기전용 운영자 없음</Text>
             </View>
           ) : (
-            readonlyOperators.map(op => (
+            data.operators_readonly.map(op => (
               <View key={op.id} style={or.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={or.name}>{op.name}</Text>
-                  <Text style={or.sub}>{op.representativeName}</Text>
+                  {op.owner_name && <Text style={or.sub}>{op.owner_name}</Text>}
+                  {op.readonly_reason && <Text style={[or.sub, { color: "#D97706" }]}>{op.readonly_reason}</Text>}
                 </View>
-                <Pressable style={or.releaseBtn} onPress={() => releaseOperator({ id: op.id, name: op.name })}>
+                <Pressable style={or.releaseBtn} onPress={() => releaseOperator(op)}>
                   <Unlock size={12} color="#2EC4B6" />
                   <Text style={or.releaseTxt}>해제</Text>
                 </Pressable>
@@ -288,19 +331,18 @@ export default function ReadonlyControlScreen() {
           )}
         </View>
 
-        {/* 기능별 읽기전용 (기능 플래그) */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
             <ToggleLeft size={15} color="#2EC4B6" />
             <Text style={s.sectionTitle}>기능별 읽기전용 (기능 플래그)</Text>
           </View>
-          {globalFlags.filter(f => !f.enabled).length === 0 ? (
+          {!data?.feature_readonly?.filter(f => !f.global_enabled).length ? (
             <View style={s.emptyRow}>
               <Text style={s.emptyTxt}>비활성화된 기능 플래그 없음</Text>
             </View>
           ) : (
-            globalFlags.filter(f => !f.enabled).map(f => (
-              <View key={f.id} style={or.row}>
+            data!.feature_readonly.filter(f => !f.global_enabled).map(f => (
+              <View key={f.key} style={or.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={or.name}>{f.name}</Text>
                   <Text style={or.sub}>{f.description ?? ""}</Text>
@@ -313,25 +355,27 @@ export default function ReadonlyControlScreen() {
           )}
         </View>
 
-        {/* 최근 제어 로그 */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
             <Activity size={15} color="#64748B" />
             <Text style={s.sectionTitle}>최근 읽기전용 제어 로그</Text>
           </View>
-          {recentLogs.length === 0 ? (
+          {!data?.recent_logs?.length ? (
             <View style={s.emptyRow}>
               <Text style={s.emptyTxt}>로그 없음</Text>
             </View>
           ) : (
-            recentLogs.map(log => {
-              const isActivate = log.title.includes("활성화") || log.title.includes("설정");
+            data.recent_logs.map(log => {
+              const isActivate = log.enabled;
               return (
                 <View key={log.id} style={lr.row}>
                   <View style={[lr.dot, { backgroundColor: isActivate ? "#D96C6C" : "#2EC4B6" }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={lr.desc} numberOfLines={1}>{log.title}</Text>
-                    <Text style={lr.time}>{log.actorName} · {fmtRelative(log.createdAt)}</Text>
+                    <Text style={lr.desc} numberOfLines={1}>
+                      {log.scope === "platform" ? "플랫폼 전체" : log.target_name ?? log.feature_key ?? log.target_id} — {isActivate ? "활성화" : "해제"}
+                    </Text>
+                    <Text style={lr.time}>{log.actor_name} · {fmtRelative(log.created_at)}</Text>
+                    {log.reason && <Text style={[lr.time, { color: "#D97706" }]} numberOfLines={1}>{log.reason}</Text>}
                   </View>
                   <View style={[lr.badge, { backgroundColor: isActivate ? "#F9DEDA" : "#E6FFFA" }]}>
                     <Text style={[lr.badgeTxt, { color: isActivate ? "#D96C6C" : "#2EC4B6" }]}>

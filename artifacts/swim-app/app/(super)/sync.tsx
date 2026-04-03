@@ -1,20 +1,20 @@
 /**
  * 슈퍼관리자 — 변경분 동기화 관리 화면
- * 로컬 시드 데이터 — API 호출 없음
+ * API: /super/sync/stats, /super/sync/tenants, /super/sync/snapshots
+ *      /super/sync/run, /super/sync/snapshot
  */
 import { Archive, Clock, RefreshCw, Table } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useAuth } from "@/context/AuthContext";
-import { useOperatorsStore } from "@/store/operatorsStore";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useAuditLogStore } from "@/store/auditLogStore";
 
 const C = Colors.light;
@@ -56,13 +56,6 @@ interface SnapshotRow {
   created_at:     string;
 }
 
-const SEED_BY_TABLE = [
-  { table_name: "members",       pending: 12 },
-  { table_name: "attendance",    pending: 45 },
-  { table_name: "subscriptions", pending: 3  },
-  { table_name: "media_files",   pending: 8  },
-];
-
 function StatCard({ label, value, icon, color, sub }: {
   label: string; value: string | number; icon: any; color: string; sub?: string;
 }) {
@@ -82,92 +75,94 @@ function StatCard({ label, value, icon, color, sub }: {
 
 export default function SuperSyncScreen() {
   const insets = useSafeAreaInsets();
-  const { adminUser } = useAuth();
-  const actorName = adminUser?.name ?? '슈퍼관리자';
-  const operators = useOperatorsStore(s => s.operators);
-  const createLog = useAuditLogStore(s => s.createLog);
+  const { adminUser, token } = useAuth();
+  const actorName = adminUser?.name ?? "슈퍼관리자";
+  const createLog = useAuditLogStore(st => st.createLog);
 
-  const [stats, setStats] = useState<SyncStats>({
-    pending:          68,
-    synced:           12430,
-    total:            12498,
-    snapshots:        14,
-    last_synced_at:   new Date(Date.now() - 3 * 3600000).toISOString(),
-    last_snapshot_at: new Date(Date.now() - 7 * 24 * 3600000).toISOString(),
-    by_table:         SEED_BY_TABLE,
-  });
+  const [stats, setStats] = useState<SyncStats | null>(null);
+  const [tenants, setTenants] = useState<TenantRow[]>([]);
+  const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
 
-  const [tenants] = useState<TenantRow[]>(
-    operators.slice(0, 6).map((op, i) => ({
-      tenant_id:      op.id,
-      pool_name:      op.name,
-      pending:        i % 3 === 0 ? Math.floor(Math.random() * 20) : 0,
-      synced:         Math.floor(Math.random() * 2000) + 500,
-      last_change_at: new Date(Date.now() - i * 1800000).toISOString(),
-    }))
-  );
-
-  const [snapshots, setSnapshots] = useState<SnapshotRow[]>([
-    { id: "sn-1", snapshot_type: "full",        record_count: 12430, created_at: new Date(Date.now() - 7 * 24 * 3600000).toISOString() },
-    { id: "sn-2", snapshot_type: "incremental", record_count: 580,   created_at: new Date(Date.now() - 3 * 24 * 3600000).toISOString() },
-    { id: "sn-3", snapshot_type: "incremental", record_count: 342,   created_at: new Date(Date.now() - 1 * 24 * 3600000).toISOString() },
-  ]);
-
+  const [loading,          setLoading]          = useState(true);
   const [refreshing,       setRefreshing]       = useState(false);
   const [runningSync,      setRunningSync]      = useState(false);
   const [runningSnapshot,  setRunningSnapshot]  = useState(false);
   const [confirmSync,      setConfirmSync]      = useState(false);
   const [confirmSnapshot,  setConfirmSnapshot]  = useState(false);
 
+  const loadAll = useCallback(async () => {
+    if (!token) return;
+    try {
+      const [statsRes, tenantsRes, snapshotsRes] = await Promise.all([
+        apiRequest(token, "/super/sync/stats"),
+        apiRequest(token, "/super/sync/tenants"),
+        apiRequest(token, "/super/sync/snapshots"),
+      ]);
+      if (statsRes.ok)     setStats(await statsRes.json());
+      if (tenantsRes.ok)   setTenants(await tenantsRes.json());
+      if (snapshotsRes.ok) setSnapshots(await snapshotsRes.json());
+    } catch (e) {
+      console.warn("[sync] loadAll error:", e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
   function onRefresh() {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 600);
+    loadAll();
   }
 
-  function doSync() {
+  async function doSync() {
     setConfirmSync(false);
     setRunningSync(true);
-    setTimeout(() => {
-      const synced = stats.pending;
-      setStats(prev => ({
-        ...prev,
-        pending:        0,
-        synced:         prev.synced + synced,
-        last_synced_at: new Date().toISOString(),
-        by_table:       prev.by_table.map(r => ({ ...r, pending: 0 })),
-      }));
-      const snap: SnapshotRow = {
-        id:            `sn-${Date.now()}`,
-        snapshot_type: "incremental",
-        record_count:  synced,
-        created_at:    new Date().toISOString(),
-      };
-      setSnapshots(prev => [snap, ...prev]);
-      createLog({ category: '구독', title: `증분 동기화 실행: ${synced}건 처리`, detail: `pending→synced ${synced}건`, actorName, impact: 'medium' });
+    try {
+      const res = await apiRequest(token!, "/super/sync/run", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        createLog({ category: "구독", title: `증분 동기화 실행 완료`, detail: JSON.stringify(data), actorName, impact: "medium" });
+        await loadAll();
+      } else {
+        Alert.alert("오류", data.error ?? "동기화 실패");
+      }
+    } catch (e) {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+    } finally {
       setRunningSync(false);
-    }, 1200);
+    }
   }
 
-  function doSnapshot() {
+  async function doSnapshot() {
     setConfirmSnapshot(false);
     setRunningSnapshot(true);
-    setTimeout(() => {
-      const newCount = stats.synced + stats.pending;
-      const snap: SnapshotRow = {
-        id:            `sn-full-${Date.now()}`,
-        snapshot_type: "full",
-        record_count:  newCount,
-        created_at:    new Date().toISOString(),
-      };
-      setSnapshots(prev => [snap, ...prev]);
-      setStats(prev => ({
-        ...prev,
-        snapshots:        prev.snapshots + 1,
-        last_snapshot_at: new Date().toISOString(),
-      }));
-      createLog({ category: '구독', title: `전체 스냅샷 생성: ${newCount}건 기록`, detail: `총 레코드 ${newCount}건`, actorName, impact: 'medium' });
+    try {
+      const res = await apiRequest(token!, "/super/sync/snapshot", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        createLog({ category: "구독", title: `전체 스냅샷 생성 완료`, detail: JSON.stringify(data), actorName, impact: "medium" });
+        await loadAll();
+      } else {
+        Alert.alert("오류", data.error ?? "스냅샷 생성 실패");
+      }
+    } catch (e) {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+    } finally {
       setRunningSnapshot(false);
-    }, 1600);
+    }
+  }
+
+  if (loading) {
+    return (
+      <View style={[s.root, { backgroundColor: C.background }]}>
+        <SubScreenHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" homePath="/(super)/more" />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={ACCENT} size="large" />
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -178,28 +173,29 @@ export default function SuperSyncScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
         contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 20 }}>
 
+        {/* ─── 동기화 현황 ─── */}
         <View style={{ gap: 10 }}>
           <Text style={[s.sectionTitle, { color: C.text }]}>동기화 현황</Text>
           <View style={s.statRow}>
-            <StatCard label="대기중"  value={stats.pending}  icon="clock"         color="#D97706" sub="sync_status=pending" />
-            <StatCard label="완료"    value={stats.synced}   icon="check-circle"  color="#2EC4B6" sub="sync_status=synced" />
+            <StatCard label="대기중"  value={stats?.pending ?? 0}   icon="clock"         color="#D97706" sub="sync_status=pending" />
+            <StatCard label="완료"    value={stats?.synced ?? 0}    icon="check-circle"  color="#2EC4B6" sub="sync_status=synced" />
           </View>
           <View style={s.statRow}>
-            <StatCard label="총 변경분" value={stats.total}    icon="database"  color={ACCENT}   sub="누적 기록" />
-            <StatCard label="스냅샷"    value={stats.snapshots} icon="archive"   color="#0EA5E9" sub="생성 횟수" />
+            <StatCard label="총 변경분" value={stats?.total ?? 0}     icon="database"  color={ACCENT}   sub="누적 기록" />
+            <StatCard label="스냅샷"    value={stats?.snapshots ?? 0}  icon="archive"   color="#0EA5E9" sub="생성 횟수" />
           </View>
 
           <View style={[s.infoBox, { backgroundColor: C.card }]}>
             <View style={s.infoRow}>
               <RefreshCw size={13} color={C.textMuted} />
               <Text style={[s.infoLabel, { color: C.textMuted }]}>마지막 동기화</Text>
-              <Text style={[s.infoVal, { color: C.text }]}>{fmtDate(stats.last_synced_at)}</Text>
+              <Text style={[s.infoVal, { color: C.text }]}>{fmtDate(stats?.last_synced_at ?? null)}</Text>
             </View>
             <View style={[s.divider, { backgroundColor: C.border }]} />
             <View style={s.infoRow}>
               <Archive size={13} color={C.textMuted} />
               <Text style={[s.infoLabel, { color: C.textMuted }]}>마지막 전체 스냅샷</Text>
-              <Text style={[s.infoVal, { color: C.text }]}>{fmtDate(stats.last_snapshot_at)}</Text>
+              <Text style={[s.infoVal, { color: C.text }]}>{fmtDate(stats?.last_snapshot_at ?? null)}</Text>
             </View>
             <View style={[s.divider, { backgroundColor: C.border }]} />
             <View style={s.infoRow}>
@@ -210,6 +206,7 @@ export default function SuperSyncScreen() {
           </View>
         </View>
 
+        {/* ─── 즉시 실행 ─── */}
         <View style={{ gap: 10 }}>
           <Text style={[s.sectionTitle, { color: C.text }]}>즉시 실행</Text>
           <View style={{ flexDirection: "row", gap: 10 }}>
@@ -234,11 +231,12 @@ export default function SuperSyncScreen() {
           </Text>
         </View>
 
-        {stats.by_table.length > 0 && (
+        {/* ─── 테이블별 대기 현황 ─── */}
+        {(stats?.by_table ?? []).length > 0 && (
           <View style={{ gap: 10 }}>
             <Text style={[s.sectionTitle, { color: C.text }]}>테이블별 대기 현황</Text>
             <View style={[s.tableBox, { backgroundColor: C.card }]}>
-              {stats.by_table.map((row, idx) => (
+              {(stats!.by_table).map((row, idx) => (
                 <View key={row.table_name}>
                   {idx > 0 && <View style={[s.divider, { backgroundColor: C.border }]} />}
                   <View style={s.tableRow}>
@@ -258,6 +256,7 @@ export default function SuperSyncScreen() {
           </View>
         )}
 
+        {/* ─── 수영장별 현황 ─── */}
         {tenants.length > 0 && (
           <View style={{ gap: 10 }}>
             <Text style={[s.sectionTitle, { color: C.text }]}>수영장별 현황</Text>
@@ -285,6 +284,7 @@ export default function SuperSyncScreen() {
           </View>
         )}
 
+        {/* ─── 스냅샷 이력 ─── */}
         <View style={{ gap: 10 }}>
           <Text style={[s.sectionTitle, { color: C.text }]}>스냅샷 이력</Text>
           {snapshots.length === 0 ? (
@@ -301,8 +301,7 @@ export default function SuperSyncScreen() {
                     {idx > 0 && <View style={[s.divider, { backgroundColor: C.border }]} />}
                     <View style={s.snapRow}>
                       <View style={[s.snapIcon, { backgroundColor: isFull ? "#E6FFFA" : "#DFF3EC" }]}>
-                        <LucideIcon name={isFull ? "archive" : "git-commit"} size={13}
-                          color={isFull ? "#2EC4B6" : "#2EC4B6"} />
+                        <LucideIcon name={isFull ? "archive" : "git-commit"} size={13} color="#2EC4B6" />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[s.snapType, { color: C.text }]}>
@@ -325,7 +324,7 @@ export default function SuperSyncScreen() {
       <ConfirmModal
         visible={confirmSync}
         title="증분 동기화 실행"
-        message={`현재 대기 중인 변경분 ${stats.pending}건을 즉시 수집하여 synced로 처리합니다.`}
+        message={`현재 대기 중인 변경분 ${stats?.pending ?? 0}건을 즉시 수집하여 synced로 처리합니다.`}
         confirmText="동기화 실행"
         onConfirm={doSync}
         onCancel={() => setConfirmSync(false)}

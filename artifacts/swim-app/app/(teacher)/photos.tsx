@@ -122,17 +122,6 @@ function photoUri(url: string | null | undefined): string {
   return `${API_BASE.replace(/\/api$/, "")}${url}`;
 }
 
-// ── Mock 데이터 (DB 연결 전 / 빈 상태 테스트용) ──────────────────────────
-const MOCK_ITEMS: MediaItem[] = [];
-// 필요시 아래 주석 해제해서 Mock 데이터 사용:
-// const MOCK_ITEMS: MediaItem[] = [
-//   { id: "mock_1", file_url: "", album_type: "group", class_name: "화 10:00반",
-//     schedule_days: "화", schedule_time: "10:00", student_name: "",
-//     caption: "화 10:00반 일지", uploader_name: "김선생", created_at: new Date().toISOString(), file_size_bytes: 524288 },
-//   { id: "mock_2", file_url: "", album_type: "private", class_name: "",
-//     schedule_days: "", schedule_time: "", student_name: "홍길동",
-//     caption: "", uploader_name: "김선생", created_at: new Date().toISOString(), file_size_bytes: 1048576 },
-// ];
 
 // ── 앨범 설정 ─────────────────────────────────────────────────────────────
 const MEDIA_CONFIG: Record<`${MediaType}_${AlbumScope}`, {
@@ -249,16 +238,12 @@ export default function TeacherPhotosScreen() {
         raw = Array.isArray(data[key]) ? data[key] : [];
       }
 
-      // 정규화 + Mock 병합
       const normalized = raw.map((r, i) => normalizeItem(r, i));
-      const finalItems = normalized.length > 0 ? normalized : [...MOCK_ITEMS];
-
-      if (mountedRef.current) setItems(finalItems);
+      if (mountedRef.current) setItems(normalized);
     } catch (e) {
       console.warn("[photos] loadList error:", e);
       if (mountedRef.current) {
         setListError("목록을 불러오는 중 오류가 발생했습니다.");
-        setItems([...MOCK_ITEMS]);
       }
     } finally {
       if (mountedRef.current) setListLoading(false);

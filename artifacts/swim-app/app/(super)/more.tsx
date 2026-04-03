@@ -9,7 +9,7 @@ import { ChevronRight, Shield } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -294,7 +294,13 @@ export default function SuperMoreScreen() {
 
         <SectionHeader title="시스템" />
         <MenuItem icon="database" label="데이터 동기화" sub="변경분 수집·스냅샷·새벽 배치" color="slate" onPress={go("/(super)/sync")} />
-        <MenuItem icon="info"     label="SwimNote 정보"  sub="버전 및 플랫폼 정보" color="slate" onPress={() => {}} />
+        <MenuItem icon="info"     label="SwimNote 정보"  sub="버전 및 플랫폼 정보" color="slate" onPress={() => {
+          Alert.alert(
+            "SwimNote",
+            "버전: 1.0.0\n플랫폼: B2B SaaS 수영장 관리\n\n개발사: SwimNote Inc.\n© 2025 SwimNote. All rights reserved.",
+            [{ text: "확인" }]
+          );
+        }} />
       </ScrollView>
     </View>
   );
