@@ -50,7 +50,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd /home/runner/workspace/artifacts/swim-app && EXPO_TOKEN=WeNuUChLeFVnqUjrsQgTMlAEX_czcxXPYHrRwdPP EAS_BUILD_NO_EXPO_GO_WARNING=true npx eas build --platform ios --profile production --non-interactive --no-wait --skip-credentials-check --clear-cache"
+args = "cd /home/runner/workspace/artifacts/swim-app && EXPO_TOKEN=WeNuUChLeFVnqUjrsQgTMlAEX_czcxXPYHrRwdPP EAS_BUILD_NO_EXPO_GO_WARNING=true npx eas build --platform ios --profile production --non-interactive --no-wait --skip-credentials-check --auto-submit"
 
 [agent]
 stack = "PNPM_WORKSPACE"

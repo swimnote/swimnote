@@ -2,7 +2,7 @@
   "expo": {
     "name": "스윔노트",
     "slug": "swim-app",
-    "version": "1.1.2",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "swim-app",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.swimnote.app",
-      "buildNumber": "45",
+      "buildNumber": "46",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "LSApplicationQueriesSchemes": [
@@ -35,7 +35,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 73
+      "versionCode": 74
     },
     "web": {
       "favicon": "./assets/images/icon.png"
