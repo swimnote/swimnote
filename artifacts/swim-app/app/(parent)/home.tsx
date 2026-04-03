@@ -17,12 +17,15 @@ import { Bell, Settings } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, BackHandler, Platform,
-  Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, BackHandler, FlatList, Keyboard,
+  KeyboardAvoidingView, Modal, Platform,
+  Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
 import { ParentChildHeroCard } from "@/components/parent/ParentChildHeroCard";
@@ -55,6 +58,82 @@ const EMPTY_SUMMARY: HomeSummary = {
 };
 
 const IB = "#E6FAF8";
+const TEAL = "#2EC4B6";
+
+interface PoolResult { id: string; name: string; address?: string | null; }
+
+function PoolSelectModal({ visible, onClose, onSelect }: {
+  visible: boolean; onClose: () => void; onSelect: (p: PoolResult) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [query, setQuery] = useState("");
+  const [pools, setPools] = useState<PoolResult[]>([]);
+  const [allPools, setAllPools] = useState<PoolResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (!visible) { setQuery(""); setPools([]); return; }
+    setLoading(true);
+    fetch(`${API_BASE}/pools/public-search`)
+      .then(r => r.ok ? r.json() : { data: [] })
+      .then(data => {
+        const list: PoolResult[] = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        setAllPools(list); setPools(list);
+      })
+      .catch(() => {})
+      .finally(() => { setLoading(false); setTimeout(() => inputRef.current?.focus(), 300); });
+  }, [visible]);
+
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
+    setPools(!q ? allPools : allPools.filter(p => p.name.toLowerCase().includes(q) || (p.address ?? "").toLowerCase().includes(q)));
+  }, [query, allPools]);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }} onPress={onClose} />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%", paddingBottom: insets.bottom + 16 }}>
+        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#E0E0E0", alignSelf: "center", marginTop: 10, marginBottom: 6 }} />
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 }}>
+          <Text style={{ fontSize: 17, fontFamily: "Pretendard-Bold", color: "#111" }}>수영장 선택</Text>
+          <Pressable onPress={onClose} hitSlop={12}><LucideIcon name="x" size={20} color="#999" /></Pressable>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#F4F6FA", borderRadius: 12, marginHorizontal: 20, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
+          <LucideIcon name="search" size={16} color="#999" />
+          <TextInput ref={inputRef} style={{ flex: 1, fontSize: 15, color: "#111", fontFamily: "Pretendard-Regular" }}
+            placeholder="수영장 이름 검색" placeholderTextColor="#bbb" value={query} onChangeText={setQuery}
+            returnKeyType="search" onSubmitEditing={Keyboard.dismiss} />
+          {query.length > 0 && <Pressable onPress={() => setQuery("")} hitSlop={8}><LucideIcon name="x" size={14} color="#bbb" /></Pressable>}
+        </View>
+        {loading ? (
+          <View style={{ padding: 32, alignItems: "center" }}><ActivityIndicator color={TEAL} /></View>
+        ) : (
+          <FlatList
+            data={pools}
+            keyExtractor={p => p.id}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={<Text style={{ textAlign: "center", color: "#999", marginTop: 24, fontFamily: "Pretendard-Regular" }}>검색 결과가 없습니다.</Text>}
+            renderItem={({ item }) => (
+              <Pressable onPress={() => { onSelect(item); onClose(); }}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, gap: 12, backgroundColor: pressed ? "#F0FAF9" : "#fff" })}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" }}>
+                  <LucideIcon name="building-2" size={18} color={TEAL} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#111" }}>{item.name}</Text>
+                  {item.address ? <Text style={{ fontSize: 12, color: "#999", fontFamily: "Pretendard-Regular" }}>{item.address}</Text> : null}
+                </View>
+                <LucideIcon name="chevron-right" size={16} color="#ccc" />
+              </Pressable>
+            )}
+          />
+        )}
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
 
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
@@ -65,7 +144,29 @@ export default function ParentHomeScreen() {
   const [summary, setSummary] = useState<HomeSummary>(EMPTY_SUMMARY);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [poolModal, setPoolModal] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [confirmedPool, setConfirmedPool] = useState<PoolResult | null>(null);
 
+  const noPool = !confirmedPool && !(parentAccount as any)?.swimming_pool_id && !pool;
+
+  async function handlePoolSelect(selected: PoolResult) {
+    setLinking(true);
+    try {
+      const r = await apiRequest(token, "/parent/onboard-pool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ swimming_pool_id: selected.id }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        AsyncStorage.setItem("parent_pool_name", data.pool_name || selected.name).catch(() => {});
+        setConfirmedPool(selected);
+        await refresh();
+      }
+    } catch {}
+    setLinking(false);
+  }
 
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== "web") {
@@ -174,6 +275,59 @@ export default function ParentHomeScreen() {
     );
   }
 
+  if (noPool) {
+    return (
+      <View style={[s.root, { backgroundColor: C.background }]}>
+        {/* 헤더 */}
+        <View style={[s.header, { paddingTop: PT }]}>
+          <Text style={[s.poolName, { color: C.textMuted }]}>SwimNote</Text>
+          <View style={s.headerBtns} />
+        </View>
+
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 80 }}>
+          {/* 온보딩 카드 */}
+          <View style={{ alignItems: "center", marginBottom: 32 }}>
+            <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+              <LucideIcon name="building-2" size={44} color={TEAL} />
+            </View>
+            <Text style={{ fontSize: 22, fontFamily: "Pretendard-Bold", color: C.text, textAlign: "center", marginBottom: 10 }}>수영장을 선택해주세요</Text>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 }}>
+              수영장을 선택하면 자녀의 수업, 앨범,{"\n"}출결 정보를 바로 확인할 수 있어요.
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={() => setPoolModal(true)}
+            disabled={linking}
+            style={({ pressed }) => ({
+              backgroundColor: pressed ? "#27B8AC" : TEAL,
+              borderRadius: 14, paddingVertical: 16,
+              alignItems: "center", flexDirection: "row",
+              justifyContent: "center", gap: 10,
+            })}
+          >
+            {linking
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <>
+                  <LucideIcon name="search" size={20} color="#fff" />
+                  <Text style={{ fontSize: 16, fontFamily: "Pretendard-Bold", color: "#fff" }}>수영장 선택하기</Text>
+                </>
+            }
+          </Pressable>
+
+          <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", marginTop: 16 }}>
+            선택 후 전화번호로 등록된 자녀가 자동 연결됩니다
+          </Text>
+        </ScrollView>
+
+        <PoolSelectModal
+          visible={poolModal}
+          onClose={() => setPoolModal(false)}
+          onSelect={handlePoolSelect}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>

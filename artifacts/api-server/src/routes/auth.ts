@@ -428,7 +428,7 @@ router.post("/simple-parent-register", async (req, res) => {
   if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
   if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
 
-  // pool_id 미제공 시 전화번호로 수영장 자동 해결
+  // pool_id 미제공 시 전화번호로 수영장 자동 해결 (없으면 null로 진행 — 홈에서 온보딩)
   if (!requestedPoolId && ph) {
     const autoPool = await db.execute(sql`
       SELECT swimming_pool_id FROM students
@@ -441,7 +441,7 @@ router.post("/simple-parent-register", async (req, res) => {
       requestedPoolId = (autoPool.rows[0] as any).swimming_pool_id;
     }
   }
-  if (!requestedPoolId) return err(res, 400, "수영장을 선택해주세요.");
+  // pool_id 없어도 가입 허용 — 홈 온보딩에서 수영장 선택
 
   try {
     let matched: any[] = [];
@@ -525,27 +525,27 @@ router.post("/simple-parent-register", async (req, res) => {
     }
     // ════════════════════════════════════════════════════════════════════
 
-    if (!resolvedPoolId) {
-      return res.status(404).json({
-        success: false,
-        error: "수영장을 선택해주세요.",
-        error_code: "no_pool_found",
-      });
+    // 수영장이 있는 경우에만 존재 확인
+    let poolName: string | null = null;
+    if (resolvedPoolId) {
+      const poolRows = await db.execute(sql`SELECT id, name FROM swimming_pools WHERE id = ${resolvedPoolId} LIMIT 1`);
+      if ((poolRows.rows as any[]).length === 0) return err(res, 404, "수영장을 찾을 수 없습니다.");
+      poolName = (poolRows.rows as any[])[0].name;
     }
-
-    // 수영장 존재 확인
-    const poolRows = await db.execute(sql`SELECT id, name FROM swimming_pools WHERE id = ${resolvedPoolId} LIMIT 1`);
-    if ((poolRows.rows as any[]).length === 0) return err(res, 404, "수영장을 찾을 수 없습니다.");
-    const poolName: string = (poolRows.rows as any[])[0].name;
 
     // 아이디 중복 확인
     if (lid) {
       const dupId = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
       if ((dupId.rows as any[]).length > 0) return err(res, 409, "이미 사용 중인 아이디입니다.");
     }
-    // 같은 수영장 동일 전화번호 중복 가입 체크
-    const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id = ${resolvedPoolId} LIMIT 1`);
-    if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
+    // 전화번호 중복 확인 (수영장 있을 때만 같은 수영장 체크, 없을 때는 전체 체크)
+    if (resolvedPoolId) {
+      const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id = ${resolvedPoolId} LIMIT 1`);
+      if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
+    } else {
+      const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id IS NULL LIMIT 1`);
+      if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
+    }
 
     const pin_hash = await hashPassword(pw);
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
