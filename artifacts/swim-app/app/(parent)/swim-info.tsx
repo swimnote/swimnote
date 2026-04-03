@@ -127,7 +127,7 @@ function SectionCard({ section, content }: { section: Section; content?: string 
 interface LevelInfo { current_level_order: number | null; current_level: LevelDef | null; next_level: LevelDef | null; }
 
 export default function SwimInfoScreen() {
-  const { token, pool, parentAccount } = useAuth();
+  const { token, pool, parentAccount, parentPoolName } = useAuth();
   const { selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
   const [info, setInfo] = useState<PoolInfo | null>(null);
@@ -162,7 +162,7 @@ export default function SwimInfoScreen() {
         >
           {/* 수영장 기본 정보 칩 */}
           {(() => {
-            const poolName = info?.pool_name || (parentAccount as any)?.pool_name || pool?.name;
+            const poolName = info?.pool_name || parentPoolName || (parentAccount as any)?.pool_name || pool?.name;
             const address = info?.address || pool?.address;
             const phone = info?.phone || pool?.phone;
             if (!poolName && !address && !phone) return null;

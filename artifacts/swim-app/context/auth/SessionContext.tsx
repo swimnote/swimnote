@@ -99,6 +99,7 @@ interface SessionContextType {
   parentAccount: ParentAccount | null;
   token: string | null;
   pool: PoolInfo | null;
+  parentPoolName: string | null;
   isLoading: boolean;
   allAccounts: AccountEntry[];
   ownedPools: OwnedPool[];
@@ -136,6 +137,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [ownedPools, setOwnedPools] = useState<OwnedPool[]>([]);
   const [parentJoinStatus, setParentJoinStatus] = useState<string | null>(null);
   const [parentJoinRequestId, setParentJoinRequestId] = useState<string | null>(null);
+  const [parentPoolName, setParentPoolName] = useState<string | null>(null);
 
   useEffect(() => { loadStored(); }, []);
 
@@ -143,7 +145,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const [
         storedToken, storedKind, storedAdmin, storedParent, storedAccounts,
-        storedJoinStatus, storedJoinRequestId,
+        storedJoinStatus, storedJoinRequestId, storedPoolName,
       ] = await Promise.all([
         AsyncStorage.getItem("auth_token"),
         AsyncStorage.getItem("auth_kind"),
@@ -152,6 +154,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         AsyncStorage.getItem("auth_all_accounts"),
         AsyncStorage.getItem("parent_join_status"),
         AsyncStorage.getItem("parent_join_request_id"),
+        AsyncStorage.getItem("parent_pool_name"),
       ]);
 
       if (storedAccounts) {
@@ -175,6 +178,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setKind("parent");
         setParentJoinStatus(storedJoinStatus || null);
         setParentJoinRequestId(storedJoinRequestId || null);
+        // parent_pool_name 독립 키에서 복원 (pool_name이 없으면 parentAccount.pool_name으로 보완)
+        const restoredPoolName = storedPoolName || (pa as any).pool_name || null;
+        if (restoredPoolName) setParentPoolName(restoredPoolName);
         await fetchPool(storedToken);
       }
     } catch (err) { console.error(err); }
@@ -184,7 +190,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   async function fetchPool(authToken: string) {
     try {
       const res = await fetch(`${API_BASE}/pools/my`, { headers: { Authorization: `Bearer ${authToken}` } });
-      if (res.ok) { setPool(await safeJson(res)); return; }
+      if (res.ok) {
+        const poolData = await safeJson(res);
+        setPool(poolData);
+        if (poolData?.name) {
+          setParentPoolName(poolData.name);
+          AsyncStorage.setItem("parent_pool_name", poolData.name).catch(() => {});
+        }
+        return;
+      }
     } catch (err) { console.error(err); }
     // parent 토큰은 /parent/pool-info 로 fallback (JWT poolId 기반)
     try {
@@ -193,6 +207,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const info = await safeJson(res2);
         if (info?.pool_name) {
           setPool({ id: info.pool_id || "", name: info.pool_name, address: info.address || "", phone: info.phone || "" } as any);
+          setParentPoolName(info.pool_name);
+          AsyncStorage.setItem("parent_pool_name", info.pool_name).catch(() => {});
         }
       }
     } catch (err) { console.error(err); }
@@ -255,6 +271,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       else await AsyncStorage.removeItem("parent_join_request_id");
       setParentJoinStatus(js);
       setParentJoinRequestId(jri);
+      if ((parent as any).pool_name) {
+        setParentPoolName((parent as any).pool_name);
+        AsyncStorage.setItem("parent_pool_name", (parent as any).pool_name).catch(() => {});
+      }
       await fetchPool(t);
     }
   }
@@ -355,6 +375,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setToken(data.token);
     setParentAccount(data.parent);
     setKind("parent");
+    if (data.parent?.pool_name) {
+      setParentPoolName(data.parent.pool_name);
+      AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
+    }
     await fetchPool(data.token);
   }
 
@@ -378,18 +402,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setParentAccount(data.parent);
     setKind("parent");
     setParentJoinStatus("approved");
+    if (data.parent?.pool_name) {
+      setParentPoolName(data.parent.pool_name);
+      AsyncStorage.setItem("parent_pool_name", data.parent.pool_name).catch(() => {});
+    }
     await fetchPool(data.token);
   }
 
   async function setParentSession(token: string, parent: ParentAccount) {
-    await AsyncStorage.multiSet([
+    const pname = (parent as any).pool_name || null;
+    const multiSetItems: [string, string][] = [
       ["auth_token", token], ["auth_kind", "parent"], ["auth_parent", JSON.stringify(parent)],
       ["parent_join_status", "approved"],
-    ]);
+    ];
+    if (pname) multiSetItems.push(["parent_pool_name", pname]);
+    await AsyncStorage.multiSet(multiSetItems);
     setToken(token);
     setParentAccount(parent);
     setKind("parent");
     setParentJoinStatus("approved");
+    if (pname) setParentPoolName(pname);
     await fetchPool(token);
   }
 
@@ -409,13 +441,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       "auth_token", "auth_kind", "auth_admin", "auth_parent",
       "auth_all_accounts", "last_used_role", "last_used_tenant", "last_selected_student",
       "parent_selected_student_id", "brand_data",
-      "parent_join_status", "parent_join_request_id",
+      "parent_join_status", "parent_join_request_id", "parent_pool_name",
     ]);
     setToken(null);
     setKind(null);
     setAdminUser(null);
     setParentAccount(null);
     setPool(null);
+    setParentPoolName(null);
     setAllAccounts([]);
     setOwnedPools([]);
     setParentJoinStatus(null);
@@ -465,7 +498,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   return (
     <SessionContext.Provider value={{
-      kind, adminUser, parentAccount, token, pool, isLoading,
+      kind, adminUser, parentAccount, token, pool, parentPoolName, isLoading,
       allAccounts, ownedPools, parentJoinStatus, parentJoinRequestId,
       unifiedLogin, completeTotpLogin, adminLogin, parentLogin, kakaoSocialLogin, setParentSession, setAdminSession,
       logout, refreshPool, loadOwnedPools, switchPool,
