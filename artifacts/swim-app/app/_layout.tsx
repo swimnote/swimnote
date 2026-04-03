@@ -228,7 +228,7 @@ function RootNav() {
   const APP_ROOTS = [
     "(admin)", "(super)", "(teacher)", "(parent)", "(auth)",
     "org-role-select", "pool-apply", "pool-select", "pending", "rejected", "subscription-expired",
-    "class-assign", "parent-onboard-pool", "parent-onboard-child", "parent-onboard-nickname",
+    "class-assign", "parent-onboard-nickname",
     "pool-join-request", "signup-role", "register", "teacher-activate", "teacher-invite-join",
     "terms", "privacy", "refund",
     "support-ticket-write", "support-ticket-list", "support-ticket-detail",

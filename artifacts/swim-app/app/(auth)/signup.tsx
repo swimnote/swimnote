@@ -33,6 +33,7 @@ type Role = "admin" | "teacher" | "parent";
 type SmsState = "idle" | "sending" | "sent" | "verifying" | "verified" | "error";
 
 interface Pool { id: string; name: string; address?: string; }
+interface StudentInfo { id: string; name: string; birth_year?: string | null; }
 
 const STEP_LABELS = ["기본정보", "휴대폰", "역할선택", "추가정보"];
 
@@ -81,6 +82,11 @@ export default function SignupScreen() {
   // Parent-only
   const [childName, setChildName]         = useState("");
   const [childBirthYear, setChildBirthYear] = useState("");
+  const [parentStudentSearch, setParentStudentSearch]     = useState("");
+  const [parentSearchResults, setParentSearchResults]     = useState<StudentInfo[] | null>(null);
+  const [parentSearching, setParentSearching]             = useState(false);
+  const [parentSelected, setParentSelected]               = useState<StudentInfo[]>([]);
+  const parentDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ── General ── */
   const [error, setError]           = useState("");
@@ -141,7 +147,7 @@ export default function SignupScreen() {
   /*  Pool search (teacher / parent)                   */
   /* ──────────────────────────────────────────────── */
   useEffect(() => {
-    if (step === 4 && role === "teacher" && !poolsLoaded) {
+    if (step === 4 && (role === "teacher" || role === "parent") && !poolsLoaded) {
       (async () => {
         try {
           const res = await fetch(`${API_BASE}/pools/public-search`);
@@ -152,6 +158,38 @@ export default function SignupScreen() {
       })();
     }
   }, [step, role, poolsLoaded]);
+
+  async function doParentStudentSearch(q: string) {
+    if (!q.trim() || !selectedPool) { setParentSearchResults(null); return; }
+    setParentSearching(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/auth/pool-student-search?pool_id=${encodeURIComponent(selectedPool.id)}&name=${encodeURIComponent(q.trim())}`
+      );
+      const data = await res.json();
+      setParentSearchResults(Array.isArray(data) ? data : []);
+    } catch { setParentSearchResults([]); }
+    finally { setParentSearching(false); }
+  }
+
+  function onParentStudentSearchChange(q: string) {
+    setParentStudentSearch(q);
+    if (parentDebounceRef.current) clearTimeout(parentDebounceRef.current);
+    if (!q.trim()) { setParentSearchResults(null); return; }
+    parentDebounceRef.current = setTimeout(() => doParentStudentSearch(q), 400);
+  }
+
+  function addParentStudent(s: StudentInfo) {
+    if (parentSelected.some(p => p.id === s.id)) return;
+    if (parentSelected.length >= 4) return;
+    setParentSelected(prev => [...prev, s]);
+    setParentStudentSearch("");
+    setParentSearchResults(null);
+  }
+
+  function removeParentStudent(id: string) {
+    setParentSelected(prev => prev.filter(s => s.id !== id));
+  }
 
   useEffect(() => {
     if (!poolSearch.trim()) { setPools(allPools); return; }
@@ -215,7 +253,7 @@ export default function SignupScreen() {
     } else if (role === "teacher") {
       if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
     } else if (role === "parent") {
-      if (!childName.trim()) { setError("자녀 이름을 입력해주세요."); return; }
+      if (!selectedPool) { setError("수영장을 선택해주세요."); return; }
     }
 
     setLoading(true);
@@ -263,6 +301,10 @@ export default function SignupScreen() {
         }
 
       } else if (role === "parent") {
+        const childIds   = parentSelected.map(s => s.id);
+        const childNames = parentSelected.length > 0
+          ? parentSelected.map(s => s.name)
+          : childName.trim() ? [childName.trim()] : [];
         res = await fetch(`${API_BASE}/auth/simple-parent-register`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -270,7 +312,9 @@ export default function SignupScreen() {
             phone: cleaned,
             loginId: loginId.trim().toLowerCase() || undefined,
             password: pw,
-            child_name: childName.trim(),
+            pool_id: selectedPool!.id,
+            child_ids: childIds.length > 0 ? childIds : undefined,
+            child_names: childNames.length > 0 ? childNames : undefined,
           }),
         });
         data = await safeJson(res);
@@ -529,24 +573,138 @@ export default function SignupScreen() {
           </View>
         )}
 
-        {/* 학부모: 자녀 정보 */}
+        {/* 학부모: 수영장 선택 */}
         {role === "parent" && (
           <View style={styles.card}>
-            <Text style={[styles.cardTitle, { color: C.text }]}>자녀 정보</Text>
+            <Text style={[styles.cardTitle, { color: C.text }]}>수영장 선택</Text>
+            {selectedPool ? (
+              <View style={styles.selectedPool}>
+                <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
+                  <Check size={14} color={C.tint} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.poolNameSm, { color: C.text }]}>{selectedPool.name}</Text>
+                  {selectedPool.address ? <Text style={[styles.poolAddrSm, { color: C.textSecondary }]}>{selectedPool.address}</Text> : null}
+                </View>
+                <Pressable onPress={() => { setSelectedPool(null); setParentSelected([]); setParentSearchResults(null); setParentStudentSearch(""); }}>
+                  <CircleX size={18} color={C.textMuted} />
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+                  <Search size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={[styles.input, { color: C.text }]}
+                    placeholder="수영장 이름 검색"
+                    placeholderTextColor={C.textMuted}
+                    value={poolSearch}
+                    onChangeText={setPoolSearch}
+                  />
+                </View>
+                {!poolsLoaded && (
+                  <ActivityIndicator size="small" color={C.tint} style={{ marginTop: 8 }} />
+                )}
+                {poolsLoaded && pools.length === 0 && (
+                  <Text style={[styles.emptyTxt, { color: C.textMuted }]}>검색 결과가 없습니다.</Text>
+                )}
+                {pools.slice(0, 6).map(p => (
+                  <Pressable
+                    key={p.id}
+                    style={({ pressed }) => [styles.poolItem, { backgroundColor: pressed ? "#F0FAF9" : C.background, borderColor: C.border }]}
+                    onPress={() => setSelectedPool(p)}
+                  >
+                    <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
+                      <MapPin size={13} color={C.tint} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.poolNameSm, { color: C.text }]}>{p.name}</Text>
+                      {p.address ? <Text style={[styles.poolAddrSm, { color: C.textSecondary }]}>{p.address}</Text> : null}
+                    </View>
+                  </Pressable>
+                ))}
+              </>
+            )}
+          </View>
+        )}
+
+        {/* 학부모: 자녀 검색 (수영장 선택 후) */}
+        {role === "parent" && selectedPool && (
+          <View style={styles.card}>
+            <Text style={[styles.cardTitle, { color: C.text }]}>자녀 선택</Text>
             <Text style={[styles.cardHint, { color: C.textSecondary }]}>
-              수영장에 등록된 자녀 이름과 일치해야 합니다
+              {selectedPool.name}에 등록된 자녀를 검색해 선택하세요 (최대 4명)
             </Text>
-            <InputField label="자녀 이름" icon="user">
-              <TextInput
-                style={[styles.input, { color: C.text }]}
-                placeholder="자녀 실명을 입력해주세요"
-                placeholderTextColor={C.textMuted}
-                value={childName}
-                onChangeText={v => setChildName(v.replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ\s]/g, ""))}
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
-            </InputField>
+
+            {/* 이미 선택된 자녀 칩 */}
+            {parentSelected.length > 0 && (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                {parentSelected.map(s => (
+                  <View key={s.id} style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#E6FAF8", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, gap: 6 }}>
+                    <Text style={{ fontSize: 13, color: C.text, fontFamily: "Pretendard-Regular" }}>{s.name}</Text>
+                    {s.birth_year ? <Text style={{ fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>{s.birth_year}년</Text> : null}
+                    <Pressable onPress={() => removeParentStudent(s.id)} hitSlop={8}>
+                      <CircleX size={15} color={C.textMuted} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* 자녀 이름 검색 입력 */}
+            {parentSelected.length < 4 && (
+              <>
+                <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
+                  <Search size={15} color={C.textMuted} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={[styles.input, { color: C.text }]}
+                    placeholder="자녀 이름 검색 (예: 홍길동)"
+                    placeholderTextColor={C.textMuted}
+                    value={parentStudentSearch}
+                    onChangeText={onParentStudentSearchChange}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+                  {parentSearching && <ActivityIndicator size="small" color={C.tint} />}
+                </View>
+
+                {/* 검색 결과 */}
+                {parentSearchResults !== null && (
+                  parentSearchResults.length === 0 ? (
+                    <View style={{ paddingVertical: 10 }}>
+                      <Text style={[styles.emptyTxt, { color: C.textMuted }]}>등록된 학생을 찾을 수 없습니다.</Text>
+                      <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", marginTop: 4 }}>
+                        수영장 담당자에게 등록 확인 후 다시 시도해주세요.
+                      </Text>
+                    </View>
+                  ) : (
+                    parentSearchResults.slice(0, 5).map(s => (
+                      <Pressable
+                        key={s.id}
+                        style={({ pressed }) => [styles.poolItem, { backgroundColor: pressed ? "#F0FAF9" : C.background, borderColor: C.border }]}
+                        onPress={() => addParentStudent(s)}
+                      >
+                        <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
+                          <LucideIcon name="user" size={13} color={C.tint} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.poolNameSm, { color: C.text }]}>{s.name}</Text>
+                          {s.birth_year ? <Text style={[styles.poolAddrSm, { color: C.textSecondary }]}>{s.birth_year}년생</Text> : null}
+                        </View>
+                        <Text style={{ fontSize: 12, color: C.tint, fontFamily: "Pretendard-Regular" }}>선택</Text>
+                      </Pressable>
+                    ))
+                  )
+                )}
+              </>
+            )}
+
+            {/* 자녀 없이 가입 안내 */}
+            {parentSelected.length === 0 && (
+              <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular", marginTop: 6 }}>
+                자녀를 찾지 못해도 가입은 가능합니다. 가입 후 관리자에게 연결 요청하세요.
+              </Text>
+            )}
           </View>
         )}
 
