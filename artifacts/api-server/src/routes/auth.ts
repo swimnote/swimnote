@@ -546,6 +546,29 @@ router.post("/simple-parent-register", async (req, res) => {
       `);
     }
 
+    // ── 매칭 학생 없고 자녀 이름 제공된 경우: placeholder 학생 생성 ──────────
+    // 관리자가 학생 등록 전에도 부모가 목록에 보이도록
+    if (matched.length === 0 && childNamesArr.length > 0 && resolvedPoolId) {
+      for (const cName of childNamesArr) {
+        const sId = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await db.execute(sql`
+          INSERT INTO students (id, swimming_pool_id, name, parent_name, parent_phone, parent_user_id,
+            status, registration_path, weekly_count, assigned_class_ids, created_at, updated_at)
+          VALUES (${sId}, ${resolvedPoolId}, ${cName}, ${name}, ${ph}, ${parentId},
+            'unregistered', 'parent_signup', 1, '[]'::jsonb, NOW(), NOW())
+          ON CONFLICT DO NOTHING
+        `);
+        const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await db.execute(sql`
+          INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+          VALUES (${psId}, ${parentId}, ${sId}, ${resolvedPoolId}, 'approved', NOW())
+          ON CONFLICT DO NOTHING
+        `);
+        matched.push({ id: sId, swimming_pool_id: resolvedPoolId });
+      }
+      console.log(`[simple-parent-register] placeholder 학생 ${childNamesArr.length}명 생성: ${childNamesArr.join(", ")}`);
+    }
+
     console.log(`[simple-parent-register] 학부모 가입: poolId=${resolvedPoolId} matched=${matched.length}명`);
 
     const token = signToken({ userId: parentId, role: "parent_account", poolId: resolvedPoolId });

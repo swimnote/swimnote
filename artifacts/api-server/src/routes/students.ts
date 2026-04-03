@@ -241,15 +241,28 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
         continue;
       }
       try {
-        const normPhone = s.parent_phone ? s.parent_phone.replace(/[^0-9]/g, "") : null;
+        const normPhone     = s.parent_phone ? s.parent_phone.replace(/[^0-9]/g, "") : null;
+        const normPName     = s.parent_name  ? s.parent_name.replace(/\s+/g, "").toLowerCase() : null;
         let resolvedParentUserId: string | null = null;
         if (normPhone) {
           const matched = await db.execute(sql`
             SELECT id FROM parent_accounts
-            WHERE REPLACE(REPLACE(phone,'-',''),' ','') = ${normPhone} LIMIT 1
+            WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normPhone}
+              AND swimming_pool_id = ${poolId}
+            LIMIT 1
           `);
           if ((matched.rows as any[]).length > 0)
             resolvedParentUserId = (matched.rows[0] as any).id;
+        }
+        if (!resolvedParentUserId && normPName) {
+          const matched2 = await db.execute(sql`
+            SELECT id FROM parent_accounts
+            WHERE REPLACE(LOWER(COALESCE(name,'')),' ','') = ${normPName}
+              AND swimming_pool_id = ${poolId}
+            LIMIT 1
+          `);
+          if ((matched2.rows as any[]).length > 0)
+            resolvedParentUserId = (matched2.rows[0] as any).id;
         }
 
         const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -333,8 +346,69 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       }
     }
 
+    // ── 학부모 전화번호/이름으로 기존 계정 찾기 (자동 연결용) ─────────
+    const normParentPhone = parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null;
+    const normParentName  = parent_name  ? parent_name.replace(/\s+/g, "").toLowerCase() : null;
+
+    let resolvedParentUserId = parent_user_id || null;
+    if (!resolvedParentUserId && normParentPhone) {
+      const matchedPa = await db.execute(sql`
+        SELECT id FROM parent_accounts
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normParentPhone}
+          AND swimming_pool_id = ${poolId}
+        LIMIT 1
+      `);
+      if ((matchedPa.rows as any[]).length > 0)
+        resolvedParentUserId = (matchedPa.rows[0] as any).id;
+    }
+    if (!resolvedParentUserId && normParentName) {
+      const matchedPaByName = await db.execute(sql`
+        SELECT id FROM parent_accounts
+        WHERE REPLACE(LOWER(COALESCE(name,'')),' ','') = ${normParentName}
+          AND swimming_pool_id = ${poolId}
+        LIMIT 1
+      `);
+      if ((matchedPaByName.rows as any[]).length > 0)
+        resolvedParentUserId = (matchedPaByName.rows[0] as any).id;
+    }
+
+    // ── placeholder 병합: 학부모 가입 시 생성된 unregistered 학생이 이미 있으면 업데이트 ─
+    if (!force_create && resolvedParentUserId) {
+      const placeholder = await db.execute(sql`
+        SELECT id FROM students
+        WHERE swimming_pool_id = ${poolId}
+          AND name = ${name.trim()}
+          AND parent_user_id = ${resolvedParentUserId}
+          AND registration_path = 'parent_signup'
+          AND status = 'unregistered'
+        LIMIT 1
+      `);
+      if ((placeholder.rows as any[]).length > 0) {
+        const placeholderId = (placeholder.rows[0] as any).id;
+        const invite_code = generateInviteCode();
+        await db.execute(sql`
+          UPDATE students SET
+            birth_year = COALESCE(NULLIF(birth_year,''), ${birth_year || null}),
+            parent_name = COALESCE(NULLIF(parent_name,''), ${parent_name || null}),
+            parent_phone = COALESCE(NULLIF(parent_phone,''), ${normParentPhone}),
+            memo = COALESCE(NULLIF(memo,''), ${memo || null}),
+            weekly_count = ${Number(weekly_count) || 1},
+            registration_path = 'admin_created',
+            invite_code = ${invite_code},
+            status = 'active',
+            updated_at = NOW()
+          WHERE id = ${placeholderId}
+        `);
+        const [merged] = (await db.execute(sql`SELECT * FROM students WHERE id = ${placeholderId}`)).rows as any[];
+        const enriched = await enrichWithClasses({ ...merged, class_group_name: null });
+        await logChange({ tenantId: poolId!, tableName: "students", recordId: placeholderId, changeType: "update", payload: { action: "placeholder_merged", status: "active" } });
+        logPoolEvent({ pool_id: poolId!, event_type: "student.activate", entity_type: "student", entity_id: placeholderId, actor_id: req.user!.userId, payload: { name: name.trim() } }).catch(() => {});
+        return res.status(201).json({ success: true, ...enriched });
+      }
+    }
+
     // ── 중복 체크 ──────────────────────────────────────────────────
-    if (!force_create && (birth_year || parent_phone)) {
+    if (!force_create && (birth_year || normParentPhone)) {
       const dupRows = await db.execute(sql`
         SELECT id, name, birth_year, parent_phone, status
         FROM students
@@ -343,50 +417,23 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
           AND name = ${name.trim()}
           AND (
             ${birth_year ? sql`birth_year = ${birth_year}` : sql`FALSE`}
-            OR ${parent_phone ? sql`parent_phone = ${parent_phone}` : sql`FALSE`}
+            OR ${normParentPhone ? sql`REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normParentPhone}` : sql`FALSE`}
           )
         LIMIT 5
       `);
-
       if (dupRows.rows.length > 0) {
-        const exact = (dupRows.rows as any[]).find(r =>
+        const exact = (dupRows.rows as any[]).find((r: any) =>
           r.name === name.trim() &&
           (!birth_year || r.birth_year === birth_year) &&
-          (!parent_phone || r.parent_phone === parent_phone)
+          (!normParentPhone || (r.parent_phone || "").replace(/[^0-9]/g, "") === normParentPhone)
         );
-        if (exact) {
-          return res.status(409).json({
-            success: false,
-            duplicate: true,
-            existing: exact,
-            message: "동일한 학생이 이미 등록되어 있습니다.",
-          });
-        }
-        return res.status(200).json({
-          success: false,
-          possible_duplicate: true,
-          candidates: dupRows.rows,
-          message: "유사한 학생 정보가 있습니다. 계속 등록하시겠습니까?",
-        });
+        if (exact) return res.status(409).json({ success: false, duplicate: true, existing: exact, message: "동일한 학생이 이미 등록되어 있습니다." });
+        return res.status(200).json({ success: false, possible_duplicate: true, candidates: dupRows.rows, message: "유사한 학생 정보가 있습니다. 계속 등록하시겠습니까?" });
       }
     }
 
     // ── 초대코드 생성 ──────────────────────────────────────────────
     const invite_code = registration_path === "admin_created" ? generateInviteCode() : null;
-
-    // ── 학부모 전화번호로 기존 계정 찾기 (자동 연결용) ──────────────
-    let resolvedParentUserId = parent_user_id || null;
-    if (!resolvedParentUserId && parent_phone) {
-      const normPhone = parent_phone.replace(/[^0-9]/g, "");
-      const matchedPa = await db.execute(sql`
-        SELECT id, swimming_pool_id FROM parent_accounts
-        WHERE REPLACE(REPLACE(phone, '-', ''), ' ', '') = ${normPhone}
-        LIMIT 1
-      `);
-      if ((matchedPa.rows as any[]).length > 0) {
-        resolvedParentUserId = (matchedPa.rows[0] as any).id;
-      }
-    }
 
     // ── 상태 결정: 학부모 계정이 이미 연결되면 바로 active ─────────
     const status = resolvedParentUserId ? "active" : "unregistered";
@@ -400,7 +447,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       birth_date: birth_date || null,
       birth_year: birth_year || null,
       parent_name: parent_name || null,
-      parent_phone: parent_phone || null,
+      parent_phone: normParentPhone || null,
       parent_user_id: resolvedParentUserId,
       class_group_id: class_group_id || null,
       memo: memo || null,
@@ -420,11 +467,9 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
         VALUES (${psId}, ${resolvedParentUserId}, ${id}, ${poolId}, 'approved', NOW())
         ON CONFLICT DO NOTHING
       `);
-      // 학부모 계정의 수영장 연결 (미설정인 경우)
       await db.execute(sql`
-        UPDATE parent_accounts
-        SET swimming_pool_id = ${poolId}, updated_at = NOW()
-        WHERE id = ${resolvedParentUserId} AND (swimming_pool_id IS NULL)
+        UPDATE parent_accounts SET swimming_pool_id = ${poolId}, updated_at = NOW()
+        WHERE id = ${resolvedParentUserId} AND swimming_pool_id IS NULL
       `);
     }
 
