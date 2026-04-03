@@ -21,7 +21,3 @@ run = "pnpm --filter @workspace/swim-app run dev"
 [services.env]
 PORT = "22317"
 BASE_PATH = "/"
-
-[services.production]
-build = ["pnpm", "--filter", "@workspace/swim-app", "run", "build"]
-run = ["pnpm", "--filter", "@workspace/swim-app", "run", "serve"]
