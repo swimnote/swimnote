@@ -10,11 +10,15 @@ const C = Colors.light;
 
 export default function AdminLayout() {
   const { themeColor } = useBrand();
-  const { kind, isLoading, adminUser, token } = useAuth();
+  const { kind, isLoading, adminUser, token, pool } = useAuth();
 
   // K: 처리 필요 배지 — pending 카운트 폴링
   const [pendingBadge, setPendingBadge] = useState<number | undefined>(undefined);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // M: 메신저 미읽음 배지
+  const [messengerUnread, setMessengerUnread] = useState(false);
+  const messengerTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchBadge = useCallback(async () => {
     if (!token) return;
@@ -27,11 +31,27 @@ export default function AdminLayout() {
     } catch { /* 무시 */ }
   }, [token]);
 
+  const fetchMessengerBadge = useCallback(async () => {
+    if (!token || !pool?.id) return;
+    try {
+      const res = await apiRequest(token, `/messenger/read-state?pool_id=${pool.id}&channel_type=talk`);
+      if (!res.ok) return;
+      const d = await res.json();
+      setMessengerUnread((d.unreadCount ?? 0) > 0);
+    } catch { /* 무시 */ }
+  }, [token, pool?.id]);
+
   useFocusEffect(useCallback(() => {
     fetchBadge();
     timerRef.current = setInterval(fetchBadge, 60_000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [fetchBadge]));
+
+  useFocusEffect(useCallback(() => {
+    fetchMessengerBadge();
+    messengerTimerRef.current = setInterval(fetchMessengerBadge, 30_000);
+    return () => { if (messengerTimerRef.current) clearInterval(messengerTimerRef.current); };
+  }, [fetchMessengerBadge]));
 
   useEffect(() => {
     if (isLoading || !kind) return;
@@ -106,8 +126,25 @@ export default function AdminLayout() {
       <Tabs.Screen name="people" options={{ href: null }} />
       <Tabs.Screen
         name="messenger"
-        listeners={makeTabListener("messenger")}
-        options={{ title: "메신저", tabBarIcon: ({ color }) => <Send size={22} color={color} /> }}
+        listeners={({ navigation }: { navigation: any; route: any }) => ({
+          tabPress: (e: any) => {
+            e.preventDefault();
+            setMessengerUnread(false);
+            const state = navigation.getState();
+            const currentRoute = state.routes[state.index]?.name;
+            if (currentRoute === "messenger") {
+              emitTabReset("messenger");
+            } else {
+              navigation.navigate("messenger");
+            }
+          },
+        })}
+        options={{
+          title: "메신저",
+          tabBarIcon: ({ color }) => <Send size={22} color={color} />,
+          tabBarBadge: messengerUnread ? " " : undefined,
+          tabBarBadgeStyle: { backgroundColor: "#D96C6C", minWidth: 8, height: 8, borderRadius: 4, fontSize: 0 },
+        }}
       />
       <Tabs.Screen
         name="settings"

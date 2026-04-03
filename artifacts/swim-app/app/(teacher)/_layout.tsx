@@ -1,10 +1,10 @@
 import { Home, Layers, Send, Settings, TrendingUp, Users } from "lucide-react-native";
 import { BlurView } from "expo-blur";
-import { Tabs, router } from "expo-router";
-import React, { useEffect } from "react";
+import { Tabs, router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { emitTabReset } from "@/utils/tabReset";
 import { FeedbackTemplateProvider } from "@/context/FeedbackTemplateContext";
@@ -14,8 +14,27 @@ const POOL_ADMIN_ROLES = new Set(["pool_admin", "sub_admin"]);
 
 export default function TeacherLayout() {
   const { themeColor } = useBrand();
-  const { kind, isLoading, adminUser } = useAuth();
-  const C = Colors.light;
+  const { kind, isLoading, adminUser, token, pool } = useAuth();
+
+  // M: 메신저 미읽음 배지
+  const [messengerUnread, setMessengerUnread] = useState(false);
+  const messengerTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchMessengerBadge = useCallback(async () => {
+    if (!token || !pool?.id) return;
+    try {
+      const res = await apiRequest(token, `/messenger/read-state?pool_id=${pool.id}&channel_type=talk`);
+      if (!res.ok) return;
+      const d = await res.json();
+      setMessengerUnread((d.unreadCount ?? 0) > 0);
+    } catch { /* 무시 */ }
+  }, [token, pool?.id]);
+
+  useFocusEffect(useCallback(() => {
+    fetchMessengerBadge();
+    messengerTimerRef.current = setInterval(fetchMessengerBadge, 30_000);
+    return () => { if (messengerTimerRef.current) clearInterval(messengerTimerRef.current); };
+  }, [fetchMessengerBadge]));
 
   // 권한 보호: teacher 이외 역할이 teacher 화면에 직접 접근 시 올바른 홈으로 리다이렉트
   // 역할별 라우팅 규칙:
@@ -45,6 +64,7 @@ export default function TeacherLayout() {
     }
   }, [isLoading, kind, adminUser?.role]);
 
+  const C = Colors.light;
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -110,8 +130,25 @@ export default function TeacherLayout() {
       />
       <Tabs.Screen
         name="messenger"
-        listeners={makeTabListener("messenger")}
-        options={{ title: "메신저", tabBarIcon: ({ color }) => <Send size={22} color={color} /> }}
+        listeners={({ navigation }: { navigation: any; route: any }) => ({
+          tabPress: (e: any) => {
+            e.preventDefault();
+            setMessengerUnread(false);
+            const state = navigation.getState();
+            const currentRoute = state.routes[state.index]?.name;
+            if (currentRoute === "messenger") {
+              emitTabReset("messenger");
+            } else {
+              navigation.navigate("messenger");
+            }
+          },
+        })}
+        options={{
+          title: "메신저",
+          tabBarIcon: ({ color }) => <Send size={22} color={color} />,
+          tabBarBadge: messengerUnread ? " " : undefined,
+          tabBarBadgeStyle: { backgroundColor: "#D96C6C", minWidth: 8, height: 8, borderRadius: 4, fontSize: 0 },
+        }}
       />
       <Tabs.Screen
         name="settings"
