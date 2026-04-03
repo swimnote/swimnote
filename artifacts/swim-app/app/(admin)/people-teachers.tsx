@@ -167,11 +167,17 @@ export default function PeopleTeachersScreen() {
                     <View style={s.nameRow}>
                       <Text style={s.name}>{item.name}</Text>
 
-                      {/* 관리자 권한 뱃지 */}
-                      {adminGranted && status === "approved" && (
-                        <View style={s.subAdminBadge}>
-                          <Text style={s.subAdminBadgeTxt}>관리자권한</Text>
-                        </View>
+                      {/* 역할 라벨 */}
+                      {status === "approved" && (
+                        adminGranted ? (
+                          <View style={s.adminRoleBadge}>
+                            <Text style={s.adminRoleBadgeTxt}>관리자</Text>
+                          </View>
+                        ) : (
+                          <View style={s.teacherRoleBadge}>
+                            <Text style={s.teacherRoleBadgeTxt}>선생님</Text>
+                          </View>
+                        )
                       )}
 
                       {/* 상태 뱃지 */}
@@ -279,8 +285,10 @@ const s = StyleSheet.create({
   rejectedBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#D96C6C" },
   activeBadge:      { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#E6FFFA", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   activeBadgeTxt:   { fontSize: 11, fontWeight: "600", color: "#2EC4B6" },
-  subAdminBadge:    { backgroundColor: "#E6FAF8", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  subAdminBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#0F172A" },
+  adminRoleBadge:    { backgroundColor: "#FFF7ED", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#FED7AA" },
+  adminRoleBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#C2410C" },
+  teacherRoleBadge:  { backgroundColor: "#EFF6FF", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#BFDBFE" },
+  teacherRoleBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#1D4ED8" },
   hintRow:          { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   hintTxt:          { fontSize: 11, fontWeight: "500" },
   empty:            { paddingVertical: 60, alignItems: "center", gap: 10 },

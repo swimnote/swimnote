@@ -119,12 +119,20 @@ export default function AdminGrantScreen() {
               <View style={{ flex: 1 }}>
                 <View style={s.nameRow}>
                   <Text style={s.name}>{item.name}</Text>
-                  {item.is_admin_granted && (
-                    <View style={[s.adminBadge, { backgroundColor: themeColor + "20", borderColor: themeColor + "50" }]}>
-                      <Shield size={10} color={themeColor} />
-                      <Text style={[s.adminBadgeTxt, { color: themeColor }]}>관리자권한</Text>
-                    </View>
-                  )}
+                  <View style={[
+                    s.roleBadge,
+                    item.is_admin_granted
+                      ? { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }
+                      : { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }
+                  ]}>
+                    {item.is_admin_granted && <Shield size={10} color="#C2410C" />}
+                    <Text style={[
+                      s.roleBadgeTxt,
+                      { color: item.is_admin_granted ? "#C2410C" : "#1D4ED8" }
+                    ]}>
+                      {item.is_admin_granted ? "관리자" : "선생님"}
+                    </Text>
+                  </View>
                 </View>
                 {!!item.phone && <Text style={s.sub}>{item.phone}</Text>}
                 {!!item.email && <Text style={s.sub}>{item.email}</Text>}
@@ -242,8 +250,8 @@ const s = StyleSheet.create({
   avatarTxt:     { fontSize: 17, fontFamily: "Pretendard-Regular" },
   nameRow:       { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
   name:          { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
-  adminBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
-  adminBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular" },
+  roleBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
+  roleBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", fontWeight: "600" },
   sub:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   grantBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8 },
   grantBtnRevoke:{ backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FCA5A5" },
