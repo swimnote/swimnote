@@ -291,28 +291,6 @@ router.get("/students/:id/attendance", requireAuth, requireParent, async (req: A
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
-router.get("/student-requests", requireAuth, requireParent, async (req: AuthRequest, res) => {
-  try {
-    const reqs = await superAdminDb.select().from(studentRegistrationRequestsTable)
-      .where(eq(studentRegistrationRequestsTable.parent_id, req.user!.userId));
-    res.json(reqs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
-});
-
-router.post("/student-requests", requireAuth, requireParent, async (req: AuthRequest, res) => {
-  const { child_name, child_birth_date, memo } = req.body;
-  if (!child_name) { res.status(400).json({ error: "자녀 이름을 입력해주세요." }); return; }
-  try {
-    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
-    if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
-    const id = `srr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const [newReq] = await superAdminDb.insert(studentRegistrationRequestsTable).values({
-      id, swimming_pool_id: pa.swimming_pool_id, parent_id: pa.id,
-      child_name, child_birth_date: child_birth_date || null, memo: memo || null, status: "pending",
-    }).returning();
-    res.status(201).json(newReq);
-  } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
-});
 
 router.get("/notices", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
