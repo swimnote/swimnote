@@ -1275,15 +1275,16 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
       .where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
     if (!pool) { res.status(400).json({ success: false, message: "존재하지 않는 수영장입니다." }); return; }
 
-    // 이름 정규화 매칭
+    // 이름 정규화 매칭 (이미 이 학부모와 연결된 학생도 포함)
     const normalName = child_name.trim().replace(/\s+/g, "").toLowerCase();
     const matchResult = await db.execute(sql`
-      SELECT id, name, birth_year, status FROM students
+      SELECT id, name, birth_year, status, parent_user_id FROM students
       WHERE swimming_pool_id = ${swimming_pool_id}
         AND LOWER(REPLACE(name, ' ', '')) = ${normalName}
         AND status NOT IN ('deleted', 'withdrawn', 'archived')
-        AND parent_user_id IS NULL
+        AND (parent_user_id IS NULL OR parent_user_id = ${parentId})
         ${child_birth_year ? sql`AND (birth_year IS NULL OR birth_year = ${Number(child_birth_year)})` : sql``}
+      ORDER BY (parent_user_id = ${parentId}) DESC NULLS LAST
       LIMIT 1
     `);
 
@@ -1299,10 +1300,22 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
           (id, swimming_pool_id, parent_account_id, parent_name, phone, child_name, request_status, requested_at)
         VALUES (${reqId}, ${swimming_pool_id}, ${parentId}, ${pa.name}, ${pa.phone}, ${child_name.trim()}, 'pending', NOW())
       `).catch(() => {});
-      res.json({ success: true, status: "pending", message: "등록된 학생을 찾지 못했습니다. 관리자 승인 후 연결됩니다." }); return;
+      res.json({ success: true, status: "pending", message: "등록된 학생을 찾지 못했습니다. 관리자에게 이름·전화번호 등록을 요청하세요." }); return;
     }
 
     const student = matchResult.rows[0] as any;
+
+    // 이미 이 학부모와 연결된 경우 → 바로 성공 반환
+    if (student.parent_user_id === parentId) {
+      // parent_students 링크 보정
+      const linkId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+        VALUES (${linkId}, ${parentId}, ${student.id}, ${swimming_pool_id}, 'approved', NOW())
+        ON CONFLICT DO NOTHING
+      `);
+      res.json({ success: true, status: "auto_approved", message: "자녀가 연결되었습니다.", student: { id: student.id, name: student.name } }); return;
+    }
 
     // 학생에 부모 연결
     await db.execute(sql`
