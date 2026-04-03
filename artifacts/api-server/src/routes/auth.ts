@@ -395,7 +395,7 @@ router.post("/simple-parent-register", async (req, res) => {
   const ph        = (phone || "").trim().replace(/[^0-9]/g, "");
   const lid       = (loginId || "").trim() || null;
   const pw        = (password || "").trim();
-  const requestedPoolId = (pool_id || "").trim() || null;
+  let requestedPoolId: string | null = (pool_id || "").trim() || null;
   const childNamesArr: string[] = Array.isArray(child_names)
     ? child_names.map((s: string) => s.trim()).filter(Boolean)
     : [];
@@ -404,9 +404,23 @@ router.post("/simple-parent-register", async (req, res) => {
     : [];
 
   if (!name || !ph || !pw) return err(res, 400, "학부모 이름, 전화번호, 비밀번호는 필수입니다.");
-  if (!requestedPoolId) return err(res, 400, "수영장을 선택해주세요.");
   if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
   if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
+
+  // pool_id 미제공 시 전화번호로 수영장 자동 해결
+  if (!requestedPoolId && ph) {
+    const autoPool = await db.execute(sql`
+      SELECT swimming_pool_id FROM students
+      WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${ph}
+        AND status NOT IN ('withdrawn','archived','deleted')
+        AND swimming_pool_id IS NOT NULL
+      LIMIT 1
+    `);
+    if ((autoPool.rows as any[]).length > 0) {
+      requestedPoolId = (autoPool.rows[0] as any).swimming_pool_id;
+    }
+  }
+  if (!requestedPoolId) return err(res, 400, "수영장을 선택해주세요.");
 
   try {
     let matched: any[] = [];
