@@ -110,8 +110,12 @@ function PoolSelectModal({
     if (!visible) { setQuery(""); setPools([]); return; }
     setLoading(true);
     fetch(`${API_BASE}/pools/public-search`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => { const list = Array.isArray(data) ? data : (data.pools ?? []); setAllPools(list); setPools(list); })
+      .then(r => r.ok ? r.json() : { success: false, data: [] })
+      .then(data => {
+        const list: PoolResult[] = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        setAllPools(list);
+        setPools(list);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
     setTimeout(() => inputRef.current?.focus(), 300);
