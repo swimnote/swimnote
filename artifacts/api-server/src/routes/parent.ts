@@ -91,7 +91,6 @@ router.post("/auto-link-students", requireAuth, requireParent, async (req: AuthR
           AND REPLACE(LOWER(COALESCE(parent_name, '')), ' ', '') = ${normParentName}
         )
       )
-        AND (parent_user_id IS NULL OR parent_user_id = ${parentId})
         AND status NOT IN ('withdrawn', 'archived', 'deleted')
       LIMIT 20
     `);
@@ -101,23 +100,12 @@ router.post("/auto-link-students", requireAuth, requireParent, async (req: AuthR
       const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // ② 기존 레코드가 있으면 approved로 업데이트, 없으면 INSERT
-      const existingLink = await db.execute(sql`
-        SELECT id FROM parent_students
-        WHERE parent_id = ${parentId} AND student_id = ${student.id}
-        LIMIT 1
-      `);
-      if ((existingLink.rows as any[]).length > 0) {
-        await db.execute(sql`
-          UPDATE parent_students
+      await db.execute(sql`
+        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
+        VALUES (${psId}, ${parentId}, ${student.id}, ${student.swimming_pool_id}, 'approved', NOW(), NOW())
+        ON CONFLICT (parent_id, student_id) DO UPDATE
           SET status = 'approved', approved_at = NOW()
-          WHERE parent_id = ${parentId} AND student_id = ${student.id}
-        `);
-      } else {
-        await db.execute(sql`
-          INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
-          VALUES (${psId}, ${parentId}, ${student.id}, ${student.swimming_pool_id}, 'approved', NOW(), NOW())
-        `);
-      }
+      `);
 
       // ③ students.parent_user_id 강제 업데이트 (이미 본인이어도 OK)
       await db.execute(sql`
@@ -189,8 +177,8 @@ router.get("/students", requireAuth, requireParent, async (req: AuthRequest, res
               LIMIT 20`);
         for (const s of rows.rows as any[]) {
           const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await db.execute(sql`INSERT INTO parent_students (id,parent_id,student_id,swimming_pool_id,status,approved_at) VALUES (${psId},${parentId},${s.id},${s.swimming_pool_id},'approved',NOW()) ON CONFLICT DO NOTHING`);
-          await db.execute(sql`UPDATE students SET parent_user_id=${parentId}, parent_phone=COALESCE(NULLIF(parent_phone,''),${normPhone}), status=CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END, updated_at=NOW() WHERE id=${s.id} AND (parent_user_id IS NULL OR parent_user_id=${parentId})`);
+          await db.execute(sql`INSERT INTO parent_students (id,parent_id,student_id,swimming_pool_id,status,approved_at) VALUES (${psId},${parentId},${s.id},${s.swimming_pool_id},'approved',NOW()) ON CONFLICT (parent_id, student_id) DO UPDATE SET status='approved', approved_at=NOW()`);
+          await db.execute(sql`UPDATE students SET parent_user_id=${parentId}, parent_phone=COALESCE(NULLIF(parent_phone,''),${normPhone}), status=CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END, updated_at=NOW() WHERE id=${s.id}`);
         }
       }
 
@@ -210,8 +198,8 @@ router.get("/students", requireAuth, requireParent, async (req: AuthRequest, res
               LIMIT 20`);
         for (const s of rows2.rows as any[]) {
           const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await db.execute(sql`INSERT INTO parent_students (id,parent_id,student_id,swimming_pool_id,status,approved_at) VALUES (${psId},${parentId},${s.id},${s.swimming_pool_id},'approved',NOW()) ON CONFLICT DO NOTHING`);
-          await db.execute(sql`UPDATE students SET parent_user_id=${parentId}, status=CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END, updated_at=NOW() WHERE id=${s.id} AND (parent_user_id IS NULL OR parent_user_id=${parentId})`);
+          await db.execute(sql`INSERT INTO parent_students (id,parent_id,student_id,swimming_pool_id,status,approved_at) VALUES (${psId},${parentId},${s.id},${s.swimming_pool_id},'approved',NOW()) ON CONFLICT (parent_id, student_id) DO UPDATE SET status='approved', approved_at=NOW()`);
+          await db.execute(sql`UPDATE students SET parent_user_id=${parentId}, status=CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END, updated_at=NOW() WHERE id=${s.id}`);
         }
       }
     }
