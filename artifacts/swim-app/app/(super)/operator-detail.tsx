@@ -30,13 +30,13 @@ const PLAN_LABEL: Record<string, string> = {
   premier_200:   "Premier200",
   premier_300:   "Premier300",
   premier_500:   "Premier500",
-  premier_1000:  "Premier 1000",
+  premier_1000:  "Premier1000",
   trial:         "무료 체험",
 };
 const TIER_LABEL: Record<string, string> = {
   free: "Free", starter: "Coach30", basic: "Coach50",
   standard: "Coach100", growth: "Premier200", advance: "Premier300",
-  premium: "Premier500", enterprise: "Premier 1000", trial: "무료 체험",
+  premium: "Premier500", enterprise: "Premier1000", trial: "무료 체험",
 };
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   trial:     { label: "체험 중",   color: P,         bg: "#EEDDF5" },

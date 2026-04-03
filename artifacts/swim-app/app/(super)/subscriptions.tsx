@@ -36,8 +36,8 @@ const TIER_NAME: Record<string, string> = {
   center_300:  "Premier300",
   pro:         "Premier500",
   center_500:  "Premier500",
-  max:         "Premier 1000",
-  center_1000: "Premier 1000",
+  max:         "Premier1000",
+  center_1000: "Premier1000",
 };
 
 const SUB_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
