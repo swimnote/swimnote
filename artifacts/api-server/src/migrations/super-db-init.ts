@@ -212,5 +212,10 @@ export async function initSuperDb(): Promise<void> {
     console.warn("[super-db-init] parent_content_reads 오류:", e.message);
   }
 
+  // parent_accounts — is_active 컬럼 + swimming_pool_id nullable 보완
+  // (pool-db-init 실패 시 백업으로 여기서도 실행)
+  await db.execute(sql.raw(`ALTER TABLE parent_accounts ALTER COLUMN swimming_pool_id DROP NOT NULL`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE parent_accounts ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true`)).catch(() => {});
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }

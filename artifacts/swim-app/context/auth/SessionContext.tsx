@@ -175,6 +175,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setKind("parent");
         setParentJoinStatus(storedJoinStatus || null);
         setParentJoinRequestId(storedJoinRequestId || null);
+        if (pa.swimming_pool_id) await fetchPool(storedToken);
       }
     } catch (err) { console.error(err); }
     finally { setIsLoading(false); }
@@ -343,6 +344,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setToken(data.token);
     setParentAccount(data.parent);
     setKind("parent");
+    if (data.parent?.swimming_pool_id) await fetchPool(data.token);
   }
 
   async function kakaoSocialLogin(accessToken: string) {
@@ -365,6 +367,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setParentAccount(data.parent);
     setKind("parent");
     setParentJoinStatus("approved");
+    if (data.parent?.swimming_pool_id) await fetchPool(data.token);
   }
 
   async function setParentSession(token: string, parent: ParentAccount) {
@@ -376,6 +379,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setParentAccount(parent);
     setKind("parent");
     setParentJoinStatus("approved");
+    if (parent.swimming_pool_id) await fetchPool(token);
   }
 
   async function setAdminSession(token: string, user: AdminUser) {

@@ -3,7 +3,7 @@ import multer from "multer";
 import { Client } from "@replit/object-storage";
 import { superAdminDb } from "@workspace/db";
 const db = superAdminDb;
-import { swimmingPoolsTable, usersTable } from "@workspace/db/schema";
+import { swimmingPoolsTable, usersTable, parentAccountsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { sanitizePoolName } from "../utils/filename.js";
@@ -89,11 +89,21 @@ router.post("/apply", requireAuth,
 // ── 내 수영장 정보 조회 ───────────────────────────────────────────────
 router.get("/my", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const user = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
-    if (!user[0]?.swimming_pool_id) {
+    let poolId: string | null = null;
+
+    if (req.user!.role === "parent_account") {
+      // 학부모: parent_accounts 테이블에서 swimming_pool_id 조회
+      const [pa] = await db.select({ swimming_pool_id: parentAccountsTable.swimming_pool_id })
+        .from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
+      poolId = pa?.swimming_pool_id || (req.user as any).poolId || null;
+    } else {
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      poolId = user?.swimming_pool_id || null;
+    }
+
+    if (!poolId) {
       res.status(404).json({ error: "소속된 수영장이 없습니다." }); return;
     }
-    const poolId = user[0].swimming_pool_id;
     const rows = await superAdminDb.execute(sql`SELECT * FROM swimming_pools WHERE id = ${poolId}`);
     if (!rows.rows.length) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
     const pool = rows.rows[0] as any;

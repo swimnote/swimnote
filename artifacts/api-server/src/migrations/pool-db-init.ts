@@ -34,7 +34,7 @@ export async function initPoolDb(): Promise<void> {
     DO $$ BEGIN
       CREATE TYPE snapshot_type AS ENUM ('incremental', 'full');
     EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-  `));
+  `)).catch(() => {});
 
   // ─── 1. members ──────────────────────────────────────────────────────────
   await db.execute(sql.raw(`
