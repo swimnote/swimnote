@@ -130,6 +130,59 @@ router.post("/auto-link-students", requireAuth, requireParent, async (req: AuthR
 
 router.get("/students", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
+    // ── 조회 전: 전화번호·이름 기반 자동 연결 (기존 미연결 계정 포함) ──────
+    const parentId = req.user!.userId;
+    const [pa] = await db.select({ phone: parentAccountsTable.phone, name: parentAccountsTable.name, swimming_pool_id: parentAccountsTable.swimming_pool_id })
+      .from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
+    if (pa?.phone || pa?.name) {
+      const normPhone = (pa.phone || "").replace(/[^0-9]/g, "");
+      const normName  = (pa.name  || "").replace(/\s+/g, "").toLowerCase();
+      const pid       = pa.swimming_pool_id ?? null;
+
+      // 전화번호 매칭
+      if (normPhone) {
+        const rows = pid
+          ? await db.execute(sql`
+              SELECT id, swimming_pool_id FROM students
+              WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+                AND swimming_pool_id = ${pid}
+                AND status NOT IN ('withdrawn','archived','deleted')
+              LIMIT 20`)
+          : await db.execute(sql`
+              SELECT id, swimming_pool_id FROM students
+              WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${normPhone}
+                AND status NOT IN ('withdrawn','archived','deleted')
+              LIMIT 20`);
+        for (const s of rows.rows as any[]) {
+          const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await db.execute(sql`INSERT INTO parent_students (id,parent_id,student_id,swimming_pool_id,status,approved_at) VALUES (${psId},${parentId},${s.id},${s.swimming_pool_id},'approved',NOW()) ON CONFLICT DO NOTHING`);
+          await db.execute(sql`UPDATE students SET parent_user_id=${parentId}, parent_phone=COALESCE(NULLIF(parent_phone,''),${normPhone}), status=CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END, updated_at=NOW() WHERE id=${s.id} AND (parent_user_id IS NULL OR parent_user_id=${parentId})`);
+        }
+      }
+
+      // 이름 매칭
+      if (normName) {
+        const rows2 = pid
+          ? await db.execute(sql`
+              SELECT id, swimming_pool_id FROM students
+              WHERE REPLACE(LOWER(COALESCE(parent_name,'')),' ','') = ${normName}
+                AND swimming_pool_id = ${pid}
+                AND status NOT IN ('withdrawn','archived','deleted')
+              LIMIT 20`)
+          : await db.execute(sql`
+              SELECT id, swimming_pool_id FROM students
+              WHERE REPLACE(LOWER(COALESCE(parent_name,'')),' ','') = ${normName}
+                AND status NOT IN ('withdrawn','archived','deleted')
+              LIMIT 20`);
+        for (const s of rows2.rows as any[]) {
+          const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await db.execute(sql`INSERT INTO parent_students (id,parent_id,student_id,swimming_pool_id,status,approved_at) VALUES (${psId},${parentId},${s.id},${s.swimming_pool_id},'approved',NOW()) ON CONFLICT DO NOTHING`);
+          await db.execute(sql`UPDATE students SET parent_user_id=${parentId}, status=CASE WHEN status IN ('unregistered','pending_approval') THEN 'active' ELSE status END, updated_at=NOW() WHERE id=${s.id} AND (parent_user_id IS NULL OR parent_user_id=${parentId})`);
+        }
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     const links = await db.select().from(parentStudentsTable).where(
       and(eq(parentStudentsTable.parent_id, req.user!.userId), eq(parentStudentsTable.status, "approved"))
     );

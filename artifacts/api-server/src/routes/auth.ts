@@ -426,11 +426,11 @@ router.post("/simple-parent-register", async (req, res) => {
       }
     }
 
-    // ── STEP 2: 전화번호로 학생 매칭 (수영장 내) ────────────────────────────
-    if (matched.length === 0) {
+    // ── STEP 2: 전화번호로 학생 매칭 (수영장 내, 포맷 정규화 비교) ──────────
+    if (matched.length === 0 && ph) {
       const r = await db.execute(sql`
         SELECT id, swimming_pool_id FROM students
-        WHERE parent_phone = ${ph}
+        WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
           AND swimming_pool_id = ${requestedPoolId}
           AND status NOT IN ('withdrawn', 'archived', 'deleted')
         LIMIT 10
@@ -452,6 +452,19 @@ router.post("/simple-parent-register", async (req, res) => {
       }
       const seen = new Set<string>();
       matched = matched.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+    }
+
+    // ── STEP 3B: 학부모 이름으로 추가 매칭 (전화번호·이름 모두 없을 때 최후 수단) ─
+    if (matched.length === 0 && name && resolvedPoolId) {
+      const normName = name.replace(/\s+/g, "").toLowerCase();
+      const r = await db.execute(sql`
+        SELECT id, swimming_pool_id FROM students
+        WHERE REPLACE(LOWER(COALESCE(parent_name, '')), ' ', '') = ${normName}
+          AND swimming_pool_id = ${resolvedPoolId}
+          AND status NOT IN ('withdrawn', 'archived', 'deleted')
+        LIMIT 10
+      `);
+      matched = r.rows as any[];
     }
 
     // ── STEP 3: 매칭 결과 없어도 수영장 ID가 있으면 고아 계정으로 생성 ──────
@@ -486,7 +499,35 @@ router.post("/simple-parent-register", async (req, res) => {
       VALUES (${parentId}, ${resolvedPoolId}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, now(), now())
     `);
 
-    // 매칭된 학생들 자동 연결
+    // ── 계정 생성 후: 포괄적 자동 연결 (선택된 수영장 내 전화번호 + 이름 기준) ─
+    // Steps 1-3B 에서 이미 matched 된 것 외에 누락된 학생까지 잡기
+    const normParentName = name.replace(/\s+/g, "").toLowerCase();
+    if (ph) {
+      const extraByPhone = await db.execute(sql`
+        SELECT id, swimming_pool_id FROM students
+        WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
+          AND swimming_pool_id = ${resolvedPoolId}
+          AND status NOT IN ('withdrawn', 'archived', 'deleted')
+        LIMIT 20
+      `);
+      for (const s of extraByPhone.rows as any[]) {
+        if (!matched.some((m: any) => m.id === s.id)) matched.push(s);
+      }
+    }
+    if (normParentName) {
+      const extraByName = await db.execute(sql`
+        SELECT id, swimming_pool_id FROM students
+        WHERE REPLACE(LOWER(COALESCE(parent_name, '')), ' ', '') = ${normParentName}
+          AND swimming_pool_id = ${resolvedPoolId}
+          AND status NOT IN ('withdrawn', 'archived', 'deleted')
+        LIMIT 20
+      `);
+      for (const s of extraByName.rows as any[]) {
+        if (!matched.some((m: any) => m.id === s.id)) matched.push(s);
+      }
+    }
+
+    // 매칭된 학생들 자동 연결 (중복 없이)
     for (const student of matched) {
       const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await db.execute(sql`
