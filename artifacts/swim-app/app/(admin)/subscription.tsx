@@ -37,7 +37,7 @@ const SOLO_PLANS: PlanMeta[] = [
 ];
 
 const CENTER_PLANS: PlanMeta[] = [
-  { tier: "center_200", name: "Premier 200",  price: 69000,  limit: 200,  storage: "50GB",  storageMb: 51200,  group: "center" },
+  { tier: "center_200", name: "Premier200",  price: 69000,  limit: 200,  storage: "50GB",  storageMb: 51200,  group: "center" },
   { tier: "advance",    name: "Premier 300",  price: 99000,  limit: 300,  storage: "80GB",  storageMb: 81920,  group: "center" },
   { tier: "pro",        name: "Premier 500",  price: 149000, limit: 500,  storage: "130GB", storageMb: 133120, group: "center" },
   { tier: "max",        name: "Premier 1000", price: 249000, limit: 1000, storage: "500GB", storageMb: 512000, group: "center", recommended: true },

@@ -1,6 +1,6 @@
 /**
  * (super)/subscription-products.tsx — 구독 상품 설정
- * 구독 플랜 관리 (Coach30/50/100, Premier 200/300/500/1000)
+ * 구독 플랜 관리 (Coach30/50/100, Premier200/300/500/1000)
  * API 연동: GET/POST/PUT/PATCH /super/plans
  */
 import { CirclePlus, Lock, Package, PenLine, X } from "lucide-react-native";
@@ -253,7 +253,7 @@ const PLAN_GUIDE = [
     { name: "Coach100", price: "₩9,500", members: "100명",   storage: "10GB",  video: false },
   ]},
   { group: "Premier (수영장/센터)", color: "#F59E0B", plans: [
-    { name: "Premier 200",  price: "₩69,000",  members: "200명",  storage: "50GB",  video: true },
+    { name: "Premier200",  price: "₩69,000",  members: "200명",  storage: "50GB",  video: true },
     { name: "Premier 300",  price: "₩99,000",  members: "300명",  storage: "80GB",  video: true },
     { name: "Premier 500",  price: "₩149,000", members: "500명",  storage: "130GB", video: true },
     { name: "Premier 1000", price: "₩249,000", members: "1000명", storage: "500GB", video: true },

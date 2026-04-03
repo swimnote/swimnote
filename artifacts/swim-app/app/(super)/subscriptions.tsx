@@ -31,7 +31,7 @@ const TIER_NAME: Record<string, string> = {
   starter:     "Coach30",
   basic:       "Coach50",
   standard:    "Coach100",
-  center_200:  "Premier 200",
+  center_200:  "Premier200",
   advance:     "Premier 300",
   center_300:  "Premier 300",
   pro:         "Premier 500",
