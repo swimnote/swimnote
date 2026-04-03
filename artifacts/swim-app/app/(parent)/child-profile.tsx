@@ -171,7 +171,7 @@ export default function ChildProfileScreen() {
                   style={({ pressed }) => [s.quickBtn, { backgroundColor: accentColor + "12", opacity: pressed ? 0.75 : 1 }]}
                   onPress={() => {
                     setSelectedStudentId(id);
-                    router.push(btn.path as any);
+                    router.push((btn.path + "?backTo=child-profile") as any);
                   }}
                 >
                   <LucideIcon name={btn.icon as any} size={18} color={accentColor} />

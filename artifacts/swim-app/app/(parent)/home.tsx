@@ -107,36 +107,36 @@ export default function ParentHomeScreen() {
       icon: "book-open", label: "수업일지",
       sub: unread_counts.diaries > 0 ? `새 ${unread_counts.diaries}건` : null,
       badge: unread_counts.diaries, color: "#7C3AED", bg: "#EDE9FE",
-      onPress: () => router.push("/(parent)/diary" as any),
+      onPress: () => router.push("/(parent)/diary?backTo=home" as any),
     },
     {
       icon: "image", label: "앨범",
       sub: unread_counts.photos > 0 ? `새 ${unread_counts.photos}장` : null,
       badge: unread_counts.photos, color: "#EA580C", bg: "#FEF3C7",
-      onPress: () => router.push("/(parent)/photos" as any),
+      onPress: () => router.push("/(parent)/photos?backTo=home" as any),
     },
     {
       icon: "calendar-check", label: "출결",
       sub: summary.attendance.total > 0 ? `${summary.attendance.attended}/${summary.attendance.total}회` : null,
       badge: null, color: "#2563EB", bg: "#DBEAFE",
-      onPress: () => router.push("/(parent)/attendance-history" as any),
+      onPress: () => router.push("/(parent)/attendance-history?backTo=home" as any),
     },
     {
       icon: "bell", label: "공지",
       sub: unread_counts.notices > 0 ? `새 ${unread_counts.notices}건` : null,
       badge: unread_counts.notices, color: "#D97706", bg: "#FEF9C3",
-      onPress: () => router.push("/(parent)/notices" as any),
+      onPress: () => router.push("/(parent)/notices?backTo=home" as any),
     },
     {
       icon: "mail", label: "쪽지",
       sub: unread_counts.messages > 0 ? `읽지않음 ${unread_counts.messages}` : null,
       badge: unread_counts.messages, color: "#0369A1", bg: IB,
-      onPress: () => router.push("/(parent)/messages" as any),
+      onPress: () => router.push("/(parent)/messages?backTo=home" as any),
     },
     {
       icon: "droplet", label: "수영정보",
       sub: null, badge: null, color: "#2EC4B6", bg: IB,
-      onPress: () => router.push("/(parent)/swim-info" as any),
+      onPress: () => router.push("/(parent)/swim-info?backTo=home" as any),
     },
   ];
 
@@ -145,22 +145,22 @@ export default function ParentHomeScreen() {
     unread_counts.diaries > 0 && {
       icon: "book-open", color: "#7C3AED",
       label: `수업일지 ${unread_counts.diaries}건`,
-      onPress: () => router.push("/(parent)/diary" as any),
+      onPress: () => router.push("/(parent)/diary?backTo=home" as any),
     },
     unread_counts.photos > 0 && {
       icon: "image", color: "#EA580C",
       label: `새 사진 ${unread_counts.photos}장`,
-      onPress: () => router.push("/(parent)/photos" as any),
+      onPress: () => router.push("/(parent)/photos?backTo=home" as any),
     },
     unread_counts.notices > 0 && {
       icon: "bell", color: "#D97706",
       label: `공지 ${unread_counts.notices}건`,
-      onPress: () => router.push("/(parent)/notices" as any),
+      onPress: () => router.push("/(parent)/notices?backTo=home" as any),
     },
     unread_counts.messages > 0 && {
       icon: "mail", color: "#0369A1",
       label: `읽지 않은 쪽지 ${unread_counts.messages}개`,
-      onPress: () => router.push("/(parent)/messages" as any),
+      onPress: () => router.push("/(parent)/messages?backTo=home" as any),
     },
   ].filter(Boolean) as any[];
 
@@ -232,8 +232,8 @@ export default function ParentHomeScreen() {
             unreadDiaries={unread_counts.diaries}
             todaySchedule={summary.today_schedule}
             currentLevel={summary.growth?.current_level ?? null}
-            onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: selectedStudent.id } })}
-            onLevelPress={() => router.push("/(parent)/level" as any)}
+            onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: selectedStudent.id, backTo: "home" } })}
+            onLevelPress={() => router.push("/(parent)/level?backTo=home" as any)}
           />
         )}
 
@@ -250,7 +250,7 @@ export default function ParentHomeScreen() {
             {/* ─── F. 최근 수업일지 ─── */}
             <ParentLatestDiaryCard
               diaries={summary.latest_diaries}
-              onPress={() => router.push("/(parent)/diary" as any)}
+              onPress={() => router.push("/(parent)/diary?backTo=home" as any)}
             />
 
             {/* ─── G. 최근 사진 ─── */}
@@ -258,15 +258,15 @@ export default function ParentHomeScreen() {
               photos={summary.latest_photos}
               unreadCount={unread_counts.photos}
               token={token}
-              onPress={() => router.push("/(parent)/photos" as any)}
+              onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
             />
 
             {/* ─── H. 최근 공지 ─── */}
             <ParentNoticeCard
               notices={summary.latest_notices}
               unreadCount={unread_counts.notices}
-              onPress={() => router.push("/(parent)/notices" as any)}
-              onViewAll={() => router.push("/(parent)/notices" as any)}
+              onPress={() => router.push("/(parent)/notices?backTo=home" as any)}
+              onViewAll={() => router.push("/(parent)/notices?backTo=home" as any)}
             />
 
             {/* ─── I. 성장 ─── */}

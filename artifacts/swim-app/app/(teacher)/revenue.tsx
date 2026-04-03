@@ -288,7 +288,7 @@ export default function RevenueScreen() {
                     <Text style={[rv.sectionTitle, { color: C.text }]}>납부 수령 현황</Text>
                     <Pressable
                       style={{ marginLeft: "auto" as any, flexDirection: "row", alignItems: "center", gap: 4 }}
-                      onPress={() => router.push("/(teacher)/fee-check" as any)}
+                      onPress={() => router.push("/(teacher)/fee-check?backTo=revenue" as any)}
                     >
                       <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: themeColor }}>관리</Text>
                       <ChevronRight size={13} color={themeColor} />

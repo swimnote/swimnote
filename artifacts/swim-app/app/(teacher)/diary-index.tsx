@@ -127,7 +127,7 @@ export default function DiaryIndexScreen() {
   const handlePress = useCallback((entry: DiaryIndexEntry) => {
     router.push({
       pathname: "/(teacher)/diary",
-      params: { editDiaryId: entry.source_diary_id },
+      params: { editDiaryId: entry.source_diary_id, backTo: "diary-index" },
     } as any);
   }, []);
 
@@ -203,7 +203,7 @@ export default function DiaryIndexScreen() {
       {/* 일지 작성 버튼 */}
       <Pressable
         style={[di.writeBtn, { backgroundColor: C.button }]}
-        onPress={() => router.push("/(teacher)/diary-unwritten" as any)}
+        onPress={() => router.push("/(teacher)/diary-unwritten?backTo=diary-index" as any)}
       >
         <Pencil size={15} color="#fff" />
         <Text style={di.writeBtnText}>일지 작성</Text>

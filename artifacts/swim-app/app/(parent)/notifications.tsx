@@ -66,9 +66,9 @@ export default function ParentNotificationsScreen() {
     }
     // 관련 화면으로 이동
     if (n.ref_type === "diary" || n.type === "diary_upload") {
-      router.push("/(parent)/children");
+      router.push("/(parent)/children?backTo=notifications" as any);
     } else if (n.ref_type === "student" || n.type === "photo_upload") {
-      router.push("/(parent)/children");
+      router.push("/(parent)/children?backTo=notifications" as any);
     }
   }
 

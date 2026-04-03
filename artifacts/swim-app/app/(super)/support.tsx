@@ -507,7 +507,7 @@ export default function SupportScreen() {
                     <Text style={m.infoLabel}>운영자</Text>
                     <Pressable onPress={() => {
                       setEditTicket(null);
-                      router.push(`/(super)/operator-detail?id=${editTicket.operatorId}` as any);
+                      router.push(`/(super)/operator-detail?id=${editTicket.operatorId}&backTo=support` as any);
                     }}>
                       <Text style={[m.infoVal, { color: P, textDecorationLine: "underline" }]}>{editTicket.operatorName}</Text>
                     </Pressable>
@@ -553,7 +553,7 @@ export default function SupportScreen() {
               </View>
 
               {editTicket.type === "refund" && (
-                <Pressable style={m.linkBtn} onPress={() => { setEditTicket(null); router.push("/(super)/subscriptions" as any); }}>
+                <Pressable style={m.linkBtn} onPress={() => { setEditTicket(null); router.push("/(super)/subscriptions?backTo=support" as any); }}>
                   <CreditCard size={14} color={P} />
                   <Text style={m.linkBtnTxt}>구독·결제 관리로 이동</Text>
                 </Pressable>

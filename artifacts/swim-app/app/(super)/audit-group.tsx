@@ -95,14 +95,14 @@ export default function AuditGroupScreen() {
           </View>
         ))}
 
-        <Pressable style={s.viewAllBtn} onPress={() => router.push('/(super)/op-logs' as any)}>
+        <Pressable style={s.viewAllBtn} onPress={() => router.push('/(super)/op-logs?backTo=audit-group' as any)}>
           <Text style={s.viewAllTxt}>전체 로그 보기 →</Text>
         </Pressable>
 
         <View style={s.divider} />
 
         {MENUS.map((m, idx) => (
-          <Pressable key={idx} style={s.card} onPress={() => router.push(m.path as any)}>
+          <Pressable key={idx} style={s.card} onPress={() => router.push((m.path + "?backTo=audit-group") as any)}>
             <View style={[s.iconBox, { backgroundColor: m.bg }]}>
               <LucideIcon name={m.icon} size={22} color={m.color} />
             </View>

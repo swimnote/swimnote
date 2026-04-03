@@ -141,7 +141,7 @@ export default function MessagesScreen() {
               <Text style={[s.noDiarySub, { color: C.textSecondary }]}>수업일지에서 쪽지달기 버튼을 눌러 선생님께 쪽지를 보내세요</Text>
               <Pressable
                 style={[s.noDiaryBtn, { backgroundColor: C.button }]}
-                onPress={() => router.push("/(parent)/diary" as any)}
+                onPress={() => router.push("/(parent)/diary?backTo=messages" as any)}
               >
                 <Text style={s.noDiaryBtnTxt}>수업일지 보러 가기</Text>
               </Pressable>

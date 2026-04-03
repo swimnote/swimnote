@@ -221,7 +221,7 @@ export default function StorageScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="저장공간 관리" homePath="/(super)/op-group"
         rightSlot={
-          <Pressable onPress={() => router.push("/(super)/storage-policy" as any)}
+          <Pressable onPress={() => router.push("/(super)/storage-policy?backTo=storage" as any)}
             style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
             <Settings size={18} color="#64748B" />
           </Pressable>
@@ -375,7 +375,7 @@ export default function StorageScreen() {
                   <Text style={m.ctaOptionDesc}>더 많은 저장공간 · 추가 기능 포함</Text>
                 </View>
                 <Pressable style={[m.ctaBtn, { backgroundColor: C.button }]}
-                  onPress={() => { setCtaModal(null); router.push("/(super)/subscriptions" as any); }}>
+                  onPress={() => { setCtaModal(null); router.push("/(super)/subscriptions?backTo=storage" as any); }}>
                   <Text style={m.ctaBtnTxt}>업그레이드</Text>
                 </Pressable>
               </View>

@@ -82,7 +82,7 @@ export default function ParentStudentDetailScreen() {
           <View style={styles.bigCardsRow}>
             <Pressable
               style={({ pressed }) => [styles.bigCard, { backgroundColor: "#7C3AED", opacity: pressed ? 0.9 : 1 }]}
-              onPress={() => router.push({ pathname: "/(parent)/photos", params: { id, name } })}
+              onPress={() => router.push({ pathname: "/(parent)/photos", params: { id, name, backTo: "student-detail" } })}
             >
               <Text style={styles.bigCardEmoji}>📷</Text>
               <Text style={styles.bigCardLabel}>수영 사진첩</Text>
@@ -91,7 +91,7 @@ export default function ParentStudentDetailScreen() {
 
             <Pressable
               style={({ pressed }) => [styles.bigCard, { backgroundColor: C.button, opacity: pressed ? 0.9 : 1 }]}
-              onPress={() => router.push({ pathname: "/(parent)/swim-diary", params: { id, name } })}
+              onPress={() => router.push({ pathname: "/(parent)/swim-diary", params: { id, name, backTo: "student-detail" } })}
             >
               <Text style={styles.bigCardEmoji}>📒</Text>
               <Text style={styles.bigCardLabel}>수영 일지</Text>
@@ -102,7 +102,7 @@ export default function ParentStudentDetailScreen() {
           {/* 출결기록 - 중간 카드 */}
           <Pressable
             style={({ pressed }) => [styles.midCard, { backgroundColor: C.card, opacity: pressed ? 0.9 : 1 }]}
-            onPress={() => router.push({ pathname: "/(parent)/attendance-history", params: { id, name } })}
+            onPress={() => router.push({ pathname: "/(parent)/attendance-history", params: { id, name, backTo: "student-detail" } })}
           >
             <View style={[styles.midIcon, { backgroundColor: C.success + "20" }]}>
               <Calendar size={22} color={C.success} />
@@ -117,7 +117,7 @@ export default function ParentStudentDetailScreen() {
           {/* 공지사항 - 작은 카드 */}
           <Pressable
             style={({ pressed }) => [styles.smallCard, { backgroundColor: C.card, borderColor: C.border, opacity: pressed ? 0.9 : 1 }]}
-            onPress={() => router.push({ pathname: "/(parent)/notices" })}
+            onPress={() => router.push({ pathname: "/(parent)/notices", params: { backTo: "student-detail" } })}
           >
             <Bell size={16} color={C.textSecondary} />
             <Text style={[styles.smallLabel, { color: C.textSecondary }]}>공지사항</Text>

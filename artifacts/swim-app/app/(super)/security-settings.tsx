@@ -506,7 +506,7 @@ export default function SecuritySettingsScreen() {
             <Pressable
               style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
                 backgroundColor: "#EEDDF5", borderRadius: 10, padding: 14 }}
-              onPress={() => router.push("/(super)/backup")}>
+              onPress={() => router.push("/(super)/backup?backTo=security-settings" as any)}>
               <Save size={16} color={P} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: P }}>백업 관리</Text>

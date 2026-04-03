@@ -291,7 +291,7 @@ export default function SubscriptionsScreen() {
             </Pressable>
           )}
           <Pressable style={[s.actionBtn, { backgroundColor: "#E0F2FE" }]}
-            onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
+            onPress={() => router.push(`/(super)/operator-detail?id=${item.id}&backTo=subscriptions` as any)}>
             <Eye size={13} color="#0284C7" />
           </Pressable>
         </View>
@@ -399,7 +399,7 @@ export default function SubscriptionsScreen() {
 
               <View style={m.linkRow}>
                 <Pressable style={m.linkBtn}
-                  onPress={() => { setEditOp(null); router.push(`/(super)/operator-detail?id=${editOp.id}` as any); }}>
+                  onPress={() => { setEditOp(null); router.push(`/(super)/operator-detail?id=${editOp.id}&backTo=subscriptions` as any); }}>
                   <User size={14} color={P} />
                   <Text style={m.linkTxt}>운영자 상세 전체 보기</Text>
                 </Pressable>

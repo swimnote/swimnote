@@ -208,7 +208,7 @@ export default function MyInfoScreen() {
             renderItem={({ item }) => (
               <Pressable
                 style={[s.memberRow, { backgroundColor: C.card }]}
-                onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id } } as any)}
+                onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id, backTo: "my-info" } } as any)}
               >
                 <View style={[s.memberAvatar, { backgroundColor: colors[memberView] + "20" }]}>
                   <Text style={[s.memberAvatarText, { color: colors[memberView] }]}>{item.name[0]}</Text>

@@ -71,7 +71,7 @@ export default function SupportGroupScreen() {
 
         {/* 메뉴 */}
         {MENUS.map((m, idx) => (
-          <Pressable key={idx} style={s.card} onPress={() => router.push(m.path as any)}>
+          <Pressable key={idx} style={s.card} onPress={() => router.push((m.path + "?backTo=support-group") as any)}>
             <View style={[s.iconBox, { backgroundColor: m.bg }]}>
               <LucideIcon name={m.icon} size={22} color={m.color} />
             </View>

@@ -87,7 +87,7 @@ export default function ProtectGroupScreen() {
         )}
 
         {MENUS.map(m => (
-          <Pressable key={m.path} style={s.card} onPress={() => router.push(m.path as any)}>
+          <Pressable key={m.path} style={s.card} onPress={() => router.push((m.path + "?backTo=protect-group") as any)}>
             <View style={[s.iconBox, { backgroundColor: m.bg }]}>
               <LucideIcon name={m.icon} size={22} color={m.color} />
             </View>

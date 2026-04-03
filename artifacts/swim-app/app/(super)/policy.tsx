@@ -222,7 +222,7 @@ export default function PolicyScreen() {
             }
             renderItem={({ item }) => (
               <Pressable style={s.unsignedRow}
-                onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
+                onPress={() => router.push(`/(super)/operator-detail?id=${item.id}&backTo=policy` as any)}>
                 <View style={s.unsignedLeft}>
                   <View style={s.unsignedBullet} />
                   <View>

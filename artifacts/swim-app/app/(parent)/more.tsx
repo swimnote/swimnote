@@ -99,35 +99,35 @@ export default function ParentMoreScreen() {
           label="부모 정보 수정"
           sub="이름·전화번호·비밀번호"
           iconColor={NAVY_C} iconBg={NAVY_BG}
-          onPress={() => router.push("/(parent)/parent-profile" as any)}
+          onPress={() => router.push("/(parent)/parent-profile?backTo=more" as any)}
         />
         <MenuItem
           icon="users"
           label="자녀 관리"
           sub={students.length > 0 ? `연결된 자녀 ${students.length}명` : "자녀를 연결해주세요"}
           iconColor={NAVY_C} iconBg={MINT_BG}
-          onPress={() => router.push("/(parent)/children" as any)}
+          onPress={() => router.push("/(parent)/children?backTo=more" as any)}
         />
         <MenuItem
           icon="clipboard-list"
           label="수업 요청"
           sub="결석·연기·퇴원·상담 신청"
           iconColor={ORNG_C} iconBg={ORNG_BG}
-          onPress={() => router.push("/(parent)/requests" as any)}
+          onPress={() => router.push("/(parent)/requests?backTo=more" as any)}
         />
         <MenuItem
           icon="bell"
           label="공지함"
           sub="수영장 공지 전체 보기"
           iconColor={NAVY_C} iconBg={NAVY_BG}
-          onPress={() => router.push("/(parent)/notices" as any)}
+          onPress={() => router.push("/(parent)/notices?backTo=more" as any)}
         />
         <MenuItem
           icon="settings"
           label="푸시 알림 설정"
           sub="공지·수업·일지·사진 알림 on/off"
           iconColor={NAVY_C} iconBg={NAVY_BG}
-          onPress={() => router.push("/(parent)/push-settings" as any)}
+          onPress={() => router.push("/(parent)/push-settings?backTo=more" as any)}
         />
         {/* 약관 및 정책 */}
         <MenuItem

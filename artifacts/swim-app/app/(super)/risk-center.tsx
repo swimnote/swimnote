@@ -226,7 +226,7 @@ export default function RiskCenterScreen() {
                 고객센터 미처리 {support.open_count}건
                 {support.overdue_count > 0 && ` · SLA 초과 ${support.overdue_count}건`}
               </Text>
-              <Pressable onPress={() => router.push("/(super)/support" as any)} style={s.supportLink}>
+              <Pressable onPress={() => router.push("/(super)/support?backTo=risk-center" as any)} style={s.supportLink}>
                 <Text style={s.supportLinkTxt}>처리</Text>
               </Pressable>
             </View>
@@ -235,7 +235,7 @@ export default function RiskCenterScreen() {
 
         {/* ── 결제 실패 ── */}
         <RiskGroup title="결제 실패 운영자" icon="credit-card" color="#D96C6C" bg="#F9DEDA"
-          count={paymentFailed.length} onViewAll={() => router.push("/(super)/subscriptions" as any)}>
+          count={paymentFailed.length} onViewAll={() => router.push("/(super)/subscriptions?backTo=risk-center" as any)}>
           {paymentFailed.slice(0, 5).map((op: any) => (
             <View key={op.id} style={g.item}>
               <View style={g.itemLeft}>
@@ -249,7 +249,7 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === op.id} onPress={() => setReadonly(op)}>
                   <Text style={[g.btnTxt, { color: "#D96C6C" }]}>RO</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}&backTo=risk-center` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -259,7 +259,7 @@ export default function RiskCenterScreen() {
 
         {/* ── 저장공간 95% 초과 ── */}
         <RiskGroup title="저장공간 위험 (95%↑)" icon="hard-drive" color={P} bg="#EEDDF5"
-          count={storageDanger.length} onViewAll={() => router.push("/(super)/storage" as any)}>
+          count={storageDanger.length} onViewAll={() => router.push("/(super)/storage?backTo=risk-center" as any)}>
           {storageDanger.slice(0, 5).map((op: any) => {
             const pct = op.usage_pct ?? 0;
             return (
@@ -282,7 +282,7 @@ export default function RiskCenterScreen() {
                   <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === op.id} onPress={() => blockUpload(op)}>
                     <Text style={[g.btnTxt, { color: "#D96C6C" }]}>차단</Text>
                   </Pressable>
-                  <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                  <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}&backTo=risk-center` as any)}>
                     <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                   </Pressable>
                 </View>
@@ -293,7 +293,7 @@ export default function RiskCenterScreen() {
 
         {/* ── 자동삭제 예정 ── */}
         <RiskGroup title="자동삭제 예정 (48h)" icon="trash-2" color="#2EC4B6" bg="#ECFEFF"
-          count={deletionPending.length} onViewAll={() => router.push("/(super)/kill-switch" as any)}>
+          count={deletionPending.length} onViewAll={() => router.push("/(super)/kill-switch?backTo=risk-center" as any)}>
           {deletionPending.slice(0, 5).map((op: any) => (
             <View key={op.id} style={g.item}>
               <View style={g.itemLeft}>
@@ -307,7 +307,7 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#E6FFFA" }]} disabled={processing === op.id} onPress={() => cancelDeletion(op)}>
                   <Text style={[g.btnTxt, { color: "#2EC4B6" }]}>해제</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}&backTo=risk-center` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -328,7 +328,7 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === (op.pool_id ?? op.id)} onPress={() => limitUpload(op)}>
                   <Text style={[g.btnTxt, { color: "#D96C6C" }]}>제한</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.pool_id ?? op.id}` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.pool_id ?? op.id}&backTo=risk-center` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -338,7 +338,7 @@ export default function RiskCenterScreen() {
 
         {/* ── 정책 미확인 ── */}
         <RiskGroup title="정책 미확인 운영자" icon="file-text" color="#2EC4B6" bg="#E6FFFA"
-          count={policyUnsigned.length} onViewAll={() => router.push("/(super)/policy" as any)}>
+          count={policyUnsigned.length} onViewAll={() => router.push("/(super)/policy?backTo=risk-center" as any)}>
           {policyUnsigned.slice(0, 5).map((op: any) => (
             <View key={op.id} style={g.item}>
               <View style={g.itemLeft}>
@@ -349,7 +349,7 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => sendPolicyReminder(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>재알림</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#E6FFFA" }]} onPress={() => router.push("/(super)/policy" as any)}>
+                <Pressable style={[g.btn, { backgroundColor: "#E6FFFA" }]} onPress={() => router.push("/(super)/policy?backTo=risk-center" as any)}>
                   <Text style={[g.btnTxt, { color: "#2EC4B6" }]}>상세</Text>
                 </Pressable>
               </View>

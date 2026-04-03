@@ -401,7 +401,7 @@ export default function OperatorDetailScreen() {
               <InfoRow label="처리 완료"   value={`${support.resolved_count}건`} />
               {support.open_count > 0 && (
                 <Pressable style={[d.actionCard, { marginTop: 8 }]}
-                  onPress={() => router.push("/(super)/support" as any)}>
+                  onPress={() => router.push("/(super)/support?backTo=operator-detail" as any)}>
                   <Text style={[d.actionCardTxt, { color: "#D97706" }]}>미처리 문의 확인 →</Text>
                 </Pressable>
               )}
@@ -483,7 +483,7 @@ export default function OperatorDetailScreen() {
                 </View>
               )}
             </View>
-            <Pressable style={d.actionCard} onPress={() => router.push(`/(super)/storage?operatorId=${id}` as any)}>
+            <Pressable style={d.actionCard} onPress={() => router.push(`/(super)/storage?operatorId=${id}&backTo=operator-detail` as any)}>
               <HardDrive size={18} color={P} />
               <Text style={d.actionCardTxt}>추가 용량 부여</Text>
               <ChevronRight size={16} color="#64748B" style={{ marginLeft: "auto" }} />
@@ -502,7 +502,7 @@ export default function OperatorDetailScreen() {
             <InfoRow label="이용약관"      value={policy.terms          ? "동의" : "미동의"} alert={!policy.terms} />
             {policy.terms && <InfoRow label="약관 동의일" value={fmtDate(policy.terms)} />}
             <Pressable style={[d.actionCard, { marginTop: 8 }]}
-              onPress={() => router.push("/(super)/policy" as any)}>
+              onPress={() => router.push("/(super)/policy?backTo=operator-detail" as any)}>
               <FileText size={18} color={P} />
               <Text style={d.actionCardTxt}>정책 편집</Text>
               <ChevronRight size={16} color="#64748B" style={{ marginLeft: "auto" }} />
@@ -556,12 +556,12 @@ export default function OperatorDetailScreen() {
 
             <View style={d.card}>
               <Text style={d.cardTitle}>빠른 링크</Text>
-              <Pressable style={d.quickLink} onPress={() => router.push("/(super)/kill-switch" as any)}>
+              <Pressable style={d.quickLink} onPress={() => router.push("/(super)/kill-switch?backTo=operator-detail" as any)}>
                 <TriangleAlert size={15} color="#D96C6C" />
                 <Text style={[d.quickLinkTxt, { color: "#D96C6C" }]}>킬스위치 (데이터 삭제)</Text>
                 <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />
               </Pressable>
-              <Pressable style={d.quickLink} onPress={() => router.push(`/(super)/storage?operatorId=${id}` as any)}>
+              <Pressable style={d.quickLink} onPress={() => router.push(`/(super)/storage?operatorId=${id}&backTo=operator-detail` as any)}>
                 <HardDrive size={15} color={P} />
                 <Text style={[d.quickLinkTxt, { color: P }]}>저장공간 조정</Text>
                 <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />

@@ -106,7 +106,7 @@ function TodoRow({
             <Text style={[tr.btnTxt, { color: "#2EC4B6" }]}>재알림</Text>
           </Pressable>
         )}
-        <Pressable style={[tr.btn, { backgroundColor: "#FFFFFF" }]} onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
+        <Pressable style={[tr.btn, { backgroundColor: "#FFFFFF" }]} onPress={() => router.push(`/(super)/operator-detail?id=${item.id}&backTo=dashboard` as any)}>
           <Text style={[tr.btnTxt, { color: "#0F172A" }]}>상세</Text>
         </Pressable>
       </View>
@@ -261,12 +261,12 @@ export default function SuperDashboard() {
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
           {totalAlerts > 0 && (
-            <Pressable style={s.alertPill} onPress={() => router.push("/(super)/risk-center" as any)}>
+            <Pressable style={s.alertPill} onPress={() => router.push("/(super)/risk-center?backTo=dashboard" as any)}>
               <CircleAlert size={13} color="#D96C6C" />
               <Text style={s.alertPillTxt}>{totalAlerts}건 처리 필요</Text>
             </Pressable>
           )}
-          <Pressable style={s.avatarCircle} onPress={() => router.push("/(super)/backup" as any)}>
+          <Pressable style={s.avatarCircle} onPress={() => router.push("/(super)/backup?backTo=dashboard" as any)}>
             <Save size={17} color="#fff" />
           </Pressable>
           <Pressable style={s.logoutBtn} onPress={logout}>
@@ -287,11 +287,11 @@ export default function SuperDashboard() {
             {/* ── 6대 KPI ── */}
             <View style={s.statsGrid}>
               {[
-                { label: "전체 운영자",   v: stats?.total_operators ?? 0,        alert: false, path: "/(super)/pools" },
-                { label: "활성 운영자",   v: stats?.active_operators ?? 0,       alert: false, path: "/(super)/pools" },
-                { label: "승인 대기",     v: stats?.pending_operators ?? 0,      alert: true,  path: "/(super)/pools?filter=pending" },
-                { label: "저장 위험",     v: stats?.storage_danger_count ?? 0,   alert: true,  path: "/(super)/storage" },
-                { label: "24h 삭제",      v: stats?.deletion_pending_count ?? 0, alert: true,  path: "/(super)/risk-center" },
+                { label: "전체 운영자",   v: stats?.total_operators ?? 0,        alert: false, path: "/(super)/pools?backTo=dashboard" },
+                { label: "활성 운영자",   v: stats?.active_operators ?? 0,       alert: false, path: "/(super)/pools?backTo=dashboard" },
+                { label: "승인 대기",     v: stats?.pending_operators ?? 0,      alert: true,  path: "/(super)/pools?filter=pending&backTo=dashboard" },
+                { label: "저장 위험",     v: stats?.storage_danger_count ?? 0,   alert: true,  path: "/(super)/storage?backTo=dashboard" },
+                { label: "24h 삭제",      v: stats?.deletion_pending_count ?? 0, alert: true,  path: "/(super)/risk-center?backTo=dashboard" },
               ].map((item, i) => (
                 <Pressable key={i} style={[s.statCard, item.alert && item.v > 0 && s.statAlert]}
                   onPress={() => router.push(item.path as any)}>
@@ -321,7 +321,7 @@ export default function SuperDashboard() {
                   renderItem={(item: TodoItem) => (
                     <TodoRow item={item} color="#D97706" onAction={doAction} />
                   )}
-                  path="/(super)/pools?filter=pending"
+                  path="/(super)/pools?filter=pending&backTo=dashboard"
                 />
 
                 {/* 저장공간 위험 */}
@@ -332,7 +332,7 @@ export default function SuperDashboard() {
                   renderItem={(item: TodoItem) => (
                     <TodoRow item={item} color={P} onAction={doAction} />
                   )}
-                  path="/(super)/storage"
+                  path="/(super)/storage?backTo=dashboard"
                 />
 
                 {/* 자동삭제 예정 */}
@@ -343,7 +343,7 @@ export default function SuperDashboard() {
                   renderItem={(item: TodoItem) => (
                     <TodoRow item={item} color="#2EC4B6" onAction={doAction} />
                   )}
-                  path="/(super)/risk-center"
+                  path="/(super)/risk-center?backTo=dashboard"
                 />
 
                 {/* 정책 미확인 */}
@@ -354,7 +354,7 @@ export default function SuperDashboard() {
                   renderItem={(item: TodoItem) => (
                     <TodoRow item={item} color="#2EC4B6" onAction={doAction} />
                   )}
-                  path="/(super)/policy"
+                  path="/(super)/policy?backTo=dashboard"
                 />
 
                 {/* 보안 이벤트 */}
@@ -370,18 +370,18 @@ export default function SuperDashboard() {
                           <Text style={tr.sub} numberOfLines={1}>{item.description ?? ""} · {relStr(item.created_at)}</Text>
                         </View>
                         <Pressable style={[tr.btn, { backgroundColor: "#F9DEDA" }]}
-                          onPress={() => router.push("/(super)/op-logs" as any)}>
+                          onPress={() => router.push("/(super)/op-logs?backTo=dashboard" as any)}>
                           <Text style={[tr.btnTxt, { color: "#991B1B" }]}>로그</Text>
                         </Pressable>
                       </View>
                     )}
-                    path="/(super)/op-logs"
+                    path="/(super)/op-logs?backTo=dashboard"
                   />
                 )}
 
                 {/* 고객센터 미처리 배너 */}
                 {(todo?.support_open_count ?? 0) > 0 && (
-                  <Pressable style={s.supportBanner} onPress={() => router.push("/(super)/support" as any)}>
+                  <Pressable style={s.supportBanner} onPress={() => router.push("/(super)/support?backTo=dashboard" as any)}>
                     <View style={[ts.iconWrap, { backgroundColor: "#E0F2FE" }]}>
                       <MessageCircle size={14} color="#0284C7" />
                     </View>
@@ -406,18 +406,18 @@ export default function SuperDashboard() {
             {/* ── 리스크 요약 ── */}
             {riskSummary && (
               <View style={s.riskSection}>
-                <Pressable style={s.riskHeader} onPress={() => router.push("/(super)/risk-center" as any)}>
+                <Pressable style={s.riskHeader} onPress={() => router.push("/(super)/risk-center?backTo=dashboard" as any)}>
                   <Shield size={15} color="#9333EA" />
                   <Text style={s.riskHeaderTxt}>리스크 요약</Text>
                   <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />
                 </Pressable>
                 <View style={s.riskGrid}>
                   {[
-                    { label: "저장공간 리스크", v: riskSummary.storage_risk,    color: "#D97706", path: "/(super)/storage" },
-                    { label: "삭제 예정",      v: riskSummary.deletion_pending, color: "#2EC4B6", path: "/(super)/risk-center" },
-                    { label: "정책 미확인",    v: riskSummary.policy_unsigned,  color: "#2EC4B6", path: "/(super)/policy" },
-                    { label: "SLA 초과",       v: riskSummary.sla_overdue,      color: "#D96C6C", path: "/(super)/support" },
-                    { label: "보안 이벤트",    v: riskSummary.security_events,  color: "#991B1B", path: "/(super)/op-logs" },
+                    { label: "저장공간 리스크", v: riskSummary.storage_risk,    color: "#D97706", path: "/(super)/storage?backTo=dashboard" },
+                    { label: "삭제 예정",      v: riskSummary.deletion_pending, color: "#2EC4B6", path: "/(super)/risk-center?backTo=dashboard" },
+                    { label: "정책 미확인",    v: riskSummary.policy_unsigned,  color: "#2EC4B6", path: "/(super)/policy?backTo=dashboard" },
+                    { label: "SLA 초과",       v: riskSummary.sla_overdue,      color: "#D96C6C", path: "/(super)/support?backTo=dashboard" },
+                    { label: "보안 이벤트",    v: riskSummary.security_events,  color: "#991B1B", path: "/(super)/op-logs?backTo=dashboard" },
                   ].map((item) => (
                     <Pressable key={item.label} style={s.riskCard}
                       onPress={() => router.push(item.path as any)}>
@@ -432,7 +432,7 @@ export default function SuperDashboard() {
 
             {/* ── 최근 감사 로그 5개 ── */}
             <View style={s.auditSection}>
-              <Pressable style={s.auditHeader} onPress={() => router.push("/(super)/op-logs" as any)}>
+              <Pressable style={s.auditHeader} onPress={() => router.push("/(super)/op-logs?backTo=dashboard" as any)}>
                 <Activity size={15} color="#2EC4B6" />
                 <Text style={s.auditHeaderTxt}>최근 감사 로그</Text>
                 <ChevronRight size={14} color="#64748B" style={{ marginLeft: "auto" }} />

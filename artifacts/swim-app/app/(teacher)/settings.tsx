@@ -202,7 +202,7 @@ export default function TeacherSettingsScreen() {
             {feeCheckEnabled && (
               <Pressable
                 style={[s.feeBtn, { borderColor: themeColor, borderTopWidth: 1, borderTopColor: C.border }]}
-                onPress={() => router.push("/(teacher)/fee-check" as any)}
+                onPress={() => router.push("/(teacher)/fee-check?backTo=settings" as any)}
               >
                 <CircleDollarSign size={16} color={themeColor} />
                 <Text style={[s.feeBtnText, { color: themeColor }]}>납부 현황 보기</Text>
@@ -324,7 +324,7 @@ export default function TeacherSettingsScreen() {
                 s.policyRow,
                 i > 0 && { borderTopWidth: 1, borderTopColor: C.border },
               ]}
-              onPress={() => router.push(item.path as any)}
+              onPress={() => router.push((item.path + "?backTo=settings") as any)}
             >
               <Text style={s.policyLabel}>{item.label}</Text>
               <ChevronRight size={16} color={C.textMuted} />

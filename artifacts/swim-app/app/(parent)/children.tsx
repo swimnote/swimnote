@@ -112,7 +112,7 @@ export default function ChildrenScreen() {
               <Pressable
                 key={st.id}
                 style={({ pressed }) => [s.childCard, { backgroundColor: C.card, opacity: pressed ? 0.9 : 1 }]}
-                onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: st.id } })}
+                onPress={() => router.push({ pathname: "/(parent)/child-profile" as any, params: { id: st.id, backTo: "children" } })}
               >
                 <View style={[s.childAvatar, { backgroundColor: color + "22" }]}>
                   <Text style={[s.childAvatarTxt, { color }]}>{st.name[0]}</Text>

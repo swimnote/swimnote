@@ -371,7 +371,7 @@ export default function StudentDetailScreen() {
                         style={[s.goBtn, { borderColor: themeColor + "40" }]}
                         onPress={() => router.push({
                           pathname: "/(teacher)/attendance",
-                          params: { classGroupId: cls.id },
+                          params: { classGroupId: cls.id, backTo: "student-detail" },
                         } as any)}>
                         <Text style={[s.goBtnText, { color: themeColor }]}>출결</Text>
                       </Pressable>

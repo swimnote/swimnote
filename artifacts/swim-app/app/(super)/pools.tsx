@@ -148,7 +148,7 @@ export default function SuperPoolsScreen() {
     if (selected.size === 0) return;
     if (action === "terminate") {
       setBulkModal(null); setMultiSelect(false);
-      router.push("/(super)/kill-switch" as any); return;
+      router.push("/(super)/kill-switch?backTo=pools" as any); return;
     }
     setProcessing(true);
     const ids = Array.from(selected);
@@ -208,7 +208,7 @@ export default function SuperPoolsScreen() {
         style={[s.row, isSelected && s.rowSelected, isDeletion && s.rowDanger, isDanger && s.rowStorageDanger]}
         onPress={() => {
           if (multiSelect) { toggleSelect(item.id); return; }
-          router.push(`/(super)/operator-detail?id=${item.id}` as any);
+          router.push(`/(super)/operator-detail?id=${item.id}&backTo=pools` as any);
         }}
         onLongPress={() => { setMultiSelect(true); toggleSelect(item.id); }}>
 
@@ -279,7 +279,7 @@ export default function SuperPoolsScreen() {
             )}
             {!isPending && (
               <Pressable style={[s.actBtn, { backgroundColor: "#FFFFFF" }]}
-                onPress={() => router.push(`/(super)/operator-detail?id=${item.id}` as any)}>
+                onPress={() => router.push(`/(super)/operator-detail?id=${item.id}&backTo=pools` as any)}>
                 <Text style={[s.actTxt, { color: "#0F172A" }]}>상세</Text>
               </Pressable>
             )}

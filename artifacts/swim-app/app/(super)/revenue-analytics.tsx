@@ -272,7 +272,7 @@ export default function RevenueAnalyticsScreen() {
           ))
         )}
 
-        <Pressable style={st.linkBtn} onPress={() => router.push("/(super)/subscriptions" as any)}>
+        <Pressable style={st.linkBtn} onPress={() => router.push("/(super)/subscriptions?backTo=revenue-analytics" as any)}>
           <CreditCard size={14} color={P} />
           <Text style={[st.linkTxt, { color: P }]}>구독·결제 관리로 이동</Text>
           <ChevronRight size={14} color={P} />
