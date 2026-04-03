@@ -225,6 +225,11 @@ export default function MyInfoScreen() {
   const [savingChild, setSavingChild] = useState(false);
   const childNameInputRef = useRef<TextInput>(null);
 
+  // 자녀 추가(검색 연결) 상태
+  const [addChildName, setAddChildName] = useState("");
+  const [addingChild, setAddingChild] = useState(false);
+  const [addChildResult, setAddChildResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
   const loadMe = async () => {
     try {
       const r = await apiRequest(token, "/parent/me");
@@ -254,6 +259,34 @@ export default function MyInfoScreen() {
       }
     } catch { Alert.alert("오류", "네트워크 오류가 발생했습니다."); }
     finally { setSavingChild(false); }
+  }
+
+  // 자녀 이름으로 관리자 회원목록 검색 후 연결
+  async function linkChildByName() {
+    const trimmed = addChildName.trim();
+    if (!trimmed) { Alert.alert("자녀 이름을 입력해주세요."); return; }
+    const poolId = me?.swimming_pool_id;
+    if (!poolId) { Alert.alert("먼저 수영장을 연결해주세요."); return; }
+    setAddingChild(true);
+    setAddChildResult(null);
+    try {
+      const r = await apiRequest(token, "/parent/link-child", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ swimming_pool_id: poolId, child_name: trimmed }),
+      });
+      const d = await r.json();
+      if (d.status === "auto_approved") {
+        setAddChildResult({ ok: true, msg: `✓ ${d.student?.name ?? trimmed}이(가) 연결되었습니다!` });
+        setAddChildName("");
+        await refreshStudents?.();
+      } else if (d.status === "pending") {
+        setAddChildResult({ ok: false, msg: "일치하는 학생을 찾지 못했습니다. 관리자에게 이름 등록을 요청하세요." });
+      } else {
+        setAddChildResult({ ok: false, msg: d.message || "연결에 실패했습니다." });
+      }
+    } catch { setAddChildResult({ ok: false, msg: "네트워크 오류가 발생했습니다." }); }
+    finally { setAddingChild(false); }
   }
 
   // 표시할 수영장 정보: API > context pool > parentPoolName
@@ -340,81 +373,117 @@ export default function MyInfoScreen() {
             <InfoRow icon="calendar" label="가입일" value={formatDate(me?.created_at ?? null)} />
           </SectionCard>
 
-          {/* 자녀 정보 */}
-          <SectionCard title="등록된 자녀" icon="users">
-            {students.length === 0 ? (
-              <Text style={[s.emptyTxt, { color: C.textMuted }]}>연결된 자녀가 없습니다.</Text>
-            ) : (
-              students.map((st, i) => {
-                const isEditing = editingChildId === st.id;
-                return (
-                  <React.Fragment key={st.id}>
-                    {i > 0 && <View style={s.divider} />}
-                    <View style={s.childRow}>
-                      <View style={[s.childBadge, { backgroundColor: TEAL_BG }]}>
-                        <Text style={[s.childBadgeTxt, { color: TEAL }]}>
-                          {(isEditing ? editingChildName : st.name)?.[0] ?? "?"}
-                        </Text>
-                      </View>
+          {/* ── 자녀 연결 카드 ─────────────────────────────── */}
+          <View style={[s.card, { backgroundColor: C.card }]}>
+            {/* 카드 헤더 */}
+            <View style={s.cardHeader}>
+              <View style={[s.cardIconWrap, { backgroundColor: TEAL_BG }]}>
+                <LucideIcon name="users" size={15} color={TEAL} />
+              </View>
+              <Text style={[s.cardTitle, { color: C.text }]}>등록된 자녀</Text>
+            </View>
 
-                      {isEditing ? (
-                        /* ── 편집 모드 ── */
-                        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
-                          <TextInput
-                            ref={childNameInputRef}
-                            style={[s.childEditInput, { borderColor: TEAL, color: C.text }]}
-                            value={editingChildName}
-                            onChangeText={setEditingChildName}
-                            placeholder="자녀 이름"
-                            placeholderTextColor={C.textMuted}
-                            autoFocus
-                            returnKeyType="done"
-                            onSubmitEditing={() => saveChildName(st.id)}
-                          />
-                          {savingChild
-                            ? <ActivityIndicator size="small" color={TEAL} />
-                            : <>
-                                <Pressable
-                                  hitSlop={10}
-                                  onPress={() => saveChildName(st.id)}
-                                  style={[s.editAction, { backgroundColor: TEAL }]}
-                                >
-                                  <Check size={14} color="#fff" />
-                                </Pressable>
-                                <Pressable
-                                  hitSlop={10}
-                                  onPress={() => setEditingChildId(null)}
-                                  style={[s.editAction, { backgroundColor: "#EEE" }]}
-                                >
-                                  <X size={14} color={C.textMuted} />
-                                </Pressable>
-                              </>
-                          }
-                        </View>
-                      ) : (
-                        /* ── 표시 모드 ── */
-                        <View style={{ flex: 1 }}>
-                          <Text style={[s.childName, { color: C.text }]}>{st.name}</Text>
-                          {(st as any).class_name
-                            ? <Text style={[s.childSub, { color: C.textMuted }]}>{(st as any).class_name}</Text>
-                            : null}
-                        </View>
-                      )}
-
-                      {!isEditing && (
-                        <Pressable
-                          hitSlop={12}
-                          onPress={() => { setEditingChildId(st.id); setEditingChildName(st.name); }}
-                        >
-                          <Pencil size={15} color={TEAL} />
-                        </Pressable>
-                      )}
+            {/* 연결된 자녀 목록 */}
+            {students.map((st, i) => {
+              const isEditing = editingChildId === st.id;
+              return (
+                <React.Fragment key={st.id}>
+                  <View style={[s.divider, { marginBottom: 8 }]} />
+                  <View style={s.childRow}>
+                    <View style={[s.childBadge, { backgroundColor: TEAL_BG }]}>
+                      <Text style={[s.childBadgeTxt, { color: TEAL }]}>
+                        {(isEditing ? editingChildName : st.name)?.[0] ?? "?"}
+                      </Text>
                     </View>
-                  </React.Fragment>
-                );
-              })
+
+                    {isEditing ? (
+                      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <TextInput
+                          ref={childNameInputRef}
+                          style={[s.childEditInput, { borderColor: TEAL, color: C.text }]}
+                          value={editingChildName}
+                          onChangeText={setEditingChildName}
+                          placeholder="자녀 이름"
+                          placeholderTextColor={C.textMuted}
+                          autoFocus
+                          returnKeyType="done"
+                          onSubmitEditing={() => saveChildName(st.id)}
+                        />
+                        {savingChild
+                          ? <ActivityIndicator size="small" color={TEAL} />
+                          : <>
+                              <Pressable hitSlop={10} onPress={() => saveChildName(st.id)} style={[s.editAction, { backgroundColor: TEAL }]}>
+                                <Check size={14} color="#fff" />
+                              </Pressable>
+                              <Pressable hitSlop={10} onPress={() => setEditingChildId(null)} style={[s.editAction, { backgroundColor: "#EEE" }]}>
+                                <X size={14} color={C.textMuted} />
+                              </Pressable>
+                            </>
+                        }
+                      </View>
+                    ) : (
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.childName, { color: C.text }]}>{st.name}</Text>
+                        {(st as any).class_name
+                          ? <Text style={[s.childSub, { color: C.textMuted }]}>{(st as any).class_name}</Text>
+                          : null}
+                      </View>
+                    )}
+
+                    {!isEditing && (
+                      <Pressable hitSlop={12} onPress={() => { setEditingChildId(st.id); setEditingChildName(st.name); }}>
+                        <Pencil size={15} color={TEAL} />
+                      </Pressable>
+                    )}
+                  </View>
+                </React.Fragment>
+              );
+            })}
+
+            {/* 구분선 */}
+            {students.length > 0 && <View style={[s.divider, { marginVertical: 12 }]} />}
+
+            {/* 자녀 이름으로 회원목록 연결 */}
+            <Text style={[s.addChildLabel, { color: C.textSecondary }]}>
+              {students.length === 0 ? "자녀 이름을 입력해 회원목록과 연결하세요" : "추가 자녀 연결"}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              <TextInput
+                style={[s.addChildInput, { borderColor: C.border, backgroundColor: GRAY_BG, color: C.text }]}
+                value={addChildName}
+                onChangeText={v => { setAddChildName(v); setAddChildResult(null); }}
+                placeholder="자녀 이름 (관리자 등록 이름과 동일)"
+                placeholderTextColor={C.textMuted}
+                returnKeyType="done"
+                onSubmitEditing={linkChildByName}
+              />
+              <Pressable
+                style={({ pressed }) => [s.addChildBtn, { backgroundColor: TEAL, opacity: pressed ? 0.8 : 1 }]}
+                onPress={linkChildByName}
+                disabled={addingChild}
+              >
+                {addingChild
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={s.addChildBtnTxt}>연결</Text>
+                }
+              </Pressable>
+            </View>
+
+            {/* 연결 결과 */}
+            {addChildResult && (
+              <View style={[s.addChildResult, { backgroundColor: addChildResult.ok ? "#DCFCE7" : "#FEF2F2" }]}>
+                <Text style={[s.addChildResultTxt, { color: addChildResult.ok ? "#15803D" : "#DC2626" }]}>
+                  {addChildResult.msg}
+                </Text>
+              </View>
             )}
-          </SectionCard>
+
+            {!me?.swimming_pool_id && (
+              <Text style={[s.addChildNote, { color: "#F97316" }]}>
+                ⚠ 수영장을 먼저 연결해야 자녀를 검색할 수 있습니다
+              </Text>
+            )}
+          </View>
 
           {/* 수영장 정보 */}
           <SectionCard
@@ -535,6 +604,26 @@ const s = StyleSheet.create({
   editAction: {
     width: 28, height: 28, borderRadius: 8,
     alignItems: "center", justifyContent: "center",
+  },
+  addChildLabel: {
+    fontSize: 12, fontFamily: "Pretendard-Regular", marginBottom: 2,
+  },
+  addChildInput: {
+    flex: 1, borderWidth: 1, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 14, fontFamily: "Pretendard-Regular",
+  },
+  addChildBtn: {
+    borderRadius: 10, paddingHorizontal: 16,
+    alignItems: "center", justifyContent: "center", minWidth: 52,
+  },
+  addChildBtnTxt: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  addChildResult: {
+    borderRadius: 10, padding: 10, marginTop: 10,
+  },
+  addChildResultTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
+  addChildNote: {
+    fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 10, textAlign: "center",
   },
 
   editBtn: {
