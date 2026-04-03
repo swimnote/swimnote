@@ -62,7 +62,7 @@ function maskPhone(phone: string | null) {
 }
 
 export default function ParentsListScreen() {
-  const { token } = useAuth();
+  const { token, pool } = useAuth();
   const { themeColor } = useBrand();
 
   const [parents, setParents]       = useState<ParentRow[]>([]);
@@ -108,7 +108,7 @@ export default function ParentsListScreen() {
     <View style={s.root}>
       <SubScreenHeader
         title="학부모 명단"
-        subtitle={`전체 ${parents.length}명 · 앱 가입 ${appCount}명`}
+        subtitle={`${pool?.name ? pool.name + " · " : ""}전체 ${parents.length}명 · 앱 가입 ${appCount}명`}
       />
 
       {/* 검색 */}
