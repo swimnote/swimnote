@@ -254,7 +254,7 @@ export default function SettingsScreen() {
         {/* 문의하기 — 설정 최하단 */}
         <Pressable
           style={({ pressed }) => [s.inquiryBtn, { opacity: pressed ? 0.8 : 1 }]}
-          onPress={() => router.push("/support-ticket-list?backTo=settings" as any)}
+          onPress={() => router.push("/support-ticket-list" as any)}
         >
           <LucideIcon name="message-circle" size={16} color="#7C3AED" />
           <Text style={s.inquiryBtnText}>문의하기</Text>

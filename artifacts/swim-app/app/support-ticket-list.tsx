@@ -49,9 +49,27 @@ function relDate(iso: string) {
   return `${Math.floor(diff / 86400)}일 전`;
 }
 
+const HOME_MAP: Record<string, string> = {
+  pool_admin:     "/(admin)/dashboard",
+  sub_admin:      "/(admin)/dashboard",
+  teacher:        "/(teacher)/today-schedule",
+  parent:         "/(parent)/home",
+  parent_account: "/(parent)/home",
+};
+
 export default function SupportTicketListScreen() {
   const { token, kind, adminUser } = useAuth();
   const insets = useSafeAreaInsets();
+
+  function goHome() {
+    if (kind === "admin" && adminUser?.role) {
+      router.replace((HOME_MAP[adminUser.role] ?? "/(admin)/dashboard") as any);
+    } else if (kind === "parent") {
+      router.replace("/(parent)/home" as any);
+    } else {
+      router.replace("/(super)/dashboard" as any);
+    }
+  }
 
   const [tickets,    setTickets]    = useState<Ticket[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -107,7 +125,7 @@ export default function SupportTicketListScreen() {
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       <View style={s.header}>
-        <Pressable onPress={() => router.back()} style={s.backBtn}>
+        <Pressable onPress={goHome} style={s.backBtn}>
           <ChevronLeft size={24} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle}>내 문의 내역</Text>
